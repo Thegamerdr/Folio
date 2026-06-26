@@ -24,6 +24,7 @@ import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import type { LocalRoutePoint, LocalRouteSummary } from '../../local/localLedger';
 import { Body, CheckGlyph, Eyebrow, gap, magnitude, money, paper } from './kit';
+import { MeloPresence } from './melo';
 import { routeHasMeaningfulPath } from './routeMath';
 
 export { routeHasMeaningfulPath };
@@ -288,7 +289,7 @@ export function MoneyPath({
                 {lowest.point.balanceMinor < 0 ? 'Lowest point — short' : 'Lowest point'}
               </Text>
               <Text style={styles.lowestValue}>{money(lowest.point.balanceMinor)}</Text>
-              <Text style={styles.lowestDay}>{lowest.point.label}</Text>
+              <Text style={styles.lowestDay}>{lowestDayLabel(lowest.point)}</Text>
             </View>
           ) : null}
         </View>
@@ -301,6 +302,17 @@ function lowestCalloutAlign(x: number, width: number) {
   if (x < width * 0.33) return { left: PAD_X };
   if (x > width * 0.66) return { right: PAD_X };
   return { left: Math.max(PAD_X, x - 60) };
+}
+
+// The callout's day line names *when* the lowest point lands. A bare "Today" here would
+// duplicate the corner "Today" header and read as a second, contradicting figure — so when
+// the lowest point sits on today we name what causes the dip instead of repeating the day.
+function lowestDayLabel(point: LocalRoutePoint): string {
+  if (point.label !== 'Today') return point.label;
+  if (point.deltaMinor < 0 || point.pointKind === 'commitment' || point.pointKind === 'shortfall') {
+    return 'after bills are set aside';
+  }
+  return 'where you stand now';
 }
 
 // A spoken summary of the route for screen readers. The path itself is a picture, so
@@ -378,6 +390,12 @@ export function PointExplanation({
             <Text accessibilityRole="header" style={styles.sheetTitle}>
               {point.title}
             </Text>
+            <MeloPresence
+              line={`This ${point.deltaMinor < 0 ? 'drop' : 'rise'} is ${point.title.toLowerCase()}.`}
+              size="sm"
+              state="melo_path_explaining"
+              style={styles.sheetMelo}
+            />
             <View style={styles.sheetRows}>
               <ExplainRow label="Left after this" value={money(point.balanceMinor)} strong />
               {cause ? <ExplainRow label={cause.label} value={cause.value} /> : null}
@@ -498,6 +516,7 @@ const styles = StyleSheet.create({
     marginBottom: gap.lg,
   },
   sheetTitle: { color: paper.ink, fontSize: 24, fontWeight: '800', letterSpacing: -0.3 },
+  sheetMelo: { marginTop: gap.md },
   sheetRows: { marginTop: gap.lg, gap: 2 },
   explainRow: {
     flexDirection: 'row',

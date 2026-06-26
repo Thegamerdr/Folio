@@ -98,14 +98,14 @@ export function DataControlScreen({
         />
         {showSaved ? (
           <Surface style={styles.saved} tone="sunken">
-            <SavedRow label="Things you've added" value={String(route.confirmedTransactionCount)} />
+            <SavedRow label="Files saved for reference" value="On this device" />
             <Hairline />
-            <SavedRow label="Waiting for you to check" value={String(route.pendingReviewCount)} />
+            <SavedRow label="Rows added" value={String(route.confirmedTransactionCount)} />
             <Hairline />
-            <SavedRow label="Kept aside" value={String(route.protectedItems.length)} />
-            <Muted style={styles.savedNote}>
-              Nothing else is stored, and none of it leaves your phone.
-            </Muted>
+            <SavedRow label="Rows waiting" value={String(route.pendingReviewCount)} />
+            <Hairline />
+            <SavedRow label="Kept aside for you" value={String(route.protectedItems.length)} />
+            <Muted style={styles.savedNote}>Nothing leaves unless you export it.</Muted>
           </Surface>
         ) : null}
       </View>
