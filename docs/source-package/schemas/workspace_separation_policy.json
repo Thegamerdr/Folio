@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "rule": "same_engine_different_worlds",
+  "personal": {
+    "default": true,
+    "businessTablesAllowed": false
+  },
+  "business": {
+    "optional": true,
+    "separateSubkey": true,
+    "separateNavigation": true,
+    "separateMeloMemory": true,
+    "separateCalendar": true,
+    "separateReports": true,
+    "separateSearchDefault": true
+  },
+  "crossWorkspace": {
+    "automatic": false,
+    "review": true,
+    "audit": true,
+    "reversible": true,
+    "allowedRelations": [
+      "owner_contribution",
+      "owner_draw",
+      "reimbursement",
+      "loan_between_owner_and_business"
+    ]
+  },
+  "taxExport": {
+    "workspaceKind": "business",
+    "rejectPersonalEntityIds": true
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "version": "1.0.0",
+  "sourceOfTruth": "local_encrypted_vault",
+  "serverCanDecrypt": false,
+  "entities": {
+    "transaction": {
+      "policy": "preserve_both_then_reconcile",
+      "never": "last_write_wins_amount"
+    },
+    "event": {
+      "policy": "field_merge_or_review"
+    },
+    "plan": {
+      "policy": "merge_non_overlapping_else_review"
+    },
+    "recurring_rule": {
+      "policy": "review_schedule_or_amount_conflict"
+    },
+    "task": {
+      "policy": "completion_monotonic_unless_explicit_reopen"
+    },
+    "document": {
+      "policy": "content_hash_dedup_keep_metadata_conflicts"
+    },
+    "workspace_assignment": {
+      "policy": "always_manual_review"
+    },
+    "delete": {
+      "policy": "tombstone_grace_then_compact"
+    }
+  },
+  "operationEnvelope": {
+    "idempotencyKey": true,
+    "entityVersion": "hybrid_logical_clock",
+    "encrypted": true,
+    "appendOnly": true
+  },
+  "deviceRevocation": {
+    "rotateFutureSyncKey": true,
+    "retainLocalOnlyOnRevokedDevice": true
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@folio/plan-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@folio/calendar-engine": "workspace:*",
+    "@folio/domain": "workspace:*",
+    "@folio/finance-engine": "workspace:*"
+  }
+}

@@ -1,0 +1,5 @@
+25 Jun Tesco -42.00
+26 Jun Salary 1200.00
+27 Jun Rent -750.00
+28 Jun Greenfern Cafe -5.20
+29 Jun Brightline Energy -72.40

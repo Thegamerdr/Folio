@@ -1,0 +1,32 @@
+# Release Compatibility Matrix
+
+## Baseline
+
+| Area               | Current decision                                                          | Evidence                                                                       | Status                                                                        |
+| ------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Node.js            | 24.x LTS family                                                           | Local toolchain: `v24.16.0`                                                    | Accepted for Phase 0                                                          |
+| pnpm               | 11.x                                                                      | Local toolchain: `11.5.2`                                                      | Accepted for Phase 0                                                          |
+| TypeScript         | 5.9.x frozen in lockfile                                                  | `package.json`, `pnpm-lock.yaml`                                               | Accepted for Phase 0                                                          |
+| Mobile runtime     | Expo SDK 56 development build, not Expo Go                                | ADR 0003, `docs/release-evidence/C13-business-workspace.md`                    | Android build/install passes; Phase 13 preview works via emulator host bridge |
+| Figma evidence     | Design evidence mirrors repo tokens/screens; repo remains source of truth | `https://www.figma.com/design/JAVKDl1EBaDWfAKFnkE0n2?node-id=18-2`             | Accepted through Phase 13 review evidence                                     |
+| Database           | OP-SQLite 17.0.0 with SQLCipher, FTS5 and WAL behind `DatabaseDriver`     | ADR 0004, `docs/release-evidence/C1-native-risk-spikes.md`                     | Android accepted; iOS blocked on macOS/EAS                                    |
+| Storage layer      | Pure `@folio/storage` abstractions before native driver binding           | `docs/release-evidence/C3-storage-foundation.md`                               | Accepted for Phase 3                                                          |
+| First-minute shell | Pure `@folio/first-minute` model rendered by Expo development build       | ADR 0005, `docs/release-evidence/C4-mobile-first-60-seconds.md`                | Accepted for first value; vault security blocked                              |
+| Import engine      | Pure `@folio/import-engine` parser/review/indexing contracts              | ADR 0006, `docs/release-evidence/C5-import-review-indexing.md`                 | Pure contracts accepted; native staging/OCR blocked                           |
+| Import commit      | Storage command-bus evidence for search/jobs/audit atomicity              | ADR 0006, `packages/storage/test/import-commit.test.ts`                        | Accepted as evidence; real vault row writes blocked                           |
+| Daily loop         | Pure `@folio/today-engine` and mobile synthetic shell                     | ADR 0007, `docs/release-evidence/C6-today-timeline-calendar-transactions.md`   | Pure/shell contracts accepted; real-data/native E2E blocked                   |
+| Local search       | Pure `@folio/search-engine` workspace-scoped index/query contract         | ADR 0007, `packages/search-engine/test/search-engine.test.ts`                  | Accepted as deterministic local contract                                      |
+| Melo policy        | Pure `@folio/melo-policy` deterministic intent/proposal/language contract | ADR 0008, `docs/release-evidence/C7-melo-deterministic-system.md`              | Model-off core accepted; voice/vault/legal/manual a11y blocked                |
+| Plans/recovery     | Pure `@folio/plan-engine` deterministic plan/rebase/fun contracts         | ADR 0009, `docs/release-evidence/C8-plans-progress-fun-recovery.md`            | Pure/shell contracts accepted; vault/native/manual a11y blocked               |
+| Release readiness  | Pure `@folio/release-readiness` security/export/local-launch contracts    | ADR 0010, `docs/release-evidence/C9-security-export-local-launch-readiness.md` | Pure/shell contracts accepted; native storage/reviews/drills/beta blocked     |
+| Cloud sync         | Pure `@folio/sync` optional-cloud/recovery/envelope contracts             | ADR 0011, `docs/release-evidence/C10-cloud-account-encrypted-backup-sync.md`   | Pure/shell contracts accepted; cloud/native/review/beta blocked               |
+| Optional AI        | Pure `@folio/ai-contracts` registry/gateway/context/quota/eval contracts  | ADR 0012, `docs/release-evidence/C11-optional-ai.md`                           | Pure/shell contracts accepted; provider/gateway/privacy/eval/beta blocked     |
+| Open Banking       | Pure `@folio/open-banking` provider/consent/staging/revocation contracts  | ADR 0013, `docs/release-evidence/C12-open-banking.md`                          | Pure/shell contracts accepted; provider/legal/pilot/rollout blocked           |
+| Business workspace | Pure `@folio/business-workspace` clients/invoices/tax/export contracts    | ADR 0014, `docs/release-evidence/C13-business-workspace.md`                    | Pure/shell contracts accepted; tax/legal/entitlement/support/beta blocked     |
+| Store release      | Pure `@folio/store-release` store/billing/operations/launch contracts     | ADR 0015, `docs/release-evidence/C14-store-billing-operations-release.md`      | Pure/shell contracts accepted; store/billing/legal/security/launch blocked    |
+| Release gate       | Pure `@folio/release-gate` blocker register and public-release guard      | ADR 0016, `docs/release-evidence/R0-public-release-blocker-gate.md`            | Implementation backlog complete; public release intentionally blocked         |
+| OTA policy         | Disabled or tightly gated until native/schema compatibility is proven     | ADR 0004                                                                       | Accepted as disabled/gated for Phase 1                                        |
+
+## Rule
+
+No OTA, schema, database, crypto or native-module change can ship without updating this matrix and the matching ADR/evidence record.

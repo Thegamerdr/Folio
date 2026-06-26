@@ -1,0 +1,6 @@
+Date	Description	Amount
+2026-06-02	Willowbrook Diner	-18.50
+2026-06-05	Salary - Marlowe Studios	1850.00
+2026-06-07	Cedar Mobile Airtime	-15.00
+2026-06-10	Stonebridge Hardware	-44.30
+2026-06-13	Harbourview Rent	-695.00

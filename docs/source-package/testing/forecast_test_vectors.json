@@ -1,0 +1,501 @@
+{
+  "version": "1.0.0",
+  "moneyUnit": "minor_units",
+  "tieBreakOrder": [
+    "posted_actual",
+    "confirmed_manual",
+    "protected_outflow",
+    "other_outflow",
+    "inflow",
+    "inferred"
+  ],
+  "cases": [
+    {
+      "id": "F001_basic_before_payday",
+      "purpose": "Calculate boundary while preserving known obligations and floor",
+      "asOf": "2026-06-20",
+      "mode": "expected",
+      "accounts": {
+        "main": 100000
+      },
+      "protectedFloorMinor": 10000,
+      "nextIncomeDate": "2026-06-26",
+      "occurrences": [
+        {
+          "id": "rent",
+          "date": "2026-06-22",
+          "amountMinor": -73500,
+          "certainty": "confirmed",
+          "protected": true
+        },
+        {
+          "id": "utility",
+          "date": "2026-06-24",
+          "amountMinor": -9500,
+          "certainty": "confirmed",
+          "protected": true
+        },
+        {
+          "id": "salary",
+          "date": "2026-06-26",
+          "amountMinor": 58500,
+          "certainty": "expected",
+          "protected": false
+        }
+      ],
+      "expected": {
+        "availableBeforeNextIncomeMinor": 7000,
+        "minimumBeforeIncomeMinor": 17000,
+        "closingOnNextIncomeDateMinor": 75500
+      }
+    },
+    {
+      "id": "F002_pending_replaced_by_posted",
+      "purpose": "Do not double count a pending transaction replaced by posted",
+      "asOf": "2026-06-20",
+      "mode": "known",
+      "accounts": {
+        "main": 100000
+      },
+      "occurrences": [
+        {
+          "id": "pending-grocery",
+          "date": "2026-06-20",
+          "amountMinor": -5000,
+          "status": "pending",
+          "replacedBy": "posted-grocery",
+          "certainty": "reported"
+        },
+        {
+          "id": "posted-grocery",
+          "date": "2026-06-21",
+          "amountMinor": -5000,
+          "status": "posted",
+          "replaces": "pending-grocery",
+          "certainty": "confirmed"
+        }
+      ],
+      "expected": {
+        "countedIds": [
+          "posted-grocery"
+        ],
+        "closingMinor": 95000
+      }
+    },
+    {
+      "id": "F003_transfer_is_net_neutral",
+      "purpose": "Linked account transfer changes location but not consolidated position",
+      "asOf": "2026-06-20",
+      "accounts": {
+        "current": 100000,
+        "savings": 20000
+      },
+      "occurrences": [
+        {
+          "id": "transfer-out",
+          "account": "current",
+          "date": "2026-06-21",
+          "amountMinor": -30000,
+          "transferLink": "t1"
+        },
+        {
+          "id": "transfer-in",
+          "account": "savings",
+          "date": "2026-06-21",
+          "amountMinor": 30000,
+          "transferLink": "t1"
+        }
+      ],
+      "expected": {
+        "accountClosing": {
+          "current": 70000,
+          "savings": 50000
+        },
+        "consolidatedClosingMinor": 120000,
+        "incomeMinor": 0,
+        "spendingMinor": 0
+      }
+    },
+    {
+      "id": "F004_actual_overrides_expected_rent",
+      "purpose": "Actual fact fulfils expectation without mutating historical rule",
+      "asOf": "2026-06-22",
+      "accounts": {
+        "main": 100000
+      },
+      "expectations": [
+        {
+          "id": "rent-rule-occurrence",
+          "date": "2026-06-22",
+          "amountMinor": -73500,
+          "reference": "RENT"
+        }
+      ],
+      "occurrences": [
+        {
+          "id": "rent-actual",
+          "date": "2026-06-22",
+          "amountMinor": -73800,
+          "status": "posted",
+          "reference": "RENT",
+          "certainty": "confirmed",
+          "fulfils": "rent-rule-occurrence"
+        }
+      ],
+      "expected": {
+        "countedIds": [
+          "rent-actual"
+        ],
+        "closingMinor": 26200,
+        "varianceMinor": -300,
+        "questionType": "recurring_amount_variance"
+      }
+    },
+    {
+      "id": "F005_uncertain_overtime_excluded",
+      "purpose": "Conservative forecast excludes unconfirmed variable income",
+      "asOf": "2026-06-20",
+      "mode": "expected",
+      "accounts": {
+        "main": 40000
+      },
+      "protectedFloorMinor": 5000,
+      "nextIncomeDate": "2026-06-27",
+      "occurrences": [
+        {
+          "id": "essential",
+          "date": "2026-06-23",
+          "amountMinor": -35000,
+          "certainty": "confirmed",
+          "protected": true
+        },
+        {
+          "id": "overtime",
+          "date": "2026-06-25",
+          "amountMinor": 20000,
+          "certainty": "inferred",
+          "protected": false
+        },
+        {
+          "id": "base-pay",
+          "date": "2026-06-27",
+          "amountMinor": 50000,
+          "certainty": "expected",
+          "protected": false
+        }
+      ],
+      "expected": {
+        "availableBeforeNextIncomeMinor": 0,
+        "minimumBeforeIncomeMinor": 5000,
+        "excludedIds": [
+          "overtime"
+        ],
+        "closingOnNextIncomeDateMinor": 55000
+      }
+    },
+    {
+      "id": "F006_debt_payment_boundary",
+      "purpose": "Scenario finds maximum extra payment without choosing for user",
+      "asOf": "2026-06-20",
+      "accounts": {
+        "main": 80000
+      },
+      "protectedFloorMinor": 20000,
+      "nextIncomeDate": "2026-06-27",
+      "occurrences": [
+        {
+          "id": "known-bills",
+          "date": "2026-06-24",
+          "amountMinor": -40000,
+          "certainty": "confirmed",
+          "protected": true
+        }
+      ],
+      "scenario": {
+        "type": "debt_payment",
+        "date": "2026-06-20",
+        "amountMinor": -30000
+      },
+      "expected": {
+        "scenarioSafe": false,
+        "shortfallToFloorMinor": 10000,
+        "maximumScenarioOutflowMinor": 20000
+      }
+    },
+    {
+      "id": "F007_overdue_obligation_stays_visible",
+      "purpose": "Past due unpaid obligation remains protected and urgent",
+      "asOf": "2026-06-20",
+      "accounts": {
+        "main": 30000
+      },
+      "protectedFloorMinor": 5000,
+      "expectations": [
+        {
+          "id": "bill",
+          "date": "2026-06-18",
+          "amountMinor": -10000,
+          "certainty": "confirmed",
+          "protected": true,
+          "fulfilled": false
+        }
+      ],
+      "expected": {
+        "eventState": "missed",
+        "effectiveForecastDate": "2026-06-20",
+        "availableMinor": 15000,
+        "severity": "important"
+      }
+    },
+    {
+      "id": "F008_workspace_isolation",
+      "purpose": "Personal query cannot include business cash",
+      "asOf": "2026-06-20",
+      "workspaces": {
+        "personal": {
+          "accounts": {
+            "p": 100000
+          }
+        },
+        "business": {
+          "accounts": {
+            "b": 200000
+          }
+        }
+      },
+      "expected": {
+        "personalPositionMinor": 100000,
+        "businessPositionMinor": 200000,
+        "allSpacesPositionUnavailableByDefault": true
+      }
+    },
+    {
+      "id": "F009_multi_currency_no_silent_sum",
+      "purpose": "Different currencies require an explicit rate",
+      "asOf": "2026-06-20",
+      "accounts": {
+        "gbp": {
+          "minor": 100000,
+          "currency": "GBP"
+        },
+        "eur": {
+          "minor": 50000,
+          "currency": "EUR"
+        }
+      },
+      "expected": {
+        "withoutRate": {
+          "consolidated": null,
+          "reason": "conversion_required"
+        },
+        "withRate": {
+          "rate": "0.850000",
+          "rateAt": "2026-06-20T12:00:00Z",
+          "consolidatedGBPMinor": 142500
+        }
+      }
+    },
+    {
+      "id": "F010_dst_recurrence_local_time",
+      "purpose": "Weekly event remains at 09:00 Europe/London across DST",
+      "rule": {
+        "dtstart": "2026-03-22T09:00:00",
+        "timeZone": "Europe/London",
+        "rrule": "FREQ=WEEKLY;COUNT=2"
+      },
+      "expected": {
+        "occurrences": [
+          {
+            "local": "2026-03-22T09:00:00",
+            "utc": "2026-03-22T09:00:00Z"
+          },
+          {
+            "local": "2026-03-29T09:00:00",
+            "utc": "2026-03-29T08:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F011_positive_budget_rollover",
+      "purpose": "Explicit positive rollover augments next period",
+      "budget": {
+        "allocationMinor": 30000,
+        "postedSpendingMinor": 25000,
+        "rolloverPolicy": "positive"
+      },
+      "expected": {
+        "currentRemainingMinor": 5000,
+        "nextBaseAllocationMinor": 30000,
+        "nextEffectiveAllocationMinor": 35000
+      }
+    },
+    {
+      "id": "F012_no_budget_rollover",
+      "purpose": "No rollover discards unused allocation from control calculation",
+      "budget": {
+        "allocationMinor": 30000,
+        "postedSpendingMinor": 25000,
+        "rolloverPolicy": "none"
+      },
+      "expected": {
+        "currentRemainingMinor": 5000,
+        "nextEffectiveAllocationMinor": 30000
+      }
+    },
+    {
+      "id": "F013_plan_rebase_after_unexpected_cost",
+      "purpose": "Plan history is retained and projected completion moves",
+      "plan": {
+        "targetMinor": 120000,
+        "currentMinor": 0,
+        "monthlyContributionMinor": 20000,
+        "startDate": "2026-07-01",
+        "originalCompletionDate": "2026-12-31"
+      },
+      "unexpected": {
+        "date": "2026-08-15",
+        "reducesAugustContributionByMinor": 10000
+      },
+      "expected": {
+        "status": "active",
+        "newProjectedCompletionDate": "2027-01-31",
+        "versionIncrement": 1,
+        "label": "rebased",
+        "failed": false
+      }
+    },
+    {
+      "id": "F014_posted_reversal",
+      "purpose": "A reversal neutralises the reversed posted movement without deletion",
+      "accounts": {
+        "main": 100000
+      },
+      "occurrences": [
+        {
+          "id": "charge",
+          "date": "2026-06-20",
+          "amountMinor": -12000,
+          "status": "posted"
+        },
+        {
+          "id": "reversal",
+          "date": "2026-06-22",
+          "amountMinor": 12000,
+          "status": "posted",
+          "reversalOf": "charge"
+        }
+      ],
+      "expected": {
+        "closingMinor": 100000,
+        "spendingNetMinor": 0,
+        "historyContainsBoth": true
+      }
+    },
+    {
+      "id": "F015_minimum_balance_occurs_mid_period",
+      "purpose": "Boundary uses lowest point, not final balance",
+      "accounts": {
+        "main": 100000
+      },
+      "protectedFloorMinor": 10000,
+      "nextIncomeDate": "2026-06-30",
+      "occurrences": [
+        {
+          "id": "large-bill",
+          "date": "2026-06-22",
+          "amountMinor": -85000,
+          "protected": true,
+          "certainty": "confirmed"
+        },
+        {
+          "id": "refund",
+          "date": "2026-06-25",
+          "amountMinor": 40000,
+          "certainty": "expected"
+        }
+      ],
+      "expected": {
+        "minimumBeforeIncomeMinor": 15000,
+        "availableBeforeNextIncomeMinor": 5000,
+        "closingBeforeIncomeMinor": 55000
+      }
+    },
+    {
+      "id": "F016_same_day_tie_break_protected_first",
+      "purpose": "Stable ordering exposes intraday risk even when income is same date",
+      "accounts": {
+        "main": 10000
+      },
+      "protectedFloorMinor": 0,
+      "occurrences": [
+        {
+          "id": "rent",
+          "date": "2026-06-22",
+          "amountMinor": -15000,
+          "protected": true,
+          "certainty": "confirmed"
+        },
+        {
+          "id": "pay",
+          "date": "2026-06-22",
+          "amountMinor": 20000,
+          "certainty": "expected"
+        }
+      ],
+      "expected": {
+        "lowestMinor": -5000,
+        "closingMinor": 15000,
+        "riskDetected": true
+      }
+    },
+    {
+      "id": "F017_floor_is_user_policy_not_advice",
+      "purpose": "Changing protected floor changes boundary and is attributed to user policy",
+      "accounts": {
+        "main": 60000
+      },
+      "occurrences": [
+        {
+          "id": "bills",
+          "date": "2026-06-23",
+          "amountMinor": -30000,
+          "protected": true
+        }
+      ],
+      "variants": [
+        {
+          "floorMinor": 0,
+          "expectedAvailableMinor": 30000
+        },
+        {
+          "floorMinor": 10000,
+          "expectedAvailableMinor": 20000
+        },
+        {
+          "floorMinor": 25000,
+          "expectedAvailableMinor": 5000
+        }
+      ]
+    },
+    {
+      "id": "F018_hypothetical_never_commits",
+      "purpose": "Scenario output does not affect actual forecast until conversion",
+      "accounts": {
+        "main": 100000
+      },
+      "scenario": {
+        "id": "s1",
+        "change": {
+          "date": "2026-06-21",
+          "amountMinor": -25000
+        }
+      },
+      "expected": {
+        "actualClosingMinor": 100000,
+        "scenarioClosingMinor": 75000,
+        "domainTransactionCreated": false
+      }
+    }
+  ]
+}

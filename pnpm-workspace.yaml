@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+  - services/*
+
+nodeLinker: hoisted
+
+onlyBuiltDependencies:
+  - dtrace-provider
+  - esbuild
+allowBuilds:
+  dtrace-provider: true
+  esbuild: true
+patchedDependencies:
+  '@react-native/gradle-plugin@0.85.3': patches/@react-native__gradle-plugin@0.85.3.patch

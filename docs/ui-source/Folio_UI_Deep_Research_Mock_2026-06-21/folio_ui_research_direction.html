@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Folio UI — Deep Research Direction</title>
+<style>
+  @page { size: 3200px 1800px; margin: 0; }
+  *{box-sizing:border-box}
+  :root{
+    --board:#101713;
+    --board2:#172018;
+    --paper:#F7F6F1;
+    --paper2:#FBFAF7;
+    --ink:#18231D;
+    --muted:#69736C;
+    --line:#D9DDD8;
+    --green:#2E7D67;
+    --green2:#DDEFE7;
+    --green3:#B8DACD;
+    --amber:#D99A28;
+    --amber2:#F6E7C2;
+    --coral:#D96D59;
+    --coral2:#F6DDD7;
+    --blue:#5E7E8B;
+    --shadow:0 24px 70px rgba(0,0,0,.34);
+  }
+  html,body{margin:0;width:3200px;height:1800px;overflow:hidden;background:var(--board);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:white}
+  body{background:
+    radial-gradient(circle at 8% 0%,rgba(63,126,99,.22),transparent 30%),
+    radial-gradient(circle at 94% 8%,rgba(141,114,61,.17),transparent 29%),
+    linear-gradient(135deg,#101914 0%,#101512 54%,#1A1A14 100%)}
+  .board{padding:62px 72px 50px;width:100%;height:100%;position:relative}
+  .eyebrow{font-size:15px;letter-spacing:.22em;font-weight:760;color:#92C6B2;text-transform:uppercase;margin-bottom:18px}
+  h1{font-size:56px;line-height:1.02;letter-spacing:-.045em;margin:0;max-width:1520px;font-weight:760}
+  .subtitle{font-size:22px;line-height:1.5;color:#B8C3BC;max-width:1450px;margin-top:17px}
+  .research-note{position:absolute;right:78px;top:84px;width:560px;border-left:1px solid rgba(255,255,255,.18);padding-left:24px;font-size:17px;line-height:1.55;color:#C7CEC9}
+  .research-note b{color:white}
+  .screens{display:flex;gap:48px;margin-top:56px;align-items:flex-start;justify-content:center}
+  .screen-wrap{width:430px}
+  .screen-label{font-size:16px;color:#D8DFDB;text-align:center;margin-bottom:15px;font-weight:650;letter-spacing:.01em}
+  .screen-label span{color:#8EA49A;font-weight:500}
+  .phone{width:430px;height:1030px;border-radius:58px;background:#050706;padding:13px;box-shadow:var(--shadow);position:relative}
+  .phone.android{border-radius:48px;padding:10px}
+  .device{height:100%;width:100%;border-radius:47px;background:var(--paper);overflow:hidden;color:var(--ink);position:relative}
+  .android .device{border-radius:40px}
+  .notch{position:absolute;z-index:9;top:0;left:50%;transform:translateX(-50%);width:150px;height:33px;background:#050706;border-radius:0 0 20px 20px}
+  .android .notch{width:14px;height:14px;border-radius:50%;top:12px;background:#111;box-shadow:0 0 0 3px rgba(255,255,255,.15)}
+  .status{height:47px;padding:15px 22px 0;display:flex;justify-content:space-between;font-size:12px;font-weight:720;position:relative;z-index:4}
+  .android .status{padding-top:12px}
+  .icons{letter-spacing:1.5px;font-size:11px}
+  .app{height:calc(100% - 47px);padding:0 23px 92px;overflow:hidden;position:relative}
+  .android .app{padding:0 21px 88px}
+  .topbar{height:54px;display:flex;align-items:center;justify-content:space-between}
+  .workspace{border:1px solid var(--line);border-radius:22px;padding:8px 12px;background:rgba(255,255,255,.65);font-size:12px;font-weight:750;display:inline-flex;gap:6px;align-items:center}
+  .round-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;background:rgba(255,255,255,.7);font-size:18px}
+  .melo-row{display:flex;align-items:center;gap:11px;margin:8px 0 16px}
+  .melo-avatar{width:40px;height:40px;border-radius:14px;background:var(--ink);color:white;display:grid;place-items:center;font-weight:850;font-size:15px;position:relative;flex:none}
+  .melo-avatar:before,.melo-avatar:after{content:"";position:absolute;top:12px;width:4px;height:5px;border-radius:50%;background:white;opacity:.9}
+  .melo-avatar:before{left:12px}.melo-avatar:after{right:12px}
+  .melo-avatar i{position:absolute;width:12px;height:5px;border-bottom:2px solid white;border-radius:0 0 12px 12px;bottom:9px}
+  .melo-copy{font-size:13px;line-height:1.3;color:var(--muted)}
+  .melo-copy b{display:block;color:var(--ink);font-size:15px;margin-bottom:2px}
+  .hero-title{font-size:36px;line-height:1.03;letter-spacing:-.045em;font-weight:770;margin:0 0 17px}
+  .hero-title.small{font-size:31px}
+  .amount{font-size:65px;line-height:.95;letter-spacing:-.055em;font-weight:760;font-variant-numeric:tabular-nums;margin-top:4px}
+  .amount-meta{display:flex;align-items:center;justify-content:space-between;margin:7px 0 18px;color:var(--muted);font-size:13px}
+  .certainty{font-size:11px;color:var(--green);font-weight:720;border-bottom:1px dotted var(--green)}
+  .horizon{height:154px;position:relative;margin:0 -4px 8px}
+  .horizon svg{position:absolute;inset:10px 0 0;width:100%;height:110px}
+  .horizon .axis{position:absolute;left:3px;right:3px;bottom:2px;display:flex;justify-content:space-between;color:#7E8881;font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.05em}
+  .tight-label{position:absolute;left:41%;top:8px;padding:5px 7px;background:var(--amber2);color:#805810;border-radius:8px;font-size:10px;font-weight:760;transform:translateX(-50%)}
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin:19px 0 7px}
+  .section-head h3{font-size:16px;margin:0;letter-spacing:-.015em}
+  .section-head a{font-size:11px;color:var(--green);font-weight:700}
+  .event-row{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+  .event-row:first-of-type{border-top:0}
+  .event-icon{width:31px;height:31px;border-radius:10px;background:#E9ECE8;display:grid;place-items:center;font-size:14px;font-weight:800}
+  .event-icon.ok{background:var(--green2);color:var(--green)}
+  .event-icon.attn{background:var(--amber2);color:#996A15}
+  .event-title{font-size:13px;font-weight:720}
+  .event-sub{font-size:10px;color:var(--muted);margin-top:3px}
+  .event-value{text-align:right;font-size:12px;font-weight:720}
+  .event-value small{display:block;color:var(--muted);font-size:9px;font-weight:520;margin-top:3px}
+  .melo-strip{background:var(--green2);border-radius:16px;padding:13px 14px;display:flex;gap:11px;align-items:center;margin-top:12px}
+  .melo-strip .melo-avatar{width:31px;height:31px;border-radius:10px;font-size:10px}
+  .melo-strip .melo-avatar:before,.melo-strip .melo-avatar:after{top:9px;width:3px;height:4px}.melo-strip .melo-avatar:before{left:9px}.melo-strip .melo-avatar:after{right:9px}.melo-strip .melo-avatar i{bottom:6px;width:9px}
+  .melo-strip p{margin:0;font-size:11px;line-height:1.42;flex:1}
+  .chev{font-size:17px}
+  .tabs{position:absolute;left:0;right:0;bottom:0;height:80px;border-top:1px solid var(--line);background:rgba(250,249,245,.96);display:flex;align-items:flex-start;justify-content:space-around;padding-top:11px;backdrop-filter:blur(10px)}
+  .tab{width:62px;text-align:center;color:#7C857F;font-size:9px;font-weight:650}
+  .tab .ico{width:24px;height:24px;margin:0 auto 5px;border-radius:8px;display:grid;place-items:center;font-size:14px}
+  .tab.active{color:var(--green)}
+  .tab.active .ico{background:var(--green2)}
+  .tab.melo .ico{width:38px;height:38px;border-radius:14px;background:var(--ink);color:#fff;margin-top:-7px;margin-bottom:1px}
+  .android .tabs{height:76px;padding:10px 20px 0;border-top:0;background:#EEF1EC;border-radius:24px 24px 0 0}
+  .android .tab.active .ico{width:50px;border-radius:18px}
+  .android .tab.melo .ico{border-radius:50%;width:42px;height:42px;margin-top:-10px;box-shadow:0 6px 16px rgba(24,35,29,.24)}
+
+  /* calendar */
+  .calendar-head{display:flex;justify-content:space-between;align-items:flex-end;margin:6px 0 17px}
+  .calendar-head h2{font-size:31px;margin:0;letter-spacing:-.04em}
+  .calendar-head span{font-size:12px;color:var(--muted)}
+  .week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:18px}
+  .day{text-align:center;padding:9px 2px 8px;border-radius:13px;min-height:64px}
+  .day b{display:block;font-size:10px;color:var(--muted);font-weight:660;margin-bottom:7px}
+  .day strong{font-size:16px}
+  .day.sel{background:var(--ink);color:white}.day.sel b{color:#BFC9C2}
+  .dot{width:5px;height:5px;border-radius:50%;background:var(--coral);margin:6px auto 0}.day.sel .dot{background:#F4C35B}
+  .agenda-date{font-size:12px;color:var(--muted);margin:2px 0 4px}
+  .agenda-title{font-size:23px;margin:0 0 8px;letter-spacing:-.03em}
+  .timeline{position:relative;margin-left:6px;padding-left:28px}
+  .timeline:before{content:"";position:absolute;left:11px;top:17px;bottom:15px;width:1px;background:#C9CEC9}
+  .agenda-row{position:relative;display:grid;grid-template-columns:49px 1fr auto;gap:9px;align-items:start;padding:13px 0;border-bottom:1px solid var(--line)}
+  .agenda-row:before{content:"";position:absolute;left:-22px;top:18px;width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px var(--paper)}
+  .agenda-row.warn:before{background:var(--amber)}
+  .agenda-row.life:before{background:var(--blue)}
+  .time{font-size:10px;color:var(--muted);padding-top:3px}
+  .agenda-row b{font-size:13px;display:block}.agenda-row small{font-size:10px;color:var(--muted);display:block;margin-top:3px;line-height:1.35}
+  .tag{font-size:9px;border-radius:8px;padding:5px 7px;background:#E8ECE9;color:#59645D;font-weight:700}
+  .planner-tip{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;display:flex;align-items:center;gap:10px;font-size:11px;line-height:1.4;color:var(--muted)}
+
+  /* what if */
+  .whatif-top{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+  .ghost{font-size:12px;color:var(--green);font-weight:750}
+  .test-amount{font-size:72px;line-height:1;margin:28px 0 4px;font-weight:740;letter-spacing:-.06em;text-align:center;font-variant-numeric:tabular-nums}
+  .test-label{text-align:center;color:var(--muted);font-size:12px}
+  .date-pills{display:flex;gap:7px;justify-content:center;margin:22px 0 15px}
+  .pill{padding:8px 11px;border:1px solid var(--line);border-radius:16px;font-size:10px;font-weight:650;background:white}.pill.active{background:var(--ink);color:white;border-color:var(--ink)}
+  .impact-line{margin:2px -2px 8px;height:170px;position:relative}
+  .impact-line svg{width:100%;height:138px}
+  .impact-label{position:absolute;font-size:9px;font-weight:740;border-radius:7px;padding:4px 6px;background:white;border:1px solid var(--line)}
+  .impact-label.before{right:5px;top:1px;color:var(--muted)}
+  .impact-label.after{right:8px;top:55px;color:var(--green)}
+  .impact-table{border-top:1px solid var(--line);margin-top:2px}
+  .impact-row{display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);font-size:12px}
+  .impact-row span{color:var(--muted)}.impact-row b.good{color:var(--green)}
+  .primary{width:100%;height:50px;border:0;border-radius:16px;background:var(--ink);color:white;font-weight:760;font-size:13px;margin-top:18px}
+  .secondary{width:100%;height:44px;border:1px solid var(--line);border-radius:15px;background:transparent;color:var(--ink);font-weight:690;font-size:12px;margin-top:8px}
+
+  /* import */
+  .import-progress{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center;margin:3px 0 18px}
+  .progressbar{height:4px;background:#E1E4E0;border-radius:8px;overflow:hidden;flex:1}.progressbar i{display:block;width:82%;height:100%;background:var(--green);border-radius:8px}
+  .learned{font-size:31px;line-height:1.05;letter-spacing:-.04em;margin:0 0 9px}.learned-sub{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:16px}
+  .discovery{padding:15px 0;border-top:1px solid var(--line)}
+  .disc-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.disc-title{font-size:14px;font-weight:740}.confidence{font-size:9px;color:var(--green);background:var(--green2);padding:5px 7px;border-radius:8px;font-weight:760}
+  .source{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;color:#747D77;background:#ECEEEB;padding:8px 9px;border-radius:8px;margin:8px 0 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .disc-actions{display:flex;gap:7px}.mini{border:1px solid var(--line);background:white;border-radius:10px;padding:7px 10px;font-size:10px;font-weight:720}.mini.confirm{background:var(--ink);border-color:var(--ink);color:white}
+  .trust-note{display:flex;gap:9px;align-items:flex-start;background:var(--green2);padding:12px;border-radius:14px;font-size:10px;line-height:1.45;margin-top:13px}.trust-note b{display:block;font-size:11px;margin-bottom:2px}
+
+  /* recovery */
+  .change-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:12px;background:var(--coral2);color:#8A4539;font-size:9px;font-weight:760;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 13px}
+  .repair{font-size:12px;color:var(--muted);margin-bottom:18px}
+  .recovery-facts{border-top:1px solid var(--line);margin-top:10px}
+  .recovery-row{display:grid;grid-template-columns:1fr 1.4fr;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
+  .recovery-row span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}.recovery-row b{font-size:12px;line-height:1.4}
+  .recovery-route{height:145px;margin-top:18px;position:relative}.recovery-route svg{width:100%;height:115px}.route-caption{display:flex;justify-content:space-between;color:var(--muted);font-size:9px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;margin-top:-7px}
+  .recovery-message{font-size:13px;line-height:1.45;margin-top:12px;padding-left:13px;border-left:3px solid var(--green)}
+
+  .bottom-principles{display:flex;gap:19px;justify-content:center;margin-top:44px}
+  .principle{width:308px;border-top:1px solid rgba(255,255,255,.22);padding-top:13px;color:#BFC8C2;font-size:14px;line-height:1.45}
+  .principle b{display:block;color:white;font-size:15px;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="eyebrow">Folio V2 · research-led interface direction</div>
+  <h1>Clean is not empty. Calm is control you can see.</h1>
+  <div class="subtitle">One visual system across iOS and Android, adapted to native behaviour. The interface stays quiet until something matters, makes every automated change traceable, and turns uncertainty into a visible route—not a wall of finance cards.</div>
+  <div class="research-note"><b>The signature move:</b> “breathing room” is shown as a living horizon between now and what comes next. Users can inspect, move and test events directly. Melo interprets the route; he never hides it.</div>
+
+  <div class="screens">
+    <!-- iOS Today -->
+    <div class="screen-wrap">
+      <div class="screen-label">01 · Today on iOS <span>— calm, direct, native</span></div>
+      <div class="phone ios">
+        <div class="device">
+          <div class="notch"></div>
+          <div class="status"><span>09:41</span><span class="icons">● ◒ ▮</span></div>
+          <div class="app">
+            <div class="topbar"><div class="workspace">Personal⌄</div><div class="round-btn">•••</div></div>
+            <div class="melo-row"><div class="melo-avatar">M<i></i></div><div class="melo-copy"><b>Morning, Andrea.</b>I’ve checked what changed.</div></div>
+            <h2 class="hero-title">You’re covered<br>through Friday.</h2>
+            <div class="amount">£142</div>
+            <div class="amount-meta"><span>breathing room after known bills</span><span class="certainty">96% confirmed</span></div>
+            <div class="horizon">
+              <span class="tight-label">Tuesday gets tight</span>
+              <svg viewBox="0 0 380 120" fill="none">
+                <path d="M8 73 C45 50, 78 67, 105 79 C145 97, 171 59, 206 62 C245 66, 259 89, 297 79 C330 70, 341 39, 372 25" stroke="#C6CBC7" stroke-width="15" stroke-linecap="round" opacity=".7"/>
+                <path d="M8 73 C45 50, 78 67, 105 79 C145 97, 171 59, 206 62 C245 66, 259 89, 297 79 C330 70, 341 39, 372 25" stroke="#2E7D67" stroke-width="4" stroke-linecap="round"/>
+                <circle cx="8" cy="73" r="7" fill="#18231D"/><circle cx="105" cy="79" r="7" fill="#D99A28" stroke="#F7F6F1" stroke-width="4"/><circle cx="372" cy="25" r="8" fill="#F0C65B" stroke="#18231D" stroke-width="3"/>
+              </svg>
+              <div class="axis"><span>Today</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Payday</span></div>
+            </div>
+            <div class="section-head"><h3>Today</h3><a>See all</a></div>
+            <div class="event-row"><div class="event-icon ok">✓</div><div><div class="event-title">Insurance paid</div><div class="event-sub">Matched to your bank · 08:13</div></div><div class="event-value">−£133.47<small>confirmed</small></div></div>
+            <div class="event-row"><div class="event-icon attn">↗</div><div><div class="event-title">Move £50 to buffer</div><div class="event-sub">Plan action · not done yet</div></div><div class="event-value">Review<small>18:00</small></div></div>
+            <div class="event-row"><div class="event-icon">◷</div><div><div class="event-title">Work shift</div><div class="event-sub">Personal planner</div></div><div class="event-value">07–16<small>now</small></div></div>
+            <div class="melo-strip"><div class="melo-avatar">M<i></i></div><p><b>One useful change:</b> your debt finish moved 4 days closer.</p><span class="chev">›</span></div>
+          </div>
+          <div class="tabs"><div class="tab active"><div class="ico">⌂</div>Today</div><div class="tab"><div class="ico">▦</div>Calendar</div><div class="tab melo"><div class="ico">M</div>Melo</div><div class="tab"><div class="ico">£</div>Money</div><div class="tab"><div class="ico">••</div>More</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Android Today -->
+    <div class="screen-wrap">
+      <div class="screen-label">02 · Today on Android <span>— same soul, native shell</span></div>
+      <div class="phone android">
+        <div class="device">
+          <div class="notch"></div>
+          <div class="status"><span>9:41</span><span class="icons">◒ ▮ 92%</span></div>
+          <div class="app">
+            <div class="topbar"><div class="workspace">Personal⌄</div><div class="round-btn">⋮</div></div>
+            <div class="melo-row"><div class="melo-avatar">M<i></i></div><div class="melo-copy"><b>Morning, Andrea.</b>I’ve checked what changed.</div></div>
+            <h2 class="hero-title">You’re covered<br>through Friday.</h2>
+            <div class="amount">£142</div>
+            <div class="amount-meta"><span>after known bills</span><span class="certainty">96% confirmed</span></div>
+            <div class="horizon">
+              <span class="tight-label">Tuesday gets tight</span>
+              <svg viewBox="0 0 380 120" fill="none">
+                <path d="M8 73 C45 50, 78 67, 105 79 C145 97, 171 59, 206 62 C245 66, 259 89, 297 79 C330 70, 341 39, 372 25" stroke="#C6CBC7" stroke-width="15" stroke-linecap="round" opacity=".7"/>
+                <path d="M8 73 C45 50, 78 67, 105 79 C145 97, 171 59, 206 62 C245 66, 259 89, 297 79 C330 70, 341 39, 372 25" stroke="#2E7D67" stroke-width="4" stroke-linecap="round"/>
+                <circle cx="8" cy="73" r="7" fill="#18231D"/><circle cx="105" cy="79" r="7" fill="#D99A28" stroke="#F7F6F1" stroke-width="4"/><circle cx="372" cy="25" r="8" fill="#F0C65B" stroke="#18231D" stroke-width="3"/>
+              </svg>
+              <div class="axis"><span>Today</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Payday</span></div>
+            </div>
+            <div class="section-head"><h3>Today</h3><a>View all</a></div>
+            <div class="event-row"><div class="event-icon ok">✓</div><div><div class="event-title">Insurance paid</div><div class="event-sub">From bank · 08:13</div></div><div class="event-value">−£133.47<small>confirmed</small></div></div>
+            <div class="event-row"><div class="event-icon attn">↗</div><div><div class="event-title">Move £50 to buffer</div><div class="event-sub">Plan action · pending</div></div><div class="event-value">Review<small>18:00</small></div></div>
+            <div class="event-row"><div class="event-icon">◷</div><div><div class="event-title">Work shift</div><div class="event-sub">Personal planner</div></div><div class="event-value">07–16<small>now</small></div></div>
+            <div class="melo-strip"><div class="melo-avatar">M<i></i></div><p><b>One useful change:</b> your debt finish moved 4 days closer.</p><span class="chev">›</span></div>
+          </div>
+          <div class="tabs"><div class="tab active"><div class="ico">⌂</div>Today</div><div class="tab"><div class="ico">▦</div>Calendar</div><div class="tab melo"><div class="ico">M</div>Melo</div><div class="tab"><div class="ico">£</div>Money</div><div class="tab"><div class="ico">••</div>More</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calendar -->
+    <div class="screen-wrap">
+      <div class="screen-label">03 · Calendar <span>— life and money, one chronology</span></div>
+      <div class="phone ios">
+        <div class="device">
+          <div class="notch"></div><div class="status"><span>09:41</span><span class="icons">● ◒ ▮</span></div>
+          <div class="app">
+            <div class="topbar"><div class="workspace">Personal⌄</div><div class="round-btn">＋</div></div>
+            <div class="calendar-head"><div><span>June 2026</span><h2>Your week</h2></div><span>Today 21</span></div>
+            <div class="week"><div class="day"><b>THU</b><strong>18</strong></div><div class="day"><b>FRI</b><strong>19</strong></div><div class="day"><b>SAT</b><strong>20</strong></div><div class="day sel"><b>SUN</b><strong>21</strong><div class="dot"></div></div><div class="day"><b>MON</b><strong>22</strong></div><div class="day"><b>TUE</b><strong>23</strong><div class="dot"></div></div><div class="day"><b>WED</b><strong>24</strong></div></div>
+            <div class="melo-strip"><div class="melo-avatar">M<i></i></div><p>Tuesday is busy, but everything known is still covered.</p><span class="chev">›</span></div>
+            <div class="agenda-date">Sunday, 21 June</div><h2 class="agenda-title">Today</h2>
+            <div class="timeline">
+              <div class="agenda-row life"><div class="time">07:00</div><div><b>Work shift</b><small>Wabtec · ends 16:00</small></div><span class="tag">Life</span></div>
+              <div class="agenda-row"><div class="time">12:30</div><div><b>Insurance payment</b><small>Confirmed automatically</small></div><span class="tag">−£133</span></div>
+              <div class="agenda-row warn"><div class="time">18:00</div><div><b>Move money to buffer</b><small>Connected to Clear Abound</small></div><span class="tag">Review</span></div>
+              <div class="agenda-row life"><div class="time">20:00</div><div><b>Gym</b><small>Personal planner</small></div><span class="tag">Life</span></div>
+            </div>
+            <div class="planner-tip"><div class="event-icon">↔</div><span>Move a planned event and Folio previews the money impact before anything is saved.</span></div>
+          </div>
+          <div class="tabs"><div class="tab"><div class="ico">⌂</div>Today</div><div class="tab active"><div class="ico">▦</div>Calendar</div><div class="tab melo"><div class="ico">M</div>Melo</div><div class="tab"><div class="ico">£</div>Money</div><div class="tab"><div class="ico">••</div>More</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What-if -->
+    <div class="screen-wrap">
+      <div class="screen-label">04 · Direct “what-if” <span>— touch the consequence</span></div>
+      <div class="phone android">
+        <div class="device"><div class="notch"></div><div class="status"><span>9:41</span><span class="icons">◒ ▮ 92%</span></div>
+          <div class="app">
+            <div class="whatif-top"><div class="round-btn">‹</div><span class="ghost">Test only · not saved</span><div class="round-btn">×</div></div>
+            <div class="test-amount">£120</div><div class="test-label">planned purchase</div>
+            <div class="date-pills"><div class="pill">Today</div><div class="pill active">Saturday</div><div class="pill">After payday</div></div>
+            <div class="impact-line">
+              <svg viewBox="0 0 380 150" fill="none">
+                <path d="M8 75 C55 45, 80 66, 125 74 C166 82, 185 50, 225 56 C278 64, 304 45, 372 24" stroke="#BFC5C0" stroke-width="3" stroke-dasharray="7 8"/>
+                <path d="M8 75 C55 45, 80 66, 125 92 C164 110, 185 79, 225 84 C278 92, 307 64, 372 45" stroke="#2E7D67" stroke-width="5" stroke-linecap="round"/>
+                <circle cx="8" cy="75" r="7" fill="#18231D"/><circle cx="125" cy="92" r="8" fill="#D99A28" stroke="#F7F6F1" stroke-width="4"/><circle cx="372" cy="45" r="8" fill="#F0C65B" stroke="#18231D" stroke-width="3"/>
+              </svg>
+              <span class="impact-label before">Before £142</span><span class="impact-label after">After £22</span>
+            </div>
+            <div class="impact-table"><div class="impact-row"><span>Known bills</span><b class="good">Still covered</b></div><div class="impact-row"><span>Protected buffer</span><b>£500 unchanged</b></div><div class="impact-row"><span>Tightest point</span><b>£22 on Tuesday</b></div><div class="impact-row"><span>Debt finish</span><b>No change</b></div></div>
+            <div class="melo-strip"><div class="melo-avatar">M<i></i></div><p>This is a close fit, not a failure. Drag the date to compare another route.</p><span class="chev">›</span></div>
+            <button class="primary">Save as planned spend</button><button class="secondary">Close without saving</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import review -->
+    <div class="screen-wrap">
+      <div class="screen-label">05 · Import review <span>— automation earns trust</span></div>
+      <div class="phone ios">
+        <div class="device"><div class="notch"></div><div class="status"><span>09:41</span><span class="icons">● ◒ ▮</span></div>
+          <div class="app">
+            <div class="topbar"><div class="round-btn">‹</div><div class="workspace">On this device</div><div class="round-btn">?</div></div>
+            <div class="import-progress"><span>Building your first briefing</span><div class="progressbar"><i></i></div><b>82%</b></div>
+            <h2 class="learned">I found enough<br>to start.</h2><div class="learned-sub">124 transactions read. Three patterns are strong; two need your eye. Original bank wording is always preserved.</div>
+            <div class="discovery"><div class="disc-top"><div class="disc-title">£585 every Friday<br>looks like pay</div><span class="confidence">High confidence</span></div><div class="source">WABTEC PAYROLL 585.00 GBP</div><div class="disc-actions"><button class="mini confirm">Confirm</button><button class="mini">Edit</button><button class="mini">Not this</button></div></div>
+            <div class="discovery"><div class="disc-top"><div class="disc-title">£735 near the 10th<br>looks like rent</div><span class="confidence">High confidence</span></div><div class="source">STANDING ORDER · RENT · 735.00</div><div class="disc-actions"><button class="mini confirm">Confirm</button><button class="mini">Edit</button></div></div>
+            <div class="discovery"><div class="disc-top"><div class="disc-title">£162.95 monthly<br>may be debt repayment</div><span class="confidence" style="background:var(--amber2);color:#825C16">Needs you</span></div><div class="source">DD ABOUND 162.95 GBP</div><div class="disc-actions"><button class="mini confirm">Yes</button><button class="mini">Something else</button></div></div>
+            <div class="trust-note"><div class="event-icon ok">↶</div><div><b>Nothing is silently rewritten.</b>You can inspect the source, undo any change and turn automatic suggestions off.</div></div>
+            <button class="primary">See my first briefing</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recovery -->
+    <div class="screen-wrap">
+      <div class="screen-label">06 · A bad month <span>— truth, context, route forward</span></div>
+      <div class="phone android">
+        <div class="device"><div class="notch"></div><div class="status"><span>9:41</span><span class="icons">◒ ▮ 92%</span></div>
+          <div class="app">
+            <div class="topbar"><div class="workspace">Personal⌄</div><div class="round-btn">×</div></div>
+            <div class="change-chip">Position updated</div>
+            <h2 class="hero-title small">The repair changes July.<br>It doesn’t erase the plan.</h2>
+            <div class="repair">Unexpected car repair · £320 · confirmed today</div>
+            <div class="recovery-facts"><div class="recovery-row"><span>Still covered</span><b>Rent, food allowance and all minimum payments</b></div><div class="recovery-row"><span>What moved</span><b>Buffer £500 → £180<br>Debt finish Oct → Nov</b></div><div class="recovery-row"><span>Breathing room returns</span><b>12 July, after the next confirmed payday</b></div></div>
+            <div class="recovery-route"><svg viewBox="0 0 380 120" fill="none"><path d="M8 52 C53 29, 85 45, 118 55 C153 66, 175 48, 213 42 C252 36, 286 44, 372 27" stroke="#C4CAC6" stroke-width="3" stroke-dasharray="7 8"/><path d="M8 52 C54 32, 88 47, 118 68 C150 91, 174 84, 209 78 C252 70, 282 58, 372 43" stroke="#2E7D67" stroke-width="5" stroke-linecap="round"/><circle cx="8" cy="52" r="7" fill="#18231D"/><circle cx="118" cy="68" r="8" fill="#D96D59" stroke="#F7F6F1" stroke-width="4"/><circle cx="372" cy="43" r="8" fill="#D9C6F4" stroke="#18231D" stroke-width="3"/></svg><div class="route-caption"><span>Today</span><span>Repair</span><span>Breathing room</span></div></div>
+            <div class="recovery-message"><b>Nothing is hidden. Nothing is ruined.</b><br>Folio has rebuilt the route from where you are now.</div>
+            <div class="melo-strip"><div class="melo-avatar">M<i></i></div><p>I’ll keep the important dates visible and stay quieter where nothing needs you.</p><span class="chev">›</span></div>
+            <button class="primary">Review the updated route</button><button class="secondary">Keep this and close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-principles">
+    <div class="principle"><b>Native, not duplicated</b>Shared hierarchy and brand; platform-native back, sheets, navigation, haptics and accessibility.</div>
+    <div class="principle"><b>Calm through control</b>Automation shows its source, confidence and undo. The user never has to trust a black box.</div>
+    <div class="principle"><b>Fun through self-knowledge</b>Real discoveries, progress and optional reflection—not leaderboards, guilt streaks or fake points.</div>
+    <div class="principle"><b>Melo has warm competence</b>Purposeful questions, evidence and a stopping point. No fake empathy, flattery or endless chat.</div>
+    <div class="principle"><b>Recovery preserves dignity</b>A bad month changes the route, not the user’s identity. Show what remains safe and what happens next.</div>
+  </div>
+</div>
+</body>
+</html>

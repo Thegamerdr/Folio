@@ -1,0 +1,193 @@
+id,phase,stream,title,description,depends_on,priority,acceptance,v1_donor_allowed,release_blocking
+T001,0,governance,Create greenfield repository,Create a new V2 repository and prohibit V1 runtime dependencies.,,P0,CI proves repository builds without V1.,no,yes
+T002,0,governance,Install workspace/tooling baseline,"pnpm workspaces, TypeScript strict, lint, format, test and task runner.",T001,P0,Clean install and all baseline jobs pass.,no,yes
+T003,0,governance,Create architecture decision process,"Add ADR template, owner and change/review rules.",T001,P1,Every foundational choice has an ADR.,no,yes
+T004,0,governance,Create synthetic data policy,"Ban real financial data from source, tests and screenshots.",T001,P0,CI secret/sample scan and policy documented.,no,yes
+T005,0,governance,Create source and licence register,Track V1 assets and third-party dependencies/licences.,T001,P1,Every copied asset/dependency has provenance.,yes,yes
+T006,0,governance,Implement dependency-boundary lint,Prevent UI/adapters from leaking into pure domain packages.,T002,P1,Illegal imports fail CI.,no,yes
+T007,0,governance,Create release compatibility matrix,Track Expo/RN/native/database/OTA versions.,T002,P1,Matrix is checked during build and release.,no,yes
+T008,0,governance,Create product constitution gate,Make constitutional violations part of PR template.,T003,P1,PRs require explicit compliance check.,no,yes
+T009,0,v1-audit,Freeze V1 reference,Record V1 commit/deployment and make read-only snapshot.,T001,P1,Donor source can be audited without changing it.,yes,no
+T010,0,v1-audit,Inventory V1 assets,"List UI, mascot, calendar, finance logic, schemas and dependencies.",T009,P1,Every item classified reuse/adapt/reference/reject.,yes,no
+T011,0,design,Establish V2 design-token sandbox,Create mobile token primitives without copying V1 layout.,T001,P1,Accessible tokens render on iOS/Android.,yes,yes
+T012,0,quality,Wire CI device build smoke tests,Build development binaries for both platforms.,T002,P0,Signed/non-store dev builds install and launch.,no,yes
+T013,1,database,Spike OP-SQLite SQLCipher,Open encrypted DB with runtime key on iOS/Android.,T012,P0,Cipher verification and wrong-key failure proven.,no,yes
+T014,1,database,Spike FTS5 and WAL,"Prove FTS5, WAL/checkpoint and 100k-row query behavior.",T013,P0,Performance report meets budgets.,no,yes
+T015,1,database,Spike Expo updates compatibility,Detect duplicate SQLite/native binary issues and define OTA policy.,T013,P0,Release build and update compatibility documented.,no,yes
+T016,1,crypto,Spike native key wrapping,Create Keychain/Keystore wrapper module and biometric unlock.,T012,P0,Key is non-plain and survives normal relaunch.,no,yes
+T017,1,crypto,Spike recovery wrapping,Argon2id recovery secret wraps/unwraps test vault key.,T016,P0,Recovery vector and parameter benchmark pass.,no,yes
+T018,1,documents,Spike encrypted document files,Encrypt/decrypt/copy large documents outside SQLite.,T016,P1,No plaintext residue in app storage test.,no,yes
+T019,1,ocr,Spike on-device OCR,Verify iOS Vision and Android ML Kit capability/fallback.,T012,P1,Receipt/statement fixtures return bounded candidates.,no,yes
+T020,1,voice,Spike on-device speech capability,Check platform support and typing fallback.,T012,P2,No continuous recording; transcript review works.,no,no
+T021,1,calendar,Spike internal/system calendar bridge,Internal recurrence plus write-only/add-event flow.,T012,P1,No calendar permission required for internal calendar.,no,yes
+T022,1,notifications,Spike local notification scheduling,"Schedule, update and cancel privacy-safe reminders.",T012,P1,Survives app restart and respects user setting.,no,yes
+T023,1,accessibility,Spike accessible motion and money components,"Test large text, screen reader, reduced motion.","T011,T012",P0,Core primitives pass manual VoiceOver/TalkBack check.,yes,yes
+T024,1,architecture,Select production native stack,Write spike decision and fallback path.,"T013,T014,T015,T016,T017,T018,T019,T020,T021,T022,T023",P0,ADR signed; unresolved blocker has owner/date.,no,yes
+T025,2,domain,Implement Money value object,"Integer minor units, currency metadata and safe operations.",T024,P0,Property tests reject cross-currency arithmetic and overflow.,no,yes
+T026,2,domain,Implement time value objects,Instant/local date/timezone/source date separation.,T024,P0,DST/date fixtures pass.,no,yes
+T027,2,domain,Implement IDs and entity versions,Local IDs and hybrid logical/entity versions.,T024,P1,Offline creation has no server dependency.,no,yes
+T028,2,domain,Implement workspace aggregate,Personal/business kinds and scoped invariants.,"T025,T026,T027",P0,Business-only operations reject personal workspace.,no,yes
+T029,2,domain,Implement account and balance model,Accounts and independent balance observations.,T028,P0,Observation never silently overwrites transaction truth.,no,yes
+T030,2,domain,Implement transaction model,"Pending/posted/reversed/void, provenance and review state.","T025,T026,T029",P0,State-transition tests pass.,no,yes
+T031,2,domain,Implement splits and transfer links,Split transactions and net-neutral linked transfers.,T030,P0,Transfer property tests preserve consolidated net.,no,yes
+T032,2,domain,Implement facts versus expectations,Recurring rules remain separate from actual transactions.,T030,P0,Actual variance test passes without rule mutation.,no,yes
+T033,2,calendar,Implement RFC recurrence engine,Expand bounded recurrence in workspace timezone.,T026,P0,RFC/DST test suite passes.,no,yes
+T034,2,event,Implement event aggregate and taxonomy,Typed financial/life/business events with provenance.,"T028,T030,T032",P0,All taxonomy entries validate.,no,yes
+T035,2,event,Implement actual-to-expectation matching,"Match fulfilment, variance, missed and replacement events.","T030,T033,T034",P0,Rent/pending/overdue vectors pass.,no,yes
+T036,2,forecast,Implement dated ledger engine,Deterministic account and consolidated projection.,"T025,T026,T029,T032,T033",P0,Golden forecast vectors pass.,no,yes
+T037,2,forecast,Implement certainty views,"Known, expected, uncertain and hypothetical layers.","T035,T036",P0,Excluded/included IDs are explainable.,no,yes
+T038,2,forecast,Implement available-before-income boundary,Monotonic search preserving selected floors and obligations.,"T036,T037",P0,Boundary vectors pass; no advice wording.,no,yes
+T039,2,debt,Implement debt schedule primitives,"Rate periods, minimum rules, fees and status.","T025,T026,T029",P0,Reference schedules deterministic and rounded explicitly.,no,yes
+T040,2,debt,Implement neutral debt scenarios,"Fixed extra, highest-rate, lowest-balance and custom order selected by user.","T038,T039",P1,Outputs compare effects without best/suitable label.,no,yes
+T041,2,budget,Implement budget periods and allocations,"Pay-cycle/weekly/monthly/custom, explicit rollover.","T025,T026,T029",P1,Budget vectors pass and expose included spending.,no,yes
+T042,2,plan,Implement plan aggregate,"Optional flat/hierarchical goals, rules and versions.","T025,T026,T028",P0,No plan required for core use.,no,yes
+T043,2,plan,Implement plan projection and rebase,Dynamic completion projection and non-failure rebase.,"T036,T041",P0,Unexpected-event rebase vector passes.,no,yes
+T044,2,scenario,Implement isolated scenario engine,Hypothetical changes and diff without writes.,"T036,T037,T039,T042",P0,Actual state unchanged after scenario.,no,yes
+T045,2,policy,Implement advice-language classifier,Detect blocked recommendation/guarantee patterns.,T008,P0,Policy test corpus passes.,no,yes
+T046,2,policy,Implement jurisdiction policy-pack interface,Effective-dated priority/tax/help content adapters.,T028,P1,GB test pack loads by version without hardcoding domain.,no,yes
+T047,2,quality,Complete pure-engine property suite,Run deterministic/property/fuzz tests in Node.,T025-T045,P0,All vectors pass with no mobile imports.,no,yes
+T048,3,storage,Create migration framework,Checksummed ordered migrations with pre-snapshot hooks.,"T024,T046",P0,Fresh and every historical fixture migrate.,no,yes
+T049,3,storage,Implement canonical schema,Create constraints/indexes/views from database contract.,T047,P0,Schema compiles and FK checks pass.,no,yes
+T050,3,storage,Implement DatabaseDriver abstraction,"Transactions, prepared queries, backup, FTS and integrity API.","T024,T048",P0,Driver contract tests pass.,no,yes
+T051,3,storage,Implement repositories,Workspace-scoped repositories for core aggregates.,T049,P0,Cross-workspace query tests fail closed.,no,yes
+T052,3,application,Implement command bus,Typed command authorization/invariant/atomic commit.,"T046,T050",P0,No feature writes repository outside command handler.,no,yes
+T053,3,audit,Implement compact audit log,Command deltas/provenance/reversal without full sensitive duplication.,T051,P1,Every consequential command creates audit entry.,no,yes
+T054,3,projection,Implement projection invalidation,Rebuild forecast/event/search/briefing by data version.,"T051,T036",P0,Stale projection never presented as current.,no,yes
+T055,3,search,Implement FTS index writer/rebuilder,Index workspace-scoped title/body/tags.,"T049,T053",P1,Index can be deleted/rebuilt from truth.,no,yes
+T056,3,jobs,Implement resumable local jobs,Checkpoints for import/OCR/index/backup.,T049,P1,Kill/relaunch resumes without duplicate commit.,no,yes
+T057,3,export,Implement complete local export,Human CSV/JSON plus encrypted portable vault.,T050,P0,Export restores into clean app and preserves provenance.,no,yes
+T058,3,integrity,Implement vault health service,FK/integrity/index/backup checks and user-readable status.,"T049,T054,T055",P0,Corruption fixture is detected and safe recovery offered.,no,yes
+T059,3,performance,Run 10-year scale benchmark,250k records and 20k docs metadata.,T048-T056,P0,Meets defined p95 query/start budgets.,no,yes
+T060,4,mobile,Create Expo mobile shell,"Router, native modules, error boundaries and offline bootstrap.","T024,T057",P0,Launches locked/unlocked with network disabled.,no,yes
+T061,4,vault,Implement first-run vault creation,"Generate key, database and personal workspace.","T016,T017,T058",P0,No account/permission requested.,no,yes
+T062,4,vault,Implement vault unlock/app lock,Biometric/PIN/timeouts and safe fallback.,"T016,T058,T059",P0,Lock/unlock/relaunch/re-enrolment tests pass.,no,yes
+T063,4,ui,Build accessible design primitives,"Type, spacing, surfaces, money, status and motion.","T023,T058",P0,Large text/screen reader/reduced motion pass.,yes,yes
+T064,4,experience,Build Today skeleton,"Melo header, briefing, important item and gateways.","T060,T061",P0,No dashboard card-grid dependence.,yes,yes
+T065,4,first-minute,Build labelled interactive preview,"Synthetic, obviously non-user scenario demonstrates value.","T061,T062",P1,No fake personalisation; complete in <20 seconds.,yes,yes
+T066,4,first-minute,Build quick three-fact path,"Available now, next income, next important outgoing.","T051,T062",P0,Produces truthful projection in under 60 seconds.,no,yes
+T067,4,first-minute,Build data-path chooser,"Import statement, quick start or demo without goal questionnaire.","T062,T063,T064",P0,Choice is reversible and no permission upfront.,no,yes
+T068,4,privacy,Build local-first explanation,Plain copy and data-location indicator.,T062,P1,User can inspect current cloud/data routes.,no,yes
+T069,4,navigation,Build mobile information architecture,"Today, Timeline, Plan, Calendar plus search/transactions/settings access.",T062,P0,One-hand common paths and clear workspace identity.,no,yes
+T070,4,quality,Usability test first minute,Test debt-focused users and financially avoidant users.,T063-T067,P0,Most participants reach value/import intention; issues documented.,no,yes
+T071,5,import,Implement encrypted source staging,Copy/hash/type/size selected files locally.,"T018,T054,T058",P0,No plaintext/log leakage and cancel works.,no,yes
+T072,5,import,Implement canonical import row contract,Raw and normalized values with provenance/confidence.,"T025,T026,T068",P0,All parser outputs validate.,no,yes
+T073,5,import,Implement CSV parser/mapping,Locale/sign/debit-credit/formula-safe streaming parser.,T069,P0,CSV corpus passes.,no,yes
+T074,5,import,Implement OFX/QFX parser,Official structure and stable transaction IDs.,T069,P1,OFX vectors and malformed-file tests pass.,no,yes
+T075,5,import,Implement QIF parser,Legacy parser with explicit limitations.,T069,P2,Encoding/date ambiguity routes to review.,no,no
+T076,5,ocr,Implement statement PDF/image adapter,On-device extraction and source references.,"T017,T068,T069",P1,No extraction commits without review.,no,yes
+T077,5,import,Implement duplicate fingerprinting,File/row/provider identity and possible duplicate review.,T069-T073,P0,Repeated import idempotent.,no,yes
+T078,5,import,Implement pending-posted reconciliation,Replace pending in projections while preserving source.,"T030,T074",P0,No double count.,no,yes
+T079,5,import,Implement transfer matching,Cross-account proposals and neutral totals.,"T031,T074",P0,Transfer corpus passes.,no,yes
+T080,5,import,Implement balance reconciliation,"Opening + movements = closing, mismatch report.",T069-T074,P0,Match/mismatch fixtures pass.,no,yes
+T081,5,import,Implement categorisation ladder,"User rule, known mapping, bundled, local, cloud, unresolved.","T050,T069",P1,Tax-relevant uncertainty never auto-commits.,no,yes
+T082,5,import,Implement bounded import questions,Prioritise material questions; max three conversation questions.,"T006,T074-T078",P1,Remaining items go to review queue.,no,yes
+T083,5,import,Build import review UI,"Grouped fixes, source preview and accept/edit/reject.","T061,T069-T079",P0,Screen reader and large imports supported.,no,yes
+T084,5,import,Implement atomic commit/rebuild,One commit then event/forecast/search refresh.,"T051,T053,T080",P0,Failure leaves no partial domain rows.,no,yes
+T085,5,import,Build first real-data briefing,"Show what was found, next important dates and certainty.","T062,T081",P0,No ungrounded claim.,no,yes
+T086,5,quality,Run import corpus/endurance tests,15+ format cases and 100k rows.,T070-T082,P0,All launch import gates pass.,no,yes
+T087,6,today,Implement briefing candidate engine,Rank changes/risks/progress with fatigue/confidence penalties.,"T034,T036,T053",P0,Max three nonurgent items and deterministic reasons.,no,yes
+T088,6,today,Implement position summary,Available/next income/next important date with drill-down.,"T036,T037,T084",P0,Every number exposes inputs/assumptions.,no,yes
+T089,6,timeline,Build event-first timeline,Past/present/future events with transaction linkage.,"T034,T050,T061",P0,Expected and actual visually distinct.,no,yes
+T090,6,transactions,Build transaction list/detail,Search/filter/provenance/corrections/splits/links.,"T050,T052,T061",P0,Correction preserves source/audit.,no,yes
+T091,6,calendar,Build internal Today/week/month/timeline views,Financial and general events in medium-scope planner.,"T032,T035,T050,T061",P0,Works offline and at large text.,no,yes
+T092,6,tasks,Build tasks and reminders,Money actions and general planner tasks.,"T050,T087",P1,Completion updates linked event/plan where configured.,no,yes
+T093,6,notifications,Implement policy-driven local notifications,Class/frequency/quiet/privacy/dedup controls.,"T020,T088",P0,No sensitive default lock-screen text.,no,yes
+T094,6,clarification,Implement actual variance question,Higher rent/new normal/fee/one-off flow.,"T035,T083,T084",P0,One bounded question updates correct expectation only.,no,yes
+T095,6,search,Build universal local search,Structured and typed natural query with filters shown.,"T052,T061",P1,Workspace-scoped and <300 ms target.,no,yes
+T096,6,system-calendar,Implement optional calendar handoff/sync,Write-only/add-event first; read requires explicit enablement.,"T019,T087",P2,Internal calendar remains complete.,no,no
+T097,6,visualisation,Build accessible cash-flow/progress visuals,"Text equivalents, no dashboard dependency.","T061,T085,T086",P1,Charts convey no meaning by colour alone.,yes,yes
+T098,6,quality,Run offline daily-loop E2E,"Today, transaction, payment confirm, calendar, search.",T084-T094,P0,Full loop passes airplane mode.,no,yes
+T099,7,melo,Implement intent registry,"Typed slots, max questions, stop/fallback per intent.","T006,T046",P0,Unknown intent cannot become unbounded chat.,no,yes
+T100,7,melo,Implement deterministic briefing language,Templates from structured candidate facts.,"T084,T096",P0,Works with model disabled.,no,yes
+T101,7,melo,Implement proposal lifecycle,Draft/edit/accept/reject/commit through command bus.,"T051,T096",P0,No direct domain write.,no,yes
+T102,7,melo,Implement tone modes,Gentle/balanced/accountability plus humour/celebration controls.,"T061,T097",P1,Calculations identical across modes.,no,yes
+T103,7,melo,Implement proactive intervention ranking,"Severity, immediacy, confidence, novelty, preferences, fatigue.","T084,T096",P0,Dismissed items do not repeat absent material change.,no,yes
+T104,7,melo,Implement bad-month mode,"Facts, affected, stable, recovery path and support links.","T036,T042,T098-T100",P0,No shame/false reassurance/advice.,no,yes
+T105,7,melo,Implement compact memory store,Minimal/normal/deep typed memories with delete/expiry.,"T050,T096",P1,Memory inspectable and not duplicate ledger.,no,yes
+T106,7,melo,Implement user correction learning,Accepted correction alters future proposals.,"T030,T078,T102",P1,Original inference preserved in audit.,no,yes
+T107,7,melo,Implement voice-to-proposal path,"Explicit recording, transcript review and fallback.","T018,T096,T098",P2,No retained audio by default.,no,no
+T108,7,melo,Build Melo UI states/animation,"Present, warm, never blocks controls; crisis-safe motion.","T061,T097-T103",P1,Reduced-motion equivalent and no childish hardship response.,yes,yes
+T109,7,policy,Build language-policy test suite,"Advice, guarantee, shame and certainty corpus.","T044,T097-T104",P0,Blocked output cannot render.,no,yes
+T110,7,quality,Run Melo no-AI acceptance,All core intents/briefings with network/model disabled.,T096-T105,P0,Core product still coherent and useful.,no,yes
+T111,8,plan-ui,Build optional plan creator,"User or Melo draft; flat by default, hierarchy optional.","T041,T042,T098",P0,No plan prompt required for core.,no,yes
+T112,8,plan-ui,Build plan rule editor,"Priority, contribution, floor, pause/recovery, accountability.","T041,T107",P1,Rules are understandable and reversible.,no,yes
+T113,8,plan-ui,Build plan progress journey,Visual milestones and forecast changes.,"T042,T061,T107",P1,Accessible text equivalent.,yes,yes
+T114,8,plan,Implement dynamic cascade,Facts/budgets/dates update plan versions/projections.,"T042,T053,T107,T108",P0,Change propagates atomically and history remains.,no,yes
+T115,8,recovery,Build plan rebase experience,Explain what changed and choices keep/alter/pause.,"T100,T109",P0,Never displays failed verdict.,no,yes
+T116,8,budget-ui,Build budget remaining experience,"Pay-cycle/simple/category modes, visible included records.","T040,T061",P1,Budget optional and calculation explainable.,no,yes
+T117,8,momentum,Implement real-progress momentum,"Awareness, payment, milestone, recovery, review signals.","T084,T107-T111",P1,No daily-loss streak.,no,yes
+T118,8,fun,Implement controlled fun framework,"Melo celebration, journey animation and optional mini-game slot.","T061,T104,T112",P2,Can be fully disabled; bad-month suppression.,yes,no
+T119,8,personalisation,Implement retention preference model,User controls what is emphasised and can reset adaptation.,"T102,T112",P1,No hidden sensitive profiling.,no,yes
+T120,8,rituals,Implement payday/weekly/month-close rituals,"Optional, data-grounded and notification-policy controlled.","T084,T088,T099,T112",P1,Quiet state valid and no forced daily open.,no,yes
+T121,8,quality,Test good/bad/quiet month journeys,Qualitative and E2E emotional safety review.,T107-T116,P0,No shame/manipulative pattern found.,no,yes
+T122,9,documents,Build generic document library,"Capture/file, links, retention, search and delete.","T018,T052,T068",P1,Local encrypted and accessible.,no,yes
+T123,9,documents,Build extraction review UI,"Candidate fields, source location and confidence.","T072,T118",P1,No low-confidence commit.,no,yes
+T124,9,privacy,Build privacy/data centre,"Data location, permissions, memory, export/delete, cloud status.","T065,T118",P0,User can understand and control every route.,no,yes
+T125,9,export,Build human export surfaces,CSV/JSON/PDF-style summary without cloud requirement.,"T055,T061",P0,Complete and portable; no subscription gate.,no,yes
+T126,9,security,Complete mobile threat model,"Assets, actors, controls and residual risks.","T024,T058,T118-T121",P0,Reviewed and signed.,no,yes
+T127,9,security,Complete MASVS verification,Storage/crypto/auth/network/platform/code/privacy.,T122,P0,No high/critical open.,no,yes
+T128,9,privacy,Complete DPIA and processor inventory,Assess local/cloud/AI/Open Banking/tax routes.,"T120,T122",P0,Approved before public beta.,no,yes
+T129,9,accessibility,Complete independent accessibility audit,VoiceOver/TalkBack/large text/reduced motion/cognitive.,"T061,T080,T085-T119",P0,Critical flows pass; issues tracked.,no,yes
+T130,9,observability,Implement local health/diagnostic screen,"Integrity, backup, import, index, jobs, sanitised export.","T056,T118",P1,No financial data in diagnostic bundle.,no,yes
+T131,9,store,Create synthetic reviewer vault,Demonstrate product without real data.,"T062,T083,T107",P1,Clearly labelled and isolated.,no,yes
+T132,9,quality,Run migration/corruption/low-storage tests,Kill/full disk/corrupt DB/restore drills.,T047-T057,P0,No silent data loss.,no,yes
+T133,9,release,Ship local-only private beta,"Debt-focused personal core, no mandatory cloud.",T117-T128,P0,Release gates and user research complete.,no,yes
+T134,10,auth,Implement optional passkey/Apple/Google account,Account only when cloud selected.,T129,P1,Local vault remains usable signed out.,no,yes
+T135,10,crypto,Implement vault key hierarchy/subkeys,"Master, workspace, document and sync envelope keys.","T017,T130",P0,Crypto review vectors pass.,no,yes
+T136,10,recovery,Implement recovery-code/passphrase setup,Explain zero-knowledge trade-off and verify.,"T017,T131",P0,Restore on clean device succeeds.,no,yes
+T137,10,cloud,Implement device registry,Register/revoke public keys and sessions.,T130-T132,P0,Lost-device revoke tested.,no,yes
+T138,10,sync,Implement encrypted outbox envelopes,Append-only idempotent upload with versions.,"T051,T054,T131,T133",P0,Backend sees ciphertext only.,no,yes
+T139,10,sync,Implement inbox/apply pipeline,Download/decrypt/validate/apply through commands.,T134,P0,Malformed/duplicate envelopes rejected safely.,no,yes
+T140,10,sync,Implement entity conflict policies,Transaction/plan/rule/task/workspace policies.,T135,P0,Conflict fixtures deterministic/reviewable.,no,yes
+T141,10,backup,Implement encrypted snapshots,"Atomic validated snapshot, generations and restore.","T055,T131,T134",P0,Restore + op replay exact.,no,yes
+T142,10,sync,Implement compaction/ack cursors,Safe compaction after active-device acknowledgement.,T134-T137,P1,No operation needed by active device removed.,no,yes
+T143,10,devices,Build device and recovery manager UI,View/revoke/rename/verify recovery.,"T133,T138",P1,Accessible and no secret exposure.,no,yes
+T144,10,account,Build web account deletion portal,Required external route and token revocation.,"T130,T133",P0,End-to-end deletion verified.,no,yes
+T145,10,privacy,Implement cloud data inventory/status,"Show last backup, payload type, processors and delete.","T120,T134-T140",P0,User can disable cloud without losing local data.,no,yes
+T146,10,quality,Run multi-device offline conflict suite,Simultaneous edit/delete/recovery/device revoke.,T134-T141,P0,No silent last-write financial loss.,no,yes
+T147,10,security,Pen-test cloud vault/auth/sync,External assessment.,T130-T142,P0,No high/critical open.,no,yes
+T148,10,release,Release encrypted backup/sync beta,Staged opt-in release.,T143,P1,Restore telemetry/support readiness proven.,no,yes
+T149,11,ai,Implement AI task schemas/provider registry,"Versioned tasks, model lifecycle/pricing/data-use metadata.","T046,T129",P1,Provider can change without mobile release.,no,yes
+T150,11,ai,Implement AI gateway,"Auth, quotas, redaction, routing and typed validation.",T146,P0,No provider key in app and invalid output rejected.,no,yes
+T151,11,ai,Implement minimal context builder,Workspace-scoped retrieval and identifier redaction.,"T052,T102,T146",P0,Full database route impossible by default.,no,yes
+T152,11,ai,Implement on-device model adapters,Apple Foundation Models/Android capability abstraction.,T146,P2,Capability checked and fallback works.,no,no
+T153,11,ai,Implement cloud small-model route,Natural language/classification/explanation.,"T147,T148",P1,Current low-cost model selected through registry.,no,yes
+T154,11,ai,Implement rare strong-model route,Explicit weighted use and task allow-list.,"T147,T148",P2,Cannot handle regulated advice/write.,no,no
+T155,11,ai,Implement quota and cost ledger,"Weighted units, caps, retries and visible remaining use.","T147,T149,T150",P1,"1000-user cost scenario dashboard for operator, not user finance dashboard.",no,yes
+T156,11,ai,Build model evaluation pipeline,"Faithfulness, intent, tone, advice, injection, workspace leakage.","T105,T146-T151",P0,Model/prompt cannot deploy without pass.,no,yes
+T157,11,ai,Integrate optional AI into Melo,Wording/parse proposal only; deterministic fallback.,"T098,T106,T152",P1,AI off yields same financial conclusion.,no,yes
+T158,11,privacy,Implement first-cloud-AI consent,Task-level explanation and data minimisation.,"T120,T147",P0,Denial uses local/manual path.,no,yes
+T159,11,release,Stage AI beta with strict quotas,Monitor errors/cost/corrections and rollback.,T151-T154,P1,No core degradation and budget cap enforced.,no,yes
+T160,12,banking,Select regulated AISP provider,"Evaluate coverage, consent, security, cost and exit.",T129,P1,Procurement/legal decision recorded.,no,no
+T161,12,banking,Implement BankDataProvider contract,Provider-neutral consent/accounts/rows/revoke.,"T046,T156",P1,Fake and provider contract tests pass.,no,yes
+T162,12,banking,Implement consent journey/backend token store,Explicit scopes and selected accounts.,"T130,T157",P0,Tokens encrypted server-side; app has no token.,no,yes
+T163,12,banking,Build consent dashboard,"Accounts, permissions, expiry, last refresh, revoke.",T158,P0,Matches provider/standard state.,no,yes
+T164,12,banking,Implement canonical row ingestion,Provider rows into staging/import pipeline.,"T069,T157-T159",P0,Same review/reconciliation rules as files.,no,yes
+T165,12,banking,Implement refresh/gap/stale behavior,Outage and missing range detection.,T160,P0,Forecast marks stale data and local app continues.,no,yes
+T166,12,banking,Implement revocation/deletion paths,Stop future access and separate retained local data choice.,T159-T161,P0,No refresh after revocation.,no,yes
+T167,12,quality,Run provider sandbox/production pilot,Pending/posted/account selection/consent refresh.,T158-T162,P0,Pilot acceptance report and legal sign-off.,no,yes
+T168,12,release,Staged Open Banking rollout,Opt-in cohort with support/incident monitoring.,T163,P1,Manual/import paths remain fully available.,no,yes
+T169,13,business,Expose separate business workspace switcher,Distinct visual/navigation context and optional creation.,"T028,T061,T129",P0,User never wonders which workspace is active.,no,yes
+T170,13,business,Build business accounts/transactions,Use shared engine under business scope.,"T050,T166",P0,No personal query/report leakage.,no,yes
+T171,13,business,Build clients and invoice lifecycle,Draft/issue/part paid/paid/overdue/void/credit.,"T050,T166",P1,Invoice events and expected cash flow generated.,no,yes
+T172,13,business,Build payment matching,Propose invoice-to-transaction matches.,"T083,T168",P1,Ambiguous match requires review.,no,yes
+T173,13,business,Build receipt/document workflow,Business evidence capture and tax review state.,"T118,T119,T166",P1,Source evidence retained by policy.,no,yes
+T174,13,business,Build tax-period records,Jurisdiction/effective policy pack and unresolved queue.,"T045,T050,T166",P0,Every figure has source and version.,no,yes
+T175,13,business,Build tax reserve estimate,"User rule/policy estimate with assumptions, not final bill.","T036,T171",P1,Advice/tax language suite passes.,no,yes
+T176,13,business,Build business calendar/planner,"Invoices, tax deadlines, client tasks, subscriptions.","T087,T166-T171",P1,Separate from personal calendar.,no,yes
+T177,13,business,Build business briefing/Melo context,"Cash flow, invoices, deadlines, records.","T084,T096,T166-T172",P1,No personal memories/content included.,no,yes
+T178,13,business,Build business reports/exports,"Cash flow, income/expenses, invoice/tax evidence package.","T121,T171",P0,Workspace/period/policy version labelled.,no,yes
+T179,13,business,Build mileage records,Manual trip/purpose/distance and export.,T166,P2,Business-only constraints pass.,no,no
+T180,13,business,Run tax/legal review,"UK claims, recordkeeping and MTD readiness.",T171-T175,P0,Signed review; direct filing remains disabled.,no,yes
+T181,13,quality,Run workspace isolation attack suite,IDs/search/sync/AI/export/calendar across spaces.,T166-T177,P0,Zero personal leakage.,no,yes
+T182,13,release,Release business beta,Optional module with separate entitlement seam.,T178,P1,Personal users see no business setup pressure.,no,yes
+T183,14,store,Complete Apple/Google declarations,"Privacy, financial, accessibility, account deletion.","T124,T129,T145,T155,T165,T179",P0,Declarations match binary/data flows.,no,yes
+T184,14,billing,Implement capability entitlements and store billing,"StoreKit/Play billing, restore, offline grace, downgrade safety.","T130,T180",P1,Subscription lapse never hides data/export.,no,yes
+T185,14,operations,Create incident and support runbooks,"Calculation, sync, provider, AI, tax and security incidents.","T123,T143,T152,T163,T178",P0,Tabletop exercise complete.,no,yes
+T186,14,release,Run final penetration and privacy review,Mobile/cloud/provider/processor and DPIA refresh.,"T144,T180-T182",P0,No high/critical and legal sign-off.,no,yes
+T187,14,release,Run full regression and golden-vector suite,"All modules, migration and store builds.",T180-T183,P0,All release-blocking acceptance criteria pass.,no,yes
+T188,14,release,Limited UK production launch,Staged cohorts and rollback.,T184,P0,Operational thresholds stable before expansion.,no,yes
+T189,14,research,Measure first-minute and confidence outcomes,"Usability, corrections, avoidance, plan progress, not fake score.",T185,P1,"Evidence informs roadmap, no hidden profiling.",no,no
+T190,14,roadmap,Evaluate household collaboration separately,New privacy/threat/permissions model.,T185,P2,No implementation without sign-off.,no,no
+T191,14,roadmap,Evaluate direct HMRC MTD programme,Dedicated integration/compliance case.,"T178,T185",P2,Separate go/no-go plan.,no,no
+T192,14,roadmap,Evaluate additional jurisdictions,"Policy packs, banks, tax, language and legal.",T185,P2,Country launch checklist and owner.,no,no

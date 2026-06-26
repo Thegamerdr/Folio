@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="duplicate-transfer-refund-states">
+  <eyebrow>Row action states</eyebrow>
+  <title>Same row, different meaning.</title>
+  <body>Duplicate, transfer and refund choices are row actions, not detached tiles.</body>
+  <plainText>Duplicate Kept out of your picture Transfer Excluded from spending Refund Marked as money returned, waiting for Add Later Still waiting, nothing changed Duplicate Transfer Refund Later</plainText>
+</surface>

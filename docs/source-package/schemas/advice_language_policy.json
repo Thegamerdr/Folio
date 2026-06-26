@@ -1,0 +1,67 @@
+{
+  "version": "1.0.0",
+  "jurisdiction": "GB",
+  "requiresLegalReview": true,
+  "allowedPatterns": [
+    "If you do X, the modelled consequence is Y under assumptions Z.",
+    "This option leaves known obligations covered/uncovered.",
+    "Your selected plan rule prioritises X.",
+    "Here are factual differences between the scenarios.",
+    "Official guidance may help with this situation."
+  ],
+  "blockedPatterns": [
+    {
+      "category": "personal_recommendation",
+      "examples": [
+        "You should pay this debt first.",
+        "This is the best option for you.",
+        "You should invest in X."
+      ]
+    },
+    {
+      "category": "suitability",
+      "examples": [
+        "This product is suitable for you.",
+        "You can afford this loan."
+      ]
+    },
+    {
+      "category": "final_tax_or_legal",
+      "examples": [
+        "This is your final tax bill.",
+        "This expense is definitely deductible."
+      ]
+    },
+    {
+      "category": "guarantee",
+      "examples": [
+        "You will be debt free by June.",
+        "Everything will be fine."
+      ]
+    }
+  ],
+  "requiredQualifiers": {
+    "forecast": [
+      "assumptions",
+      "certainty",
+      "data_as_of"
+    ],
+    "taxEstimate": [
+      "records_included",
+      "policy_pack_version",
+      "not_final_position"
+    ],
+    "scenario": [
+      "hypothetical_label"
+    ]
+  },
+  "escalationTriggers": [
+    "insolvency",
+    "formal_debt_solution",
+    "investment_selection",
+    "credit_product_selection",
+    "legal_dispute",
+    "tax_eligibility_ambiguity",
+    "immediate_crisis"
+  ]
+}

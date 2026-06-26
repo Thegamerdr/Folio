@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+.git
+.npmrc
+.pnpm-patches
+docs/source-package
+docs/ui-source
+apps/mobile/expo-env.d.ts
+pnpm-lock.yaml

@@ -1,0 +1,28 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/domain" },
+    { "path": "./packages/finance-engine" },
+    { "path": "./packages/event-engine" },
+    { "path": "./packages/plan-engine" },
+    { "path": "./packages/calendar-engine" },
+    { "path": "./packages/melo-policy" },
+    { "path": "./packages/import-engine" },
+    { "path": "./packages/first-minute" },
+    { "path": "./packages/today-engine" },
+    { "path": "./packages/search-engine" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/crypto" },
+    { "path": "./packages/sync" },
+    { "path": "./packages/ai-contracts" },
+    { "path": "./packages/business-workspace" },
+    { "path": "./packages/open-banking" },
+    { "path": "./packages/store-release" },
+    { "path": "./packages/policy-packs" },
+    { "path": "./packages/release-gate" },
+    { "path": "./packages/release-readiness" },
+    { "path": "./packages/ui" },
+    { "path": "./packages/testing" },
+    { "path": "./apps/mobile" }
+  ]
+}

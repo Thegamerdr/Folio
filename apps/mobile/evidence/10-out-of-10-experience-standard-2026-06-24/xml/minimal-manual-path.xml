@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="minimal-manual-path">
+  <eyebrow>Guided manual input</eyebrow>
+  <title>Build your first picture.</title>
+  <body>This is enough for a first briefing. You can add more later.</body>
+  <plainText>1 of 5 What money do you have right now? Folio needs one starting number before it can show breathing room. Rough estimate / Skip for now 2 of 5 Is that exact or a rough estimate? Estimates stay visible so you know what the picture is based on. Use rough number / Decide later 3 of 5 When is money coming in next? The route needs the next income date to answer whether you make it to payday. Estimate income / No income to add 4 of 5 What must be paid before then? Bills and must-pay items create the pressure points in the route. Estimate payment / No payment to add 5 of 5 Any debts or payments worrying you? Debt payments are shown as commitments, not judgments. Mark as debt payment / Not now Money now GBP 1,190.47 Next income Payday, 27 Jun Bill or debt payment Rent, 1 Jul Will I make it to payday? Available now £315.47 Lowest point £315.47 Today Still checking 0 waiting Show why: accepted items, dates, estimates, waiting review rows and assumptions stay visible.</plainText>
+</surface>

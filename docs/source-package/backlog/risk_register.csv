@@ -1,0 +1,33 @@
+id,risk,likelihood,impact,description,mitigation,owner,trigger
+RK01,V1 anchoring,high,high,Agent patches V1 instead of greenfield,"New repo, donor audit, CI dependency ban",Tech lead,Any V1 runtime import
+RK02,Calculation error,medium,critical,Wrong forecast/boundary harms trust,"Pure engine, golden/property tests, versioned outputs",Finance engine owner,Regression or unexplained delta
+RK03,Regulated advice drift,medium,critical,Melo gives personal recommendation/debt counselling,"Typed consequence language, policy tests, legal review",Product/legal,Blocked phrase or user complaint
+RK04,Data loss,low,critical,Migration/sync/import corrupts vault,"Atomic commands, snapshots, integrity tests, staged release",Data owner,Integrity check/mismatch
+RK05,Recovery lockout,medium,critical,User loses device and vault key,"Multiple recovery paths, verify ritual, clear copy",Security owner,Unverified backup or support case
+RK06,Cloud breach,medium,critical,Sensitive records exposed,"Opaque ciphertext, metadata minimisation, least privilege",Security/cloud,Provider incident
+RK07,Local key leakage,low,critical,Key stored/logged insecurely,"Native Keychain/Keystore, MASVS, no JS key persistence",Security,Secret scan or pen-test finding
+RK08,Personal/business mixing,medium,critical,Tax reports include personal items,"Workspace subkeys, constraints, isolation suite",Business domain,Cross-workspace test failure
+RK09,Import inaccuracies,high,high,Messy statements create wrong facts,"Provenance, reconciliation, review, corpus",Import owner,High correction/mismatch rate
+RK10,Open Banking provider lock-in,medium,high,Cost/quality/provider change blocks product,Provider abstraction and manual paths,Integrations,Pricing/coverage deterioration
+RK11,Consent overreach,medium,high,Permissions surprise users or violate policy,"Just-in-time matrix, consent dashboard",Privacy,Permission rejection/complaint
+RK12,AI hallucination,medium,high,Melo invents dates/amounts,"Structured context/output, deterministic verification",AI owner,Eval faithfulness below threshold
+RK13,AI provider lifecycle/cost,high,medium,Model removed or price rises,"Registry, quotas, templates, multi-provider",AI owner,Deprecation/20% cost variance
+RK14,Notification anxiety,medium,high,App increases fear or fatigue,"Quiet default, bad-month policy, caps",Product,Opt-out/complaints rise
+RK15,Gamification shame,medium,high,Streak/loss mechanics punish hardship,"Momentum not streak, ethical experiment gate",Product,User research flags guilt
+RK16,First-minute drop-off,high,high,No data means no immediate value,Labelled preview/quick path/import entertainment,Growth/product,Completion below target
+RK17,Dashboard regression,medium,medium,Teams add metric grid instead of briefing,Constitution/design review,Design lead,Home PR violates hierarchy
+RK18,Native dependency breakage,medium,high,Expo/SQLite/OCR incompatibility,"Spike, version matrix, driver abstraction",Mobile lead,Build/upgrade failure
+RK19,OTA/schema mismatch,medium,critical,JS expects unavailable native/schema features,"Runtime compatibility version, staged OTA limits",Release lead,Mismatch test
+RK20,Performance at archive scale,medium,high,Years of data make app slow,FTS/indexing/benchmarks/pagination,Data/mobile,p95 budget breach
+RK21,Background task assumptions,medium,high,Missed reminders/refreshes,"Schedule ahead, resume foreground, visible freshness",Mobile,OS suspension tests fail
+RK22,Tax rule staleness,high,high,Outdated threshold/category misleads business user,"Versioned policy packs, verified date, official links",Tax owner,Rule effective date change
+RK23,Direct filing scope creep,medium,critical,Agent builds unsafe HMRC submission early,Hard disabled module and compliance phase,Product/legal,Filing endpoint proposed early
+RK24,Accessibility exclusion,medium,high,Core flow unusable for disabled users,"Primitives, manual audit, release gate",Accessibility owner,Critical flow failure
+RK25,Telemetry leakage,medium,critical,Amounts/merchant text in logs/crash reports,No-finance telemetry schema and bundle preview,Privacy/security,Log scan finding
+RK26,Shared-device/coercion risk,medium,high,Sensitive notifications/history expose user,"App lock, generic notifications, privacy research",Privacy/product,User research or incident
+RK27,Business model harms trust,medium,high,Paywall traps data/core,"Capability abstraction, export always available",Founder/product,Pricing proposal blocks records
+RK28,Support cannot diagnose safely,medium,medium,No logs or users asked for raw data,Sanitised opt-in diagnostics and local health,Support/engineering,Support backlog
+RK29,Cloud sync conflict confusion,medium,high,Edits silently overwritten,Entity policies and review UI,Sync owner,Conflict telemetry rise
+RK30,Over-personalisation creepiness,medium,high,Melo memory feels invasive,"User-set memory depth, inspect/delete/reset",Product/privacy,Memory deletion/complaints
+RK31,User overconfidence,medium,high,Projection mistaken for certainty,Known/expected/hypothetical labels and assumptions,Product,Scenario acted on as guarantee
+RK32,Scope explosion,high,high,Life OS/business/accounting overloads launch,Phased sequence and strict boundaries,Founder/product,Unplanned module added to critical path

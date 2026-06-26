@@ -1,0 +1,254 @@
+{
+  "version": "1.0.0",
+  "principles": [
+    "event is meaning, transaction is fact",
+    "expected and actual remain separate",
+    "every generated event has provenance",
+    "workspace scope is mandatory"
+  ],
+  "groups": [
+    {
+      "group": "income",
+      "types": [
+        {
+          "key": "income.expected",
+          "defaultCertainty": "expected",
+          "sources": [
+            "recurring_rule",
+            "user"
+          ]
+        },
+        {
+          "key": "income.received",
+          "defaultCertainty": "confirmed",
+          "sources": [
+            "transaction",
+            "import",
+            "open_banking"
+          ]
+        },
+        {
+          "key": "income.changed",
+          "defaultCertainty": "confirmed",
+          "sources": [
+            "user",
+            "transaction_pattern"
+          ]
+        },
+        {
+          "key": "income.missed",
+          "defaultCertainty": "expected",
+          "sources": [
+            "system"
+          ]
+        },
+        {
+          "key": "refund.received",
+          "defaultCertainty": "confirmed",
+          "sources": [
+            "transaction"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "obligation",
+      "types": [
+        {
+          "key": "bill.due",
+          "defaultCertainty": "expected"
+        },
+        {
+          "key": "bill.paid",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "bill.amount_changed",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "bill.missed",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "renewal.upcoming",
+          "defaultCertainty": "expected"
+        },
+        {
+          "key": "subscription.changed",
+          "defaultCertainty": "confirmed"
+        }
+      ]
+    },
+    {
+      "group": "debt",
+      "types": [
+        {
+          "key": "debt.payment_due",
+          "defaultCertainty": "expected"
+        },
+        {
+          "key": "debt.payment_made",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "debt.balance_changed",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "debt.cleared",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "debt.rate_changed",
+          "defaultCertainty": "confirmed"
+        }
+      ]
+    },
+    {
+      "group": "plan",
+      "types": [
+        {
+          "key": "plan.created",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "plan.milestone_reached",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "plan.projected_date_changed",
+          "defaultCertainty": "expected"
+        },
+        {
+          "key": "plan.rebased",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "plan.completed",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "budget.period_started",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "budget.boundary_approaching",
+          "defaultCertainty": "expected"
+        }
+      ]
+    },
+    {
+      "group": "life",
+      "types": [
+        {
+          "key": "unexpected.expense",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "unexpected.income",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "life.event",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "work.shift",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "overtime.expected",
+          "defaultCertainty": "expected"
+        },
+        {
+          "key": "overtime.confirmed",
+          "defaultCertainty": "confirmed"
+        }
+      ]
+    },
+    {
+      "group": "business",
+      "businessOnly": true,
+      "types": [
+        {
+          "key": "invoice.issued",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "invoice.due",
+          "defaultCertainty": "expected"
+        },
+        {
+          "key": "invoice.paid",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "invoice.overdue",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "tax.deadline",
+          "defaultCertainty": "expected"
+        },
+        {
+          "key": "tax.exported",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "receipt.captured",
+          "defaultCertainty": "confirmed"
+        }
+      ]
+    },
+    {
+      "group": "system",
+      "types": [
+        {
+          "key": "import.completed",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "import.needs_review",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "sync.stale",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "backup.verified",
+          "defaultCertainty": "confirmed"
+        },
+        {
+          "key": "document.added",
+          "defaultCertainty": "confirmed"
+        }
+      ]
+    }
+  ],
+  "severityRules": [
+    {
+      "when": {
+        "type": "bill.missed",
+        "priorityClass": "essential"
+      },
+      "severity": "critical"
+    },
+    {
+      "when": {
+        "type": "tax.deadline",
+        "daysUntil": {
+          "lte": 7
+        }
+      },
+      "severity": "important"
+    },
+    {
+      "when": {
+        "type": "plan.projected_date_changed"
+      },
+      "severity": "normal"
+    }
+  ]
+}

@@ -1,0 +1,2879 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Folio mobile evidence board</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #17231d;
+        --muted: #617069;
+        --line: #cfd8d2;
+        --paper: #f6f3ea;
+        --panel: #fffefa;
+        --sunken: #e8eee8;
+        --green: #1f7a5c;
+        --greenSoft: #dceee5;
+        --amber: #8a5a18;
+        --amberSoft: #f2e2c6;
+        --red: #a94332;
+        --redSoft: #f0d6cf;
+        --softWhite: rgba(255, 255, 255, 0.66);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background:
+          linear-gradient(90deg, rgba(23, 35, 29, 0.035) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(23, 35, 29, 0.03) 1px, transparent 1px), #e8eee8;
+        background-size: 28px 28px;
+        color: var(--ink);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+      .single {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .board {
+        padding: 32px;
+      }
+      .boardHeader {
+        max-width: 1260px;
+        margin: 0 auto 28px;
+        display: grid;
+        gap: 8px;
+      }
+      .boardHeader p,
+      .eyebrow {
+        margin: 0;
+        color: var(--green);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .boardHeader h1 {
+        margin: 0;
+        font-size: 44px;
+        line-height: 0.98;
+        letter-spacing: 0;
+      }
+      .boardHeader span {
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 22px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 390px);
+        gap: 22px;
+        justify-content: center;
+        align-items: start;
+      }
+      .phone {
+        width: 390px;
+        min-height: 844px;
+        border: 1px solid rgba(23, 35, 29, 0.1);
+        border-radius: 28px;
+        background: linear-gradient(180deg, #fffefa 0%, var(--paper) 100%);
+        box-shadow: 0 18px 40px rgba(23, 35, 29, 0.16);
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        overflow: hidden;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      h2 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 34px;
+        letter-spacing: 0;
+      }
+      .body {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 22px;
+      }
+      .melo,
+      .note,
+      .upload,
+      .route,
+      .progress,
+      .questions,
+      .lensGrid,
+      .row,
+      .stat,
+      .card {
+        border: 1px solid transparent;
+        background: var(--softWhite);
+        border-radius: 8px;
+      }
+      .boardBrand,
+      .phoneBrand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .folioMark {
+        width: 34px;
+        height: 34px;
+        border: 1.5px solid var(--ink);
+        border-radius: 9px;
+        display: inline-grid;
+        place-items: center;
+        background: #fffefb;
+        color: var(--ink);
+        flex: 0 0 auto;
+      }
+      .boardMark {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+      }
+      .topbarMark {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+      }
+      .folioMark svg {
+        display: block;
+        height: 68%;
+        width: 68%;
+      }
+      .melo {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 10px;
+        padding: 14px;
+      }
+      .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        background: var(--ink);
+        color: #fff;
+        font-weight: 900;
+      }
+      .melo p,
+      .note,
+      .upload {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 19px;
+      }
+      .note,
+      .upload {
+        padding: 14px;
+        background: var(--greenSoft);
+        color: var(--ink);
+      }
+      .trustRail,
+      .interactionRail,
+      .actionStack,
+      .lineSummary,
+      .questions,
+      .lensGrid {
+        display: grid;
+        gap: 8px;
+      }
+      .trustRail {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .trustChip,
+      .interactionStep,
+      .action,
+      .lineItem,
+      .disclosure {
+        background: var(--softWhite);
+        border-radius: 8px;
+        padding: 11px 12px;
+      }
+      .trustChip {
+        display: grid;
+        gap: 2px;
+        border-radius: 999px;
+      }
+      .interactionRail {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.56);
+        padding: 12px;
+      }
+      .interactionStep {
+        align-items: center;
+        display: grid;
+        grid-template-columns: 10px 84px 1fr;
+        gap: 10px;
+        padding: 0 0 8px;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+      }
+      .interactionStep:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+      .interactionDot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--green);
+      }
+      .mode-preview {
+        background: var(--amber);
+      }
+      .mode-reveal {
+        background: var(--green);
+      }
+      .mode-commit {
+        background: var(--ink);
+      }
+      .mode-melo {
+        background: var(--green);
+        outline: 2px solid var(--ink);
+      }
+      .mode-protect {
+        background: var(--greenSoft);
+        border: 2px solid var(--green);
+      }
+      .trustChip strong,
+      .interactionStep strong,
+      .action strong,
+      .lineItem strong,
+      .disclosure strong {
+        color: var(--ink);
+        font-size: 13px;
+        line-height: 18px;
+      }
+      .trustChip span,
+      .interactionStep span,
+      .action span,
+      .lineItem span,
+      .disclosure span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 17px;
+      }
+      .action {
+        display: grid;
+        gap: 2px;
+        min-height: 64px;
+      }
+      .lensGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 12px;
+      }
+      .lens,
+      .question {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        display: grid;
+        gap: 4px;
+        min-height: 74px;
+        padding: 10px;
+      }
+      .lens.selected {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: #fff;
+      }
+      .lens strong,
+      .question strong {
+        font-size: 13px;
+        line-height: 18px;
+      }
+      .lens span,
+      .question span,
+      .question p,
+      .question em {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 15px;
+        margin: 0;
+      }
+      .lens.selected span {
+        color: #dce6e0;
+      }
+      .questions {
+        padding: 12px;
+      }
+      .question {
+        min-height: 92px;
+      }
+      .actionPrimary {
+        background: var(--ink);
+      }
+      .actionPrimary strong,
+      .actionPrimary span {
+        color: #fff;
+      }
+      .lineItem,
+      .disclosure {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+      }
+      .disclosure b {
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 20px;
+      }
+      .chips,
+      .buttons,
+      .stats,
+      .cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip,
+      .button {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        padding: 9px 12px;
+        font-size: 12px;
+        font-weight: 800;
+        background: #fff;
+      }
+      .button:first-child {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: #fff;
+      }
+      .stats,
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .stat,
+      .card {
+        padding: 12px;
+        min-height: 82px;
+      }
+      .label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        line-height: 15px;
+      }
+      .value {
+        margin-top: 4px;
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 19px;
+      }
+      .tone-attention {
+        border-color: var(--red);
+        background: var(--redSoft);
+      }
+      .tone-estimated {
+        border-color: transparent;
+        background: var(--amberSoft);
+      }
+      .tone-confirmed {
+        border-color: transparent;
+        background: var(--greenSoft);
+      }
+      .rows {
+        display: grid;
+        gap: 8px;
+      }
+      .row {
+        display: grid;
+        gap: 4px;
+        padding: 12px;
+      }
+      .row strong {
+        font-size: 13px;
+        line-height: 18px;
+      }
+      .row span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 17px;
+      }
+      .progress {
+        padding: 14px;
+        display: grid;
+        gap: 8px;
+      }
+      .bar {
+        height: 8px;
+        border-radius: 4px;
+        background: var(--line);
+        overflow: hidden;
+      }
+      .fill {
+        height: 100%;
+        background: var(--green);
+      }
+      .route {
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+      .routeSvg {
+        width: 100%;
+        height: 96px;
+      }
+      .money {
+        font-size: 46px;
+        line-height: 50px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+      .week {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+      }
+      .day {
+        min-height: 54px;
+        border-radius: 8px;
+        background: var(--sunken);
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        font-size: 12px;
+      }
+      .day:first-child {
+        background: var(--ink);
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="board">
+      <header class="boardHeader">
+        <div class="boardBrand">
+          <span
+            class="folioMark boardMark"
+            role="img"
+            aria-label="Folio temporary brand mark: folded local record with a money line"
+            ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+              <path
+                d="M14 6h18l8 8v28H14z"
+                fill="none"
+                stroke="currentColor"
+                stroke-linejoin="round"
+                stroke-width="3.4"
+              />
+              <path
+                d="M32 6v10h8"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="3.4"
+              />
+              <path
+                d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                fill="none"
+                stroke="#2E7D67"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="3.8"
+              />
+              <path
+                d="M19 36h18"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-opacity=".38"
+                stroke-width="3.4"
+              /></svg
+          ></span>
+          <p>Folio V2 visual evidence</p>
+        </div>
+        <h1>10/10 product experience standard</h1>
+        <span>28 states rendered from local models and user-facing copy</span>
+      </header>
+      <section class="grid">
+        <article class="phone" data-surface="start">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Start</p>
+          <h2>Let&#39;s get your first useful picture.</h2>
+          <p class="body">
+            Start with a rough number, a bank row or the payment pressing first. Nothing is added
+            until you review it.
+          </p>
+          <div class="actionStack">
+            <div class="action actionPrimary">
+              <strong>Start with a few numbers</strong
+              ><span>Money now, next income and what must be paid</span>
+            </div>
+            <div class="action">
+              <strong>Add bank activity</strong><span>Paste rows or choose a file</span>
+            </div>
+            <div class="action">
+              <strong>Organise debts</strong><span>Minimum payment, due date and pressure</span>
+            </div>
+            <div class="action">
+              <strong>Check bills</strong><span>One bill or must-pay item before income</span>
+            </div>
+            <div class="action">
+              <strong>Try fake data</strong><span>Open labelled fake data first</span>
+            </div>
+          </div>
+          <div class="trustRail">
+            <div class="trustChip"><strong>Start</strong><span>Add what you have</span></div>
+            <div class="trustChip"><strong>Review</strong><span>Check rows</span></div>
+            <div class="trustChip"><strong>Today</strong><span>See your picture</span></div>
+          </div>
+        </article>
+        <article class="phone" data-surface="first-value-moments">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">First value</p>
+          <h2>Useful in under 60 seconds.</h2>
+          <p class="body">Folio starts from the user job, not from a dashboard setup.</p>
+          <div class="cards">
+            <div class="card tone-attention">
+              <div class="label">Payday</div>
+              <div class="value">You can see what has to last until payday.</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Debt</div>
+              <div class="value">Debt payments sit beside bills and income.</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Bills</div>
+              <div class="value">Bills before income are visible together.</div>
+            </div>
+            <div class="card tone-confirmed">
+              <div class="label">Bank activity</div>
+              <div class="value">Rows found to check. Nothing has been added yet.</div>
+            </div>
+            <div class="card tone-confirmed">
+              <div class="label">Unsure</div>
+              <div class="value">Start with one thing: money available today.</div>
+            </div>
+          </div>
+          <div class="note">Every first win stays review-first and inspectable.</div>
+        </article>
+        <article class="phone" data-surface="guide-me">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Guide me</p>
+          <h2>Which feels most urgent right now?</h2>
+          <p class="body">One question, then the smallest useful next step.</p>
+          <div class="actionStack">
+            <div class="action actionPrimary">
+              <strong>I need to make it to payday</strong
+              ><span>Start with money now, next income and what must be paid</span>
+            </div>
+            <div class="action">
+              <strong>A debt payment</strong
+              ><span>Start with the payment that is worrying you</span>
+            </div>
+            <div class="action">
+              <strong>My bank activity</strong
+              ><span>Paste or choose a statement and check rows one by one</span>
+            </div>
+          </div>
+          <div class="note">No six-option setup. One answer leads directly to the next action.</div>
+        </article>
+        <article class="phone" data-surface="payday-guided-step">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Make it to payday</p>
+          <h2>What money do you have right now?</h2>
+          <p class="body">
+            Step 1 of 5. One question, one main input, skip and estimate available.
+          </p>
+          <div class="questions">
+            <div class="question">
+              <span>Money available today</span><strong>What money do you have right now?</strong>
+              <p>A rough number is fine. You can correct it later.</p>
+              <em>0.00 - Rough estimate / Skip for now</em>
+            </div>
+          </div>
+          <div class="progress">
+            <div class="label">1 of 5 guided steps complete</div>
+            <div class="bar"><div class="fill" style="width: 20%"></div></div>
+          </div>
+          <div class="buttons">
+            <span class="button">Rough estimate</span><span class="button">Skip for now</span
+            ><span class="button">Continue</span>
+          </div>
+          <div class="note">The route preview appears after enough information exists.</div>
+        </article>
+        <article class="phone" data-surface="debt-entry">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Organise debts</p>
+          <h2>Which debt payment is worrying you first?</h2>
+          <p class="body">
+            Debt is first-class: lender, balance, minimum payment, due date, APR, status, note and
+            pressure.
+          </p>
+          <div class="rows">
+            <div class="row"><span>Debt lender or name</span><strong>Abound</strong></div>
+            <div class="row"><span>Debt balance</span><strong>GBP 1,248.20</strong></div>
+            <div class="row"><span>Minimum payment</span><strong>GBP 162.95</strong></div>
+            <div class="row"><span>Debt payment due date</span><strong>2026-06-25</strong></div>
+            <div class="row"><span>APR if known</span><strong>29.9%</strong></div>
+            <div class="row"><span>Status</span><strong>Arrangement</strong></div>
+            <div class="row"><span>Pressure</span><strong>Feels urgent</strong></div>
+            <div class="row">
+              <span>Debt note</span><strong>This payment is due before the next income.</strong>
+            </div>
+          </div>
+          <div class="cards">
+            <div class="card tone-attention">
+              <div class="label">Due before income</div>
+              <div class="value">2026-06-25</div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Before payday</div>
+              <div class="value">GBP -162.95</div>
+            </div>
+            <div class="card tone-confirmed">
+              <div class="label">Debt balance</div>
+              <div class="value">GBP 1,248.20</div>
+            </div>
+            <div class="card tone-confirmed">
+              <div class="label">Save effect</div>
+              <div class="value">Protected debt payment</div>
+            </div>
+          </div>
+          <div class="buttons">
+            <span class="button">Find debt row</span><span class="button">Save debt payment</span>
+          </div>
+        </article>
+        <article class="phone" data-surface="bill-entry">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Check bills</p>
+          <h2>What must be paid before then?</h2>
+          <p class="body">Add one bill or must-pay item. It becomes protected in the route.</p>
+          <div class="rows">
+            <div class="row"><span>Bill name</span><strong>Council tax</strong></div>
+            <div class="row"><span>Bill amount</span><strong>GBP 126.40</strong></div>
+            <div class="row"><span>Bill due date</span><strong>2026-06-25</strong></div>
+            <div class="row"><span>Type</span><strong>Must-pay</strong></div>
+            <div class="row"><span>Repeat</span><strong>Recurring</strong></div>
+          </div>
+          <div class="note">This bill reduces what is available before payday when saved.</div>
+          <div class="buttons">
+            <span class="button">Find bill row</span><span class="button">Save bill</span>
+          </div>
+        </article>
+        <article class="phone" data-surface="empty-first-launch">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Empty first launch</p>
+          <h2>Know where you stand.</h2>
+          <p class="body">Start local. Review first. No account needed.</p>
+          <div class="melo">
+            <div class="avatar">M</div>
+            <p>Start with an import, three facts, or a sample. Nothing writes without review.</p>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-preview"></i><strong>Preview</strong
+              ><span>See picture movement before saving</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-reveal"></i><strong>Reveal</strong
+              ><span>Open the details</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-commit"></i><strong>Save</strong
+              ><span>Write only after review</span>
+            </div>
+          </div>
+          <div class="trustRail">
+            <div class="trustChip"><strong>Local</strong><span>On this device</span></div>
+            <div class="trustChip"><strong>Review</strong><span>You confirm meaning</span></div>
+            <div class="trustChip"><strong>No gate</strong><span>No account needed</span></div>
+          </div>
+          <div class="actionStack">
+            <div class="action actionPrimary">
+              <strong>Use a bank statement</strong
+              ><span>Find rows to check before anything is added</span>
+            </div>
+            <div class="action">
+              <strong>Add a few numbers</strong
+              ><span>Use money now, next income and one payment</span>
+            </div>
+            <div class="action">
+              <strong>Try fake data</strong><span>See the app with labelled fake data</span>
+            </div>
+          </div>
+        </article>
+        <article class="phone" data-surface="sample-briefing">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Fake data briefing</p>
+          <h2>See the loop without using your data.</h2>
+          <p class="body">Playable preview. Example only, not your data, nothing saved.</p>
+          <div class="chips">
+            <span class="chip">Example only</span><span class="chip">Not your data</span
+            ><span class="chip">Nothing saved</span>
+          </div>
+          <div class="melo">
+            <div class="avatar">M</div>
+            <p>Nothing here can become your picture or export.</p>
+          </div>
+          <div class="cards">
+            <div class="card tone-confirmed">
+              <div class="label">What changed</div>
+              <div class="value">Income arrived and the visible picture changed.</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Coming up</div>
+              <div class="value">Rent is next and remains visible before spending decisions.</div>
+            </div>
+            <div class="card tone-confirmed">
+              <div class="label">Still protected</div>
+              <div class="value">Rent stays separated from flexible spending.</div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Needs review</div>
+              <div class="value">One imported row waits for a user decision.</div>
+            </div>
+          </div>
+          <div class="note">Fake data stays separate.</div>
+        </article>
+        <article class="phone" data-surface="import-entry">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Import entry</p>
+          <h2>Choose a statement to start.</h2>
+          <p class="body">Choose or paste a statement. Rows wait here until review.</p>
+          <div class="chips">
+            <span class="chip">Rows wait for review before they are added.</span
+            ><span class="chip">Nothing changes your picture until you accept it.</span>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-preview"></i><strong>Rows found</strong
+              ><span>Statement rows become questions</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-reveal"></i><strong>Original</strong
+              ><span>Original wording stays attached</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-commit"></i><strong>Add</strong
+              ><span>Keep one row at a time</span>
+            </div>
+          </div>
+          <div class="upload">
+            <strong>CSV/TXT statement</strong><br />Choose a file or paste statement text
+          </div>
+          <div class="cards">
+            <div class="card tone-confirmed">
+              <div class="label">Works now</div>
+              <div class="value">Manual input, fake data, supported CSV/text</div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Review only</div>
+              <div class="value">PDF, screenshots, unsupported files, uncertain rows</div>
+            </div>
+          </div>
+          <div class="buttons">
+            <span class="button">Choose CSV/TXT file</span
+            ><span class="button">Paste statement text</span>
+          </div>
+        </article>
+        <article class="phone" data-surface="review-only-file">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Import truth</p>
+          <h2>File saved for review.</h2>
+          <p class="body">
+            Automatic reading is not ready for this file yet. You can still add the important
+            numbers from it.
+          </p>
+          <div class="upload">
+            <strong>PDF or screenshot</strong><br />Automatic reading is not ready for this file
+            yet.
+          </div>
+          <div class="buttons">
+            <span class="button">Add money from file</span
+            ><span class="button">Add income from file</span
+            ><span class="button">Add bill from file</span
+            ><span class="button">Add debt payment</span
+            ><span class="button">Keep file for later</span><span class="button">Remove file</span>
+          </div>
+          <div class="note">
+            The file stays available for checking. No rows are added automatically.
+          </div>
+        </article>
+        <article class="phone" data-surface="review-rows">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Review rows</p>
+          <h2>Rows to check</h2>
+          <p class="body">Nothing has been added yet. Choose what to keep.</p>
+          <div class="progress">
+            <div class="label">3 of 3 rows ready for review</div>
+            <div class="bar"><div class="fill" style="width: 100%"></div></div>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-preview"></i><strong>Waiting</strong
+              ><span>Rows wait here</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-reveal"></i><strong>Original</strong
+              ><span>Original wording remains visible</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-commit"></i><strong>Add</strong
+              ><span>Added rows update Today</span>
+            </div>
+          </div>
+          <div class="rows">
+            <div class="row">
+              <span>Review row</span><strong>2026-06-21 / Bus fare / -3.20</strong
+              ><span>Bus fare</span>
+            </div>
+            <div class="row">
+              <span>Review row</span><strong>2026-06-22 / Coffee / -3.25</strong><span>Coffee</span>
+            </div>
+            <div class="row">
+              <span>Review row</span><strong>2026-06-27 / Payday / 1840.00</strong
+              ><span>Payday</span>
+            </div>
+          </div>
+          <div class="buttons">
+            <span class="button">Add</span><span class="button">Edit</span
+            ><span class="button">Ignore</span><span class="button">Duplicate</span
+            ><span class="button">Transfer</span><span class="button">Income</span
+            ><span class="button">Bill</span><span class="button">Debt payment</span
+            ><span class="button">Refund</span><span class="button">Later</span>
+          </div>
+          <div class="cards">
+            <div class="card tone-confirmed">
+              <div class="label">Add</div>
+              <div class="value">
+                Adds this row to your money view with the original wording attached.
+              </div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Edit</div>
+              <div class="value">
+                Preserves the original wording, stores your correction and still waits for
+                acceptance.
+              </div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Ignore</div>
+              <div class="value">
+                Keeps the row out of your money view and leaves Today, Timeline and Plans unchanged.
+              </div>
+            </div>
+            <div class="card tone-confirmed">
+              <div class="label">Income</div>
+              <div class="value">
+                Marks the row as money coming in, still waiting for your acceptance.
+              </div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Bill</div>
+              <div class="value">
+                Marks the row as a must-pay item, still waiting for your acceptance.
+              </div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Debt payment</div>
+              <div class="value">
+                Marks the row as a debt payment without blame or telling you what to do.
+              </div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Refund</div>
+              <div class="value">
+                Marks the row as money returned, still waiting for your acceptance.
+              </div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Later</div>
+              <div class="value">Leaves the row waiting and changes nothing in your picture.</div>
+            </div>
+          </div>
+        </article>
+        <article class="phone" data-surface="row-accepted">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Review row accepted</p>
+          <h2>Row added</h2>
+          <p class="body">Today updates only after a row is added.</p>
+          <div class="stats">
+            <div class="stat">
+              <div class="label">Accepted rows</div>
+              <div class="value">1</div>
+            </div>
+            <div class="stat">
+              <div class="label">Waiting rows</div>
+              <div class="value">2</div>
+            </div>
+            <div class="stat">
+              <div class="label">Today uses</div>
+              <div class="value">Added rows only</div>
+            </div>
+          </div>
+          <div class="rows">
+            <div class="row"><span>Added</span><strong>Bus fare</strong><span>£3.20</span></div>
+          </div>
+          <div class="note">
+            What changed explains the accepted row and keeps original wording attached.
+          </div>
+        </article>
+        <article class="phone" data-surface="row-ignored">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Review row ignored</p>
+          <h2>Row ignored</h2>
+          <p class="body">Ignored rows do not change Today.</p>
+          <div class="stats">
+            <div class="stat">
+              <div class="label">Ignored evidence</div>
+              <div class="value">1</div>
+            </div>
+            <div class="stat">
+              <div class="label">Money rows added</div>
+              <div class="value">0</div>
+            </div>
+            <div class="stat">
+              <div class="label">Today change</div>
+              <div class="value">None</div>
+            </div>
+          </div>
+          <div class="rows">
+            <div class="row">
+              <span>Ignored</span><strong>2026-06-21 / Bus fare / -3.20</strong
+              ><span>duplicate</span>
+            </div>
+          </div>
+        </article>
+        <article class="phone" data-surface="duplicate-transfer-refund-states">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Row action states</p>
+          <h2>Same row, different meaning.</h2>
+          <p class="body">
+            Duplicate, transfer and refund choices are row actions, not detached tiles.
+          </p>
+          <div class="cards">
+            <div class="card tone-attention">
+              <div class="label">Duplicate</div>
+              <div class="value">Kept out of your picture</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Transfer</div>
+              <div class="value">Excluded from spending</div>
+            </div>
+            <div class="card tone-confirmed">
+              <div class="label">Refund</div>
+              <div class="value">Marked as money returned, waiting for Add</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Later</div>
+              <div class="value">Still waiting, nothing changed</div>
+            </div>
+          </div>
+          <div class="buttons">
+            <span class="button">Duplicate</span><span class="button">Transfer</span
+            ><span class="button">Refund</span><span class="button">Later</span>
+          </div>
+        </article>
+        <article class="phone" data-surface="rejected-import-state">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Rejected import state</p>
+          <h2>Rejected evidence stays separate.</h2>
+          <p class="body">Rejected rows remain proof, not money rows.</p>
+          <div class="stats">
+            <div class="stat">
+              <div class="label">Accepted records</div>
+              <div class="value">0</div>
+            </div>
+            <div class="stat">
+              <div class="label">Rejected evidence</div>
+              <div class="value">1</div>
+            </div>
+            <div class="stat">
+              <div class="label">Import drafts</div>
+              <div class="value">2</div>
+            </div>
+          </div>
+          <div class="rows">
+            <div class="row"><strong>2026-06-21 / Bus fare / -3.20: duplicate</strong></div>
+          </div>
+        </article>
+        <article class="phone" data-surface="minimal-manual-path">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Guided manual input</p>
+          <h2>When is money coming in next?</h2>
+          <p class="body">
+            Step 3 of 5. One question is active; previous answers stay in the preview.
+          </p>
+          <div class="questions">
+            <div class="question">
+              <span>Next income amount and date</span><strong>When is money coming in next?</strong>
+              <p>The date and amount show what improves the picture before things run tight.</p>
+              <em>GBP 1,840 on 2026-06-27 - Estimate income / No income to add</em>
+            </div>
+          </div>
+          <div class="cards">
+            <div class="card tone-confirmed">
+              <div class="label">Money now</div>
+              <div class="value">GBP 1,190.47</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Exactness</div>
+              <div class="value">Rough estimate</div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Preview</div>
+              <div class="value">Waiting for must-pay item</div>
+            </div>
+          </div>
+          <div class="buttons">
+            <span class="button">Estimate income</span><span class="button">No income to add</span
+            ><span class="button">Continue</span>
+          </div>
+        </article>
+        <article class="phone" data-surface="completed-manual-first-picture">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Completed manual first picture</p>
+          <h2>Payday picture preview</h2>
+          <p class="body">This is enough for a first picture. You can add more later.</p>
+          <div class="cards">
+            <div class="card tone-confirmed">
+              <div class="label">Money now</div>
+              <div class="value">GBP 1,190.47</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Next income</div>
+              <div class="value">Payday, 27 Jun</div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Must pay</div>
+              <div class="value">Rent, 1 Jul</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Debt note</div>
+              <div class="value">No extra debt note yet</div>
+            </div>
+          </div>
+          <div class="route">
+            <div class="label">Will I make it to payday?</div>
+            <svg class="routeSvg" viewBox="0 0 340 100" role="img" aria-label="Money picture chart">
+              <path
+                d="M 8 44 L 114 75 L 220 10 L 326 10"
+                fill="none"
+                stroke="#c4d3cb"
+                stroke-width="14"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 8 44 L 114 75 L 220 10 L 326 10"
+                fill="none"
+                stroke="#1f7a5c"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle cx="8" cy="44" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="114" cy="75" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="220" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="326" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            </svg>
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Available now</div>
+                <div class="value">£315.47</div>
+              </div>
+              <div class="stat">
+                <div class="label">Lowest point</div>
+                <div class="value">£315.47 Today</div>
+              </div>
+              <div class="stat">
+                <div class="label">Still checking</div>
+                <div class="value">0 waiting</div>
+              </div>
+            </div>
+            <div class="note">
+              Show why: accepted items, dates, estimates, waiting review rows and assumptions stay
+              visible.
+            </div>
+          </div>
+          <div class="buttons"><span class="button">Save first picture</span></div>
+        </article>
+        <article class="phone" data-surface="why-inspect-route">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Trust layer</p>
+          <h2>Pressure point</h2>
+          <p class="body">
+            Every route point explains date, amount, cause, accepted items and waiting review.
+          </p>
+          <div class="route">
+            <div class="label">Will I make it to payday?</div>
+            <svg class="routeSvg" viewBox="0 0 340 100" role="img" aria-label="Money picture chart">
+              <path
+                d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+                fill="none"
+                stroke="#c4d3cb"
+                stroke-width="14"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+                fill="none"
+                stroke="#1f7a5c"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle cx="8" cy="41" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="88" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="167" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="247" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="326" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            </svg>
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Available now</div>
+                <div class="value">£189.07</div>
+              </div>
+              <div class="stat">
+                <div class="label">Lowest point</div>
+                <div class="value">£189.07 Today</div>
+              </div>
+              <div class="stat">
+                <div class="label">Still checking</div>
+                <div class="value">0 waiting</div>
+              </div>
+            </div>
+            <div class="note">
+              Show why: accepted items, dates, estimates, waiting review rows and assumptions stay
+              visible.
+            </div>
+          </div>
+          <div class="cards">
+            <div class="card tone-confirmed">
+              <div class="label">Date</div>
+              <div class="value">2026-06-25</div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Balance after</div>
+              <div class="value">£189.07</div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">What caused it</div>
+              <div class="value">Council tax before payday</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Waiting review</div>
+              <div class="value">0 waiting</div>
+            </div>
+          </div>
+          <div class="note">
+            Waiting rows stay visible here but do not change your picture until accepted.
+          </div>
+        </article>
+        <article class="phone" data-surface="first-real-today-briefing">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">First real Today briefing</p>
+          <h2>You&#39;re covered through Sat 27 Jun.</h2>
+          <p class="body">A calm daily briefing from local records.</p>
+          <div>
+            <div class="money">£1,027.67</div>
+            <p class="body">breathing room after known bills</p>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-preview"></i><strong>Preview</strong
+              ><span>Picture updates first</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-reveal"></i><strong>Reveal</strong
+              ><span>Details stay one tap away</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-commit"></i><strong>Save</strong
+              ><span>Nothing changes until you choose</span>
+            </div>
+          </div>
+          <div class="lineSummary">
+            <div class="lineItem"><span>Position</span><strong>£1,027.67</strong></div>
+            <div class="lineItem"><span>Next</span><strong>Payday, 27 Jun</strong></div>
+            <div class="lineItem"><span>Review</span><strong>0 item(s)</strong></div>
+          </div>
+          <div class="disclosure">
+            <strong>What changed?</strong><span>3 changes are visible.</span><b>›</b>
+          </div>
+          <div class="route">
+            <div class="label">Will I make it to payday?</div>
+            <svg class="routeSvg" viewBox="0 0 340 100" role="img" aria-label="Money picture chart">
+              <path
+                d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+                fill="none"
+                stroke="#c4d3cb"
+                stroke-width="14"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+                fill="none"
+                stroke="#1f7a5c"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle cx="8" cy="41" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="88" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="167" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="247" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="326" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            </svg>
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Available now</div>
+                <div class="value">£189.07</div>
+              </div>
+              <div class="stat">
+                <div class="label">Lowest point</div>
+                <div class="value">£189.07 Today</div>
+              </div>
+              <div class="stat">
+                <div class="label">Still checking</div>
+                <div class="value">0 waiting</div>
+              </div>
+            </div>
+            <div class="note">
+              Show why: accepted items, dates, estimates, waiting review rows and assumptions stay
+              visible.
+            </div>
+          </div>
+        </article>
+        <article class="phone" data-surface="what-changed">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Timeline explanation</p>
+          <h2>What changed?</h2>
+          <p class="body">Accepted rows and saved commitments explain the update.</p>
+          <div class="disclosure">
+            <strong>Latest change</strong><span>3 changes are visible.</span><b>›</b>
+          </div>
+          <div class="rows">
+            <div class="row">
+              <span>Change</span><strong>Council tax</strong
+              ><span>-£126.40 is protected for 2026-06-25.</span>
+            </div>
+            <div class="row">
+              <span>Change</span><strong>Rent</strong
+              ><span>-£875 is protected for 2026-07-01.</span>
+            </div>
+            <div class="row">
+              <span>Change</span><strong>Protect Council tax</strong
+              ><span
+                >Protect Council tax is checked against the current canonical position. Protect
+                Council tax remains linked to 2026-06-25.</span
+              >
+            </div>
+          </div>
+          <div class="note">Rows waiting in Review are not included until added.</div>
+        </article>
+        <article class="phone" data-surface="breathing-room-route">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Breathing-room route</p>
+          <h2>Will I make it to payday?</h2>
+          <p class="body">
+            Today, income, bills, debt payments, protected buffer, lowest point and waiting rows are
+            visible.
+          </p>
+          <div class="route">
+            <div class="label">Will I make it to payday?</div>
+            <svg class="routeSvg" viewBox="0 0 340 100" role="img" aria-label="Money picture chart">
+              <path
+                d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+                fill="none"
+                stroke="#c4d3cb"
+                stroke-width="14"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+                fill="none"
+                stroke="#1f7a5c"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle cx="8" cy="41" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="88" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="167" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="247" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="326" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            </svg>
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Available now</div>
+                <div class="value">£189.07</div>
+              </div>
+              <div class="stat">
+                <div class="label">Lowest point</div>
+                <div class="value">£189.07 Today</div>
+              </div>
+              <div class="stat">
+                <div class="label">Still checking</div>
+                <div class="value">0 waiting</div>
+              </div>
+            </div>
+            <div class="note">
+              Show why: accepted items, dates, estimates, waiting review rows and assumptions stay
+              visible.
+            </div>
+          </div>
+          <div class="stats">
+            <div class="stat">
+              <div class="label">Current money</div>
+              <div class="value">£189.07</div>
+            </div>
+            <div class="stat">
+              <div class="label">Next income</div>
+              <div class="value">Sat payday</div>
+            </div>
+            <div class="stat">
+              <div class="label">Lowest point</div>
+              <div class="value">£189.07 Today</div>
+            </div>
+            <div class="stat">
+              <div class="label">Waiting review</div>
+              <div class="value">0</div>
+            </div>
+          </div>
+        </article>
+        <article class="phone" data-surface="timeline">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Timeline</p>
+          <h2>What changed, what is next.</h2>
+          <p class="body">0 known, 3 coming up, 0 to review.</p>
+          <div class="chips">
+            <span class="chip">Now</span><span class="chip">Needs review</span
+            ><span class="chip">Coming up</span><span class="chip">Plan movement</span
+            ><span class="chip">History</span>
+          </div>
+          <div class="rows">
+            <div class="row">
+              <span>Audit</span><strong>manual added</strong
+              ><span
+                >user recorded manual added. An audit entry records a change to local data. Source:
+                ...</span
+              >
+            </div>
+            <div class="row">
+              <span>Audit</span><strong>planner added</strong
+              ><span
+                >user recorded planner added. An audit entry records a change to local data.
+                Source:...</span
+              >
+            </div>
+            <div class="row">
+              <span>Plan</span><strong>Protect Council tax checked</strong
+              ><span
+                >Protect Council tax is checked against the current canonical position. Protect
+                Coun...</span
+              >
+            </div>
+            <div class="row">
+              <span>Plan</span><strong>Protect Rent checked</strong
+              ><span
+                >Protect Rent is checked against the current canonical position. Protect Rent
+                remain...</span
+              >
+            </div>
+            <div class="row">
+              <span>Balance</span><strong>Balance updated</strong
+              ><span
+                >Current balance selected from recorded balance evidence. This balance record
+                explai...</span
+              >
+            </div>
+            <div class="row">
+              <span>Balance</span><strong>Opening balance set</strong
+              ><span
+                >User-entered opening balance used as the current position anchor. This balance
+                reco...</span
+              >
+            </div>
+            <div class="row">
+              <span>Meaning</span><strong>Council tax</strong
+              ><span
+                >Planned money movement; not a confirmed transaction yet. This event explains what
+                t...</span
+              >
+            </div>
+          </div>
+        </article>
+        <article class="phone" data-surface="calendar">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Calendar</p>
+          <h2>Your week reacts to the money picture.</h2>
+          <p class="body">Important dates first. Details stay one tap away.</p>
+          <div class="week">
+            <div class="day">Today</div>
+            <div class="day">Tue</div>
+            <div class="day">Wed</div>
+            <div class="day">Thu</div>
+            <div class="day">Fri</div>
+            <div class="day">Sat</div>
+            <div class="day">Sun</div>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-preview"></i><strong>Preview</strong
+              ><span>Week reacts to the money picture</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-reveal"></i><strong>Reveal</strong
+              ><span>Full agenda stays one tap away</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-commit"></i><strong>Save</strong
+              ><span>New commitments save after review</span>
+            </div>
+          </div>
+          <div class="route">
+            <div class="label">Will I make it to payday?</div>
+            <svg class="routeSvg" viewBox="0 0 340 100" role="img" aria-label="Money picture chart">
+              <path
+                d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+                fill="none"
+                stroke="#c4d3cb"
+                stroke-width="14"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+                fill="none"
+                stroke="#1f7a5c"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle cx="8" cy="41" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="88" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="167" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="247" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="326" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            </svg>
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Available now</div>
+                <div class="value">£189.07</div>
+              </div>
+              <div class="stat">
+                <div class="label">Lowest point</div>
+                <div class="value">£189.07 Today</div>
+              </div>
+              <div class="stat">
+                <div class="label">Still checking</div>
+                <div class="value">0 waiting</div>
+              </div>
+            </div>
+            <div class="note">
+              Show why: accepted items, dates, estimates, waiting review rows and assumptions stay
+              visible.
+            </div>
+          </div>
+          <div class="rows">
+            <div class="row">
+              <span>Today</span><strong>Protect Council tax planned contribution</strong
+              ><span>Planned contribution</span>
+            </div>
+            <div class="row">
+              <span>Today</span><strong>Protect Council tax review</strong
+              ><span>Plan review date</span>
+            </div>
+            <div class="row">
+              <span>Today</span><strong>Protect Rent planned contribution</strong
+              ><span>Planned contribution</span>
+            </div>
+            <div class="row">
+              <span>Today</span><strong>Protect Rent review</strong><span>Plan review date</span>
+            </div>
+          </div>
+          <div class="disclosure">
+            <strong>Full agenda</strong><span>9 calendar items, 0 planner items.</span><b>›</b>
+          </div>
+        </article>
+        <article class="phone" data-surface="plans">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Plans</p>
+          <h2>Progress without pressure.</h2>
+          <p class="body">Plans show protected money, movement and next review.</p>
+          <div class="trustRail">
+            <div class="trustChip"><strong>Plans</strong><span>2</span></div>
+            <div class="trustChip"><strong>Review</strong><span>0</span></div>
+            <div class="trustChip">
+              <strong>Based on</strong><span>Local personal workspace</span>
+            </div>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-preview"></i><strong>Preview</strong
+              ><span>Plan movement is simulated first</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-protect"></i><strong>Protect</strong
+              ><span>Protected money remains named</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-commit"></i><strong>Save</strong
+              ><span>Accepted recovery updates the plan</span>
+            </div>
+          </div>
+          <div class="rows">
+            <div class="row">
+              <span>active</span><strong>Protect Council tax</strong
+              ><span>First payday contribution can be reviewed from 2026-06-22.</span>
+            </div>
+            <div class="row">
+              <span>active</span><strong>Protect Rent</strong
+              ><span>First payday contribution can be reviewed from 2026-06-22.</span>
+            </div>
+          </div>
+          <div class="rows"></div>
+        </article>
+        <article class="phone" data-surface="recovery-preview">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Recovery preview</p>
+          <h2>Preview first. Save only after review.</h2>
+          <p class="body">Nothing has changed yet. Folio shows the path before recording.</p>
+          <div class="melo">
+            <div class="avatar">M</div>
+            <p>There is a path forward. Review the visible preview before saving.</p>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-preview"></i><strong>Preview</strong
+              ><span>Try the change first</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-protect"></i><strong>Protect</strong
+              ><span>Protected items stay visible</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-commit"></i><strong>Save</strong
+              ><span>Record only after review</span>
+            </div>
+          </div>
+          <div class="stats">
+            <div class="stat">
+              <div class="label">Now available</div>
+              <div class="value">£189.07</div>
+            </div>
+            <div class="stat">
+              <div class="label">After spend</div>
+              <div class="value">-£200.93</div>
+            </div>
+            <div class="stat">
+              <div class="label">Writes immediately</div>
+              <div class="value">no</div>
+            </div>
+          </div>
+          <div class="route">
+            <div class="label">Will I make it to payday?</div>
+            <svg class="routeSvg" viewBox="0 0 340 100" role="img" aria-label="Money picture chart">
+              <path
+                d="M 8 45 L 88 86 L 167 86 L 247 10 L 326 10"
+                fill="none"
+                stroke="#c4d3cb"
+                stroke-width="14"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 8 45 L 88 86 L 167 86 L 247 10 L 326 10"
+                fill="none"
+                stroke="#1f7a5c"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle cx="8" cy="45" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="88" cy="86" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="167" cy="86" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="247" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+              <circle cx="326" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            </svg>
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Available now</div>
+                <div class="value">-£200.93</div>
+              </div>
+              <div class="stat">
+                <div class="label">Lowest point</div>
+                <div class="value">-£200.93 Today</div>
+              </div>
+              <div class="stat">
+                <div class="label">Still checking</div>
+                <div class="value">0 waiting</div>
+              </div>
+            </div>
+            <div class="note">
+              Show why: accepted items, dates, estimates, waiting review rows and assumptions stay
+              visible.
+            </div>
+          </div>
+          <div class="note">Repair</div>
+        </article>
+        <article class="phone" data-surface="data-control">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Data and privacy</p>
+          <h2>Know what is here. Take it with you.</h2>
+          <p class="body">Rows waiting for review, added rows and ignored rows stay separate.</p>
+          <div class="trustRail">
+            <div class="trustChip"><strong>Local</strong><span>On this device</span></div>
+            <div class="trustChip"><strong>Review</strong><span>You choose what counts</span></div>
+            <div class="trustChip"><strong>Portable</strong><span>Export anytime</span></div>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-reveal"></i><strong>Reveal</strong
+              ><span>See what is stored</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-protect"></i><strong>Protect</strong
+              ><span>Export stays user-owned</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-commit"></i><strong>Clear</strong
+              ><span>Clear only after arming</span>
+            </div>
+          </div>
+          <div class="cards">
+            <div class="card tone-confirmed">
+              <div class="label">Local data</div>
+              <div class="value">5 export rows</div>
+            </div>
+            <div class="card tone-confirmed">
+              <div class="label">Accepted money rows</div>
+              <div class="value">3 records</div>
+            </div>
+            <div class="card tone-estimated">
+              <div class="label">Rows waiting</div>
+              <div class="value">0 drafts</div>
+            </div>
+            <div class="card tone-attention">
+              <div class="label">Rejected evidence</div>
+              <div class="value">0 retained</div>
+            </div>
+          </div>
+          <div class="buttons">
+            <span class="button">Prepare export file</span><span class="button">Arm clear</span>
+          </div>
+        </article>
+        <article class="phone" data-surface="more">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Settings and support</p>
+          <h2>More</h2>
+          <p class="body">Secondary actions stay out of the first decision path.</p>
+          <div class="actionStack">
+            <div class="action actionPrimary">
+              <strong>Data and privacy</strong
+              ><span>See what is stored, export, and clear deliberately</span>
+            </div>
+            <div class="action">
+              <strong>Try fake data</strong><span>Open a sample without touching your picture</span>
+            </div>
+            <div class="action">
+              <strong>Security check</strong
+              ><span>Local lock, device storage and review status</span>
+            </div>
+            <div class="action">
+              <strong>Evidence and support</strong
+              ><span>Copy useful details without sharing money rows</span>
+            </div>
+          </div>
+          <div class="note">
+            More keeps settings and proof available without turning Start into a dashboard.
+          </div>
+        </article>
+        <article class="phone" data-surface="melo-surface">
+          <div class="topbar">
+            <span class="phoneBrand"
+              ><span
+                class="folioMark topbarMark"
+                role="img"
+                aria-label="Folio temporary brand mark: folded local record with a money line"
+                ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 6h18l8 8v28H14z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M32 6v10h8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.4"
+                  />
+                  <path
+                    d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                    fill="none"
+                    stroke="#2E7D67"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="3.8"
+                  />
+                  <path
+                    d="M19 36h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-opacity=".38"
+                    stroke-width="3.4"
+                  /></svg></span
+              ><span>Personal</span></span
+            ><span>Local</span>
+          </div>
+          <p class="eyebrow">Melo surface</p>
+          <h2>Melo explains. You decide.</h2>
+          <p class="body">Records stay visible. Changes still need your tap.</p>
+          <div class="melo">
+            <div class="avatar">M</div>
+            <p>
+              I can check it, but I need the amount first. Right now the local route shows £189.07
+              available and £189.07 at the tightest point.
+            </p>
+          </div>
+          <div class="interactionRail">
+            <div class="interactionStep">
+              <i class="interactionDot mode-melo"></i><strong>Ask</strong
+              ><span>One bounded question</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-reveal"></i><strong>Reveal</strong
+              ><span>Local records stay visible</span>
+            </div>
+            <div class="interactionStep">
+              <i class="interactionDot mode-preview"></i><strong>Review</strong
+              ><span>Changes still need your tap</span>
+            </div>
+          </div>
+          <div class="note">
+            Local route remains £189.07 available now; tightest point Today is £189.07.
+          </div>
+          <div class="disclosure">
+            <strong>Records Melo checked</strong><span>Open for data used and guardrails.</span
+            ><b>›</b>
+          </div>
+          <div class="rows">
+            <div class="row">
+              <span>Show question types</span><strong>Explain</strong
+              ><span
+                >Try a spend amount, available-balance question, import review or recovery
+                question.</span
+              >
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

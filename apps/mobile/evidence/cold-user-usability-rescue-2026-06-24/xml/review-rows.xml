@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="review-rows">
+  <eyebrow>Review rows</eyebrow>
+  <title>I found enough to start.</title>
+  <body>3 rows are waiting. Review each before saving.</body>
+  <plainText>3 of 3 rows ready for review Preview Rows wait here Reveal Original wording remains visible Save Accept saves after review Review row 2026-06-21 / Bus fare / -3.20 Bus fare Review row 2026-06-22 / Coffee / -3.25 Coffee Review row 2026-06-27 / Payday / 1840.00 Payday Accept Adds this row to your money view with the original wording attached. Edit Preserves the original wording, stores your correction and still waits for acceptance. Reject Keeps the row out of your money view and leaves Today, Timeline and Plans unchanged.</plainText>
+</surface>

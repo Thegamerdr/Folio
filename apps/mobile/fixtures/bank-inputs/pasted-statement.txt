@@ -1,0 +1,5 @@
+Opening balance 1000.00
+2026-06-24 ACME Payroll +1840.00 2840.00
+2026-06-25 Landlord rent -875.00 1965.00
+2026-06-26 Tesco Supermarket -42.16 1922.84
+Closing balance 1922.84

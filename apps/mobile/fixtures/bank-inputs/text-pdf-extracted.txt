@@ -1,0 +1,18 @@
+NORTHWAY BANK
+Current Account Statement
+Account: ******4821
+Sort Code: NN-NN-NN
+Statement Period: 01 Jun 2026 to 30 Jun 2026
+
+Opening Balance                                   1,284.55
+
+Date        Description                  Money Out    Money In    Balance
+01 Jun 2026 Greenfern Cafe                    4.85                1,279.70
+03 Jun 2026 Salary - Marlowe Studios                  1,850.00   3,129.70
+05 Jun 2026 Brightline Energy DD             72.40                3,057.30
+08 Jun 2026 Pinegrove Groceries             38.19                3,019.11
+11 Jun 2026 Refund - Acorn Books                         12.99   3,032.10
+14 Jun 2026 Harbourview Rent               695.00                2,337.10
+20 Jun 2026 Cedar Mobile Airtime            15.00                2,322.10
+
+Closing Balance                                   2,322.10

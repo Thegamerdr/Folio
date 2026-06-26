@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="rejected-import-state">
+  <eyebrow>Rejected import state</eyebrow>
+  <title>Rejected evidence stays separate.</title>
+  <body>Rejected rows remain proof, not money rows.</body>
+  <plainText>Accepted records 0 Rejected evidence 1 Import drafts 2 2026-06-21 / Bus fare / -3.20: duplicate</plainText>
+</surface>

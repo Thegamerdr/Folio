@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-06-23T17:38:38.050Z",
+  "method": "static-html-render-harness-from-local-ledger-and-surface-copy",
+  "outputDir": "C:\\dev\\folio-v2-greenfield\\apps\\mobile\\evidence\\mobile-shell-visual-pass",
+  "pages": [
+    {
+      "id": "empty-first-launch",
+      "html": "pages/empty-first-launch.html",
+      "screenshot": "screenshots/empty-first-launch.png"
+    },
+    {
+      "id": "sample-briefing",
+      "html": "pages/sample-briefing.html",
+      "screenshot": "screenshots/sample-briefing.png"
+    },
+    {
+      "id": "import-entry",
+      "html": "pages/import-entry.html",
+      "screenshot": "screenshots/import-entry.png"
+    },
+    {
+      "id": "staged-import-review",
+      "html": "pages/staged-import-review.html",
+      "screenshot": "screenshots/staged-import-review.png"
+    },
+    {
+      "id": "rejected-import-state",
+      "html": "pages/rejected-import-state.html",
+      "screenshot": "screenshots/rejected-import-state.png"
+    },
+    {
+      "id": "minimal-manual-path",
+      "html": "pages/minimal-manual-path.html",
+      "screenshot": "screenshots/minimal-manual-path.png"
+    },
+    {
+      "id": "first-real-today-briefing",
+      "html": "pages/first-real-today-briefing.html",
+      "screenshot": "screenshots/first-real-today-briefing.png"
+    },
+    {
+      "id": "timeline",
+      "html": "pages/timeline.html",
+      "screenshot": "screenshots/timeline.png"
+    },
+    {
+      "id": "calendar",
+      "html": "pages/calendar.html",
+      "screenshot": "screenshots/calendar.png"
+    },
+    {
+      "id": "plans",
+      "html": "pages/plans.html",
+      "screenshot": "screenshots/plans.png"
+    },
+    {
+      "id": "recovery-preview",
+      "html": "pages/recovery-preview.html",
+      "screenshot": "screenshots/recovery-preview.png"
+    },
+    {
+      "id": "data-control",
+      "html": "pages/data-control.html",
+      "screenshot": "screenshots/data-control.png"
+    },
+    {
+      "id": "melo-surface",
+      "html": "pages/melo-surface.html",
+      "screenshot": "screenshots/melo-surface.png"
+    }
+  ]
+}

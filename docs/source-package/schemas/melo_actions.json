@@ -1,0 +1,108 @@
+{
+  "version": "1.0.0",
+  "defaultMaxQuestions": 3,
+  "proposalLifecycle": [
+    "proposed",
+    "edited",
+    "accepted",
+    "rejected",
+    "expired",
+    "committed"
+  ],
+  "actions": [
+    {
+      "type": "create_event",
+      "risk": "low",
+      "reviewRequired": true,
+      "command": "CreateEvent"
+    },
+    {
+      "type": "update_event",
+      "risk": "low",
+      "reviewRequired": true,
+      "command": "UpdateEvent"
+    },
+    {
+      "type": "create_plan",
+      "risk": "medium",
+      "reviewRequired": true,
+      "command": "CreatePlan"
+    },
+    {
+      "type": "rebase_plan",
+      "risk": "medium",
+      "reviewRequired": true,
+      "command": "RebasePlan"
+    },
+    {
+      "type": "pause_plan",
+      "risk": "medium",
+      "reviewRequired": true,
+      "command": "PausePlan"
+    },
+    {
+      "type": "create_reminder",
+      "risk": "low",
+      "reviewRequired": true,
+      "command": "CreateReminder"
+    },
+    {
+      "type": "classify_transaction",
+      "risk": "low",
+      "reviewRequired": "when_uncertain_or_tax_relevant",
+      "command": "ClassifyTransaction"
+    },
+    {
+      "type": "split_transaction",
+      "risk": "medium",
+      "reviewRequired": true,
+      "command": "SplitTransaction"
+    },
+    {
+      "type": "link_transfer",
+      "risk": "medium",
+      "reviewRequired": true,
+      "command": "LinkTransfer"
+    },
+    {
+      "type": "update_recurring_expectation",
+      "risk": "medium",
+      "reviewRequired": true,
+      "command": "UpdateRecurringExpectation"
+    },
+    {
+      "type": "run_scenario",
+      "risk": "low",
+      "reviewRequired": false,
+      "command": "RunScenario"
+    },
+    {
+      "type": "move_workspace",
+      "risk": "high",
+      "reviewRequired": true,
+      "extraConfirmation": true,
+      "command": "MoveWorkspaceRecord"
+    },
+    {
+      "type": "save_memory",
+      "risk": "low",
+      "reviewRequired": true,
+      "command": "SaveMeloMemory"
+    },
+    {
+      "type": "delete_memory",
+      "risk": "low",
+      "reviewRequired": true,
+      "command": "DeleteMeloMemory"
+    }
+  ],
+  "forbidden": [
+    "direct_sql",
+    "direct_payment",
+    "product_recommendation",
+    "tax_submission",
+    "automatic_workspace_move",
+    "silent_plan_commit",
+    "unbounded_questions"
+  ]
+}

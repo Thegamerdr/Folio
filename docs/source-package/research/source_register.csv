@@ -1,0 +1,52 @@
+id,category,publisher,title,url,source_type,implementation_use,accessed
+R001,Financial outcome,CFPB,Why financial well-being?,https://www.consumerfinance.gov/consumer-tools/financial-well-being/about/,official,"Defines control, shock capacity, goals and freedom of choice.",2026-06-20
+R002,Financial outcome,CFPB,Financial well-being resources,https://www.consumerfinance.gov/consumer-tools/educator-tools/financial-well-being-resources/,official,Current resource hub and definition.,2026-06-20
+R003,Financial behavior,MoneyHelper,Beginner’s guide to managing your money,https://www.moneyhelper.org.uk/en/everyday-money/budgeting/beginners-guide-to-managing-your-money,official guidance,Practical budgeting and control framing.,2026-06-20
+R004,Irregular income,MoneyHelper,How to budget for an irregular income,https://www.moneyhelper.org.uk/en/everyday-money/budgeting/how-to-budget-for-an-irregular-income,official guidance,Supports conservative income and cash-pot design.,2026-06-20
+R005,Business separation,MoneyHelper,Support if you’re self-employed,https://www.moneyhelper.org.uk/en/money-troubles/cost-of-living/self-employed,official guidance,Recommends separating personal and business records.,2026-06-20
+R006,Advice boundary,FCA Handbook,PERG 2.7 Activities: a broad outline,https://handbook.fca.org.uk/handbook/PERG/2/7.html,regulator,Debt counselling/advice can be regulated.,2026-06-20
+R007,Advice boundary,FCA Handbook,PERG 17 Consumer credit debt counselling,https://handbook.fca.org.uk/handbook/PERG/17/,regulator,Boundary research for debt-related guidance.,2026-06-20
+R008,Advice boundary,FCA,Helping firms provide more support to customers making investment decisions,https://www.fca.org.uk/firms/helping-firms-provide-more-support-customers-making-investment-decisions,regulator,Examples near advice/guidance boundary.,2026-06-20
+R009,Privacy,ICO,Data protection by design and by default,https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/guide-to-accountability-and-governance/data-protection-by-design-and-by-default/,regulator,Privacy must be embedded through lifecycle.,2026-06-20
+R010,Privacy,ICO,When do we need to do a DPIA?,https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/when-do-we-need-to-do-a-dpia/,regulator,High-risk processing requires prior DPIA.,2026-06-20
+R011,Local-first,Expo,Local-first architecture with Expo,https://docs.expo.dev/guides/local-first/,official technical,Confirms offline local reads/writes and sync benefits.,2026-06-20
+R012,Mobile stack,Expo,Create an Expo app,https://docs.expo.dev/more/create-expo/,official technical,Current SDK-56 creation path at research date.,2026-06-20
+R013,Mobile database,Expo,Expo SQLite,https://docs.expo.dev/versions/latest/sdk/sqlite/,official technical,SQLite persistence and Expo integration.,2026-06-20
+R014,Mobile database,OP Engineering,OP-SQLite installation,https://op-engineering.github.io/op-sqlite/docs/installation/,official project docs,Native Expo development build requirement.,2026-06-20
+R015,Sync/database,PowerSync,React Native & Expo SDK,https://docs.powersync.com/client-sdks/reference/react-native-and-expo,official vendor docs,OP-SQLite/SQLCipher support and local-first options.,2026-06-20
+R016,SQLite,SQLite,FTS5 Extension,https://www.sqlite.org/fts5.html,official technical,Local full-text search implementation.,2026-06-20
+R017,SQLite,SQLite,Write-Ahead Logging,https://www.sqlite.org/wal.html,official technical,WAL behavior and concurrency.,2026-06-20
+R018,SQLite,SQLite,Session Extension,https://www.sqlite.org/sessionintro.html,official technical,Changesets/sessions for sync research.,2026-06-20
+R019,Security,OWASP,Mobile Application Security Verification Standard,https://mas.owasp.org/MASVS/,security standard,Mobile security verification baseline.,2026-06-20
+R020,Security,Apple,Storing keys in the Keychain,https://developer.apple.com/documentation/security/storing-keys-in-the-keychain,official technical,Keychain is appropriate for small cryptographic secrets.,2026-06-20
+R021,Security,Apple,Protecting keys with the Secure Enclave,https://developer.apple.com/documentation/security/protecting-keys-with-the-secure-enclave,official technical,Hardware-backed key protection.,2026-06-20
+R022,Security,Android,Android Keystore system,https://developer.android.com/privacy-and-security/keystore,official technical,Hardware-bound non-extractable keys.,2026-06-20
+R023,Security,RFC Editor,RFC 9106 Argon2,https://www.rfc-editor.org/info/rfc9106/,standard,Recovery passphrase key derivation.,2026-06-20
+R024,Open Banking,Open Banking Limited,Consent – AIS,https://standards.openbanking.org.uk/customer-experience-guidelines/introduction/customer-journey-consent/latest/,industry standard,"Explicit, understandable consent requirements.",2026-06-20
+R025,Open Banking,Open Banking Limited,Permissions and data clusters,https://standards.openbanking.org.uk/customer-experience-guidelines/account-information-services/permissions-and-data-clusters/v3-1-9/,industry standard,Permission granularity and data clusters.,2026-06-20
+R026,Open Banking,Open Banking Limited,AIS consent dashboard and revocation,https://standards.openbanking.org.uk/customer-experience-guidelines/account-information-services/consent-dashboard-revocation/v3-1-4/,industry standard,User consent visibility and revocation.,2026-06-20
+R027,Tax,HMRC,Find out if and when you need MTD for Income Tax,https://www.gov.uk/guidance/find-out-if-and-when-you-need-to-use-making-tax-digital-for-income-tax,government,Current phased thresholds/dates at research date.,2026-06-20
+R028,Tax,HMRC,MTD Income Tax end-to-end service guide,https://developer.service.hmrc.gov.uk/guides/income-tax-mtd-end-to-end-service-guide/,official technical,Direct filing integration requirements.,2026-06-20
+R029,Tax,HMRC,MTD digital record-keeping notice,https://www.gov.uk/government/publications/digital-record-keeping-notice-for-making-tax-digital-for-income-tax/making-tax-digital-for-income-tax-digital-record-keeping-notice,government,Digital record requirements.,2026-06-20
+R030,Store,Apple,App Review Guidelines,https://developer.apple.com/app-store/review/guidelines/,platform policy,"Login minimisation, account deletion and app rules.",2026-06-20
+R031,Store privacy,Apple,App Privacy Details,https://developer.apple.com/app-store/app-privacy-details/,platform policy,App Store privacy disclosure requirements.,2026-06-20
+R032,Store,Google Play,Developer Program Policy — financial features,https://support.google.com/googleplay/android-developer/answer/17105854?hl=en,platform policy,Financial features declaration and compliance.,2026-06-20
+R033,Store privacy,Google Play,Data safety section,https://support.google.com/googleplay/android-developer/answer/10787469?hl=en,platform policy,Google Play data declarations.,2026-06-20
+R034,Store account,Google Play,Account deletion requirements,https://support.google.com/googleplay/android-developer/answer/13327111?hl=en,platform policy,In-app and web deletion path.,2026-06-20
+R035,Permissions,Apple,Accessing Calendar using EventKit and EventKitUI,https://developer.apple.com/documentation/EventKit/accessing-calendar-using-eventkit-and-eventkitui,official technical,Write-only/full calendar access options.,2026-06-20
+R036,Accessibility,Apple,Accessibility HIG,https://developer.apple.com/design/Human-Interface-Guidelines/accessibility,official design,VoiceOver and inclusive mobile design.,2026-06-20
+R037,Accessibility,Android,Principles for improving app accessibility,https://developer.android.com/guide/topics/ui/accessibility/principles,official technical,"Labels, non-colour cues and accessible interaction.",2026-06-20
+R038,Accessibility,W3C,WCAG 2.2,https://www.w3.org/TR/WCAG22/,standard,AA-oriented accessibility requirements.,2026-06-20
+R039,AI pricing,Google AI,Gemini Developer API pricing,https://ai.google.dev/gemini-api/docs/pricing,official vendor docs,Current model prices and data-use statements.,2026-06-20
+R040,AI lifecycle,Google AI,Gemini API deprecations,https://ai.google.dev/gemini-api/docs/deprecations,official vendor docs,Models require lifecycle-aware registry.,2026-06-20
+R041,On-device AI,Apple,WWDC26 Apple Intelligence guide,https://developer.apple.com/wwdc26/guides/apple-intelligence/,official technical,Foundation Models on-device provider framework.,2026-06-20
+R042,On-device AI,Apple,Foundation Models documentation,https://developer.apple.com/documentation/foundationmodels,official technical,Structured output/tool calling on supported devices.,2026-06-20
+R043,Gamification,"Bitrián, Buil & Catalán",Making finance fun: the gamification of personal financial management apps,https://selfdeterminationtheory.org/wp-content/uploads/2024/03/2021_BitrianBuilCatalan_IJBM.pdf,peer reviewed,Gamification can support competence/autonomy and motivation.,2026-06-20
+R044,Motivation,Self-Determination Theory,Theory overview,https://selfdeterminationtheory.org/theory/,research hub,Autonomy and competence as motivation supports.,2026-06-20
+R045,File format,Financial Data Exchange,OFX 2.3 Specification,https://www.financialdataexchange.org/FDX/FDX/OFX/OFX-Work-Group.aspx,industry standard,OFX/QFX parser reference; verify current download location.,2026-06-20
+R046,Recurrence,RFC Editor,RFC 5545 iCalendar,https://www.rfc-editor.org/rfc/rfc5545,standard,Recurrence and calendar semantics.,2026-06-20
+R047,Time,RFC Editor,RFC 3339 Date and Time,https://www.rfc-editor.org/rfc/rfc3339,standard,Interchange timestamps.,2026-06-20
+R048,OCR,Apple,Recognizing text in images,https://developer.apple.com/documentation/vision/recognizing-text-in-images,official technical,On-device Vision OCR.,2026-06-20
+R049,OCR,Google ML Kit,Text recognition v2,https://developers.google.com/ml-kit/vision/text-recognition/v2,official technical,On-device Android OCR.,2026-06-20
+R050,Authentication,Android,Credential Manager Sign in with Google,https://developer.android.com/identity/sign-in/credential-manager-siwg,official technical,Unified sign-in/passkey path.,2026-06-20
+R051,Authentication,Apple,Supporting passkeys,https://developer.apple.com/documentation/authenticationservices/supporting-passkeys,official technical,Passkey account authentication and recovery considerations.,2026-06-20

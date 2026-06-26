@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+.expo/
+.pnpm-patches/
+.DS_Store
+*.log
+*.tsbuildinfo
+android/
+ios/
+!apps/mobile/android/.gitkeep
+!apps/mobile/ios/.gitkeep

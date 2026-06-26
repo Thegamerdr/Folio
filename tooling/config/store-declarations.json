@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0",
+  "releaseName": "Folio V2 store declarations",
+  "updatedOn": "2026-06-21",
+  "reviewAgainstSubmittedBinaryComplete": false,
+  "storeConsoleReviewComplete": false,
+  "privacyPolicyUrl": null,
+  "privacyPolicyCurrent": false,
+  "processorListCurrent": false,
+  "sdkInventoryCurrent": false,
+  "submittedBinarySha256": null,
+  "officialReferences": [
+    "https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/",
+    "https://developer.apple.com/app-store/user-privacy-and-data-use/",
+    "https://developer.apple.com/support/offering-account-deletion-in-your-app/",
+    "https://support.google.com/googleplay/android-developer/answer/10787469",
+    "https://support.google.com/googleplay/android-developer/answer/13327111",
+    "https://support.google.com/googleplay/android-developer/answer/17105854"
+  ],
+  "declarations": [
+    {
+      "id": "apple-app-privacy",
+      "store": "apple",
+      "title": "Apple App Privacy answers",
+      "prepared": true,
+      "consoleSubmitted": false,
+      "binaryMatched": false,
+      "evidencePath": "docs/release-store/apple-app-privacy-checklist.md",
+      "blocker": "Apple App Privacy answers are not checked against the submitted binary"
+    },
+    {
+      "id": "apple-account-deletion",
+      "store": "apple",
+      "title": "Apple in-app account deletion",
+      "prepared": true,
+      "consoleSubmitted": false,
+      "binaryMatched": false,
+      "evidencePath": "docs/release-store/account-deletion-checklist.md",
+      "blocker": "in-app account deletion is not proven in the submitted binary"
+    },
+    {
+      "id": "google-data-safety",
+      "store": "google",
+      "title": "Google Play Data safety form",
+      "prepared": true,
+      "consoleSubmitted": false,
+      "binaryMatched": false,
+      "evidencePath": "docs/release-store/google-data-safety-checklist.md",
+      "blocker": "Google Data safety form is not checked against the submitted package"
+    },
+    {
+      "id": "google-account-deletion",
+      "store": "google",
+      "title": "Google Play account and data deletion",
+      "prepared": true,
+      "consoleSubmitted": false,
+      "binaryMatched": false,
+      "evidencePath": "docs/release-store/account-deletion-checklist.md",
+      "blocker": "Google web deletion route and Data safety deletion answers are not approved"
+    },
+    {
+      "id": "google-financial-features",
+      "store": "google",
+      "title": "Google Play Financial features declaration",
+      "prepared": true,
+      "consoleSubmitted": false,
+      "binaryMatched": false,
+      "evidencePath": "docs/release-store/sdk-permission-financial-declarations.md",
+      "blocker": "Financial features declaration is not completed for the submitted package"
+    },
+    {
+      "id": "sdk-permission-inventory",
+      "store": "both",
+      "title": "SDK, permission and privacy-manifest inventory",
+      "prepared": true,
+      "consoleSubmitted": false,
+      "binaryMatched": false,
+      "evidencePath": "docs/release-store/sdk-permission-financial-declarations.md",
+      "blocker": "SDK and permission inventory is not approved against the submitted binary"
+    },
+    {
+      "id": "reviewer-notes",
+      "store": "both",
+      "title": "Reviewer notes and demo instructions",
+      "prepared": true,
+      "consoleSubmitted": false,
+      "binaryMatched": false,
+      "evidencePath": "docs/release-store/reviewer-notes.md",
+      "blocker": "reviewer notes are not submitted with production store metadata"
+    }
+  ]
+}

@@ -1,0 +1,278 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "I001_signed_amount",
+      "format": "csv",
+      "headers": [
+        "Date",
+        "Description",
+        "Amount"
+      ],
+      "rows": [
+        [
+          "20/06/2026",
+          "SHOP",
+          "-12.34"
+        ]
+      ],
+      "locale": "en-GB",
+      "expected": [
+        {
+          "localDate": "2026-06-20",
+          "description": "SHOP",
+          "amountMinor": -1234,
+          "currency": "GBP"
+        }
+      ]
+    },
+    {
+      "id": "I002_debit_credit_columns",
+      "format": "csv",
+      "headers": [
+        "Date",
+        "Details",
+        "Debit",
+        "Credit"
+      ],
+      "rows": [
+        [
+          "2026-06-20",
+          "WAGES",
+          "",
+          "585.00"
+        ],
+        [
+          "2026-06-21",
+          "RENT",
+          "735.00",
+          ""
+        ]
+      ],
+      "expected": [
+        {
+          "amountMinor": 58500
+        },
+        {
+          "amountMinor": -73500
+        }
+      ]
+    },
+    {
+      "id": "I003_formula_injection",
+      "format": "csv",
+      "headers": [
+        "Date",
+        "Description",
+        "Amount"
+      ],
+      "rows": [
+        [
+          "2026-06-20",
+          "=HYPERLINK(\"http://evil\")",
+          "-1.00"
+        ]
+      ],
+      "expected": {
+        "storedAsLiteral": true,
+        "exportEscaped": true,
+        "executed": false
+      }
+    },
+    {
+      "id": "I004_duplicate_same_file",
+      "format": "csv",
+      "sourceHash": "abc",
+      "rows": [
+        {
+          "sourceRef": "2",
+          "hash": "r2"
+        }
+      ],
+      "repeat": 2,
+      "expected": {
+        "committedTransactions": 1,
+        "secondImportState": "duplicate"
+      }
+    },
+    {
+      "id": "I005_pending_to_posted",
+      "format": "open_banking",
+      "rows": [
+        {
+          "providerId": "p1",
+          "status": "pending",
+          "amountMinor": -5000,
+          "date": "2026-06-20"
+        },
+        {
+          "providerId": "x1",
+          "replaces": "p1",
+          "status": "posted",
+          "amountMinor": -5000,
+          "date": "2026-06-21"
+        }
+      ],
+      "expected": {
+        "countedTransactions": 1,
+        "preserveBothSourceRows": true
+      }
+    },
+    {
+      "id": "I006_transfer_pair",
+      "format": "csv",
+      "rows": [
+        {
+          "account": "a",
+          "date": "2026-06-20",
+          "amountMinor": -20000,
+          "reference": "TRANSFER"
+        },
+        {
+          "account": "b",
+          "date": "2026-06-20",
+          "amountMinor": 20000,
+          "reference": "TRANSFER"
+        }
+      ],
+      "expected": {
+        "proposal": "link_transfer",
+        "autoCommit": false,
+        "netSpendingMinor": 0
+      }
+    },
+    {
+      "id": "I007_balance_reconciliation_match",
+      "format": "ofx",
+      "openingBalanceMinor": 100000,
+      "rows": [
+        {
+          "amountMinor": -20000
+        },
+        {
+          "amountMinor": 50000
+        }
+      ],
+      "closingBalanceMinor": 130000,
+      "expected": {
+        "differenceMinor": 0,
+        "status": "matched"
+      }
+    },
+    {
+      "id": "I008_balance_reconciliation_mismatch",
+      "format": "ofx",
+      "openingBalanceMinor": 100000,
+      "rows": [
+        {
+          "amountMinor": -20000
+        }
+      ],
+      "closingBalanceMinor": 90000,
+      "expected": {
+        "differenceMinor": 10000,
+        "status": "mismatch",
+        "commitAllowedAfterReview": true
+      }
+    },
+    {
+      "id": "I009_date_ambiguity",
+      "format": "csv",
+      "row": {
+        "date": "03/04/2026",
+        "amount": "1.00"
+      },
+      "localeUnknown": true,
+      "expected": {
+        "state": "needs_review",
+        "options": [
+          "2026-04-03",
+          "2026-03-04"
+        ]
+      }
+    },
+    {
+      "id": "I010_zero_decimal_currency",
+      "format": "csv",
+      "currency": "JPY",
+      "row": {
+        "amount": "1234"
+      },
+      "expected": {
+        "amountMinor": 1234
+      }
+    },
+    {
+      "id": "I011_three_decimal_currency",
+      "format": "csv",
+      "currency": "KWD",
+      "row": {
+        "amount": "12.345"
+      },
+      "expected": {
+        "amountMinor": 12345
+      }
+    },
+    {
+      "id": "I012_ocr_low_confidence_total",
+      "format": "image",
+      "candidates": [
+        {
+          "field": "total",
+          "text": "£68.90",
+          "confidence": 0.54
+        }
+      ],
+      "expected": {
+        "state": "review",
+        "committed": false
+      }
+    },
+    {
+      "id": "I013_business_personal_ambiguity",
+      "format": "csv",
+      "workspace": "business",
+      "row": {
+        "description": "TESCO",
+        "amountMinor": -5000
+      },
+      "expected": {
+        "workspace": "business",
+        "taxCategory": null,
+        "question": "business_or_personal_or_mixed",
+        "autoTaxCommit": false
+      }
+    },
+    {
+      "id": "I014_refund",
+      "format": "csv",
+      "rows": [
+        {
+          "description": "SHOP",
+          "amountMinor": -5000,
+          "date": "2026-06-01"
+        },
+        {
+          "description": "SHOP REFUND",
+          "amountMinor": 5000,
+          "date": "2026-06-03"
+        }
+      ],
+      "expected": {
+        "proposal": "refund_link",
+        "netSpendingMinor": 0
+      }
+    },
+    {
+      "id": "I015_large_file_resume",
+      "format": "csv",
+      "rowsCount": 100000,
+      "interruptAt": 45000,
+      "expected": {
+        "resumeFromCheckpoint": true,
+        "duplicateCommits": 0,
+        "uiResponsive": true
+      }
+    }
+  ]
+}

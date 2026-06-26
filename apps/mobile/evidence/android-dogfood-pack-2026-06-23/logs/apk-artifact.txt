@@ -1,0 +1,3 @@
+APK=C:\dev\folio-v2-greenfield\apps\mobile\android\app\build\outputs\apk\release\app-release.apk
+Bytes=69791083
+LastWrite=2026-06-23T13:40:18.1987650+01:00

@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "formats": [
+    {
+      "format": "csv",
+      "launch": true,
+      "local": true,
+      "review": true,
+      "notes": "bank-specific column mapping; formula injection neutralised"
+    },
+    {
+      "format": "ofx",
+      "launch": true,
+      "local": true,
+      "review": true,
+      "notes": "OFX/QFX canonical parser"
+    },
+    {
+      "format": "qfx",
+      "launch": true,
+      "local": true,
+      "review": true
+    },
+    {
+      "format": "qif",
+      "launch": true,
+      "local": true,
+      "review": true,
+      "notes": "legacy, weak identity and encoding"
+    },
+    {
+      "format": "pdf",
+      "launch": true,
+      "local": "preferred",
+      "review": true,
+      "notes": "text/table extraction; no silent facts"
+    },
+    {
+      "format": "image",
+      "launch": true,
+      "local": "preferred",
+      "review": true
+    },
+    {
+      "format": "open_banking",
+      "launch": false,
+      "local": false,
+      "review": "reconciliation_based",
+      "notes": "optional provider adapter"
+    },
+    {
+      "format": "folio_v1_export",
+      "launch": "migration_only",
+      "local": true,
+      "review": true
+    }
+  ],
+  "requiredCapabilities": [
+    "provenance",
+    "idempotency",
+    "deduplication",
+    "pending_posted_match",
+    "transfer_linking",
+    "balance_reconciliation",
+    "cancel_resume",
+    "workspace_review"
+  ]
+}

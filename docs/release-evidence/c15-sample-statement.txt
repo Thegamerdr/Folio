@@ -1,0 +1,3 @@
+date,description,amount,currency
+2026-06-18,Test Coffee,-4.25,GBP
+2026-06-19,Test Payroll,1840.00,GBP

@@ -1,0 +1,574 @@
+{
+  "schemaVersion": "1.0",
+  "releaseName": "Folio V2 public release gate",
+  "updatedOn": "2026-06-21",
+  "policy": {
+    "publicReleaseAllowed": false,
+    "allowSyntheticEvidenceForPublicRelease": false,
+    "requireExternalSignoffForStoreRelease": true,
+    "requireNoOpenHighCriticalFindings": true
+  },
+  "currentEvidence": [
+    {
+      "blockerId": "RB-P0-IOS-NATIVE-SMOKE",
+      "paths": ["docs/release-evidence/C0-native-smoke.md", "STATUS.md"],
+      "note": "Android native smoke is recorded; iOS remains blocked on macOS/Xcode or EAS signing evidence."
+    },
+    {
+      "blockerId": "RB-NATIVE-SECURE-KEYS",
+      "paths": [
+        "docs/source-package/release/ACCOUNT_RECOVERY_AND_DELETION_RUNBOOK.md",
+        "docs/release-evidence/C10-cloud-account-encrypted-backup-sync.md",
+        "STATUS.md"
+      ],
+      "note": "Recovery and deletion requirements plus sync evidence exist; native key wrapping proof remains external."
+    },
+    {
+      "blockerId": "RB-NATIVE-DOCUMENTS-OCR",
+      "paths": [
+        "docs/source-package/17_DOCUMENTS_OCR_AND_VOICE.md",
+        "docs/release-evidence/C5-import-review-indexing.md",
+        "docs/release-evidence/C9-security-export-local-launch-readiness.md"
+      ],
+      "note": "Import/document contracts are indexed; native encrypted files and OCR proof are not closed."
+    },
+    {
+      "blockerId": "RB-NATIVE-NOTIFICATIONS-CALENDAR-VOICE",
+      "paths": [
+        "docs/source-package/19_GAMIFICATION_RETENTION_AND_NOTIFICATIONS.md",
+        "docs/release-evidence/C6-today-timeline-calendar-transactions.md",
+        "docs/release-evidence/C7-melo-deterministic-system.md",
+        "docs/release-evidence/C13-business-workspace.md"
+      ],
+      "note": "Notification, calendar and voice blockers are visible across the relevant phase evidence records."
+    },
+    {
+      "blockerId": "RB-VAULT-REAL-DATA-E2E",
+      "paths": [
+        "docs/release-evidence/C3-storage-foundation.md",
+        "docs/release-evidence/C5-import-review-indexing.md",
+        "docs/release-evidence/C9-security-export-local-launch-readiness.md"
+      ],
+      "note": "Pure storage and import evidence exists; vault-backed real-data E2E proof remains missing."
+    },
+    {
+      "blockerId": "RB-RESEARCH-USABILITY",
+      "paths": [
+        "docs/source-package/28_RESEARCH_FINDINGS_AND_RATIONALE.md",
+        "docs/release-evidence/C4-mobile-first-60-seconds.md",
+        "docs/release-evidence/C14-store-billing-operations-release.md"
+      ],
+      "note": "Research protocol and first-minute evidence exist; participant outcome evidence remains external."
+    },
+    {
+      "blockerId": "RB-SECURITY-INDEPENDENT-REVIEW",
+      "paths": [
+        "docs/source-package/release/SECURITY_REVIEW_CHECKLIST.md",
+        "docs/release-evidence/C9-security-export-local-launch-readiness.md",
+        "docs/release-evidence/C14-store-billing-operations-release.md"
+      ],
+      "note": "Security review checklist and readiness evidence exist; independent signoff remains blocked."
+    },
+    {
+      "blockerId": "RB-PRIVACY-LEGAL-DPIA",
+      "paths": [
+        "docs/source-package/release/DPIA_TEMPLATE.md",
+        "docs/source-package/release/LEGAL_AND_REGULATORY_REVIEW_CHECKLIST.md",
+        "docs/privacy-security/telemetry-and-samples.md"
+      ],
+      "note": "DPIA, legal and telemetry policy surfaces exist; approval evidence remains external."
+    },
+    {
+      "blockerId": "RB-ACCESSIBILITY-INDEPENDENT-AUDIT",
+      "paths": [
+        "docs/source-package/testing/ACCESSIBILITY_TEST_PLAN.md",
+        "docs/release-evidence/T011-accessibility-token-proof.md",
+        "docs/release-evidence/C14-store-billing-operations-release.md"
+      ],
+      "note": "Token and accessibility planning evidence exists; independent device audit remains blocked."
+    },
+    {
+      "blockerId": "RB-CLOUD-ACCOUNT-DELETION",
+      "paths": [
+        "docs/source-package/release/ACCOUNT_RECOVERY_AND_DELETION_RUNBOOK.md",
+        "docs/release-store/account-deletion-checklist.md",
+        "docs/release-evidence/C10-cloud-account-encrypted-backup-sync.md",
+        "docs/release-evidence/C14-store-billing-operations-release.md"
+      ],
+      "note": "Deletion requirements are indexed; live provider and E2E deletion proof remain blocked."
+    },
+    {
+      "blockerId": "RB-CLOUD-SYNC-RECOVERY",
+      "paths": [
+        "docs/release-evidence/C10-cloud-account-encrypted-backup-sync.md",
+        "docs/source-package/13_LOCAL_FIRST_SYNC_BACKUP_RECOVERY.md"
+      ],
+      "note": "Sync/recovery contracts are indexed; live service and multi-device proof remain blocked."
+    },
+    {
+      "blockerId": "RB-AI-GATEWAY-EVALUATION",
+      "paths": [
+        "docs/release-evidence/C11-optional-ai.md",
+        "docs/source-package/15_AI_ARCHITECTURE_COST_AND_LIMITS.md",
+        "docs/privacy-security/telemetry-and-samples.md"
+      ],
+      "note": "Optional AI contracts and policy evidence exist; live gateway/provider/evaluation evidence remains blocked."
+    },
+    {
+      "blockerId": "RB-OPEN-BANKING-PROVIDER",
+      "paths": [
+        "docs/release-evidence/C12-open-banking.md",
+        "docs/source-package/16_OPEN_BANKING_AND_PERMISSIONS.md",
+        "docs/privacy-security/telemetry-and-samples.md"
+      ],
+      "note": "Open Banking contracts and consent evidence exist; regulated provider proof remains blocked."
+    },
+    {
+      "blockerId": "RB-BUSINESS-TAX-BETA",
+      "paths": [
+        "docs/release-evidence/C13-business-workspace.md",
+        "docs/source-package/18_BUSINESS_TAX_AND_COMPLIANCE.md",
+        "docs/source-package/release/LEGAL_AND_REGULATORY_REVIEW_CHECKLIST.md"
+      ],
+      "note": "Business workspace and tax planning evidence exists; tax/legal beta signoff remains blocked."
+    },
+    {
+      "blockerId": "RB-T183-STORE-DECLARATIONS",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/adr/0016-release-blocker-gate.md",
+        "docs/source-package/release/STORE_RELEASE_CHECKLIST.md",
+        "docs/release-store/README.md",
+        "docs/release-store/apple-app-privacy-checklist.md",
+        "docs/release-store/google-data-safety-checklist.md",
+        "docs/release-store/account-deletion-checklist.md",
+        "docs/release-store/sdk-permission-financial-declarations.md",
+        "docs/release-store/reviewer-notes.md",
+        "tooling/config/store-declarations.json"
+      ],
+      "note": "Store declaration requirements are indexed; submitted-binary review remains blocked."
+    },
+    {
+      "blockerId": "RB-T184-NATIVE-BILLING",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "packages/store-release/test/store-release.test.ts",
+        "packages/release-gate/test/release-gate.test.ts"
+      ],
+      "note": "Billing safety contracts and release guard tests exist; native billing proof remains blocked."
+    },
+    {
+      "blockerId": "RB-T185-INCIDENT-RUNBOOKS",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/release-evidence/R0-public-release-blocker-gate.md",
+        "docs/release-operations/incident-support-runbook.md",
+        "docs/release-operations/tabletop-exercise-record.md",
+        "docs/release-operations/rotation-drill-record.md",
+        "docs/release-operations/vulnerability-disclosure-readiness.md",
+        "tooling/config/operations-readiness.json"
+      ],
+      "note": "Incident classes and blocker gate exist; tabletop and drill evidence remains missing."
+    },
+    {
+      "blockerId": "RB-T186-FINAL-REVIEW",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/source-package/release/SECURITY_REVIEW_CHECKLIST.md",
+        "docs/source-package/release/DPIA_TEMPLATE.md"
+      ],
+      "note": "Final review inputs are indexed; independent final signoff remains blocked."
+    },
+    {
+      "blockerId": "RB-T187-FULL-REGRESSION-STORE-BUILDS",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/source-package/23_TESTING_QUALITY_AND_OBSERVABILITY.md",
+        "STATUS.md"
+      ],
+      "note": "Current CI and quality plans are indexed; release builds and offline/deletion E2E remain blocked."
+    },
+    {
+      "blockerId": "RB-T188-LIMITED-UK-LAUNCH",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/source-package/25_COMPLETE_BUILD_SEQUENCE_AND_ACCEPTANCE.md",
+        "STATUS.md"
+      ],
+      "note": "Limited-launch track is modelled; production support, rollback and thresholds remain blocked."
+    },
+    {
+      "blockerId": "RB-T190-HOUSEHOLD-COLLABORATION",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/source-package/FOLIO_V2_GREENFIELD_MASTER_PLAN.md"
+      ],
+      "note": "Household collaboration is indexed as a separate blocked roadmap programme."
+    },
+    {
+      "blockerId": "RB-T191-DIRECT-HMRC-MTD",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/source-package/18_BUSINESS_TAX_AND_COMPLIANCE.md",
+        "docs/source-package/FOLIO_V2_GREENFIELD_MASTER_PLAN.md"
+      ],
+      "note": "Direct HMRC MTD is indexed as a separate blocked roadmap programme."
+    },
+    {
+      "blockerId": "RB-T192-ADDITIONAL-JURISDICTIONS",
+      "paths": [
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/source-package/20_ACCESSIBILITY_INTERNATIONALISATION_AND_VULNERABILITY.md",
+        "docs/source-package/FOLIO_V2_GREENFIELD_MASTER_PLAN.md"
+      ],
+      "note": "Additional jurisdictions are indexed as separate blocked launch programmes."
+    }
+  ],
+  "blockers": [
+    {
+      "id": "RB-P0-IOS-NATIVE-SMOKE",
+      "phase": "phase0",
+      "taskIds": ["T012"],
+      "category": "native_ios",
+      "title": "iOS install and launch evidence",
+      "kind": "external_device",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "release-engineering",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["device", "credential", "artifact"],
+      "unblockCondition": "macOS/Xcode or EAS iOS signing evidence proves install and launch of the development or release build."
+    },
+    {
+      "id": "RB-NATIVE-SECURE-KEYS",
+      "phase": "phase1-phase10",
+      "taskIds": ["T061", "T062", "T122", "T135", "T136"],
+      "category": "native_security",
+      "title": "Keychain/Keystore wrapping, recovery wrapping and app lock proof",
+      "kind": "external_device",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "security-engineering",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["device", "security", "artifact"],
+      "unblockCondition": "Supported iOS and Android devices prove key wrapping, recovery wrapping, biometric/PIN timeout and clean-device restore without server plaintext."
+    },
+    {
+      "id": "RB-NATIVE-DOCUMENTS-OCR",
+      "phase": "phase5-phase9",
+      "taskIds": ["T071", "T076", "T122"],
+      "category": "native_documents",
+      "title": "Encrypted document staging, file storage and OCR proof",
+      "kind": "external_device",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "documents-engineering",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["device", "security", "artifact"],
+      "unblockCondition": "Native encrypted file storage, workspace document subkeys, capture/import staging and OCR review pass on supported devices."
+    },
+    {
+      "id": "RB-NATIVE-NOTIFICATIONS-CALENDAR-VOICE",
+      "phase": "phase6-phase13",
+      "taskIds": ["T093", "T096", "T107", "T176"],
+      "category": "native_permissions",
+      "title": "Notifications, calendar handoff and voice permission proof",
+      "kind": "external_device",
+      "impact": "beta_blocking",
+      "status": "blocked",
+      "owner": "mobile-engineering",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["device", "artifact", "privacy"],
+      "unblockCondition": "Native scheduling, quiet hours, lock-screen privacy, calendar opt-in and transcript review/no-retained-audio evidence pass."
+    },
+    {
+      "id": "RB-VAULT-REAL-DATA-E2E",
+      "phase": "phase4-phase9",
+      "taskIds": ["T083", "T084", "T085", "T086", "T090", "T098", "T132"],
+      "category": "vault_e2e",
+      "title": "Vault-backed writes, real-data briefing and offline resilience",
+      "kind": "local_machine_check",
+      "impact": "release_blocking",
+      "status": "needs_evidence",
+      "owner": "quality-engineering",
+      "machineCheckable": true,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["command", "artifact"],
+      "unblockCondition": "Vault-backed writes, airplane-mode daily loop, import endurance, migration interruption, low-storage and restore drills pass without silent data loss."
+    },
+    {
+      "id": "RB-RESEARCH-USABILITY",
+      "phase": "phase4-phase14",
+      "taskIds": ["T070", "T189"],
+      "category": "research",
+      "title": "Participant usability and confidence outcomes",
+      "kind": "external_signoff",
+      "impact": "beta_blocking",
+      "status": "blocked",
+      "owner": "research-lead",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["research", "privacy"],
+      "unblockCondition": "Debt-focused and financially avoidant participant sessions plus first-minute/confidence/correction/avoidance outcomes are recorded without hidden profiling."
+    },
+    {
+      "id": "RB-SECURITY-INDEPENDENT-REVIEW",
+      "phase": "phase9-phase14",
+      "taskIds": ["T126", "T127", "T147", "T186"],
+      "category": "security",
+      "title": "Independent threat, MASVS and penetration review",
+      "kind": "external_signoff",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "security-lead",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["security", "legal"],
+      "unblockCondition": "Independent mobile/cloud/provider/processor review and pen test close with no high or critical findings open."
+    },
+    {
+      "id": "RB-PRIVACY-LEGAL-DPIA",
+      "phase": "phase9-phase14",
+      "taskIds": ["T128", "T158", "T180", "T186"],
+      "category": "privacy_legal",
+      "title": "DPIA, processor inventory, legal and regulated-claims signoff",
+      "kind": "external_signoff",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "privacy-legal-lead",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["privacy", "legal"],
+      "unblockCondition": "DPIA, processor inventory, UK tax/business claims, store privacy routes and legal review are approved."
+    },
+    {
+      "id": "RB-ACCESSIBILITY-INDEPENDENT-AUDIT",
+      "phase": "phase6-phase14",
+      "taskIds": ["T108", "T129", "T182", "T183", "T186"],
+      "category": "accessibility",
+      "title": "Independent VoiceOver, TalkBack, large text and reduced-motion audit",
+      "kind": "external_signoff",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "accessibility-lead",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["accessibility", "artifact"],
+      "unblockCondition": "Independent accessibility audit passes critical paths across iOS and Android with reduced-motion and cognitive accessibility evidence."
+    },
+    {
+      "id": "RB-CLOUD-ACCOUNT-DELETION",
+      "phase": "phase10-phase14",
+      "taskIds": ["T134", "T144", "T183", "T187"],
+      "category": "account_deletion",
+      "title": "Account providers and deletion routes",
+      "kind": "external_service",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "cloud-engineering",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["provider", "privacy", "artifact"],
+      "unblockCondition": "Passkey, Apple and Google account providers plus in-app/web account deletion, token revocation and cloud purge schedule are live and E2E-tested."
+    },
+    {
+      "id": "RB-CLOUD-SYNC-RECOVERY",
+      "phase": "phase10",
+      "taskIds": ["T137", "T141", "T146", "T148"],
+      "category": "cloud_sync",
+      "title": "Cloud registry, encrypted snapshots, revoke and multi-device recovery",
+      "kind": "external_service",
+      "impact": "beta_blocking",
+      "status": "blocked",
+      "owner": "cloud-engineering",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["provider", "security", "artifact"],
+      "unblockCondition": "Device registry, lost-device revoke, operation replay restore and multi-device offline edit/delete/recovery drills pass."
+    },
+    {
+      "id": "RB-AI-GATEWAY-EVALUATION",
+      "phase": "phase11",
+      "taskIds": ["T150", "T152", "T153", "T154", "T156", "T158", "T159"],
+      "category": "optional_ai",
+      "title": "AI gateway, provider procurement, evaluation, consent and beta operations",
+      "kind": "external_service",
+      "impact": "beta_blocking",
+      "status": "blocked",
+      "owner": "ai-lead",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["provider", "privacy", "security", "operations"],
+      "unblockCondition": "Server-side gateway, redaction, provider routes, on-device fallback, evaluation, consent, monitoring, rollback and budget caps pass."
+    },
+    {
+      "id": "RB-OPEN-BANKING-PROVIDER",
+      "phase": "phase12",
+      "taskIds": ["T160", "T161", "T162", "T167", "T168"],
+      "category": "open_banking",
+      "title": "Regulated AISP provider and staged Open Banking rollout",
+      "kind": "external_service",
+      "impact": "beta_blocking",
+      "status": "blocked",
+      "owner": "banking-lead",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["provider", "legal", "security", "operations"],
+      "unblockCondition": "Provider procurement, sandbox/production contracts, encrypted backend token adapter, legal/store review, pilot and rollout monitoring pass."
+    },
+    {
+      "id": "RB-BUSINESS-TAX-BETA",
+      "phase": "phase13",
+      "taskIds": ["T180", "T182"],
+      "category": "business_tax",
+      "title": "Business tax/legal review and beta operations",
+      "kind": "external_signoff",
+      "impact": "beta_blocking",
+      "status": "blocked",
+      "owner": "business-lead",
+      "machineCheckable": false,
+      "source": "STATUS.md#open-risks",
+      "evidenceRequired": ["legal", "accessibility", "operations"],
+      "unblockCondition": "UK tax/business claims, recordkeeping, MTD readiness, official guidance verification, entitlement, support and accessibility gates pass."
+    },
+    {
+      "id": "RB-T183-STORE-DECLARATIONS",
+      "phase": "phase14",
+      "taskIds": ["T183"],
+      "category": "store",
+      "title": "Apple and Google declarations match binary and data flows",
+      "kind": "external_signoff",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "release-lead",
+      "machineCheckable": false,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["store_console", "privacy", "legal", "accessibility"],
+      "unblockCondition": "Apple/Google privacy, financial, accessibility, account deletion and SDK declarations are checked against the submitted binary and data flows."
+    },
+    {
+      "id": "RB-T184-NATIVE-BILLING",
+      "phase": "phase14",
+      "taskIds": ["T184"],
+      "category": "billing",
+      "title": "Native StoreKit 2 and Google Play Billing proof",
+      "kind": "external_credentials",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "billing-lead",
+      "machineCheckable": false,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["credential", "store_console", "artifact"],
+      "unblockCondition": "StoreKit 2, Google Play Billing, backend receipt verification, purchase restore, offline grace and downgrade behavior are proven natively."
+    },
+    {
+      "id": "RB-T185-INCIDENT-RUNBOOKS",
+      "phase": "phase14",
+      "taskIds": ["T185"],
+      "category": "operations",
+      "title": "Incident and support runbook tabletop evidence",
+      "kind": "local_docs_evidence",
+      "impact": "release_blocking",
+      "status": "needs_evidence",
+      "owner": "support-lead",
+      "machineCheckable": true,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["operations"],
+      "unblockCondition": "Incident/support runbooks complete tabletop, rotation drills and vulnerability disclosure readiness."
+    },
+    {
+      "id": "RB-T186-FINAL-REVIEW",
+      "phase": "phase14",
+      "taskIds": ["T186"],
+      "category": "final_review",
+      "title": "Final penetration, DPIA, legal, privacy, security and accessibility review",
+      "kind": "external_signoff",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "security-privacy-lead",
+      "machineCheckable": false,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["security", "privacy", "legal", "accessibility"],
+      "unblockCondition": "Final reviews pass with no high or critical findings open."
+    },
+    {
+      "id": "RB-T187-FULL-REGRESSION-STORE-BUILDS",
+      "phase": "phase14",
+      "taskIds": ["T187"],
+      "category": "quality",
+      "title": "Full regression, offline E2E, account deletion E2E and store release builds",
+      "kind": "local_machine_check",
+      "impact": "release_blocking",
+      "status": "needs_evidence",
+      "owner": "quality-lead",
+      "machineCheckable": true,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["command", "artifact", "device"],
+      "unblockCondition": "Full regression, offline E2E, account deletion E2E and iOS/Android store release builds pass every release-blocking criterion."
+    },
+    {
+      "id": "RB-T188-LIMITED-UK-LAUNCH",
+      "phase": "phase14",
+      "taskIds": ["T188"],
+      "category": "launch",
+      "title": "Limited UK production launch threshold evidence",
+      "kind": "external_service",
+      "impact": "release_blocking",
+      "status": "blocked",
+      "owner": "launch-lead",
+      "machineCheckable": false,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["operations", "artifact"],
+      "unblockCondition": "Billing, operations, monitoring, support, rollback and operational thresholds are stable before launch."
+    },
+    {
+      "id": "RB-T190-HOUSEHOLD-COLLABORATION",
+      "phase": "phase14",
+      "taskIds": ["T190"],
+      "category": "roadmap",
+      "title": "Household collaboration remains a separate programme",
+      "kind": "roadmap_program",
+      "impact": "roadmap_blocking",
+      "status": "blocked",
+      "owner": "product-lead",
+      "machineCheckable": true,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["privacy", "security", "legal"],
+      "unblockCondition": "A separate privacy, threat, permissions and go/no-go package is approved before implementation."
+    },
+    {
+      "id": "RB-T191-DIRECT-HMRC-MTD",
+      "phase": "phase14",
+      "taskIds": ["T191"],
+      "category": "roadmap",
+      "title": "Direct HMRC MTD remains a separate programme",
+      "kind": "roadmap_program",
+      "impact": "roadmap_blocking",
+      "status": "blocked",
+      "owner": "product-legal-lead",
+      "machineCheckable": true,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["legal", "provider", "security"],
+      "unblockCondition": "A dedicated HMRC conformance, legal, integration and go/no-go package is approved before implementation."
+    },
+    {
+      "id": "RB-T192-ADDITIONAL-JURISDICTIONS",
+      "phase": "phase14",
+      "taskIds": ["T192"],
+      "category": "roadmap",
+      "title": "Additional jurisdictions remain separate launch programmes",
+      "kind": "roadmap_program",
+      "impact": "roadmap_blocking",
+      "status": "blocked",
+      "owner": "internationalisation-lead",
+      "machineCheckable": true,
+      "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
+      "evidenceRequired": ["legal", "provider", "privacy"],
+      "unblockCondition": "Country launch checklist, policy packs, bank coverage, tax, language and legal owner are approved before implementation."
+    }
+  ]
+}

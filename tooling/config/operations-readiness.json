@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "1.0",
+  "releaseName": "Folio V2 operations readiness",
+  "updatedOn": "2026-06-21",
+  "tabletopExercise": {
+    "complete": false,
+    "evidencePath": "docs/release-operations/tabletop-exercise-record.md",
+    "blocker": "tabletop exercise is not complete"
+  },
+  "support": {
+    "secureDiagnosticsReady": true,
+    "supportCannotRequestRecoverySecret": true,
+    "breachNotificationOwnerAssigned": true,
+    "boundaryPath": "docs/release-operations/incident-support-runbook.md"
+  },
+  "rotationDrills": {
+    "complete": false,
+    "evidencePath": "docs/release-operations/rotation-drill-record.md",
+    "blocker": "key/provider/model rotation drills are missing"
+  },
+  "vulnerabilityDisclosure": {
+    "ready": false,
+    "evidencePath": "docs/release-operations/vulnerability-disclosure-readiness.md",
+    "blocker": "vulnerability disclosure channel is not ready"
+  },
+  "runbooks": [
+    {
+      "kind": "calculation",
+      "owner": "finance-engineering",
+      "severityModelled": true,
+      "userNoticeTemplateReady": true,
+      "rollbackOrCorrectionReady": true,
+      "noSilentHistoryRewrite": true,
+      "evidencePath": "docs/release-operations/incident-support-runbook.md"
+    },
+    {
+      "kind": "sync",
+      "owner": "cloud-engineering",
+      "severityModelled": true,
+      "userNoticeTemplateReady": true,
+      "rollbackOrCorrectionReady": true,
+      "noSilentHistoryRewrite": true,
+      "evidencePath": "docs/release-operations/incident-support-runbook.md"
+    },
+    {
+      "kind": "provider",
+      "owner": "provider-operations",
+      "severityModelled": true,
+      "userNoticeTemplateReady": true,
+      "rollbackOrCorrectionReady": true,
+      "noSilentHistoryRewrite": true,
+      "evidencePath": "docs/release-operations/incident-support-runbook.md"
+    },
+    {
+      "kind": "ai",
+      "owner": "ai-safety-lead",
+      "severityModelled": true,
+      "userNoticeTemplateReady": true,
+      "rollbackOrCorrectionReady": true,
+      "noSilentHistoryRewrite": true,
+      "evidencePath": "docs/release-operations/incident-support-runbook.md"
+    },
+    {
+      "kind": "tax",
+      "owner": "tax-compliance-lead",
+      "severityModelled": true,
+      "userNoticeTemplateReady": true,
+      "rollbackOrCorrectionReady": true,
+      "noSilentHistoryRewrite": true,
+      "evidencePath": "docs/release-operations/incident-support-runbook.md"
+    },
+    {
+      "kind": "security",
+      "owner": "security-lead",
+      "severityModelled": true,
+      "userNoticeTemplateReady": true,
+      "rollbackOrCorrectionReady": true,
+      "noSilentHistoryRewrite": true,
+      "evidencePath": "docs/release-operations/incident-support-runbook.md"
+    },
+    {
+      "kind": "store_removal",
+      "owner": "release-lead",
+      "severityModelled": true,
+      "userNoticeTemplateReady": true,
+      "rollbackOrCorrectionReady": true,
+      "noSilentHistoryRewrite": true,
+      "evidencePath": "docs/release-operations/incident-support-runbook.md"
+    }
+  ]
+}

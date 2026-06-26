@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>You&#39;re covered through Sat 27 Jun.</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #17231d;
+        --muted: #617069;
+        --line: #cfd8d2;
+        --paper: #f6f3ea;
+        --panel: #fffefa;
+        --sunken: #e8eee8;
+        --green: #1f7a5c;
+        --greenSoft: #dceee5;
+        --amber: #8a5a18;
+        --amberSoft: #f2e2c6;
+        --red: #a94332;
+        --redSoft: #f0d6cf;
+        --softWhite: rgba(255, 255, 255, 0.66);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background:
+          linear-gradient(90deg, rgba(23, 35, 29, 0.035) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(23, 35, 29, 0.03) 1px, transparent 1px), #e8eee8;
+        background-size: 28px 28px;
+        color: var(--ink);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+      .single {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .board {
+        padding: 32px;
+      }
+      .boardHeader {
+        max-width: 1260px;
+        margin: 0 auto 28px;
+        display: grid;
+        gap: 8px;
+      }
+      .boardHeader p,
+      .eyebrow {
+        margin: 0;
+        color: var(--green);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .boardHeader h1 {
+        margin: 0;
+        font-size: 44px;
+        line-height: 0.98;
+        letter-spacing: 0;
+      }
+      .boardHeader span {
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 22px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 390px);
+        gap: 22px;
+        justify-content: center;
+        align-items: start;
+      }
+      .phone {
+        width: 390px;
+        min-height: 844px;
+        border: 1px solid rgba(23, 35, 29, 0.1);
+        border-radius: 28px;
+        background: linear-gradient(180deg, #fffefa 0%, var(--paper) 100%);
+        box-shadow: 0 18px 40px rgba(23, 35, 29, 0.16);
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        overflow: hidden;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      h2 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 34px;
+        letter-spacing: 0;
+      }
+      .body {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 22px;
+      }
+      .melo,
+      .note,
+      .upload,
+      .route,
+      .progress,
+      .row,
+      .stat,
+      .card {
+        border: 1px solid transparent;
+        background: var(--softWhite);
+        border-radius: 8px;
+      }
+      .boardBrand,
+      .phoneBrand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .folioMark {
+        width: 34px;
+        height: 34px;
+        border: 1.5px solid var(--ink);
+        border-radius: 9px;
+        display: inline-grid;
+        place-items: center;
+        background: #fffefb;
+        color: var(--ink);
+        flex: 0 0 auto;
+      }
+      .boardMark {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+      }
+      .topbarMark {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+      }
+      .folioMark svg {
+        display: block;
+        height: 68%;
+        width: 68%;
+      }
+      .melo {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 10px;
+        padding: 14px;
+      }
+      .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        background: var(--ink);
+        color: #fff;
+        font-weight: 900;
+      }
+      .melo p,
+      .note,
+      .upload {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 19px;
+      }
+      .note,
+      .upload {
+        padding: 14px;
+        background: var(--greenSoft);
+        color: var(--ink);
+      }
+      .trustRail,
+      .interactionRail,
+      .actionStack,
+      .lineSummary {
+        display: grid;
+        gap: 8px;
+      }
+      .trustRail {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .trustChip,
+      .interactionStep,
+      .action,
+      .lineItem,
+      .disclosure {
+        background: var(--softWhite);
+        border-radius: 8px;
+        padding: 11px 12px;
+      }
+      .trustChip {
+        display: grid;
+        gap: 2px;
+        border-radius: 999px;
+      }
+      .interactionRail {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.56);
+        padding: 12px;
+      }
+      .interactionStep {
+        align-items: center;
+        display: grid;
+        grid-template-columns: 10px 84px 1fr;
+        gap: 10px;
+        padding: 0 0 8px;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+      }
+      .interactionStep:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+      .interactionDot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--green);
+      }
+      .mode-preview {
+        background: var(--amber);
+      }
+      .mode-reveal {
+        background: var(--green);
+      }
+      .mode-commit {
+        background: var(--ink);
+      }
+      .mode-melo {
+        background: var(--green);
+        outline: 2px solid var(--ink);
+      }
+      .mode-protect {
+        background: var(--greenSoft);
+        border: 2px solid var(--green);
+      }
+      .trustChip strong,
+      .interactionStep strong,
+      .action strong,
+      .lineItem strong,
+      .disclosure strong {
+        color: var(--ink);
+        font-size: 13px;
+        line-height: 18px;
+      }
+      .trustChip span,
+      .interactionStep span,
+      .action span,
+      .lineItem span,
+      .disclosure span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 17px;
+      }
+      .action {
+        display: grid;
+        gap: 2px;
+        min-height: 64px;
+      }
+      .actionPrimary {
+        background: var(--ink);
+      }
+      .actionPrimary strong,
+      .actionPrimary span {
+        color: #fff;
+      }
+      .lineItem,
+      .disclosure {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+      }
+      .disclosure b {
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 20px;
+      }
+      .chips,
+      .buttons,
+      .stats,
+      .cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip,
+      .button {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        padding: 9px 12px;
+        font-size: 12px;
+        font-weight: 800;
+        background: #fff;
+      }
+      .button:first-child {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: #fff;
+      }
+      .stats,
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .stat,
+      .card {
+        padding: 12px;
+        min-height: 82px;
+      }
+      .label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        line-height: 15px;
+      }
+      .value {
+        margin-top: 4px;
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 19px;
+      }
+      .tone-attention {
+        border-color: var(--red);
+        background: var(--redSoft);
+      }
+      .tone-estimated {
+        border-color: transparent;
+        background: var(--amberSoft);
+      }
+      .tone-confirmed {
+        border-color: transparent;
+        background: var(--greenSoft);
+      }
+      .rows {
+        display: grid;
+        gap: 8px;
+      }
+      .row {
+        display: grid;
+        gap: 4px;
+        padding: 12px;
+      }
+      .row strong {
+        font-size: 13px;
+        line-height: 18px;
+      }
+      .row span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 17px;
+      }
+      .progress {
+        padding: 14px;
+        display: grid;
+        gap: 8px;
+      }
+      .bar {
+        height: 8px;
+        border-radius: 4px;
+        background: var(--line);
+        overflow: hidden;
+      }
+      .fill {
+        height: 100%;
+        background: var(--green);
+      }
+      .route {
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+      .routeSvg {
+        width: 100%;
+        height: 96px;
+      }
+      .money {
+        font-size: 46px;
+        line-height: 50px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+      .week {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+      }
+      .day {
+        min-height: 54px;
+        border-radius: 8px;
+        background: var(--sunken);
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        font-size: 12px;
+      }
+      .day:first-child {
+        background: var(--ink);
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="single">
+      <article class="phone" data-surface="first-real-today-briefing">
+        <div class="topbar">
+          <span class="phoneBrand"
+            ><span
+              class="folioMark topbarMark"
+              role="img"
+              aria-label="Folio temporary brand mark: folded local record with a route line"
+              ><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                <path
+                  d="M14 6h18l8 8v28H14z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="3.4"
+                />
+                <path
+                  d="M32 6v10h8"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="3.4"
+                />
+                <path
+                  d="M19 29c3.8-3.6 7.6-3.6 11.4 0 2 1.8 4.3 2.8 6.6 2.9"
+                  fill="none"
+                  stroke="#2E7D67"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="3.8"
+                />
+                <path
+                  d="M19 36h18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-opacity=".38"
+                  stroke-width="3.4"
+                /></svg></span
+            ><span>Personal</span></span
+          ><span>Local</span>
+        </div>
+        <p class="eyebrow">First real Today briefing</p>
+        <h2>You&#39;re covered through Sat 27 Jun.</h2>
+        <p class="body">A calm daily briefing from local records.</p>
+        <div>
+          <div class="money">£1,027.67</div>
+          <p class="body">breathing room after known bills</p>
+        </div>
+        <div class="interactionRail">
+          <div class="interactionStep">
+            <i class="interactionDot mode-preview"></i><strong>Preview</strong
+            ><span>Route reacts first</span>
+          </div>
+          <div class="interactionStep">
+            <i class="interactionDot mode-reveal"></i><strong>Reveal</strong
+            ><span>Sources stay one tap away</span>
+          </div>
+          <div class="interactionStep">
+            <i class="interactionDot mode-commit"></i><strong>Make real</strong
+            ><span>Records change after your tap</span>
+          </div>
+        </div>
+        <div class="lineSummary">
+          <div class="lineItem"><span>Position</span><strong>£1,027.67</strong></div>
+          <div class="lineItem"><span>Next</span><strong>Payday, 27 Jun</strong></div>
+          <div class="lineItem"><span>Review</span><strong>0 item(s)</strong></div>
+        </div>
+        <div class="disclosure">
+          <strong>What changed?</strong><span>3 changes are visible.</span><b>›</b>
+        </div>
+        <div class="route">
+          <div class="label">Local route</div>
+          <svg class="routeSvg" viewBox="0 0 340 100" role="img" aria-label="Route chart">
+            <path
+              d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+              fill="none"
+              stroke="#c4d3cb"
+              stroke-width="14"
+              stroke-linecap="round"
+            />
+            <path
+              d="M 8 41 L 88 79 L 167 79 L 247 10 L 326 10"
+              fill="none"
+              stroke="#1f7a5c"
+              stroke-width="6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle cx="8" cy="41" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            <circle cx="88" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            <circle cx="167" cy="79" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            <circle cx="247" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+            <circle cx="326" cy="10" r="6" fill="#fffefa" stroke="#17231d" stroke-width="3" />
+          </svg>
+          <div class="stats">
+            <div class="stat">
+              <div class="label">Available now</div>
+              <div class="value">£189.07</div>
+            </div>
+            <div class="stat">
+              <div class="label">Lowest point</div>
+              <div class="value">£189.07 Today</div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,175 @@
+{
+  "generatedAt": "2026-06-24T12:03:58.020Z",
+  "method": "static-html-render-harness-from-local-ledger-and-surface-copy",
+  "outputDir": "C:\\dev\\folio-v2-greenfield\\apps\\mobile\\evidence\\real-product-ux-rebuild-2026-06-24",
+  "pages": [
+    {
+      "id": "start",
+      "html": "pages/start.html",
+      "screenshot": "screenshots/start.png",
+      "xml": "xml/start.xml"
+    },
+    {
+      "id": "first-value-moments",
+      "html": "pages/first-value-moments.html",
+      "screenshot": "screenshots/first-value-moments.png",
+      "xml": "xml/first-value-moments.xml"
+    },
+    {
+      "id": "guide-me",
+      "html": "pages/guide-me.html",
+      "screenshot": "screenshots/guide-me.png",
+      "xml": "xml/guide-me.xml"
+    },
+    {
+      "id": "payday-guided-step",
+      "html": "pages/payday-guided-step.html",
+      "screenshot": "screenshots/payday-guided-step.png",
+      "xml": "xml/payday-guided-step.xml"
+    },
+    {
+      "id": "debt-entry",
+      "html": "pages/debt-entry.html",
+      "screenshot": "screenshots/debt-entry.png",
+      "xml": "xml/debt-entry.xml"
+    },
+    {
+      "id": "bill-entry",
+      "html": "pages/bill-entry.html",
+      "screenshot": "screenshots/bill-entry.png",
+      "xml": "xml/bill-entry.xml"
+    },
+    {
+      "id": "empty-first-launch",
+      "html": "pages/empty-first-launch.html",
+      "screenshot": "screenshots/empty-first-launch.png",
+      "xml": "xml/empty-first-launch.xml"
+    },
+    {
+      "id": "sample-briefing",
+      "html": "pages/sample-briefing.html",
+      "screenshot": "screenshots/sample-briefing.png",
+      "xml": "xml/sample-briefing.xml"
+    },
+    {
+      "id": "import-entry",
+      "html": "pages/import-entry.html",
+      "screenshot": "screenshots/import-entry.png",
+      "xml": "xml/import-entry.xml"
+    },
+    {
+      "id": "review-only-file",
+      "html": "pages/review-only-file.html",
+      "screenshot": "screenshots/review-only-file.png",
+      "xml": "xml/review-only-file.xml"
+    },
+    {
+      "id": "review-rows",
+      "html": "pages/review-rows.html",
+      "screenshot": "screenshots/review-rows.png",
+      "xml": "xml/review-rows.xml"
+    },
+    {
+      "id": "row-accepted",
+      "html": "pages/row-accepted.html",
+      "screenshot": "screenshots/row-accepted.png",
+      "xml": "xml/row-accepted.xml"
+    },
+    {
+      "id": "row-ignored",
+      "html": "pages/row-ignored.html",
+      "screenshot": "screenshots/row-ignored.png",
+      "xml": "xml/row-ignored.xml"
+    },
+    {
+      "id": "duplicate-transfer-refund-states",
+      "html": "pages/duplicate-transfer-refund-states.html",
+      "screenshot": "screenshots/duplicate-transfer-refund-states.png",
+      "xml": "xml/duplicate-transfer-refund-states.xml"
+    },
+    {
+      "id": "rejected-import-state",
+      "html": "pages/rejected-import-state.html",
+      "screenshot": "screenshots/rejected-import-state.png",
+      "xml": "xml/rejected-import-state.xml"
+    },
+    {
+      "id": "minimal-manual-path",
+      "html": "pages/minimal-manual-path.html",
+      "screenshot": "screenshots/minimal-manual-path.png",
+      "xml": "xml/minimal-manual-path.xml"
+    },
+    {
+      "id": "completed-manual-first-picture",
+      "html": "pages/completed-manual-first-picture.html",
+      "screenshot": "screenshots/completed-manual-first-picture.png",
+      "xml": "xml/completed-manual-first-picture.xml"
+    },
+    {
+      "id": "why-inspect-route",
+      "html": "pages/why-inspect-route.html",
+      "screenshot": "screenshots/why-inspect-route.png",
+      "xml": "xml/why-inspect-route.xml"
+    },
+    {
+      "id": "first-real-today-briefing",
+      "html": "pages/first-real-today-briefing.html",
+      "screenshot": "screenshots/first-real-today-briefing.png",
+      "xml": "xml/first-real-today-briefing.xml"
+    },
+    {
+      "id": "what-changed",
+      "html": "pages/what-changed.html",
+      "screenshot": "screenshots/what-changed.png",
+      "xml": "xml/what-changed.xml"
+    },
+    {
+      "id": "breathing-room-route",
+      "html": "pages/breathing-room-route.html",
+      "screenshot": "screenshots/breathing-room-route.png",
+      "xml": "xml/breathing-room-route.xml"
+    },
+    {
+      "id": "timeline",
+      "html": "pages/timeline.html",
+      "screenshot": "screenshots/timeline.png",
+      "xml": "xml/timeline.xml"
+    },
+    {
+      "id": "calendar",
+      "html": "pages/calendar.html",
+      "screenshot": "screenshots/calendar.png",
+      "xml": "xml/calendar.xml"
+    },
+    {
+      "id": "plans",
+      "html": "pages/plans.html",
+      "screenshot": "screenshots/plans.png",
+      "xml": "xml/plans.xml"
+    },
+    {
+      "id": "recovery-preview",
+      "html": "pages/recovery-preview.html",
+      "screenshot": "screenshots/recovery-preview.png",
+      "xml": "xml/recovery-preview.xml"
+    },
+    {
+      "id": "data-control",
+      "html": "pages/data-control.html",
+      "screenshot": "screenshots/data-control.png",
+      "xml": "xml/data-control.xml"
+    },
+    {
+      "id": "more",
+      "html": "pages/more.html",
+      "screenshot": "screenshots/more.png",
+      "xml": "xml/more.xml"
+    },
+    {
+      "id": "melo-surface",
+      "html": "pages/melo-surface.html",
+      "screenshot": "screenshots/melo-surface.png",
+      "xml": "xml/melo-surface.xml"
+    }
+  ]
+}

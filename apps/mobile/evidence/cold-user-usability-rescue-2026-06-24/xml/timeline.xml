@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="timeline">
+  <eyebrow>Timeline</eyebrow>
+  <title>What changed, what is next.</title>
+  <body>0 known, 3 coming up, 0 to review.</body>
+  <plainText>Now Needs review Coming up Plan movement History Audit manual added user recorded manual added. An audit entry records a change to local data. Source: ... Audit planner added user recorded planner added. An audit entry records a change to local data. Source:... Plan Protect Council tax checked Protect Council tax is checked against the current canonical position. Protect Coun... Plan Protect Rent checked Protect Rent is checked against the current canonical position. Protect Rent remain... Balance Balance updated Current balance selected from recorded balance evidence. This balance record explai... Balance Opening balance set User-entered opening balance used as the current position anchor. This balance reco... Meaning Council tax Planned money movement; not a confirmed transaction yet. This event explains what t...</plainText>
+</surface>

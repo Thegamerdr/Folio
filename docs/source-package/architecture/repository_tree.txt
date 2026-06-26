@@ -1,0 +1,53 @@
+folio-v2/
+├── .github/workflows/
+├── apps/
+│   └── mobile/
+│       ├── app/                         # Expo Router routes only
+│       ├── src/
+│       │   ├── features/
+│       │   │   ├── first-minute/
+│       │   │   ├── today/
+│       │   │   ├── melo/
+│       │   │   ├── timeline/
+│       │   │   ├── transactions/
+│       │   │   ├── import/
+│       │   │   ├── plans/
+│       │   │   ├── calendar/
+│       │   │   ├── search/
+│       │   │   ├── documents/
+│       │   │   ├── privacy-vault/
+│       │   │   └── business/
+│       │   ├── application/
+│       │   ├── adapters/
+│       │   ├── navigation/
+│       │   └── bootstrap/
+│       ├── ios/
+│       └── android/
+├── packages/
+│   ├── domain/
+│   ├── finance-engine/
+│   ├── event-engine/
+│   ├── plan-engine/
+│   ├── calendar-engine/
+│   ├── melo-policy/
+│   ├── import-engine/
+│   ├── search-engine/
+│   ├── storage/
+│   ├── crypto/
+│   ├── sync/
+│   ├── ai-contracts/
+│   ├── policy-packs/
+│   ├── ui/
+│   └── testing/
+├── services/
+│   ├── cloud-vault/
+│   ├── ai-gateway/
+│   ├── open-banking/
+│   └── web-account/
+├── infra/
+├── tooling/
+├── docs/
+├── package.json
+├── pnpm-workspace.yaml
+├── turbo.json
+└── tsconfig.base.json

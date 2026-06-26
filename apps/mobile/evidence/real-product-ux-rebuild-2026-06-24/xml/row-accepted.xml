@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="row-accepted">
+  <eyebrow>Review row accepted</eyebrow>
+  <title>Row added</title>
+  <body>Today updates only after a row is added.</body>
+  <plainText>Accepted rows 1 Waiting rows 2 Today uses Added rows only Added Bus fare £3.20 What changed explains the accepted row and keeps original wording attached.</plainText>
+</surface>

@@ -1,0 +1,4 @@
+When,Payee,Out,In,Balance,ID
+21/06/2026,"Tesco Supermarket",42.16,,1195.50,messy-001
+22/06/2026,"=HYPERLINK(""https://example.invalid"",""Bill"")",18.20,,1177.30,messy-002
+23/06/2026,"Unknown card payment 4812",9.99,,1167.31,messy-003

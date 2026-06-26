@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="what-changed">
+  <eyebrow>Timeline explanation</eyebrow>
+  <title>What changed?</title>
+  <body>Accepted rows and saved commitments explain the update.</body>
+  <plainText>Latest change 3 changes are visible. › Change Council tax -£126.40 is protected for 2026-06-25. Change Rent -£875 is protected for 2026-07-01. Change Protect Council tax Protect Council tax is checked against the current canonical position. Protect Council tax remains linked to 2026-06-25. Rows waiting in Review are not included until added.</plainText>
+</surface>

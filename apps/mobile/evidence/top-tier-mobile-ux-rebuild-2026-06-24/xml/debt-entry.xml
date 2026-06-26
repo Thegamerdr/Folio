@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="debt-entry">
+  <eyebrow>Organise debts</eyebrow>
+  <title>Which debt payment is worrying you first?</title>
+  <body>Debt is first-class: lender, balance, minimum payment, due date, APR, status, note and pressure.</body>
+  <plainText>Debt lender or name Abound Debt balance GBP 1,248.20 Minimum payment GBP 162.95 Debt payment due date 2026-06-25 APR if known 29.9% Status Arrangement Pressure Feels urgent Debt note This payment is due before the next income. Due before income 2026-06-25 Before payday GBP -162.95 Debt balance GBP 1,248.20 Save effect Protected debt payment Find debt row Save debt payment</plainText>
+</surface>

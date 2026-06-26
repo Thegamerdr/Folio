@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "principle": "just_in_time_and_feature_bound",
+  "permissions": [
+    {
+      "key": "notifications",
+      "requestWhen": "user_creates_or_enables_a_useful_reminder",
+      "fallback": "in_app_only",
+      "requiredForCore": false
+    },
+    {
+      "key": "camera",
+      "requestWhen": "user_taps_capture_document",
+      "fallback": "file_picker_or_manual",
+      "requiredForCore": false
+    },
+    {
+      "key": "microphone",
+      "requestWhen": "user_taps_voice_input",
+      "fallback": "typing",
+      "requiredForCore": false
+    },
+    {
+      "key": "speech_recognition",
+      "requestWhen": "voice_requires_platform_recognizer",
+      "fallback": "typing_or_local_model",
+      "requiredForCore": false
+    },
+    {
+      "key": "calendar_write",
+      "requestWhen": "user_enables_add_to_system_calendar",
+      "fallback": "internal_calendar",
+      "requiredForCore": false
+    },
+    {
+      "key": "calendar_read",
+      "requestWhen": "user_explicitly_enables_calendar_import",
+      "fallback": "internal_calendar",
+      "requiredForCore": false
+    },
+    {
+      "key": "biometrics",
+      "requestWhen": "user_enables_app_lock",
+      "fallback": "device_credential_or_app_pin",
+      "requiredForCore": false
+    },
+    {
+      "key": "files",
+      "requestWhen": "user_taps_import",
+      "fallback": "manual_quick_start",
+      "requiredForCore": false
+    },
+    {
+      "key": "open_banking",
+      "requestWhen": "user_selects_connect_bank_after_scope_explanation",
+      "fallback": "manual_or_file_import",
+      "requiredForCore": false
+    },
+    {
+      "key": "cloud_ai",
+      "requestWhen": "first_task_requires_cloud_model",
+      "fallback": "templates_on_device_or_manual",
+      "requiredForCore": false
+    },
+    {
+      "key": "diagnostics_upload",
+      "requestWhen": "user_previews_support_bundle",
+      "fallback": "local_only_diagnostics",
+      "requiredForCore": false
+    }
+  ]
+}

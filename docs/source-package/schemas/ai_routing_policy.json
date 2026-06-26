@@ -1,0 +1,74 @@
+{
+  "version": "1.0.0",
+  "routingOrder": [
+    "deterministic",
+    "on_device",
+    "cloud_small",
+    "cloud_strong",
+    "manual"
+  ],
+  "tasks": {
+    "explain_calculation": {
+      "default": "deterministic",
+      "cloudAllowed": true,
+      "maxOutputTokens": 300
+    },
+    "parse_intent": {
+      "default": "on_device",
+      "cloudAllowed": true,
+      "maxOutputTokens": 250
+    },
+    "transaction_classification": {
+      "default": "deterministic",
+      "cloudAllowed": true,
+      "maxOutputTokens": 150
+    },
+    "csv_mapping": {
+      "default": "deterministic",
+      "cloudAllowed": true,
+      "maxOutputTokens": 500
+    },
+    "document_extraction": {
+      "default": "on_device",
+      "cloudAllowed": true,
+      "weightedUnits": 5,
+      "maxOutputTokens": 1000
+    },
+    "monthly_summary": {
+      "default": "deterministic",
+      "cloudAllowed": true,
+      "maxOutputTokens": 700
+    },
+    "regulated_advice": {
+      "default": "manual",
+      "cloudAllowed": false
+    }
+  },
+  "contextRules": {
+    "fullDatabaseAllowed": false,
+    "crossWorkspaceAllowed": false,
+    "rawIdentifiersDefault": false,
+    "maxClarificationQuestions": 3
+  },
+  "writePolicy": {
+    "directDomainWrites": false,
+    "typedProposalRequired": true,
+    "userReviewRequired": true
+  },
+  "costGuardrails": {
+    "perRequestTokenCap": 8000,
+    "perUserDailyWeightedUnitsDefault": 30,
+    "retryOnProviderFailure": 1,
+    "cacheDeterministicExplanations": true
+  },
+  "providerRegistryFields": [
+    "provider",
+    "modelId",
+    "status",
+    "effectiveFrom",
+    "pricesPerMillion",
+    "dataUsePolicy",
+    "region",
+    "evaluationVersion"
+  ]
+}

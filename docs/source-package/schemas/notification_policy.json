@@ -1,0 +1,59 @@
+{
+  "version": "1.0.0",
+  "default": "quiet",
+  "lockScreenDefault": "hidden",
+  "classes": [
+    {
+      "key": "critical_deadline",
+      "defaultEnabled": true,
+      "maxPerDay": 3,
+      "quietHoursOverride": "user_configurable",
+      "examples": [
+        "essential bill reminder",
+        "tax deadline"
+      ]
+    },
+    {
+      "key": "meaningful_change",
+      "defaultEnabled": true,
+      "maxPerDay": 1,
+      "examples": [
+        "expected income missing",
+        "plan materially changed"
+      ]
+    },
+    {
+      "key": "ritual",
+      "defaultEnabled": false,
+      "maxPerWeek": 3,
+      "examples": [
+        "payday review",
+        "weekly reflection",
+        "month close"
+      ]
+    },
+    {
+      "key": "progress",
+      "defaultEnabled": true,
+      "maxPerDay": 1,
+      "examples": [
+        "milestone reached"
+      ]
+    },
+    {
+      "key": "marketing",
+      "defaultEnabled": false,
+      "maxPerWeek": 1,
+      "mustNeverShareChannelWith": "critical_deadline"
+    }
+  ],
+  "forbiddenCopy": [
+    "Your streak is dying",
+    "Open now or lose progress",
+    "You failed your budget"
+  ],
+  "deduplication": {
+    "sameUnderlyingEventHours": 24,
+    "dismissedUntilMaterialChange": true
+  }
+}

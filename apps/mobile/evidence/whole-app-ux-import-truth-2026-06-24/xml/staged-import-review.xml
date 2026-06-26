@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="staged-import-review">
+  <eyebrow>Staged import review</eyebrow>
+  <title>I found enough to start.</title>
+  <body>3 rows are staged. Review each before saving.</body>
+  <plainText>3 of 3 rows ready for review Preview Rows stay staged Reveal Original wording remains visible Save Accept saves after review Review row 2026-06-21 / Bus fare / -3.20 Bus fare Review row 2026-06-22 / Coffee / -3.25 Coffee Review row 2026-06-27 / Payday / 1840.00 Payday Accept Adds this row to your money view with source history attached. Edit Preserves the original source wording, stores your correction and still waits for confirmation. Reject Keeps the row as evidence only and leaves Today, Timeline and Plans unchanged.</plainText>
+</surface>

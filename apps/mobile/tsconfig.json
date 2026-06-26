@@ -1,0 +1,88 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "customConditions": ["react-native"],
+    "jsx": "react-jsx",
+    "lib": ["ES2024"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "outDir": "dist",
+    "paths": {
+      "@/*": ["src/*"],
+      "@folio/ai-contracts": ["../../packages/ai-contracts/src/index.ts"],
+      "@folio/business-workspace": ["../../packages/business-workspace/src/index.ts"],
+      "@folio/calendar-engine": ["../../packages/calendar-engine/src/index.ts"],
+      "@folio/domain": ["../../packages/domain/src/index.ts"],
+      "@folio/finance-engine": ["../../packages/finance-engine/src/index.ts"],
+      "@folio/first-minute": ["../../packages/first-minute/src/index.ts"],
+      "@folio/import-engine": ["../../packages/import-engine/src/index.ts"],
+      "@folio/melo-policy": ["../../packages/melo-policy/src/index.ts"],
+      "@folio/open-banking": ["../../packages/open-banking/src/index.ts"],
+      "@folio/plan-engine": ["../../packages/plan-engine/src/index.ts"],
+      "@folio/release-readiness": ["../../packages/release-readiness/src/index.ts"],
+      "@folio/store-release": ["../../packages/store-release/src/index.ts"],
+      "@folio/sync": ["../../packages/sync/src/index.ts"],
+      "@folio/today-engine": ["../../packages/today-engine/src/index.ts"],
+      "@folio/ui": ["../../packages/ui/src/index.ts"]
+    },
+    "rootDir": ".",
+    "types": ["react", "react-native"]
+  },
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "app.config.ts",
+    "expo-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".expo/types/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../../packages/ai-contracts"
+    },
+    {
+      "path": "../../packages/business-workspace"
+    },
+    {
+      "path": "../../packages/calendar-engine"
+    },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/finance-engine"
+    },
+    {
+      "path": "../../packages/first-minute"
+    },
+    {
+      "path": "../../packages/import-engine"
+    },
+    {
+      "path": "../../packages/melo-policy"
+    },
+    {
+      "path": "../../packages/open-banking"
+    },
+    {
+      "path": "../../packages/plan-engine"
+    },
+    {
+      "path": "../../packages/release-readiness"
+    },
+    {
+      "path": "../../packages/store-release"
+    },
+    {
+      "path": "../../packages/sync"
+    },
+    {
+      "path": "../../packages/today-engine"
+    },
+    {
+      "path": "../../packages/ui"
+    }
+  ]
+}

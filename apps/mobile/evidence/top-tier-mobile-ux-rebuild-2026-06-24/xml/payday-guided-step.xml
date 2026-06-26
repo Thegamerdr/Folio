@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="payday-guided-step">
+  <eyebrow>Make it to payday</eyebrow>
+  <title>What money do you have right now?</title>
+  <body>Step 1 of 5. One question, one main input, skip and estimate available.</body>
+  <plainText>Money available today What money do you have right now? A rough number is fine. You can correct it later. 0.00 - Rough estimate / Skip for now 1 of 5 guided steps complete Rough estimate Skip for now Continue The route preview appears after enough information exists.</plainText>
+</surface>

@@ -1,0 +1,401 @@
+openapi: 3.1.0
+info:
+  title: Folio V2 Optional Cloud Services API
+  version: 1.0.0
+  description: >-
+    Network contracts for optional encrypted vault, AI gateway and Open Banking
+    adapters. The local mobile domain does not depend on these services.
+servers:
+  - url: https://api.example.invalid/v1
+security:
+  - bearerAuth: []
+paths:
+  /devices:
+    post:
+      operationId: registerDevice
+      summary: Register a device public key for encrypted sync
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+      responses:
+        '201':
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+  /devices/{deviceId}:
+    delete:
+      operationId: revokeDevice
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '204': {description: Device revoked}
+  /vault/envelopes:
+    post:
+      operationId: uploadEnvelope
+      summary: Upload an opaque encrypted operation envelope
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: {type: string, minLength: 8, maxLength: 200}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncryptedEnvelope'
+      responses:
+        '201':
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeAck'
+        '409': {description: Idempotency conflict}
+    get:
+      operationId: listEnvelopes
+      parameters:
+        - in: query
+          name: after
+          schema: {type: integer, minimum: 0}
+        - in: query
+          name: limit
+          schema: {type: integer, minimum: 1, maximum: 1000, default: 200}
+      responses:
+        '200':
+          description: Opaque envelopes after cursor
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/EncryptedEnvelope'}
+                  nextCursor: {type: integer}
+  /vault/snapshots:
+    post:
+      operationId: uploadSnapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncryptedSnapshot'
+      responses:
+        '201': {description: Snapshot stored}
+    get:
+      operationId: getLatestSnapshot
+      responses:
+        '200':
+          description: Latest encrypted snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncryptedSnapshot'
+        '404': {description: No snapshot}
+  /vault/recovery-metadata:
+    put:
+      operationId: putRecoveryMetadata
+      summary: Store opaque wrapped-key/recovery metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoveryMetadata'
+      responses:
+        '204': {description: Stored}
+    get:
+      operationId: getRecoveryMetadata
+      responses:
+        '200':
+          description: Opaque recovery metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryMetadata'
+  /ai/tasks:
+    post:
+      operationId: submitAiTask
+      summary: Run an explicitly typed, minimised AI task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiTaskRequest'
+      responses:
+        '200':
+          description: Typed model draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiTaskResponse'
+        '402': {description: Cloud AI entitlement/quota unavailable}
+        '422': {description: Task rejected by policy or validation}
+        '429': {description: Rate limit exceeded}
+  /ai/usage:
+    get:
+      operationId: getAiUsage
+      responses:
+        '200':
+          description: Current quota and weighted use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiUsage'
+  /bank/consents:
+    post:
+      operationId: startBankConsent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartBankConsentRequest'
+      responses:
+        '201':
+          description: Consent journey started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankConsent'
+    get:
+      operationId: listBankConsents
+      responses:
+        '200':
+          description: User-visible consent state
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/BankConsent'}
+  /bank/consents/{consentId}:
+    delete:
+      operationId: revokeBankConsent
+      parameters:
+        - in: path
+          name: consentId
+          required: true
+          schema: {type: string}
+      responses:
+        '204': {description: Revoked}
+  /bank/consents/{consentId}/rows:
+    get:
+      operationId: getCanonicalBankRows
+      parameters:
+        - in: path
+          name: consentId
+          required: true
+          schema: {type: string}
+        - in: query
+          name: after
+          schema: {type: string}
+      responses:
+        '200':
+          description: Provider-neutral staging rows, encrypted in transit
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rows, nextCursor, lastUpdatedAt]
+                properties:
+                  rows:
+                    type: array
+                    items: {$ref: '#/components/schemas/CanonicalBankRow'}
+                  nextCursor: {type: [string, 'null']}
+                  lastUpdatedAt: {type: string, format: date-time}
+  /account:
+    delete:
+      operationId: requestAccountDeletion
+      summary: Delete optional cloud account and service-held data
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                keepLocalVault: {type: boolean, default: true}
+      responses:
+        '202':
+          description: Deletion scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deletionId, effectiveAt]
+                properties:
+                  deletionId: {type: string}
+                  effectiveAt: {type: string, format: date-time}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT-or-passkey-session
+  parameters:
+    DeviceId:
+      in: path
+      name: deviceId
+      required: true
+      schema: {type: string}
+  schemas:
+    RegisterDeviceRequest:
+      type: object
+      additionalProperties: false
+      required: [deviceId, platform, displayName, publicKey]
+      properties:
+        deviceId: {type: string}
+        platform: {enum: [ios, android, other]}
+        displayName: {type: string, maxLength: 120}
+        publicKey: {type: string, contentEncoding: base64}
+    Device:
+      allOf:
+        - $ref: '#/components/schemas/RegisterDeviceRequest'
+        - type: object
+          required: [registeredAt, revoked]
+          properties:
+            registeredAt: {type: string, format: date-time}
+            revoked: {type: boolean}
+    EncryptedEnvelope:
+      type: object
+      additionalProperties: false
+      required: [operationId, deviceId, workspaceOpaqueId, entityOpaqueId, entityVersion, ciphertext, nonce, createdAt]
+      properties:
+        operationId: {type: string}
+        serverSequence: {type: [integer, 'null']}
+        deviceId: {type: string}
+        workspaceOpaqueId: {type: string}
+        entityOpaqueId: {type: string}
+        entityVersion: {type: string}
+        ciphertext: {type: string, contentEncoding: base64}
+        nonce: {type: string, contentEncoding: base64}
+        createdAt: {type: string, format: date-time}
+    EnvelopeAck:
+      type: object
+      required: [operationId, serverSequence]
+      properties:
+        operationId: {type: string}
+        serverSequence: {type: integer}
+    EncryptedSnapshot:
+      type: object
+      additionalProperties: false
+      required: [snapshotId, formatVersion, throughSequence, ciphertext, nonce, checksum, createdAt]
+      properties:
+        snapshotId: {type: string}
+        formatVersion: {type: integer}
+        throughSequence: {type: integer}
+        ciphertext: {type: string, contentEncoding: base64}
+        nonce: {type: string, contentEncoding: base64}
+        checksum: {type: string}
+        createdAt: {type: string, format: date-time}
+    RecoveryMetadata:
+      type: object
+      additionalProperties: false
+      required: [version, wrappedVaultKey, salt, kdf, updatedAt]
+      properties:
+        version: {type: integer}
+        wrappedVaultKey: {type: string, contentEncoding: base64}
+        salt: {type: string, contentEncoding: base64}
+        kdf:
+          type: object
+          required: [name, parameters]
+          properties:
+            name: {const: argon2id}
+            parameters: {type: object}
+        updatedAt: {type: string, format: date-time}
+    AiTaskRequest:
+      type: object
+      additionalProperties: false
+      required: [taskId, taskType, workspaceOpaqueId, schemaVersion, context, locale]
+      properties:
+        taskId: {type: string}
+        taskType:
+          enum: [explain_calculation, parse_intent, transaction_classification, csv_mapping, document_extraction, monthly_summary]
+        workspaceOpaqueId: {type: string}
+        schemaVersion: {type: string}
+        context: {type: object}
+        locale: {type: string}
+        requestedRoute: {enum: [auto, on_device, cloud_small, cloud_strong]}
+    AiTaskResponse:
+      type: object
+      additionalProperties: false
+      required: [taskId, route, provider, modelId, output, policyVersion, usage]
+      properties:
+        taskId: {type: string}
+        route: {enum: [cloud_small, cloud_strong]}
+        provider: {type: string}
+        modelId: {type: string}
+        output: {type: object}
+        policyVersion: {type: string}
+        usage:
+          type: object
+          required: [inputTokens, outputTokens, weightedUnits]
+          properties:
+            inputTokens: {type: integer}
+            outputTokens: {type: integer}
+            weightedUnits: {type: integer}
+    AiUsage:
+      type: object
+      required: [period, usedUnits, limitUnits, resetsAt]
+      properties:
+        period: {type: string}
+        usedUnits: {type: integer}
+        limitUnits: {type: integer}
+        resetsAt: {type: string, format: date-time}
+    StartBankConsentRequest:
+      type: object
+      additionalProperties: false
+      required: [workspaceOpaqueId, provider, requestedPermissionKeys, returnUri]
+      properties:
+        workspaceOpaqueId: {type: string}
+        provider: {type: string}
+        requestedPermissionKeys:
+          type: array
+          uniqueItems: true
+          items: {type: string}
+        returnUri: {type: string, format: uri}
+    BankConsent:
+      type: object
+      required: [id, provider, status, permissionKeys, accountSummaries]
+      properties:
+        id: {type: string}
+        provider: {type: string}
+        status: {enum: [pending, active, expired, revoked, error]}
+        authorizationUrl: {type: [string, 'null'], format: uri}
+        permissionKeys: {type: array, items: {type: string}}
+        accountSummaries:
+          type: array
+          items:
+            type: object
+            required: [opaqueId, displayName, selected]
+            properties:
+              opaqueId: {type: string}
+              displayName: {type: string}
+              selected: {type: boolean}
+        expiresAt: {type: [string, 'null'], format: date-time}
+        lastRefreshedAt: {type: [string, 'null'], format: date-time}
+    CanonicalBankRow:
+      type: object
+      additionalProperties: false
+      required: [providerRowId, accountOpaqueId, status, amountMinor, currency, localDate, description, receivedAt]
+      properties:
+        providerRowId: {type: string}
+        accountOpaqueId: {type: string}
+        status: {enum: [pending, posted, reversed]}
+        amountMinor: {type: integer}
+        currency: {type: string, pattern: '^[A-Z]{3}$'}
+        localDate: {type: string, format: date}
+        bookedAt: {type: [string, 'null'], format: date-time}
+        description: {type: string}
+        reference: {type: [string, 'null']}
+        balanceAfterMinor: {type: [integer, 'null']}
+        receivedAt: {type: string, format: date-time}

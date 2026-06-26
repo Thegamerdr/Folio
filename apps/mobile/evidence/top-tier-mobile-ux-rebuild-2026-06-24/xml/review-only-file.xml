@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="review-only-file">
+  <eyebrow>Import truth</eyebrow>
+  <title>File saved for review.</title>
+  <body>Automatic reading is not ready for this file yet. You can still add the important numbers from it.</body>
+  <plainText>PDF or screenshot Automatic reading is not ready for this file yet. Add money from file Add income from file Add bill from file Add debt payment Keep file for later Remove file The file stays available for checking. No rows are added automatically.</plainText>
+</surface>

@@ -1,0 +1,600 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folio.local/schemas/domain.schema.json",
+  "title": "Folio V2 Core Domain Contracts",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "rfc3339": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "localDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "money": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minor",
+        "currency"
+      ],
+      "properties": {
+        "minor": {
+          "type": "integer"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      }
+    },
+    "certainty": {
+      "type": "string",
+      "enum": [
+        "confirmed",
+        "reported",
+        "expected",
+        "inferred",
+        "estimated",
+        "hypothetical"
+      ]
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "baseCurrency",
+        "jurisdiction",
+        "timeZone"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "personal",
+            "business"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "baseCurrency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "jurisdiction": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 12
+        },
+        "timeZone": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "transaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "workspaceId",
+        "accountId",
+        "status",
+        "amount",
+        "localDate",
+        "sourceKind",
+        "certainty",
+        "reviewStatus"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "accountId": {
+          "$ref": "#/$defs/id"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "posted",
+            "reversed",
+            "void"
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/money"
+        },
+        "localDate": {
+          "$ref": "#/$defs/localDate"
+        },
+        "bookedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/rfc3339"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "reference": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "categoryId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "counterpartyId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceKind": {
+          "enum": [
+            "manual",
+            "csv",
+            "ofx",
+            "qif",
+            "pdf",
+            "ocr",
+            "open_banking",
+            "migration",
+            "sync"
+          ]
+        },
+        "certainty": {
+          "enum": [
+            "confirmed",
+            "reported",
+            "inferred"
+          ]
+        },
+        "reviewStatus": {
+          "enum": [
+            "proposed",
+            "needs_review",
+            "accepted",
+            "rejected"
+          ]
+        },
+        "provenance": {
+          "type": "object"
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "workspaceId",
+        "type",
+        "state",
+        "title",
+        "localDate",
+        "timeZone",
+        "certainty",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "enum": [
+            "expected",
+            "confirmed",
+            "completed",
+            "missed",
+            "cancelled",
+            "superseded"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "localDate": {
+          "$ref": "#/$defs/localDate"
+        },
+        "timeZone": {
+          "type": "string"
+        },
+        "amount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "certainty": {
+          "enum": [
+            "confirmed",
+            "expected",
+            "inferred",
+            "hypothetical"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "normal",
+            "important",
+            "critical"
+          ]
+        },
+        "source": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "workspaceId",
+        "kind",
+        "name",
+        "priority",
+        "status",
+        "rules"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "parentPlanId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "debt",
+            "savings",
+            "buffer",
+            "purchase",
+            "event",
+            "business",
+            "custom"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/localDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "active",
+            "paused",
+            "completed",
+            "archived"
+          ]
+        },
+        "accountabilityStyle": {
+          "enum": [
+            "inherit",
+            "gentle",
+            "balanced",
+            "accountability"
+          ]
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/planRule"
+          }
+        }
+      }
+    },
+    "planRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "strength",
+        "parameters"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strength": {
+          "enum": [
+            "hard",
+            "soft"
+          ]
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "scenarioChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "effectiveAt",
+        "payload"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "one_off_inflow",
+            "one_off_outflow",
+            "recurring_change",
+            "income_change",
+            "plan_change",
+            "debt_payment",
+            "purchase",
+            "unexpected_event"
+          ]
+        },
+        "effectiveAt": {
+          "$ref": "#/$defs/rfc3339"
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    },
+    "forecastResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engineVersion",
+        "dataVersion",
+        "workspaceId",
+        "currency",
+        "startDate",
+        "endDate",
+        "points",
+        "assumptions"
+      ],
+      "properties": {
+        "engineVersion": {
+          "type": "string"
+        },
+        "dataVersion": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "startDate": {
+          "$ref": "#/$defs/localDate"
+        },
+        "endDate": {
+          "$ref": "#/$defs/localDate"
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "localDate",
+              "openingMinor",
+              "inflowMinor",
+              "outflowMinor",
+              "closingMinor",
+              "protectedFloorMinor",
+              "certaintyBand"
+            ],
+            "properties": {
+              "localDate": {
+                "$ref": "#/$defs/localDate"
+              },
+              "openingMinor": {
+                "type": "integer"
+              },
+              "inflowMinor": {
+                "type": "integer"
+              },
+              "outflowMinor": {
+                "type": "integer"
+              },
+              "closingMinor": {
+                "type": "integer"
+              },
+              "protectedFloorMinor": {
+                "type": "integer"
+              },
+              "certaintyBand": {
+                "enum": [
+                  "known",
+                  "expected",
+                  "uncertain",
+                  "hypothetical"
+                ]
+              },
+              "eventIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "meloProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "workspaceId",
+        "type",
+        "payload",
+        "rationale",
+        "riskLevel",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "rationale": {
+          "type": "object"
+        },
+        "riskLevel": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "state": {
+          "enum": [
+            "proposed",
+            "edited",
+            "accepted",
+            "rejected",
+            "expired",
+            "committed"
+          ]
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/workspace"
+    },
+    {
+      "$ref": "#/$defs/transaction"
+    },
+    {
+      "$ref": "#/$defs/event"
+    },
+    {
+      "$ref": "#/$defs/plan"
+    },
+    {
+      "$ref": "#/$defs/forecastResult"
+    },
+    {
+      "$ref": "#/$defs/meloProposal"
+    }
+  ]
+}

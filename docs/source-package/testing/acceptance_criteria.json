@@ -1,0 +1,104 @@
+{
+  "version": "1.0.0",
+  "releaseBlocking": true,
+  "areas": [
+    {
+      "area": "greenfield",
+      "criteria": [
+        "new repository has no V1 runtime dependency",
+        "V1 donor inventory exists",
+        "V1 database is never mutated"
+      ]
+    },
+    {
+      "area": "offline",
+      "criteria": [
+        "first value works with network blocked",
+        "transactions/events/plans/calendar/search/export work offline",
+        "AI and cloud failure do not block core"
+      ]
+    },
+    {
+      "area": "financial_truth",
+      "criteria": [
+        "posted actual outranks expectation",
+        "pending replacement is not double counted",
+        "every conclusion shows provenance and assumptions",
+        "minor-unit arithmetic only"
+      ]
+    },
+    {
+      "area": "experience",
+      "criteria": [
+        "home is Today briefing not dashboard grid",
+        "Melo presence is mandatory but chat is optional",
+        "first permission is contextual",
+        "first truthful value or labelled preview within 60 seconds"
+      ]
+    },
+    {
+      "area": "melo",
+      "criteria": [
+        "max three questions by default",
+        "all writes are proposals",
+        "no advice language",
+        "bad-month mode has path forward",
+        "tone preference does not change calculations"
+      ]
+    },
+    {
+      "area": "workspace",
+      "criteria": [
+        "personal and business use separate navigation/context/keys",
+        "tax exports reject personal IDs",
+        "cross-workspace moves are explicit and audited"
+      ]
+    },
+    {
+      "area": "security",
+      "criteria": [
+        "encrypted database and documents",
+        "platform key protection",
+        "recovery tested",
+        "no financial data in telemetry",
+        "MASVS review complete"
+      ]
+    },
+    {
+      "area": "sync",
+      "criteria": [
+        "local authoritative",
+        "server cannot decrypt vault",
+        "offline conflicts reviewable",
+        "restore and device revocation tested"
+      ]
+    },
+    {
+      "area": "accessibility",
+      "criteria": [
+        "VoiceOver/TalkBack critical paths",
+        "large text",
+        "reduced motion",
+        "colour-independent status",
+        "accessible chart summaries"
+      ]
+    },
+    {
+      "area": "stores",
+      "criteria": [
+        "local core requires no login",
+        "account deletion in app and web where required",
+        "privacy/financial declarations match code",
+        "subscription lapse does not hide data/export"
+      ]
+    },
+    {
+      "area": "business_tax",
+      "criteria": [
+        "preparation/estimate language only",
+        "policy packs versioned",
+        "direct filing disabled until dedicated compliance gate"
+      ]
+    }
+  ]
+}

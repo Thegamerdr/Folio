@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "asOf": "2026-06-20",
+  "locked": [
+    {
+      "id": "D001",
+      "decision": "Folio V2 is greenfield; V1 is donor material only."
+    },
+    {
+      "id": "D002",
+      "decision": "Mobile-first hybrid Today/Melo/timeline/calendar experience."
+    },
+    {
+      "id": "D003",
+      "decision": "Melo is mandatory presence, optional conversation, proactive 6\u20138 with controls."
+    },
+    {
+      "id": "D004",
+      "decision": "Local encrypted vault is authoritative; cloud is optional encrypted service."
+    },
+    {
+      "id": "D005",
+      "decision": "Actual transactions are truth; expectations and scenarios remain separate."
+    },
+    {
+      "id": "D006",
+      "decision": "Personal and business are separated workspaces with distinct context and keys."
+    },
+    {
+      "id": "D007",
+      "decision": "No financial advice; simulation/explanation/consequence only."
+    },
+    {
+      "id": "D008",
+      "decision": "Plans are optional, configurable and rebased rather than failed."
+    },
+    {
+      "id": "D009",
+      "decision": "AI is optional and cannot directly write records."
+    },
+    {
+      "id": "D010",
+      "decision": "Core remains useful with no account, bank connection, internet or model."
+    }
+  ],
+  "openSignoffs": [
+    "final visual direction",
+    "exact pricing",
+    "cloud vendor",
+    "Open Banking provider",
+    "launch AI provider/model",
+    "business UI release timing",
+    "launch-market expansion"
+  ],
+  "agentRule": "Open signoffs require seams/configuration, not silent invention."
+}

@@ -1,0 +1,109 @@
+{
+  "generatedAt": "2026-06-24T11:02:21.663Z",
+  "method": "static-html-render-harness-from-local-ledger-and-surface-copy",
+  "outputDir": "C:\\dev\\folio-v2-greenfield\\apps\\mobile\\evidence\\10-out-of-10-experience-standard-2026-06-24",
+  "pages": [
+    {
+      "id": "start",
+      "html": "pages/start.html",
+      "screenshot": "screenshots/start.png",
+      "xml": "xml/start.xml"
+    },
+    {
+      "id": "first-value-moments",
+      "html": "pages/first-value-moments.html",
+      "screenshot": "screenshots/first-value-moments.png",
+      "xml": "xml/first-value-moments.xml"
+    },
+    {
+      "id": "empty-first-launch",
+      "html": "pages/empty-first-launch.html",
+      "screenshot": "screenshots/empty-first-launch.png",
+      "xml": "xml/empty-first-launch.xml"
+    },
+    {
+      "id": "sample-briefing",
+      "html": "pages/sample-briefing.html",
+      "screenshot": "screenshots/sample-briefing.png",
+      "xml": "xml/sample-briefing.xml"
+    },
+    {
+      "id": "import-entry",
+      "html": "pages/import-entry.html",
+      "screenshot": "screenshots/import-entry.png",
+      "xml": "xml/import-entry.xml"
+    },
+    {
+      "id": "review-only-file",
+      "html": "pages/review-only-file.html",
+      "screenshot": "screenshots/review-only-file.png",
+      "xml": "xml/review-only-file.xml"
+    },
+    {
+      "id": "review-rows",
+      "html": "pages/review-rows.html",
+      "screenshot": "screenshots/review-rows.png",
+      "xml": "xml/review-rows.xml"
+    },
+    {
+      "id": "rejected-import-state",
+      "html": "pages/rejected-import-state.html",
+      "screenshot": "screenshots/rejected-import-state.png",
+      "xml": "xml/rejected-import-state.xml"
+    },
+    {
+      "id": "minimal-manual-path",
+      "html": "pages/minimal-manual-path.html",
+      "screenshot": "screenshots/minimal-manual-path.png",
+      "xml": "xml/minimal-manual-path.xml"
+    },
+    {
+      "id": "why-inspect-route",
+      "html": "pages/why-inspect-route.html",
+      "screenshot": "screenshots/why-inspect-route.png",
+      "xml": "xml/why-inspect-route.xml"
+    },
+    {
+      "id": "first-real-today-briefing",
+      "html": "pages/first-real-today-briefing.html",
+      "screenshot": "screenshots/first-real-today-briefing.png",
+      "xml": "xml/first-real-today-briefing.xml"
+    },
+    {
+      "id": "timeline",
+      "html": "pages/timeline.html",
+      "screenshot": "screenshots/timeline.png",
+      "xml": "xml/timeline.xml"
+    },
+    {
+      "id": "calendar",
+      "html": "pages/calendar.html",
+      "screenshot": "screenshots/calendar.png",
+      "xml": "xml/calendar.xml"
+    },
+    {
+      "id": "plans",
+      "html": "pages/plans.html",
+      "screenshot": "screenshots/plans.png",
+      "xml": "xml/plans.xml"
+    },
+    {
+      "id": "recovery-preview",
+      "html": "pages/recovery-preview.html",
+      "screenshot": "screenshots/recovery-preview.png",
+      "xml": "xml/recovery-preview.xml"
+    },
+    {
+      "id": "data-control",
+      "html": "pages/data-control.html",
+      "screenshot": "screenshots/data-control.png",
+      "xml": "xml/data-control.xml"
+    },
+    {
+      "id": "melo-surface",
+      "html": "pages/melo-surface.html",
+      "screenshot": "screenshots/melo-surface.png",
+      "xml": "xml/melo-surface.xml"
+    }
+  ]
+}

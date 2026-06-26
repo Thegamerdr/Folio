@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="import-entry">
+  <eyebrow>Import entry</eyebrow>
+  <title>Choose a statement to start.</title>
+  <body>Choose or paste a statement. Rows wait here until review.</body>
+  <plainText>Rows wait for review before they are added. Nothing changes your picture until you accept it. Preview Statement rows become questions Reveal Original wording stays attached Save Confirm one row at a time CSV/TXT statement Choose a file or paste statement text Choose CSV/TXT file Paste statement text</plainText>
+</surface>

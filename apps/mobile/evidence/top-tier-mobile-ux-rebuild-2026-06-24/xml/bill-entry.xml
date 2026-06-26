@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<surface id="bill-entry">
+  <eyebrow>Check bills</eyebrow>
+  <title>What must be paid before then?</title>
+  <body>Add one bill or must-pay item. It becomes protected in the route.</body>
+  <plainText>Bill name Council tax Bill amount GBP 126.40 Bill due date 2026-06-25 Type Must-pay Repeat Recurring This bill reduces what is available before payday when saved. Find bill row Save bill</plainText>
+</surface>

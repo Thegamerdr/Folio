@@ -1,0 +1,60 @@
+{
+  "version": "1.0.0",
+  "targetSeconds": 60,
+  "permissionsRequested": [],
+  "accountRequired": false,
+  "steps": [
+    {
+      "id": "welcome",
+      "maxSeconds": 8,
+      "melo": "brief_warm_intro",
+      "actions": [
+        "show_how_it_works",
+        "use_my_data",
+        "quick_check"
+      ]
+    },
+    {
+      "id": "preview",
+      "optional": true,
+      "maxSeconds": 20,
+      "label": "example_not_your_finances",
+      "content": "interactive synthetic timeline showing what a statement becomes"
+    },
+    {
+      "id": "data_choice",
+      "maxSeconds": 12,
+      "actions": [
+        "import_statement",
+        "quick_start_three_facts",
+        "explore_demo"
+      ]
+    },
+    {
+      "id": "quick_start",
+      "optional": true,
+      "maxQuestions": 3,
+      "fields": [
+        "available_now",
+        "next_income_date_and_amount",
+        "next_important_outgoing"
+      ]
+    },
+    {
+      "id": "first_value",
+      "maxSeconds": 10,
+      "outputs": [
+        "position_until_next_income",
+        "next_important_date",
+        "certainty_and_missing_context"
+      ]
+    }
+  ],
+  "successCriteria": [
+    "user_sees_truthful_value_or_labelled_preview",
+    "no_permission_wall",
+    "no_goal_questionnaire",
+    "clear_local_privacy_promise",
+    "next_action_obvious"
+  ]
+}
