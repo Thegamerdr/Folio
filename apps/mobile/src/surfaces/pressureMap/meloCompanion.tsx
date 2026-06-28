@@ -7,12 +7,18 @@
 // with a trailing accent dot. Melo interprets and reassures; she never moves anything — that is
 // always the user. Same prop contract, route + snapshot, and mood-state wiring as before; only the
 // presentation matches the web source.
+//
+// Honesty: the spectrum is READ-ONLY by design. Melo's mood is derived from the money picture
+// (currentPressure -> route.tightestBalanceMinor); it is never something the user toggles. The
+// rows are display, not controls -- so the screen never implies a tap-to-change affordance. The
+// real, honest navigation off this page lives in the "Where to go from here" rows below, which is
+// where onOpenWhatIf / onOpenImports / onOpenRecovery / onOpenSources actually do their work.
 
 import { StyleSheet, Text, View } from 'react-native';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
 import { Display, gap, paper, PressureScreen, radius, serif } from './kit';
-import { ScreenHeader } from './secondaryKit';
+import { HubRow, RowCard, ScreenHeader, SectionLabel } from './secondaryKit';
 import { MeloFigure } from './melo/MeloFigure';
 import type { MeloMood } from './melo/meloStates';
 import { routeHasMeaningfulPath } from './MoneyPath';
@@ -74,11 +80,16 @@ function currentPressure(route: LocalRouteSummary): PressureKey {
 
 export function MeloScreen({
   onBack,
+  onOpenImports,
+  onOpenRecovery,
+  onOpenWhatIf,
+  onOpenSources,
   route,
 }: {
   // Accepted for prop-contract parity with the container.
   ledger: LocalLedgerState;
   onBack: () => void;
+  // Real, working navigation off this page — surfaced as the "Where to go from here" rows below.
   onOpenImports: () => void;
   onOpenRecovery: () => void;
   onOpenWhatIf: () => void;
@@ -104,13 +115,20 @@ export function MeloScreen({
         <Text style={styles.heroLine}>{`“${current.line}”`}</Text>
       </View>
 
-      <View style={styles.spectrum}>
+      <View style={styles.spectrum} accessibilityLabel="Melo's mood range, from safe to overspent">
         {SPECTRUM.map((mood) => {
           const isNow = mood.key === currentKey;
           return (
             <View
               key={mood.key}
+              // Display, not a control. The mood is read from the money picture, never tapped to
+              // change it — so these rows carry no onPress and read as plain text to assistive tech.
               accessibilityRole="text"
+              accessibilityLabel={
+                isNow
+                  ? `${mood.label}. Where your money sits right now.`
+                  : mood.label
+              }
               style={[styles.moodRow, isNow ? styles.moodRowNow : undefined]}
             >
               <MeloFigure mood={mood.mood} size={28} />
@@ -125,8 +143,40 @@ export function MeloScreen({
       </View>
 
       <Text style={styles.footer}>
-        Try each state - Melo shifts mood and the path follows.
+        Melo's mood reads where your money sits right now. It eases as things settle and steadies
+        as they tighten — you move the money, Melo just reflects it back.
       </Text>
+
+      <View style={styles.actions}>
+        <SectionLabel>Where to go from here</SectionLabel>
+        <RowCard>
+          <HubRow
+            first
+            label="Review"
+            hint="confirm what Folio has so far"
+            accessibilityHint="Opens Review."
+            onPress={onOpenImports}
+          />
+          <HubRow
+            label="What if I spend"
+            hint="preview a change before you decide"
+            accessibilityHint="Opens a spend preview."
+            onPress={onOpenWhatIf}
+          />
+          <HubRow
+            label="Recovery"
+            hint="when something has to move"
+            accessibilityHint="Opens the repair flow."
+            onPress={onOpenRecovery}
+          />
+          <HubRow
+            label="Where these numbers come from"
+            hint="what Melo is reading, and why"
+            accessibilityHint="Opens where Melo's numbers come from."
+            onPress={onOpenSources}
+          />
+        </RowCard>
+      </View>
     </PressureScreen>
   );
 }
@@ -200,4 +250,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     textAlign: 'center',
   },
+
+  actions: { gap: gap.xs },
 });

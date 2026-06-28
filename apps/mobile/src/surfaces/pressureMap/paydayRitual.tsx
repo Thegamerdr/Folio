@@ -18,7 +18,7 @@
 // formatting drift with the rest of the app.
 
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatMinorAmount, type CreateCycleRecordInput } from '../../local/localLedger';
 import type { LocalInsightsModel } from '../../local/localInsightsAdapter';
@@ -33,17 +33,22 @@ import {
   PrimaryAction,
   QuietLink,
   Surface,
+  elevation,
   gap,
   paper,
+  pressed,
   serif,
   type VerdictTone,
 } from './kit';
 import { MeloLine } from './secondaryKit';
 import { Sheet } from './Sheet';
-
-// The web hardcodes a note string; the RN port lets next-you actually write the line. This is the
-// suggested text, shown as the placeholder so the screen reads identically until the user types.
-const NOTE_SUGGESTION = "Don't move Octopus this time. Hold the line on takeaway.";
+import {
+  NOTE_SUGGESTION,
+  buildCycleRecordInput,
+  poundsToMinor,
+  resolveNote,
+  statEditorForStep,
+} from './paydayRitualLogic';
 
 // The stat card's tone maps to the kit verdict colours: a held cycle and a saved note read as the
 // calm-green positive, the set-aside as neutral ink, the next tight point as the terracotta accent.
@@ -61,11 +66,6 @@ function statColor(tone: StatTone): string {
 function accentToneFor(tone: StatTone): VerdictTone | undefined {
   if (tone === 'positive') return 'positive';
   return undefined;
-}
-
-function digits(value: string): number {
-  const clean = value.replace(/[^0-9]/g, '');
-  return clean.length === 0 ? 0 : Number(clean);
 }
 
 type StepCopy = Readonly<{
@@ -111,7 +111,6 @@ export function PaydayRitualScreen({
   // The spare the cycle held and the set-aside both come straight from the engine view-models, so
   // the ritual never invents money. Step three (next tight point) and step four (the note) are the
   // two things next-you decides here, so they live in wizard state.
-  const spareMinor = insights.kpis.avgSetAsideMinor > 0 ? insights.kpis.savedAcrossCyclesMinor : 0;
   const heldSpareMinor = insights.kpis.savedAcrossCyclesMinor;
   const setAsideMinor = pots.sumSavedMinor;
   const avgTightMinor = insights.kpis.avgTightPointMinor;
@@ -122,12 +121,12 @@ export function PaydayRitualScreen({
   const [nextTightPounds, setNextTightPounds] = useState(() =>
     String(Math.round(avgTightMinor / 100)),
   );
-  const nextTightMinor = digits(nextTightPounds) * 100;
+  const nextTightMinor = poundsToMinor(nextTightPounds);
 
   // The note next-you leaves. Empty = the suggested line is used (shown as placeholder).
   const [noteSheetOpen, setNoteSheetOpen] = useState(false);
   const [note, setNote] = useState('');
-  const noteForRecord = note.trim().length > 0 ? note.trim() : NOTE_SUGGESTION;
+  const noteForRecord = resolveNote(note);
   const noteSaved = note.trim().length > 0;
 
   const steps: readonly StepCopy[] = useMemo(
@@ -190,24 +189,44 @@ export function PaydayRitualScreen({
     return null;
   }
 
+  // Two of the four steps are decisions next-you makes: step three sets the next tight point, step
+  // four leaves the note. On those steps the stat card is the thing being decided, so it becomes a
+  // tappable affordance that opens the matching sheet (the keypad / the note line). Steps one and two
+  // are read-only reflections of engine figures, so their card stays a plain, untappable surface.
+  const statEditor = statEditorForStep(step);
+  const onStatPress =
+    statEditor === 'tight'
+      ? () => setTightSheetOpen(true)
+      : statEditor === 'note'
+        ? () => setNoteSheetOpen(true)
+        : undefined;
+  const statHint =
+    statEditor === 'tight'
+      ? 'Tap to set the figure'
+      : statEditor === 'note'
+        ? 'Tap to write the line'
+        : undefined;
+
   const advance = () => {
     if (!isLast) {
-      // Step two's CTA opens the tight-point keypad; step three's opens the note. The web advances
-      // the same step on its single button — here the sheet is the way next-you sets each value, and
-      // closing it advances. Tapping the CTA when the value is already set just advances.
+      // The CTA always moves to the next step. On the two decision steps (three: the next tight
+      // point, four: the note) next-you sets the value by tapping the stat card, which opens the
+      // matching sheet; the chosen value is held in wizard state and flows into the recorded cycle
+      // below. Advancing without tapping keeps the seeded tight point / the suggested note.
       setStep((s) => s + 1);
       return;
     }
     // Finish: assemble the closed-cycle record in MINOR units and hand it to the container, then let
     // the container route to Today + open Share.
-    const input: CreateCycleRecordInput = {
-      label: cycleLabel,
-      spareMinor: heldSpareMinor,
-      tightPointMinor: nextTightMinor,
-      setAsideMinor,
-      note: noteForRecord,
-    };
-    onCloseCycle(input);
+    onCloseCycle(
+      buildCycleRecordInput({
+        label: cycleLabel,
+        heldSpareMinor,
+        nextTightMinor,
+        setAsideMinor,
+        note,
+      }),
+    );
     onFinished();
   };
 
@@ -239,12 +258,32 @@ export function PaydayRitualScreen({
         <Body style={styles.body}>{current.body}</Body>
       </View>
 
-      <Surface style={styles.statCard}>
-        <Text style={styles.statLabel}>{current.statLabel}</Text>
-        <Text style={[styles.statValue, { color: statColor(current.statTone) }]}>
-          {current.statValue}
-        </Text>
-      </Surface>
+      {onStatPress ? (
+        <Pressable
+          accessibilityHint="Opens the entry so you can set it yourself."
+          accessibilityLabel={`${current.statLabel}. ${statHint}.`}
+          accessibilityRole="button"
+          onPress={onStatPress}
+          style={({ pressed: isPressed }) => [
+            styles.statSurface,
+            styles.statCard,
+            isPressed ? pressed : undefined,
+          ]}
+        >
+          <Text style={styles.statLabel}>{current.statLabel}</Text>
+          <Text style={[styles.statValue, { color: statColor(current.statTone) }]}>
+            {current.statValue}
+          </Text>
+          {statHint ? <Text style={styles.statHint}>{statHint}</Text> : null}
+        </Pressable>
+      ) : (
+        <Surface style={styles.statCard}>
+          <Text style={styles.statLabel}>{current.statLabel}</Text>
+          <Text style={[styles.statValue, { color: statColor(current.statTone) }]}>
+            {current.statValue}
+          </Text>
+        </Surface>
+      )}
 
       <MeloLine tone="soft" text={current.melo} />
 
@@ -320,7 +359,7 @@ function KeypadSheet({
   onChange: (next: string) => void;
   onDone: () => void;
 }) {
-  const display = formatMinorAmount(digits(value) * 100);
+  const display = formatMinorAmount(poundsToMinor(value));
   return (
     <View style={styles.sheetBody}>
       <Eyebrow>{eyebrow}</Eyebrow>
@@ -333,8 +372,8 @@ function KeypadSheet({
   );
 }
 
-// The note sheet — one line for next-you. Faithful to the web's single-line note; an empty line
-// falls back to the suggested text when the cycle is recorded.
+// The note sheet — a line for next-you. The field is editable: the suggested text shows as the
+// placeholder, and an empty line falls back to it (resolveNote) when the cycle is recorded.
 function NoteSheet({
   value,
   onChange,
@@ -352,9 +391,15 @@ function NoteSheet({
         A short reminder of what held the line this time. Leave it blank to use the suggestion.
       </Muted>
       <View style={styles.noteField}>
-        <Text style={styles.noteText}>
-          {value.trim().length > 0 ? value : NOTE_SUGGESTION}
-        </Text>
+        <TextInput
+          accessibilityLabel="A line for next-you"
+          multiline
+          onChangeText={onChange}
+          placeholder={NOTE_SUGGESTION}
+          placeholderTextColor={paper.muted}
+          style={styles.noteText}
+          value={value}
+        />
       </View>
       <PrimaryAction label="Save the note" onPress={onDone} />
     </View>
@@ -384,6 +429,21 @@ const styles = StyleSheet.create({
   body: { color: paper.secondary, fontSize: 14, lineHeight: 22, marginTop: gap.xs, maxWidth: 330 },
 
   statCard: { gap: 4 },
+  // The tappable variant of the stat card on the two decision steps: it matches the kit Surface
+  // look (raised paper, soft lift) so the only visible difference is the quiet "tap to set" hint.
+  statSurface: {
+    backgroundColor: paper.surface,
+    borderRadius: 20,
+    padding: gap.xl,
+    ...elevation.card,
+  },
+  statHint: {
+    color: paper.calmStrong,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    marginTop: 2,
+  },
   statLabel: {
     color: paper.muted,
     fontSize: 11,

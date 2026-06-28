@@ -154,6 +154,7 @@ export type LocalHistoryEntry = Readonly<{
     | 'pot_created'
     | 'pot_funded'
     | 'pot_reallocated'
+    | 'subscription_created'
     | 'subscription_paused'
     | 'subscription_resumed'
     | 'subscription_used'
@@ -350,6 +351,20 @@ export type CreatePotInput = Readonly<{
   goalMinor: number;
   perWeekMinor: number;
   accent?: boolean;
+}>;
+
+// How often a subscription charges. The user picks this in plain language ("every month") and the
+// engine turns it into the number of days until the next charge, so the Subscriptions screen and the
+// "next charge" tile read a real renewal day.
+export type SubscriptionCadence = 'weekly' | 'monthly' | 'yearly';
+
+export type CreateSubscriptionInput = Readonly<{
+  name: string;
+  costMinor: number;
+  cadence: SubscriptionCadence;
+  // Whole days until the next charge. When omitted, defaults to a full cadence period from today
+  // (a week / month / year), so a freshly added subscription has an honest upcoming renewal.
+  nextChargeInDays?: number;
 }>;
 
 export type CreateCycleRecordInput = Readonly<{
@@ -1076,6 +1091,27 @@ export function addPlannedCommitment(
   );
 }
 
+// Remove a single confirmed transaction the user logged — the undo for a mis-logged spend. It is an
+// immutable filter: the transaction with the matching id is dropped and the path is rebuilt from
+// what is left. No-ops cleanly if the id isn't present (e.g. it was already removed).
+export function removeTransaction(
+  state: LocalLedgerState,
+  transactionId: string,
+): LocalLedgerState {
+  const target = state.transactions.find((transaction) => transaction.id === transactionId);
+  if (target === undefined) return state;
+  return prependHistory(
+    {
+      ...state,
+      transactions: state.transactions.filter(
+        (transaction) => transaction.id !== transactionId,
+      ),
+    },
+    'manual_added',
+    `${target.title} removed. Route rebuilt from what's left.`,
+  );
+}
+
 // Pots, Subscriptions and Cycles are durable containers/history that share the local workspace
 // identity used by the canonical projection, so their entities reference the same workspace id.
 const localWorkspaceId = createWorkspaceId('workspace_personal_local');
@@ -1194,6 +1230,47 @@ function updateSubscription(
 ): readonly Subscription[] {
   return state.subscriptions.map((item) =>
     String(item.id) === subscriptionId ? change(item) : item,
+  );
+}
+
+// Days in one cadence period — used to default the next-charge day when the user doesn't set one.
+const CADENCE_PERIOD_DAYS: Readonly<Record<SubscriptionCadence, number>> = {
+  weekly: 7,
+  monthly: 30,
+  yearly: 365,
+};
+
+export function createSubscription(
+  state: LocalLedgerState,
+  input: CreateSubscriptionInput,
+): LocalLedgerState {
+  const name = cleanTitle(input.name, 'Subscription');
+  const costMinor = assertNonNegativeSafeMinor(Math.abs(input.costMinor), 'Subscription cost');
+  if (costMinor <= 0) throw new Error('A subscription needs a cost of more than zero.');
+  const periodDays = CADENCE_PERIOD_DAYS[input.cadence];
+  const nextRenewalDaysAway = Math.max(
+    0,
+    Math.round(input.nextChargeInDays ?? periodDays),
+  );
+  const index = state.subscriptions.length;
+  const subscription: Subscription = {
+    id: createSubscriptionId(localId('subscription', index)),
+    workspaceId: localWorkspaceId,
+    name,
+    cost: localGbp(costMinor),
+    nextRenewalDaysAway,
+    // A brand-new subscription has no usage history yet: treat it as just added (used today, no uses
+    // counted this month). It starts active.
+    lastUsedDaysAgo: 0,
+    usesPerMonth: 0,
+    paused: false,
+    version: createEntityVersion(),
+  };
+
+  return prependHistory(
+    { ...state, subscriptions: [subscription, ...state.subscriptions] },
+    'subscription_created',
+    `${name} added. ${formatMinorAmount(costMinor)} every ${input.cadence === 'weekly' ? 'week' : input.cadence === 'yearly' ? 'year' : 'month'}.`,
   );
 }
 

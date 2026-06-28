@@ -20,16 +20,26 @@ import {
   Body,
   ChipToggle,
   elevation,
+  gap,
+  GhostButton,
   Headline,
+  MoneyPad,
   paper,
+  poundsLabel,
   PressureScreen,
   pressed,
+  PrimaryAction,
   radius,
   serif,
 } from './kit';
 import { MeloLine, ScreenHeader } from './secondaryKit';
+import { Sheet } from './Sheet';
 import { useCountUp } from './useCountUp';
-import { formatMinorAmount } from '../../local/localLedger';
+import {
+  formatMinorAmount,
+  type CreateSubscriptionInput,
+  type SubscriptionCadence,
+} from '../../local/localLedger';
 import type {
   LocalSubscriptionPulse,
   LocalSubscriptionRow,
@@ -234,6 +244,7 @@ function ActionLink({
 export function SubscriptionsScreen({
   subscriptions,
   onBack,
+  onCreateSubscription,
   onPause,
   onResume,
   onRecordUse,
@@ -244,6 +255,7 @@ export function SubscriptionsScreen({
 }: {
   subscriptions: LocalSubscriptionsModel;
   onBack: () => void;
+  onCreateSubscription: (input: CreateSubscriptionInput) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   onRecordUse: (id: string) => void;
@@ -253,6 +265,7 @@ export function SubscriptionsScreen({
   reduceMotion?: boolean | undefined;
 }) {
   const [sort, setSort] = useState<SortKey>('value');
+  const [creating, setCreating] = useState(false);
 
   const rows = useMemo(() => sortRows(subscriptions.rows, sort), [subscriptions.rows, sort]);
 
@@ -333,26 +346,40 @@ export function SubscriptionsScreen({
 
       {/* The list — one surface card, hairline-divided rows. */}
       {rows.length > 0 ? (
-        <View style={styles.list}>
-          {rows.map((row, index) => (
-            <SubscriptionRow
-              key={row.id}
-              row={row}
-              first={index === 0}
-              onResume={onResume}
-              onPause={onPause}
-              onRecordUse={onRecordUse}
-              onAskMelo={onAskMelo}
-              onCancel={onCancel}
-            />
-          ))}
-        </View>
+        <>
+          <View style={styles.list}>
+            {rows.map((row, index) => (
+              <SubscriptionRow
+                key={row.id}
+                row={row}
+                first={index === 0}
+                onResume={onResume}
+                onPause={onPause}
+                onRecordUse={onRecordUse}
+                onAskMelo={onAskMelo}
+                onCancel={onCancel}
+              />
+            ))}
+          </View>
+          <PrimaryAction
+            label="Add a subscription"
+            accessibilityHint="Adds a recurring payment you carry."
+            onPress={() => setCreating(true)}
+          />
+        </>
       ) : (
         <View style={styles.empty}>
           <Body>
-            No subscriptions yet. When recurring payments show up, you can see what still earns
-            its place here.
+            No subscriptions yet. Add the recurring payments you carry, and you can see what still
+            earns its place here.
           </Body>
+          <View style={styles.emptyAction}>
+            <PrimaryAction
+              label="Add a subscription"
+              accessibilityHint="Adds a recurring payment you carry."
+              onPress={() => setCreating(true)}
+            />
+          </View>
         </View>
       )}
 
@@ -360,7 +387,137 @@ export function SubscriptionsScreen({
         tone="soft"
         text="Pause is a small experiment. Nothing leaves your money picture."
       />
+
+      {/* Add a subscription. */}
+      <CreateSubscriptionSheet
+        visible={creating}
+        reduceMotion={reduceMotion}
+        onClose={() => setCreating(false)}
+        onCreate={(input) => {
+          onCreateSubscription(input);
+          setCreating(false);
+        }}
+      />
     </PressureScreen>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add a subscription — mirrors the Pots "Open a pot" sheet: quick name chips, a single tappable
+// amount tile filled by the MoneyPad, and "how often" cadence chips. Plain, honest language only.
+// ---------------------------------------------------------------------------
+
+const QUICK_SUB_NAMES = ['Netflix', 'Spotify', 'Gym', 'Phone', 'Cloud storage'] as const;
+
+const CADENCE_OPTIONS: readonly { key: SubscriptionCadence; label: string }[] = [
+  { key: 'weekly', label: 'Every week' },
+  { key: 'monthly', label: 'Every month' },
+  { key: 'yearly', label: 'Every year' },
+];
+
+// Whole-pound digit string → pence. Strips any non-digits, defaults to 0.
+function poundsToMinor(wholePounds: string): number {
+  const digits = wholePounds.replace(/[^0-9]/g, '');
+  const value = digits.length === 0 ? 0 : Number(digits);
+  return value * 100;
+}
+
+function CreateSubscriptionSheet({
+  visible,
+  onClose,
+  onCreate,
+  reduceMotion,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onCreate: (input: CreateSubscriptionInput) => void;
+  reduceMotion?: boolean | undefined;
+}) {
+  const [name, setName] = useState('');
+  // Held as a whole-pound digit string, converted to pence on save.
+  const [cost, setCost] = useState('');
+  const [cadence, setCadence] = useState<SubscriptionCadence>('monthly');
+  const [primed, setPrimed] = useState(false);
+
+  // Reset the form each time the sheet opens (same priming pattern as CreatePotSheet).
+  if (visible && !primed) {
+    setPrimed(true);
+    setName('');
+    setCost('');
+    setCadence('monthly');
+  }
+  if (!visible && primed) {
+    setPrimed(false);
+  }
+
+  const costMinor = poundsToMinor(cost);
+  const canCreate = name.trim().length > 0 && costMinor > 0;
+
+  return (
+    <Sheet visible={visible} reduceMotion={reduceMotion} onClose={onClose}>
+      <Text style={styles.sheetKicker}>Add a subscription</Text>
+      <Text style={styles.sheetTitle}>What do you pay for?</Text>
+
+      <Text style={styles.fieldLabel}>Name</Text>
+      <View style={styles.nameRow}>
+        {QUICK_SUB_NAMES.map((preset) => {
+          const selected = name === preset;
+          return (
+            <Pressable
+              key={preset}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => setName(preset)}
+              style={({ pressed: isPressed }) => [
+                styles.nameChip,
+                selected ? styles.nameChipOn : undefined,
+                isPressed ? pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.nameChipLabel, selected ? styles.nameChipLabelOn : undefined]}>
+                {preset}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Amount — a single tappable tile filled by the pad below. */}
+      <View style={styles.amountTiles}>
+        <View style={[styles.amountTile, styles.amountTileActive]}>
+          <Text style={styles.amountTileLabel}>Amount</Text>
+          <Text style={[styles.amountTileValue, styles.amountTileValueActive]}>
+            {poundsLabel(cost)}
+          </Text>
+        </View>
+      </View>
+
+      <MoneyPad value={cost} onChange={setCost} />
+
+      <Text style={styles.fieldLabel}>How often</Text>
+      <View style={styles.cadenceRow}>
+        {CADENCE_OPTIONS.map((option) => (
+          <ChipToggle
+            key={option.key}
+            label={option.label}
+            selected={cadence === option.key}
+            onPress={() => setCadence(option.key)}
+          />
+        ))}
+      </View>
+
+      <View style={styles.sheetActions}>
+        <GhostButton flex label="Cancel" onPress={onClose} />
+        <View style={styles.sheetActionFlex}>
+          <PrimaryAction
+            label="Add it"
+            disabled={!canCreate}
+            accessibilityHint="Adds the subscription."
+            onPress={() => onCreate({ name: name.trim(), costMinor, cadence })}
+          />
+        </View>
+      </View>
+    </Sheet>
   );
 }
 
@@ -501,4 +658,67 @@ const styles = StyleSheet.create({
     padding: 20,
     ...elevation.card,
   },
+  emptyAction: { marginTop: gap.lg },
+
+  // Add-a-subscription sheet — mirrors the Pots "Open a pot" sheet tokens.
+  sheetKicker: {
+    color: paper.muted,
+    fontFamily: serif.displayItalic,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  sheetTitle: {
+    color: paper.ink,
+    fontFamily: serif.display,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
+  sheetActions: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg },
+  sheetActionFlex: { flex: 1 },
+
+  fieldLabel: { color: paper.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
+  nameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.xs, marginTop: gap.sm },
+  nameChip: {
+    borderRadius: radius.pill,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: paper.hairline,
+    backgroundColor: paper.surface,
+  },
+  nameChipOn: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
+  nameChipLabel: { color: paper.secondary, fontSize: 13.5, fontWeight: '600' },
+  nameChipLabelOn: { color: paper.calmStrong },
+
+  amountTiles: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg },
+  amountTile: {
+    flex: 1,
+    backgroundColor: paper.inset,
+    borderRadius: radius.lg,
+    paddingVertical: gap.md,
+    paddingHorizontal: gap.md,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  amountTileActive: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
+  amountTileLabel: {
+    color: paper.muted,
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  amountTileValue: {
+    color: paper.ink,
+    fontFamily: serif.display,
+    fontSize: 26,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+    marginTop: 4,
+  },
+  amountTileValueActive: { color: paper.calmStrong },
+
+  cadenceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: gap.sm },
 });

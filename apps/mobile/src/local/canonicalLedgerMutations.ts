@@ -10,6 +10,7 @@ import {
   cancelSubscription,
   confirmImportDraft,
   createPot,
+  createSubscription,
   createQuickEstimateLocalLedgerState,
   dismissImportDraft,
   editImportDraft,
@@ -17,12 +18,14 @@ import {
   reallocateBetweenPots,
   recordSubscriptionUse,
   removeDocumentStage,
+  removeTransaction,
   restoreRejectedImportForReview,
   resumeSubscription,
   stageDocumentForManualReview,
   stageStatementImport,
   type CreateCycleRecordInput,
   type CreatePotInput,
+  type CreateSubscriptionInput,
   type DocumentItemInput,
   type StageDocumentForManualReviewResult,
   type LocalDocumentStageInput,
@@ -48,6 +51,13 @@ export function recordRecoverySpendThroughCanonicalRepository(
   input: ManualTransactionInput,
 ): LocalLedgerState {
   return assertCanonicalRepositoryState(addRecoverySpend(state, input));
+}
+
+export function removeTransactionThroughCanonicalRepository(
+  state: LocalLedgerState,
+  transactionId: string,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(removeTransaction(state, transactionId));
 }
 
 export function createPlannedCommitmentThroughCanonicalRepository(
@@ -171,6 +181,13 @@ export function reallocateBetweenPotsThroughCanonicalRepository(
 }
 
 // Subscriptions -----------------------------------------------------------------------------
+
+export function createSubscriptionThroughCanonicalRepository(
+  state: LocalLedgerState,
+  input: CreateSubscriptionInput,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(createSubscription(state, input));
+}
 
 export function pauseSubscriptionThroughCanonicalRepository(
   state: LocalLedgerState,

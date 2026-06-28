@@ -22,6 +22,7 @@ import {
   refreshLocalLedgerAsOfDate,
   type CreateCycleRecordInput,
   type CreatePotInput,
+  type CreateSubscriptionInput,
   type DocumentItemInput,
   type LocalDocumentStageInput,
   type LocalImportRejectionReason,
@@ -41,6 +42,7 @@ import {
   createPlannedCommitmentThroughCanonicalRepository,
   createPotThroughCanonicalRepository,
   createQuickEstimateThroughCanonicalRepository,
+  createSubscriptionThroughCanonicalRepository,
   editImportDraftThroughCanonicalRepository,
   pauseSubscriptionThroughCanonicalRepository,
   reallocateBetweenPotsThroughCanonicalRepository,
@@ -48,6 +50,7 @@ import {
   recordRecoverySpendThroughCanonicalRepository,
   recordSubscriptionUseThroughCanonicalRepository,
   rejectImportDraftThroughCanonicalRepository,
+  removeTransactionThroughCanonicalRepository,
   resumeSubscriptionThroughCanonicalRepository,
   reviewMeloImportSuggestionThroughCanonicalRepository,
   addTransactionFromDocumentThroughCanonicalRepository,
@@ -143,6 +146,7 @@ import {
   type OnboardingProfile,
 } from '../src/surfaces/pressureMap';
 import type { MeloMood } from '../src/surfaces/pressureMap/melo/meloStates';
+import type { TodayNudge } from '../src/surfaces/pressureMap/todayNudges';
 // Pots returns a bare Fragment (ScreenHeader first, no outer frame), so the container wraps it in the
 // shared PressureScreen column — the way sibling surfaces frame themselves.
 import { PressureScreen } from '../src/surfaces/pressureMap/kit';
@@ -372,6 +376,36 @@ export default function FolioHome() {
   // The hero "spare" figure is the magnitude at the tightest point (the verdict colours sign).
   const todaySpareMinor = Math.abs(localRoute.tightestBalanceMinor);
 
+  // Today nudges — at most two calm pills, derived ONLY from signals that are genuinely true right
+  // now. Each one routes to a real screen; nothing here is always-on. The order is priority: things
+  // waiting on the user first, then a heads-up that the month runs short.
+  const todayNudges = useMemo<readonly TodayNudge[]>(() => {
+    const nudges: TodayNudge[] = [];
+    // Something the user staged and hasn't checked yet → a calm accent pill into the Review screen.
+    if (localRoute.pendingReviewCount > 0) {
+      nudges.push({
+        key: 'pending-review',
+        tone: 'accent',
+        label: `${localRoute.pendingReviewCount} ${
+          localRoute.pendingReviewCount === 1 ? 'thing is' : 'things are'
+        } waiting to be checked`,
+        cta: 'Check now',
+        onPress: () => setScreen('import'),
+      });
+    }
+    // The path actually dips below zero before payday → an honest heads-up into the week comparison.
+    if (localRoute.tightestBalanceMinor < 0) {
+      nudges.push({
+        key: 'runs-short',
+        tone: 'ink',
+        label: 'Your money runs short before payday',
+        cta: 'See the weeks',
+        onPress: () => setScreen('insights'),
+      });
+    }
+    return nudges;
+  }, [localRoute.pendingReviewCount, localRoute.tightestBalanceMinor]);
+
   // Insights "Notes from past you" — the engine model carries no per-cycle spare/note, so the
   // container derives them from the same closed cycles (latest first).
   const insightsNotes = useMemo<readonly InsightsNote[]>(
@@ -543,6 +577,24 @@ export default function FolioHome() {
 
   // Subscriptions ----------------------------------------------------------------------------
 
+  const handleCreateSubscription = useCallback(
+    (input: CreateSubscriptionInput) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          createSubscriptionThroughCanonicalRepository(ledgerBase, input),
+          'Subscription added locally.',
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Could not add that subscription.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
   const handlePauseSubscription = useCallback(
     (subscriptionId: string) => {
       try {
@@ -701,6 +753,26 @@ export default function FolioHome() {
       });
     },
     [handleAddManualTransaction],
+  );
+
+  // Today: undo a mis-logged spend ------------------------------------------------------------
+  // The recent-spends row's × hands up the transaction id; drop that confirmed record through the
+  // canonical path and let the route rebuild from what's left.
+  const handleRemoveSpend = useCallback(
+    (transactionId: string) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          removeTransactionThroughCanonicalRepository(ledgerBase, transactionId),
+          'Spend removed locally. Route rebuilt.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not remove that spend.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
   );
 
   // Melo chat ---------------------------------------------------------------------------------
@@ -1571,7 +1643,7 @@ export default function FolioHome() {
               daysToPayday={todayDaysToPayday}
               lastWeekMinor={todayLastWeekMinor}
               nextCharge={todayNextCharge}
-              nudges={[]}
+              nudges={todayNudges}
               pathSummary={todayPathSummary}
               rangeLabel={todayRangeLabel}
               recentSpends={todayRecentSpends}
@@ -1586,6 +1658,7 @@ export default function FolioHome() {
               onChangeBand={setTodayBand}
               onCompareWeeks={() => setScreen('insights')}
               onLogSpend={handleLogSpend}
+              onRemoveSpend={handleRemoveSpend}
               onOpenMelo={() => openMeloChat()}
               onOpenNextCharge={() => setScreen('subscriptions')}
               onOpenPayday={() => setScreen('ritual')}
@@ -1701,6 +1774,7 @@ export default function FolioHome() {
               onBack={() => setScreen('more')}
               onBulkPauseQuiet={handleBulkPauseQuiet}
               onCancel={handleCancelSubscription}
+              onCreateSubscription={handleCreateSubscription}
               onPause={handlePauseSubscription}
               onRecordUse={handleRecordSubscriptionUse}
               onResume={handleResumeSubscription}
@@ -1978,7 +2052,8 @@ function clampDayOfMonth(year: number, month: number, day: number): Date {
 // Apply a user-confirmed Melo suggestion through the SAME canonical mutations the screens use. The
 // client only ever proposes; this is the single place a suggestion turns into an action, and every
 // branch validates the args before acting. set_tight_point_goal has no engine mutation (it is a goal,
-// not a posted fact), so it is intentionally a no-op here — surfaced but not applied.
+// not a posted fact), so Melo no longer OFFERS it (removed from VALID_TOOL_NAMES in meloAiClient) —
+// the case below is now unreachable and kept only as a defensive no-op so the switch stays exhaustive.
 function applyMeloSuggestion(
   suggestion: MeloToolSuggestion,
   handlers: Readonly<{
