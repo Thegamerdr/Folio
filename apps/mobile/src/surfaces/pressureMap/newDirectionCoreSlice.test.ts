@@ -90,12 +90,16 @@ describe('new direction — Pressure Moment (Start)', () => {
     expect(start).toContain('See where you stand');
   });
 
-  it('keeps one dominant action above the accepted 2x2 quick-action grid', () => {
-    // The accepted Lovable Start ends with a 2x2 grid of four subordinate quick-actions, below the
-    // single dominant CTA. They are tiles, not equal-weight with the hero button.
-    for (const tile of ['Add a statement', 'Try fake data', 'Check bills', 'Meet Melo']) {
-      expect(start).toContain(tile);
+  it('keeps one dominant action above the accepted three-link secondary row', () => {
+    // The accepted Lovable Start (ScreenStart) ends with a single row of THREE quiet text links —
+    // "Add a statement / Try sample data / Meet Melo" — separated by hairline dividers, below the
+    // single dominant CTA. They are subordinate text links, not equal-weight with the hero button,
+    // and there is deliberately no tile grid (see startScreen.tsx).
+    for (const link of ['Add a statement', 'Try sample data', 'Meet Melo']) {
+      expect(start).toContain(link);
     }
+    // Subordinate links are rendered through SecondaryLink, not equal-weight PrimaryAction tiles.
+    expect(start).toContain('SecondaryLink');
     // Start leads with the editorial serif Headline carrying one upright accent word.
     expect(start).toContain('Headline');
     // Lovable source: "Will your money <last> to payday?" — accent word is "last".
@@ -173,7 +177,12 @@ describe('new direction — Signature Money Path + Point Explanation', () => {
 
 describe('new direction — Trust / Control (Data & privacy)', () => {
   it('reads as trust, not session/admin status', () => {
-    expect(trust).toContain('It stays on this device.');
+    // The privacy hero reads "It stays on this device." — composed as the Editorial Ledger serif
+    // Headline with one terracotta accent word ("this device"), so the phrase lives across the
+    // lead/accent/tail props rather than a single literal. Faithful to the web ScreenPrivacy.
+    expect(trust).toContain('lead="It stays on "');
+    expect(trust).toContain('accent="this device"');
+    expect(trust).toContain('It stays on this device'); // the honest device-local guarantee line
     expect(trust).toContain('Export my data');
     expect(trust).toContain('Start fresh');
     const stripped = stripComments(trust).toLowerCase();

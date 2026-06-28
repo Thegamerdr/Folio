@@ -116,8 +116,14 @@ describe('Lovable target — visible copy carries no machinery vocabulary', () =
     const workbench = read('./fileWorkbench.tsx');
     expect(review).toContain('Add to my money');
     expect(review).toContain('Is this your {current.interpretation}?');
-    expect(trust).toContain('It stays on this device.');
-    expect(trust).toContain('Things you ignore stay separate.');
+    // The privacy hero reads "It stays on this device." — now composed as the Editorial Ledger
+    // serif Headline with one terracotta accent word ("this device"), faithful to the web's
+    // ScreenPrivacy, so the phrase lives across the lead/accent/tail props, not one literal.
+    expect(trust).toContain('lead="It stays on "');
+    expect(trust).toContain('accent="this device"');
+    // The honest device-local guarantee a reader actually sees on the screen.
+    expect(trust).toContain('It stays on this device');
+    expect(trust).toContain('Nothing leaves your phone unless you export it.');
     expect(workbench).toContain('File saved. It has not changed your money picture.');
   });
 });

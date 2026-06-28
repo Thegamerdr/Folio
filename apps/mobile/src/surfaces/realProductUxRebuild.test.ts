@@ -218,11 +218,21 @@ function sourceBetween(source: string, start: string, end: string): string {
   return source.slice(startIndex, endIndex);
 }
 
+// Extract only genuine string-literal UI copy — never code. Each literal is its own balanced pair:
+// single/double-quoted literals contain NO embedded newline (a JS string can't span raw newlines,
+// and forbidding them stops an unbalanced apostrophe — can't / Melo's, or a comment apostrophe —
+// from opening a "string" that swallows code/identifiers across lines, which is how camelCase
+// symbols like `createQuickEstimateThroughCanonicalRepository` and prose in `//` comments used to
+// leak into the corpus). Backtick templates may span lines; their `${...}` interpolations are code
+// expressions (e.g. `${status.canonicalObjectCounts...}`) and are stripped before the ban scan.
 function quotedVisibleCopy(source: string): string {
-  return Array.from(
-    source.matchAll(/(['"`])((?:\\.|(?!\1)[\s\S])*?)\1/gu),
-    (match) => match[2] ?? '',
-  )
+  const literals: string[] = [];
+  const re = /'((?:\\.|[^'\n\\])*)'|"((?:\\.|[^"\n\\])*)"|`((?:\\.|[^`\\])*)`/gu;
+  for (const match of source.matchAll(re)) {
+    const literal = (match[1] ?? match[2] ?? match[3] ?? '').replace(/\$\{[^}]*\}/gu, ' ');
+    literals.push(literal);
+  }
+  return literals
     .filter((copy) => /[A-Za-z]/u.test(copy))
     .filter((copy) => !copy.includes('../'))
     .filter((copy) => !/^[a-z0-9_-]+$/u.test(copy))
