@@ -78,7 +78,10 @@ export function DataControlScreen({
       {/* The hero: a serif lead with one accent word, then the plain promise as a calm line. */}
       <View style={styles.hero}>
         <Headline lead="It stays on " accent="this device" tail="." style={styles.headline} />
-        <Text style={styles.lede}>Nothing leaves your phone unless you export it.</Text>
+        <Text style={styles.lede}>
+          Your money stays on this phone. The only things that ever leave are what you type to
+          Melo — and only if you've set up an AI provider — or a copy you export yourself.
+        </Text>
       </View>
 
       {/* The guarantees: calm rows, each led by a small green check in a near-white tile. */}
@@ -131,7 +134,10 @@ export function DataControlScreen({
             />
             <SavedLine label="Waiting for you" value={String(route.pendingReviewCount)} />
             <SavedLine label="Kept aside for you" value={String(route.protectedItems.length)} />
-            <Muted style={styles.savedNote}>Nothing leaves unless you choose to export it.</Muted>
+            <Muted style={styles.savedNote}>
+              This stays on your phone. Only what you type to Melo, or a copy you export, ever
+              leaves.
+            </Muted>
           </View>
         ) : null}
 

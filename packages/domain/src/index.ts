@@ -647,11 +647,16 @@ export type Pot = Readonly<{
 
 // A Subscription is a recurring charge the user is carrying. Folio tracks how much value the user
 // is getting from it (renewal timing, usage) so the user can decide to keep, pause, or cancel.
+// How often the charge recurs. cost is per-cadence (a weekly sub's cost is the weekly amount), so
+// downstream models must normalize to a per-month figure before summing or comparing across subs.
+export type SubscriptionCadence = 'weekly' | 'monthly' | 'yearly';
+
 export type Subscription = Readonly<{
   id: SubscriptionId;
   workspaceId: WorkspaceId;
   name: string;
   cost: Money;
+  cadence: SubscriptionCadence;
   nextRenewalDaysAway: number;
   lastUsedDaysAgo: number;
   usesPerMonth: number;

@@ -76,6 +76,64 @@ describe('createSubscription through the canonical boundary', () => {
   });
 });
 
+describe('subscription cadence is normalized to a per-month figure (FIX 4)', () => {
+  // The old model summed raw costMinor across cadences, so £10/week showed "Every month £10.00"
+  // (true: ~£43.33/mo) and £120/year showed "Every month £120.00" (12x). Cadence is now stored on
+  // the subscription and normalized to whole pence per month. These cases fail against the old code.
+
+  it('stores cadence on the created subscription', () => {
+    const withSub = createSubscriptionThroughCanonicalRepository(seededLedger(), {
+      name: 'Gym',
+      costMinor: 1000,
+      cadence: 'weekly',
+    });
+    expect(withSub.subscriptions[0]?.cadence).toBe('weekly');
+  });
+
+  it('normalizes a £10/week subscription to £43.33/month (1000 -> 4333 minor)', () => {
+    const withSub = createSubscriptionThroughCanonicalRepository(seededLedger(), {
+      name: 'Weekly thing',
+      costMinor: 1000,
+      cadence: 'weekly',
+    });
+    const model = buildLocalSubscriptionsModel(withSub);
+
+    // round(1000 * 52 / 12) = 4333.
+    expect(model.monthlyTotalMinor).toBe(4333);
+    expect(model.rows[0]?.monthlyMinor).toBe(4333);
+    // The row keeps its own per-cadence cost for display ("£10.00 / week").
+    expect(model.rows[0]?.costMinor).toBe(1000);
+    expect(model.rows[0]?.cadence).toBe('weekly');
+  });
+
+  it('normalizes a £120/year subscription to £10.00/month (12000 -> 1000 minor)', () => {
+    const withSub = createSubscriptionThroughCanonicalRepository(seededLedger(), {
+      name: 'Yearly thing',
+      costMinor: 12_000,
+      cadence: 'yearly',
+    });
+    const model = buildLocalSubscriptionsModel(withSub);
+
+    // round(12000 / 12) = 1000.
+    expect(model.monthlyTotalMinor).toBe(1000);
+    expect(model.rows[0]?.monthlyMinor).toBe(1000);
+    expect(model.rows[0]?.costMinor).toBe(12_000);
+    expect(model.rows[0]?.cadence).toBe('yearly');
+  });
+
+  it('leaves a monthly subscription at face value', () => {
+    const withSub = createSubscriptionThroughCanonicalRepository(seededLedger(), {
+      name: 'Monthly thing',
+      costMinor: 1099,
+      cadence: 'monthly',
+    });
+    const model = buildLocalSubscriptionsModel(withSub);
+
+    expect(model.monthlyTotalMinor).toBe(1099);
+    expect(model.rows[0]?.monthlyMinor).toBe(1099);
+  });
+});
+
 describe('removeTransaction through the canonical boundary', () => {
   function withOneSpend() {
     const before = seededLedger();

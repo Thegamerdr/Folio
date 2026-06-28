@@ -51,17 +51,6 @@ const QUICK_ADD_POUNDS = [5, 10, 20] as const;
 // The reallocation step, in pence — the web slider steps in £5.
 const MOVE_STEP_MINOR = 500;
 
-// How much a £1 move shifts the tight point, mirroring the web's rough 0.6 preview factor. The web
-// only previews a shift when moving in or out of the Buffer pot; we keep the same shape but, since
-// the RN model has no fixed "buffer" id, treat the pot whose name reads as a buffer/safety/spare pot
-// as the buffer. Preview only — the engine owns the real number.
-const TIGHT_POINT_PREVIEW_FACTOR = 0.6;
-
-function isBufferPot(row: LocalPotRow | undefined): boolean {
-  if (!row) return false;
-  return /buffer|safety|spare|cushion|emergency/i.test(row.name);
-}
-
 // The short display name — the web splits a "Name · subtitle" label on the middle dot and keeps the
 // first part for the compact sheet heading.
 function shortName(name: string): string {
@@ -340,17 +329,9 @@ function ReallocationSheet({
 
   const clampedMinor = Math.max(0, Math.min(amountMinor, maxMoveMinor));
 
-  // Live tight-point impact — moving OUT of the buffer lowers the tight point; moving INTO the buffer
-  // raises it. Same rough 0.6 preview the web shows. Only previewed when one side is the buffer pot.
-  const tightDeltaMinor =
-    fromPot && toPot
-      ? isBufferPot(toPot)
-        ? Math.round(clampedMinor * TIGHT_POINT_PREVIEW_FACTOR)
-        : isBufferPot(fromPot)
-          ? -Math.round(clampedMinor * TIGHT_POINT_PREVIEW_FACTOR)
-          : 0
-      : 0;
-
+  // Moving money between pots doesn't move your tight point — pots sit outside the forecast, so the
+  // committed move leaves it exactly where it was. We show the tight point unchanged rather than a
+  // predicted shift that would never actually happen.
   const canStepDown = clampedMinor >= MOVE_STEP_MINOR;
   const canStepUp = clampedMinor + MOVE_STEP_MINOR <= maxMoveMinor;
   const canMove = clampedMinor > 0;
@@ -385,25 +366,13 @@ function ReallocationSheet({
             </View>
           </View>
 
-          {/* Impact row — the tight point on the left (with its live shift), the destination on the
-              right (with the +£n it gains). */}
+          {/* Impact row — the tight point on the left (unchanged: pots sit outside the forecast), the
+              destination on the right (with the +£n it gains). */}
           <View style={styles.impact}>
             <View>
               <Text style={styles.impactLabel}>Tight point</Text>
               <Text style={styles.impactValue}>
                 {tightPointMinor !== undefined ? formatMinorAmount(tightPointMinor) : '—'}
-                {tightDeltaMinor !== 0 ? (
-                  <Text
-                    style={[
-                      styles.impactDelta,
-                      tightDeltaMinor > 0 ? styles.impactDeltaUp : styles.impactDeltaDown,
-                    ]}
-                  >
-                    {' '}
-                    {tightDeltaMinor > 0 ? '+' : '−'}
-                    {formatMinorAmount(Math.abs(tightDeltaMinor)).replace('-', '')}
-                  </Text>
-                ) : null}
               </Text>
             </View>
             <View style={styles.impactRight}>
@@ -863,9 +832,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginTop: 3,
   },
-  impactDelta: { fontSize: 12, fontFamily: serif.regular },
   impactDeltaUp: { color: paper.positiveInk, fontSize: 12 },
-  impactDeltaDown: { color: paper.repairInk, fontSize: 12 },
 
   // Open-a-pot form.
   fieldLabel: { color: paper.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },

@@ -147,9 +147,9 @@ export function MoreScreen({
               onPress={onOpenRitual}
             />
             <HubRow
-              label="Share a cycle"
-              hint="a calm summary to keep"
-              accessibilityHint="Opens the share sheet for this cycle."
+              label="See a cycle's trail"
+              hint="what a cycle is built from"
+              accessibilityHint="Shows the trail behind these numbers."
               onPress={onShareCycle}
             />
           </RowCard>
@@ -242,7 +242,7 @@ export function MoreScreen({
         ) : null}
       </View>
 
-      <MeloLine text="Nothing leaves this device unless you export it." />
+      <MeloLine text="Your money stays on this device — only what you type to Melo, or a copy you export, ever leaves." />
 
       <Body style={{ color: paper.muted, fontSize: 13 }}>
         Private and on this device. Cloud, AI and Open Banking are optional, never required here.

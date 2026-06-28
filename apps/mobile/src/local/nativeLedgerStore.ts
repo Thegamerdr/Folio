@@ -2,9 +2,11 @@
 import { Platform } from 'react-native';
 import { migrateCanonicalSnapshotToSqliteRepository } from '@folio/storage';
 
+import { LOCAL_HISTORY_KINDS } from './localLedger';
 import type {
   LocalDocumentStage,
   LocalHistoryEntry,
+  LocalHistoryKind,
   LocalImportDraft,
   LocalImportRejectionReason,
   LocalImportSummary,
@@ -506,28 +508,83 @@ type DurableContainers = Readonly<{
   cycles: LocalLedgerState['cycles'];
 }>;
 
-async function loadDurableContainersFromSnapshot(
-  db: ReturnType<typeof open>,
-): Promise<DurableContainers> {
-  const empty: DurableContainers = { pots: [], subscriptions: [], cycles: [] };
+const EMPTY_DURABLE_CONTAINERS: DurableContainers = {
+  pots: [],
+  subscriptions: [],
+  cycles: [],
+};
+
+// FIX 3: pots / subscriptions / cycles live ONLY in the JSON snapshot blob (the relational tables
+// do not model them). If that blob is corrupt — JSON.parse throws, or it is not a record — the old
+// code returned the empty default through a bare catch and the loss was completely silent and
+// unrecoverable. Here the parse is a pure, testable step that distinguishes "legitimately empty"
+// (no blob yet) from "corrupt" (a blob that failed to read), so the caller can surface the corruption
+// as a detectable signal instead of swallowing it.
+export type DurableContainersLoad = Readonly<{
+  containers: DurableContainers;
+  corrupt: boolean;
+}>;
+
+export function parseDurableContainersBlob(rawJson: string | undefined): DurableContainersLoad {
+  // No blob persisted yet is a legitimately empty picture, not corruption.
+  if (typeof rawJson !== 'string') {
+    return { containers: EMPTY_DURABLE_CONTAINERS, corrupt: false };
+  }
+  let parsed: unknown;
   try {
-    const result = await db.execute('SELECT json FROM local_ledger_snapshot WHERE id = ?', [
-      snapshotId,
-    ]);
-    const row = result.rows[0] as SnapshotRow | undefined;
-    if (typeof row?.json !== 'string') return empty;
-    const parsed: unknown = JSON.parse(row.json);
-    if (!isRecord(parsed)) return empty;
-    return {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    return { containers: EMPTY_DURABLE_CONTAINERS, corrupt: true };
+  }
+  if (!isRecord(parsed)) {
+    return { containers: EMPTY_DURABLE_CONTAINERS, corrupt: true };
+  }
+  // A container key that is PRESENT but not an array is malformed data, not a legitimately empty
+  // picture — flag it as corrupt so the loss is surfaced (a warning) rather than silently coerced
+  // to []. Absent keys are fine (an older blob simply had no pots/subscriptions/cycles yet).
+  const malformed =
+    ('pots' in parsed && !Array.isArray(parsed.pots)) ||
+    ('subscriptions' in parsed && !Array.isArray(parsed.subscriptions)) ||
+    ('cycles' in parsed && !Array.isArray(parsed.cycles));
+  return {
+    containers: {
       pots: Array.isArray(parsed.pots) ? (parsed.pots as LocalLedgerState['pots']) : [],
       subscriptions: Array.isArray(parsed.subscriptions)
         ? (parsed.subscriptions as LocalLedgerState['subscriptions'])
         : [],
       cycles: Array.isArray(parsed.cycles) ? (parsed.cycles as LocalLedgerState['cycles']) : [],
-    };
+    },
+    corrupt: malformed,
+  };
+}
+
+async function loadDurableContainersFromSnapshot(
+  db: ReturnType<typeof open>,
+): Promise<DurableContainers> {
+  let rawJson: string | undefined;
+  try {
+    const result = await db.execute('SELECT json FROM local_ledger_snapshot WHERE id = ?', [
+      snapshotId,
+    ]);
+    const row = result.rows[0] as SnapshotRow | undefined;
+    rawJson = typeof row?.json === 'string' ? row.json : undefined;
   } catch {
-    return empty;
+    // A read/SQL failure is a different, also-detectable corruption signal — treat it as such.
+    console.warn(
+      '[folio] Could not read the local snapshot blob; pots, subscriptions and cycles may be unavailable this load.',
+    );
+    return EMPTY_DURABLE_CONTAINERS;
   }
+
+  const load = parseDurableContainersBlob(rawJson);
+  if (load.corrupt) {
+    // The blob is the ONLY copy of these containers, so corruption is unrecoverable data loss.
+    // Keep the empty-default fallback so the app still loads, but never let it be silent.
+    console.warn(
+      '[folio] The local snapshot blob is unreadable; pots, subscriptions and cycles could not be restored this load. Keeping an empty set so the app still opens.',
+    );
+  }
+  return load.containers;
 }
 
 async function saveNormalizedLedgerState(
@@ -992,19 +1049,14 @@ function isImportRejectionReason(value: unknown): value is LocalImportRejectionR
   );
 }
 
-function isHistoryKind(value: unknown): value is LocalHistoryEntry['kind'] {
-  return (
-    value === 'manual_added' ||
-    value === 'recovery_recorded' ||
-    value === 'planner_added' ||
-    value === 'import_staged' ||
-    value === 'import_confirmed' ||
-    value === 'import_dismissed' ||
-    value === 'import_edited' ||
-    value === 'import_restored' ||
-    value === 'import_suggested' ||
-    value === 'document_staged'
-  );
+// Derived from the single source of truth (LOCAL_HISTORY_KINDS in localLedger) so the persistence
+// allowlist can NEVER drift from the domain union. Previously this hand-maintained list covered only
+// ~half the kinds, so pot/subscription/cycle history entries failed the guard, returned null from
+// rowToHistoryEntry, and were silently .filter()-dropped on every reload — a data-loss bug.
+const HISTORY_KINDS: ReadonlySet<string> = new Set<string>(LOCAL_HISTORY_KINDS);
+
+function isHistoryKind(value: unknown): value is LocalHistoryKind {
+  return typeof value === 'string' && HISTORY_KINDS.has(value);
 }
 
 function isDocumentStorageState(value: unknown): value is LocalDocumentStage['storageState'] {

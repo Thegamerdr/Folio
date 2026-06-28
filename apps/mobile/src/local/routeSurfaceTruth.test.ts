@@ -99,9 +99,26 @@ describe('mobile product route surface truth guard', () => {
     );
   });
 
-  it('keeps canonical decision history kinds loadable from native storage', () => {
-    expect(nativeLedgerStoreSource).toContain("value === 'planner_added'");
-    expect(nativeLedgerStoreSource).toContain("value === 'recovery_recorded'");
+  it('surfaces snapshot-blob corruption instead of silently wiping pots/subscriptions/cycles', () => {
+    // FIX 3: the durable containers live ONLY in the JSON snapshot blob, so a corrupt blob is
+    // unrecoverable loss. The load must no longer swallow it through a bare catch that returns an
+    // empty set silently — it must distinguish corrupt from empty and warn so the loss is detectable.
+    expect(nativeLedgerStoreSource).toContain('parseDurableContainersBlob');
+    expect(nativeLedgerStoreSource).toMatch(/corrupt:\s*boolean/);
+    expect(nativeLedgerStoreSource).toContain('console.warn');
+    // The old silent bare catch that just `return empty;` must be gone from the loader.
+    expect(nativeLedgerStoreSource).not.toMatch(/}\s*catch\s*\{\s*return empty;\s*}/);
+  });
+
+  it('derives the native history allowlist from the single source of truth so it cannot drift', () => {
+    // FIX 2: pot/subscription/cycle history entries were silently dropped on reload because the
+    // store's isHistoryKind hardcoded only ~half the kinds. The allowlist must now be derived from
+    // LOCAL_HISTORY_KINDS, not a hand-maintained literal list that can fall out of sync.
+    expect(nativeLedgerStoreSource).toContain('LOCAL_HISTORY_KINDS');
+    expect(nativeLedgerStoreSource).toMatch(/new Set<string>\(LOCAL_HISTORY_KINDS\)/);
+    // The old per-kind literal allowlist must be gone (this is the bug shape that dropped data).
+    expect(nativeLedgerStoreSource).not.toContain("value === 'planner_added'");
+    expect(nativeLedgerStoreSource).not.toContain("value === 'document_staged'");
   });
 
   it('keeps native security implementation names out of user-facing copy', () => {

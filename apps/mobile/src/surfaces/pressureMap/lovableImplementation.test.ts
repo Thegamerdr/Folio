@@ -123,7 +123,12 @@ describe('Lovable target — visible copy carries no machinery vocabulary', () =
     expect(trust).toContain('accent="this device"');
     // The honest device-local guarantee a reader actually sees on the screen.
     expect(trust).toContain('It stays on this device');
-    expect(trust).toContain('Nothing leaves your phone unless you export it.');
+    // The lede is honest about the one real egress path: text typed to Melo when an AI provider is
+    // configured. It must NOT make the blanket "nothing leaves unless you export" claim, which is
+    // false once a Melo gateway exists.
+    expect(trust).toContain('Your money stays on this phone');
+    expect(trust).toContain("only if you've set up an AI provider");
+    expect(trust).not.toContain('Nothing leaves your phone unless you export it.');
     expect(workbench).toContain('File saved. It has not changed your money picture.');
   });
 });
@@ -154,6 +159,14 @@ describe('Lovable target — Melo is a presence, never a mutator', () => {
     for (const banned of ['you should', 'you must', 'cut back', 'definitely', 'guaranteed']) {
       expect(stripped).not.toContain(banned);
     }
+  });
+
+  it('the privacy state never makes the false blanket no-egress claim', () => {
+    // meloStates.ts is shown at the foot of the trust screen. It must not claim that nothing leaves
+    // the device "unless you export it" — typed Melo chat text egresses once an AI provider is
+    // configured. The honest carve-out names that exit, matching the trust-screen lede.
+    expect(states).not.toContain('Nothing leaves unless you export it.');
+    expect(states).toContain('Only what you type to Melo, or a copy you export, ever leaves.');
   });
 });
 

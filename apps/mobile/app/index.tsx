@@ -1792,6 +1792,7 @@ export default function FolioHome() {
           {screen === 'ritual' ? (
             <PaydayRitualScreen
               cycleLabel={currentCycleLabel}
+              cycleSpareMinor={todaySpareMinor}
               insights={insightsModel}
               pots={potsModel}
               reduceMotion={reduceMotionEnabled}

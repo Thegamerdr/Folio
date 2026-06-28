@@ -136,31 +136,40 @@ export type DocumentItemInput = Readonly<{
   date?: string;
 }>;
 
+// The single source of truth for every history-entry kind. The persistence allowlist
+// (nativeLedgerStore.isHistoryKind) is derived from this same const, so the two can never drift —
+// previously the store accepted only ~half of these and silently dropped pot/subscription/cycle
+// history on every reload (a data-loss bug). Add new kinds here ONCE.
+export const LOCAL_HISTORY_KINDS = [
+  'manual_added',
+  'recovery_recorded',
+  'planner_added',
+  'import_staged',
+  'import_confirmed',
+  'import_dismissed',
+  'import_edited',
+  'import_restored',
+  'import_suggested',
+  'document_staged',
+  'pot_created',
+  'pot_funded',
+  'pot_reallocated',
+  'subscription_created',
+  'subscription_paused',
+  'subscription_resumed',
+  'subscription_used',
+  'subscription_cancelled',
+  'subscription_bulk_paused',
+  'cycle_closed',
+] as const;
+
+export type LocalHistoryKind = (typeof LOCAL_HISTORY_KINDS)[number];
+
 export type LocalHistoryEntry = Readonly<{
   id: string;
   label: string;
   createdAt: string;
-  kind:
-    | 'manual_added'
-    | 'recovery_recorded'
-    | 'planner_added'
-    | 'import_staged'
-    | 'import_confirmed'
-    | 'import_dismissed'
-    | 'import_edited'
-    | 'import_restored'
-    | 'import_suggested'
-    | 'document_staged'
-    | 'pot_created'
-    | 'pot_funded'
-    | 'pot_reallocated'
-    | 'subscription_created'
-    | 'subscription_paused'
-    | 'subscription_resumed'
-    | 'subscription_used'
-    | 'subscription_cancelled'
-    | 'subscription_bulk_paused'
-    | 'cycle_closed';
+  kind: LocalHistoryKind;
 }>;
 
 export type LocalLedgerState = Readonly<{
@@ -1258,6 +1267,7 @@ export function createSubscription(
     workspaceId: localWorkspaceId,
     name,
     cost: localGbp(costMinor),
+    cadence: input.cadence,
     nextRenewalDaysAway,
     // A brand-new subscription has no usage history yet: treat it as just added (used today, no uses
     // counted this month). It starts active.
@@ -2054,9 +2064,11 @@ function createRoutePoint(
 function tightestPointFromRoute(
   points: readonly LocalRoutePoint[],
 ): Readonly<{ day: string; balanceMinor: number }> {
-  const candidates = points.length === 0 ? [] : points.slice(1);
-  const usablePoints = candidates.length > 0 ? candidates : points;
-  const tightest = usablePoints.reduce<LocalRoutePoint | undefined>(
+  // The tightest point is the lowest balance anywhere on the route — including point0 (today's
+  // opening balance). Dropping today (the old points.slice(1)) hid a current overdraft whenever a
+  // later point existed: an overdrawn-today-then-paid-later picture reported a positive tightest
+  // and a falsely reassuring "your money lasts" verdict. Reduce over the FULL points array.
+  const tightest = points.reduce<LocalRoutePoint | undefined>(
     (current, point) =>
       current === undefined || point.balanceMinor < current.balanceMinor ? point : current,
     undefined,

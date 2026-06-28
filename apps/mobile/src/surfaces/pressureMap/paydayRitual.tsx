@@ -85,19 +85,25 @@ export function PaydayRitualScreen({
   insights,
   pots,
   cycleLabel,
+  cycleSpareMinor,
   onCloseCycle,
   onFinished,
   onBack,
   reduceMotion,
 }: {
-  // The closed-cycle KPIs the engine already computed. Drives the spare it held and the average
-  // tight point, so the ritual reflects this device's real history (never a fixture).
+  // The closed-cycle KPIs the engine already computed. Drives the average tight point, so the ritual
+  // reflects this device's real history (never a fixture).
   insights: LocalInsightsModel;
   // The pots model — its current sum is the honest "set aside" figure for step two.
   pots: LocalPotsModel;
   // The label this closed cycle is recorded under (e.g. the current month). The container owns the
   // calendar, so it passes the label rather than the screen deriving a date.
   cycleLabel: string;
+  // The spare THIS cycle held — the magnitude at the route's tightest point, the same per-cycle
+  // figure the Today hero shows (container: Math.abs(localRoute.tightestBalanceMinor)). This is the
+  // genuine single-cycle spare; it is NOT the cumulative savedAcrossCyclesMinor, which is the sum of
+  // every prior cycle's set-aside and would inflate monotonically if recorded as this cycle's spare.
+  cycleSpareMinor: number;
   // Records the closed cycle. MINOR units. The screen assembles this from its own wizard state.
   onCloseCycle: (input: CreateCycleRecordInput) => void;
   // After the cycle is recorded: the container routes to Today and opens the Share sheet.
@@ -111,7 +117,13 @@ export function PaydayRitualScreen({
   // The spare the cycle held and the set-aside both come straight from the engine view-models, so
   // the ritual never invents money. Step three (next tight point) and step four (the note) are the
   // two things next-you decides here, so they live in wizard state.
-  const heldSpareMinor = insights.kpis.savedAcrossCyclesMinor;
+  //
+  // heldSpareMinor is THIS cycle's spare (the route's tightest-point magnitude), passed in by the
+  // container — the same per-cycle figure the Today hero shows. It deliberately is NOT
+  // insights.kpis.savedAcrossCyclesMinor: that is the cumulative set-aside summed across every prior
+  // cycle, so binding it here displayed an ever-growing number under "Cycle spare" AND persisted it
+  // as CycleRecord.spare, double-counting set-aside and corrupting durable cycle history.
+  const heldSpareMinor = cycleSpareMinor;
   const setAsideMinor = pots.sumSavedMinor;
   const avgTightMinor = insights.kpis.avgTightPointMinor;
 

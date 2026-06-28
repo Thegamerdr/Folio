@@ -62,6 +62,24 @@ describe("payday ritual — next-you's edits reach the closed-cycle record (beha
     });
   });
 
+  it("records THIS cycle's spare, never the cumulative savedAcrossCycles total", () => {
+    // Regression guard for the "Cycle spare" defect: the recorded spare must be the genuine
+    // single-cycle figure (the route's tightest-point magnitude the container threads in), NOT the
+    // cumulative set-aside summed across prior cycles. Earlier this bound to
+    // insights.kpis.savedAcrossCyclesMinor, which inflated monotonically and corrupted history.
+    const priorCyclesSetAsideTotal = 12_500; // e.g. three prior cycles' set-aside summed.
+    const thisCycleSpareMinor = 3_400; // the per-cycle spare for the cycle being closed.
+    const input = buildCycleRecordInput({
+      label: 'July',
+      heldSpareMinor: thisCycleSpareMinor,
+      nextTightMinor: poundsToMinor('900'),
+      setAsideMinor: 6_000,
+      note: 'Hold steady',
+    });
+    expect(input.spareMinor).toBe(thisCycleSpareMinor);
+    expect(input.spareMinor).not.toBe(priorCyclesSetAsideTotal);
+  });
+
   it('an untouched note falls back to the suggested line, never empty', () => {
     expect(resolveNote('')).toBe(NOTE_SUGGESTION);
     expect(resolveNote('   ')).toBe(NOTE_SUGGESTION);

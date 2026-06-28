@@ -185,9 +185,9 @@ export function InsightsScreen({
       ) : null}
 
       <PrimaryAction
-        label="Share this cycle"
+        label="See what this cycle is built from"
         tone="ink"
-        accessibilityHint="Opens the share sheet for this cycle."
+        accessibilityHint="Shows the trail behind these numbers."
         onPress={onShareCycle}
       />
     </PressureScreen>

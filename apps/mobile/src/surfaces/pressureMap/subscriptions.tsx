@@ -87,6 +87,14 @@ function scoreLine(row: LocalSubscriptionRow): string {
   return `${row.valueScoreLabel} · ${row.usesPerMonth}/mo`;
 }
 
+// Per-cadence suffix for the row's own cost ("£10.00 / week"), so a weekly or yearly charge reads
+// honestly at its real frequency. The monthly total above still normalizes these to per-month.
+function cadenceSuffix(cadence: SubscriptionCadence): string {
+  if (cadence === 'weekly') return '/ week';
+  if (cadence === 'yearly') return '/ year';
+  return '/ month';
+}
+
 function nextChargeLabel(days: number): string {
   if (days <= 0) return 'today';
   if (days === 1) return 'tomorrow';
@@ -106,7 +114,7 @@ function sortRows(
 ): readonly LocalSubscriptionRow[] {
   const next = [...rows];
   if (sort === 'value') next.sort((a, b) => b.valueScore - a.valueScore);
-  if (sort === 'cost') next.sort((a, b) => b.costMinor - a.costMinor);
+  if (sort === 'cost') next.sort((a, b) => b.monthlyMinor - a.monthlyMinor);
   if (sort === 'next') next.sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway);
   return next;
 }
@@ -159,7 +167,9 @@ function SubscriptionRow({
           </Text>
         </View>
         <View style={styles.rowAmountCol}>
-          <Text style={styles.rowCost}>{row.cost}</Text>
+          <Text style={styles.rowCost}>
+            {row.cost} {cadenceSuffix(row.cadence)}
+          </Text>
           <Text style={styles.rowNext}>next {nextChargeLabel(row.nextRenewalDaysAway)}</Text>
         </View>
       </View>
@@ -284,7 +294,8 @@ export function SubscriptionsScreen({
     () =>
       subscriptions.rows
         .filter((row) => !row.paused && row.quiet)
-        .reduce((total, row) => total + row.costMinor, 0),
+        // Saving is a MONTHLY figure, so sum the per-month-normalized cost, not the raw cadence cost.
+        .reduce((total, row) => total + row.monthlyMinor, 0),
     [subscriptions.rows],
   );
 
