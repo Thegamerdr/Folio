@@ -42,7 +42,7 @@ export const MELO_COPY: Readonly<Record<MeloState, MeloCopy>> = {
   },
   melo_privacy_trust: {
     primary: 'Your files and money stay on this device.',
-    supporting: 'Only what you type to Melo, or a copy you export, ever leaves.',
+    supporting: 'Statements you add and chats with me are read by your AI provider.',
   },
   melo_success_saved: { primary: 'Added. Your path just updated.' },
   melo_reduced_motion: { primary: "I'm here when you need me." },

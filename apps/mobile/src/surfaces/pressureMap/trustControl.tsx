@@ -91,8 +91,9 @@ export function DataControlScreen({
       <View style={layout.hero}>
         <Headline lead="It stays on " accent="this device" tail="." style={layout.headline} />
         <Text style={[layout.lede, s.lede]}>
-          Your money stays on this phone. The only things that ever leave are what you type to
-          Melo — and only if you've set up an AI provider — or a copy you export yourself.
+          Your money stays on this phone. The things that leave are what you type to Melo and any
+          statement you add — both are read by your AI provider, when one is set up — or a copy you
+          export yourself.
         </Text>
       </View>
 
@@ -147,8 +148,8 @@ export function DataControlScreen({
             <SavedLine label="Waiting for you" value={String(route.pendingReviewCount)} />
             <SavedLine label="Kept aside for you" value={String(route.protectedItems.length)} />
             <Muted style={layout.savedNote}>
-              This stays on your phone. Only what you type to Melo, or a copy you export, ever
-              leaves.
+              This stays on your phone. What you type to Melo and any statement you add are read by
+              your AI provider; a copy you export also leaves. Nothing else does.
             </Muted>
           </View>
         ) : null}

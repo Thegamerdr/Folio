@@ -123,11 +123,12 @@ describe('Lovable target — visible copy carries no machinery vocabulary', () =
     expect(trust).toContain('accent="this device"');
     // The honest device-local guarantee a reader actually sees on the screen.
     expect(trust).toContain('It stays on this device');
-    // The lede is honest about the one real egress path: text typed to Melo when an AI provider is
-    // configured. It must NOT make the blanket "nothing leaves unless you export" claim, which is
-    // false once a Melo gateway exists.
+    // The lede is honest about the real egress paths: text typed to Melo AND any statement you add
+    // are read by the AI provider when one is configured, plus a copy you export. It must NOT make
+    // the blanket "nothing leaves unless you export" claim, which is false once a Melo gateway exists.
     expect(trust).toContain('Your money stays on this phone');
-    expect(trust).toContain("only if you've set up an AI provider");
+    expect(trust).toContain('statement you add');
+    expect(trust).toContain('read by your AI provider');
     expect(trust).not.toContain('Nothing leaves your phone unless you export it.');
     expect(workbench).toContain('File saved. It has not changed your money picture.');
   });
@@ -166,7 +167,9 @@ describe('Lovable target — Melo is a presence, never a mutator', () => {
     // the device "unless you export it" — typed Melo chat text egresses once an AI provider is
     // configured. The honest carve-out names that exit, matching the trust-screen lede.
     expect(states).not.toContain('Nothing leaves unless you export it.');
-    expect(states).toContain('Only what you type to Melo, or a copy you export, ever leaves.');
+    // The honest carve-out now names BOTH exits — typed Melo chat AND any statement you add are read
+    // by the AI provider — kept inside Melo's short-line voice budget, matching the trust-screen lede.
+    expect(states).toContain('Statements you add and chats with me are read by your AI provider.');
   });
 });
 

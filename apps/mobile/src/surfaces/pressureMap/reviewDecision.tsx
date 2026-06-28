@@ -98,11 +98,15 @@ export function ImportReviewScreen({
   onRemoveDocument,
   onStageImport,
   onViewFile,
+  isReading = false,
 }: {
   discoveryRows?: unknown;
   documentStages?: readonly LocalDocumentStage[] | undefined;
   drafts: readonly LocalImportDraft[];
   importSurfaceMode?: string | undefined;
+  // True while Folio is reading a freshly-added statement. Shows a brief reading state and keeps the
+  // user focused on the result instead of re-tapping.
+  isReading?: boolean | undefined;
   lastAction?: string | null | undefined;
   onAddFromDocument: (input: DocumentItemInput) => void;
   onAddNote?: ((documentId: string, note: string) => void) | undefined;
@@ -192,28 +196,47 @@ export function ImportReviewScreen({
         <MeloPresence state="melo_review_waiting" style={styles.melo} />
 
         <View style={styles.emptyActions}>
-          <PrimaryAction
-            accessibilityHint="Paste the lines from your banking app."
-            label="Paste from your bank"
-            onPress={() => setPasteOpen(true)}
-          />
-          <View style={styles.intakeGrid}>
-            <IntakeTile label="Choose a file" hint="PDF · CSV · text" onPress={onPickDocument} />
-            {onPickImage ? (
-              <IntakeTile label="Add an image" hint="screenshot · photo" onPress={onPickImage} />
-            ) : null}
-            {onCapturePhoto ? (
-              <IntakeTile label="Take a photo" hint="snap a statement" onPress={onCapturePhoto} />
-            ) : null}
-            <IntakeTile
-              label="Try a sample"
-              hint="see it first"
-              onPress={() => {
-                setDecided([]);
-                onStageImport(SAMPLE_CSV);
-              }}
-            />
-          </View>
+          {isReading ? (
+            <View
+              accessibilityLiveRegion="polite"
+              accessibilityRole="text"
+              style={styles.reading}
+            >
+              <Text style={styles.readingTitle}>Reading your statement…</Text>
+              <Text style={styles.readingHint}>
+                One moment — Folio is finding the payments so you can check them.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <PrimaryAction
+                accessibilityHint="Paste the lines from your banking app."
+                label="Paste from your bank"
+                onPress={() => setPasteOpen(true)}
+              />
+              <View style={styles.intakeGrid}>
+                <IntakeTile label="Choose a file" hint="PDF · CSV · text" onPress={onPickDocument} />
+                {onPickImage ? (
+                  <IntakeTile label="Add an image" hint="screenshot · photo" onPress={onPickImage} />
+                ) : null}
+                {onCapturePhoto ? (
+                  <IntakeTile
+                    label="Take a photo"
+                    hint="snap a statement"
+                    onPress={onCapturePhoto}
+                  />
+                ) : null}
+                <IntakeTile
+                  label="Try a sample"
+                  hint="see it first"
+                  onPress={() => {
+                    setDecided([]);
+                    onStageImport(SAMPLE_CSV);
+                  }}
+                />
+              </View>
+            </>
+          )}
         </View>
 
         <FileWorkbench
@@ -564,6 +587,17 @@ function makeStyles(t: Palette) {
   },
   intakeTileLabel: { color: t.ink, fontSize: 14.5, fontWeight: '600' },
   intakeTileHint: { color: t.muted, fontSize: 11.5, marginTop: 2 },
+  reading: {
+    backgroundColor: t.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: t.hairline,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: gap.md,
+    gap: gap.xxs,
+  },
+  readingTitle: { color: t.ink, fontSize: 16, fontWeight: '700', fontFamily: serif.medium },
+  readingHint: { color: t.muted, fontSize: 13, lineHeight: 19 },
   seeAll: { alignSelf: 'flex-start', marginTop: gap.xs },
   seeAllText: { color: t.calmStrong, fontSize: 13.5, fontWeight: '700' },
 

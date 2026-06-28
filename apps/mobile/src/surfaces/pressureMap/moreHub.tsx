@@ -243,7 +243,7 @@ export function MoreScreen({
         ) : null}
       </View>
 
-      <MeloLine text="Your money stays on this device — only what you type to Melo, or a copy you export, ever leaves." />
+      <MeloLine text="Your money stays on this device — what you type to Melo and any statement you add are read by your AI provider, and a copy you export leaves; nothing else does." />
 
       <Body style={[layout.footnote, s.footnote]}>
         Private and on this device. Cloud, AI and Open Banking are optional, never required here.

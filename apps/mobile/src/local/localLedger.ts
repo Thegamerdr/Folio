@@ -410,6 +410,25 @@ export type StageStatementImportResult = Readonly<{
   documentStage?: LocalDocumentStage;
 }>;
 
+// One clean transaction read off a statement by the AI reader (see statementExtraction.ts). amount is
+// in INTEGER minor units (pence) and always positive; the sign lives in `direction`. This is the
+// structured shape that goes STRAIGHT into a review draft — no re-parsing of free text — so the
+// amount and date the reader gave us are never lossily re-derived.
+export type StagedStatementTransaction = Readonly<{
+  dateIso: string;
+  merchant: string;
+  amountMinor: number;
+  direction: 'spend' | 'income';
+}>;
+
+export type StageStatementTransactionsResult = Readonly<{
+  state: LocalLedgerState;
+  message: string;
+  // How many waiting rows this actually added (after de-duplication against existing drafts/records).
+  addedDraftCount: number;
+  documentStage?: LocalDocumentStage;
+}>;
+
 export type StageDocumentForManualReviewResult = Readonly<{
   state: LocalLedgerState;
   message: string;
@@ -1560,6 +1579,134 @@ export function stageStatementImport(
         ? `${packet.counts.parsedRows} found to check. Nothing has been added yet. Keep the ones you want.`
         : `${packet.counts.parsedRows} found to check. Nothing has been added yet. Keep the ones you want.`,
     ...(documentStage === undefined ? {} : { documentStage }),
+  };
+}
+
+// Turn the AI reader's clean, already-structured transactions into waiting review drafts WITHOUT
+// re-parsing any text. The reader gave us a date, a merchant, and an exact pence amount with a known
+// direction, so we build each LocalImportDraft straight from those fields — the amount the user
+// confirms is the amount the reader read, byte-for-byte. Drafts land in the SAME "check what Folio
+// found" queue as text imports and are NEVER auto-committed; the user reviews and confirms each one
+// through the existing confirmImportDraft path. De-duplicates against existing drafts, confirmed
+// records, and previously-rejected evidence exactly like stageStatementImport does.
+export function stageStatementTransactions(
+  state: LocalLedgerState,
+  transactions: readonly StagedStatementTransaction[],
+  source?: LocalDocumentStageInput,
+): StageStatementTransactionsResult {
+  const baseIndex = state.history.length + state.importDrafts.length;
+  const candidateDrafts = transactions
+    .map((txn, offset) => buildDraftFromStatementTransaction(txn, baseIndex + offset))
+    .filter((draft): draft is LocalImportDraft => draft !== null);
+
+  const reviewDrafts = candidateDrafts.map((draft) =>
+    markPreviouslyRejectedDraft(draft, findMatchingRejectedImport(state.rejectedImports, draft)),
+  );
+
+  const existingRowIds = new Set(state.importDrafts.map((draft) => draft.rowId));
+  const existingProvenanceHashes = new Set([
+    ...state.importDrafts.map((draft) => draft.provenanceHash),
+    ...state.transactions
+      .map((transaction) => transaction.provenanceHash)
+      .filter((hash): hash is string => hash !== undefined),
+  ]);
+  const acceptedDrafts = reviewDrafts.filter(
+    (draft) =>
+      !existingRowIds.has(draft.rowId) &&
+      !existingProvenanceHashes.has(draft.provenanceHash) &&
+      !state.importDrafts.some((candidate) => hasEquivalentDraft(candidate, draft)) &&
+      !hasEquivalentTransaction(state.transactions, {
+        id: draft.transactionId,
+        title: draft.interpretation,
+        amountMinor: draft.amountMinor,
+        date: draft.date,
+        source: 'import',
+        status: 'confirmed',
+        protected: isProtectedTitle(draft.interpretation),
+        original: draft.original,
+        provenanceHash: draft.provenanceHash,
+      }),
+  );
+
+  const mergedDrafts = [...acceptedDrafts, ...state.importDrafts];
+  const documentStage =
+    source === undefined
+      ? undefined
+      : createLocalDocumentStage({
+          source,
+          text: transactions
+            .map((txn) => `${txn.dateIso} ${txn.merchant} ${txn.amountMinor} ${txn.direction}`)
+            .join('\n'),
+          index: state.documentStages.length,
+          stagedAt: parsedAtForDate(state.asOfDate),
+          // The reader saw the statement; treat it as OCR-extracted regardless of the on-device path.
+          extractionStatus: 'ocr-extracted',
+        });
+
+  const message =
+    acceptedDrafts.length > 0
+      ? `${acceptedDrafts.length} found to check. Nothing has been added yet. Keep the ones you want.`
+      : 'Nothing new to check — these were already waiting or saved.';
+
+  const nextState = prependHistory(
+    {
+      ...state,
+      importDrafts: mergedDrafts,
+      documentStages:
+        documentStage === undefined
+          ? state.documentStages
+          : [documentStage, ...state.documentStages],
+    },
+    documentStage === undefined ? 'import_staged' : 'document_staged',
+    documentStage === undefined
+      ? `${acceptedDrafts.length} found to check from your statement.`
+      : `${documentStage.filename} read. ${acceptedDrafts.length} found to check.`,
+  );
+
+  return {
+    state: nextState,
+    message,
+    addedDraftCount: acceptedDrafts.length,
+    ...(documentStage === undefined ? {} : { documentStage }),
+  };
+}
+
+// Build one waiting draft straight from a structured AI-read transaction. The amount is kept exactly
+// (already integer pence); the sign is applied from `direction`. The draft is marked
+// 'ready-for-user-confirmation' so the user's confirm is a one-tap glance, not data entry — but it is
+// still a draft, so nothing reaches the money picture until they confirm. Returns null for a junk
+// entry (empty merchant or non-positive amount) so it is silently dropped, never shown.
+function buildDraftFromStatementTransaction(
+  txn: StagedStatementTransaction,
+  index: number,
+): LocalImportDraft | null {
+  const merchant = txn.merchant.trim();
+  if (merchant.length === 0) return null;
+  const absoluteMinor = Math.abs(Math.round(txn.amountMinor));
+  if (!Number.isSafeInteger(absoluteMinor) || absoluteMinor <= 0) return null;
+  const dateIso = parseIsoDateInput(txn.dateIso, '');
+  if (dateIso.length === 0) return null;
+
+  const amountMinor = txn.direction === 'spend' ? -absoluteMinor : absoluteMinor;
+  const original = `${merchant} ${formatMinorAmount(amountMinor)}`;
+  const provenanceHash = createLocalTextDigest(`ai:${dateIso}:${amountMinor}:${normalizeTitle(merchant)}`);
+  const rowId = localId('ai_statement_row', index);
+
+  return {
+    rowId,
+    transactionId: localId('ai_statement_txn', index),
+    original,
+    interpretation: merchant,
+    amountMinor,
+    date: dateIso,
+    authorityState: 'imported-claim',
+    reviewState: 'ready-for-user-confirmation',
+    userConfirmationState: 'requested',
+    parserIssues: [],
+    status: 'Ready to confirm',
+    provenanceHash,
+    searchText: `${original} ${merchant}`.toLowerCase(),
+    reasons: [],
   };
 }
 

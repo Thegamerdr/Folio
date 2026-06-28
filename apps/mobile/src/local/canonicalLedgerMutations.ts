@@ -24,11 +24,14 @@ import {
   setTightPointGoal,
   stageDocumentForManualReview,
   stageStatementImport,
+  stageStatementTransactions,
   type CreateCycleRecordInput,
   type CreatePotInput,
   type CreateSubscriptionInput,
   type DocumentItemInput,
   type StageDocumentForManualReviewResult,
+  type StageStatementTransactionsResult,
+  type StagedStatementTransaction,
   type LocalDocumentStageInput,
   type LocalImportDismissInput,
   type LocalImportDraftEditInput,
@@ -88,6 +91,16 @@ export function stageStatementImportThroughCanonicalRepository(
   source?: LocalDocumentStageInput,
 ): StageStatementImportResult {
   const result = stageStatementImport(state, text, source);
+  assertCanonicalRepositoryState(result.state);
+  return result;
+}
+
+export function stageStatementTransactionsThroughCanonicalRepository(
+  state: LocalLedgerState,
+  transactions: readonly StagedStatementTransaction[],
+  source?: LocalDocumentStageInput,
+): StageStatementTransactionsResult {
+  const result = stageStatementTransactions(state, transactions, source);
   assertCanonicalRepositoryState(result.state);
   return result;
 }

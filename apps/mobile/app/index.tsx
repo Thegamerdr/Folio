@@ -57,7 +57,9 @@ import {
   removeDocumentStageThroughCanonicalRepository,
   stageDocumentForManualReviewThroughCanonicalRepository,
   stageStatementImportThroughCanonicalRepository,
+  stageStatementTransactionsThroughCanonicalRepository,
 } from '../src/local/canonicalLedgerMutations';
+import { readAddedStatement } from '../src/local/statementIntake';
 import { buildLocalTimelineModel } from '../src/local/localTimelineAdapter';
 import { buildLocalCalendarModel } from '../src/local/localCalendarAdapter';
 import { buildLocalPlansModel } from '../src/local/localPlansAdapter';
@@ -278,6 +280,10 @@ export default function FolioHome() {
   const [importSurfaceMode, setImportSurfaceMode] = useState<ImportSurfaceMode>('example_review');
   const [surpriseMoved, setSurpriseMoved] = useState(false);
   const [lastReviewAction, setLastReviewAction] = useState<string | null>(null);
+  // True while Folio is automatically reading a freshly-added statement (AI vision / on-device read).
+  // Drives the brief "Reading your statement…" state on the intake screen so the user stays focused
+  // on the result, and guards against double-taps while a read is in flight.
+  const [statementReading, setStatementReading] = useState(false);
   const [showStatusDetails, setShowStatusDetails] = useState(false);
   const [localLedger, setLocalLedger] = useState<LocalLedgerState>(() =>
     createEmptyLocalLedgerState(currentLocalIsoDate()),
@@ -1118,31 +1124,85 @@ export default function FolioHome() {
     [commitLocalLedger, userOwnedLedgerBase],
   );
 
-  const handlePickStatementDocument = useCallback(async () => {
-    try {
-      const picked = await pickLocalStatementDocument();
-      if (picked.kind !== 'picked') {
-        if (picked.kind === 'unsupported') {
-          const result = stageDocumentForManualReviewThroughCanonicalRepository(
-            userOwnedLedgerBase(),
-            picked.source,
-          );
-          commitLocalLedger(result.state, result.message);
-        } else {
-          setLastReviewAction(picked.message);
-          AccessibilityInfo.announceForAccessibility(picked.message);
-        }
+  // Automatic statement reading. When the user adds a statement file (or image, via the helpers
+  // below), Folio reads it FOR them — AI vision for an image, the on-device reader for a PDF/file —
+  // and feeds clean transactions straight into the "check what Folio found" review queue. The user
+  // never chooses to read; it just happens. If the AI reader has no provider, errors, or finds
+  // nothing, this falls back to the existing on-device-text -> parse -> manual chain so intake never
+  // dead-ends. Reading is reflected in `statementReading` so the screen can show a brief reading
+  // state and a second tap can't start a parallel read.
+  const readAndStageAddedStatement = useCallback(
+    async (source: LocalDocumentStageInput) => {
+      if (source.uri === undefined) {
+        // No file on disk to read (shouldn't happen for picked files) — go straight to the text/
+        // manual fallback so the user is never stranded.
+        const saved = stageDocumentForManualReviewThroughCanonicalRepository(
+          userOwnedLedgerBase(),
+          source,
+        );
+        commitLocalLedger(saved.state, saved.message);
         return;
       }
 
-      commitExtractedTextOrSaveFile(picked.text, picked.source);
+      setStatementReading(true);
+      const readingMessage = 'Reading your statement…';
+      setLastReviewAction(readingMessage);
+      AccessibilityInfo.announceForAccessibility(readingMessage);
+      try {
+        const outcome = await readAddedStatement({ uri: source.uri, mimeType: source.mediaType });
+        if (outcome.kind === 'ai-transactions' && outcome.transactions.length > 0) {
+          const staged = stageStatementTransactionsThroughCanonicalRepository(
+            userOwnedLedgerBase(),
+            outcome.transactions,
+            source,
+          );
+          if (staged.addedDraftCount > 0) {
+            commitLocalLedger(staged.state, staged.message);
+            setScreen('foundItems');
+            return;
+          }
+        }
+        // No usable AI transactions — use whatever on-device text we have, then parse/manual fallback.
+        commitExtractedTextOrSaveFile(outcome.kind === 'text' ? outcome.text : '', source);
+      } catch (error) {
+        // Last-ditch safety: never strand the user. Save the file for manual entry.
+        const saved = stageDocumentForManualReviewThroughCanonicalRepository(
+          userOwnedLedgerBase(),
+          source,
+        );
+        commitLocalLedger(
+          saved.state,
+          error instanceof Error && error.message.length > 0
+            ? saved.message
+            : 'I saved your statement. You can add the amounts from it below.',
+        );
+      } finally {
+        setStatementReading(false);
+      }
+    },
+    [commitExtractedTextOrSaveFile, commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  const handlePickStatementDocument = useCallback(async () => {
+    if (statementReading) return;
+    try {
+      const picked = await pickLocalStatementDocument();
+      if (picked.kind === 'cancelled') {
+        setLastReviewAction(picked.message);
+        AccessibilityInfo.announceForAccessibility(picked.message);
+        return;
+      }
+      // Both 'picked' (text already read) and 'unsupported' (PDF/other saved for review) carry a
+      // source with a file uri. Read it automatically: the AI reader gets first crack at the file,
+      // and only falls back to the on-device text / manual path if it can't read it.
+      await readAndStageAddedStatement(picked.source);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Could not stage that statement file.';
       setLastReviewAction(message);
       AccessibilityInfo.announceForAccessibility(message);
     }
-  }, [commitExtractedTextOrSaveFile, commitLocalLedger, userOwnedLedgerBase]);
+  }, [readAndStageAddedStatement, statementReading]);
 
   const handleConfirmImportDraft = useCallback(
     (rowId: string) => {
@@ -1283,16 +1343,14 @@ export default function FolioHome() {
   }, []);
 
   const handlePickStatementImage = useCallback(async () => {
+    if (statementReading) return;
     try {
       const picked = await pickStatementImage();
-      if (picked.kind === 'picked') {
-        commitExtractedTextOrSaveFile(picked.text, picked.source);
-      } else if (picked.kind === 'saved') {
-        const result = stageDocumentForManualReviewThroughCanonicalRepository(
-          userOwnedLedgerBase(),
-          picked.source,
-        );
-        commitLocalLedger(result.state, result.message);
+      // 'picked' and 'saved' both carry the saved image's source (with a uri). Read it
+      // automatically — the AI vision reader looks at the photo directly, with the on-device-text /
+      // manual chain as the fallback. 'cancelled' / 'denied' just surface their own message.
+      if (picked.kind === 'picked' || picked.kind === 'saved') {
+        await readAndStageAddedStatement(picked.source);
       } else {
         setLastReviewAction(picked.message);
         AccessibilityInfo.announceForAccessibility(picked.message);
@@ -1302,19 +1360,14 @@ export default function FolioHome() {
       setLastReviewAction(message);
       AccessibilityInfo.announceForAccessibility(message);
     }
-  }, [commitExtractedTextOrSaveFile, commitLocalLedger, userOwnedLedgerBase]);
+  }, [readAndStageAddedStatement, statementReading]);
 
   const handleCaptureStatementPhoto = useCallback(async () => {
+    if (statementReading) return;
     try {
       const picked = await captureStatementPhoto();
-      if (picked.kind === 'picked') {
-        commitExtractedTextOrSaveFile(picked.text, picked.source);
-      } else if (picked.kind === 'saved') {
-        const result = stageDocumentForManualReviewThroughCanonicalRepository(
-          userOwnedLedgerBase(),
-          picked.source,
-        );
-        commitLocalLedger(result.state, result.message);
+      if (picked.kind === 'picked' || picked.kind === 'saved') {
+        await readAndStageAddedStatement(picked.source);
       } else {
         setLastReviewAction(picked.message);
         AccessibilityInfo.announceForAccessibility(picked.message);
@@ -1324,7 +1377,7 @@ export default function FolioHome() {
       setLastReviewAction(message);
       AccessibilityInfo.announceForAccessibility(message);
     }
-  }, [commitExtractedTextOrSaveFile, commitLocalLedger, userOwnedLedgerBase]);
+  }, [readAndStageAddedStatement, statementReading]);
 
   const resetExample = useCallback(() => {
     setFirstMinuteStep(0);
@@ -2042,6 +2095,7 @@ export default function FolioHome() {
               onViewFile={handleViewFile}
               onCapturePhoto={handleCaptureStatementPhoto}
               onOpenFoundItems={() => setScreen('foundItems')}
+              isReading={statementReading}
               onPickImage={handlePickStatementImage}
               onMeloSuggestDraft={handleMeloSuggestImportDraft}
               onPickDocument={handlePickStatementDocument}
