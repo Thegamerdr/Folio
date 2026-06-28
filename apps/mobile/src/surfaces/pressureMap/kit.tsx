@@ -8,8 +8,40 @@
 // Nothing in this file talks to the engine. These are pure presentation primitives
 // the new screens compose. Money values are formatted through the canonical
 // formatMinorAmount so there is no formatting drift with the rest of the app.
+//
+// ===========================================================================
+// DARK-MODE PATTERN (the reference every surface sweep follows)
+// ===========================================================================
+// Colours come from the ACTIVE palette at render time, never from `paper` directly. `paper` (light)
+// and `paperDark` are the same shape (`Palette`); `useTheme()` returns whichever is active.
+//
+//   // inside a component:
+//   const t = useTheme();
+//   const s = useMemo(() => makeStyles(t), [t]);
+//   return <View style={s.card} />;
+//
+//   // module-level factory — ONLY colours live here:
+//   function makeStyles(t: Palette) {
+//     return StyleSheet.create({
+//       card: { backgroundColor: t.surface, borderColor: t.hairline, ...elevation.card },
+//     });
+//   }
+//
+// Rules:
+//   • Layout-only styles (gap, padding, flex, fontWeight, fontSize, radius) stay module-level static
+//     — they don't change with the theme, so memoising them per-render is pure waste.
+//   • Only COLOUR-bearing styles move into makeStyles(t).
+//   • SVG glyph colours that must follow the theme take the palette (or a colour) as a prop — an SVG
+//     fill/stroke can't read a StyleSheet, so the caller passes `t.muted` etc.
+//   • Static shadow OBJECTS (elevation.*) stay as-is; they read fine on both grounds (warm near-black
+//     shadow on cream, faint lift on warm-black). Only swap a shadowColor into makeStyles if a
+//     surface visibly needs it.
+//
+// The 32 consumer surfaces are converted in a later per-surface sweep; this file is the worked
+// example + the API (useTheme / useThemeMode / ThemeProvider / Palette / paperDark) they build on.
+// ===========================================================================
 
-import { useCallback, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -26,6 +58,15 @@ import { folioTokens } from '@folio/ui';
 
 import { formatMinorAmount } from '../../local/localLedger';
 import type { ProductScreen } from '../mobileShell';
+import {
+  ThemeProvider as ThemeProviderBase,
+  paperDark,
+  useIsDark,
+  useTheme,
+  useThemeMode,
+  type Palette,
+  type ThemeMode,
+} from './kitTheme';
 
 // ---------------------------------------------------------------------------
 // Palette + rhythm (mirrors folioTokens; named for the map direction)
@@ -68,6 +109,18 @@ export const paper = {
   routeShadow: '#E7E2D8',
   inverse: '#FFFFFF',
 } as const;
+
+// Theme API (defined in kitTheme.tsx) is re-exported from the kit so surfaces keep a single import
+// source: `import { useTheme, paper, paperDark, ... } from './kit'`.
+export { paperDark, useIsDark, useTheme, useThemeMode };
+export type { Palette, ThemeMode };
+
+// `paper` is the canonical LIGHT palette. It is injected into the provider here (rather than imported
+// by kitTheme.tsx) so its literal hexes stay in this file — where the surface tests grep them — with
+// no kit↔kitTheme import cycle. The app mounts <ThemeProvider> once at the root (app/_layout.tsx).
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  return <ThemeProviderBase light={paper}>{children}</ThemeProviderBase>;
+}
 
 // Editorial Ledger display type — Fraunces (bundled via @expo-google-fonts/fraunces, loaded in
 // app/_layout). Headlines/verdicts are serif; ONE italic accent word per headline. Numerals and
@@ -164,12 +217,14 @@ export function Eyebrow({
   // the path's low point is the only saturated terracotta moment).
   tone?: 'calm' | 'warm' | 'muted' | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Text
       style={[
-        styles.eyebrow,
-        tone === 'warm' ? styles.eyebrowWarm : undefined,
-        tone === 'muted' ? styles.eyebrowMuted : undefined,
+        s.eyebrow,
+        tone === 'warm' ? s.eyebrowWarm : undefined,
+        tone === 'muted' ? s.eyebrowMuted : undefined,
       ]}
     >
       {children}
@@ -184,8 +239,10 @@ export function Display({
   children: ReactNode;
   style?: StyleProp<TextStyle> | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <Text accessibilityRole="header" style={[styles.display, style]}>
+    <Text accessibilityRole="header" style={[s.display, style]}>
       {children}
     </Text>
   );
@@ -206,20 +263,22 @@ export function Headline({
   accentTone?: VerdictTone | undefined;
   style?: StyleProp<TextStyle> | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   // Undefined tone = the brand accent word (terracotta) — Start, Privacy, etc. A verdict tone
   // colours the accent to its meaning: green when you make it, gold when tight, coral when short.
   const accentColor =
     accentTone === 'repair'
-      ? paper.repairInk
+      ? t.repairInk
       : accentTone === 'warm'
-        ? paper.warmInk
+        ? t.warmInk
         : accentTone === 'positive'
-          ? paper.positiveInk
-          : paper.calm;
+          ? t.positiveInk
+          : t.calm;
   return (
-    <Text accessibilityRole="header" style={[styles.headline, style]}>
+    <Text accessibilityRole="header" style={[s.headline, style]}>
       {lead}
-      <Text style={[styles.headlineAccent, { color: accentColor }]}>{accent}</Text>
+      <Text style={[s.headlineAccent, { color: accentColor }]}>{accent}</Text>
       {tail}
     </Text>
   );
@@ -232,8 +291,10 @@ export function Verdict({
   children: ReactNode;
   tone?: VerdictTone | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <Text accessibilityRole="header" style={[styles.verdict, verdictColor(tone)]}>
+    <Text accessibilityRole="header" style={[s.verdict, verdictColor(t, tone)]}>
       {children}
     </Text>
   );
@@ -243,11 +304,11 @@ export function Verdict({
 // (coral). An undefined tone is neutral ink (e.g. the "here's where you stand" empty state).
 export type VerdictTone = 'positive' | 'warm' | 'repair';
 
-function verdictColor(tone: VerdictTone | undefined): TextStyle {
-  if (tone === 'repair') return { color: paper.repairInk };
-  if (tone === 'warm') return { color: paper.warmInk };
-  if (tone === 'positive') return { color: paper.positiveInk };
-  return { color: paper.ink };
+function verdictColor(t: Palette, tone: VerdictTone | undefined): TextStyle {
+  if (tone === 'repair') return { color: t.repairInk };
+  if (tone === 'warm') return { color: t.warmInk };
+  if (tone === 'positive') return { color: t.positiveInk };
+  return { color: t.ink };
 }
 
 export function HeroMoney({
@@ -259,8 +320,10 @@ export function HeroMoney({
   tone?: VerdictTone | undefined;
   accessibilityLabel?: string | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <Text accessibilityLabel={accessibilityLabel} style={[styles.heroMoney, verdictColor(tone)]}>
+    <Text accessibilityLabel={accessibilityLabel} style={[s.heroMoney, verdictColor(t, tone)]}>
       {children}
     </Text>
   );
@@ -273,7 +336,9 @@ export function Body({
   children: ReactNode;
   style?: StyleProp<TextStyle> | undefined;
 }) {
-  return <Text style={[styles.body, style]}>{children}</Text>;
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  return <Text style={[s.body, style]}>{children}</Text>;
 }
 
 export function Muted({
@@ -283,7 +348,9 @@ export function Muted({
   children: ReactNode;
   style?: StyleProp<TextStyle> | undefined;
 }) {
-  return <Text style={[styles.muted, style]}>{children}</Text>;
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  return <Text style={[s.muted, style]}>{children}</Text>;
 }
 
 // ---------------------------------------------------------------------------
@@ -305,15 +372,12 @@ export function PressureScreen({
   // center within; derive that from the real viewport (a generous fraction of the
   // window) so it adapts to any phone and never clips OS-scaled text.
   const { height } = useWindowDimensions();
+  // Layout-only: the screen column carries no colour (the canvas is painted by the router root), so
+  // it stays on the static `layout` styles — no useTheme needed.
   const centeredMinHeight = centered ? { minHeight: Math.round(height * 0.7) } : undefined;
   return (
     <View
-      style={[
-        styles.screen,
-        centered ? styles.screenCentered : undefined,
-        centeredMinHeight,
-        style,
-      ]}
+      style={[layout.screen, centered ? layout.screenCentered : undefined, centeredMinHeight, style]}
     >
       {children}
     </View>
@@ -329,15 +393,19 @@ export function Surface({
   style?: StyleProp<ViewStyle> | undefined;
   tone?: 'plain' | 'sunken' | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View style={[styles.surface, tone === 'sunken' ? styles.surfaceSunken : undefined, style]}>
+    <View style={[s.surface, tone === 'sunken' ? s.surfaceSunken : undefined, style]}>
       {children}
     </View>
   );
 }
 
 export function Hairline({ style }: { style?: StyleProp<ViewStyle> | undefined }) {
-  return <View style={[styles.hairline, style]} />;
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  return <View style={[s.hairline, style]} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -359,6 +427,8 @@ export function PrimaryAction({
   accessibilityHint?: string | undefined;
   disabled?: boolean | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityHint={accessibilityHint}
@@ -367,23 +437,23 @@ export function PrimaryAction({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed: isPressed }) => [
-        styles.primary,
-        tone === 'ink' ? styles.primaryInk : undefined,
-        disabled ? styles.primaryDisabled : undefined,
+        s.primary,
+        tone === 'ink' ? s.primaryInk : undefined,
+        disabled ? s.primaryDisabled : undefined,
         isPressed && !disabled ? pressed : undefined,
       ]}
     >
       {/* Label is centered in the button; the arrow is pinned to the right edge so the
           CTA reads directional ("go") without shoving the label off-center. */}
-      <View style={styles.primaryRow}>
-        <Text style={[styles.primaryLabel, tone === 'ink' ? styles.primaryLabelInk : undefined]}>
+      <View style={layout.primaryRow}>
+        <Text style={[s.primaryLabel, tone === 'ink' ? s.primaryLabelInk : undefined]}>
           {label}
         </Text>
-        <View style={styles.primaryArrow} pointerEvents="none">
-          <ChevronRight color={disabled ? paper.muted : paper.inverse} />
+        <View style={layout.primaryArrow} pointerEvents="none">
+          <ChevronRight color={disabled ? t.muted : t.inverse} />
         </View>
       </View>
-      {caption ? <Text style={styles.primaryCaption}>{caption}</Text> : null}
+      {caption ? <Text style={s.primaryCaption}>{caption}</Text> : null}
     </Pressable>
   );
 }
@@ -401,18 +471,20 @@ export function GhostButton({
   tone?: 'plain' | 'repair' | undefined;
   flex?: boolean | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityHint={accessibilityHint}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed: isPressed }) => [
-        styles.ghost,
-        flex ? styles.flex : undefined,
+        s.ghost,
+        flex ? layout.flex : undefined,
         isPressed ? pressed : undefined,
       ]}
     >
-      <Text style={[styles.ghostLabel, tone === 'repair' ? styles.ghostLabelRepair : undefined]}>
+      <Text style={[s.ghostLabel, tone === 'repair' ? s.ghostLabelRepair : undefined]}>
         {label}
       </Text>
     </Pressable>
@@ -429,15 +501,17 @@ export function QuietLink({
   onPress: () => void;
   accessibilityHint?: string | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityHint={accessibilityHint}
       accessibilityRole="button"
       hitSlop={12}
       onPress={onPress}
-      style={({ pressed: isPressed }) => [styles.quietLink, isPressed ? pressed : undefined]}
+      style={({ pressed: isPressed }) => [layout.quietLink, isPressed ? pressed : undefined]}
     >
-      <Text style={styles.quietLinkLabel}>{label}</Text>
+      <Text style={s.quietLinkLabel}>{label}</Text>
       <ChevronRight />
     </Pressable>
   );
@@ -452,18 +526,20 @@ export function ChipToggle({
   selected: boolean;
   onPress: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
       style={({ pressed: isPressed }) => [
-        styles.chip,
-        selected ? styles.chipSelected : undefined,
+        s.chip,
+        selected ? s.chipSelected : undefined,
         isPressed ? pressed : undefined,
       ]}
     >
-      <Text style={[styles.chipLabel, selected ? styles.chipLabelSelected : undefined]}>
+      <Text style={[s.chipLabel, selected ? s.chipLabelSelected : undefined]}>
         {label}
       </Text>
     </Pressable>
@@ -478,6 +554,8 @@ export function ChipToggle({
 const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'] as const;
 
 export function MoneyPad({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const handleKey = useCallback(
     (key: (typeof PAD_KEYS)[number]) => {
       if (key === 'back') {
@@ -496,7 +574,7 @@ export function MoneyPad({ value, onChange }: { value: string; onChange: (next: 
   );
 
   return (
-    <View accessibilityLabel="Number pad" style={styles.pad}>
+    <View accessibilityLabel="Number pad" style={layout.pad}>
       {PAD_KEYS.map((key) => (
         <Pressable
           accessibilityHint={
@@ -512,12 +590,12 @@ export function MoneyPad({ value, onChange }: { value: string; onChange: (next: 
           accessibilityRole="button"
           key={key}
           onPress={() => handleKey(key)}
-          style={({ pressed: isPressed }) => [styles.padKey, isPressed ? pressed : undefined]}
+          style={({ pressed: isPressed }) => [layout.padKey, isPressed ? pressed : undefined]}
         >
           {key === 'back' ? (
-            <BackspaceGlyph />
+            <BackspaceGlyph color={t.secondary} />
           ) : (
-            <Text style={[styles.padKeyText, key === 'clear' ? styles.padKeyClear : undefined]}>
+            <Text style={[s.padKeyText, key === 'clear' ? s.padKeyClear : undefined]}>
               {key === 'clear' ? 'Clear' : key}
             </Text>
           )}
@@ -531,12 +609,16 @@ export function MoneyPad({ value, onChange }: { value: string; onChange: (next: 
 // Small glyphs
 // ---------------------------------------------------------------------------
 
-export function ChevronRight({ color = paper.muted }: { color?: string | undefined }) {
+// SVG glyphs can't read a StyleSheet, so theme-following colours arrive as props. Each glyph reads the
+// active palette for its DEFAULT colour; an explicit `color` prop still wins (e.g. the on-accent
+// chevron PrimaryAction passes, or the green check trustControl passes).
+export function ChevronRight({ color }: { color?: string | undefined }) {
+  const t = useTheme();
   return (
     <Svg width={18} height={18} viewBox="0 0 24 24">
       <Path
         d="M9 6l6 6-6 6"
-        stroke={color}
+        stroke={color ?? t.muted}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -546,38 +628,37 @@ export function ChevronRight({ color = paper.muted }: { color?: string | undefin
   );
 }
 
-function BackspaceGlyph() {
+function BackspaceGlyph({ color }: { color?: string | undefined }) {
+  const t = useTheme();
+  const stroke = color ?? t.secondary;
   return (
     <Svg width={26} height={26} viewBox="0 0 24 24">
       <Path
         d="M9 5h11a1 1 0 011 1v12a1 1 0 01-1 1H9l-6-7 6-7z"
-        stroke={paper.secondary}
+        stroke={stroke}
         strokeWidth={1.7}
         strokeLinejoin="round"
         fill="none"
       />
-      <Path
-        d="M12 10l4 4M16 10l-4 4"
-        stroke={paper.secondary}
-        strokeWidth={1.7}
-        strokeLinecap="round"
-      />
+      <Path d="M12 10l4 4M16 10l-4 4" stroke={stroke} strokeWidth={1.7} strokeLinecap="round" />
     </Svg>
   );
 }
 
 export function CheckGlyph({
-  color = paper.calm,
+  color,
   size = 22,
 }: {
   color?: string | undefined;
   size?: number | undefined;
 }) {
+  const t = useTheme();
+  const stroke = color ?? t.calm;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
         d="M5 13l4 4 10-11"
-        stroke={color}
+        stroke={stroke}
         strokeWidth={2.4}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -608,9 +689,9 @@ const NAV_TABS: readonly NavTab[] = [
   { id: 'more', label: 'More' },
 ];
 
-function NavIcon({ id, active }: { id: ProductScreen; active: boolean }) {
-  const stroke = active ? paper.calmStrong : paper.muted;
-  const fill = active ? paper.calmSoft : 'none';
+function NavIcon({ id, active, t }: { id: ProductScreen; active: boolean; t: Palette }) {
+  const stroke = active ? t.calmStrong : t.muted;
+  const fill = active ? t.calmSoft : 'none';
   if (id === 'start') {
     // A doorway — the product "begin" object.
     return (
@@ -702,7 +783,7 @@ function NavIcon({ id, active }: { id: ProductScreen; active: boolean }) {
           cx="13"
           cy="16.7"
           r="2"
-          fill={active ? paper.calmStrong : paper.surface}
+          fill={active ? t.calmStrong : t.surface}
           stroke={stroke}
           strokeWidth={1.8}
         />
@@ -721,7 +802,7 @@ function NavIcon({ id, active }: { id: ProductScreen; active: boolean }) {
           fill={fill}
           strokeLinejoin="round"
         />
-        <Circle cx="12" cy="10.5" r="1.5" fill={active ? paper.calmStrong : stroke} />
+        <Circle cx="12" cy="10.5" r="1.5" fill={active ? t.calmStrong : stroke} />
       </Svg>
     );
   }
@@ -755,9 +836,9 @@ function NavIcon({ id, active }: { id: ProductScreen; active: boolean }) {
         strokeWidth={1.8}
         strokeLinecap="round"
       />
-      <Circle cx="9" cy="7.5" r="2.2" fill={paper.surface} stroke={stroke} strokeWidth={1.8} />
-      <Circle cx="15" cy="12" r="2.2" fill={paper.surface} stroke={stroke} strokeWidth={1.8} />
-      <Circle cx="8" cy="16.5" r="2.2" fill={paper.surface} stroke={stroke} strokeWidth={1.8} />
+      <Circle cx="9" cy="7.5" r="2.2" fill={t.surface} stroke={stroke} strokeWidth={1.8} />
+      <Circle cx="15" cy="12" r="2.2" fill={t.surface} stroke={stroke} strokeWidth={1.8} />
+      <Circle cx="8" cy="16.5" r="2.2" fill={t.surface} stroke={stroke} strokeWidth={1.8} />
     </Svg>
   );
 }
@@ -775,9 +856,11 @@ export function BottomNav({
   // isn't (3-button-nav phones) — plus one small breathing constant, so the band
   // clears the system bar without a fat dead zone on either kind of phone.
   const insets = useSafeAreaInsets();
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const navPaddingBottom = (insets.bottom > 0 ? insets.bottom : 12) + NAV_SAFE_GAP;
   return (
-    <View style={[styles.nav, { paddingBottom: navPaddingBottom }]}>
+    <View style={[s.nav, { paddingBottom: navPaddingBottom }]}>
       {NAV_TABS.map((tab) => {
         const selected = active === tab.id;
         return (
@@ -788,10 +871,10 @@ export function BottomNav({
             accessibilityState={{ selected }}
             key={tab.id}
             onPress={() => onChange(tab.id)}
-            style={({ pressed: isPressed }) => [styles.navItem, isPressed ? pressed : undefined]}
+            style={({ pressed: isPressed }) => [layout.navItem, isPressed ? pressed : undefined]}
           >
-            <NavIcon id={tab.id} active={selected} />
-            <Text style={[styles.navLabel, selected ? styles.navLabelActive : undefined]}>
+            <NavIcon id={tab.id} active={selected} t={t} />
+            <Text style={[s.navLabel, selected ? s.navLabelActive : undefined]}>
               {tab.label}
             </Text>
           </Pressable>
@@ -804,10 +887,18 @@ export function BottomNav({
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
+//
+// Two layers, per the DARK-MODE PATTERN at the top of the file:
+//   • `layout`       — module-level static. NO colour. Spacing, flex, font metrics, radii. These
+//                      never change with the theme, so they are created once.
+//   • `makeStyles(t)`— a factory of the COLOUR-bearing styles, rebuilt per component via
+//                      useMemo(() => makeStyles(t), [t]) so a theme change repaints them.
+// A few styles carry both layout AND colour; those live in makeStyles (the layout half just rides
+// along — cheap, and keeps a single source for that element's full style).
 
-const styles = StyleSheet.create({
+// Colour-free styles — safe to share across light and dark.
+const layout = StyleSheet.create({
   flex: { flex: 1 },
-
   screen: {
     // No flex:1 here. These screens live inside the container ScrollView (unbounded
     // height); a flex:1 child can collapse its measured bounds, and RN clips touches
@@ -817,109 +908,7 @@ const styles = StyleSheet.create({
     paddingTop: gap.sm,
     paddingBottom: gap.xxxl,
   },
-  screenCentered: {
-    justifyContent: 'center',
-  },
-
-  surface: {
-    backgroundColor: paper.surface,
-    borderRadius: 20,
-    padding: gap.xl,
-    // The soft lift replaces the hairline: a plain surface now floats on the cream
-    // rather than being outlined on it. (Sunken wells stay flat below — they're insets,
-    // not raised paper.)
-    ...elevation.card,
-  },
-  surfaceSunken: {
-    backgroundColor: paper.sunken,
-    // Insets sit IN the paper, so no shadow and no border — flat by design.
-    shadowColor: 'transparent',
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-  },
-
-  hairline: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: paper.hairline,
-    width: '100%',
-  },
-
-  eyebrow: {
-    color: paper.calmStrong, // deeper terracotta so the 13px eyebrow clears WCAG AA on paper
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-  },
-  eyebrowWarm: { color: paper.warmInk },
-  eyebrowMuted: { color: paper.muted },
-
-  display: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 31,
-    lineHeight: 37,
-    letterSpacing: -0.3,
-  },
-  headline: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 29,
-    lineHeight: 36,
-    letterSpacing: -0.3,
-  },
-  headlineAccent: {
-    // Match the Lovable source: the accent word is the SAME upright serif as the headline, only
-    // recoloured terracotta (Lovable uses `<em className="not-italic text-accent">`). It inherits
-    // the parent headline's Fraunces face, so only the colour is overridden — never italic.
-    color: paper.calm,
-  },
-  verdict: {
-    fontFamily: serif.display,
-    fontSize: 27,
-    lineHeight: 33,
-    letterSpacing: -0.2,
-  },
-  heroMoney: {
-    fontSize: 52,
-    lineHeight: 56,
-    fontWeight: '800',
-    letterSpacing: -1.6,
-    fontVariant: ['tabular-nums'],
-  },
-  body: {
-    color: paper.secondary,
-    fontSize: 16,
-    lineHeight: 23,
-  },
-  muted: {
-    color: paper.muted,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-
-  primary: {
-    backgroundColor: paper.calmStrong, // deeper teal: white label + caption both clear AA (>=5:1)
-    borderRadius: 18,
-    paddingVertical: 18,
-    paddingHorizontal: gap.xl,
-    alignItems: 'center',
-    gap: 2,
-    // The single lifted, directional CTA — soft teal-tinted shadow ties the lift to the
-    // accent so it reads as the dominant next step (not a flat fill on the cream).
-    ...elevation.cta,
-  },
-  // Ink-toned CTA keeps the lift but warms the shadow back to the ink family so a black
-  // button doesn't carry a teal halo.
-  primaryInk: { backgroundColor: paper.ink, shadowColor: '#2A2018', shadowOpacity: 0.2 },
-  primaryDisabled: {
-    backgroundColor: paper.sunken,
-    shadowColor: 'transparent',
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-  },
+  screenCentered: { justifyContent: 'center' },
   // The arrow is absolutely pinned to the right edge of the row so the label stays
   // optically centered in the button.
   primaryRow: {
@@ -928,35 +917,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryArrow: {
-    position: 'absolute',
-    right: 0,
-  },
-  primaryLabel: {
-    color: paper.inverse,
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  primaryLabelInk: { color: paper.inverse },
-  primaryCaption: {
-    color: '#F8E7DE',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
-  ghost: {
-    borderRadius: 16,
-    paddingVertical: 15,
-    paddingHorizontal: gap.lg,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: paper.hairlineStrong,
-    backgroundColor: paper.surface,
-  },
-  ghostLabel: { color: paper.ink, fontSize: 16, fontWeight: '600' },
-  ghostLabelRepair: { color: paper.repairInk },
-
+  primaryArrow: { position: 'absolute', right: 0 },
   quietLink: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -964,60 +925,185 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
   },
-  quietLinkLabel: { color: paper.secondary, fontSize: 15, fontWeight: '600' },
-
-  chip: {
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: gap.lg,
-    borderWidth: 1.5,
-    borderColor: paper.hairline,
-    backgroundColor: paper.surface,
-  },
-  chipSelected: {
-    borderColor: paper.calm,
-    backgroundColor: paper.calmSoft,
-  },
-  chipLabel: { color: paper.secondary, fontSize: 15, fontWeight: '600' },
-  chipLabelSelected: { color: paper.calmStrong },
-
-  pad: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  padKey: {
-    width: '33.333%',
-    height: 62,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  padKeyText: {
-    color: paper.ink,
-    fontSize: 27,
-    fontWeight: '500',
-    fontVariant: ['tabular-nums'],
-  },
-  padKeyClear: { fontSize: 16, fontWeight: '600', color: paper.muted },
-
-  nav: {
-    flexDirection: 'row',
-    backgroundColor: paper.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: paper.hairline,
-    paddingTop: 12,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 3,
-  },
-  navLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  navLabelActive: { color: paper.calmStrong },
+  pad: { flexDirection: 'row', flexWrap: 'wrap' },
+  padKey: { width: '33.333%', height: 62, alignItems: 'center', justifyContent: 'center' },
+  navItem: { flex: 1, alignItems: 'center', gap: 3 },
 });
 
-export { styles as kitStyles };
+// Colour-bearing styles, resolved against the active palette `t`. Rebuilt per-render via the
+// useMemo(makeStyles, [t]) pattern.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    surface: {
+      backgroundColor: t.surface,
+      borderRadius: 20,
+      padding: gap.xl,
+      // The soft lift replaces the hairline: a plain surface now floats on the cream
+      // rather than being outlined on it. (Sunken wells stay flat below — they're insets,
+      // not raised paper.)
+      ...elevation.card,
+    },
+    surfaceSunken: {
+      backgroundColor: t.sunken,
+      // Insets sit IN the paper, so no shadow and no border — flat by design.
+      shadowColor: 'transparent',
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
+    },
+
+    hairline: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: t.hairline,
+      width: '100%',
+    },
+
+    eyebrow: {
+      color: t.calmStrong, // deeper terracotta so the 13px eyebrow clears WCAG AA on paper
+      fontSize: 13,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    eyebrowWarm: { color: t.warmInk },
+    eyebrowMuted: { color: t.muted },
+
+    display: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 31,
+      lineHeight: 37,
+      letterSpacing: -0.3,
+    },
+    headline: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 29,
+      lineHeight: 36,
+      letterSpacing: -0.3,
+    },
+    headlineAccent: {
+      // Match the Lovable source: the accent word is the SAME upright serif as the headline, only
+      // recoloured terracotta (Lovable uses `<em className="not-italic text-accent">`). It inherits
+      // the parent headline's Fraunces face, so only the colour is overridden — never italic. The
+      // component overrides this colour inline per accentTone; this is the default brand accent.
+      color: t.calm,
+    },
+    verdict: {
+      fontFamily: serif.display,
+      fontSize: 27,
+      lineHeight: 33,
+      letterSpacing: -0.2,
+    },
+    heroMoney: {
+      fontSize: 52,
+      lineHeight: 56,
+      fontWeight: '800',
+      letterSpacing: -1.6,
+      fontVariant: ['tabular-nums'],
+    },
+    body: {
+      color: t.secondary,
+      fontSize: 16,
+      lineHeight: 23,
+    },
+    muted: {
+      color: t.muted,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+
+    primary: {
+      backgroundColor: t.calmStrong, // deeper terracotta: white label + caption both clear AA (>=5:1)
+      borderRadius: 18,
+      paddingVertical: 18,
+      paddingHorizontal: gap.xl,
+      alignItems: 'center',
+      gap: 2,
+      // The single lifted, directional CTA — soft terracotta-tinted shadow ties the lift to the
+      // accent so it reads as the dominant next step (not a flat fill on the cream).
+      ...elevation.cta,
+    },
+    // Ink-toned CTA keeps the lift but warms the shadow back to the ink family so a black
+    // button doesn't carry a terracotta halo.
+    primaryInk: { backgroundColor: t.ink, shadowColor: '#2A2018', shadowOpacity: 0.2 },
+    primaryDisabled: {
+      backgroundColor: t.sunken,
+      shadowColor: 'transparent',
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
+    },
+    primaryLabel: {
+      color: t.inverse,
+      fontSize: 17,
+      fontWeight: '700',
+      letterSpacing: 0.2,
+    },
+    primaryLabelInk: { color: t.inverse },
+    primaryCaption: {
+      // A soft warm-cream caption that reads on the terracotta fill in BOTH modes (the button fill
+      // is terracotta on light and dark alike), so this stays a literal rather than a palette key.
+      color: '#F8E7DE',
+      fontSize: 13,
+      fontWeight: '500',
+    },
+
+    ghost: {
+      borderRadius: 16,
+      paddingVertical: 15,
+      paddingHorizontal: gap.lg,
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: t.hairlineStrong,
+      backgroundColor: t.surface,
+    },
+    ghostLabel: { color: t.ink, fontSize: 16, fontWeight: '600' },
+    ghostLabelRepair: { color: t.repairInk },
+
+    quietLinkLabel: { color: t.secondary, fontSize: 15, fontWeight: '600' },
+
+    chip: {
+      borderRadius: 999,
+      paddingVertical: 10,
+      paddingHorizontal: gap.lg,
+      borderWidth: 1.5,
+      borderColor: t.hairline,
+      backgroundColor: t.surface,
+    },
+    chipSelected: {
+      borderColor: t.calm,
+      backgroundColor: t.calmSoft,
+    },
+    chipLabel: { color: t.secondary, fontSize: 15, fontWeight: '600' },
+    chipLabelSelected: { color: t.calmStrong },
+
+    padKeyText: {
+      color: t.ink,
+      fontSize: 27,
+      fontWeight: '500',
+      fontVariant: ['tabular-nums'],
+    },
+    padKeyClear: { fontSize: 16, fontWeight: '600', color: t.muted },
+
+    nav: {
+      flexDirection: 'row',
+      backgroundColor: t.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.hairline,
+      paddingTop: 12,
+    },
+    navLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '600',
+      letterSpacing: 0.2,
+    },
+    navLabelActive: { color: t.calmStrong },
+  });
+}
+
+// Backward-compat export of the light style set (built from the canonical `paper` palette). No
+// in-repo consumer uses this today; kept so any external import of `kitStyles` keeps resolving.
+const kitStyles = makeStyles(paper);
+export { kitStyles, makeStyles };

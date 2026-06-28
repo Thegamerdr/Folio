@@ -12,7 +12,7 @@
 // "No tracking, no ads" are both true here (local-only ledger; no analytics/ads SDK in the app) and
 // are kept verbatim from the web.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { LocalRouteSummary } from '../../local/localLedger';
@@ -28,8 +28,19 @@ import {
   gap,
   paper,
   radius,
+  useTheme,
+  useThemeMode,
+  type Palette,
+  type ThemeMode,
 } from './kit';
 import { MeloPresence } from './melo';
+
+// The Appearance choices, in reading order. 'system' follows the phone; the other two hold a look.
+const APPEARANCE_OPTIONS: readonly { mode: ThemeMode; label: string }[] = [
+  { mode: 'system', label: 'System' },
+  { mode: 'light', label: 'Light' },
+  { mode: 'dark', label: 'Dark' },
+];
 
 // Three guarantee lines, in the reader's own words — each led by a small green check (web layout).
 // Kept honest: the first two are verbatim from the web (both true here); the third replaces the
@@ -163,6 +174,14 @@ export function DataControlScreen({
         />
       </Surface>
 
+      {/* Appearance — a calm three-way choice. Theme-aware so the control reads correctly in either
+          look, wired to the app-wide theme. */}
+      <View style={styles.appearance}>
+        <Eyebrow tone="muted">Appearance</Eyebrow>
+        <Muted style={styles.appearanceLede}>Match your device, or pick a look.</Muted>
+        <AppearanceControl />
+      </View>
+
       {/* Melo's single warm beat at the foot — serif italic, calm. */}
       <MeloPresence
         line="Your money picture stays with you."
@@ -171,6 +190,70 @@ export function DataControlScreen({
       />
     </PressureScreen>
   );
+}
+
+// A three-way segmented selector (System / Light / Dark) wired to the app theme. Theme-aware: its
+// own colours come from the active palette so the chosen state always reads, and the whole control
+// repaints the instant the choice changes.
+function AppearanceControl() {
+  const t = useTheme();
+  const { mode, setMode } = useThemeMode();
+  const s = useMemo(() => makeAppearanceStyles(t), [t]);
+  return (
+    <View accessibilityRole="radiogroup" style={s.segment}>
+      {APPEARANCE_OPTIONS.map((option) => {
+        const selected = mode === option.mode;
+        return (
+          <Pressable
+            accessibilityHint={`Sets the app's look to ${option.label}.`}
+            accessibilityLabel={`${option.label} appearance`}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            key={option.mode}
+            onPress={() => setMode(option.mode)}
+            style={({ pressed }) => [
+              s.segmentItem,
+              selected ? s.segmentItemSelected : undefined,
+              pressed ? s.segmentItemPressed : undefined,
+            ]}
+          >
+            <Text style={[s.segmentLabel, selected ? s.segmentLabelSelected : undefined]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// The segmented control's colours, resolved against the active palette (the DARK-MODE PATTERN). The
+// track is a sunken well; the selected pill lifts to the surface with a terracotta label.
+function makeAppearanceStyles(t: Palette) {
+  return StyleSheet.create({
+    segment: {
+      flexDirection: 'row',
+      backgroundColor: t.sunken,
+      borderRadius: radius.pill,
+      padding: 4,
+      gap: 4,
+    },
+    segmentItem: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: radius.pill,
+    },
+    segmentItemSelected: {
+      backgroundColor: t.surface,
+      borderWidth: 1,
+      borderColor: t.calm,
+    },
+    segmentItemPressed: { opacity: 0.85 },
+    segmentLabel: { color: t.muted, fontSize: 14, fontWeight: '600' },
+    segmentLabelSelected: { color: t.calmStrong },
+  });
 }
 
 function RevealRow({
@@ -288,6 +371,11 @@ const styles = StyleSheet.create({
   savedLabel: { color: paper.secondary, fontSize: 14 },
   savedValue: { color: paper.ink, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   savedNote: { marginTop: gap.sm, marginBottom: gap.xs },
+
+  // Appearance block — eyebrow + lede + the segmented control. Layout only; the control's own
+  // colours are theme-aware (see makeAppearanceStyles).
+  appearance: { gap: gap.sm },
+  appearanceLede: { marginTop: -gap.xs },
 
   melo: { marginTop: gap.xs },
 });
