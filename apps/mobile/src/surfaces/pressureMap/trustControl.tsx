@@ -26,7 +26,6 @@ import {
   PrimaryAction,
   Surface,
   gap,
-  paper,
   radius,
   useTheme,
   useThemeMode,
@@ -70,6 +69,8 @@ export function DataControlScreen({
   const [exported, setExported] = useState(false);
   const [armed, setArmed] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
 
   const exportNow = async () => {
     setBusy(true);
@@ -82,33 +83,33 @@ export function DataControlScreen({
   };
 
   return (
-    <PressureScreen style={styles.screen}>
+    <PressureScreen style={layout.screen}>
       {/* Header eyebrow (the web's back chevron is omitted — this RN screen has no nav-back prop). */}
       <Eyebrow tone="muted">Your data</Eyebrow>
 
       {/* The hero: a serif lead with one accent word, then the plain promise as a calm line. */}
-      <View style={styles.hero}>
-        <Headline lead="It stays on " accent="this device" tail="." style={styles.headline} />
-        <Text style={styles.lede}>
+      <View style={layout.hero}>
+        <Headline lead="It stays on " accent="this device" tail="." style={layout.headline} />
+        <Text style={[layout.lede, s.lede]}>
           Your money stays on this phone. The only things that ever leave are what you type to
           Melo — and only if you've set up an AI provider — or a copy you export yourself.
         </Text>
       </View>
 
       {/* The guarantees: calm rows, each led by a small green check in a near-white tile. */}
-      <View style={styles.guarantees}>
+      <View style={layout.guarantees}>
         {GUARANTEES.map((line) => (
-          <View key={line} style={styles.guarantee}>
-            <View style={styles.checkBadge}>
-              <CheckGlyph color={paper.positiveInk} size={14} />
+          <View key={line} style={layout.guarantee}>
+            <View style={[layout.checkBadge, s.checkBadge]}>
+              <CheckGlyph color={t.positiveInk} size={14} />
             </View>
-            <Text style={styles.guaranteeText}>{line}</Text>
+            <Text style={[layout.guaranteeText, s.guaranteeText]}>{line}</Text>
           </View>
         ))}
       </View>
 
       {/* One clear accent action — keep a copy. The terracotta moment on this screen. */}
-      <View style={styles.keep}>
+      <View style={layout.keep}>
         <PrimaryAction
           accessibilityHint="Saves a copy you can keep or share."
           label={busy ? 'Preparing…' : 'Export my data'}
@@ -118,16 +119,16 @@ export function DataControlScreen({
           disabled={busy}
         />
         {exported ? (
-          <View style={styles.confirm}>
-            <CheckGlyph color={paper.positiveInk} size={18} />
-            <Muted style={styles.confirmText}>A copy is ready on this device.</Muted>
+          <View style={layout.confirm}>
+            <CheckGlyph color={t.positiveInk} size={18} />
+            <Muted style={[layout.confirmText, s.confirmText]}>A copy is ready on this device.</Muted>
           </View>
         ) : null}
       </View>
 
       {/* The reveal list: a hairline-divided card — a quiet path to look inside, and the guarded
           negative "Start fresh". Matches the web's divided action list. */}
-      <Surface style={styles.list}>
+      <Surface style={layout.list}>
         <RevealRow
           first
           label={showSaved ? "Hide what's saved" : "See what's saved"}
@@ -137,7 +138,7 @@ export function DataControlScreen({
         />
 
         {showSaved ? (
-          <View style={styles.saved}>
+          <View style={[layout.saved, s.saved]}>
             <SavedLine label="Files kept for reference" value="On this device" first />
             <SavedLine
               label="Added to your money"
@@ -145,7 +146,7 @@ export function DataControlScreen({
             />
             <SavedLine label="Waiting for you" value={String(route.pendingReviewCount)} />
             <SavedLine label="Kept aside for you" value={String(route.protectedItems.length)} />
-            <Muted style={styles.savedNote}>
+            <Muted style={layout.savedNote}>
               This stays on your phone. Only what you type to Melo, or a copy you export, ever
               leaves.
             </Muted>
@@ -176,9 +177,9 @@ export function DataControlScreen({
 
       {/* Appearance — a calm three-way choice. Theme-aware so the control reads correctly in either
           look, wired to the app-wide theme. */}
-      <View style={styles.appearance}>
+      <View style={layout.appearance}>
         <Eyebrow tone="muted">Appearance</Eyebrow>
-        <Muted style={styles.appearanceLede}>Match your device, or pick a look.</Muted>
+        <Muted style={layout.appearanceLede}>Match your device, or pick a look.</Muted>
         <AppearanceControl />
       </View>
 
@@ -186,7 +187,7 @@ export function DataControlScreen({
       <MeloPresence
         line="Your money picture stays with you."
         state="melo_privacy_trust"
-        style={styles.melo}
+        style={layout.melo}
       />
     </PressureScreen>
   );
@@ -271,22 +272,25 @@ function RevealRow({
   accessibilityHint?: string | undefined;
   onPress: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityHint={accessibilityHint}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [
-        styles.row,
-        first ? styles.rowFirst : undefined,
-        pressed ? styles.rowPressed : undefined,
+        layout.row,
+        s.row,
+        first ? layout.rowFirst : undefined,
+        pressed ? s.rowPressed : undefined,
       ]}
     >
-      <View style={styles.rowText}>
-        <Text style={[styles.rowLabel, tone === 'negative' ? styles.rowLabelNegative : undefined]}>
+      <View style={layout.rowText}>
+        <Text style={[layout.rowLabel, s.rowLabel, tone === 'negative' ? s.rowLabelNegative : undefined]}>
           {label}
         </Text>
-        <Text style={styles.rowHint}>{hint}</Text>
+        <Text style={[layout.rowHint, s.rowHint]}>{hint}</Text>
       </View>
       <ChevronRight />
     </Pressable>
@@ -302,22 +306,25 @@ function SavedLine({
   value: string;
   first?: boolean | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View style={[styles.savedLine, first ? styles.savedLineFirst : undefined]}>
-      <Text style={styles.savedLabel}>{label}</Text>
-      <Text style={styles.savedValue}>{value}</Text>
+    <View style={[layout.savedLine, s.savedLine, first ? layout.savedLineFirst : undefined]}>
+      <Text style={[layout.savedLabel, s.savedLabel]}>{label}</Text>
+      <Text style={[layout.savedValue, s.savedValue]}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  // Editorial page rhythm: the eyebrow, then the serif hero, the guarantees, the one accent action,
-  // the divided reveal list, and Melo's beat — each separated by generous air.
+// Layout-only styles (spacing, flex, type metrics) — static, theme-independent. Editorial page
+// rhythm: the eyebrow, then the serif hero, the guarantees, the one accent action, the divided
+// reveal list, and Melo's beat — each separated by generous air.
+const layout = StyleSheet.create({
   screen: { gap: gap.xl },
 
   hero: { gap: gap.sm, marginTop: gap.xs },
   headline: { marginTop: gap.xs },
-  lede: { color: paper.muted, fontSize: 14, lineHeight: 21, maxWidth: 300 },
+  lede: { fontSize: 14, lineHeight: 21, maxWidth: 300 },
 
   // Guarantees: calm rows on the paper, each led by a small green check in a near-white tile.
   guarantees: { gap: gap.sm, marginTop: -gap.xs },
@@ -326,15 +333,14 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: radius.pill,
-    backgroundColor: paper.positiveSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  guaranteeText: { color: paper.ink, fontSize: 15, lineHeight: 20, flex: 1 },
+  guaranteeText: { fontSize: 15, lineHeight: 20, flex: 1 },
 
   keep: { gap: gap.md },
   confirm: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
-  confirmText: { color: paper.positiveInk, flex: 1 },
+  confirmText: { flex: 1 },
 
   // The reveal list: a single surface, hairline-divided rows (web's divide-y list).
   list: { padding: 0, overflow: 'hidden' },
@@ -344,18 +350,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.lg,
     paddingVertical: gap.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: paper.hairline,
   },
   rowFirst: { borderTopWidth: 0 },
-  rowPressed: { backgroundColor: paper.inset },
   rowText: { flex: 1 },
-  rowLabel: { color: paper.ink, fontSize: 15, fontWeight: '600' },
-  rowLabelNegative: { color: paper.repairInk },
-  rowHint: { color: paper.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
+  rowLabel: { fontSize: 15, fontWeight: '600' },
+  rowHint: { fontSize: 12, lineHeight: 16, marginTop: 2 },
 
   // The saved-detail reveal sits inside the list, in the near-white inset well.
   saved: {
-    backgroundColor: paper.inset,
     paddingHorizontal: gap.lg,
     paddingVertical: gap.xs,
   },
@@ -365,11 +367,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: gap.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: paper.hairline,
   },
   savedLineFirst: { borderTopWidth: 0 },
-  savedLabel: { color: paper.secondary, fontSize: 14 },
-  savedValue: { color: paper.ink, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  savedLabel: { fontSize: 14 },
+  savedValue: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   savedNote: { marginTop: gap.sm, marginBottom: gap.xs },
 
   // Appearance block — eyebrow + lede + the segmented control. Layout only; the control's own
@@ -379,3 +380,23 @@ const styles = StyleSheet.create({
 
   melo: { marginTop: gap.xs },
 });
+
+// Colour-bearing styles, resolved against the active palette (the DARK-MODE PATTERN). Shared by the
+// screen, its reveal rows, and the saved-detail lines.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    lede: { color: t.muted },
+    checkBadge: { backgroundColor: t.positiveSoft },
+    guaranteeText: { color: t.ink },
+    confirmText: { color: t.positiveInk },
+    row: { borderTopColor: t.hairline },
+    rowPressed: { backgroundColor: t.inset },
+    rowLabel: { color: t.ink },
+    rowLabelNegative: { color: t.repairInk },
+    rowHint: { color: t.muted },
+    saved: { backgroundColor: t.inset },
+    savedLine: { borderTopColor: t.hairline },
+    savedLabel: { color: t.secondary },
+    savedValue: { color: t.ink },
+  });
+}

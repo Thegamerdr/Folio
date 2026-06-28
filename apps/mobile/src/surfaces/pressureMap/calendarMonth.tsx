@@ -15,9 +15,20 @@
 //  • legend: 2-col, 4 inset tiles (dot + label + derived note)
 //  • a Ghost button + a quiet Melo line
 
-import { StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
-import { Body, gap, GhostButton, Headline, paper, PressureScreen, radius, Surface } from './kit';
+import {
+  Body,
+  gap,
+  GhostButton,
+  Headline,
+  type Palette,
+  PressureScreen,
+  radius,
+  Surface,
+  useTheme,
+} from './kit';
 import { Kicker, MeloLine, ScreenHeader } from './secondaryKit';
 import type { LocalCalendarModel } from '../../local/localCalendarAdapter';
 import type { LocalLedgerState, LocalRouteSummary } from '../../local/localLedger';
@@ -73,6 +84,9 @@ export function CalendarScreen({
   privateExampleMode: boolean;
   route: LocalRouteSummary;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+
   const [year, month, today] = ledger.asOfDate.split('-').map(Number) as [number, number, number];
   const daysInMonth = new Date(year, month, 0).getDate();
   // Monday-start: JS getDay() is Sun=0..Sat=6.
@@ -118,37 +132,37 @@ export function CalendarScreen({
         <Headline lead="The dates that " accent="matter." />
       </View>
 
-      <Surface style={styles.grid}>
-        <View style={styles.weekRow}>
+      <Surface style={layout.grid}>
+        <View style={layout.weekRow}>
           {WEEKDAYS.map((d, i) => (
-            <Text key={i} style={styles.weekday}>
+            <Text key={i} style={s.weekday}>
               {d}
             </Text>
           ))}
         </View>
-        <View style={styles.daysRow}>
+        <View style={layout.daysRow}>
           {cells.map((day, i) => {
-            if (day === null) return <View key={`x${i}`} style={styles.cell} />;
+            if (day === null) return <View key={`x${i}`} style={layout.cell} />;
             const mark = marks.get(day);
             const isToday = day === today;
             return (
-              <View key={day} style={styles.cell}>
+              <View key={day} style={layout.cell}>
                 <View
                   style={[
-                    styles.dayInner,
-                    mark === 'payday' ? styles.dayPayday : undefined,
-                    mark === 'tight' ? styles.dayTight : undefined,
-                    mark === 'bill' ? styles.dayBill : undefined,
-                    mark === 'debt' ? styles.dayDebt : undefined,
-                    isToday && mark === undefined ? styles.dayToday : undefined,
+                    layout.dayInner,
+                    mark === 'payday' ? s.dayPayday : undefined,
+                    mark === 'tight' ? s.dayTight : undefined,
+                    mark === 'bill' ? s.dayBill : undefined,
+                    mark === 'debt' ? s.dayDebt : undefined,
+                    isToday && mark === undefined ? s.dayToday : undefined,
                   ]}
                 >
                   <Text
                     style={[
-                      styles.dayText,
-                      mark === 'payday' ? styles.dayTextPayday : undefined,
-                      mark === 'tight' ? styles.dayTextTight : undefined,
-                      mark === undefined && !isToday ? styles.dayTextMuted : undefined,
+                      s.dayText,
+                      mark === 'payday' ? s.dayTextPayday : undefined,
+                      mark === 'tight' ? s.dayTextTight : undefined,
+                      mark === undefined && !isToday ? s.dayTextMuted : undefined,
                     ]}
                   >
                     {day}
@@ -160,19 +174,20 @@ export function CalendarScreen({
         </View>
       </Surface>
 
-      <View style={styles.legend}>
-        <LegendTile dotStyle={styles.lgPayday} label="Payday" note={daysNote(paydayDays)} />
+      <View style={layout.legend}>
+        <LegendTile s={s} dotStyle={s.lgPayday} label="Payday" note={daysNote(paydayDays)} />
         <LegendTile
-          dotStyle={styles.lgTight}
+          s={s}
+          dotStyle={s.lgTight}
           label="Tight point"
           note={tightDay !== undefined ? String(tightDay) : route.tightestDay}
         />
-        <LegendTile dotStyle={styles.lgBill} label="Bill due" note={daysNote(billDays)} />
-        <LegendTile dotStyle={styles.lgDebt} label="Debt payment" note={daysNote(debtDays)} />
+        <LegendTile s={s} dotStyle={s.lgBill} label="Bill due" note={daysNote(billDays)} />
+        <LegendTile s={s} dotStyle={s.lgDebt} label="Debt payment" note={daysNote(debtDays)} />
       </View>
 
       {!hasMarks ? (
-        <Body style={{ color: paper.muted, fontSize: 14 }}>
+        <Body style={[s.emptyNote, layout.emptyNote]}>
           The dates that matter will appear here as you add what comes in and what has to leave.
         </Body>
       ) : null}
@@ -189,22 +204,24 @@ export function CalendarScreen({
 }
 
 function LegendTile({
+  s,
   dotStyle,
   label,
   note,
 }: {
-  dotStyle: object;
+  s: ReturnType<typeof makeStyles>;
+  dotStyle: ViewStyle;
   label: string;
   note: string;
 }) {
   return (
-    <View style={styles.legendTile}>
-      <View style={[styles.legendDot, dotStyle]} />
-      <View style={styles.legendText}>
-        <Text style={styles.legendLabel} numberOfLines={1}>
+    <View style={[layout.legendTile, s.legendTile]}>
+      <View style={[layout.legendDot, dotStyle]} />
+      <View style={layout.legendText}>
+        <Text style={s.legendLabel} numberOfLines={1}>
           {label}
         </Text>
-        <Text style={styles.legendNote} numberOfLines={1}>
+        <Text style={s.legendNote} numberOfLines={1}>
           {note}
         </Text>
       </View>
@@ -212,18 +229,10 @@ function LegendTile({
   );
 }
 
-const styles = StyleSheet.create({
+// Layout-only styles — no colour, so they never change with the theme.
+const layout = StyleSheet.create({
   grid: { paddingVertical: gap.lg },
   weekRow: { flexDirection: 'row', marginBottom: gap.sm },
-  weekday: {
-    flexBasis: '14.28%',
-    textAlign: 'center',
-    color: paper.muted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
   daysRow: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
   dayInner: {
@@ -233,17 +242,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // payday = solid accent circle · tight = accent-soft fill · bill = negative ring on inset ·
-  // debt = caution ring on inset · today = hairline ring.
-  dayPayday: { backgroundColor: paper.calm },
-  dayTight: { backgroundColor: paper.calmSoft },
-  dayBill: { backgroundColor: paper.inset, borderWidth: 1, borderColor: paper.repair },
-  dayDebt: { backgroundColor: paper.inset, borderWidth: 1, borderColor: paper.caution },
-  dayToday: { borderWidth: 1, borderColor: paper.hairlineStrong },
-  dayText: { color: paper.ink, fontSize: 12, fontVariant: ['tabular-nums'] },
-  dayTextPayday: { color: paper.inverse, fontWeight: '700' },
-  dayTextTight: { fontWeight: '600' },
-  dayTextMuted: { color: paper.muted },
+  emptyNote: { fontSize: 14 },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm },
   legendTile: {
@@ -252,24 +251,55 @@ const styles = StyleSheet.create({
     gap: gap.sm,
     width: '47.5%',
     flexGrow: 1,
-    backgroundColor: paper.inset,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
   legendDot: { width: 12, height: 12, borderRadius: 6 },
   legendText: { flex: 1 },
-  legendLabel: { color: paper.ink, fontSize: 12.5 },
-  legendNote: {
-    color: paper.muted,
-    fontSize: 10.5,
-    marginTop: 1,
-    fontVariant: ['tabular-nums'],
-  },
-  lgPayday: { backgroundColor: paper.calm },
-  lgTight: { backgroundColor: paper.calmSoft },
-  lgBill: { backgroundColor: paper.inset, borderWidth: 1, borderColor: paper.repair },
-  lgDebt: { backgroundColor: paper.inset, borderWidth: 1, borderColor: paper.caution },
 });
+
+// Colour-bearing styles — rebuilt whenever the active palette changes.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    weekday: {
+      flexBasis: '14.28%',
+      textAlign: 'center',
+      color: t.muted,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    // payday = solid accent circle · tight = accent-soft fill · bill = negative ring on inset ·
+    // debt = caution ring on inset · today = hairline ring.
+    dayPayday: { backgroundColor: t.calm },
+    dayTight: { backgroundColor: t.calmSoft },
+    dayBill: { backgroundColor: t.inset, borderWidth: 1, borderColor: t.repair },
+    dayDebt: { backgroundColor: t.inset, borderWidth: 1, borderColor: t.caution },
+    dayToday: { borderWidth: 1, borderColor: t.hairlineStrong },
+    dayText: { color: t.ink, fontSize: 12, fontVariant: ['tabular-nums'] },
+    dayTextPayday: { color: t.inverse, fontWeight: '700' },
+    dayTextTight: { fontWeight: '600' },
+    dayTextMuted: { color: t.muted },
+
+    emptyNote: { color: t.muted },
+
+    legendTile: {
+      backgroundColor: t.inset,
+      borderColor: t.hairline,
+    },
+    legendLabel: { color: t.ink, fontSize: 12.5 },
+    legendNote: {
+      color: t.muted,
+      fontSize: 10.5,
+      marginTop: 1,
+      fontVariant: ['tabular-nums'],
+    },
+    lgPayday: { backgroundColor: t.calm },
+    lgTight: { backgroundColor: t.calmSoft },
+    lgBill: { backgroundColor: t.inset, borderWidth: 1, borderColor: t.repair },
+    lgDebt: { backgroundColor: t.inset, borderWidth: 1, borderColor: t.caution },
+  });
+}

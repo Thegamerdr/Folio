@@ -24,13 +24,14 @@ import {
   GhostButton,
   Headline,
   MoneyPad,
-  paper,
   poundsLabel,
   PressureScreen,
   pressed,
   PrimaryAction,
   radius,
   serif,
+  useTheme,
+  type Palette,
 } from './kit';
 import { MeloLine, ScreenHeader } from './secondaryKit';
 import { Sheet } from './Sheet';
@@ -66,13 +67,13 @@ const COUNT_UP_MS = 600;
 // All derived purely from the model row; no engine calls, no new data.
 // ---------------------------------------------------------------------------
 
-// Pulse dot. yes = the calm green (regular use), maybe = caution gold DATA mark (the kit's
-// paper.caution, never the text gold), no = a muted ink (gone quiet). Mirrors the web's
+// Pulse dot. yes = the calm green (regular use), maybe = caution gold DATA mark (the active
+// palette's t.caution, never the text gold), no = a muted ink (gone quiet). Mirrors the web's
 // positive / caution / negative-at-70%-opacity dots.
-function pulseColor(pulse: LocalSubscriptionPulse): string {
-  if (pulse === 'yes') return paper.positive;
-  if (pulse === 'maybe') return paper.caution;
-  return paper.muted;
+function pulseColor(t: Palette, pulse: LocalSubscriptionPulse): string {
+  if (pulse === 'yes') return t.positive;
+  if (pulse === 'maybe') return t.caution;
+  return t.muted;
 }
 
 function pulseLabel(pulse: LocalSubscriptionPulse): string {
@@ -140,6 +141,8 @@ function SubscriptionRow({
   onAskMelo: (name: string) => void;
   onCancel: (id: string) => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const confirmCancel = () => {
     Alert.alert(
       `Cancel ${row.name} for good?`,
@@ -154,27 +157,27 @@ function SubscriptionRow({
 
   return (
     <View
-      style={[styles.row, first ? styles.rowFirst : undefined, row.paused ? styles.rowPaused : undefined]}
+      style={[s.row, first ? layout.rowFirst : undefined, row.paused ? layout.rowPaused : undefined]}
     >
-      <View style={styles.rowHead}>
-        <View style={[styles.pulseDot, { backgroundColor: pulseColor(row.pulse) }]} />
-        <View style={styles.rowText}>
-          <Text style={styles.rowName} numberOfLines={1}>
+      <View style={layout.rowHead}>
+        <View style={[layout.pulseDot, { backgroundColor: pulseColor(t, row.pulse) }]} />
+        <View style={layout.rowText}>
+          <Text style={s.rowName} numberOfLines={1}>
             {row.name}
           </Text>
-          <Text style={styles.rowMeta} numberOfLines={1}>
+          <Text style={s.rowMeta} numberOfLines={1}>
             {pulseLabel(row.pulse)} · {scoreLine(row)}
           </Text>
         </View>
-        <View style={styles.rowAmountCol}>
-          <Text style={styles.rowCost}>
+        <View style={layout.rowAmountCol}>
+          <Text style={s.rowCost}>
             {row.cost} {cadenceSuffix(row.cadence)}
           </Text>
-          <Text style={styles.rowNext}>next {nextChargeLabel(row.nextRenewalDaysAway)}</Text>
+          <Text style={s.rowNext}>next {nextChargeLabel(row.nextRenewalDaysAway)}</Text>
         </View>
       </View>
 
-      <View style={styles.actions}>
+      <View style={layout.actions}>
         <PausePill
           label={row.paused ? 'Resume' : 'Pause one cycle'}
           onPress={() => (row.paused ? onResume(row.id) : onPause(row.id))}
@@ -193,7 +196,7 @@ function SubscriptionRow({
           onPress={() => onAskMelo(row.name)}
           accessibilityHint={`Asks Melo about ${row.name}.`}
         />
-        <View style={styles.actionsSpacer} />
+        <View style={layout.actionsSpacer} />
         <ActionLink
           label="Cancel"
           tone="repair"
@@ -208,13 +211,15 @@ function SubscriptionRow({
 // A compact inset pill (Pause / Resume) — the web's h-8 px-3 rounded-full bg-[var(--inset)]
 // control. Not the full-width kit GhostButton; a small chip that sits inline with the actions.
 function PausePill({ label, onPress }: { label: string; onPress: () => void }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed: isPressed }) => [styles.pausePill, isPressed ? pressed : undefined]}
+      style={({ pressed: isPressed }) => [s.pausePill, isPressed ? pressed : undefined]}
     >
-      <Text style={styles.pausePillLabel}>{label}</Text>
+      <Text style={s.pausePillLabel}>{label}</Text>
     </Pressable>
   );
 }
@@ -232,14 +237,14 @@ function ActionLink({
   onPress: () => void;
   accessibilityHint?: string | undefined;
 }) {
-  const color =
-    tone === 'positive' ? paper.positiveInk : tone === 'repair' ? paper.repairInk : paper.muted;
+  const t = useTheme();
+  const color = tone === 'positive' ? t.positiveInk : tone === 'repair' ? t.repairInk : t.muted;
   return (
     <Text
       accessibilityRole="button"
       accessibilityHint={accessibilityHint}
       onPress={onPress}
-      style={[styles.actionLink, { color }]}
+      style={[layout.actionLink, { color }]}
       suppressHighlighting
     >
       {label}
@@ -274,6 +279,8 @@ export function SubscriptionsScreen({
   onAskMelo: (name: string) => void;
   reduceMotion?: boolean | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const [sort, setSort] = useState<SortKey>('value');
   const [creating, setCreating] = useState(false);
 
@@ -303,24 +310,24 @@ export function SubscriptionsScreen({
     <PressureScreen>
       <ScreenHeader label="Subscriptions" onBack={onBack} />
 
-      <View style={styles.head}>
-        <Text style={styles.kicker}>Recurring spend</Text>
+      <View style={layout.head}>
+        <Text style={s.kicker}>Recurring spend</Text>
         <Headline lead="What still " accent="earns" tail=" its place?" />
       </View>
 
       {/* Totals card — the monthly drain is the hero. "−£X from pauses" sits beneath it in
           the calm green; the yearly figure is the quiet right-hand counterweight. */}
-      <View style={styles.totals}>
-        <View style={styles.totalsLeft}>
-          <Text style={styles.totalsLabel}>Every month</Text>
-          <Text style={styles.totalsValue}>{monthlyDisplay}</Text>
+      <View style={s.totals}>
+        <View style={layout.totalsLeft}>
+          <Text style={s.totalsLabel}>Every month</Text>
+          <Text style={s.totalsValue}>{monthlyDisplay}</Text>
           {hasSavings ? (
-            <Text style={styles.totalsSaved}>−{subscriptions.savedFromPauses} from pauses</Text>
+            <Text style={s.totalsSaved}>−{subscriptions.savedFromPauses} from pauses</Text>
           ) : null}
         </View>
-        <View style={styles.totalsRight}>
-          <Text style={styles.totalsLabel}>Per year</Text>
-          <Text style={styles.totalsYear}>{yearlyDisplay}</Text>
+        <View style={layout.totalsRight}>
+          <Text style={s.totalsLabel}>Per year</Text>
+          <Text style={s.totalsYear}>{yearlyDisplay}</Text>
         </View>
       </View>
 
@@ -332,10 +339,10 @@ export function SubscriptionsScreen({
           accessibilityHint="Pauses every subscription that has gone quiet."
           onPress={onBulkPauseQuiet}
           suppressHighlighting
-          style={styles.quietBanner}
+          style={s.quietBanner}
         >
-          <Text style={styles.quietEyebrow}>A QUIET MOVE{'\n'}</Text>
-          <Text style={styles.quietBody}>
+          <Text style={s.quietEyebrow}>A QUIET MOVE{'\n'}</Text>
+          <Text style={s.quietBody}>
             Pause the {subscriptions.quietActiveCount} quiet{' '}
             {subscriptions.quietActiveCount === 1 ? 'one' : 'ones'} → save{' '}
             {formatMinorAmount(quietSavedMinor)}/mo, {formatMinorAmount(quietSavedMinor * 12)}/yr
@@ -344,7 +351,7 @@ export function SubscriptionsScreen({
       ) : null}
 
       {/* Sort chips — Worst value (default) · Cost · Next charge. */}
-      <View style={styles.sortRow}>
+      <View style={layout.sortRow}>
         {SORTS.map((option) => (
           <ChipToggle
             key={option.key}
@@ -358,7 +365,7 @@ export function SubscriptionsScreen({
       {/* The list — one surface card, hairline-divided rows. */}
       {rows.length > 0 ? (
         <>
-          <View style={styles.list}>
+          <View style={s.list}>
             {rows.map((row, index) => (
               <SubscriptionRow
                 key={row.id}
@@ -379,12 +386,12 @@ export function SubscriptionsScreen({
           />
         </>
       ) : (
-        <View style={styles.empty}>
+        <View style={s.empty}>
           <Body>
             No subscriptions yet. Add the recurring payments you carry, and you can see what still
             earns its place here.
           </Body>
-          <View style={styles.emptyAction}>
+          <View style={layout.emptyAction}>
             <PrimaryAction
               label="Add a subscription"
               accessibilityHint="Adds a recurring payment you carry."
@@ -449,6 +456,8 @@ function CreateSubscriptionSheet({
   const [cost, setCost] = useState('');
   const [cadence, setCadence] = useState<SubscriptionCadence>('monthly');
   const [primed, setPrimed] = useState(false);
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
 
   // Reset the form each time the sheet opens (same priming pattern as CreatePotSheet).
   if (visible && !primed) {
@@ -466,11 +475,11 @@ function CreateSubscriptionSheet({
 
   return (
     <Sheet visible={visible} reduceMotion={reduceMotion} onClose={onClose}>
-      <Text style={styles.sheetKicker}>Add a subscription</Text>
-      <Text style={styles.sheetTitle}>What do you pay for?</Text>
+      <Text style={s.sheetKicker}>Add a subscription</Text>
+      <Text style={s.sheetTitle}>What do you pay for?</Text>
 
-      <Text style={styles.fieldLabel}>Name</Text>
-      <View style={styles.nameRow}>
+      <Text style={s.fieldLabel}>Name</Text>
+      <View style={layout.nameRow}>
         {QUICK_SUB_NAMES.map((preset) => {
           const selected = name === preset;
           return (
@@ -480,12 +489,12 @@ function CreateSubscriptionSheet({
               accessibilityState={{ selected }}
               onPress={() => setName(preset)}
               style={({ pressed: isPressed }) => [
-                styles.nameChip,
-                selected ? styles.nameChipOn : undefined,
+                s.nameChip,
+                selected ? s.nameChipOn : undefined,
                 isPressed ? pressed : undefined,
               ]}
             >
-              <Text style={[styles.nameChipLabel, selected ? styles.nameChipLabelOn : undefined]}>
+              <Text style={[s.nameChipLabel, selected ? s.nameChipLabelOn : undefined]}>
                 {preset}
               </Text>
             </Pressable>
@@ -494,10 +503,10 @@ function CreateSubscriptionSheet({
       </View>
 
       {/* Amount — a single tappable tile filled by the pad below. */}
-      <View style={styles.amountTiles}>
-        <View style={[styles.amountTile, styles.amountTileActive]}>
-          <Text style={styles.amountTileLabel}>Amount</Text>
-          <Text style={[styles.amountTileValue, styles.amountTileValueActive]}>
+      <View style={layout.amountTiles}>
+        <View style={[s.amountTile, s.amountTileActive]}>
+          <Text style={s.amountTileLabel}>Amount</Text>
+          <Text style={[s.amountTileValue, s.amountTileValueActive]}>
             {poundsLabel(cost)}
           </Text>
         </View>
@@ -505,8 +514,8 @@ function CreateSubscriptionSheet({
 
       <MoneyPad value={cost} onChange={setCost} />
 
-      <Text style={styles.fieldLabel}>How often</Text>
-      <View style={styles.cadenceRow}>
+      <Text style={s.fieldLabel}>How often</Text>
+      <View style={layout.cadenceRow}>
         {CADENCE_OPTIONS.map((option) => (
           <ChipToggle
             key={option.key}
@@ -517,9 +526,9 @@ function CreateSubscriptionSheet({
         ))}
       </View>
 
-      <View style={styles.sheetActions}>
+      <View style={layout.sheetActions}>
         <GhostButton flex label="Cancel" onPress={onClose} />
-        <View style={styles.sheetActionFlex}>
+        <View style={layout.sheetActionFlex}>
           <PrimaryAction
             label="Add it"
             disabled={!canCreate}
@@ -532,118 +541,22 @@ function CreateSubscriptionSheet({
   );
 }
 
-const styles = StyleSheet.create({
+// Colour-free styles — shared across light and dark (per the DARK-MODE PATTERN in kit.tsx).
+const layout = StyleSheet.create({
   head: { gap: 4 },
-  // Italic serif kicker — web font-display italic, 13px, muted ink.
-  kicker: {
-    color: paper.muted,
-    fontFamily: serif.displayItalic,
-    fontSize: 13,
-    lineHeight: 18,
-  },
 
-  // Totals card — a raised paper surface, baseline-aligned left vs right (web items-baseline).
-  totals: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    backgroundColor: paper.surface,
-    borderRadius: 20,
-    padding: 20,
-    ...elevation.card,
-  },
   totalsLeft: { flex: 1 },
   totalsRight: { alignItems: 'flex-end' },
-  totalsLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  totalsValue: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 34,
-    lineHeight: 36,
-    marginTop: 4,
-    fontVariant: ['tabular-nums'],
-  },
-  totalsSaved: {
-    color: paper.positiveInk,
-    fontSize: 11.5,
-    marginTop: 4,
-    fontVariant: ['tabular-nums'],
-  },
-  totalsYear: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 15,
-    marginTop: 2,
-    fontVariant: ['tabular-nums'],
-  },
-
-  // Quiet-move banner — accent-soft fill, terracotta ring + eyebrow, with a trailing arrow.
-  quietBanner: {
-    backgroundColor: paper.calmSoft,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(224, 99, 58, 0.3)',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  quietEyebrow: {
-    color: paper.calmStrong,
-    fontSize: 11.5,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-  },
-  quietBody: {
-    color: paper.ink,
-    fontSize: 13,
-    lineHeight: 18,
-    fontVariant: ['tabular-nums'],
-  },
 
   sortRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
 
-  list: {
-    backgroundColor: paper.surface,
-    borderRadius: 20,
-    ...elevation.card,
-  },
-  row: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: paper.hairline,
-  },
   rowFirst: { borderTopWidth: 0 },
   rowPaused: { opacity: 0.55 },
 
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   pulseDot: { width: 8, height: 8, borderRadius: 4 },
   rowText: { flex: 1, minWidth: 0 },
-  rowName: { color: paper.ink, fontSize: 14.5, fontWeight: '600' },
-  rowMeta: {
-    color: paper.muted,
-    fontSize: 11.5,
-    marginTop: 2,
-    fontVariant: ['tabular-nums'],
-  },
   rowAmountCol: { alignItems: 'flex-end' },
-  rowCost: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
-  },
-  rowNext: {
-    color: paper.muted,
-    fontSize: 10.5,
-    marginTop: 2,
-    fontVariant: ['tabular-nums'],
-  },
 
   actions: {
     flexDirection: 'row',
@@ -652,84 +565,197 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   actionsSpacer: { flex: 1 },
-  // The Pause/Resume control — a compact inset pill matching the web h-8 px-3 rounded-full
-  // bg-[var(--inset)]; never the full-width kit GhostButton.
-  pausePill: {
-    backgroundColor: paper.inset,
-    borderRadius: radius.pill,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-  },
-  pausePillLabel: { color: paper.ink, fontSize: 12, fontWeight: '600' },
   actionLink: { fontSize: 12, fontWeight: '600' },
 
-  empty: {
-    backgroundColor: paper.surface,
-    borderRadius: 20,
-    padding: 20,
-    ...elevation.card,
-  },
   emptyAction: { marginTop: gap.lg },
 
-  // Add-a-subscription sheet — mirrors the Pots "Open a pot" sheet tokens.
-  sheetKicker: {
-    color: paper.muted,
-    fontFamily: serif.displayItalic,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  sheetTitle: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: -0.3,
-    marginTop: 2,
-  },
   sheetActions: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg },
   sheetActionFlex: { flex: 1 },
 
-  fieldLabel: { color: paper.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
   nameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.xs, marginTop: gap.sm },
-  nameChip: {
-    borderRadius: radius.pill,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderWidth: 1.5,
-    borderColor: paper.hairline,
-    backgroundColor: paper.surface,
-  },
-  nameChipOn: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
-  nameChipLabel: { color: paper.secondary, fontSize: 13.5, fontWeight: '600' },
-  nameChipLabelOn: { color: paper.calmStrong },
-
   amountTiles: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg },
-  amountTile: {
-    flex: 1,
-    backgroundColor: paper.inset,
-    borderRadius: radius.lg,
-    paddingVertical: gap.md,
-    paddingHorizontal: gap.md,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  amountTileActive: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
-  amountTileLabel: {
-    color: paper.muted,
-    fontSize: 10.5,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  amountTileValue: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 26,
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-    marginTop: 4,
-  },
-  amountTileValueActive: { color: paper.calmStrong },
-
   cadenceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: gap.sm },
 });
+
+// Colour-bearing styles, resolved against the active palette `t`.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    // Italic serif kicker — web font-display italic, 13px, muted ink.
+    kicker: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+
+    // Totals card — a raised paper surface, baseline-aligned left vs right (web items-baseline).
+    totals: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      backgroundColor: t.surface,
+      borderRadius: 20,
+      padding: 20,
+      ...elevation.card,
+    },
+    totalsLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    totalsValue: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 34,
+      lineHeight: 36,
+      marginTop: 4,
+      fontVariant: ['tabular-nums'],
+    },
+    totalsSaved: {
+      color: t.positiveInk,
+      fontSize: 11.5,
+      marginTop: 4,
+      fontVariant: ['tabular-nums'],
+    },
+    totalsYear: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 15,
+      marginTop: 2,
+      fontVariant: ['tabular-nums'],
+    },
+
+    // Quiet-move banner — accent-soft fill, terracotta ring + eyebrow, with a trailing arrow. The
+    // fill (t.calmSoft) carries the theme; the ring is a faint accent hairline. We keep it as a soft
+    // terracotta rgba (the web's accent/30) so the ring stays whisper-thin in both modes rather than
+    // jumping to a solid accent line — the accent hue is close enough across light/dark that a single
+    // low-alpha literal reads correctly on either calmSoft ground.
+    quietBanner: {
+      backgroundColor: t.calmSoft,
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: 'rgba(224, 99, 58, 0.3)',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+    },
+    quietEyebrow: {
+      color: t.calmStrong,
+      fontSize: 11.5,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+    },
+    quietBody: {
+      color: t.ink,
+      fontSize: 13,
+      lineHeight: 18,
+      fontVariant: ['tabular-nums'],
+    },
+
+    list: {
+      backgroundColor: t.surface,
+      borderRadius: 20,
+      ...elevation.card,
+    },
+    row: {
+      paddingVertical: 16,
+      paddingHorizontal: 20,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.hairline,
+    },
+
+    rowName: { color: t.ink, fontSize: 14.5, fontWeight: '600' },
+    rowMeta: {
+      color: t.muted,
+      fontSize: 11.5,
+      marginTop: 2,
+      fontVariant: ['tabular-nums'],
+    },
+    rowCost: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 15,
+      fontVariant: ['tabular-nums'],
+    },
+    rowNext: {
+      color: t.muted,
+      fontSize: 10.5,
+      marginTop: 2,
+      fontVariant: ['tabular-nums'],
+    },
+
+    // The Pause/Resume control — a compact inset pill matching the web h-8 px-3 rounded-full
+    // bg-[var(--inset)]; never the full-width kit GhostButton.
+    pausePill: {
+      backgroundColor: t.inset,
+      borderRadius: radius.pill,
+      paddingVertical: 7,
+      paddingHorizontal: 12,
+    },
+    pausePillLabel: { color: t.ink, fontSize: 12, fontWeight: '600' },
+
+    empty: {
+      backgroundColor: t.surface,
+      borderRadius: 20,
+      padding: 20,
+      ...elevation.card,
+    },
+
+    // Add-a-subscription sheet — mirrors the Pots "Open a pot" sheet tokens.
+    sheetKicker: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    sheetTitle: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 22,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      marginTop: 2,
+    },
+
+    fieldLabel: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
+    nameChip: {
+      borderRadius: radius.pill,
+      paddingVertical: 9,
+      paddingHorizontal: 14,
+      borderWidth: 1.5,
+      borderColor: t.hairline,
+      backgroundColor: t.surface,
+    },
+    nameChipOn: { borderColor: t.calm, backgroundColor: t.calmSoft },
+    nameChipLabel: { color: t.secondary, fontSize: 13.5, fontWeight: '600' },
+    nameChipLabelOn: { color: t.calmStrong },
+
+    amountTile: {
+      flex: 1,
+      backgroundColor: t.inset,
+      borderRadius: radius.lg,
+      paddingVertical: gap.md,
+      paddingHorizontal: gap.md,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    amountTileActive: { borderColor: t.calm, backgroundColor: t.calmSoft },
+    amountTileLabel: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    amountTileValue: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 26,
+      letterSpacing: -0.5,
+      fontVariant: ['tabular-nums'],
+      marginTop: 4,
+    },
+    amountTileValueActive: { color: t.calmStrong },
+  });
+}

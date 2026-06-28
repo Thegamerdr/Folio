@@ -7,9 +7,19 @@
 // No tile grid, no invented illustration — the web's Start is just type + Melo + the button + the
 // three-link row, with air doing the hierarchy.
 
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Body, gap, Headline, paper, PressureScreen, PrimaryAction, serif } from './kit';
+import {
+  Body,
+  gap,
+  Headline,
+  PressureScreen,
+  PrimaryAction,
+  serif,
+  useTheme,
+  type Palette,
+} from './kit';
 import { MeloLine } from './secondaryKit';
 
 export function StartScreen({
@@ -27,6 +37,8 @@ export function StartScreen({
   onOpenMelo: () => void;
   onOpenPrivacy: () => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   return (
     <PressureScreen style={styles.screen}>
       <View style={styles.top}>
@@ -83,6 +95,8 @@ export function StartScreen({
 
 // A quiet secondary text link — subordinate to the hero CTA. One of three on a divider row.
 function SecondaryLink({ label, onPress }: { label: string; onPress: () => void }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityRole="button"
@@ -94,7 +108,8 @@ function SecondaryLink({ label, onPress }: { label: string; onPress: () => void 
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
   // Lovable rhythm: the type + Melo cluster at the top, the action + link row pinned to the foot,
   // with air between (a flex spacer over a tall screen).
   screen: { justifyContent: 'space-between', minHeight: 560, paddingTop: gap.lg },
@@ -105,10 +120,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   // Web: font-display italic text-[15px].
-  wordmark: { color: paper.ink, fontFamily: serif.displayItalic, fontSize: 15 },
+  wordmark: { color: t.ink, fontFamily: serif.displayItalic, fontSize: 15 },
   // Web: text-[12px] muted, tracking-wide, uppercase.
   privacy: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 12,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
@@ -121,7 +136,7 @@ const styles = StyleSheet.create({
   // Web: font-display text-[42px] leading-[1.05] tracking-tight.
   headline: { fontSize: 42, lineHeight: 44, letterSpacing: -0.8 },
   // Web: mt-5 (20px), text-[15px] leading-relaxed muted, max-w-[300px].
-  sub: { color: paper.muted, fontSize: 15, lineHeight: 24, maxWidth: 300, marginTop: 20 },
+  sub: { color: t.muted, fontSize: 15, lineHeight: 24, maxWidth: 300, marginTop: 20 },
 
   // Web: mt-10 (40px) to Melo's line.
   meloWrap: { marginTop: 40 },
@@ -139,10 +154,11 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   linkTap: { paddingVertical: 4 },
-  linkLabel: { color: paper.muted, fontSize: 12.5 },
+  linkLabel: { color: t.muted, fontSize: 12.5 },
   // Web: <span className="w-px h-3 bg-[var(--hairline)]" /> — 1px × 12px vertical hairline.
-  linkDivider: { width: 1, height: 12, backgroundColor: paper.hairline },
+  linkDivider: { width: 1, height: 12, backgroundColor: t.hairline },
 
   // Web: <div className="h-6" /> — 24px breathing room at the foot.
   foot: { height: 24 },
-});
+  });
+}

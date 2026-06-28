@@ -12,21 +12,25 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { TodayTransaction } from './todayTypes';
-import { gap, paper, pressed, radius } from './kit';
+import { gap, pressed, radius, useTheme, type Palette } from './kit';
 
 // Category → segment colour. Mirrors the web palette intent (food = accent, bills = coral, etc.)
-// mapped onto the paper tokens so the strip never introduces an off-palette hue.
-const CATEGORY_COLOR: Readonly<Record<string, string>> = {
-  food: paper.calm,
-  transport: paper.secondary,
-  fun: paper.caution,
-  bills: paper.repair,
-  shopping: paper.positive,
-  other: paper.muted,
-};
+// mapped onto the active palette tokens so the strip never introduces an off-palette hue and
+// follows the theme. These are inline View fills, so they read the palette directly (not a
+// StyleSheet).
+function categoryColors(t: Palette): Readonly<Record<string, string>> {
+  return {
+    food: t.calm,
+    transport: t.secondary,
+    fun: t.caution,
+    bills: t.repair,
+    shopping: t.positive,
+    other: t.muted,
+  };
+}
 
-function colorForCategory(category: string): string {
-  return CATEGORY_COLOR[category] ?? CATEGORY_COLOR.other!;
+function colorForCategory(colors: Readonly<Record<string, string>>, category: string): string {
+  return colors[category] ?? colors.other!;
 }
 
 function poundsLabel(minor: number): string {
@@ -41,6 +45,9 @@ export function TodaySpendStrip({
   transactions: readonly TodayTransaction[];
   onAskMelo: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  const colors = useMemo(() => categoryColors(t), [t]);
   const entries = useMemo(() => {
     const byCategory: Record<string, number> = {};
     for (const t of transactions) {
@@ -58,31 +65,33 @@ export function TodaySpendStrip({
       accessibilityHint="Asks Melo where this week's money went."
       accessibilityRole="button"
       onPress={onAskMelo}
-      style={({ pressed: isPressed }) => [styles.root, isPressed ? pressed : undefined]}
+      style={({ pressed: isPressed }) => [layout.root, isPressed ? pressed : undefined]}
     >
-      <View style={styles.header}>
-        <Text style={styles.headerLabel}>This week · {poundsLabel(total)}</Text>
-        <Text style={styles.headerHint}>tap to ask Melo →</Text>
+      <View style={layout.header}>
+        <Text style={s.headerLabel}>This week · {poundsLabel(total)}</Text>
+        <Text style={s.headerHint}>tap to ask Melo →</Text>
       </View>
 
-      <View style={styles.bar}>
+      <View style={s.bar}>
         {entries.map(([category, value]) => (
           <View
             key={category}
             style={{
               flexGrow: value / total,
               flexBasis: 0,
-              backgroundColor: colorForCategory(category),
+              backgroundColor: colorForCategory(colors, category),
             }}
           />
         ))}
       </View>
 
-      <View style={styles.legend}>
+      <View style={layout.legend}>
         {entries.slice(0, 4).map(([category, value]) => (
-          <View key={category} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colorForCategory(category) }]} />
-            <Text style={styles.legendText}>
+          <View key={category} style={layout.legendItem}>
+            <View
+              style={[layout.legendDot, { backgroundColor: colorForCategory(colors, category) }]}
+            />
+            <Text style={s.legendText}>
               {category} {poundsLabel(value)}
             </Text>
           </View>
@@ -92,7 +101,8 @@ export function TodaySpendStrip({
   );
 }
 
-const styles = StyleSheet.create({
+// Colour-free styles — shared across light and dark.
+const layout = StyleSheet.create({
   root: { gap: gap.sm },
   header: {
     flexDirection: 'row',
@@ -100,23 +110,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 2,
   },
-  headerLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-  },
-  headerHint: { color: paper.muted, fontSize: 11 },
-  bar: {
-    flexDirection: 'row',
-    height: 8,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    backgroundColor: paper.sunken,
-  },
   legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: gap.md, rowGap: 2 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 7, height: 7, borderRadius: 4 },
-  legendText: { color: paper.muted, fontSize: 11, fontVariant: ['tabular-nums'] },
 });
+
+// Colour-bearing styles, resolved against the active palette.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    headerLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    headerHint: { color: t.muted, fontSize: 11 },
+    bar: {
+      flexDirection: 'row',
+      height: 8,
+      borderRadius: radius.pill,
+      overflow: 'hidden',
+      backgroundColor: t.sunken,
+    },
+    legendText: { color: t.muted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  });
+}

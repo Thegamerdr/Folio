@@ -14,10 +14,11 @@
 // real, honest navigation off this page lives in the "Where to go from here" rows below, which is
 // where onOpenWhatIf / onOpenImports / onOpenRecovery / onOpenSources actually do their work.
 
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
-import { Display, gap, paper, PressureScreen, radius, serif } from './kit';
+import { gap, Headline, PressureScreen, radius, serif, useTheme, type Palette } from './kit';
 import { HubRow, RowCard, ScreenHeader, SectionLabel } from './secondaryKit';
 import { MeloFigure } from './melo/MeloFigure';
 import type { MeloMood } from './melo/meloStates';
@@ -98,24 +99,27 @@ export function MeloScreen({
   route: LocalRouteSummary;
   snapshot: MeloLocalFinancialSnapshot;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const currentKey = currentPressure(route);
-  const current = SPECTRUM.find((s) => s.key === currentKey) ?? SPECTRUM[1]!;
+  const current = SPECTRUM.find((m) => m.key === currentKey) ?? SPECTRUM[1]!;
 
   return (
     <PressureScreen>
       <ScreenHeader label="Melo" onBack={onBack} />
 
-      <View style={styles.title}>
-        <Text style={styles.kicker}>Companion</Text>
-        <Display style={styles.titleHeadline}>A quiet presence across the journey.</Display>
+      <View style={layout.title}>
+        <Text style={[layout.kicker, s.kicker]}>Companion</Text>
+        {/* Faithful to the web title: one terracotta accent word ("quiet"). */}
+        <Headline lead="A " accent="quiet" tail=" presence across the journey." style={layout.titleHeadline} />
       </View>
 
-      <View style={styles.hero}>
+      <View style={[layout.hero, s.hero]}>
         <MeloFigure mood={current.mood} size={120} />
-        <Text style={styles.heroLine}>{`“${current.line}”`}</Text>
+        <Text style={[layout.heroLine, s.heroLine]}>{`“${current.line}”`}</Text>
       </View>
 
-      <View style={styles.spectrum} accessibilityLabel="Melo's mood range, from safe to overspent">
+      <View style={layout.spectrum} accessibilityLabel="Melo's mood range, from safe to overspent">
         {SPECTRUM.map((mood) => {
           const isNow = mood.key === currentKey;
           return (
@@ -129,25 +133,25 @@ export function MeloScreen({
                   ? `${mood.label}. Where your money sits right now.`
                   : mood.label
               }
-              style={[styles.moodRow, isNow ? styles.moodRowNow : undefined]}
+              style={[layout.moodRow, s.moodRow, isNow ? s.moodRowNow : undefined]}
             >
               <MeloFigure mood={mood.mood} size={28} />
-              <View style={styles.moodText}>
-                <Text style={styles.moodLabel}>{mood.label}</Text>
-                <Text style={styles.moodLine}>{`“${mood.line}”`}</Text>
+              <View style={layout.moodText}>
+                <Text style={[layout.moodLabel, s.moodLabel]}>{mood.label}</Text>
+                <Text style={[layout.moodLine, s.moodLine]}>{`“${mood.line}”`}</Text>
               </View>
-              {isNow ? <View style={styles.nowDot} /> : null}
+              {isNow ? <View style={s.nowDot} /> : null}
             </View>
           );
         })}
       </View>
 
-      <Text style={styles.footer}>
+      <Text style={[layout.footer, s.footer]}>
         Melo's mood reads where your money sits right now. It eases as things settle and steadies
         as they tighten — you move the money, Melo just reflects it back.
       </Text>
 
-      <View style={styles.actions}>
+      <View style={layout.actions}>
         <SectionLabel>Where to go from here</SectionLabel>
         <RowCard>
           <HubRow
@@ -181,10 +185,10 @@ export function MeloScreen({
   );
 }
 
-const styles = StyleSheet.create({
+// Layout-only — theme-invariant, so it stays module-level static (no per-render churn).
+const layout = StyleSheet.create({
   title: { gap: 4 },
   kicker: {
-    color: paper.muted,
     fontFamily: serif.displayItalic,
     fontSize: 14,
     lineHeight: 19,
@@ -196,16 +200,13 @@ const styles = StyleSheet.create({
 
   hero: {
     alignItems: 'center',
-    backgroundColor: paper.surface,
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairlineStrong,
     paddingVertical: 40,
     paddingHorizontal: gap.lg,
     gap: gap.md,
   },
   heroLine: {
-    color: paper.muted,
     fontFamily: serif.displayItalic,
     fontSize: 14,
     lineHeight: 20,
@@ -222,30 +223,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.md,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairlineStrong,
-    backgroundColor: paper.inset,
-  },
-  moodRowNow: {
-    backgroundColor: paper.calmSoft,
   },
   moodText: { flex: 1 },
-  moodLabel: { color: paper.ink, fontSize: 13, fontWeight: '500' },
+  moodLabel: { fontSize: 13, fontWeight: '500' },
   moodLine: {
-    color: paper.muted,
     fontFamily: serif.displayItalic,
     fontSize: 12,
     lineHeight: 16,
     marginTop: 1,
   },
-  nowDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: paper.calm,
-  },
 
   footer: {
-    color: paper.muted,
     fontSize: 11,
     lineHeight: 16,
     textAlign: 'center',
@@ -253,3 +241,34 @@ const styles = StyleSheet.create({
 
   actions: { gap: gap.xs },
 });
+
+// Colour-bearing styles — rebuilt only when the active palette changes.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    kicker: { color: t.muted },
+
+    hero: {
+      backgroundColor: t.surface,
+      borderColor: t.hairlineStrong,
+    },
+    heroLine: { color: t.muted },
+
+    moodRow: {
+      borderColor: t.hairlineStrong,
+      backgroundColor: t.inset,
+    },
+    moodRowNow: {
+      backgroundColor: t.calmSoft,
+    },
+    moodLabel: { color: t.ink },
+    moodLine: { color: t.muted },
+    nowDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: t.calm,
+    },
+
+    footer: { color: t.muted },
+  });
+}

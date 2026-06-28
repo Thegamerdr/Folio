@@ -13,7 +13,7 @@
 // white inset, a single surface card of editable rows (20px SQUARE accent checkbox, not a round
 // tick), and a sticky bottom CTA. Built from RN primitives composing the pressure-map kit.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { LocalImportDraft, LocalImportDraftEditInput } from '../../local/localLedger';
@@ -30,10 +30,11 @@ import {
   PrimaryAction,
   QuietLink,
   gap,
-  paper,
   poundsLabel,
   radius,
   serif,
+  useTheme,
+  type Palette,
 } from './kit';
 import { MeloPresence } from './melo';
 import { ScreenHeader } from './secondaryKit';
@@ -91,6 +92,8 @@ export function FoundItemsScreen({
   onReviewItem: (rowId: string) => void;
   onLeaveForLater: () => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   // Everything starts ticked — the user excludes what doesn't belong. Excluding is local and
   // reversible until they tap Add; it never mutates the ledger.
   const [excluded, setExcluded] = useState<readonly string[]>([]);
@@ -168,7 +171,7 @@ export function FoundItemsScreen({
                 onPress={() => toggle(draft.rowId)}
                 style={[styles.check, isIncluded ? styles.checkOn : styles.checkOff]}
               >
-                {isIncluded ? <CheckGlyph color={paper.inverse} size={14} /> : null}
+                {isIncluded ? <CheckGlyph color={t.inverse} size={14} /> : null}
               </Pressable>
 
               <Pressable
@@ -257,6 +260,8 @@ function EditFoundItemSheet({
   onCancel: () => void;
   onSave: (input: LocalImportDraftEditInput) => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<(typeof TYPES)[number]>(TYPES[0]!);
@@ -284,28 +289,31 @@ function EditFoundItemSheet({
             accessibilityLabel="What this payment is"
             onChangeText={setName}
             placeholder="e.g. Tesco shop"
-            placeholderTextColor={paper.muted}
+            placeholderTextColor={t.muted}
             style={styles.input}
             value={name}
           />
 
           <Text style={styles.label}>Type</Text>
           <View style={styles.typeRow}>
-            {TYPES.map((t) => (
+            {TYPES.map((option) => (
               <Pressable
-                key={t.label}
+                key={option.label}
                 accessibilityRole="button"
-                accessibilityState={{ selected: type.label === t.label }}
-                onPress={() => setType(t)}
-                style={[styles.typeChip, type.label === t.label ? styles.typeChipOn : undefined]}
+                accessibilityState={{ selected: type.label === option.label }}
+                onPress={() => setType(option)}
+                style={[
+                  styles.typeChip,
+                  type.label === option.label ? styles.typeChipOn : undefined,
+                ]}
               >
                 <Text
                   style={[
                     styles.typeChipText,
-                    type.label === t.label ? styles.typeChipTextOn : undefined,
+                    type.label === option.label ? styles.typeChipTextOn : undefined,
                   ]}
                 >
-                  {t.label}
+                  {option.label}
                 </Text>
               </Pressable>
             ))}
@@ -337,20 +345,21 @@ function EditFoundItemSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
   flex: { flex: 1 },
   screen: { gap: gap.lg },
   head: { gap: gap.xs, paddingTop: gap.xs },
 
   // Italic "From your statement" kicker — web uses font-display italic, 13px, muted ink.
   kicker: {
-    color: paper.muted,
+    color: t.muted,
     fontFamily: serif.displayItalic,
     fontSize: 13,
     lineHeight: 18,
   },
   title: {
-    color: paper.ink,
+    color: t.ink,
     fontFamily: serif.display,
     fontSize: 27,
     lineHeight: 33,
@@ -364,23 +373,23 @@ const styles = StyleSheet.create({
   // Summary chips — near-white inset wells. "N found" is ink-medium; "clear" / "to check" are muted.
   tallies: { flexDirection: 'row', gap: gap.xs, marginTop: gap.md },
   tallyStrong: {
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderRadius: radius.pill,
     paddingVertical: 4,
     paddingHorizontal: 10,
   },
-  tallyStrongText: { color: paper.ink, fontSize: 11, fontWeight: '600' },
+  tallyStrongText: { color: t.ink, fontSize: 11, fontWeight: '600' },
   tally: {
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderRadius: radius.pill,
     paddingVertical: 4,
     paddingHorizontal: 10,
   },
-  tallyText: { color: paper.muted, fontSize: 11, fontWeight: '500' },
+  tallyText: { color: t.muted, fontSize: 11, fontWeight: '500' },
 
   // Single surface card, web rounded-2xl (32) with a soft lift; rows hairline-divided inside.
   list: {
-    backgroundColor: paper.surface,
+    backgroundColor: t.surface,
     borderRadius: radius.xxl,
     paddingHorizontal: gap.md,
     ...elevation.card,
@@ -388,7 +397,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: gap.sm, paddingVertical: 14 },
   rowDivider: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: paper.hairline,
+    borderTopColor: t.hairline,
   },
 
   // The web checkbox is a 20px SQUARE: accent fill + white tick when on, ink/40 border when off.
@@ -401,24 +410,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkOn: { backgroundColor: paper.calm, borderColor: paper.calm },
-  // ink/40 — the web uses border-[var(--ink)]/40 on a transparent ground.
-  checkOff: { backgroundColor: 'transparent', borderColor: 'rgba(26, 24, 21, 0.4)' },
+  checkOn: { backgroundColor: t.calm, borderColor: t.calm },
+  // Web uses an ink/40 border on a transparent ground; `hairlineStrong` is the palette's strong
+  // divider and carries the same "quiet outline" relationship on BOTH grounds (a faint dark line on
+  // cream, a faint light line on warm-black) — so it replaces the light-only ink/40 literal.
+  checkOff: { backgroundColor: 'transparent', borderColor: t.hairlineStrong },
 
   rowBody: { flex: 1, minWidth: 0 },
-  rowName: { color: paper.ink, fontSize: 14, fontWeight: '600' },
+  rowName: { color: t.ink, fontSize: 14, fontWeight: '600' },
   rowMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  rowMeta: { color: paper.muted, fontSize: 11.5 },
+  rowMeta: { color: t.muted, fontSize: 11.5 },
   // "to check" reads in caution amber, matching web text-[var(--caution)].
-  rowMetaCheck: { color: paper.caution },
-  rowDot: { color: paper.muted, fontSize: 11.5 },
+  rowMetaCheck: { color: t.caution },
+  rowDot: { color: t.muted, fontSize: 11.5 },
 
   amount: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  amountIn: { color: paper.positive },
-  amountOut: { color: paper.ink },
+  amountIn: { color: t.positive },
+  amountOut: { color: t.ink },
 
   editButton: { paddingLeft: 2 },
-  editLabel: { color: paper.muted, fontSize: 11.5 },
+  editLabel: { color: t.muted, fontSize: 11.5 },
 
   // Sticky footer: the CTA carries its own lift; "Leave for later" is the quiet secondary path.
   footer: { gap: gap.xs, marginTop: gap.sm, alignItems: 'stretch' },
@@ -426,7 +437,7 @@ const styles = StyleSheet.create({
 
   scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
   sheet: {
-    backgroundColor: paper.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: gap.xl,
@@ -439,17 +450,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 5,
     borderRadius: 3,
-    backgroundColor: paper.hairline,
+    backgroundColor: t.hairline,
     marginBottom: gap.lg,
   },
-  sheetTitle: { color: paper.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
-  label: { color: paper.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
+  sheetTitle: { color: t.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
+  label: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
   input: {
     borderBottomWidth: 1.5,
-    borderBottomColor: paper.hairlineStrong,
+    borderBottomColor: t.hairlineStrong,
     paddingVertical: 8,
     fontSize: 18,
-    color: paper.ink,
+    color: t.ink,
   },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.xs, marginTop: gap.sm },
   typeChip: {
@@ -457,14 +468,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderWidth: 1.5,
-    borderColor: paper.hairline,
-    backgroundColor: paper.surface,
+    borderColor: t.hairline,
+    backgroundColor: t.surface,
   },
-  typeChipOn: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
-  typeChipText: { color: paper.secondary, fontSize: 13.5, fontWeight: '600' },
-  typeChipTextOn: { color: paper.calmStrong },
+  typeChipOn: { borderColor: t.calm, backgroundColor: t.calmSoft },
+  typeChipText: { color: t.secondary, fontSize: 13.5, fontWeight: '600' },
+  typeChipTextOn: { color: t.calmStrong },
   editAmount: {
-    color: paper.ink,
+    color: t.ink,
     fontSize: 34,
     fontWeight: '800',
     letterSpacing: -1,
@@ -473,4 +484,5 @@ const styles = StyleSheet.create({
     paddingVertical: gap.xs,
   },
   editFooter: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
-});
+  });
+}

@@ -17,7 +17,7 @@
 // It composes the shared Sheet primitive (./Sheet) for the bottom-sheet chrome and the
 // pressure-map kit (./kit) for type, tokens, and the primary/quiet actions.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   PanResponder,
   StyleSheet,
@@ -28,7 +28,16 @@ import {
 } from 'react-native';
 
 import { formatMinorAmount, type CreatePotInput } from '../../../local/localLedger';
-import { GhostButton, PrimaryAction, elevation, gap, paper, radius, serif } from '../kit';
+import {
+  GhostButton,
+  PrimaryAction,
+  elevation,
+  gap,
+  radius,
+  serif,
+  useTheme,
+  type Palette,
+} from '../kit';
 import { Sheet } from '../Sheet';
 
 // ---------------------------------------------------------------------------
@@ -106,6 +115,8 @@ export function OnboardingSheet({
   onSeedProfile,
   onCreatePots,
 }: OnboardingSheetProps) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initialName ?? '');
   const [payday, setPayday] = useState(
@@ -164,7 +175,7 @@ export function OnboardingSheet({
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
-      <View style={styles.body}>
+      <View style={s.body}>
         <ProgressTrack step={step} />
 
         {step === 0 ? <NameStep value={name} onChange={setName} /> : null}
@@ -172,7 +183,7 @@ export function OnboardingSheet({
         {step === 2 ? <IncomeStep value={income} onChange={setIncome} /> : null}
         {step === 3 ? <PotsStep picked={picked} onToggle={togglePot} /> : null}
 
-        <View style={styles.actions}>
+        <View style={s.actions}>
           <PrimaryAction label={isLast ? 'Begin quietly' : 'Next'} onPress={advance} />
           <GhostButton
             label="Skip for now"
@@ -192,12 +203,14 @@ export function OnboardingSheet({
 // ---------------------------------------------------------------------------
 
 function StepHeader({ eyebrow, lead, accent }: { eyebrow: string; lead: string; accent: string }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View style={styles.header}>
-      <Text style={styles.eyebrow}>{eyebrow}</Text>
-      <Text accessibilityRole="header" style={styles.headline}>
+    <View style={s.header}>
+      <Text style={s.eyebrow}>{eyebrow}</Text>
+      <Text accessibilityRole="header" style={s.headline}>
         {lead}
-        <Text style={styles.headlineAccent}>{accent}</Text>
+        <Text style={s.headlineAccent}>{accent}</Text>
       </Text>
     </View>
   );
@@ -208,6 +221,8 @@ function StepHeader({ eyebrow, lead, accent }: { eyebrow: string; lead: string; 
 // ---------------------------------------------------------------------------
 
 function NameStep({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <View>
       <StepHeader eyebrow="Hello" lead="What should Melo " accent="call you?" />
@@ -216,8 +231,8 @@ function NameStep({ value, onChange }: { value: string; onChange: (next: string)
         autoFocus
         onChangeText={onChange}
         placeholder="A name, a nickname"
-        placeholderTextColor={paper.muted}
-        style={styles.input}
+        placeholderTextColor={t.muted}
+        style={s.input}
         value={value}
       />
     </View>
@@ -229,13 +244,15 @@ function NameStep({ value, onChange }: { value: string; onChange: (next: string)
 // ---------------------------------------------------------------------------
 
 function PaydayStep({ value, onChange }: { value: number; onChange: (next: number) => void }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <View>
       <StepHeader eyebrow="Rhythm" lead="When does payday " accent="land?" />
-      <View style={styles.sliderBlock}>
-        <View style={styles.numberRow}>
-          <Text style={styles.bigNumber}>{value}</Text>
-          <Text style={styles.numberSuffix}>of the month</Text>
+      <View style={s.sliderBlock}>
+        <View style={s.numberRow}>
+          <Text style={s.bigNumber}>{value}</Text>
+          <Text style={s.numberSuffix}>of the month</Text>
         </View>
         <Slider
           min={PAYDAY_MIN}
@@ -255,13 +272,15 @@ function PaydayStep({ value, onChange }: { value: number; onChange: (next: numbe
 // ---------------------------------------------------------------------------
 
 function IncomeStep({ value, onChange }: { value: number; onChange: (next: number) => void }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <View>
       <StepHeader eyebrow="Rough only" lead="What lands, " accent="roughly?" />
-      <View style={styles.sliderBlock}>
-        <View style={styles.numberRow}>
-          <Text style={styles.bigNumber}>{formatMinorAmount(value * PENCE_PER_POUND)}</Text>
-          <Text style={styles.numberSuffix}>/ month</Text>
+      <View style={s.sliderBlock}>
+        <View style={s.numberRow}>
+          <Text style={s.bigNumber}>{formatMinorAmount(value * PENCE_PER_POUND)}</Text>
+          <Text style={s.numberSuffix}>/ month</Text>
         </View>
         <Slider
           min={INCOME_MIN}
@@ -271,7 +290,7 @@ function IncomeStep({ value, onChange }: { value: number; onChange: (next: numbe
           onChange={onChange}
           accessibilityLabel="Rough monthly income"
         />
-        <Text style={styles.helper}>Doesn&apos;t need to be exact. Folio adjusts as you go.</Text>
+        <Text style={s.helper}>Doesn&apos;t need to be exact. Folio adjusts as you go.</Text>
       </View>
     </View>
   );
@@ -288,13 +307,15 @@ function PotsStep({
   picked: ReadonlySet<string>;
   onToggle: (id: string) => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <View>
       <StepHeader eyebrow="Pots" lead="What are you " accent="saving for?" />
-      <Text style={styles.potsHelper}>
+      <Text style={s.potsHelper}>
         Pick any. Skip with none if you&apos;d rather start blank — you can add later.
       </Text>
-      <View style={styles.potGrid}>
+      <View style={s.potGrid}>
         {POT_TEMPLATES.map((t) => (
           <PotTile
             key={t.id}
@@ -317,6 +338,8 @@ function PotTile({
   selected: boolean;
   onPress: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   // £1200 · £35/wk — the web shows whole pounds joined with a middot.
   const meta = `${formatMinorAmount(template.goal * PENCE_PER_POUND)} · ${formatMinorAmount(
     template.perWeek * PENCE_PER_POUND,
@@ -326,13 +349,13 @@ function PotTile({
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
-      style={[styles.potTile, selected ? styles.potTileSelected : undefined]}
+      style={[s.potTile, selected ? s.potTileSelected : undefined]}
       suppressHighlighting
     >
-      <Text style={styles.potTileInner}>
-        <Text style={styles.potName}>{template.name}</Text>
+      <Text style={s.potTileInner}>
+        <Text style={s.potName}>{template.name}</Text>
         {'\n'}
-        <Text style={styles.potMeta}>{meta}</Text>
+        <Text style={s.potMeta}>{meta}</Text>
       </Text>
     </Text>
   );
@@ -345,17 +368,19 @@ function PotTile({
 // ---------------------------------------------------------------------------
 
 function ProgressTrack({ step }: { step: number }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View accessibilityLabel={`Step ${step + 1} of ${STEP_COUNT}`} style={styles.progress}>
+    <View accessibilityLabel={`Step ${step + 1} of ${STEP_COUNT}`} style={s.progress}>
       {Array.from({ length: STEP_COUNT }, (_, i) => {
         const state = i === step ? 'active' : i < step ? 'done' : 'todo';
         return (
           <View
             key={i}
             style={[
-              styles.progressPill,
-              state === 'active' ? styles.progressActive : undefined,
-              state === 'done' ? styles.progressDone : undefined,
+              s.progressPill,
+              state === 'active' ? s.progressActive : undefined,
+              state === 'done' ? s.progressDone : undefined,
             ]}
           />
         );
@@ -388,6 +413,8 @@ function Slider({
   onChange: (next: number) => void;
   accessibilityLabel: string;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const [trackWidth, setTrackWidth] = useState(0);
 
   const onTrackLayout = (e: LayoutChangeEvent) => {
@@ -424,13 +451,13 @@ function Slider({
       accessibilityValue={{ min, max, now: value }}
       hitSlop={{ top: 14, bottom: 14, left: 4, right: 4 }}
       onLayout={onTrackLayout}
-      style={styles.sliderHit}
+      style={s.sliderHit}
       {...responder.panHandlers}
     >
-      <View style={styles.sliderTrack}>
-        <View style={[styles.sliderFill, { width: fillWidth }]} />
+      <View style={s.sliderTrack}>
+        <View style={[s.sliderFill, { width: fillWidth }]} />
       </View>
-      <View pointerEvents="none" style={[styles.sliderThumb, { left: thumbLeft }]} />
+      <View pointerEvents="none" style={[s.sliderThumb, { left: thumbLeft }]} />
     </View>
   );
 }
@@ -452,9 +479,11 @@ function clampInt(n: number, lo: number, hi: number): number {
 // --ink #1A1815 (paper.ink), --muted-ink #6B6760 (paper.muted), --hairline #ECE9E0
 // (paper.hairline), --accent #E0633A (paper.calm), --accent-soft #F5E4DB
 // (paper.calmSoft). Serif display + italic come from the kit's serif faces.
+// Resolved against the active palette `t` (light or dark) via makeStyles(t).
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
   body: {
     gap: gap.xl,
   },
@@ -468,14 +497,16 @@ const styles = StyleSheet.create({
     height: 4,
     width: 20, // w-5
     borderRadius: radius.pill,
-    backgroundColor: paper.hairline,
+    backgroundColor: t.hairline,
   },
   progressActive: {
     width: 28, // w-7
-    backgroundColor: paper.calm,
+    backgroundColor: t.calm,
   },
   progressDone: {
-    backgroundColor: 'rgba(26,24,21,0.6)', // ink/60
+    // A completed-but-quiet step: a dimmed ink that reads on both grounds (the web's ink/60 is a
+    // light-only literal; muted is the palette key that stays legible on the dark canvas too).
+    backgroundColor: t.muted,
   },
 
   // Header
@@ -484,13 +515,13 @@ const styles = StyleSheet.create({
     marginBottom: gap.lg,
   },
   eyebrow: {
-    color: paper.muted,
+    color: t.muted,
     fontFamily: serif.displayItalic,
     fontSize: 12.5,
     letterSpacing: 0.2,
   },
   headline: {
-    color: paper.ink,
+    color: t.ink,
     fontFamily: serif.display,
     fontSize: 26,
     lineHeight: 31,
@@ -498,20 +529,20 @@ const styles = StyleSheet.create({
   },
   headlineAccent: {
     // Same upright serif as the headline, recoloured terracotta — never italic.
-    color: paper.calm,
+    color: t.calm,
     fontFamily: serif.display,
   },
 
   // Step 1 — name input
   input: {
     height: 48,
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
+    borderColor: t.hairline,
     borderRadius: radius.md,
     paddingHorizontal: gap.lg,
     fontSize: 15,
-    color: paper.ink,
+    color: t.ink,
   },
 
   // Steps 2 + 3 — sliders
@@ -524,18 +555,18 @@ const styles = StyleSheet.create({
     gap: gap.sm,
   },
   bigNumber: {
-    color: paper.ink,
+    color: t.ink,
     fontFamily: serif.display,
     fontSize: 40,
     letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
   },
   numberSuffix: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 13,
   },
   helper: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 11.5,
     lineHeight: 17,
     marginTop: gap.xs,
@@ -548,28 +579,28 @@ const styles = StyleSheet.create({
   sliderTrack: {
     height: TRACK_HEIGHT,
     borderRadius: radius.pill,
-    backgroundColor: paper.sunken,
+    backgroundColor: t.sunken,
     overflow: 'hidden',
   },
   sliderFill: {
     height: TRACK_HEIGHT,
     borderRadius: radius.pill,
-    backgroundColor: paper.calm,
+    backgroundColor: t.calm,
   },
   sliderThumb: {
     position: 'absolute',
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
-    backgroundColor: paper.calm,
+    backgroundColor: t.calm,
     borderWidth: 3,
-    borderColor: paper.surface,
+    borderColor: t.surface,
     ...elevation.card,
   },
 
   // Step 4 — pots
   potsHelper: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 12.5,
     lineHeight: 18,
     marginBottom: gap.md,
@@ -586,25 +617,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
+    borderColor: t.hairline,
   },
   potTileSelected: {
-    backgroundColor: paper.calmSoft,
+    backgroundColor: t.calmSoft,
     borderWidth: 1,
-    borderColor: paper.calm,
+    borderColor: t.calm,
   },
   potTileInner: {
     // The Text-as-button carries both lines so the whole tile is one tap target.
   },
   potName: {
-    color: paper.ink,
+    color: t.ink,
     fontSize: 13,
     fontWeight: '500',
   },
   potMeta: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 11,
     fontVariant: ['tabular-nums'],
   },
@@ -614,4 +645,5 @@ const styles = StyleSheet.create({
     gap: gap.sm,
     marginTop: gap.xs,
   },
-});
+  });
+}

@@ -14,7 +14,7 @@
 // and owns every mutation (onLogSpend writes through the canonical add-transaction path). When the
 // route has no meaningful movement yet, it honestly states position instead of faking a verdict.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { LocalRouteSummary } from '../../local/localLedger';
@@ -40,11 +40,12 @@ import {
   gap,
   magnitude,
   money,
-  paper,
   poundsLabel,
   pressed,
   radius,
   serif,
+  useTheme,
+  type Palette,
 } from './kit';
 
 // The scrub preview maps the 0..1 drag fraction onto a small "spend more today" amount, exactly as
@@ -96,6 +97,8 @@ export function TodayScreen({
   onOpenNextCharge,
   onAskTightPoint,
 }: TodayScreenProps) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const real = routeHasMeaningfulPath(route);
   const v = verdict(route);
 
@@ -109,11 +112,11 @@ export function TodayScreen({
   const [logSpendOpen, setLogSpendOpen] = useState(false);
 
   return (
-    <View style={styles.screen}>
+    <View style={layout.screen}>
       {/* Top bar — date + days-to-payday link, round Melo button top-right. */}
-      <View style={styles.topBar}>
-        <View style={styles.topBarText}>
-          <Text style={styles.date}>{dateLabel}</Text>
+      <View style={layout.topBar}>
+        <View style={layout.topBarText}>
+          <Text style={s.date}>{dateLabel}</Text>
           <Pressable
             accessibilityHint="See your payday ritual."
             accessibilityRole="button"
@@ -121,7 +124,7 @@ export function TodayScreen({
             onPress={onOpenPayday}
             style={({ pressed: isPressed }) => (isPressed ? pressed : undefined)}
           >
-            <Text style={styles.paydayLink}>{daysToPayday} days to payday →</Text>
+            <Text style={s.paydayLink}>{daysToPayday} days to payday →</Text>
           </Pressable>
         </View>
         <Pressable
@@ -129,39 +132,39 @@ export function TodayScreen({
           accessibilityLabel="Melo"
           accessibilityRole="button"
           onPress={onOpenMelo}
-          style={({ pressed: isPressed }) => [styles.meloButton, isPressed ? pressed : undefined]}
+          style={({ pressed: isPressed }) => [s.meloButton, isPressed ? pressed : undefined]}
         >
           <MeloPresence reduceMotion={reduceMotion} size="sm" state="melo_idle" withCopy={false} />
         </Pressable>
       </View>
 
       {/* Hero — verdict + count-up spare + "at the tightest point" (or honest position when empty). */}
-      <View style={styles.hero}>
+      <View style={layout.hero}>
         {real ? (
           <>
-            <Text style={[styles.verdictLine, verdictLineColor(v.tone)]}>
+            <Text style={[layout.verdictLine, verdictLineColor(t, v.tone)]}>
               {v.lead}
-              <Text style={styles.verdictAccent}>{v.accent}</Text>
+              <Text style={layout.verdictAccent}>{v.accent}</Text>
               {v.tail}
             </Text>
-            <View style={styles.heroFigureRow}>
-              <Text style={styles.heroFigure}>
+            <View style={layout.heroFigureRow}>
+              <Text style={s.heroFigure}>
                 £
                 {Math.round(previewedSpareMinor === 0 ? 0 : heroDisplay / 100).toLocaleString(
                   'en-GB',
                 )}
               </Text>
-              <Text style={styles.heroSuffix}>spare</Text>
+              <Text style={s.heroSuffix}>spare</Text>
             </View>
-            <Text style={styles.heroCaption}>at the tightest point</Text>
+            <Text style={s.heroCaption}>at the tightest point</Text>
           </>
         ) : (
           <>
             <Eyebrow tone="muted">Will your money last to payday?</Eyebrow>
             <Headline lead="Here's where you " accent="stand" tail="." />
-            <Text style={styles.heroFigure}>{money(route.availableNowMinor)}</Text>
-            <Text style={styles.heroCaption}>money you can see now</Text>
-            <Display style={styles.startBody}>
+            <Text style={s.heroFigure}>{money(route.availableNowMinor)}</Text>
+            <Text style={s.heroCaption}>money you can see now</Text>
+            <Display style={s.startBody}>
               Add when money comes in and what has to leave, and your path to payday draws itself.
             </Display>
           </>
@@ -198,7 +201,7 @@ export function TodayScreen({
           accessibilityHint="Asks Melo about your tight point."
           accessibilityRole="button"
           onPress={onAskTightPoint}
-          style={({ pressed: isPressed }) => [styles.meloCard, isPressed ? pressed : undefined]}
+          style={({ pressed: isPressed }) => [s.meloCard, isPressed ? pressed : undefined]}
         >
           <MeloPresence
             reduceMotion={reduceMotion}
@@ -206,18 +209,18 @@ export function TodayScreen({
             state="melo_path_explaining"
             withCopy={false}
           />
-          <View style={styles.meloCardText}>
-            <Text style={styles.meloCardLine}>
+          <View style={layout.meloCardText}>
+            <Text style={s.meloCardLine}>
               “{v.lead.trim()} {v.accent}
               {v.tail}”
             </Text>
-            <View style={styles.meloCardFooter}>
-              <Text style={styles.meloCardFooterText}>
+            <View style={layout.meloCardFooter}>
+              <Text style={s.meloCardFooterText}>
                 {route.pendingReviewCount > 0
                   ? `${route.pendingReviewCount} still waiting to be checked.`
                   : 'Nothing left waiting to be checked.'}
               </Text>
-              <Text style={styles.meloCardAsk}>Ask Melo →</Text>
+              <Text style={s.meloCardAsk}>Ask Melo →</Text>
             </View>
           </View>
         </Pressable>
@@ -280,6 +283,8 @@ function LogSpendSheet({
   onLogSpend: (merchant: string, amountMinor: number, category: string) => void;
   reduceMotion?: boolean | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const [merchant, setMerchant] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<string>('food');
@@ -298,41 +303,39 @@ function LogSpendSheet({
   return (
     <Sheet onClose={onClose} reduceMotion={reduceMotion} visible={visible}>
       <Eyebrow>Log a spend</Eyebrow>
-      <Display style={styles.sheetTitle}>What did you spend?</Display>
+      <Display style={layout.sheetTitle}>What did you spend?</Display>
 
-      <Text style={styles.sheetFieldLabel}>Where</Text>
-      <View style={styles.merchantField}>
-        <Text style={merchant.length === 0 ? styles.merchantPlaceholder : styles.merchantValue}>
+      <Text style={s.sheetFieldLabel}>Where</Text>
+      <View style={s.merchantField}>
+        <Text style={merchant.length === 0 ? s.merchantPlaceholder : s.merchantValue}>
           {merchant.length === 0 ? 'Tap a quick pick below' : merchant}
         </Text>
       </View>
-      <View style={styles.quickPicks}>
+      <View style={layout.quickPicks}>
         {QUICK_MERCHANTS.map((name) => (
           <Pressable
             accessibilityRole="button"
             key={name}
             onPress={() => setMerchant(name)}
             style={({ pressed: isPressed }) => [
-              styles.quickPick,
-              merchant === name ? styles.quickPickOn : undefined,
+              s.quickPick,
+              merchant === name ? s.quickPickOn : undefined,
               isPressed ? pressed : undefined,
             ]}
           >
-            <Text
-              style={[styles.quickPickText, merchant === name ? styles.quickPickTextOn : undefined]}
-            >
+            <Text style={[s.quickPickText, merchant === name ? s.quickPickTextOn : undefined]}>
               {name}
             </Text>
           </Pressable>
         ))}
       </View>
 
-      <Text style={styles.sheetFieldLabel}>How much</Text>
-      <Text style={styles.amountReadout}>{poundsLabel(amount)}</Text>
+      <Text style={s.sheetFieldLabel}>How much</Text>
+      <Text style={s.amountReadout}>{poundsLabel(amount)}</Text>
       <MoneyPad onChange={setAmount} value={amount} />
 
-      <Text style={styles.sheetFieldLabel}>What kind</Text>
-      <View style={styles.categories}>
+      <Text style={s.sheetFieldLabel}>What kind</Text>
+      <View style={layout.categories}>
         {SPEND_CATEGORIES.map((c) => (
           <Pressable
             accessibilityRole="button"
@@ -340,21 +343,19 @@ function LogSpendSheet({
             key={c.key}
             onPress={() => setCategory(c.key)}
             style={({ pressed: isPressed }) => [
-              styles.category,
-              category === c.key ? styles.categoryOn : undefined,
+              s.category,
+              category === c.key ? s.categoryOn : undefined,
               isPressed ? pressed : undefined,
             ]}
           >
-            <Text
-              style={[styles.categoryText, category === c.key ? styles.categoryTextOn : undefined]}
-            >
+            <Text style={[s.categoryText, category === c.key ? s.categoryTextOn : undefined]}>
               {c.label}
             </Text>
           </Pressable>
         ))}
       </View>
 
-      <View style={styles.sheetFooter}>
+      <View style={layout.sheetFooter}>
         <QuietLink accessibilityHint="Closes without logging." label="Not now" onPress={onClose} />
         <PrimaryAction
           caption={ready ? `${magnitude(amountMinor)} out` : undefined}
@@ -371,10 +372,10 @@ const QUICK_MERCHANTS: readonly string[] = ['Tesco', 'Coffee', 'Bus', 'Lunch', '
 
 // ---------------------------------------------------------------------------
 
-function verdictLineColor(tone: 'positive' | 'warm' | 'repair') {
-  if (tone === 'repair') return { color: paper.repairInk };
-  if (tone === 'warm') return { color: paper.warmInk };
-  return { color: paper.positiveInk };
+function verdictLineColor(t: Palette, tone: 'positive' | 'warm' | 'repair') {
+  if (tone === 'repair') return { color: t.repairInk };
+  if (tone === 'warm') return { color: t.warmInk };
+  return { color: t.positiveInk };
 }
 
 export type TodayScreenProps = {
@@ -413,110 +414,121 @@ export type TodayScreenProps = {
   onAskTightPoint: () => void;
 };
 
-const styles = StyleSheet.create({
+// Colour-free styles — shared across light and dark.
+const layout = StyleSheet.create({
   screen: { gap: gap.lg, paddingTop: gap.sm, paddingBottom: gap.xxxl },
 
   topBar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   topBarText: { gap: 2 },
-  date: { color: paper.muted, fontFamily: serif.displayItalic, fontSize: 13 },
-  paydayLink: { color: paper.muted, fontSize: 12, textDecorationLine: 'underline' },
-  meloButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: paper.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...elevation.card,
-  },
 
   hero: { gap: gap.xs },
   verdictLine: { fontFamily: serif.displayItalic, fontSize: 15, lineHeight: 21 },
   verdictAccent: { fontFamily: serif.displayItalic },
   heroFigureRow: { flexDirection: 'row', alignItems: 'flex-end', gap: gap.sm, marginTop: gap.xs },
-  heroFigure: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 60,
-    lineHeight: 62,
-    letterSpacing: -1.5,
-    fontVariant: ['tabular-nums'],
-  },
-  heroSuffix: {
-    color: paper.muted,
-    fontFamily: serif.displayItalic,
-    fontSize: 18,
-    marginBottom: 6,
-  },
-  heroCaption: { color: paper.muted, fontSize: 12.5, marginTop: 2 },
-  startBody: { color: paper.secondary, fontSize: 18, lineHeight: 25, marginTop: gap.xs },
 
-  meloCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: gap.md,
-    backgroundColor: paper.inset,
-    borderRadius: radius.lg,
-    padding: gap.lg,
-  },
   meloCardText: { flex: 1, gap: gap.xs },
-  meloCardLine: { color: paper.ink, fontFamily: serif.displayItalic, fontSize: 13, lineHeight: 19 },
   meloCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  meloCardFooterText: { flex: 1, color: paper.muted, fontSize: 11.5 },
-  meloCardAsk: { color: paper.calmStrong, fontSize: 11.5, marginLeft: gap.sm },
 
   // Log-spend sheet
   sheetTitle: { fontSize: 26, lineHeight: 31, marginTop: gap.xs },
-  sheetFieldLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    marginTop: gap.lg,
-  },
-  merchantField: {
-    backgroundColor: paper.sunken,
-    borderRadius: radius.md,
-    paddingVertical: 12,
-    paddingHorizontal: gap.md,
-    marginTop: gap.sm,
-  },
-  merchantPlaceholder: { color: paper.muted, fontSize: 15 },
-  merchantValue: { color: paper.ink, fontSize: 15, fontWeight: '600' },
   quickPicks: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm, marginTop: gap.sm },
-  quickPick: {
-    borderRadius: radius.pill,
-    paddingVertical: 8,
-    paddingHorizontal: gap.md,
-    borderWidth: 1.5,
-    borderColor: paper.hairline,
-    backgroundColor: paper.surface,
-  },
-  quickPickOn: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
-  quickPickText: { color: paper.secondary, fontSize: 14, fontWeight: '600' },
-  quickPickTextOn: { color: paper.calmStrong },
-  amountReadout: {
-    color: paper.ink,
-    fontSize: 40,
-    fontWeight: '800',
-    letterSpacing: -1.2,
-    fontVariant: ['tabular-nums'],
-    textAlign: 'center',
-    paddingVertical: gap.xs,
-    marginTop: gap.sm,
-  },
   categories: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm, marginTop: gap.sm },
-  category: {
-    borderRadius: radius.pill,
-    paddingVertical: 8,
-    paddingHorizontal: gap.md,
-    borderWidth: 1.5,
-    borderColor: paper.hairline,
-    backgroundColor: paper.surface,
-  },
-  categoryOn: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
-  categoryText: { color: paper.secondary, fontSize: 14, fontWeight: '600' },
-  categoryTextOn: { color: paper.calmStrong },
   sheetFooter: { gap: gap.xs, marginTop: gap.xl },
 });
+
+// Colour-bearing styles, resolved against the active palette.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    date: { color: t.muted, fontFamily: serif.displayItalic, fontSize: 13 },
+    paydayLink: { color: t.muted, fontSize: 12, textDecorationLine: 'underline' },
+    meloButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: t.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...elevation.card,
+    },
+
+    heroFigure: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 60,
+      lineHeight: 62,
+      letterSpacing: -1.5,
+      fontVariant: ['tabular-nums'],
+    },
+    heroSuffix: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 18,
+      marginBottom: 6,
+    },
+    heroCaption: { color: t.muted, fontSize: 12.5, marginTop: 2 },
+    startBody: { color: t.secondary, fontSize: 18, lineHeight: 25, marginTop: gap.xs },
+
+    meloCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: gap.md,
+      backgroundColor: t.inset,
+      borderRadius: radius.lg,
+      padding: gap.lg,
+    },
+    meloCardLine: { color: t.ink, fontFamily: serif.displayItalic, fontSize: 13, lineHeight: 19 },
+    meloCardFooterText: { flex: 1, color: t.muted, fontSize: 11.5 },
+    meloCardAsk: { color: t.calmStrong, fontSize: 11.5, marginLeft: gap.sm },
+
+    // Log-spend sheet
+    sheetFieldLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+      marginTop: gap.lg,
+    },
+    merchantField: {
+      backgroundColor: t.sunken,
+      borderRadius: radius.md,
+      paddingVertical: 12,
+      paddingHorizontal: gap.md,
+      marginTop: gap.sm,
+    },
+    merchantPlaceholder: { color: t.muted, fontSize: 15 },
+    merchantValue: { color: t.ink, fontSize: 15, fontWeight: '600' },
+    quickPick: {
+      borderRadius: radius.pill,
+      paddingVertical: 8,
+      paddingHorizontal: gap.md,
+      borderWidth: 1.5,
+      borderColor: t.hairline,
+      backgroundColor: t.surface,
+    },
+    quickPickOn: { borderColor: t.calm, backgroundColor: t.calmSoft },
+    quickPickText: { color: t.secondary, fontSize: 14, fontWeight: '600' },
+    quickPickTextOn: { color: t.calmStrong },
+    amountReadout: {
+      color: t.ink,
+      fontSize: 40,
+      fontWeight: '800',
+      letterSpacing: -1.2,
+      fontVariant: ['tabular-nums'],
+      textAlign: 'center',
+      paddingVertical: gap.xs,
+      marginTop: gap.sm,
+    },
+    category: {
+      borderRadius: radius.pill,
+      paddingVertical: 8,
+      paddingHorizontal: gap.md,
+      borderWidth: 1.5,
+      borderColor: t.hairline,
+      backgroundColor: t.surface,
+    },
+    categoryOn: { borderColor: t.calm, backgroundColor: t.calmSoft },
+    categoryText: { color: t.secondary, fontSize: 14, fontWeight: '600' },
+    categoryTextOn: { color: t.calmStrong },
+  });
+}

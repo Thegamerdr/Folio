@@ -6,7 +6,7 @@
 // money picture by itself — only the items the user adds do. The user can open the saved file, add a
 // note to it, or remove it (anything already added stays).
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { DocumentItemInput, LocalDocumentStage } from '../../local/localLedger';
@@ -20,8 +20,9 @@ import {
   Muted,
   PrimaryAction,
   gap,
-  paper,
   poundsLabel,
+  useTheme,
+  type Palette,
 } from './kit';
 import { MeloPresence } from './melo';
 
@@ -74,6 +75,8 @@ export function FileWorkbench({
   // false so two Melos never share the screen.
   showMelo?: boolean | undefined;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const [adding, setAdding] = useState<LocalDocumentStage | null>(null);
   const [noting, setNoting] = useState<LocalDocumentStage | null>(null);
   const saved = files.filter(unreadable);
@@ -188,6 +191,8 @@ function AddFromFileSheet({
   onCancel: () => void;
   onSave: (input: DocumentItemInput) => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const [kind, setKind] = useState<Kind>('money');
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
@@ -219,7 +224,7 @@ function AddFromFileSheet({
             accessibilityLabel="What this is"
             onChangeText={setTitle}
             placeholder={kind === 'bill' ? 'e.g. Rent' : 'e.g. Salary'}
-            placeholderTextColor={paper.muted}
+            placeholderTextColor={t.muted}
             style={styles.input}
             value={title}
           />
@@ -256,6 +261,8 @@ function AddNoteSheet({
   onCancel: () => void;
   onSave: (note: string) => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const [note, setNote] = useState('');
   return (
     <Modal animationType="slide" transparent visible={file !== null} onRequestClose={onCancel}>
@@ -274,7 +281,7 @@ function AddNoteSheet({
           multiline
           onChangeText={setNote}
           placeholder="e.g. June statement, current account"
-          placeholderTextColor={paper.muted}
+          placeholderTextColor={t.muted}
           style={styles.noteInput}
           textAlignVertical="top"
           value={note}
@@ -306,6 +313,8 @@ export function PasteSheet({
   onClose: () => void;
   onStage: (text: string) => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const [text, setText] = useState('');
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
@@ -324,7 +333,7 @@ export function PasteSheet({
           multiline
           onChangeText={setText}
           placeholder={'25 Jun Tesco -42.00\n26 Jun Salary 1200.00\n27 Jun Rent -750.00'}
-          placeholderTextColor={paper.muted}
+          placeholderTextColor={t.muted}
           style={styles.pasteInput}
           textAlignVertical="top"
           value={text}
@@ -348,33 +357,34 @@ export function PasteSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
   flex: { flex: 1 },
   section: { gap: gap.sm, marginTop: gap.lg },
   melo: { marginVertical: gap.xs },
   fileCard: {
-    backgroundColor: paper.surface,
+    backgroundColor: t.surface,
     borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
+    borderColor: t.hairline,
     padding: gap.lg,
     gap: gap.xs,
   },
-  fileName: { color: paper.ink, fontSize: 17, fontWeight: '700' },
+  fileName: { color: t.ink, fontSize: 17, fontWeight: '700' },
   fileMeta: { marginTop: -2 },
-  fileSaved: { color: paper.secondary, fontSize: 14, lineHeight: 20, marginTop: 2 },
-  fileAdded: { color: paper.calmStrong, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  fileSaved: { color: t.secondary, fontSize: 14, lineHeight: 20, marginTop: 2 },
+  fileAdded: { color: t.calmStrong, fontSize: 13, fontWeight: '600', marginTop: 2 },
   notes: { gap: 2, marginTop: 2 },
-  noteText: { color: paper.muted, fontSize: 13, fontStyle: 'italic' },
+  noteText: { color: t.muted, fontSize: 13, fontStyle: 'italic' },
   fileActions: { gap: gap.sm, marginTop: gap.sm },
   fileMinorRow: { flexDirection: 'row', justifyContent: 'center', gap: gap.xl },
   minorAction: { paddingVertical: 6 },
-  minorActionText: { color: paper.secondary, fontSize: 14, fontWeight: '600' },
-  minorActionRemove: { color: paper.repairInk, fontSize: 14, fontWeight: '600' },
+  minorActionText: { color: t.secondary, fontSize: 14, fontWeight: '600' },
+  minorActionRemove: { color: t.repairInk, fontSize: 14, fontWeight: '600' },
 
   scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
   sheet: {
-    backgroundColor: paper.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: gap.xl,
@@ -387,22 +397,22 @@ const styles = StyleSheet.create({
     width: 40,
     height: 5,
     borderRadius: 3,
-    backgroundColor: paper.hairline,
+    backgroundColor: t.hairline,
     marginBottom: gap.lg,
   },
-  sheetTitle: { color: paper.ink, fontSize: 23, fontWeight: '800', letterSpacing: -0.3 },
+  sheetTitle: { color: t.ink, fontSize: 23, fontWeight: '800', letterSpacing: -0.3 },
   sheetFrom: { marginTop: 2 },
   kinds: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm, marginTop: gap.lg },
-  label: { color: paper.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
+  label: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
   input: {
     borderBottomWidth: 1.5,
-    borderBottomColor: paper.hairlineStrong,
+    borderBottomColor: t.hairlineStrong,
     paddingVertical: 8,
     fontSize: 18,
-    color: paper.ink,
+    color: t.ink,
   },
   amount: {
-    color: paper.ink,
+    color: t.ink,
     fontSize: 38,
     fontWeight: '800',
     letterSpacing: -1.2,
@@ -412,30 +422,31 @@ const styles = StyleSheet.create({
   },
   footer: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
 
-  noteHint: { color: paper.secondary, marginTop: gap.xs },
+  noteHint: { color: t.secondary, marginTop: gap.xs },
   noteInput: {
     marginTop: gap.md,
     minHeight: 96,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: paper.hairline,
-    backgroundColor: paper.canvas,
+    borderColor: t.hairline,
+    backgroundColor: t.canvas,
     padding: gap.md,
     fontSize: 16,
-    color: paper.ink,
+    color: t.ink,
   },
 
-  pasteHint: { color: paper.secondary, marginTop: gap.xs },
+  pasteHint: { color: t.secondary, marginTop: gap.xs },
   pasteInput: {
     marginTop: gap.md,
     minHeight: 150,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: paper.hairline,
-    backgroundColor: paper.canvas,
+    borderColor: t.hairline,
+    backgroundColor: t.canvas,
     padding: gap.md,
     fontSize: 16,
-    color: paper.ink,
+    color: t.ink,
     fontVariant: ['tabular-nums'],
   },
-});
+  });
+}

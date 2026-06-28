@@ -18,7 +18,7 @@
 // @tokens    paper.surface · paper.inset · paper.hairline · paper.calm · gap · radius
 // @motion    sheet-rise (shared Sheet primitive) · the candidate card rests inside the rise
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { formatMinorAmount } from '../../../local/localLedger';
@@ -29,9 +29,10 @@ import {
   PrimaryAction,
   QuietLink,
   gap,
-  paper,
   radius,
   serif,
+  useTheme,
+  type Palette,
 } from '../kit';
 import { MeloFigure } from '../melo/MeloFigure';
 import { Sheet } from '../Sheet';
@@ -64,6 +65,8 @@ export function SubCaughtSheet({
   onClose,
   reduceMotion,
 }: SubCaughtSheetProps) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const [busy, setBusy] = useState(false);
 
   const handleConfirm = () => {
@@ -80,32 +83,32 @@ export function SubCaughtSheet({
 
   return (
     <Sheet onClose={onClose} reduceMotion={reduceMotion} visible={visible}>
-      <View style={styles.body}>
-        <View style={styles.header}>
+      <View style={s.body}>
+        <View style={s.header}>
           <MeloFigure mood="attentive" reduceMotion={reduceMotion} size={32} />
-          <View style={styles.headerText}>
-            <Text style={styles.eyebrow}>I noticed</Text>
-            <Headline accent={`${candidate.name}.`} lead="Folio spotted " style={styles.headline} />
+          <View style={s.headerText}>
+            <Text style={s.eyebrow}>I noticed</Text>
+            <Headline accent={`${candidate.name}.`} lead="Folio spotted " style={s.headline} />
           </View>
         </View>
 
-        <View style={styles.card}>
-          <View style={styles.cardTop}>
-            <Text style={styles.cardName}>{candidate.name}</Text>
-            <Text style={styles.cardAmount}>{formatMinorAmount(candidate.amountMinor)}</Text>
+        <View style={s.card}>
+          <View style={s.cardTop}>
+            <Text style={s.cardName}>{candidate.name}</Text>
+            <Text style={s.cardAmount}>{formatMinorAmount(candidate.amountMinor)}</Text>
           </View>
-          <View style={styles.cardMeta}>
-            <Text style={styles.metaText}>{`Seen ${candidate.seen} months in a row`}</Text>
-            <View style={styles.metaDivider} />
-            <Text style={styles.metaText}>{`Last: ${candidate.lastDateLabel}`}</Text>
+          <View style={s.cardMeta}>
+            <Text style={s.metaText}>{`Seen ${candidate.seen} months in a row`}</Text>
+            <View style={s.metaDivider} />
+            <Text style={s.metaText}>{`Last: ${candidate.lastDateLabel}`}</Text>
           </View>
         </View>
 
-        <Body style={styles.lead}>
+        <Body style={s.lead}>
           Looks like a monthly charge. Add it to subscriptions so Folio can plan around it?
         </Body>
 
-        <View style={styles.action}>
+        <View style={s.action}>
           <PrimaryAction
             accessibilityHint="Adds this charge to your subscriptions"
             disabled={busy}
@@ -113,7 +116,7 @@ export function SubCaughtSheet({
             onPress={handleConfirm}
           />
         </View>
-        <View style={styles.quiet}>
+        <View style={s.quiet}>
           <QuietLink
             accessibilityHint="Dismiss this suggestion"
             label="Not this one"
@@ -125,7 +128,9 @@ export function SubCaughtSheet({
   );
 }
 
-const styles = StyleSheet.create({
+// Colour-bearing styles, resolved against the active palette `t` (light or dark) via makeStyles(t).
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
   body: {
     gap: gap.md,
   },
@@ -142,7 +147,7 @@ const styles = StyleSheet.create({
   eyebrow: {
     fontFamily: serif.displayItalic,
     fontSize: 13,
-    color: paper.muted,
+    color: t.muted,
   },
   headline: {
     fontSize: 24,
@@ -150,10 +155,10 @@ const styles = StyleSheet.create({
   },
   // The candidate card — a near-white inset well with a hairline edge (web: bg-inset + hairline).
   card: {
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
+    borderColor: t.hairline,
     paddingHorizontal: gap.lg,
     paddingVertical: gap.md,
     marginTop: gap.xs,
@@ -165,13 +170,13 @@ const styles = StyleSheet.create({
   },
   cardName: {
     fontSize: 15,
-    color: paper.ink,
+    color: t.ink,
   },
   // Amount in the terracotta accent, serif, tabular — money always reads as money.
   cardAmount: {
     fontFamily: serif.display,
     fontSize: 22,
-    color: paper.calm,
+    color: t.calm,
     fontVariant: ['tabular-nums'],
   },
   cardMeta: {
@@ -182,15 +187,15 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 11.5,
-    color: paper.muted,
+    color: t.muted,
   },
   metaDivider: {
     width: StyleSheet.hairlineWidth,
     height: 12,
-    backgroundColor: paper.hairlineStrong,
+    backgroundColor: t.hairlineStrong,
   },
   lead: {
-    color: paper.muted,
+    color: t.muted,
     marginTop: gap.xs,
   },
   action: {
@@ -200,4 +205,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: gap.xs,
   },
-});
+  });
+}

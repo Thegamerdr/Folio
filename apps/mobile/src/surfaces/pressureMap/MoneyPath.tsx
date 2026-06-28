@@ -31,7 +31,18 @@ import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg
 
 import type { LocalRoutePoint, LocalRouteSummary } from '../../local/localLedger';
 import type { TodayPathBand, TodayPathSummary } from './todayTypes';
-import { Body, CheckGlyph, Eyebrow, gap, magnitude, money, paper, pressed, radius } from './kit';
+import {
+  Body,
+  CheckGlyph,
+  Eyebrow,
+  gap,
+  magnitude,
+  money,
+  pressed,
+  radius,
+  useTheme,
+  type Palette,
+} from './kit';
 import { MeloPresence } from './melo';
 import { routeHasMeaningfulPath } from './routeMath';
 
@@ -149,15 +160,15 @@ function computeLayout(route: LocalRouteSummary, width: number, plot: Plot): Lay
   return { meaningful: true, pathD, areaD, baselineY: y(0), nodes };
 }
 
-function nodeTone(node: Node): string {
+function nodeTone(t: Palette, node: Node): string {
   // The lowest point is the screen's attention object — terracotta accent while it holds (the
   // "tight point"), coral when it actually runs short. Payday is the calm-green end-cap.
   if (node.isLowest) {
-    return node.point.balanceMinor < 0 ? paper.repair : paper.calm;
+    return node.point.balanceMinor < 0 ? t.repair : t.calm;
   }
-  if (node.isPayday) return paper.payday;
-  if (node.drop) return paper.warm;
-  return paper.positive;
+  if (node.isPayday) return t.payday;
+  if (node.drop) return t.warm;
+  return t.positive;
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +202,8 @@ export function MoneyPath({
   /** Called with a 0..1 fraction across the plotted range as the user drags the scrub thumb. */
   onScrub?: ((fraction: number) => void) | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const [width, setWidth] = useState(340);
   const onLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
@@ -241,26 +254,26 @@ export function MoneyPath({
   // it runs short. The single line says calm-or-pressure before a word is read.
   const lineTone =
     route.tightestBalanceMinor < 0
-      ? paper.repair
+      ? t.repair
       : route.tightestBalanceMinor < 10000
-        ? paper.warm
-        : paper.positive;
+        ? t.warm
+        : t.positive;
 
   return (
     <View
       accessibilityRole="image"
       accessibilityLabel={routeAccessibilityLabel(route, layout.meaningful)}
       onLayout={onLayout}
-      style={styles.routeSurface}
+      style={staticLayout.routeSurface}
     >
-      <View style={styles.routeHead}>
+      <View style={staticLayout.routeHead}>
         <Eyebrow>Path to payday</Eyebrow>
         {rangeLabel ? (
-          <Text style={styles.rangeLabel}>{rangeLabel}</Text>
+          <Text style={s.rangeLabel}>{rangeLabel}</Text>
         ) : route.pendingReviewCount > 0 ? (
-          <View style={styles.waitingChip}>
-            <View style={styles.waitingDot} />
-            <Text style={styles.waitingChipText}>{route.pendingReviewCount} still to check</Text>
+          <View style={s.waitingChip}>
+            <View style={s.waitingDot} />
+            <Text style={s.waitingChipText}>{route.pendingReviewCount} still to check</Text>
           </View>
         ) : null}
       </View>
@@ -277,7 +290,7 @@ export function MoneyPath({
                 y1={layout.baselineY}
                 x2={width - PAD_X}
                 y2={layout.baselineY}
-                stroke={paper.hairline}
+                stroke={t.hairline}
                 strokeWidth={1}
               />
               {/* soft area under the path — fades the line's own hue toward the baseline */}
@@ -289,7 +302,7 @@ export function MoneyPath({
                   y1={lowest.y}
                   x2={lowest.x}
                   y2={plot.bottom + 6}
-                  stroke={nodeTone(lowest)}
+                  stroke={nodeTone(t, lowest)}
                   strokeWidth={1.4}
                   strokeDasharray="3 4"
                 />
@@ -305,7 +318,7 @@ export function MoneyPath({
               />
               {/* nodes */}
               {layout.nodes.map((node) => {
-                const tone = nodeTone(node);
+                const tone = nodeTone(t, node);
                 if (node.waiting) {
                   // uncertain — a hollow dashed ring, never a solid claim
                   return (
@@ -314,8 +327,8 @@ export function MoneyPath({
                       cx={node.x}
                       cy={node.y}
                       r={6}
-                      fill={paper.surface}
-                      stroke={paper.hairlineStrong}
+                      fill={t.surface}
+                      stroke={t.hairlineStrong}
                       strokeWidth={1.6}
                       strokeDasharray="2 3"
                     />
@@ -329,8 +342,8 @@ export function MoneyPath({
                     cx={node.x}
                     cy={node.y}
                     r={selected ? r + 3 : r}
-                    fill={node.isToday ? paper.ink : tone}
-                    stroke={paper.surface}
+                    fill={node.isToday ? t.ink : tone}
+                    stroke={t.surface}
                     strokeWidth={selected ? 3 : 2.2}
                   />
                 );
@@ -343,6 +356,7 @@ export function MoneyPath({
                   topY={lowest.y - 14}
                   label={`${lowest.point.label} · ${money(lowest.point.balanceMinor)}`}
                   plotWidth={width}
+                  t={t}
                 />
               ) : null}
 
@@ -354,13 +368,13 @@ export function MoneyPath({
                     y1={plot.top - 24}
                     x2={thumbX}
                     y2={plot.bottom}
-                    stroke={paper.calm}
+                    stroke={t.calm}
                     strokeWidth={1}
                     strokeDasharray="2 3"
                     opacity={0.7}
                   />
-                  <Circle cx={thumbX} cy={plot.top - 24} r={6} fill={paper.calm} />
-                  <Circle cx={thumbX} cy={plot.top - 24} r={3} fill={paper.inverse} />
+                  <Circle cx={thumbX} cy={plot.top - 24} r={6} fill={t.calm} />
+                  <Circle cx={thumbX} cy={plot.top - 24} r={3} fill={t.inverse} />
                 </>
               ) : null}
             </Svg>
@@ -374,21 +388,21 @@ export function MoneyPath({
               accessibilityRole="button"
               key={`hit-${node.index}`}
               onPress={() => onSelectPoint(node.index)}
-              style={[styles.nodeHit, { left: node.x - 24, top: node.y - 24 }]}
+              style={[staticLayout.nodeHit, { left: node.x - 24, top: node.y - 24 }]}
             />
           ))}
 
           {/* Corner labels — kept in the top band, never crossing the line */}
           {today ? (
-            <View style={[styles.cornerLabel, { left: PAD_X }]} pointerEvents="none">
-              <Text style={styles.cornerCaption}>Today</Text>
-              <Text style={styles.cornerValue}>{money(today.point.balanceMinor)}</Text>
+            <View style={[staticLayout.cornerLabel, { left: PAD_X }]} pointerEvents="none">
+              <Text style={s.cornerCaption}>Today</Text>
+              <Text style={s.cornerValue}>{money(today.point.balanceMinor)}</Text>
             </View>
           ) : null}
           {payday ? (
-            <View style={[styles.cornerLabel, styles.cornerRight]} pointerEvents="none">
-              <Text style={[styles.cornerCaption, styles.alignRight]}>Payday</Text>
-              <Text style={[styles.cornerValue, styles.alignRight]}>
+            <View style={[staticLayout.cornerLabel, staticLayout.cornerRight]} pointerEvents="none">
+              <Text style={[s.cornerCaption, staticLayout.alignRight]}>Payday</Text>
+              <Text style={[s.cornerValue, staticLayout.alignRight]}>
                 {money(payday.point.balanceMinor)}
               </Text>
             </View>
@@ -401,7 +415,7 @@ export function MoneyPath({
 
       {/* Band toggle — re-frames the range. Only shown for the interactive Today path. */}
       {band && onChangeBand ? (
-        <View style={styles.bandRow}>
+        <View style={staticLayout.bandRow}>
           {BANDS.map((option) => {
             const on = option.id === band;
             return (
@@ -411,12 +425,12 @@ export function MoneyPath({
                 key={option.id}
                 onPress={() => onChangeBand(option.id)}
                 style={({ pressed: isPressed }) => [
-                  styles.bandChip,
-                  on ? styles.bandChipOn : styles.bandChipOff,
+                  staticLayout.bandChip,
+                  on ? s.bandChipOn : s.bandChipOff,
                   isPressed ? pressed : undefined,
                 ]}
               >
-                <Text style={[styles.bandLabel, on ? styles.bandLabelOn : styles.bandLabelOff]}>
+                <Text style={[staticLayout.bandLabel, on ? s.bandLabelOn : s.bandLabelOff]}>
                   {option.label}
                 </Text>
               </Pressable>
@@ -427,7 +441,7 @@ export function MoneyPath({
 
       {/* Scrub caption — what a previewed spend would mean. */}
       {interactive && layout.meaningful ? (
-        <Text style={styles.scrubCaption}>
+        <Text style={s.scrubCaption}>
           {scrubPreviewMinor !== undefined && scrubPreviewMinor > 0
             ? `if you spend ${magnitude(scrubPreviewMinor)} today`
             : 'drag the line to preview a spend'}
@@ -436,7 +450,7 @@ export function MoneyPath({
 
       {/* 3-column summary — coming in / going out / lowest. */}
       {summary && layout.meaningful ? (
-        <View style={styles.summaryRow}>
+        <View style={staticLayout.summaryRow}>
           <SummaryCell label="Coming in" value={money(summary.comingInMinor)} tone="positive" />
           <SummaryCell
             label="Going out"
@@ -459,12 +473,13 @@ function SummaryCell({
   value: string;
   tone: 'positive' | 'repair' | 'ink';
 }) {
-  const color =
-    tone === 'positive' ? paper.positiveInk : tone === 'repair' ? paper.repairInk : paper.ink;
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  const color = tone === 'positive' ? t.positiveInk : tone === 'repair' ? t.repairInk : t.ink;
   return (
-    <View style={styles.summaryCell}>
-      <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={[styles.summaryValue, { color }]}>{value}</Text>
+    <View style={staticLayout.summaryCell}>
+      <Text style={s.summaryLabel}>{label}</Text>
+      <Text style={[staticLayout.summaryValue, { color }]}>{value}</Text>
     </View>
   );
 }
@@ -475,11 +490,13 @@ function CalloutBox({
   topY,
   label,
   plotWidth,
+  t,
 }: {
   cx: number;
   topY: number;
   label: string;
   plotWidth: number;
+  t: Palette;
 }) {
   const boxWidth = 120;
   const half = boxWidth / 2;
@@ -487,21 +504,21 @@ function CalloutBox({
   const boxTop = topY - 12 - 22;
   return (
     <>
-      <Line x1={cx} y1={topY} x2={cx} y2={topY - 12} stroke={paper.calm} strokeWidth={0.9} />
+      <Line x1={cx} y1={topY} x2={cx} y2={topY - 12} stroke={t.calm} strokeWidth={0.9} />
       <Rect
         x={clampedCx - half}
         y={boxTop}
         width={boxWidth}
         height={22}
         rx={6}
-        fill={paper.surface}
-        stroke={paper.calm}
+        fill={t.surface}
+        stroke={t.calm}
         strokeWidth={0.9}
       />
       <SvgText
         x={clampedCx}
         y={boxTop + 15}
-        fill={paper.ink}
+        fill={t.ink}
         fontSize={10}
         fontWeight="600"
         textAnchor="middle"
@@ -528,21 +545,23 @@ function routeAccessibilityLabel(route: LocalRouteSummary, meaningful: boolean):
 }
 
 function RouteEmpty() {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View style={styles.routeEmpty}>
+    <View style={staticLayout.routeEmpty}>
       <Svg width="100%" height={150} viewBox="0 0 320 150">
         <Line
           x1={16}
           y1={120}
           x2={304}
           y2={120}
-          stroke={paper.hairline}
+          stroke={t.hairline}
           strokeWidth={1}
           strokeDasharray="2 5"
         />
-        <Circle cx={28} cy={120} r={6} fill={paper.ink} stroke={paper.surface} strokeWidth={2} />
+        <Circle cx={28} cy={120} r={6} fill={t.ink} stroke={t.surface} strokeWidth={2} />
       </Svg>
-      <Body style={styles.routeEmptyText}>
+      <Body style={s.routeEmptyText}>
         Your money path fills in as you add money — what you have now, when more comes in, and what
         has to leave before then.
       </Body>
@@ -576,24 +595,26 @@ export function PointExplanation({
   point: LocalRoutePoint | null;
   onClose: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const cause = point ? causeLine(point) : null;
   return (
     <Modal animationType="slide" transparent visible={point !== null} onRequestClose={onClose}>
-      <Pressable accessibilityLabel="Close" style={styles.scrim} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.sheetHandle} />
+      <Pressable accessibilityLabel="Close" style={s.scrim} onPress={onClose} />
+      <View style={s.sheet}>
+        <View style={s.sheetHandle} />
         {point ? (
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text accessibilityRole="header" style={styles.sheetTitle}>
+            <Text accessibilityRole="header" style={s.sheetTitle}>
               {point.title}
             </Text>
             <MeloPresence
               line={`This ${point.deltaMinor < 0 ? 'drop' : 'rise'} is ${point.title.toLowerCase()}.`}
               size="sm"
               state="melo_path_explaining"
-              style={styles.sheetMelo}
+              style={staticLayout.sheetMelo}
             />
-            <View style={styles.sheetRows}>
+            <View style={staticLayout.sheetRows}>
               <ExplainRow label="Left after this" value={money(point.balanceMinor)} strong />
               {cause ? <ExplainRow label={cause.label} value={cause.value} /> : null}
               {typeof point.protectedMinor === 'number' &&
@@ -607,12 +628,12 @@ export function PointExplanation({
               accessibilityRole="button"
               onPress={onClose}
               style={({ pressed: isPressed }) => [
-                styles.sheetDone,
+                s.sheetDone,
                 isPressed ? { opacity: 0.85 } : undefined,
               ]}
             >
-              <CheckGlyph color={paper.calmStrong} size={20} />
-              <Text style={styles.sheetDoneText}>Got it</Text>
+              <CheckGlyph color={t.calmStrong} size={20} />
+              <Text style={s.sheetDoneText}>Got it</Text>
             </Pressable>
           </ScrollView>
         ) : null}
@@ -630,17 +651,20 @@ function ExplainRow({
   value: string;
   strong?: boolean | undefined;
 }): ReactNode {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View style={styles.explainRow}>
-      <Text style={styles.explainLabel}>{label}</Text>
-      <Text style={[styles.explainValue, strong ? styles.explainValueStrong : undefined]}>
+    <View style={s.explainRow}>
+      <Text style={s.explainLabel}>{label}</Text>
+      <Text style={[s.explainValue, strong ? staticLayout.explainValueStrong : undefined]}>
         {value}
       </Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+// Colour-free styles — shared across light and dark.
+const staticLayout = StyleSheet.create({
   // Full-bleed: the route is the screen's hero object, sitting directly on the cream — no card,
   // no border, no fill. Near-flat by design; the cream IS the depth. (Editorial Ledger.)
   routeSurface: {
@@ -654,31 +678,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: PAD_X,
     marginBottom: gap.sm,
   },
-  rangeLabel: { color: paper.muted, fontSize: 12, fontVariant: ['tabular-nums'] },
-  waitingChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: paper.warmSoft,
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  waitingDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: paper.warm },
-  waitingChipText: { color: paper.warmInk, fontSize: 12, fontWeight: '700' },
 
   nodeHit: { position: 'absolute', width: 48, height: 48 },
 
   cornerLabel: { position: 'absolute', top: 8 },
   cornerRight: { right: PAD_X },
-  cornerCaption: { color: paper.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
-  cornerValue: {
-    color: paper.ink,
-    fontSize: 17,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-    marginTop: 1,
-  },
   alignRight: { textAlign: 'right' },
 
   bandRow: { flexDirection: 'row', gap: 6, paddingHorizontal: PAD_X, marginTop: gap.sm },
@@ -689,18 +693,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bandChipOn: { backgroundColor: paper.ink },
-  bandChipOff: { backgroundColor: paper.sunken },
   bandLabel: { fontSize: 11, letterSpacing: 0.2 },
-  bandLabelOn: { color: paper.inverse, fontWeight: '600' },
-  bandLabelOff: { color: paper.muted },
-
-  scrubCaption: {
-    color: paper.muted,
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: gap.sm,
-  },
 
   summaryRow: {
     flexDirection: 'row',
@@ -708,68 +701,112 @@ const styles = StyleSheet.create({
     marginTop: gap.md,
   },
   summaryCell: { flex: 1, alignItems: 'center', gap: 2 },
-  summaryLabel: {
-    color: paper.muted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
   summaryValue: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
 
   routeEmpty: { paddingHorizontal: gap.sm, paddingTop: gap.md, gap: gap.md },
-  routeEmptyText: { color: paper.secondary },
 
-  scrim: { flex: 1, backgroundColor: role_scrim() },
-  sheet: {
-    backgroundColor: paper.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: gap.xl,
-    paddingTop: gap.md,
-    paddingBottom: gap.xxxl,
-    maxHeight: '72%',
-  },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: paper.hairline,
-    marginBottom: gap.lg,
-  },
-  sheetTitle: { color: paper.ink, fontSize: 24, fontWeight: '800', letterSpacing: -0.3 },
   sheetMelo: { marginTop: gap.md },
   sheetRows: { marginTop: gap.lg, gap: 2 },
-  explainRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: paper.hairline,
-  },
-  explainLabel: { color: paper.secondary, fontSize: 16 },
-  explainValue: {
-    color: paper.ink,
-    fontSize: 16,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
   explainValueStrong: { fontSize: 19, fontWeight: '800' },
-  sheetDone: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: gap.xl,
-    paddingVertical: 15,
-    borderRadius: 16,
-    backgroundColor: paper.calmSoft,
-  },
-  sheetDoneText: { color: paper.calmStrong, fontSize: 16, fontWeight: '700' },
 });
 
+// Colour-bearing styles, resolved against the active palette.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    rangeLabel: { color: t.muted, fontSize: 12, fontVariant: ['tabular-nums'] },
+    waitingChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: t.warmSoft,
+      borderRadius: 999,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+    },
+    waitingDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.warm },
+    waitingChipText: { color: t.warmInk, fontSize: 12, fontWeight: '700' },
+
+    cornerCaption: { color: t.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
+    cornerValue: {
+      color: t.ink,
+      fontSize: 17,
+      fontWeight: '800',
+      fontVariant: ['tabular-nums'],
+      marginTop: 1,
+    },
+
+    bandChipOn: { backgroundColor: t.ink },
+    bandChipOff: { backgroundColor: t.sunken },
+    bandLabelOn: { color: t.inverse, fontWeight: '600' },
+    bandLabelOff: { color: t.muted },
+
+    scrubCaption: {
+      color: t.muted,
+      fontSize: 11,
+      textAlign: 'center',
+      marginTop: gap.sm,
+    },
+
+    summaryLabel: {
+      color: t.muted,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+
+    routeEmptyText: { color: t.secondary },
+
+    scrim: { flex: 1, backgroundColor: role_scrim() },
+    sheet: {
+      backgroundColor: t.surface,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: gap.xl,
+      paddingTop: gap.md,
+      paddingBottom: gap.xxxl,
+      maxHeight: '72%',
+    },
+    sheetHandle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: t.hairline,
+      marginBottom: gap.lg,
+    },
+    sheetTitle: { color: t.ink, fontSize: 24, fontWeight: '800', letterSpacing: -0.3 },
+    explainRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.hairline,
+    },
+    explainLabel: { color: t.secondary, fontSize: 16 },
+    explainValue: {
+      color: t.ink,
+      fontSize: 16,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+    },
+    sheetDone: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginTop: gap.xl,
+      paddingVertical: 15,
+      borderRadius: 16,
+      backgroundColor: t.calmSoft,
+    },
+    sheetDoneText: { color: t.calmStrong, fontSize: 16, fontWeight: '700' },
+  });
+}
+
+// The scrim is a deliberate translucent overlay that reads on both grounds (a dark wash over the
+// content behind the sheet), so it stays a literal rather than a palette key.
 function role_scrim(): string {
   return 'rgba(24, 35, 29, 0.42)';
 }

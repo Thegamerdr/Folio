@@ -13,6 +13,7 @@
 // callback the container owns. Money is read through formatMinorAmount (via the kit) so there is no
 // formatting drift with the rest of the app.
 
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 
@@ -24,10 +25,11 @@ import {
   elevation,
   gap,
   magnitude,
-  paper,
   pressed,
   radius,
   serif,
+  useTheme,
+  type Palette,
   type VerdictTone,
 } from './kit';
 
@@ -46,11 +48,11 @@ const PLOT_BOTTOM = 92;
 const PLOT_LEFT = 20;
 const PLOT_RIGHT = 380;
 
-function verdictColor(tone: VerdictTone | undefined): string {
-  if (tone === 'repair') return paper.repairInk;
-  if (tone === 'warm') return paper.warmInk;
-  if (tone === 'positive') return paper.positiveInk;
-  return paper.ink;
+function verdictColor(t: Palette, tone: VerdictTone | undefined): string {
+  if (tone === 'repair') return t.repairInk;
+  if (tone === 'warm') return t.warmInk;
+  if (tone === 'positive') return t.positiveInk;
+  return t.ink;
 }
 
 // Map the route's balances onto the small preview plot. Returns the smooth curve, the matching area
@@ -161,20 +163,22 @@ export function TodayAfterScreen({
   onOpenMelo,
   onOpenTightPoint,
 }: TodayAfterProps) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const spareDisplay = useCountUp(spareMinor, SPARE_COUNT_UP_MS, reduceMotion);
-  const accentColor = verdictColor(verdictTone ?? 'positive');
+  const accentColor = verdictColor(t, verdictTone ?? 'positive');
   const geometry = previewGeometry(routePoints);
 
   // The "What changed" delta reads as a signed magnitude with the accent colour (the web shows it as
   // "−£42" in terracotta). A lift is shown as a positive change in the calm green.
-  const deltaTone = changeDeltaMinor > 0 ? paper.positiveInk : paper.calm;
+  const deltaTone = changeDeltaMinor > 0 ? t.positiveInk : t.calm;
   const deltaSign = changeDeltaMinor > 0 ? '+' : '−';
   const deltaLabel = `${deltaSign}${magnitude(changeDeltaMinor)}`;
 
   return (
-    <View style={styles.screen}>
+    <View style={layout.screen}>
       {/* Top bar — back, the transient eyebrow, a round Melo button. */}
-      <View style={styles.topBar}>
+      <View style={layout.topBar}>
         <Pressable
           accessibilityHint="Back to Today."
           accessibilityLabel="Back to Today"
@@ -183,7 +187,7 @@ export function TodayAfterScreen({
           onPress={onBack}
           style={({ pressed: isPressed }) => (isPressed ? pressed : undefined)}
         >
-          <Text style={styles.backText}>‹</Text>
+          <Text style={[layout.backText, s.backText]}>‹</Text>
         </Pressable>
         <Eyebrow tone="muted">One less thing waiting</Eyebrow>
         <Pressable
@@ -191,56 +195,56 @@ export function TodayAfterScreen({
           accessibilityLabel="Melo"
           accessibilityRole="button"
           onPress={onOpenMelo}
-          style={({ pressed: isPressed }) => [styles.meloButton, isPressed ? pressed : undefined]}
+          style={({ pressed: isPressed }) => [layout.meloButton, s.meloButton, isPressed ? pressed : undefined]}
         >
           <MeloPresence reduceMotion={reduceMotion} size="sm" state="melo_idle" withCopy={false} />
         </Pressable>
       </View>
 
       {/* The settled verdict + count-up spare + the change note. */}
-      <View accessibilityLiveRegion="polite" style={styles.hero}>
-        <Text style={[styles.verdictLine, { color: accentColor }]}>
+      <View accessibilityLiveRegion="polite" style={layout.hero}>
+        <Text style={[layout.verdictLine, { color: accentColor }]}>
           {verdictLead}
-          <Text style={styles.verdictAccent}>{verdictAccent}</Text>
+          <Text style={layout.verdictAccent}>{verdictAccent}</Text>
           {verdictTail}
         </Text>
-        <View style={styles.heroFigureRow}>
-          <Text style={[styles.heroFigure, { color: accentColor }]}>
+        <View style={layout.heroFigureRow}>
+          <Text style={[layout.heroFigure, { color: accentColor }]}>
             £{Math.round(spareDisplay / 100).toLocaleString('en-GB')}
           </Text>
-          <Text style={styles.heroSuffix}>spare</Text>
+          <Text style={[layout.heroSuffix, s.heroSuffix]}>spare</Text>
         </View>
-        <Text style={styles.changeNote}>{changeNote}</Text>
+        <Text style={[layout.changeNote, s.changeNote]}>{changeNote}</Text>
       </View>
 
       {/* What changed — the delta, the sentence, and the small re-drawn route preview. */}
-      <View style={styles.card}>
-        <View style={styles.cardHead}>
-          <Text style={styles.cardEyebrow}>What changed</Text>
-          <Text style={[styles.cardDelta, { color: deltaTone }]}>{deltaLabel}</Text>
+      <View style={[layout.card, s.card]}>
+        <View style={layout.cardHead}>
+          <Text style={[layout.cardEyebrow, s.cardEyebrow]}>What changed</Text>
+          <Text style={[layout.cardDelta, { color: deltaTone }]}>{deltaLabel}</Text>
         </View>
-        <Text style={styles.cardLine}>{changeLine}</Text>
+        <Text style={[layout.cardLine, s.cardLine]}>{changeLine}</Text>
 
-        <View style={styles.cardHairline} />
+        <View style={[layout.cardHairline, s.cardHairline]} />
 
-        <Svg height={PLOT_H} style={styles.plot} viewBox={`0 0 ${PLOT_W} ${PLOT_H}`} width="100%">
+        <Svg height={PLOT_H} style={layout.plot} viewBox={`0 0 ${PLOT_W} ${PLOT_H}`} width="100%">
           <Defs>
             <LinearGradient id="afterFill" x1="0" x2="0" y1="0" y2="1">
-              <Stop offset="0%" stopColor={paper.calm} stopOpacity={0.16} />
-              <Stop offset="100%" stopColor={paper.calm} stopOpacity={0} />
+              <Stop offset="0%" stopColor={t.calm} stopOpacity={0.16} />
+              <Stop offset="100%" stopColor={t.calm} stopOpacity={0} />
             </LinearGradient>
           </Defs>
           <Path d={geometry.areaD} fill="url(#afterFill)" />
           <Path
             d={geometry.curveD}
             fill="none"
-            stroke={paper.calm}
+            stroke={t.calm}
             strokeLinecap="round"
             strokeWidth={2.2}
           />
-          <Circle cx={geometry.lowest.x} cy={geometry.lowest.y} fill={paper.calm} r={5} />
+          <Circle cx={geometry.lowest.x} cy={geometry.lowest.y} fill={t.calm} r={5} />
           <SvgText
-            fill={paper.muted}
+            fill={t.muted}
             fontSize={9}
             textAnchor="middle"
             x={geometry.lowest.x}
@@ -248,9 +252,9 @@ export function TodayAfterScreen({
           >
             lowest
           </SvgText>
-          <Circle cx={geometry.payday.x} cy={geometry.payday.y} fill={paper.payday} r={5} />
+          <Circle cx={geometry.payday.x} cy={geometry.payday.y} fill={t.payday} r={5} />
           <SvgText
-            fill={paper.muted}
+            fill={t.muted}
             fontSize={9}
             textAnchor="end"
             x={geometry.payday.x - 2}
@@ -262,46 +266,46 @@ export function TodayAfterScreen({
       </View>
 
       {/* A quiet Melo line — the reassurance. */}
-      <View style={styles.meloLine}>
+      <View style={[layout.meloLine, s.meloLine]}>
         <MeloPresence reduceMotion={reduceMotion} size="sm" state="melo_path_explaining" withCopy={false} />
-        <Text style={styles.meloLineText}>“One less thing waiting. The path still holds.”</Text>
+        <Text style={[layout.meloLineText, s.meloLineText]}>“One less thing waiting. The path still holds.”</Text>
       </View>
 
       {/* Two calm doorways — back to Today, or open the tight point. */}
-      <View style={styles.actions}>
+      <View style={layout.actions}>
         <Pressable
           accessibilityHint="Back to your path."
           accessibilityRole="button"
           onPress={onBack}
-          style={({ pressed: isPressed }) => [styles.actionTile, isPressed ? pressed : undefined]}
+          style={({ pressed: isPressed }) => [layout.actionTile, s.actionTile, isPressed ? pressed : undefined]}
         >
-          <Text style={styles.actionLabel}>View path</Text>
-          <Text style={styles.actionValue}>Today</Text>
+          <Text style={[layout.actionLabel, s.actionLabel]}>View path</Text>
+          <Text style={[layout.actionValue, s.actionValue]}>Today</Text>
         </Pressable>
         <Pressable
           accessibilityHint="Opens the tight point."
           accessibilityRole="button"
           onPress={onOpenTightPoint}
-          style={({ pressed: isPressed }) => [styles.actionTile, isPressed ? pressed : undefined]}
+          style={({ pressed: isPressed }) => [layout.actionTile, s.actionTile, isPressed ? pressed : undefined]}
         >
-          <Text style={styles.actionLabel}>Tight point</Text>
-          <Text style={[styles.actionValue, styles.actionValueAccent]}>open</Text>
+          <Text style={[layout.actionLabel, s.actionLabel]}>Tight point</Text>
+          <Text style={[layout.actionValue, s.actionValue, s.actionValueAccent]}>open</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+// Layout-only styles (spacing, type, flex) — theme-independent, so they stay module-level static.
+const layout = StyleSheet.create({
   screen: { gap: gap.lg, paddingTop: gap.sm, paddingBottom: gap.xxxl },
 
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  backText: { color: paper.muted, fontSize: 24, lineHeight: 24, fontWeight: '400', width: 20 },
+  backText: { fontSize: 24, lineHeight: 24, fontWeight: '400', width: 20 },
   meloButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: paper.surface,
     alignItems: 'center',
     justifyContent: 'center',
     ...elevation.card,
@@ -319,15 +323,13 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   heroSuffix: {
-    color: paper.muted,
     fontFamily: serif.displayItalic,
     fontSize: 18,
     marginBottom: 6,
   },
-  changeNote: { color: paper.muted, fontFamily: serif.displayItalic, fontSize: 12.5, marginTop: 2 },
+  changeNote: { fontFamily: serif.displayItalic, fontSize: 12.5, marginTop: 2 },
 
   card: {
-    backgroundColor: paper.surface,
     borderRadius: radius.xl,
     padding: gap.xl,
     ...elevation.card,
@@ -339,17 +341,15 @@ const styles = StyleSheet.create({
     marginBottom: gap.sm,
   },
   cardEyebrow: {
-    color: paper.muted,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
   cardDelta: { fontSize: 11, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  cardLine: { color: paper.ink, fontSize: 13.5, lineHeight: 20 },
+  cardLine: { fontSize: 13.5, lineHeight: 20 },
   cardHairline: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: paper.hairline,
     marginTop: gap.lg,
   },
   plot: { marginTop: gap.sm },
@@ -358,13 +358,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: gap.md,
-    backgroundColor: paper.inset,
     borderRadius: radius.md,
     padding: gap.lg,
   },
   meloLineText: {
     flex: 1,
-    color: paper.ink,
     fontFamily: serif.displayItalic,
     fontSize: 13,
     lineHeight: 19,
@@ -373,24 +371,43 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: gap.sm },
   actionTile: {
     flex: 1,
-    backgroundColor: paper.surface,
     borderRadius: radius.md,
     padding: gap.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
   },
   actionLabel: {
-    color: paper.muted,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   actionValue: {
-    color: paper.ink,
     fontFamily: serif.display,
     fontSize: 16,
     marginTop: gap.xs,
   },
-  actionValueAccent: { color: paper.calm },
 });
+
+// Colour-bearing styles — rebuilt from the active palette so the screen follows light/dark.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    backText: { color: t.muted },
+    meloButton: { backgroundColor: t.surface },
+
+    heroSuffix: { color: t.muted },
+    changeNote: { color: t.muted },
+
+    card: { backgroundColor: t.surface },
+    cardEyebrow: { color: t.muted },
+    cardLine: { color: t.ink },
+    cardHairline: { backgroundColor: t.hairline },
+
+    meloLine: { backgroundColor: t.inset },
+    meloLineText: { color: t.ink },
+
+    actionTile: { backgroundColor: t.surface, borderColor: t.hairline },
+    actionLabel: { color: t.muted },
+    actionValue: { color: t.ink },
+    actionValueAccent: { color: t.calm },
+  });
+}

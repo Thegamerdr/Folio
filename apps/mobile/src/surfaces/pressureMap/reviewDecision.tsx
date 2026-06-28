@@ -6,7 +6,7 @@
 // until you add it. No file machinery sits above the decision; no parser / category /
 // system wording. Empty reads as a calm "nothing waiting", not a bare "no data".
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
@@ -30,9 +30,10 @@ import {
   QuietLink,
   gap,
   magnitude,
-  paper,
   poundsLabel,
   serif,
+  useTheme,
+  type Palette,
 } from './kit';
 import { FileWorkbench, PasteSheet } from './fileWorkbench';
 import { MeloPresence } from './melo';
@@ -124,6 +125,8 @@ export function ImportReviewScreen({
   privateExampleMode?: boolean | undefined;
   summary?: unknown;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const [decided, setDecided] = useState<readonly string[]>([]);
   const [showMore, setShowMore] = useState(false);
   const [editing, setEditing] = useState<LocalImportDraft | null>(null);
@@ -400,6 +403,8 @@ function IntakeTile({
   hint: string;
   onPress: () => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityRole="button"
@@ -417,6 +422,7 @@ function IntakeTile({
 // point. It previews the shape of a decision (a payment landing on the line) without faking
 // data. Near-flat, hairline only; the cream is the depth.
 function RestGlyph() {
+  const t = useTheme();
   return (
     <Svg width={72} height={44} viewBox="0 0 72 44">
       <Line
@@ -424,26 +430,28 @@ function RestGlyph() {
         y1={30}
         x2={64}
         y2={30}
-        stroke={paper.hairlineStrong}
+        stroke={t.hairlineStrong}
         strokeWidth={1.4}
         strokeDasharray="2 5"
         strokeLinecap="round"
       />
       <Path
         d="M8 30c10 0 12-12 22-12s14 12 24 12"
-        stroke={paper.calm}
+        stroke={t.calm}
         strokeWidth={2}
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
         opacity={0.55}
       />
-      <Circle cx={30} cy={18} r={4} fill={paper.surface} stroke={paper.calm} strokeWidth={2} />
+      <Circle cx={30} cy={18} r={4} fill={t.surface} stroke={t.calm} strokeWidth={2} />
     </Svg>
   );
 }
 
 function MoreOption({ label, onPress }: { label: string; onPress: () => void }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityRole="button"
@@ -464,6 +472,8 @@ function EditSheet({
   onCancel: () => void;
   onSave: (input: LocalImportDraftEditInput) => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [primed, setPrimed] = useState<string | null>(null);
@@ -487,7 +497,7 @@ function EditSheet({
           accessibilityLabel="What this payment is"
           onChangeText={setName}
           placeholder="e.g. Tesco shop"
-          placeholderTextColor={paper.muted}
+          placeholderTextColor={t.muted}
           style={styles.input}
           value={name}
         />
@@ -516,7 +526,8 @@ function EditSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
   flex: { flex: 1 },
 
   // Editorial page rhythm: generous, uneven air. The decision leads and owns the top of the
@@ -526,14 +537,14 @@ const styles = StyleSheet.create({
 
   // --- Empty state -------------------------------------------------------------------------
   calmHeader: { gap: gap.sm, paddingTop: gap.lg },
-  calmBody: { color: paper.secondary, marginTop: gap.xxs },
+  calmBody: { color: t.secondary, marginTop: gap.xxs },
   shape: {
     alignItems: 'center',
     gap: gap.sm,
     paddingVertical: gap.xl,
   },
   shapeLabel: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -544,17 +555,17 @@ const styles = StyleSheet.create({
   intakeTile: {
     flexBasis: '47%',
     flexGrow: 1,
-    backgroundColor: paper.surface,
+    backgroundColor: t.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
+    borderColor: t.hairline,
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: gap.md,
   },
-  intakeTileLabel: { color: paper.ink, fontSize: 14.5, fontWeight: '600' },
-  intakeTileHint: { color: paper.muted, fontSize: 11.5, marginTop: 2 },
+  intakeTileLabel: { color: t.ink, fontSize: 14.5, fontWeight: '600' },
+  intakeTileHint: { color: t.muted, fontSize: 11.5, marginTop: 2 },
   seeAll: { alignSelf: 'flex-start', marginTop: gap.xs },
-  seeAllText: { color: paper.calmStrong, fontSize: 13.5, fontWeight: '700' },
+  seeAllText: { color: t.calmStrong, fontSize: 13.5, fontWeight: '700' },
 
   // --- Active decision ---------------------------------------------------------------------
   decision: { gap: gap.sm, paddingTop: gap.md },
@@ -563,13 +574,13 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     justifyContent: 'space-between',
   },
-  counter: { color: paper.muted, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
+  counter: { color: t.muted, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
 
   // The serif question is the editorial hero — it leads the page at headline scale, set in the
   // italic display face so the whole human question reads as the accent (the interpretation is
   // the variable part, so the line carries the accent rather than splitting mid-word).
   question: {
-    color: paper.ink,
+    color: t.ink,
     fontFamily: serif.displayItalic,
     fontSize: 29,
     lineHeight: 37,
@@ -586,18 +597,18 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginTop: gap.md,
   },
-  amountIn: { color: paper.positiveInk }, // money in reads green — "you make it"
-  amountOut: { color: paper.ink },
+  amountIn: { color: t.positiveInk }, // money in reads green — "you make it"
+  amountOut: { color: t.ink },
   amountDirection: {
     fontSize: 20,
     lineHeight: 50,
     fontWeight: '700',
     letterSpacing: 0,
-    color: paper.muted,
+    color: t.muted,
   },
   meta: { marginTop: gap.xxs },
 
-  consequence: { color: paper.secondary, marginTop: gap.sm },
+  consequence: { color: t.secondary, marginTop: gap.sm },
 
   flag: {
     flexDirection: 'row',
@@ -605,8 +616,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginTop: gap.xs,
   },
-  flagDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: paper.warm, marginTop: 7 },
-  flagText: { color: paper.warmInk, fontSize: 14, lineHeight: 20, flex: 1 },
+  flagDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.warm, marginTop: 7 },
+  flagText: { color: t.warmInk, fontSize: 14, lineHeight: 20, flex: 1 },
 
   // --- Actions -----------------------------------------------------------------------------
   actions: { gap: gap.sm },
@@ -617,13 +628,13 @@ const styles = StyleSheet.create({
   },
 
   moreToggle: { alignSelf: 'center', paddingVertical: 6, marginTop: gap.xxs },
-  moreToggleText: { color: paper.muted, fontSize: 14, fontWeight: '600' },
+  moreToggleText: { color: t.muted, fontSize: 14, fontWeight: '600' },
 
   moreGrid: { marginTop: gap.xs },
   moreOption: { paddingVertical: 15 },
-  moreOptionText: { color: paper.ink, fontSize: 16 },
+  moreOptionText: { color: t.ink, fontSize: 16 },
   moreCaption: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -634,7 +645,7 @@ const styles = StyleSheet.create({
   // --- Edit sheet --------------------------------------------------------------------------
   scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
   editSheet: {
-    backgroundColor: paper.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: gap.xl,
@@ -646,21 +657,21 @@ const styles = StyleSheet.create({
     width: 40,
     height: 5,
     borderRadius: 3,
-    backgroundColor: paper.hairline,
+    backgroundColor: t.hairline,
     marginBottom: gap.lg,
   },
-  editTitle: { color: paper.ink, fontSize: 22, fontWeight: '800', marginBottom: gap.md },
-  editLabel: { color: paper.muted, fontSize: 13, fontWeight: '700', marginTop: gap.sm },
+  editTitle: { color: t.ink, fontSize: 22, fontWeight: '800', marginBottom: gap.md },
+  editLabel: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.sm },
   input: {
     borderBottomWidth: 1.5,
-    borderBottomColor: paper.hairlineStrong,
+    borderBottomColor: t.hairlineStrong,
     paddingVertical: 8,
     fontSize: 18,
-    color: paper.ink,
+    color: t.ink,
     marginBottom: gap.sm,
   },
   editAmount: {
-    color: paper.ink,
+    color: t.ink,
     fontSize: 34,
     fontWeight: '800',
     letterSpacing: -1,
@@ -669,4 +680,5 @@ const styles = StyleSheet.create({
     paddingVertical: gap.xs,
   },
   editFooter: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
-});
+  });
+}

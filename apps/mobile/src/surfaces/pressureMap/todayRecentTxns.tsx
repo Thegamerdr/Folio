@@ -12,7 +12,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { TodayTransaction } from './todayTypes';
-import { Hairline, gap, paper, pressed, radius, serif } from './kit';
+import { Hairline, gap, pressed, radius, serif, useTheme, type Palette } from './kit';
 
 const MAX_ROWS = 5;
 const MS_PER_DAY = 86_400_000;
@@ -47,15 +47,17 @@ export function TodayRecentTxns({
   /** Optional — when present, each row shows a remove affordance. */
   onRemove?: ((id: string) => void) | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const rows = useMemo(
-    () => transactions.filter((t) => t.amountMinor < 0).slice(0, MAX_ROWS),
+    () => transactions.filter((tx) => tx.amountMinor < 0).slice(0, MAX_ROWS),
     [transactions],
   );
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerLabel}>Recent</Text>
+    <View style={layout.root}>
+      <View style={layout.header}>
+        <Text style={s.headerLabel}>Recent</Text>
         <Pressable
           accessibilityHint="Opens the log-a-spend sheet."
           accessibilityRole="button"
@@ -63,29 +65,29 @@ export function TodayRecentTxns({
           onPress={onLogSpend}
           style={({ pressed: isPressed }) => (isPressed ? pressed : undefined)}
         >
-          <Text style={styles.logLink}>+ log a spend</Text>
+          <Text style={s.logLink}>+ log a spend</Text>
         </Pressable>
       </View>
 
       {rows.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>Nothing logged yet. Tap +log to add one.</Text>
+        <View style={s.empty}>
+          <Text style={s.emptyText}>Nothing logged yet. Tap +log to add one.</Text>
         </View>
       ) : (
-        <View style={styles.list}>
+        <View style={s.list}>
           {rows.map((row, index) => (
             <View key={row.id}>
               {index > 0 ? <Hairline /> : null}
-              <View style={styles.row}>
-                <View style={styles.rowText}>
-                  <Text numberOfLines={1} style={styles.merchant}>
+              <View style={layout.row}>
+                <View style={layout.rowText}>
+                  <Text numberOfLines={1} style={s.merchant}>
                     {row.merchant}
                   </Text>
-                  <Text style={styles.meta}>
+                  <Text style={s.meta}>
                     {row.category} · {relativeDay(row.date, asOfDate)}
                   </Text>
                 </View>
-                <Text style={styles.amount}>{amountLabel(row.amountMinor)}</Text>
+                <Text style={s.amount}>{amountLabel(row.amountMinor)}</Text>
                 {onRemove ? (
                   <Pressable
                     accessibilityLabel={`Remove ${row.merchant}`}
@@ -93,11 +95,11 @@ export function TodayRecentTxns({
                     hitSlop={10}
                     onPress={() => onRemove(row.id)}
                     style={({ pressed: isPressed }) => [
-                      styles.remove,
+                      layout.remove,
                       isPressed ? pressed : undefined,
                     ]}
                   >
-                    <Text style={styles.removeGlyph}>×</Text>
+                    <Text style={s.removeGlyph}>×</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -109,7 +111,8 @@ export function TodayRecentTxns({
   );
 }
 
-const styles = StyleSheet.create({
+// Colour-free styles — shared across light and dark.
+const layout = StyleSheet.create({
   root: { gap: gap.sm },
   header: {
     flexDirection: 'row',
@@ -117,33 +120,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 2,
   },
-  headerLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-  },
-  logLink: { color: paper.calmStrong, fontSize: 11, fontWeight: '600', letterSpacing: 0.2 },
-
-  empty: {
-    backgroundColor: paper.surface,
-    borderRadius: radius.xl,
-    paddingVertical: 14,
-    paddingHorizontal: gap.lg,
-  },
-  emptyText: { color: paper.muted, fontSize: 13, fontFamily: serif.displayItalic },
-
-  list: {
-    backgroundColor: paper.surface,
-    borderRadius: radius.xl,
-    paddingHorizontal: gap.lg,
-  },
   row: { flexDirection: 'row', alignItems: 'center', gap: gap.md, paddingVertical: 12 },
   rowText: { flex: 1, minWidth: 0 },
-  merchant: { color: paper.ink, fontSize: 14 },
-  meta: { color: paper.muted, fontSize: 11, fontVariant: ['tabular-nums'], marginTop: 1 },
-  amount: { color: paper.ink, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   remove: { paddingHorizontal: 4 },
-  removeGlyph: { color: paper.muted, fontSize: 18, lineHeight: 18 },
 });
+
+// Colour-bearing styles, resolved against the active palette.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    headerLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    logLink: { color: t.calmStrong, fontSize: 11, fontWeight: '600', letterSpacing: 0.2 },
+
+    empty: {
+      backgroundColor: t.surface,
+      borderRadius: radius.xl,
+      paddingVertical: 14,
+      paddingHorizontal: gap.lg,
+    },
+    emptyText: { color: t.muted, fontSize: 13, fontFamily: serif.displayItalic },
+
+    list: {
+      backgroundColor: t.surface,
+      borderRadius: radius.xl,
+      paddingHorizontal: gap.lg,
+    },
+    merchant: { color: t.ink, fontSize: 14 },
+    meta: { color: t.muted, fontSize: 11, fontVariant: ['tabular-nums'], marginTop: 1 },
+    amount: { color: t.ink, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+    removeGlyph: { color: t.muted, fontSize: 18, lineHeight: 18 },
+  });
+}

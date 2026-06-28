@@ -11,11 +11,11 @@
 // future Rive Melo will map the moods to real poses.
 
 import { useState } from 'react';
-import { Image, View } from 'react-native';
+import { Image } from 'react-native';
 import Svg, { Circle, Ellipse, G, Line, Path } from 'react-native-svg';
 
 import type { MeloMood } from './meloStates';
-import { paper } from '../kit';
+import { useTheme, type Palette } from '../kit';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const MELO_ASSET = require('../../../../assets/melo-hero.png');
@@ -33,6 +33,7 @@ export function MeloFigure({
   // 'asset' = the accepted Lovable Melo raster (default). 'mark' forces the SVG fallback mark.
   variant?: 'asset' | 'mark' | undefined;
 }) {
+  const t = useTheme();
   const [assetFailed, setAssetFailed] = useState(false);
   const showMark = variant === 'mark' || assetFailed;
 
@@ -49,7 +50,7 @@ export function MeloFigure({
     );
   }
 
-  return <MeloMark mood={mood} size={size} />;
+  return <MeloMark mood={mood} size={size} t={t} />;
 }
 
 type MoodPose = Readonly<{
@@ -68,27 +69,29 @@ const MOOD_POSE: Readonly<Record<MeloMood, MoodPose>> = {
 };
 
 // The fallback mark — only rendered if the raster asset can't load, or when explicitly requested.
-function MeloMark({ mood, size }: { mood: MeloMood; size: number }) {
+// Colours follow the active palette: an SVG fill/stroke can't read a StyleSheet, so the resolved
+// theme is passed in as a prop and applied inline.
+function MeloMark({ mood, size, t }: { mood: MeloMood; size: number; t: Palette }) {
   const p = MOOD_POSE[mood];
   return (
     <Svg width={size} height={size} viewBox="0 0 48 48" accessibilityRole="image">
       <Path
         d={`M5 ${p.pathCp} C 15 ${p.pathCp}, 18 38, 24 38 C 30 38, 33 ${p.pathCp}, 43 ${p.pathCp - 1.5}`}
-        stroke={paper.calmSoft}
+        stroke={t.calmSoft}
         strokeWidth={4.4}
         strokeLinecap="round"
         fill="none"
       />
       <Path
         d={`M5 ${p.pathCp} C 15 ${p.pathCp}, 18 38, 24 38 C 30 38, 33 ${p.pathCp}, 43 ${p.pathCp - 1.5}`}
-        stroke={paper.calm}
+        stroke={t.calm}
         strokeWidth={1.8}
         strokeLinecap="round"
         fill="none"
       />
-      <Circle cx={41} cy={p.pathCp - 1.5} r={2.1} fill={paper.warm} opacity={p.warmth} />
+      <Circle cx={41} cy={p.pathCp - 1.5} r={2.1} fill={t.warm} opacity={p.warmth} />
       <G rotation={p.lean} originX={24} originY={26}>
-        <Ellipse cx={24} cy={37.4} rx={8.2} ry={1.7} fill={paper.calmStrong} opacity={0.14} />
+        <Ellipse cx={24} cy={37.4} rx={8.2} ry={1.7} fill={t.calmStrong} opacity={0.14} />
         <Path
           d="M24 9
              C 16.4 9, 12.2 15.3, 12.2 22.4
@@ -96,14 +99,14 @@ function MeloMark({ mood, size }: { mood: MeloMood; size: number }) {
              C 19 37.9, 29 37.9, 31.6 36.1
              C 34.4 34.2, 35.8 29.4, 35.8 22.4
              C 35.8 15.3, 31.6 9, 24 9 Z"
-          fill={paper.calmSoft}
-          stroke={paper.calm}
+          fill={t.calmSoft}
+          stroke={t.calm}
           strokeWidth={1.6}
           strokeLinejoin="round"
         />
         <Path
           d="M15.6 19.5 C 18.5 13.6, 29.5 13.6, 32.4 19.5"
-          stroke={paper.calm}
+          stroke={t.calm}
           strokeWidth={1.4}
           strokeLinecap="round"
           fill="none"
@@ -111,7 +114,7 @@ function MeloMark({ mood, size }: { mood: MeloMood; size: number }) {
         />
         <Path
           d="M17.8 14.4 C 19.8 11.8, 24 10.7, 27.2 11.6"
-          stroke={paper.surface}
+          stroke={t.surface}
           strokeWidth={2.2}
           strokeLinecap="round"
           fill="none"
@@ -122,11 +125,11 @@ function MeloMark({ mood, size }: { mood: MeloMood; size: number }) {
           y1={23.4 + p.gazeDy}
           x2={28 + p.gazeDx}
           y2={23.4 + p.gazeDy}
-          stroke={paper.ink}
+          stroke={t.ink}
           strokeWidth={2.2}
           strokeLinecap="round"
         />
-        <Circle cx={24} cy={29.6} r={1.7} fill={paper.warm} opacity={p.warmth * 0.9} />
+        <Circle cx={24} cy={29.6} r={1.7} fill={t.warm} opacity={p.warmth * 0.9} />
       </G>
     </Svg>
   );

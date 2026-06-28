@@ -8,9 +8,10 @@
 // Presentation-only: the container computes thisWeek/lastWeek (from the transactions prop) and the
 // nextCharge/tightPoint data, and hands them down already-shaped. Each tile is a tappable target.
 
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { elevation, gap, paper, pressed, radius } from './kit';
+import { elevation, gap, pressed, radius, useTheme, type Palette } from './kit';
 
 export type TodayNextCharge = Readonly<{
   name: string;
@@ -53,24 +54,26 @@ export function TodayWeekTiles({
   onOpenNextCharge: () => void;
   onAskTightPoint: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const deltaMinor = thisWeekMinor - lastWeekMinor;
   const noPrior = lastWeekMinor === 0;
   const deltaDown = deltaMinor <= 0;
 
   return (
-    <View style={styles.grid}>
+    <View style={layout.grid}>
       <Pressable
         accessibilityHint="Compares this week's spending with last week."
         accessibilityRole="button"
         onPress={onCompareWeeks}
-        style={({ pressed: isPressed }) => [styles.tile, isPressed ? pressed : undefined]}
+        style={({ pressed: isPressed }) => [s.tile, isPressed ? pressed : undefined]}
       >
-        <Text style={styles.tileLabel}>This week</Text>
-        <Text style={styles.tileValue}>{pounds(thisWeekMinor)}</Text>
+        <Text style={s.tileLabel}>This week</Text>
+        <Text style={s.tileValue}>{pounds(thisWeekMinor)}</Text>
         <Text
           style={[
-            styles.tileMeta,
-            noPrior ? styles.tileMetaMuted : deltaDown ? styles.tileMetaDown : styles.tileMetaUp,
+            layout.tileMeta,
+            noPrior ? s.tileMetaMuted : deltaDown ? s.tileMetaDown : s.tileMetaUp,
           ]}
         >
           {noPrior ? 'no prior week yet' : `${deltaDown ? '−' : '+'}${pounds(deltaMinor)} vs last`}
@@ -82,13 +85,13 @@ export function TodayWeekTiles({
           accessibilityHint="Opens your charges."
           accessibilityRole="button"
           onPress={onOpenNextCharge}
-          style={({ pressed: isPressed }) => [styles.tile, isPressed ? pressed : undefined]}
+          style={({ pressed: isPressed }) => [s.tile, isPressed ? pressed : undefined]}
         >
-          <Text style={styles.tileLabel}>Next charge</Text>
-          <Text numberOfLines={1} style={styles.tileValue}>
+          <Text style={s.tileLabel}>Next charge</Text>
+          <Text numberOfLines={1} style={s.tileValue}>
             {nextCharge.name}
           </Text>
-          <Text style={styles.tileMetaMuted}>
+          <Text style={s.tileMetaMuted}>
             {poundsAndPence(nextCharge.costMinor)} ·{' '}
             {nextCharge.daysAway <= 0 ? 'today' : `in ${nextCharge.daysAway}d`}
           </Text>
@@ -98,10 +101,10 @@ export function TodayWeekTiles({
           accessibilityHint="Asks Melo why the tight point lands where it does."
           accessibilityRole="button"
           onPress={onAskTightPoint}
-          style={({ pressed: isPressed }) => [styles.tile, isPressed ? pressed : undefined]}
+          style={({ pressed: isPressed }) => [s.tile, isPressed ? pressed : undefined]}
         >
-          <Text style={styles.tileLabel}>Tight point</Text>
-          <Text numberOfLines={1} style={styles.tileValue}>
+          <Text style={s.tileLabel}>Tight point</Text>
+          <Text numberOfLines={1} style={s.tileValue}>
             {tightPoint.dayLabel} · {pounds(tightPoint.spareMinor)}
           </Text>
         </Pressable>
@@ -110,32 +113,39 @@ export function TodayWeekTiles({
   );
 }
 
-const styles = StyleSheet.create({
+// Colour-free styles — shared across light and dark.
+const layout = StyleSheet.create({
   grid: { flexDirection: 'row', gap: gap.sm },
-  tile: {
-    flex: 1,
-    backgroundColor: paper.surface,
-    borderRadius: radius.lg,
-    padding: 14,
-    gap: 2,
-    ...elevation.card,
-  },
-  tileLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  tileValue: {
-    color: paper.ink,
-    fontSize: 18,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-    marginTop: 2,
-  },
   tileMeta: { fontSize: 11, fontVariant: ['tabular-nums'], marginTop: 1 },
-  tileMetaMuted: { color: paper.muted, fontSize: 11, fontVariant: ['tabular-nums'], marginTop: 1 },
-  tileMetaDown: { color: paper.positiveInk },
-  tileMetaUp: { color: paper.repairInk },
 });
+
+// Colour-bearing styles, resolved against the active palette.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    tile: {
+      flex: 1,
+      backgroundColor: t.surface,
+      borderRadius: radius.lg,
+      padding: 14,
+      gap: 2,
+      ...elevation.card,
+    },
+    tileLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    tileValue: {
+      color: t.ink,
+      fontSize: 18,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+      marginTop: 2,
+    },
+    tileMetaMuted: { color: t.muted, fontSize: 11, fontVariant: ['tabular-nums'], marginTop: 1 },
+    tileMetaDown: { color: t.positiveInk },
+    tileMetaUp: { color: t.repairInk },
+  });
+}

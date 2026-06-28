@@ -10,27 +10,29 @@
 // signed amount. The primary add is a SINGLE accent "+ Add a bill" with a quiet "or add a debt"
 // link beneath it — never two equal ghost buttons.
 
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import {
   Body,
   gap,
   Headline,
-  paper,
+  type Palette,
   PressureScreen,
   PrimaryAction,
   QuietLink,
   Surface,
+  useTheme,
 } from './kit';
 import { Kicker, MeloLine, ScreenHeader, SectionLabel } from './secondaryKit';
 import type { LocalPlanRow, LocalPlansModel, LocalPlanTone } from '../../local/localPlansAdapter';
 
 // Left tone bar — the web splits the marks two ways: a debt is caution (amber data mark), a bill
 // (or anything needing a look) is the repair/negative coral. The engine's tone drives which.
-function barColor(tone: LocalPlanTone): string {
-  if (tone === 'estimated') return paper.caution;
-  if (tone === 'attention') return paper.repair;
-  return paper.repairSoft;
+function barColor(tone: LocalPlanTone, t: Palette): string {
+  if (tone === 'estimated') return t.caution;
+  if (tone === 'attention') return t.repair;
+  return t.repairSoft;
 }
 
 // Web renders the date column from a "<day> <month>" string (e.g. "1 Jul"): uppercase month on top,
@@ -44,24 +46,34 @@ function splitDate(dueDate: string): { month: string; day: string } {
   return { day: dueDate, month: '' };
 }
 
-function PlanRow({ row, first }: { row: LocalPlanRow; first: boolean }) {
+function PlanRow({
+  row,
+  first,
+  s,
+  t,
+}: {
+  row: LocalPlanRow;
+  first: boolean;
+  s: ReturnType<typeof makeStyles>;
+  t: Palette;
+}) {
   const { month, day } = splitDate(row.dueDate);
   return (
-    <View style={[styles.row, first ? styles.rowFirst : undefined]}>
-      <View style={styles.dateCol}>
-        {month ? <Text style={styles.dateMonth}>{month}</Text> : null}
-        <Text style={styles.dateDay}>{day}</Text>
+    <View style={[layout.row, s.row, first ? layout.rowFirst : undefined]}>
+      <View style={layout.dateCol}>
+        {month ? <Text style={s.dateMonth}>{month}</Text> : null}
+        <Text style={s.dateDay}>{day}</Text>
       </View>
-      <View style={[styles.bar, { backgroundColor: barColor(row.tone) }]} />
-      <View style={styles.rowText}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
+      <View style={[layout.bar, { backgroundColor: barColor(row.tone, t) }]} />
+      <View style={layout.rowText}>
+        <Text style={s.rowTitle} numberOfLines={1}>
           {row.title}
         </Text>
-        <Text style={styles.rowNote} numberOfLines={1}>
+        <Text style={s.rowNote} numberOfLines={1}>
           {row.stateLabel}
         </Text>
       </View>
-      <Text style={styles.rowAmount}>{row.target}</Text>
+      <Text style={s.rowAmount}>{row.target}</Text>
     </View>
   );
 }
@@ -81,6 +93,9 @@ export function PlansScreen({
   onOpenImports: () => void;
   plans: LocalPlansModel;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+
   const rows = plans.planRows;
 
   return (
@@ -92,29 +107,29 @@ export function PlansScreen({
         <Headline lead="What's " accent="already" tail=" spoken for." />
       </View>
 
-      <Surface style={styles.summary}>
+      <Surface style={layout.summary}>
         <View>
           <SectionLabel>Set aside</SectionLabel>
-          <Text style={styles.summaryValue}>{plans.committedTotal}</Text>
+          <Text style={s.summaryValue}>{plans.committedTotal}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <SectionLabel>Horizon</SectionLabel>
-          <Text style={styles.summaryHorizon}>Payday</Text>
+          <Text style={s.summaryHorizon}>Payday</Text>
         </View>
       </Surface>
 
       {plans.recoveryBriefing !== undefined ? (
-        <Surface style={styles.repairCard}>
+        <Surface style={layout.repairCard}>
           <SectionLabel>Needs a look</SectionLabel>
-          <Text style={styles.repairTitle}>{plans.recoveryBriefing.title}</Text>
-          <Body style={{ fontSize: 14 }}>{plans.recoveryBriefing.fact}</Body>
+          <Text style={s.repairTitle}>{plans.recoveryBriefing.title}</Text>
+          <Body style={layout.repairFact}>{plans.recoveryBriefing.fact}</Body>
         </Surface>
       ) : null}
 
       {rows.length > 0 ? (
-        <View style={styles.list}>
+        <View style={[layout.list, s.list]}>
           {rows.map((row, index) => (
-            <PlanRow key={row.id} row={row} first={index === 0} />
+            <PlanRow key={row.id} row={row} first={index === 0} s={s} t={t} />
           ))}
         </View>
       ) : (
@@ -125,7 +140,7 @@ export function PlansScreen({
         </Surface>
       )}
 
-      <View style={styles.addBlock}>
+      <View style={layout.addBlock}>
         <PrimaryAction
           label="+ Add a bill"
           accessibilityHint="Adds a recurring bill."
@@ -143,38 +158,20 @@ export function PlansScreen({
   );
 }
 
-const styles = StyleSheet.create({
+// Layout-only styles — no colour, so they never change with the theme.
+const layout = StyleSheet.create({
   summary: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
   },
-  summaryValue: {
-    color: paper.repairInk,
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 28,
-    letterSpacing: -0.3,
-    fontVariant: ['tabular-nums'],
-  },
-  summaryHorizon: {
-    color: paper.ink,
-    fontFamily: 'Fraunces_500Medium',
-    fontSize: 15,
-    marginTop: 2,
-  },
 
   repairCard: { gap: 6 },
-  repairTitle: {
-    color: paper.ink,
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 17,
-  },
+  repairFact: { fontSize: 14 },
 
   list: {
-    backgroundColor: paper.surface,
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairlineStrong,
     overflow: 'hidden',
   },
   row: {
@@ -184,36 +181,70 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: gap.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: paper.hairline,
   },
   rowFirst: { borderTopWidth: 0 },
 
   dateCol: { width: 44, alignItems: 'center' },
-  dateMonth: {
-    color: paper.muted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  dateDay: {
-    color: paper.ink,
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 18,
-    lineHeight: 20,
-    fontVariant: ['tabular-nums'],
-  },
 
   bar: { width: 6, height: 32, borderRadius: 3 },
   rowText: { flex: 1, minWidth: 0 },
-  rowTitle: { color: paper.ink, fontSize: 14, fontWeight: '600' },
-  rowNote: { color: paper.muted, fontSize: 12, marginTop: 2 },
-  rowAmount: {
-    color: paper.ink,
-    fontFamily: 'Fraunces_500Medium',
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
-  },
 
   addBlock: { gap: gap.xs },
 });
+
+// Colour-bearing styles — rebuilt whenever the active palette changes.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    summaryValue: {
+      color: t.repairInk,
+      fontFamily: 'Fraunces_600SemiBold',
+      fontSize: 28,
+      letterSpacing: -0.3,
+      fontVariant: ['tabular-nums'],
+    },
+    summaryHorizon: {
+      color: t.ink,
+      fontFamily: 'Fraunces_500Medium',
+      fontSize: 15,
+      marginTop: 2,
+    },
+
+    repairTitle: {
+      color: t.ink,
+      fontFamily: 'Fraunces_600SemiBold',
+      fontSize: 17,
+    },
+
+    list: {
+      backgroundColor: t.surface,
+      borderColor: t.hairlineStrong,
+    },
+    row: {
+      borderTopColor: t.hairline,
+    },
+
+    dateMonth: {
+      color: t.muted,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    dateDay: {
+      color: t.ink,
+      fontFamily: 'Fraunces_600SemiBold',
+      fontSize: 18,
+      lineHeight: 20,
+      fontVariant: ['tabular-nums'],
+    },
+
+    rowTitle: { color: t.ink, fontSize: 14, fontWeight: '600' },
+    rowNote: { color: t.muted, fontSize: 12, marginTop: 2 },
+    rowAmount: {
+      color: t.ink,
+      fontFamily: 'Fraunces_500Medium',
+      fontSize: 15,
+      fontVariant: ['tabular-nums'],
+    },
+  });
+}

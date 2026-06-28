@@ -21,8 +21,9 @@ import {
   PrimaryAction,
   QuietLink,
   gap,
-  paper,
   poundsLabel,
+  useTheme,
+  type Palette,
 } from './kit';
 import { MeloPresence } from './melo';
 
@@ -58,6 +59,8 @@ export function QuickEstimateScreen({
 }: {
   onSaveEstimate: (input: QuickEstimateInput) => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const today = useMemo(() => currentLocalIsoDate(), []);
   const [step, setStep] = useState(0);
   const [cash, setCash] = useState('');
@@ -188,6 +191,8 @@ function AmountStep({
   selectedChip?: WhenKey | undefined;
   onSelectChip?: ((key: WhenKey) => void) | undefined;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   return (
     <View style={styles.stepBody}>
       <View style={styles.stepIntro}>
@@ -240,6 +245,8 @@ function SummaryStep({
   onBack: () => void;
   onShow: () => void;
 }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   const projected = cash + income - bill;
   const tone = projected < 0 ? 'short' : projected < 5000 ? 'tight' : 'clear';
   const headline =
@@ -289,6 +296,8 @@ function SummaryStep({
 }
 
 function Progress({ step }: { step: number }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
   return (
     <View accessibilityLabel={`Step ${Math.min(step + 1, 3)} of 3`} style={styles.progress}>
       {[0, 1, 2].map((i) => (
@@ -298,7 +307,8 @@ function Progress({ step }: { step: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
   screen: { gap: gap.lg },
   head: {
     flexDirection: 'row',
@@ -306,10 +316,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 24,
   },
-  backText: { color: paper.secondary, fontSize: 15, fontWeight: '600' },
+  backText: { color: t.secondary, fontSize: 15, fontWeight: '600' },
   progress: { flexDirection: 'row', gap: 6 },
-  progressDot: { width: 22, height: 4, borderRadius: 2, backgroundColor: paper.hairline },
-  progressDotOn: { backgroundColor: paper.calm },
+  progressDot: { width: 22, height: 4, borderRadius: 2, backgroundColor: t.hairline },
+  progressDotOn: { backgroundColor: t.calm },
 
   stepBody: { gap: gap.lg },
   melo: { marginTop: -gap.xs },
@@ -320,7 +330,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm },
 
   amount: {
-    color: paper.ink,
+    color: t.ink,
     fontSize: 46,
     fontWeight: '800',
     letterSpacing: -1.4,
@@ -332,6 +342,7 @@ const styles = StyleSheet.create({
   footer: { gap: gap.xs, marginTop: gap.xs },
 
   summaryHeadline: { fontSize: 30, lineHeight: 36, marginTop: gap.xs },
-  summaryDetail: { color: paper.secondary, fontSize: 17, lineHeight: 25, marginTop: gap.xs },
+  summaryDetail: { color: t.secondary, fontSize: 17, lineHeight: 25, marginTop: gap.xs },
   summaryNote: { marginTop: gap.sm },
-});
+  });
+}

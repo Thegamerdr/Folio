@@ -22,7 +22,7 @@
 //     dependency of this app (checked). The step (£5), the max clamp (the from-pot balance) and the
 //     live readout all match the web range input exactly.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatMinorAmount, type CreatePotInput } from '../../local/localLedger';
@@ -34,11 +34,12 @@ import {
   GhostButton,
   Headline,
   MoneyPad,
-  paper,
   poundsLabel,
   PrimaryAction,
   radius,
   serif,
+  useTheme,
+  type Palette,
 } from './kit';
 import { MeloLine, ScreenHeader } from './secondaryKit';
 import { Sheet } from './Sheet';
@@ -72,6 +73,8 @@ export function PotsScreen({
   onReallocateBetweenPots,
   reduceMotion,
 }: PotsScreenProps) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const rows = model.rows;
 
   // The reallocation flow has three states: closed, picking a destination for a chosen source pot,
@@ -88,26 +91,26 @@ export function PotsScreen({
     <>
       <ScreenHeader label="Pots" onBack={onBack} />
 
-      <View style={styles.head}>
-        <Text style={styles.kicker}>Set aside</Text>
+      <View style={layout.head}>
+        <Text style={s.kicker}>Set aside</Text>
         <Headline lead="Small, " accent="calmly" tail=", on purpose." />
-        <Text style={styles.subhead}>Move one pot onto another to reallocate.</Text>
+        <Text style={s.subhead}>Move one pot onto another to reallocate.</Text>
       </View>
 
       {/* Across-pots totals — the figure counts up; the bar fills to the share of the combined goal. */}
-      <View style={styles.totals}>
-        <Text style={styles.totalsLabel}>Across pots</Text>
-        <View style={styles.totalsRow}>
-          <Text style={styles.totalsValue}>{formatMinorAmount(Math.round(sumDisplay))}</Text>
-          <Text style={styles.totalsGoal}>of {formatMinorAmount(totalGoalMinor)}</Text>
+      <View style={s.totals}>
+        <Text style={s.totalsLabel}>Across pots</Text>
+        <View style={layout.totalsRow}>
+          <Text style={s.totalsValue}>{formatMinorAmount(Math.round(sumDisplay))}</Text>
+          <Text style={s.totalsGoal}>of {formatMinorAmount(totalGoalMinor)}</Text>
         </View>
-        <View style={styles.totalsTrack}>
-          <View style={[styles.totalsFill, { width: `${Math.round(totalPct * 100)}%` }]} />
+        <View style={s.totalsTrack}>
+          <View style={[s.totalsFill, { width: `${Math.round(totalPct * 100)}%` }]} />
         </View>
       </View>
 
       {/* Per-pot cards. */}
-      <View style={styles.list}>
+      <View style={layout.list}>
         {rows.map((row) => (
           <PotCard
             key={row.id}
@@ -176,58 +179,60 @@ function PotCard({
   onAdd: (amountMinor: number) => void;
   onMove: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   // Weeks-left at the current pace — the web's Math.ceil(remaining / perWeek), "goal met" at 0.
   const remainingMinor = Math.max(0, row.goalMinor - row.savedMinor);
   const weeksLeft = row.perWeekMinor > 0 ? Math.ceil(remainingMinor / row.perWeekMinor) : 0;
   const paceLabel = weeksLeft > 0 ? `about ${weeksLeft} weeks` : 'goal met';
 
   return (
-    <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <View style={styles.cardName}>
+    <View style={s.card}>
+      <View style={layout.cardTop}>
+        <View style={layout.cardName}>
           <Pressable
             accessibilityLabel={`Move money from ${row.name}`}
             accessibilityHint="Choose another pot to move money into."
             hitSlop={10}
             onPress={onMove}
-            style={({ pressed }) => [styles.handle, pressed ? styles.handlePressed : undefined]}
+            style={({ pressed }) => [layout.handle, pressed ? layout.handlePressed : undefined]}
           >
-            <Text style={styles.handleGlyph}>⋮⋮</Text>
+            <Text style={s.handleGlyph}>⋮⋮</Text>
           </Pressable>
-          <Text style={styles.cardTitle} numberOfLines={1}>
+          <Text style={s.cardTitle} numberOfLines={1}>
             {row.name}
           </Text>
         </View>
-        <Text style={styles.cardAmount}>
-          {row.saved} <Text style={styles.cardAmountGoal}>/ {row.goal}</Text>
+        <Text style={s.cardAmount}>
+          {row.saved} <Text style={s.cardAmountGoal}>/ {row.goal}</Text>
         </Text>
       </View>
 
-      <View style={styles.cardTrack}>
+      <View style={s.cardTrack}>
         <View
           style={[
-            styles.cardFill,
+            layout.cardFill,
             { width: `${Math.round(row.progress * 100)}%` },
-            row.accent ? styles.cardFillAccent : styles.cardFillInk,
+            row.accent ? s.cardFillAccent : s.cardFillInk,
           ]}
         />
       </View>
 
-      <View style={styles.cardMeta}>
-        <Text style={styles.cardMetaText}>{row.perWeek}/wk at this pace</Text>
-        <Text style={styles.cardMetaText}>{paceLabel}</Text>
+      <View style={layout.cardMeta}>
+        <Text style={s.cardMetaText}>{row.perWeek}/wk at this pace</Text>
+        <Text style={s.cardMetaText}>{paceLabel}</Text>
       </View>
 
-      <View style={styles.pills}>
+      <View style={layout.pills}>
         {QUICK_ADD_POUNDS.map((pounds) => (
           <Pressable
             key={pounds}
             accessibilityRole="button"
             accessibilityLabel={`Add £${pounds} to ${row.name}`}
             onPress={() => onAdd(pounds * 100)}
-            style={({ pressed }) => [styles.pill, pressed ? styles.pillPressed : undefined]}
+            style={({ pressed }) => [s.pill, pressed ? layout.pillPressed : undefined]}
           >
-            <Text style={styles.pillLabel}>+£{pounds}</Text>
+            <Text style={s.pillLabel}>+£{pounds}</Text>
           </Pressable>
         ))}
       </View>
@@ -250,16 +255,18 @@ function DestinationPickerSheet({
   onClose: () => void;
   onPick: (toId: string) => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const from = rows.find((r) => r.id === fromId);
   const others = rows.filter((r) => r.id !== fromId);
 
   return (
     <Sheet visible={fromId !== null} onClose={onClose}>
-      <Text style={styles.sheetKicker}>Move from</Text>
-      <Text style={styles.sheetTitle}>{from ? shortName(from.name) : ''}</Text>
-      <Body style={styles.pickerHint}>Choose where it goes.</Body>
+      <Text style={s.sheetKicker}>Move from</Text>
+      <Text style={s.sheetTitle}>{from ? shortName(from.name) : ''}</Text>
+      <Body style={layout.pickerHint}>Choose where it goes.</Body>
 
-      <View style={styles.pickerList}>
+      <View style={s.pickerList}>
         {others.map((row, index) => (
           <Pressable
             key={row.id}
@@ -267,15 +274,15 @@ function DestinationPickerSheet({
             accessibilityLabel={`Move into ${row.name}`}
             onPress={() => onPick(row.id)}
             style={({ pressed }) => [
-              styles.pickerRow,
-              index === 0 ? styles.pickerRowFirst : undefined,
-              pressed ? styles.pickerRowPressed : undefined,
+              s.pickerRow,
+              index === 0 ? layout.pickerRowFirst : undefined,
+              pressed ? s.pickerRowPressed : undefined,
             ]}
           >
-            <Text style={styles.pickerName} numberOfLines={1}>
+            <Text style={s.pickerName} numberOfLines={1}>
               {row.name}
             </Text>
-            <Text style={styles.pickerAmount}>{row.saved}</Text>
+            <Text style={s.pickerAmount}>{row.saved}</Text>
           </Pressable>
         ))}
       </View>
@@ -300,6 +307,8 @@ function ReallocationSheet({
   onClose: () => void;
   onMove: (fromId: string, toId: string, amountMinor: number) => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const fromPot = transfer ? rows.find((r) => r.id === transfer.fromId) : undefined;
   const toPot = transfer ? rows.find((r) => r.id === transfer.toId) : undefined;
   const maxMoveMinor = fromPot ? fromPot.savedMinor : 0;
@@ -340,19 +349,19 @@ function ReallocationSheet({
     <Sheet visible={transfer !== null} onClose={onClose}>
       {fromPot && toPot ? (
         <>
-          <Text style={styles.sheetKicker}>Reallocate</Text>
-          <Text style={styles.sheetTitle}>
+          <Text style={s.sheetKicker}>Reallocate</Text>
+          <Text style={s.sheetTitle}>
             {shortName(fromPot.name)} → {shortName(toPot.name)}
           </Text>
 
           {/* Amount well — the big terracotta figure + a calm −/+ stepper (the web's slider). */}
-          <View style={styles.amountWell}>
-            <View style={styles.amountWellHead}>
-              <Text style={styles.amountWellLabel}>Amount</Text>
-              <Text style={styles.amountWellMax}>max {formatMinorAmount(maxMoveMinor)}</Text>
+          <View style={s.amountWell}>
+            <View style={layout.amountWellHead}>
+              <Text style={s.amountWellLabel}>Amount</Text>
+              <Text style={s.amountWellMax}>max {formatMinorAmount(maxMoveMinor)}</Text>
             </View>
-            <Text style={styles.amountValue}>{formatMinorAmount(clampedMinor)}</Text>
-            <View style={styles.stepper}>
+            <Text style={s.amountValue}>{formatMinorAmount(clampedMinor)}</Text>
+            <View style={layout.stepper}>
               <StepButton
                 label="−£5"
                 disabled={!canStepDown}
@@ -368,18 +377,18 @@ function ReallocationSheet({
 
           {/* Impact row — the tight point on the left (unchanged: pots sit outside the forecast), the
               destination on the right (with the +£n it gains). */}
-          <View style={styles.impact}>
+          <View style={s.impact}>
             <View>
-              <Text style={styles.impactLabel}>Tight point</Text>
-              <Text style={styles.impactValue}>
+              <Text style={s.impactLabel}>Tight point</Text>
+              <Text style={s.impactValue}>
                 {tightPointMinor !== undefined ? formatMinorAmount(tightPointMinor) : '—'}
               </Text>
             </View>
-            <View style={styles.impactRight}>
-              <Text style={styles.impactLabel}>{shortName(toPot.name)}</Text>
-              <Text style={styles.impactValue}>
+            <View style={layout.impactRight}>
+              <Text style={s.impactLabel}>{shortName(toPot.name)}</Text>
+              <Text style={s.impactValue}>
                 {toPot.saved}
-                <Text style={styles.impactDeltaUp}>
+                <Text style={s.impactDeltaUp}>
                   {' '}
                   +{formatMinorAmount(clampedMinor).replace('-', '')}
                 </Text>
@@ -387,9 +396,9 @@ function ReallocationSheet({
             </View>
           </View>
 
-          <View style={styles.sheetActions}>
+          <View style={layout.sheetActions}>
             <GhostButton flex label="Cancel" onPress={onClose} />
-            <View style={styles.flex}>
+            <View style={layout.flex}>
               <PrimaryAction
                 label={`Move ${formatMinorAmount(clampedMinor)}`}
                 disabled={!canMove}
@@ -419,6 +428,8 @@ function StepButton({
   disabled: boolean;
   onPress: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityRole="button"
@@ -428,12 +439,12 @@ function StepButton({
       hitSlop={8}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.step,
-        disabled ? styles.stepDisabled : undefined,
-        pressed && !disabled ? styles.stepPressed : undefined,
+        s.step,
+        disabled ? s.stepDisabled : undefined,
+        pressed && !disabled ? layout.stepPressed : undefined,
       ]}
     >
-      <Text style={[styles.stepLabel, disabled ? styles.stepLabelDisabled : undefined]}>
+      <Text style={[s.stepLabel, disabled ? s.stepLabelDisabled : undefined]}>
         {label}
       </Text>
     </Pressable>
@@ -459,6 +470,8 @@ function CreatePotSheet({
   const [goal, setGoal] = useState('');
   const [perWeek, setPerWeek] = useState('');
   const [primed, setPrimed] = useState(false);
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
 
   // Reset the form each time the sheet opens.
   if (visible && !primed) {
@@ -480,11 +493,11 @@ function CreatePotSheet({
 
   return (
     <Sheet visible={visible} onClose={onClose}>
-      <Text style={styles.sheetKicker}>Open a pot</Text>
-      <Text style={styles.sheetTitle}>What are you setting aside for?</Text>
+      <Text style={s.sheetKicker}>Open a pot</Text>
+      <Text style={s.sheetTitle}>What are you setting aside for?</Text>
 
-      <Text style={styles.fieldLabel}>Name</Text>
-      <View style={styles.nameRow}>
+      <Text style={s.fieldLabel}>Name</Text>
+      <View style={layout.nameRow}>
         {QUICK_NAMES.map((preset) => {
           const selected = name === preset;
           return (
@@ -494,12 +507,12 @@ function CreatePotSheet({
               accessibilityState={{ selected }}
               onPress={() => setName(preset)}
               style={({ pressed }) => [
-                styles.nameChip,
-                selected ? styles.nameChipOn : undefined,
-                pressed ? styles.pillPressed : undefined,
+                s.nameChip,
+                selected ? s.nameChipOn : undefined,
+                pressed ? layout.pillPressed : undefined,
               ]}
             >
-              <Text style={[styles.nameChipLabel, selected ? styles.nameChipLabelOn : undefined]}>
+              <Text style={[s.nameChipLabel, selected ? s.nameChipLabelOn : undefined]}>
                 {preset}
               </Text>
             </Pressable>
@@ -508,7 +521,7 @@ function CreatePotSheet({
       </View>
 
       {/* Goal / weekly — two tappable amount tiles; the active one is filled by the pad below. */}
-      <View style={styles.amountTiles}>
+      <View style={layout.amountTiles}>
         <AmountTile
           label="Goal"
           value={poundsLabel(goal)}
@@ -525,9 +538,9 @@ function CreatePotSheet({
 
       <MoneyPad value={padValue} onChange={setPadValue} />
 
-      <View style={styles.sheetActions}>
+      <View style={layout.sheetActions}>
         <GhostButton flex label="Cancel" onPress={onClose} />
-        <View style={styles.flex}>
+        <View style={layout.flex}>
           <PrimaryAction
             label="Open it"
             disabled={!canCreate}
@@ -559,19 +572,21 @@ function AmountTile({
   active: boolean;
   onPress: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.amountTile,
-        active ? styles.amountTileActive : undefined,
-        pressed ? styles.pillPressed : undefined,
+        s.amountTile,
+        active ? s.amountTileActive : undefined,
+        pressed ? layout.pillPressed : undefined,
       ]}
     >
-      <Text style={styles.amountTileLabel}>{label}</Text>
-      <Text style={[styles.amountTileValue, active ? styles.amountTileValueActive : undefined]}>
+      <Text style={s.amountTileLabel}>{label}</Text>
+      <Text style={[s.amountTileValue, active ? s.amountTileValueActive : undefined]}>
         {value}
       </Text>
     </Pressable>
@@ -609,90 +624,21 @@ export type PotsScreenProps = {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+// Colour-free styles — shared across light and dark (per the DARK-MODE PATTERN in kit.tsx).
+const layout = StyleSheet.create({
   flex: { flex: 1 },
 
   head: { gap: gap.xs, paddingTop: gap.xs },
-  // Italic "Set aside" kicker — web font-display italic, 13px, muted ink.
-  kicker: {
-    color: paper.muted,
-    fontFamily: serif.displayItalic,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  subhead: { color: paper.muted, fontSize: 11.5, lineHeight: 16, marginTop: 2 },
 
-  // Across-pots totals card — a raised paper surface; the figure is serif tabular, the bar fills ink.
-  totals: {
-    backgroundColor: paper.surface,
-    borderRadius: radius.xl,
-    padding: gap.lg,
-    ...elevation.card,
-  },
-  totalsLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
   totalsRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 },
-  totalsValue: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 40,
-    lineHeight: 42,
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-  },
-  totalsGoal: {
-    color: paper.muted,
-    fontFamily: serif.medium,
-    fontSize: 14,
-    fontVariant: ['tabular-nums'],
-  },
-  totalsTrack: {
-    height: 6,
-    borderRadius: radius.pill,
-    backgroundColor: paper.inset,
-    overflow: 'hidden',
-    marginTop: gap.md,
-  },
-  totalsFill: { height: '100%', borderRadius: radius.pill, backgroundColor: paper.ink },
 
   // Per-pot cards.
   list: { gap: gap.sm },
-  card: {
-    backgroundColor: paper.surface,
-    borderRadius: radius.xl,
-    paddingHorizontal: gap.lg,
-    paddingVertical: gap.md,
-    ...elevation.card,
-  },
   cardTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   cardName: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
   handle: { paddingVertical: 2, paddingRight: 2 },
   handlePressed: { opacity: 0.5 },
-  handleGlyph: { color: paper.muted, fontSize: 12, letterSpacing: -1 },
-  cardTitle: { color: paper.ink, fontSize: 14.5, fontWeight: '600', flexShrink: 1 },
-  cardAmount: {
-    color: paper.ink,
-    fontFamily: serif.medium,
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
-  },
-  cardAmountGoal: { color: paper.muted, fontSize: 12 },
-
-  cardTrack: {
-    height: 5,
-    borderRadius: radius.pill,
-    backgroundColor: paper.inset,
-    overflow: 'hidden',
-    marginTop: gap.md,
-  },
   cardFill: { height: '100%', borderRadius: radius.pill },
-  cardFillAccent: { backgroundColor: paper.calm },
-  cardFillInk: { backgroundColor: paper.secondary },
 
   cardMeta: {
     flexDirection: 'row',
@@ -700,180 +646,266 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: gap.sm,
   },
-  cardMetaText: { color: paper.muted, fontSize: 11.5, fontVariant: ['tabular-nums'] },
 
   pills: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
-  pill: {
-    height: 28,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-    backgroundColor: paper.inset,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   pillPressed: { opacity: 0.6 },
-  pillLabel: { color: paper.ink, fontSize: 11.5, fontVariant: ['tabular-nums'] },
 
-  // Sheet shared bits.
-  sheetKicker: {
-    color: paper.muted,
-    fontFamily: serif.displayItalic,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  sheetTitle: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: -0.3,
-    marginTop: 2,
-  },
   sheetActions: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg },
 
   // Destination picker.
   pickerHint: { fontSize: 14, marginTop: gap.xs },
-  pickerList: {
-    backgroundColor: paper.inset,
-    borderRadius: radius.lg,
-    marginTop: gap.md,
-    overflow: 'hidden',
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: gap.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: paper.hairline,
-  },
   pickerRowFirst: { borderTopWidth: 0 },
-  pickerRowPressed: { backgroundColor: paper.sunken },
-  pickerName: { color: paper.ink, fontSize: 15, fontWeight: '600', flex: 1, minWidth: 0 },
-  pickerAmount: {
-    color: paper.muted,
-    fontFamily: serif.medium,
-    fontSize: 14,
-    fontVariant: ['tabular-nums'],
-  },
 
-  // Reallocation amount well — sunken inset, big terracotta figure, calm stepper.
-  amountWell: {
-    backgroundColor: paper.inset,
-    borderRadius: radius.xl,
-    padding: gap.lg,
-    marginTop: gap.lg,
-  },
   amountWellHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  amountWellLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  amountWellMax: { color: paper.muted, fontSize: 10.5, fontVariant: ['tabular-nums'] },
-  amountValue: {
-    color: paper.calm,
-    fontFamily: serif.display,
-    fontSize: 44,
-    lineHeight: 50,
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
-    marginTop: 2,
-  },
   stepper: { flexDirection: 'row', gap: gap.sm, marginTop: gap.sm },
-  step: {
-    flex: 1,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: paper.surface,
-    borderWidth: 1.5,
-    borderColor: paper.hairlineStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   stepPressed: { opacity: 0.6 },
-  stepDisabled: { borderColor: paper.hairline, backgroundColor: paper.sunken },
-  stepLabel: {
-    color: paper.ink,
-    fontSize: 16,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  stepLabelDisabled: { color: paper.muted },
 
-  // Impact row — tight point + destination, with signed deltas.
-  impact: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    backgroundColor: paper.surface,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairlineStrong,
-    paddingVertical: 14,
-    paddingHorizontal: gap.lg,
-    marginTop: gap.md,
-  },
   impactRight: { alignItems: 'flex-end' },
-  impactLabel: {
-    color: paper.muted,
-    fontSize: 10.5,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  impactValue: {
-    color: paper.ink,
-    fontFamily: serif.medium,
-    fontSize: 16,
-    fontVariant: ['tabular-nums'],
-    marginTop: 3,
-  },
-  impactDeltaUp: { color: paper.positiveInk, fontSize: 12 },
 
-  // Open-a-pot form.
-  fieldLabel: { color: paper.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
   nameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.xs, marginTop: gap.sm },
-  nameChip: {
-    borderRadius: radius.pill,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderWidth: 1.5,
-    borderColor: paper.hairline,
-    backgroundColor: paper.surface,
-  },
-  nameChipOn: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
-  nameChipLabel: { color: paper.secondary, fontSize: 13.5, fontWeight: '600' },
-  nameChipLabelOn: { color: paper.calmStrong },
-
   amountTiles: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg },
-  amountTile: {
-    flex: 1,
-    backgroundColor: paper.inset,
-    borderRadius: radius.lg,
-    paddingVertical: gap.md,
-    paddingHorizontal: gap.md,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  amountTileActive: { borderColor: paper.calm, backgroundColor: paper.calmSoft },
-  amountTileLabel: {
-    color: paper.muted,
-    fontSize: 10.5,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  amountTileValue: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 26,
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-    marginTop: 4,
-  },
-  amountTileValueActive: { color: paper.calmStrong },
 });
+
+// Colour-bearing styles, resolved against the active palette `t`.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    // Italic "Set aside" kicker — web font-display italic, 13px, muted ink.
+    kicker: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    subhead: { color: t.muted, fontSize: 11.5, lineHeight: 16, marginTop: 2 },
+
+    // Across-pots totals card — a raised paper surface; the figure is serif tabular, the bar fills ink.
+    totals: {
+      backgroundColor: t.surface,
+      borderRadius: radius.xl,
+      padding: gap.lg,
+      ...elevation.card,
+    },
+    totalsLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    totalsValue: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 40,
+      lineHeight: 42,
+      letterSpacing: -0.5,
+      fontVariant: ['tabular-nums'],
+    },
+    totalsGoal: {
+      color: t.muted,
+      fontFamily: serif.medium,
+      fontSize: 14,
+      fontVariant: ['tabular-nums'],
+    },
+    totalsTrack: {
+      height: 6,
+      borderRadius: radius.pill,
+      backgroundColor: t.inset,
+      overflow: 'hidden',
+      marginTop: gap.md,
+    },
+    totalsFill: { height: '100%', borderRadius: radius.pill, backgroundColor: t.ink },
+
+    card: {
+      backgroundColor: t.surface,
+      borderRadius: radius.xl,
+      paddingHorizontal: gap.lg,
+      paddingVertical: gap.md,
+      ...elevation.card,
+    },
+    handleGlyph: { color: t.muted, fontSize: 12, letterSpacing: -1 },
+    cardTitle: { color: t.ink, fontSize: 14.5, fontWeight: '600', flexShrink: 1 },
+    cardAmount: {
+      color: t.ink,
+      fontFamily: serif.medium,
+      fontSize: 15,
+      fontVariant: ['tabular-nums'],
+    },
+    cardAmountGoal: { color: t.muted, fontSize: 12 },
+
+    cardTrack: {
+      height: 5,
+      borderRadius: radius.pill,
+      backgroundColor: t.inset,
+      overflow: 'hidden',
+      marginTop: gap.md,
+    },
+    cardFillAccent: { backgroundColor: t.calm },
+    cardFillInk: { backgroundColor: t.secondary },
+
+    cardMetaText: { color: t.muted, fontSize: 11.5, fontVariant: ['tabular-nums'] },
+
+    pill: {
+      height: 28,
+      paddingHorizontal: 10,
+      borderRadius: radius.pill,
+      backgroundColor: t.inset,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pillLabel: { color: t.ink, fontSize: 11.5, fontVariant: ['tabular-nums'] },
+
+    // Sheet shared bits.
+    sheetKicker: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    sheetTitle: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 22,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      marginTop: 2,
+    },
+
+    // Destination picker.
+    pickerList: {
+      backgroundColor: t.inset,
+      borderRadius: radius.lg,
+      marginTop: gap.md,
+      overflow: 'hidden',
+    },
+    pickerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 16,
+      paddingHorizontal: gap.lg,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.hairline,
+    },
+    pickerRowPressed: { backgroundColor: t.sunken },
+    pickerName: { color: t.ink, fontSize: 15, fontWeight: '600', flex: 1, minWidth: 0 },
+    pickerAmount: {
+      color: t.muted,
+      fontFamily: serif.medium,
+      fontSize: 14,
+      fontVariant: ['tabular-nums'],
+    },
+
+    // Reallocation amount well — sunken inset, big terracotta figure, calm stepper.
+    amountWell: {
+      backgroundColor: t.inset,
+      borderRadius: radius.xl,
+      padding: gap.lg,
+      marginTop: gap.lg,
+    },
+    amountWellLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    amountWellMax: { color: t.muted, fontSize: 10.5, fontVariant: ['tabular-nums'] },
+    amountValue: {
+      color: t.calm,
+      fontFamily: serif.display,
+      fontSize: 44,
+      lineHeight: 50,
+      letterSpacing: -1,
+      fontVariant: ['tabular-nums'],
+      marginTop: 2,
+    },
+    step: {
+      flex: 1,
+      height: 44,
+      borderRadius: radius.md,
+      backgroundColor: t.surface,
+      borderWidth: 1.5,
+      borderColor: t.hairlineStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepDisabled: { borderColor: t.hairline, backgroundColor: t.sunken },
+    stepLabel: {
+      color: t.ink,
+      fontSize: 16,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+    },
+    stepLabelDisabled: { color: t.muted },
+
+    // Impact row — tight point + destination, with signed deltas.
+    impact: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      backgroundColor: t.surface,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairlineStrong,
+      paddingVertical: 14,
+      paddingHorizontal: gap.lg,
+      marginTop: gap.md,
+    },
+    impactLabel: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    impactValue: {
+      color: t.ink,
+      fontFamily: serif.medium,
+      fontSize: 16,
+      fontVariant: ['tabular-nums'],
+      marginTop: 3,
+    },
+    impactDeltaUp: { color: t.positiveInk, fontSize: 12 },
+
+    // Open-a-pot form.
+    fieldLabel: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
+    nameChip: {
+      borderRadius: radius.pill,
+      paddingVertical: 9,
+      paddingHorizontal: 14,
+      borderWidth: 1.5,
+      borderColor: t.hairline,
+      backgroundColor: t.surface,
+    },
+    nameChipOn: { borderColor: t.calm, backgroundColor: t.calmSoft },
+    nameChipLabel: { color: t.secondary, fontSize: 13.5, fontWeight: '600' },
+    nameChipLabelOn: { color: t.calmStrong },
+
+    amountTile: {
+      flex: 1,
+      backgroundColor: t.inset,
+      borderRadius: radius.lg,
+      paddingVertical: gap.md,
+      paddingHorizontal: gap.md,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    amountTileActive: { borderColor: t.calm, backgroundColor: t.calmSoft },
+    amountTileLabel: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    amountTileValue: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 26,
+      letterSpacing: -0.5,
+      fontVariant: ['tabular-nums'],
+      marginTop: 4,
+    },
+    amountTileValueActive: { color: t.calmStrong },
+  });
+}

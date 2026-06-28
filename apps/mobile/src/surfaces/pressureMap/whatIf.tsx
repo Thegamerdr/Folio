@@ -12,7 +12,7 @@
 // (the stepper moves in £5 steps, mirroring the web), and converted to minor for every comparison
 // and every formatted figure so there is no formatting drift with the rest of the app.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
@@ -27,10 +27,11 @@ import {
   gap,
   magnitude,
   money,
-  paper,
   pressed,
   radius,
   serif,
+  useTheme,
+  type Palette,
 } from './kit';
 import { MeloPresence } from './melo';
 import type { MeloState } from './melo/meloStates';
@@ -79,6 +80,8 @@ export function WhatIfScreen({
   onBack,
   reduceMotion,
 }: WhatIfScreenProps) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   // The hypothetical spend the user is dragging, in whole pounds.
   const [pounds, setPounds] = useState(START_POUNDS);
   const spendMinor = pounds * PENCE;
@@ -113,8 +116,8 @@ export function WhatIfScreen({
   const increment = () => setPounds((v) => Math.min(MAX_POUNDS, v + STEP_POUNDS));
 
   return (
-    <PressureScreen style={styles.screen}>
-      <View style={styles.head}>
+    <PressureScreen style={layout.screen}>
+      <View style={layout.head}>
         <Pressable
           accessibilityLabel="Back"
           accessibilityRole="button"
@@ -122,19 +125,19 @@ export function WhatIfScreen({
           onPress={onBack}
           style={({ pressed: isPressed }) => (isPressed ? pressed : undefined)}
         >
-          <Text style={styles.backText}>‹ Back</Text>
+          <Text style={[layout.backText, s.backText]}>‹ Back</Text>
         </Pressable>
         <Eyebrow tone="muted">Preview</Eyebrow>
-        <View style={styles.headSpacer} />
+        <View style={layout.headSpacer} />
       </View>
 
-      <View style={styles.intro}>
-        <Text style={styles.kicker}>A quiet experiment</Text>
+      <View style={layout.intro}>
+        <Text style={[layout.kicker, s.kicker]}>A quiet experiment</Text>
         <Headline lead="What if I spend " accent={`£${pounds}`} tail=" today?" />
       </View>
 
-      <Surface style={styles.holdCard}>
-        <View style={styles.stepperRow}>
+      <Surface style={layout.holdCard}>
+        <View style={layout.stepperRow}>
           <Pressable
             accessibilityHint="Lowers the hypothetical spend by five pounds."
             accessibilityLabel="Less"
@@ -142,19 +145,20 @@ export function WhatIfScreen({
             disabled={pounds <= MIN_POUNDS}
             onPress={decrement}
             style={({ pressed: isPressed }) => [
-              styles.stepKey,
-              pounds <= MIN_POUNDS ? styles.stepKeyDisabled : undefined,
+              layout.stepKey,
+              s.stepKey,
+              pounds <= MIN_POUNDS ? layout.stepKeyDisabled : undefined,
               isPressed ? pressed : undefined,
             ]}
           >
-            <Text style={styles.stepKeyGlyph}>−</Text>
+            <Text style={[layout.stepKeyGlyph, s.stepKeyGlyph]}>−</Text>
           </Pressable>
 
-          <View style={styles.holdValue}>
+          <View style={layout.holdValue}>
             <HeroMoney accessibilityLabel={`${money(spendMinor)} today's hold`} tone={undefined}>
-              <Text style={styles.holdAccent}>{money(spendMinor)}</Text>
+              <Text style={s.holdAccent}>{money(spendMinor)}</Text>
             </HeroMoney>
-            <Text style={styles.holdCaption}>today's hold</Text>
+            <Text style={[layout.holdCaption, s.holdCaption]}>today's hold</Text>
           </View>
 
           <Pressable
@@ -164,19 +168,20 @@ export function WhatIfScreen({
             disabled={pounds >= MAX_POUNDS}
             onPress={increment}
             style={({ pressed: isPressed }) => [
-              styles.stepKey,
-              pounds >= MAX_POUNDS ? styles.stepKeyDisabled : undefined,
+              layout.stepKey,
+              s.stepKey,
+              pounds >= MAX_POUNDS ? layout.stepKeyDisabled : undefined,
               isPressed ? pressed : undefined,
             ]}
           >
-            <Text style={styles.stepKeyGlyph}>+</Text>
+            <Text style={[layout.stepKeyGlyph, s.stepKeyGlyph]}>+</Text>
           </Pressable>
         </View>
 
-        <MiniPath pounds={pounds} />
+        <MiniPath pounds={pounds} t={t} />
       </Surface>
 
-      <View style={styles.statsRow}>
+      <View style={layout.statsRow}>
         <StatCell
           label="New lowest"
           value={money(Math.round(lowDisplayMinor))}
@@ -187,18 +192,20 @@ export function WhatIfScreen({
               : undefined
           }
           footnoteTone={breachesGoal ? 'repair' : undefined}
+          s={s}
         />
         <StatCell
           label="Days of cover"
           value={`${coverDisplay.toFixed(1)}d`}
           tone={coverTone}
           footnote={`${magnitude(potsTotalMinor)} in pots`}
+          s={s}
         />
       </View>
 
-      <MeloPresence line={meloLine} size="sm" state={meloState} style={styles.melo} />
+      <MeloPresence line={meloLine} size="sm" state={meloState} style={layout.melo} />
 
-      <View style={styles.footer}>
+      <View style={layout.footer}>
         <PrimaryAction
           accessibilityHint="Opens Melo to talk through this preview."
           label="Talk it through with Melo"
@@ -219,7 +226,7 @@ export function WhatIfScreen({
 // Decorative (not the canonical route), faithful to the web's preview sketch.
 // ---------------------------------------------------------------------------
 
-function MiniPath({ pounds }: { pounds: number }) {
+function MiniPath({ pounds, t }: { pounds: number; t: Palette }) {
   // The dip lands lower as the spend grows (web: 130 + amount*0.55, clamped to 190).
   const dipY = Math.min(190, 130 + pounds * 0.55);
   const d = `M 18 80 C 70 90, 110 70, 160 110 S 240 ${dipY}, 300 150 S 350 60, 372 50`;
@@ -227,24 +234,24 @@ function MiniPath({ pounds }: { pounds: number }) {
     <Svg
       accessibilityLabel="A small money path dipping to its lowest point before payday."
       height={140}
-      style={styles.path}
+      style={layout.path}
       viewBox="0 0 390 200"
       width="100%"
     >
-      <Path d={d} stroke={paper.hairlineStrong} strokeWidth={1} strokeDasharray="2 4" fill="none" />
+      <Path d={d} stroke={t.hairlineStrong} strokeWidth={1} strokeDasharray="2 4" fill="none" />
       <Path
         d={d}
-        stroke={paper.calm}
+        stroke={t.calm}
         strokeWidth={2.4}
         strokeLinecap="round"
         fill="none"
       />
-      <Circle cx={372} cy={50} r={5} fill={paper.payday} />
-      <SvgText x={350} y={40} fontFamily={serif.displayItalic} fontSize={10} fill={paper.ink} textAnchor="end">
+      <Circle cx={372} cy={50} r={5} fill={t.payday} />
+      <SvgText x={350} y={40} fontFamily={serif.displayItalic} fontSize={10} fill={t.ink} textAnchor="end">
         payday
       </SvgText>
-      <Circle cx={300} cy={dipY} r={3.5} fill={paper.ink} />
-      <SvgText x={300} y={dipY + 18} fontFamily={serif.displayItalic} fontSize={10} fill={paper.muted} textAnchor="middle">
+      <Circle cx={300} cy={dipY} r={3.5} fill={t.ink} />
+      <SvgText x={300} y={dipY + 18} fontFamily={serif.displayItalic} fontSize={10} fill={t.muted} textAnchor="middle">
         lowest point
       </SvgText>
     </Svg>
@@ -261,24 +268,33 @@ function StatCell({
   tone,
   footnote,
   footnoteTone,
+  s,
 }: {
   label: string;
   value: string;
   tone?: 'repair' | undefined;
   footnote?: string | undefined;
   footnoteTone?: 'repair' | undefined;
+  s: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <Surface style={styles.statCell}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, tone === 'repair' ? styles.statValueRepair : undefined]}>
+    <Surface style={layout.statCell}>
+      <Text style={[layout.statLabel, s.statLabel]}>{label}</Text>
+      <Text
+        style={[
+          layout.statValue,
+          s.statValue,
+          tone === 'repair' ? s.statValueRepair : undefined,
+        ]}
+      >
         {value}
       </Text>
       {footnote ? (
         <Text
           style={[
-            styles.statFootnote,
-            footnoteTone === 'repair' ? styles.statFootnoteRepair : undefined,
+            layout.statFootnote,
+            s.statFootnote,
+            footnoteTone === 'repair' ? s.statFootnoteRepair : undefined,
           ]}
         >
           {footnote}
@@ -330,7 +346,8 @@ function meloLineFor({
   return 'Plenty of room. Spend if it serves you.';
 }
 
-const styles = StyleSheet.create({
+// Layout-only styles (spacing, type, flex) — theme-independent, kept module-level static.
+const layout = StyleSheet.create({
   screen: { gap: gap.lg },
 
   head: {
@@ -339,13 +356,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 24,
   },
-  backText: { color: paper.secondary, fontSize: 15, fontWeight: '600' },
+  backText: { fontSize: 15, fontWeight: '600' },
   headSpacer: { width: 40 },
 
   intro: { gap: gap.xs },
   // Melo's voice / a quiet aside: serif italic, warm-muted — the web's font-display italic kicker.
   kicker: {
-    color: paper.muted,
     fontFamily: serif.displayItalic,
     fontSize: 13,
     lineHeight: 18,
@@ -363,16 +379,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: paper.inset,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairlineStrong,
   },
   stepKeyDisabled: { opacity: 0.45 },
-  stepKeyGlyph: { color: paper.ink, fontSize: 24, fontWeight: '500', lineHeight: 26 },
+  stepKeyGlyph: { fontSize: 24, fontWeight: '500', lineHeight: 26 },
   holdValue: { alignItems: 'center', gap: 4 },
-  holdAccent: { color: paper.calm },
   holdCaption: {
-    color: paper.muted,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
@@ -384,29 +396,43 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', gap: gap.sm },
   statCell: { flex: 1, gap: 4, padding: gap.lg },
   statLabel: {
-    color: paper.muted,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   statValue: {
-    color: paper.ink,
     fontSize: 24,
     fontWeight: '800',
     letterSpacing: -0.6,
     fontVariant: ['tabular-nums'],
   },
-  statValueRepair: { color: paper.repairInk },
   statFootnote: {
-    color: paper.muted,
     fontSize: 11,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
-  statFootnoteRepair: { color: paper.repairInk },
 
   melo: { marginTop: gap.xs },
 
   footer: { gap: gap.sm, marginTop: gap.xs },
 });
+
+// Colour-bearing styles — rebuilt from the active palette so the screen follows light/dark.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    backText: { color: t.secondary },
+    kicker: { color: t.muted },
+
+    stepKey: { backgroundColor: t.inset, borderColor: t.hairlineStrong },
+    stepKeyGlyph: { color: t.ink },
+    holdAccent: { color: t.calm },
+    holdCaption: { color: t.muted },
+
+    statLabel: { color: t.muted },
+    statValue: { color: t.ink },
+    statValueRepair: { color: t.repairInk },
+    statFootnote: { color: t.muted },
+    statFootnoteRepair: { color: t.repairInk },
+  });
+}

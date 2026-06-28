@@ -196,8 +196,8 @@ describe('Lovable target — Review is a one-row decision', () => {
   });
 
   it('money-in reads green (you make it), money-out reads ink', () => {
-    expect(review).toContain('amountIn: { color: paper.positiveInk }');
-    expect(review).toContain('amountOut: { color: paper.ink }');
+    expect(review).toContain('amountIn: { color: t.positiveInk }');
+    expect(review).toContain('amountOut: { color: t.ink }');
   });
 });
 
@@ -213,8 +213,8 @@ describe('Lovable target — colour semantics split action from "you make it"', 
 
   it('the holding path is green and the tight point is terracotta', () => {
     // lineTone "holds" → green; the lowest (tight) point → terracotta accent when it holds.
-    expect(path).toContain(': paper.positive');
-    expect(path).toContain('node.point.balanceMinor < 0 ? paper.repair : paper.calm');
+    expect(path).toContain('t.positive');
+    expect(path).toContain('node.point.balanceMinor < 0 ? t.repair : t.calm');
   });
 });
 

@@ -35,9 +35,10 @@ import {
   Surface,
   elevation,
   gap,
-  paper,
   pressed,
   serif,
+  useTheme,
+  type Palette,
   type VerdictTone,
 } from './kit';
 import { MeloLine } from './secondaryKit';
@@ -54,10 +55,10 @@ import {
 // calm-green positive, the set-aside as neutral ink, the next tight point as the terracotta accent.
 type StatTone = 'positive' | 'ink' | 'accent';
 
-function statColor(tone: StatTone): string {
-  if (tone === 'positive') return paper.positiveInk;
-  if (tone === 'accent') return paper.calm;
-  return paper.ink;
+function statColor(t: Palette, tone: StatTone): string {
+  if (tone === 'positive') return t.positiveInk;
+  if (tone === 'accent') return t.calm;
+  return t.ink;
 }
 
 // The accent word on each step's headline takes its colour from the matching verdict tone, so the
@@ -112,6 +113,8 @@ export function PaydayRitualScreen({
   onBack: () => void;
   reduceMotion?: boolean | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const [step, setStep] = useState(0);
 
   // The spare the cycle held and the set-aside both come straight from the engine view-models, so
@@ -243,8 +246,8 @@ export function PaydayRitualScreen({
   };
 
   return (
-    <PressureScreen style={styles.screen}>
-      <View style={styles.head}>
+    <PressureScreen style={layout.screen}>
+      <View style={layout.head}>
         <Pressable
           accessibilityHint="Leaves the ritual without closing the cycle."
           accessibilityLabel="Back"
@@ -252,22 +255,22 @@ export function PaydayRitualScreen({
           hitSlop={12}
           onPress={onBack}
         >
-          <Text style={styles.backText}>‹</Text>
+          <Text style={s.backText}>‹</Text>
         </Pressable>
         <ProgressRail step={step} total={steps.length} />
-        <View style={styles.headSpacer} />
+        <View style={layout.headSpacer} />
       </View>
 
-      <View style={styles.intro}>
+      <View style={layout.intro}>
         <Eyebrow>{current.eyebrow}</Eyebrow>
         <Headline
           lead={current.lead}
           accent={current.accent}
           tail={current.tail}
           accentTone={accentToneFor(current.statTone)}
-          style={styles.headline}
+          style={layout.headline}
         />
-        <Body style={styles.body}>{current.body}</Body>
+        <Body style={s.body}>{current.body}</Body>
       </View>
 
       {onStatPress ? (
@@ -277,21 +280,21 @@ export function PaydayRitualScreen({
           accessibilityRole="button"
           onPress={onStatPress}
           style={({ pressed: isPressed }) => [
-            styles.statSurface,
-            styles.statCard,
+            s.statSurface,
+            layout.statCard,
             isPressed ? pressed : undefined,
           ]}
         >
-          <Text style={styles.statLabel}>{current.statLabel}</Text>
-          <Text style={[styles.statValue, { color: statColor(current.statTone) }]}>
+          <Text style={s.statLabel}>{current.statLabel}</Text>
+          <Text style={[s.statValue, { color: statColor(t, current.statTone) }]}>
             {current.statValue}
           </Text>
-          {statHint ? <Text style={styles.statHint}>{statHint}</Text> : null}
+          {statHint ? <Text style={s.statHint}>{statHint}</Text> : null}
         </Pressable>
       ) : (
-        <Surface style={styles.statCard}>
-          <Text style={styles.statLabel}>{current.statLabel}</Text>
-          <Text style={[styles.statValue, { color: statColor(current.statTone) }]}>
+        <Surface style={layout.statCard}>
+          <Text style={s.statLabel}>{current.statLabel}</Text>
+          <Text style={[s.statValue, { color: statColor(t, current.statTone) }]}>
             {current.statValue}
           </Text>
         </Surface>
@@ -299,7 +302,7 @@ export function PaydayRitualScreen({
 
       <MeloLine tone="soft" text={current.melo} />
 
-      <View style={styles.footer}>
+      <View style={layout.footer}>
         <PrimaryAction
           accessibilityHint={
             isLast ? 'Records the closed cycle and shows it on Today.' : undefined
@@ -335,18 +338,20 @@ export function PaydayRitualScreen({
 // The progress rail — the web's row of pills: the active step is a wide terracotta bar, completed
 // steps a shorter ink bar, upcoming steps a short hairline bar.
 function ProgressRail({ step, total }: { step: number; total: number }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View accessibilityLabel={`Step ${step + 1} of ${total}`} style={styles.rail}>
+    <View accessibilityLabel={`Step ${step + 1} of ${total}`} style={layout.rail}>
       {Array.from({ length: total }, (_, i) => (
         <View
           key={i}
           style={[
-            styles.railPill,
+            layout.railPill,
             i === step
-              ? styles.railPillActive
+              ? s.railPillActive
               : i < step
-                ? styles.railPillDone
-                : styles.railPillUpcoming,
+                ? s.railPillDone
+                : s.railPillUpcoming,
           ]}
         />
       ))}
@@ -371,13 +376,15 @@ function KeypadSheet({
   onChange: (next: string) => void;
   onDone: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const display = formatMinorAmount(poundsToMinor(value));
   return (
-    <View style={styles.sheetBody}>
+    <View style={layout.sheetBody}>
       <Eyebrow>{eyebrow}</Eyebrow>
-      <Text style={styles.sheetTitle}>{title}</Text>
-      <Muted style={styles.sheetHelper}>{helper}</Muted>
-      <Text style={styles.sheetAmount}>{display}</Text>
+      <Text style={s.sheetTitle}>{title}</Text>
+      <Muted style={layout.sheetHelper}>{helper}</Muted>
+      <Text style={s.sheetAmount}>{display}</Text>
       <MoneyPad onChange={onChange} value={value} />
       <PrimaryAction label="Set it" onPress={onDone} />
     </View>
@@ -395,21 +402,23 @@ function NoteSheet({
   onChange: (next: string) => void;
   onDone: () => void;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View style={styles.sheetBody}>
+    <View style={layout.sheetBody}>
       <Eyebrow>Step four</Eyebrow>
-      <Text style={styles.sheetTitle}>One line for next-you.</Text>
-      <Muted style={styles.sheetHelper}>
+      <Text style={s.sheetTitle}>One line for next-you.</Text>
+      <Muted style={layout.sheetHelper}>
         A short reminder of what held the line this time. Leave it blank to use the suggestion.
       </Muted>
-      <View style={styles.noteField}>
+      <View style={s.noteField}>
         <TextInput
           accessibilityLabel="A line for next-you"
           multiline
           onChangeText={onChange}
           placeholder={NOTE_SUGGESTION}
-          placeholderTextColor={paper.muted}
-          style={styles.noteText}
+          placeholderTextColor={t.muted}
+          style={s.noteText}
           value={value}
         />
       </View>
@@ -418,7 +427,8 @@ function NoteSheet({
   );
 }
 
-const styles = StyleSheet.create({
+// Colour-free styles — shared across light and dark (per the DARK-MODE PATTERN in kit.tsx).
+const layout = StyleSheet.create({
   screen: { gap: gap.lg },
 
   head: {
@@ -427,84 +437,97 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 24,
   },
-  backText: { color: paper.muted, fontSize: 24, lineHeight: 24, fontWeight: '400' },
   headSpacer: { width: 20 },
 
   rail: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   railPill: { height: 4, borderRadius: 2 },
-  railPillActive: { width: 28, backgroundColor: paper.calm },
-  railPillDone: { width: 20, backgroundColor: paper.secondary },
-  railPillUpcoming: { width: 20, backgroundColor: paper.hairline },
 
   intro: { gap: gap.sm },
   headline: { fontSize: 32, lineHeight: 38, marginTop: 2 },
-  body: { color: paper.secondary, fontSize: 14, lineHeight: 22, marginTop: gap.xs, maxWidth: 330 },
 
   statCard: { gap: 4 },
-  // The tappable variant of the stat card on the two decision steps: it matches the kit Surface
-  // look (raised paper, soft lift) so the only visible difference is the quiet "tap to set" hint.
-  statSurface: {
-    backgroundColor: paper.surface,
-    borderRadius: 20,
-    padding: gap.xl,
-    ...elevation.card,
-  },
-  statHint: {
-    color: paper.calmStrong,
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    marginTop: 2,
-  },
-  statLabel: {
-    color: paper.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  statValue: {
-    fontFamily: serif.display,
-    fontSize: 44,
-    lineHeight: 50,
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
-  },
 
   footer: { gap: gap.xs, marginTop: gap.xs },
 
   sheetBody: { gap: gap.sm },
-  sheetTitle: {
-    color: paper.ink,
-    fontFamily: serif.display,
-    fontSize: 24,
-    lineHeight: 29,
-    letterSpacing: -0.3,
-    marginTop: 2,
-  },
   sheetHelper: { fontSize: 14, maxWidth: 330 },
-  sheetAmount: {
-    color: paper.ink,
-    fontSize: 44,
-    fontWeight: '800',
-    letterSpacing: -1.4,
-    fontVariant: ['tabular-nums'],
-    textAlign: 'center',
-    paddingVertical: gap.xs,
-  },
-
-  noteField: {
-    backgroundColor: paper.inset,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
-    padding: gap.lg,
-    marginTop: gap.xs,
-  },
-  noteText: {
-    color: paper.ink,
-    fontFamily: serif.displayItalic,
-    fontSize: 16,
-    lineHeight: 23,
-  },
 });
+
+// Colour-bearing styles, resolved against the active palette `t`.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    backText: { color: t.muted, fontSize: 24, lineHeight: 24, fontWeight: '400' },
+
+    // The rail widths are static; only the fill colour follows the theme, so each variant carries
+    // both here (the width half rides along — cheap, and keeps one source per pill state).
+    railPillActive: { width: 28, backgroundColor: t.calm },
+    railPillDone: { width: 20, backgroundColor: t.secondary },
+    railPillUpcoming: { width: 20, backgroundColor: t.hairline },
+
+    body: { color: t.secondary, fontSize: 14, lineHeight: 22, marginTop: gap.xs, maxWidth: 330 },
+
+    // The tappable variant of the stat card on the two decision steps: it matches the kit Surface
+    // look (raised paper, soft lift) so the only visible difference is the quiet "tap to set" hint.
+    statSurface: {
+      backgroundColor: t.surface,
+      borderRadius: 20,
+      padding: gap.xl,
+      ...elevation.card,
+    },
+    statHint: {
+      color: t.calmStrong,
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: 0.2,
+      marginTop: 2,
+    },
+    statLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    // The figure's COLOUR is set inline per-tone (statColor); only its type metrics live here.
+    statValue: {
+      fontFamily: serif.display,
+      fontSize: 44,
+      lineHeight: 50,
+      letterSpacing: -1,
+      fontVariant: ['tabular-nums'],
+    },
+
+    sheetTitle: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 24,
+      lineHeight: 29,
+      letterSpacing: -0.3,
+      marginTop: 2,
+    },
+    sheetAmount: {
+      color: t.ink,
+      fontSize: 44,
+      fontWeight: '800',
+      letterSpacing: -1.4,
+      fontVariant: ['tabular-nums'],
+      textAlign: 'center',
+      paddingVertical: gap.xs,
+    },
+
+    noteField: {
+      backgroundColor: t.inset,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      padding: gap.lg,
+      marginTop: gap.xs,
+    },
+    noteText: {
+      color: t.ink,
+      fontFamily: serif.displayItalic,
+      fontSize: 16,
+      lineHeight: 23,
+    },
+  });
+}

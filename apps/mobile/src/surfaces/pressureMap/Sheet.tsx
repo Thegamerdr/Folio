@@ -11,7 +11,7 @@
 // the rest of the pressure-map surface. The Modal + Animated + safe-area approach mirrors
 // the existing RN sheets in this repo (PointExplanation, WhatIfSheet, SourceSheet).
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import {
   Animated,
   Easing,
@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { elevation, gap, paper } from './kit';
+import { elevation, gap, useTheme, type Palette } from './kit';
 
 // The web sheet rounds its top to 28px (rounded-t-[28px]). The kit's radius.xxl (32) is a
 // touch too round for the sheet lip, so the sheet keeps its own constant to match the web.
@@ -62,6 +62,8 @@ type SheetProps = {
 export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const maxHeight = Math.round(height * MAX_HEIGHT_FRACTION);
 
   // translateY animates the panel up from below; scrimOpacity fades the ink ground in.
@@ -136,18 +138,18 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
       visible={visible}
       onRequestClose={handleClose}
     >
-      <View style={styles.root}>
+      <View style={layout.root}>
         <AnimatedPressable
           accessibilityLabel="Close"
           accessibilityRole="button"
           onPress={handleClose}
-          style={[styles.scrim, { opacity: scrimOpacity }]}
+          style={[s.scrim, { opacity: scrimOpacity }]}
         />
         <Animated.View
           accessibilityViewIsModal
           accessibilityRole="none"
           style={[
-            styles.panel,
+            s.panel,
             { maxHeight, paddingBottom: insets.bottom + gap.xxxl },
             { transform: [{ translateY }] },
           ]}
@@ -155,11 +157,11 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
           <View
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
-            style={styles.handle}
+            style={s.handle}
           />
           <ScrollView
             bounces={false}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={layout.scrollContent}
             showsVerticalScrollIndicator={false}
           >
             {children}
@@ -172,35 +174,11 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const styles = StyleSheet.create({
+// Colour-free styles — safe to share across light and dark.
+const layout = StyleSheet.create({
   root: {
     flex: 1,
     justifyContent: 'flex-end',
-  },
-  scrim: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: paper.ink,
-  },
-  panel: {
-    backgroundColor: paper.surface,
-    borderTopLeftRadius: SHEET_RADIUS,
-    borderTopRightRadius: SHEET_RADIUS,
-    paddingHorizontal: gap.xl,
-    paddingTop: gap.md,
-    // The soft UPWARD shadow — the sheet reads as lifting off the paper from below.
-    ...elevation.sheet,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: HANDLE_WIDTH,
-    height: HANDLE_HEIGHT,
-    borderRadius: HANDLE_HEIGHT / 2,
-    backgroundColor: paper.hairlineStrong,
-    marginBottom: gap.lg,
   },
   scrollContent: {
     // The panel already pads the bottom (safe-area + xxxl); the scroll content only needs
@@ -208,3 +186,34 @@ const styles = StyleSheet.create({
     paddingBottom: gap.sm,
   },
 });
+
+// Colour-bearing styles, resolved against the active palette `t`.
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    scrim: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      backgroundColor: t.ink,
+    },
+    panel: {
+      backgroundColor: t.surface,
+      borderTopLeftRadius: SHEET_RADIUS,
+      borderTopRightRadius: SHEET_RADIUS,
+      paddingHorizontal: gap.xl,
+      paddingTop: gap.md,
+      // The soft UPWARD shadow — the sheet reads as lifting off the paper from below.
+      ...elevation.sheet,
+    },
+    handle: {
+      alignSelf: 'center',
+      width: HANDLE_WIDTH,
+      height: HANDLE_HEIGHT,
+      borderRadius: HANDLE_HEIGHT / 2,
+      backgroundColor: t.hairlineStrong,
+      marginBottom: gap.lg,
+    },
+  });
+}

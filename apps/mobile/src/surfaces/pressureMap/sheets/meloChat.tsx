@@ -13,7 +13,7 @@
 // surfaced as confirm chips; tapping one calls onAcceptSuggestion. Melo never mutates state here —
 // the user decides. (See meloAiClient for the suggestion seam.)
 
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -26,7 +26,17 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
-import { Body, CheckGlyph, elevation, gap, Hairline, paper, radius, serif } from '../kit';
+import {
+  Body,
+  CheckGlyph,
+  elevation,
+  gap,
+  Hairline,
+  radius,
+  serif,
+  useTheme,
+  type Palette,
+} from '../kit';
 import { Sheet } from '../Sheet';
 import { MeloFigure } from '../melo/MeloFigure';
 import type { MeloMood } from '../melo/meloStates';
@@ -104,6 +114,8 @@ export type MeloChatSheetProps = Readonly<{
 
 export function MeloChatSheet(props: MeloChatSheetProps) {
   const inputRef = useRef<TextInput | null>(null);
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
 
   const shareLabel = props.settings.share ? 'Knows your money' : 'Just listening';
   const toneLabel = TONES.find((t) => t.id === props.settings.tone)?.label ?? 'Calm';
@@ -118,11 +130,11 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
   return (
     <Sheet visible={props.visible} onClose={props.onClose} reduceMotion={props.reduceMotion}>
       {/* Header — Melo's avatar, name, and the share/voice status line + the Tune toggle. */}
-      <View style={styles.header}>
+      <View style={s.header}>
         <MeloFigure mood={props.mood} size={36} reduceMotion={props.reduceMotion} />
-        <View style={styles.headerText}>
-          <Text style={styles.headerName}>Melo</Text>
-          <Text style={styles.headerStatus} numberOfLines={1}>
+        <View style={s.headerText}>
+          <Text style={s.headerName}>Melo</Text>
+          <Text style={s.headerStatus} numberOfLines={1}>
             {`${shareLabel} · ${toneLabel}`}
           </Text>
         </View>
@@ -132,9 +144,9 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
           accessibilityRole="button"
           hitSlop={10}
           onPress={props.onToggleSettings}
-          style={({ pressed }) => [styles.tuneButton, pressed ? styles.pressedDim : undefined]}
+          style={({ pressed }) => [s.tuneButton, pressed ? s.pressedDim : undefined]}
         >
-          <Text style={styles.tuneLabel}>{props.showSettings ? 'Done' : 'Tune'}</Text>
+          <Text style={s.tuneLabel}>{props.showSettings ? 'Done' : 'Tune'}</Text>
         </Pressable>
       </View>
       <Hairline />
@@ -145,10 +157,10 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
 
       {/* Tune panel — voice chips + the "let Melo see my money" toggle + start-fresh. */}
       {props.showSettings ? (
-        <View style={styles.settings}>
+        <View style={s.settings}>
           <View>
-            <Text style={styles.settingsLabel}>Voice</Text>
-            <View style={styles.toneRow}>
+            <Text style={s.settingsLabel}>Voice</Text>
+            <View style={s.toneRow}>
               {TONES.map((tone) => {
                 const selected = props.settings.tone === tone.id;
                 return (
@@ -158,15 +170,15 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
                     key={tone.id}
                     onPress={() => props.onChangeTone(tone.id)}
                     style={({ pressed }) => [
-                      styles.toneChip,
-                      selected ? styles.toneChipSelected : undefined,
-                      pressed ? styles.pressedDim : undefined,
+                      s.toneChip,
+                      selected ? s.toneChipSelected : undefined,
+                      pressed ? s.pressedDim : undefined,
                     ]}
                   >
                     <Text
                       style={[
-                        styles.toneChipLabel,
-                        selected ? styles.toneChipLabelSelected : undefined,
+                        s.toneChipLabel,
+                        selected ? s.toneChipLabelSelected : undefined,
                       ]}
                     >
                       {tone.label}
@@ -181,17 +193,17 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
             accessibilityRole="switch"
             accessibilityState={{ checked: props.settings.share }}
             onPress={() => props.onToggleShare(!props.settings.share)}
-            style={({ pressed }) => [styles.shareRow, pressed ? styles.pressedDim : undefined]}
+            style={({ pressed }) => [s.shareRow, pressed ? s.pressedDim : undefined]}
           >
-            <View style={styles.shareText}>
-              <Text style={styles.shareTitle}>Let Melo see my money</Text>
-              <Text style={styles.shareHint}>
+            <View style={s.shareText}>
+              <Text style={s.shareTitle}>Let Melo see my money</Text>
+              <Text style={s.shareHint}>
                 Sends a summary of your path, pots and subs to your AI provider so Melo can help.
                 Leave it off to keep everything on this device.
               </Text>
             </View>
-            <View style={[styles.checkbox, props.settings.share ? styles.checkboxOn : undefined]}>
-              {props.settings.share ? <CheckGlyph color={paper.inverse} size={16} /> : null}
+            <View style={[s.checkbox, props.settings.share ? s.checkboxOn : undefined]}>
+              {props.settings.share ? <CheckGlyph color={t.inverse} size={16} /> : null}
             </View>
           </Pressable>
 
@@ -200,9 +212,9 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
               accessibilityRole="button"
               hitSlop={8}
               onPress={props.onStartFresh}
-              style={({ pressed }) => [pressed ? styles.pressedDim : undefined]}
+              style={({ pressed }) => [pressed ? s.pressedDim : undefined]}
             >
-              <Text style={styles.startFresh}>Start fresh</Text>
+              <Text style={s.startFresh}>Start fresh</Text>
             </Pressable>
           ) : null}
           <Hairline />
@@ -210,19 +222,19 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
       ) : null}
 
       {/* Transcript. */}
-      <View style={styles.transcript}>
+      <View style={s.transcript}>
         {threadEmpty && !props.isSending ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyPrompt}>What's on your mind?</Text>
-            <View style={styles.starters}>
+          <View style={s.empty}>
+            <Text style={s.emptyPrompt}>What's on your mind?</Text>
+            <View style={s.starters}>
               {STARTERS.map((starter) => (
                 <Pressable
                   accessibilityRole="button"
                   key={starter}
                   onPress={() => props.onSend(starter)}
-                  style={({ pressed }) => [styles.starter, pressed ? styles.pressedDim : undefined]}
+                  style={({ pressed }) => [s.starter, pressed ? s.pressedDim : undefined]}
                 >
-                  <Text style={styles.starterText}>{starter}</Text>
+                  <Text style={s.starterText}>{starter}</Text>
                 </Pressable>
               ))}
             </View>
@@ -231,14 +243,14 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
 
         {props.messages.map((message) =>
           message.role === 'user' ? (
-            <View key={message.id} style={styles.userRow}>
-              <View style={styles.userBubble}>
-                <Text style={styles.userText}>{message.text}</Text>
+            <View key={message.id} style={s.userRow}>
+              <View style={s.userBubble}>
+                <Text style={s.userText}>{message.text}</Text>
               </View>
             </View>
           ) : (
-            <View key={message.id} style={styles.assistantRow}>
-              <Text style={styles.assistantText}>{message.text}</Text>
+            <View key={message.id} style={s.assistantRow}>
+              <Text style={s.assistantText}>{message.text}</Text>
             </View>
           ),
         )}
@@ -246,31 +258,31 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
         {/* Advisory suggestion chips for the latest reply — user confirms, Melo never auto-applies. */}
         {props.pendingSuggestions && props.pendingSuggestions.length > 0
           ? props.pendingSuggestions.map((suggestion) => (
-              <View key={suggestion.id} style={styles.suggestion}>
-                <View style={styles.suggestionMark}>
-                  <CheckGlyph color={paper.calm} size={18} />
+              <View key={suggestion.id} style={s.suggestion}>
+                <View style={s.suggestionMark}>
+                  <CheckGlyph color={t.calm} size={18} />
                 </View>
-                <View style={styles.suggestionBody}>
-                  <Text style={styles.suggestionKind}>{suggestion.name.replace(/_/g, ' ')}</Text>
-                  <Text style={styles.suggestionSummary}>{suggestion.summary}</Text>
-                  <View style={styles.suggestionActions}>
+                <View style={s.suggestionBody}>
+                  <Text style={s.suggestionKind}>{suggestion.name.replace(/_/g, ' ')}</Text>
+                  <Text style={s.suggestionSummary}>{suggestion.summary}</Text>
+                  <View style={s.suggestionActions}>
                     <Pressable
                       accessibilityHint="Applies this suggested change."
                       accessibilityRole="button"
                       hitSlop={8}
                       onPress={() => props.onAcceptSuggestion(suggestion)}
-                      style={({ pressed }) => [pressed ? styles.pressedDim : undefined]}
+                      style={({ pressed }) => [pressed ? s.pressedDim : undefined]}
                     >
-                      <Text style={styles.suggestionAccept}>Do it</Text>
+                      <Text style={s.suggestionAccept}>Do it</Text>
                     </Pressable>
                     <Pressable
                       accessibilityHint="Dismisses this suggestion without changing anything."
                       accessibilityRole="button"
                       hitSlop={8}
                       onPress={() => props.onDismissSuggestion(suggestion)}
-                      style={({ pressed }) => [pressed ? styles.pressedDim : undefined]}
+                      style={({ pressed }) => [pressed ? s.pressedDim : undefined]}
                     >
-                      <Text style={styles.suggestionDismiss}>Not now</Text>
+                      <Text style={s.suggestionDismiss}>Not now</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -278,17 +290,17 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
             ))
           : null}
 
-        {props.isSending ? <Text style={styles.thinking}>Melo's thinking…</Text> : null}
+        {props.isSending ? <Text style={s.thinking}>Melo's thinking…</Text> : null}
 
         {props.lastResultStatus && props.statusMessage ? (
-          <View style={styles.notice}>
-            <Body style={styles.noticeText}>{props.statusMessage}</Body>
+          <View style={s.notice}>
+            <Body style={s.noticeText}>{props.statusMessage}</Body>
           </View>
         ) : null}
       </View>
 
       {/* Composer. */}
-      <View style={styles.composer}>
+      <View style={s.composer}>
         <TextInput
           accessibilityLabel="Message Melo"
           editable={!props.isSending}
@@ -296,10 +308,10 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
           onChangeText={props.onChangeInput}
           onSubmitEditing={submitComposer}
           placeholder="Say anything to Melo…"
-          placeholderTextColor={paper.muted}
+          placeholderTextColor={t.muted}
           ref={inputRef}
           returnKeyType="send"
-          style={styles.input}
+          style={s.input}
           value={props.input}
         />
         <Pressable
@@ -309,13 +321,13 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
           disabled={props.input.trim().length === 0 || props.isSending}
           onPress={submitComposer}
           style={({ pressed }) => [
-            styles.send,
-            props.input.trim().length === 0 || props.isSending ? styles.sendDisabled : undefined,
-            pressed ? styles.pressedDim : undefined,
+            s.send,
+            props.input.trim().length === 0 || props.isSending ? s.sendDisabled : undefined,
+            pressed ? s.pressedDim : undefined,
           ]}
         >
           <SendGlyph
-            color={props.input.trim().length === 0 || props.isSending ? paper.muted : paper.inverse}
+            color={props.input.trim().length === 0 || props.isSending ? t.muted : t.inverse}
           />
         </Pressable>
       </View>
@@ -328,8 +340,10 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
 // ---------------------------------------------------------------------------
 
 function SnapshotStrip({ snapshot }: { snapshot: MeloLocalFinancialSnapshot }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View style={styles.snapshot}>
+    <View style={s.snapshot}>
       <SnapshotCell label="Available now" value={formatMinorAmount(snapshot.availableNowMinor)} />
       <SnapshotCell
         label="Tightest point"
@@ -355,10 +369,12 @@ function SnapshotCell({
   muted?: boolean | undefined;
   style?: StyleProp<ViewStyle> | undefined;
 }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   return (
-    <View style={[styles.snapshotCell, style]}>
-      <Text style={styles.snapshotLabel}>{label}</Text>
-      <Text style={[styles.snapshotValue, muted ? styles.snapshotValueMuted : undefined]}>
+    <View style={[s.snapshotCell, style]}>
+      <Text style={s.snapshotLabel}>{label}</Text>
+      <Text style={[s.snapshotValue, muted ? s.snapshotValueMuted : undefined]}>
         {value}
       </Text>
     </View>
@@ -386,9 +402,11 @@ function SendGlyph({ color }: { color: string }) {
 
 // ---------------------------------------------------------------------------
 // Styles — paper tokens, radius scale, kit elevation. Matches the web colours.
+// Resolved against the active palette `t` (light or dark) via makeStyles(t).
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
   pressedDim: { opacity: 0.6 },
 
   header: {
@@ -398,11 +416,11 @@ const styles = StyleSheet.create({
     paddingBottom: gap.md,
   },
   headerText: { flex: 1, minWidth: 0 },
-  headerName: { color: paper.ink, fontSize: 15, fontWeight: '600' },
-  headerStatus: { color: paper.muted, fontSize: 12, marginTop: 1 },
+  headerName: { color: t.ink, fontSize: 15, fontWeight: '600' },
+  headerStatus: { color: t.muted, fontSize: 12, marginTop: 1 },
   tuneButton: { paddingVertical: 4, paddingHorizontal: 4 },
   tuneLabel: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.4,
@@ -411,7 +429,7 @@ const styles = StyleSheet.create({
 
   snapshot: {
     flexDirection: 'row',
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderRadius: radius.lg,
     paddingVertical: gap.md,
     paddingHorizontal: gap.lg,
@@ -419,23 +437,23 @@ const styles = StyleSheet.create({
   },
   snapshotCell: { flex: 1, gap: 2 },
   snapshotLabel: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   snapshotValue: {
-    color: paper.ink,
+    color: t.ink,
     fontSize: 16,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  snapshotValueMuted: { color: paper.muted },
+  snapshotValueMuted: { color: t.muted },
 
   settings: { gap: gap.md, paddingTop: gap.md },
   settingsLabel: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
@@ -449,11 +467,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
   },
-  toneChipSelected: { backgroundColor: paper.ink },
-  toneChipLabel: { color: paper.ink, fontSize: 13, fontWeight: '600' },
-  toneChipLabelSelected: { color: paper.inverse },
+  toneChipSelected: { backgroundColor: t.ink },
+  toneChipLabel: { color: t.ink, fontSize: 13, fontWeight: '600' },
+  toneChipLabelSelected: { color: t.inverse },
 
   shareRow: {
     flexDirection: 'row',
@@ -461,21 +479,21 @@ const styles = StyleSheet.create({
     gap: gap.md,
   },
   shareText: { flex: 1 },
-  shareTitle: { color: paper.ink, fontSize: 14, fontWeight: '500' },
-  shareHint: { color: paper.muted, fontSize: 12, lineHeight: 17, marginTop: 1 },
+  shareTitle: { color: t.ink, fontSize: 14, fontWeight: '500' },
+  shareHint: { color: t.muted, fontSize: 12, lineHeight: 17, marginTop: 1 },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: radius.sm,
     borderWidth: 1.5,
-    borderColor: paper.hairlineStrong,
+    borderColor: t.hairlineStrong,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: paper.surface,
+    backgroundColor: t.surface,
   },
-  checkboxOn: { backgroundColor: paper.calm, borderColor: paper.calm },
+  checkboxOn: { backgroundColor: t.calm, borderColor: t.calm },
   startFresh: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 13,
     textDecorationLine: 'underline',
   },
@@ -484,71 +502,71 @@ const styles = StyleSheet.create({
 
   empty: { paddingVertical: gap.lg, gap: gap.lg },
   emptyPrompt: {
-    color: paper.ink,
+    color: t.ink,
     fontFamily: serif.displayItalic,
     fontSize: 17,
     lineHeight: 23,
   },
   starters: { gap: gap.sm },
   starter: {
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderRadius: radius.lg,
     paddingVertical: gap.md,
     paddingHorizontal: gap.lg,
   },
-  starterText: { color: paper.ink, fontSize: 14, lineHeight: 19 },
+  starterText: { color: t.ink, fontSize: 14, lineHeight: 19 },
 
   userRow: { alignItems: 'flex-end' },
   userBubble: {
     maxWidth: '82%',
-    backgroundColor: paper.ink,
+    backgroundColor: t.ink,
     borderRadius: radius.xl,
     borderBottomRightRadius: radius.sm,
     paddingVertical: 10,
     paddingHorizontal: gap.lg,
   },
-  userText: { color: paper.inverse, fontSize: 15, lineHeight: 21 },
+  userText: { color: t.inverse, fontSize: 15, lineHeight: 21 },
 
   assistantRow: { paddingVertical: 2 },
-  assistantText: { color: paper.ink, fontSize: 15, lineHeight: 22 },
+  assistantText: { color: t.ink, fontSize: 15, lineHeight: 22 },
 
   suggestion: {
     flexDirection: 'row',
     gap: gap.sm,
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
+    borderColor: t.hairline,
     padding: gap.md,
   },
   suggestionMark: { paddingTop: 1 },
   suggestionBody: { flex: 1, gap: 4 },
   suggestionKind: {
-    color: paper.muted,
+    color: t.muted,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  suggestionSummary: { color: paper.ink, fontSize: 14, lineHeight: 19 },
+  suggestionSummary: { color: t.ink, fontSize: 14, lineHeight: 19 },
   suggestionActions: { flexDirection: 'row', gap: gap.lg, marginTop: 2 },
-  suggestionAccept: { color: paper.calmStrong, fontSize: 13, fontWeight: '700' },
-  suggestionDismiss: { color: paper.muted, fontSize: 13, fontWeight: '600' },
+  suggestionAccept: { color: t.calmStrong, fontSize: 13, fontWeight: '700' },
+  suggestionDismiss: { color: t.muted, fontSize: 13, fontWeight: '600' },
 
   thinking: {
-    color: paper.muted,
+    color: t.muted,
     fontFamily: serif.displayItalic,
     fontSize: 15,
     paddingVertical: gap.sm,
   },
 
   notice: {
-    backgroundColor: paper.caution + '22',
+    backgroundColor: t.caution + '22',
     borderRadius: radius.md,
     paddingVertical: gap.sm,
     paddingHorizontal: gap.md,
   },
-  noticeText: { color: paper.warmInk, fontSize: 14 },
+  noticeText: { color: t.warmInk, fontSize: 14 },
 
   composer: {
     flexDirection: 'row',
@@ -560,12 +578,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 46,
     maxHeight: 120,
-    backgroundColor: paper.inset,
+    backgroundColor: t.inset,
     borderRadius: radius.lg,
     paddingHorizontal: gap.lg,
     paddingTop: 12,
     paddingBottom: 12,
-    color: paper.ink,
+    color: t.ink,
     fontSize: 15,
     lineHeight: 20,
   },
@@ -575,14 +593,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: paper.calmStrong,
+    backgroundColor: t.calmStrong,
     ...elevation.cta,
   },
   sendDisabled: {
-    backgroundColor: paper.sunken,
+    backgroundColor: t.sunken,
     shadowColor: 'transparent',
     shadowOpacity: 0,
     shadowRadius: 0,
     elevation: 0,
   },
-});
+  });
+}

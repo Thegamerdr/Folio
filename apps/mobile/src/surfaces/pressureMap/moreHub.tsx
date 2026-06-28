@@ -11,9 +11,10 @@
 // lives on the Data and privacy screen this hub links to; developer tools stay in a quiet group that
 // only appears on builds where they are available.
 
-import { Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { Body, Display, gap, paper, PressureScreen } from './kit';
+import { Body, Display, gap, PressureScreen, useTheme, type Palette } from './kit';
 import { MeloFigure } from './melo/MeloFigure';
 import { HubRow, Kicker, MeloLine, meloMoodFor, RowCard, SectionLabel } from './secondaryKit';
 import type { LocalLedgerVaultSummary } from '../../local/localLedgerVault';
@@ -69,25 +70,25 @@ export function MoreScreen({
   vaultSummary: LocalLedgerVaultSummary;
 }) {
   const lockAvailable = securityPosture?.appLockMode === 'device_auth';
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
 
   return (
     <PressureScreen>
       {/* The "Folio" wordmark row — italic serif left, a balancing spacer right (web ScreenMore). */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ fontFamily: 'Fraunces_500Medium_Italic', fontSize: 14, color: paper.ink }}>
-          Folio
-        </Text>
-        <View style={{ width: 20 }} />
+      <View style={layout.wordmarkRow}>
+        <Text style={[layout.wordmark, s.wordmark]}>Folio</Text>
+        <View style={layout.wordmarkSpacer} />
       </View>
 
       {/* Intro row: Melo beside the kicker + headline — "The quiet hub" / "Everything else, calmly." */}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: gap.md }}>
+      <View style={layout.introRow}>
         <MeloFigure mood={meloMoodFor('soft')} size={30} />
-        <View style={{ flex: 1, gap: gap.xs }}>
+        <View style={layout.introBody}>
           <Kicker>The quiet hub</Kicker>
-          <Display style={{ fontSize: 30, lineHeight: 32 }}>
+          <Display style={layout.headline}>
             Everything else,{' '}
-            <Text style={{ fontFamily: 'Fraunces_600SemiBold', color: paper.calm }}>calmly</Text>.
+            <Text style={[layout.accentWord, s.accentWord]}>calmly</Text>.
           </Display>
         </View>
       </View>
@@ -244,9 +245,30 @@ export function MoreScreen({
 
       <MeloLine text="Your money stays on this device — only what you type to Melo, or a copy you export, ever leaves." />
 
-      <Body style={{ color: paper.muted, fontSize: 13 }}>
+      <Body style={[layout.footnote, s.footnote]}>
         Private and on this device. Cloud, AI and Open Banking are optional, never required here.
       </Body>
     </PressureScreen>
   );
+}
+
+// Layout-only styles (no colour) — static, shared across renders.
+const layout = StyleSheet.create({
+  wordmarkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  wordmark: { fontFamily: 'Fraunces_500Medium_Italic', fontSize: 14 },
+  wordmarkSpacer: { width: 20 },
+  introRow: { flexDirection: 'row', alignItems: 'flex-start', gap: gap.md },
+  introBody: { flex: 1, gap: gap.xs },
+  headline: { fontSize: 30, lineHeight: 32 },
+  accentWord: { fontFamily: 'Fraunces_600SemiBold' },
+  footnote: { fontSize: 13 },
+});
+
+// Colour-bearing styles, resolved against the active palette (the DARK-MODE PATTERN).
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    wordmark: { color: t.ink },
+    accentWord: { color: t.calm },
+    footnote: { color: t.muted },
+  });
 }
