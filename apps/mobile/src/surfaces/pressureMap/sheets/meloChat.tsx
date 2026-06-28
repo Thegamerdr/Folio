@@ -186,7 +186,8 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
             <View style={styles.shareText}>
               <Text style={styles.shareTitle}>Let Melo see my money</Text>
               <Text style={styles.shareHint}>
-                Shares your path, pots, and subs as context. Stays on this device.
+                Sends a summary of your path, pots and subs to your AI provider so Melo can help.
+                Leave it off to keep everything on this device.
               </Text>
             </View>
             <View style={[styles.checkbox, props.settings.share ? styles.checkboxOn : undefined]}>

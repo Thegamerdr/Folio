@@ -280,7 +280,8 @@ export default function FolioHome() {
   const [meloSending, setMeloSending] = useState(false);
   const [meloInput, setMeloInput] = useState('');
   const [meloShowSettings, setMeloShowSettings] = useState(false);
-  const [meloSettings, setMeloSettings] = useState<MeloChatSettings>({ tone: 'calm', share: true });
+  // share defaults OFF — sending the money snapshot to an external AI provider is opt-in.
+  const [meloSettings, setMeloSettings] = useState<MeloChatSettings>({ tone: 'calm', share: false });
   const [meloLastStatus, setMeloLastStatus] = useState<
     Exclude<MeloChatResult['status'], 'ok'> | undefined
   >(undefined);
@@ -734,8 +735,10 @@ export default function FolioHome() {
         messages: nextThread,
         tone: meloSettings.tone,
         ...(meloSettings.share ? { snapshot: meloSnapshot } : {}),
-        // The secret key is supplied by the owner/host at runtime — never bundled. When a provider
-        // is configured but no key is wired, the client returns a clear no-key state.
+        // WARNING: EXPO_PUBLIC_* vars are INLINED into the JS bundle at build time, so a key set
+        // here ships inside the APK and is extractable. Acceptable only for a self-hosted or
+        // low-value provider; for a real secret, proxy Melo through a backend that holds the key
+        // and leave this unset. Unset = the client returns a clear "no provider key" state (no crash).
         apiKey: process.env.EXPO_PUBLIC_AI_API_KEY,
       })
         .then((result) => {
