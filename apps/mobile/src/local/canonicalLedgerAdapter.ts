@@ -2167,7 +2167,7 @@ function createTimelineEntryForImportDraft(
     id: createTimelineEntryId(canonicalId('timeline', `import_${draft.id}`)),
     workspaceId: context.workspaceId,
     kind: 'system',
-    title: 'Import row needs review',
+    title: 'Imported payment needs review',
     localDate: context.asOfDate,
     authorityState: draft.authorityState,
     subjectId: draft.id,

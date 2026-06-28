@@ -47,8 +47,8 @@ export const firstMinuteActions: readonly FirstMinuteAction[] = [
   {
     id: 'import_statement',
     label: 'Use a bank statement',
-    detail: 'Find rows to check before anything is added',
-    hint: 'Opens Review. Nothing changes your picture until you accept a row.',
+    detail: 'Find what to check before anything is added',
+    hint: 'Opens Review. Nothing changes your picture until you add it.',
   },
   {
     id: 'add_what_i_know',
@@ -59,7 +59,7 @@ export const firstMinuteActions: readonly FirstMinuteAction[] = [
   {
     id: 'sample_briefing',
     label: 'Try fake data',
-    detail: 'See the app with labelled fake data',
+    detail: 'See the app with a pretend example',
     hint: 'Opens an example-only briefing. Nothing is saved.',
   },
 ];
@@ -74,7 +74,7 @@ export const sampleBriefingMelo = buildSampleBriefing({
   whatChanged: 'income arrived and one everyday spend changed the picture',
   comingUp: 'rent and one import review are visible',
   remainsProtected: 'rent stays separated from flexible spending',
-  needsReview: 'one imported row is held out until the user decides',
+  needsReview: 'one imported payment is held out until you decide',
 });
 
 export const sampleBriefingCards: readonly SampleBriefingCard[] = [
@@ -95,21 +95,21 @@ export const sampleBriefingCards: readonly SampleBriefingCard[] = [
   },
   {
     title: 'Needs review',
-    value: 'One imported row waits for a user decision.',
+    value: 'One imported payment waits for you to decide.',
     tone: 'attention',
   },
 ];
 
 export const importEntryTrustCopy = [
-  'Rows wait for review before they are added.',
-  'Nothing changes your picture until you accept it.',
+  'Everything waits for review before it is added.',
+  'Nothing changes your picture until you add it.',
 ] as const;
 
 export const importReviewActionCopy: readonly ImportReviewActionCopy[] = [
   {
     id: 'accept',
     label: 'Add',
-    consequence: 'Adds this row to your money view with the original wording attached.',
+    consequence: 'Adds this payment to your money view with the original wording attached.',
   },
   {
     id: 'edit',
@@ -121,7 +121,7 @@ export const importReviewActionCopy: readonly ImportReviewActionCopy[] = [
     id: 'reject',
     label: 'Ignore',
     consequence:
-      'Keeps the row out of your money view and leaves Today, Timeline and Plans unchanged.',
+      'Keeps this one out of your money view and leaves Today, Timeline and Plans unchanged.',
   },
   {
     id: 'mark_duplicate',
@@ -131,42 +131,42 @@ export const importReviewActionCopy: readonly ImportReviewActionCopy[] = [
   {
     id: 'income',
     label: 'Income',
-    consequence: 'Marks the row as money coming in, still waiting for your acceptance.',
+    consequence: 'Marks it as money coming in, still waiting for you to add it.',
   },
   {
     id: 'bill',
     label: 'Bill',
-    consequence: 'Marks the row as a must-pay item, still waiting for your acceptance.',
+    consequence: 'Marks it as a must-pay item, still waiting for you to add it.',
   },
   {
     id: 'debt_payment',
     label: 'Debt payment',
-    consequence: 'Marks the row as a debt payment without blame or telling you what to do.',
+    consequence: 'Marks it as a debt payment without blame or telling you what to do.',
   },
   {
     id: 'refund',
     label: 'Refund',
-    consequence: 'Marks the row as money returned, still waiting for your acceptance.',
+    consequence: 'Marks it as money returned, still waiting for you to add it.',
   },
   {
     id: 'later',
     label: 'Later',
-    consequence: 'Leaves the row waiting and changes nothing in your picture.',
+    consequence: 'Leaves this one waiting and changes nothing in your picture.',
   },
   {
     id: 'wrong_workspace',
     label: 'Wrong workspace',
-    consequence: 'Keeps the row out of this personal workspace as non-financial evidence.',
+    consequence: 'Keeps it out of this personal workspace as non-financial evidence.',
   },
   {
     id: 'not_mine',
     label: 'Not mine',
-    consequence: 'Retains the original wording without adding the row to your money view.',
+    consequence: 'Retains the original wording without adding it to your money view.',
   },
   {
     id: 'parser_error',
     label: 'Read wrong',
-    consequence: 'Keeps the row waiting when the wording or amount needs fixing.',
+    consequence: 'Keeps it waiting when the wording or amount needs fixing.',
   },
   {
     id: 'transfer',
@@ -180,10 +180,10 @@ export const quickEstimateEnoughCopy =
 
 export const dataControlTrustCopy = [
   'Your data can stay local to this device.',
-  'Rows waiting for review are questions, not saved money rows.',
-  'Accepted money rows, rejected evidence and audit history stay inspectable.',
+  'Anything waiting for review is a question, not saved money.',
+  'What you added, what you rejected and your history all stay easy to look through.',
   'You can export or clear local data here.',
-  'Cloud, AI, Open Banking and Business mode are not required for this loop.',
+  'Cloud, AI, Open Banking and Business mode are not required to use Folio.',
 ] as const;
 
 export function productExperienceCopyIsPolicySafe(): boolean {

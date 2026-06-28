@@ -554,7 +554,7 @@ describe('mobile local ledger state', () => {
     expect(result.state.transactions).toHaveLength(4);
     expect(result.state.history[0]).toMatchObject({
       kind: 'document_staged',
-      label: 'statement-photo.png added for manual review. No rows were added.',
+      label: 'statement-photo.png added for manual review. Nothing was added.',
     });
   });
 

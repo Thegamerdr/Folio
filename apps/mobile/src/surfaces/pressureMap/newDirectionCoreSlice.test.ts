@@ -90,9 +90,18 @@ describe('new direction — Pressure Moment (Start)', () => {
     expect(start).toContain('See where you stand');
   });
 
-  it('keeps secondary paths quiet (QuietLink, not buttons)', () => {
-    expect(start).toContain('QuietLink');
-    expect(start).toContain('Will your money last to payday?');
+  it('keeps one dominant action above the accepted 2x2 quick-action grid', () => {
+    // The accepted Lovable Start ends with a 2x2 grid of four subordinate quick-actions, below the
+    // single dominant CTA. They are tiles, not equal-weight with the hero button.
+    for (const tile of ['Add a statement', 'Try fake data', 'Check bills', 'Meet Melo']) {
+      expect(start).toContain(tile);
+    }
+    // Start leads with the editorial serif Headline carrying one upright accent word.
+    expect(start).toContain('Headline');
+    // Lovable source: "Will your money <last> to payday?" — accent word is "last".
+    expect(start).toContain('accent="last"');
+    // Privacy entry point lives in the header, matching the accepted Start.
+    expect(start).toContain('onOpenPrivacy');
   });
 });
 
@@ -196,8 +205,10 @@ describe('new direction — no advice, shame or fake certainty', () => {
     ]) {
       expect(stripped).not.toContain(banned);
     }
-    // When there is no real path, it states position without a yes/no claim.
-    expect(today).toContain("Here's where you stand.");
+    // When there is no real path, it states position without a yes/no claim — the empty-state
+    // Editorial Ledger Headline reads "Here's where you stand", with the accent word italicised.
+    expect(today).toContain("Here's where you ");
+    expect(today).toContain('accent="stand"');
     expect(today).toContain('routeHasMeaningfulPath');
   });
 });

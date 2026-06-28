@@ -14,10 +14,10 @@ export function PlansPathSurface({
   return (
     <View
       accessible
-      accessibilityLabel={`${projectionCount} plan projections and ${reviewCount} review tasks from ${sourceLabel}. Plans show intention, protected money, movement and linked evidence.`}
+      accessibilityLabel={`${projectionCount} plans and ${reviewCount} to check from ${sourceLabel}. Plans show what you mean to do, money kept aside, what is moving and what they are based on.`}
       style={styles.panel}
     >
-      <Text style={styles.kicker}>User-owned plans</Text>
+      <Text style={styles.kicker}>Your plans</Text>
       <Text style={styles.title}>Progress without pressure.</Text>
       <View style={styles.planRail}>
         <PlanChip label="Plans" value={`${projectionCount}`} />

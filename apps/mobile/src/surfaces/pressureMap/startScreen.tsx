@@ -1,89 +1,148 @@
-// Pressure Moment — the product doorway.
+// Start — the product doorway.
 //
-// Not a dashboard, not a menu. It opens on the user's real question and offers one
-// dominant way in. Everything else is a quiet path.
+// Faithful port of the accepted Lovable web source (ScreenStart.tsx): a "Folio / Privacy" header,
+// a big serif question with ONE upright terracotta accent word ("last"), a calm sub-line, Melo's
+// reassurance line, then air, the single dominant action ("See where you stand", 60px, trailing
+// chevron), and a row of THREE quiet text links separated by 1px×12px vertical hairline dividers.
+// No tile grid, no invented illustration — the web's Start is just type + Melo + the button + the
+// three-link row, with air doing the hierarchy.
 
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { FolioBrandMark } from '../brandMark';
-import {
-  Body,
-  Display,
-  Eyebrow,
-  PressureScreen,
-  PrimaryAction,
-  QuietLink,
-  gap,
-  paper,
-} from './kit';
-import { MeloPresence } from './melo';
+import { Body, gap, Headline, paper, PressureScreen, PrimaryAction, serif } from './kit';
+import { MeloLine } from './secondaryKit';
 
 export function StartScreen({
   onOpenSampleBriefing,
   onStartImportDiscovery,
   onStartQuickEstimate,
+  onOpenMelo,
+  onOpenPrivacy,
 }: {
   onOpenSampleBriefing: () => void;
   onStartBillFlow: () => void;
   onStartDebtFlow: () => void;
   onStartImportDiscovery: () => void;
   onStartQuickEstimate: () => void;
+  onOpenMelo: () => void;
+  onOpenPrivacy: () => void;
 }) {
   return (
     <PressureScreen style={styles.screen}>
-      <View style={styles.brandRow}>
-        <FolioBrandMark size={30} />
-        <Body style={styles.whisper}>Private · on this device</Body>
+      <View style={styles.top}>
+        <View style={styles.brandRow}>
+          <Text style={styles.wordmark}>Folio</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Privacy. Your data stays on this device."
+            hitSlop={10}
+            onPress={onOpenPrivacy}
+            style={({ pressed }) => [styles.privacyTap, pressed ? styles.pressed : undefined]}
+          >
+            <Text style={styles.privacy}>Privacy</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.hero}>
+          <Headline
+            lead="Will your money "
+            accent="last"
+            tail=" to payday?"
+            style={styles.headline}
+          />
+          <Body style={styles.sub}>
+            Start with a rough number. Nothing counts until you choose.
+          </Body>
+        </View>
+
+        <View style={styles.meloWrap}>
+          <MeloLine text="Start rough. You can correct anything later." />
+        </View>
       </View>
 
-      <View style={styles.hero}>
-        <Eyebrow>Folio</Eyebrow>
-        <Display style={styles.question}>Will your money last to payday?</Display>
-        <Body style={styles.sub}>
-          A calm, private read on where you stand. No accounts, no sign-up — it never leaves your
-          phone.
-        </Body>
-      </View>
+      <View style={styles.spacer} />
 
-      <View style={styles.actions}>
-        <MeloPresence state="melo_start" style={styles.melo} />
+      <View style={styles.bottom}>
         <PrimaryAction
           accessibilityHint="Starts a short, rough first picture of your money."
-          caption="A minute, rough is fine"
           label="See where you stand"
           onPress={onStartQuickEstimate}
         />
-        <View style={styles.quietGroup}>
-          <QuietLink
-            accessibilityHint="Bring in a bank statement to review."
-            label="I already have a bank statement"
-            onPress={onStartImportDiscovery}
-          />
-          <QuietLink
-            accessibilityHint="See how Folio works with an example picture."
-            label="Show me an example first"
-            onPress={onOpenSampleBriefing}
-          />
+        <View style={styles.secondaryRow}>
+          <SecondaryLink label="Add a statement" onPress={onStartImportDiscovery} />
+          <View style={styles.linkDivider} />
+          <SecondaryLink label="Try sample data" onPress={onOpenSampleBriefing} />
+          <View style={styles.linkDivider} />
+          <SecondaryLink label="Meet Melo" onPress={onOpenMelo} />
         </View>
+        <View style={styles.foot} />
       </View>
     </PressureScreen>
   );
 }
 
+// A quiet secondary text link — subordinate to the hero CTA. One of three on a divider row.
+function SecondaryLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.linkTap, pressed ? styles.pressed : undefined]}
+    >
+      <Text style={styles.linkLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: { justifyContent: 'space-between', paddingTop: gap.sm },
+  // Lovable rhythm: the type + Melo cluster at the top, the action + link row pinned to the foot,
+  // with air between (a flex spacer over a tall screen).
+  screen: { justifyContent: 'space-between', minHeight: 560, paddingTop: gap.lg },
+  top: { gap: 0 },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  whisper: { color: paper.muted, fontSize: 13, fontWeight: '600' },
+  // Web: font-display italic text-[15px].
+  wordmark: { color: paper.ink, fontFamily: serif.displayItalic, fontSize: 15 },
+  // Web: text-[12px] muted, tracking-wide, uppercase.
+  privacy: {
+    color: paper.muted,
+    fontSize: 12,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  privacyTap: { paddingVertical: 4, paddingHorizontal: 2 },
+  pressed: { opacity: 0.7 },
 
-  hero: { gap: gap.md, paddingTop: gap.xxl },
-  question: { fontSize: 38, lineHeight: 43 },
-  sub: { color: paper.secondary, fontSize: 17, lineHeight: 25, maxWidth: 340 },
+  // Web: mt-14 (56px) from the header to the hero.
+  hero: { marginTop: 56 },
+  // Web: font-display text-[42px] leading-[1.05] tracking-tight.
+  headline: { fontSize: 42, lineHeight: 44, letterSpacing: -0.8 },
+  // Web: mt-5 (20px), text-[15px] leading-relaxed muted, max-w-[300px].
+  sub: { color: paper.muted, fontSize: 15, lineHeight: 24, maxWidth: 300, marginTop: 20 },
 
-  actions: { gap: gap.sm },
-  melo: { marginBottom: gap.xs },
-  quietGroup: { marginTop: gap.xs },
+  // Web: mt-10 (40px) to Melo's line.
+  meloWrap: { marginTop: 40 },
+
+  // Web: <div className="flex-1" /> — the air that pushes the action cluster to the foot.
+  spacer: { flex: 1, minHeight: gap.xl },
+
+  bottom: { gap: 0 },
+
+  // Web: mt-5 (20px) below the CTA, row of three links, justify-between, text-[12.5px] muted.
+  secondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  linkTap: { paddingVertical: 4 },
+  linkLabel: { color: paper.muted, fontSize: 12.5 },
+  // Web: <span className="w-px h-3 bg-[var(--hairline)]" /> — 1px × 12px vertical hairline.
+  linkDivider: { width: 1, height: 12, backgroundColor: paper.hairline },
+
+  // Web: <div className="h-6" /> — 24px breathing room at the foot.
+  foot: { height: 24 },
 });

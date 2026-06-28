@@ -1,8 +1,10 @@
 // Manual-from-file workbench + paste sheet.
 //
-// Any saved file that Folio could not read automatically still becomes a working surface here:
-// the user types the important numbers from it, and each added item is linked back to the file.
-// Nothing changes the money picture until the user adds it.
+// Any saved file that Folio could not read automatically still becomes a working surface here: the
+// file is kept on the device for reference, the user types the important numbers from it, and each
+// added item is linked back to the file ("Added from June statement.pdf"). A file NEVER changes the
+// money picture by itself — only the items the user adds do. The user can open the saved file, add a
+// note to it, or remove it (anything already added stays).
 
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -59,55 +61,103 @@ export function FileWorkbench({
   files,
   onAddFromDocument,
   onRemoveDocument,
+  onAddNote,
+  onViewFile,
   showMelo = true,
 }: {
   files: readonly LocalDocumentStage[];
   onAddFromDocument: (input: DocumentItemInput) => void;
   onRemoveDocument: (documentId: string) => void;
-  // One Melo per moment: a caller already showing its own Melo (e.g. the empty
-  // review state) passes false so two Melos never share the screen.
+  onAddNote?: ((documentId: string, note: string) => void) | undefined;
+  onViewFile?: ((file: LocalDocumentStage) => void) | undefined;
+  // One Melo per moment: a caller already showing its own Melo (e.g. the empty review state) passes
+  // false so two Melos never share the screen.
   showMelo?: boolean | undefined;
 }) {
   const [adding, setAdding] = useState<LocalDocumentStage | null>(null);
+  const [noting, setNoting] = useState<LocalDocumentStage | null>(null);
   const saved = files.filter(unreadable);
   if (saved.length === 0) return null;
 
   return (
     <View style={styles.section}>
       <Eyebrow>Saved files</Eyebrow>
-      <Muted style={styles.sectionNote}>
-        These are saved for reference. They haven't changed your money picture — add the important
-        numbers from each one.
-      </Muted>
       {showMelo ? <MeloPresence state="melo_file_unreadable" style={styles.melo} /> : null}
 
-      {saved.map((file) => (
-        <View key={file.id} style={styles.fileCard}>
-          <Text style={styles.fileName} numberOfLines={1}>
-            {file.filename}
-          </Text>
-          <Muted style={styles.fileMeta}>{sourceTypeLabel(file)} · saved for reference</Muted>
-          {file.linkedTransactionIds && file.linkedTransactionIds.length > 0 ? (
-            <Text style={styles.fileAdded}>
-              {file.linkedTransactionIds.length} added from this file
+      {saved.map((file) => {
+        const linkedCount = file.linkedTransactionIds?.length ?? 0;
+        const notes = file.notes ?? [];
+        return (
+          <View key={file.id} style={styles.fileCard}>
+            <Text style={styles.fileName} numberOfLines={1}>
+              {file.filename}
             </Text>
-          ) : null}
-          <View style={styles.fileActions}>
-            <PrimaryAction
-              accessibilityHint="Type an amount from this file to add it."
-              label="Add from this file"
-              onPress={() => setAdding(file)}
-              tone="ink"
-            />
-            <GhostButton
-              accessibilityHint="Remove this saved file. Anything you added stays."
-              label="Remove file"
-              onPress={() => onRemoveDocument(file.id)}
-              tone="repair"
-            />
+            <Muted style={styles.fileMeta}>{sourceTypeLabel(file)} · saved for reference</Muted>
+
+            {/* The promise, in the accepted words. */}
+            <Text style={styles.fileSaved}>File saved. It has not changed your money picture.</Text>
+
+            {linkedCount > 0 ? (
+              <Text style={styles.fileAdded}>
+                {linkedCount === 1 ? '1 thing added' : `${linkedCount} things added`} from{' '}
+                {file.filename}
+              </Text>
+            ) : null}
+
+            {notes.length > 0 ? (
+              <View style={styles.notes}>
+                {notes.map((note, i) => (
+                  <Text key={`${file.id}-note-${i}`} style={styles.noteText}>
+                    “{note}”
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            <View style={styles.fileActions}>
+              <PrimaryAction
+                accessibilityHint="Type an amount from this file to add it to your money."
+                label="Add from this file"
+                onPress={() => setAdding(file)}
+                tone="ink"
+              />
+              <View style={styles.fileMinorRow}>
+                {onViewFile ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityHint="Opens the saved file in a viewer on this device."
+                    hitSlop={8}
+                    onPress={() => onViewFile(file)}
+                    style={styles.minorAction}
+                  >
+                    <Text style={styles.minorActionText}>View file</Text>
+                  </Pressable>
+                ) : null}
+                {onAddNote ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityHint="Add a short note to remember what this file is."
+                    hitSlop={8}
+                    onPress={() => setNoting(file)}
+                    style={styles.minorAction}
+                  >
+                    <Text style={styles.minorActionText}>Add note</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityHint="Removes this saved file. Anything you added stays."
+                  hitSlop={8}
+                  onPress={() => onRemoveDocument(file.id)}
+                  style={styles.minorAction}
+                >
+                  <Text style={styles.minorActionRemove}>Remove file</Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
-        </View>
-      ))}
+        );
+      })}
 
       <AddFromFileSheet
         file={adding}
@@ -115,6 +165,14 @@ export function FileWorkbench({
         onSave={(input) => {
           onAddFromDocument(input);
           setAdding(null);
+        }}
+      />
+      <AddNoteSheet
+        file={noting}
+        onCancel={() => setNoting(null)}
+        onSave={(note) => {
+          if (noting && onAddNote) onAddNote(noting.id, note);
+          setNoting(null);
         }}
       />
     </View>
@@ -189,6 +247,56 @@ function AddFromFileSheet({
   );
 }
 
+function AddNoteSheet({
+  file,
+  onCancel,
+  onSave,
+}: {
+  file: LocalDocumentStage | null;
+  onCancel: () => void;
+  onSave: (note: string) => void;
+}) {
+  const [note, setNote] = useState('');
+  return (
+    <Modal animationType="slide" transparent visible={file !== null} onRequestClose={onCancel}>
+      <Pressable accessibilityLabel="Cancel" style={styles.scrim} onPress={onCancel} />
+      <View style={styles.sheet}>
+        <View style={styles.handle} />
+        <Text accessibilityRole="header" style={styles.sheetTitle}>
+          Add a note
+        </Text>
+        {file ? <Muted style={styles.sheetFrom}>On: {file.filename}</Muted> : null}
+        <Body style={styles.noteHint}>
+          A note just helps you remember what this file is. It never changes your money.
+        </Body>
+        <TextInput
+          accessibilityLabel="Note about this file"
+          multiline
+          onChangeText={setNote}
+          placeholder="e.g. June statement, current account"
+          placeholderTextColor={paper.muted}
+          style={styles.noteInput}
+          textAlignVertical="top"
+          value={note}
+        />
+        <View style={styles.footer}>
+          <GhostButton flex label="Cancel" onPress={onCancel} />
+          <View style={styles.flex}>
+            <PrimaryAction
+              label="Save note"
+              onPress={() => {
+                if (note.trim().length === 0) return;
+                onSave(note);
+                setNote('');
+              }}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export function PasteSheet({
   visible,
   onClose,
@@ -209,7 +317,7 @@ export function PasteSheet({
         </Text>
         <Body style={styles.pasteHint}>
           Copy the lines from your banking app and paste them here — date, what it was, and the
-          amount. Rough is fine; you'll check each row next.
+          amount. Rough is fine; you'll check each one next.
         </Body>
         <TextInput
           accessibilityLabel="Pasted bank text"
@@ -225,7 +333,7 @@ export function PasteSheet({
           <GhostButton flex label="Cancel" onPress={onClose} />
           <View style={styles.flex}>
             <PrimaryAction
-              label="Find rows"
+              label="Find payments"
               onPress={() => {
                 if (text.trim().length === 0) return;
                 onStage(text);
@@ -244,7 +352,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   section: { gap: gap.sm, marginTop: gap.lg },
   melo: { marginVertical: gap.xs },
-  sectionNote: { marginBottom: gap.xs },
   fileCard: {
     backgroundColor: paper.surface,
     borderRadius: 18,
@@ -255,10 +362,17 @@ const styles = StyleSheet.create({
   },
   fileName: { color: paper.ink, fontSize: 17, fontWeight: '700' },
   fileMeta: { marginTop: -2 },
-  fileAdded: { color: paper.calmStrong, fontSize: 13, fontWeight: '600' },
+  fileSaved: { color: paper.secondary, fontSize: 14, lineHeight: 20, marginTop: 2 },
+  fileAdded: { color: paper.calmStrong, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  notes: { gap: 2, marginTop: 2 },
+  noteText: { color: paper.muted, fontSize: 13, fontStyle: 'italic' },
   fileActions: { gap: gap.sm, marginTop: gap.sm },
+  fileMinorRow: { flexDirection: 'row', justifyContent: 'center', gap: gap.xl },
+  minorAction: { paddingVertical: 6 },
+  minorActionText: { color: paper.secondary, fontSize: 14, fontWeight: '600' },
+  minorActionRemove: { color: paper.repairInk, fontSize: 14, fontWeight: '600' },
 
-  scrim: { flex: 1, backgroundColor: 'rgba(24, 35, 29, 0.42)' },
+  scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
   sheet: {
     backgroundColor: paper.surface,
     borderTopLeftRadius: 28,
@@ -297,6 +411,19 @@ const styles = StyleSheet.create({
     paddingVertical: gap.sm,
   },
   footer: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
+
+  noteHint: { color: paper.secondary, marginTop: gap.xs },
+  noteInput: {
+    marginTop: gap.md,
+    minHeight: 96,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: paper.hairline,
+    backgroundColor: paper.canvas,
+    padding: gap.md,
+    fontSize: 16,
+    color: paper.ink,
+  },
 
   pasteHint: { color: paper.secondary, marginTop: gap.xs },
   pasteInput: {

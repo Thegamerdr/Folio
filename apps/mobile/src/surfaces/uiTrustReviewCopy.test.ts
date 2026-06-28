@@ -63,10 +63,10 @@ describe('pre-dogfood UI trust copy', () => {
       expect(surfaceSource).not.toContain(copy);
     }
 
-    expect(surfaceSource).toContain('Check rows before adding them.');
-    expect(surfaceSource).toContain('Add keeps a row in your money view.');
+    expect(surfaceSource).toContain('Check these before they count.');
+    expect(surfaceSource).toContain('Add keeps this payment in your money view.');
     expect(surfaceSource).toContain('nothing affects your money view until you review it');
-    expect(surfaceSource).toContain('Accepted money rows');
+    expect(surfaceSource).toContain('Added to your money');
   });
 
   it('keeps mission-banned internal language out of visible copy strings', () => {

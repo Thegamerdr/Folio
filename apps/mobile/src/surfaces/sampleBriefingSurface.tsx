@@ -31,7 +31,7 @@ export function SampleBriefingValueSurface({
     <View style={styles.stack}>
       <Text style={styles.kicker}>Sample briefing</Text>
       <Text accessibilityRole="header" style={styles.title}>
-        See the loop without using your data.
+        See how Folio works without using your data.
       </Text>
       <View style={styles.labelRow}>
         {labels.map((label) => (
@@ -40,7 +40,7 @@ export function SampleBriefingValueSurface({
           </View>
         ))}
       </View>
-      <Text style={styles.body}>Play through the loop with labelled example data.</Text>
+      <Text style={styles.body}>See how Folio works with a pretend example.</Text>
 
       <View accessible accessibilityLabel={`Melo note. ${meloSummary}`} style={styles.meloBox}>
         <Text style={styles.meloTitle}>Melo note</Text>

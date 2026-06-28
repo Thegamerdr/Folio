@@ -48,7 +48,7 @@ export function DataControlOwnershipSurface({
         ? `${rejectedCount} rejected import item${plural(rejectedCount)} are evidence only.`
         : workspaceEmpty
           ? 'This workspace is empty, not a confirmed zero balance.'
-          : `${visibleCount} visible local row${plural(visibleCount)} are inspectable.`,
+          : `${visibleCount} thing${plural(visibleCount)} on this device you can look through.`,
   });
 
   return (
@@ -78,20 +78,20 @@ export function DataControlOwnershipSurface({
           detail={
             workspaceEmpty
               ? 'Empty workspace means no local records are stored. It is not a confirmed zero bank balance.'
-              : 'All visible local records stay inspectable on this device.'
+              : 'Everything saved on this device is here for you to look through.'
           }
           state={workspaceEmpty ? 'needs source' : 'available'}
-          value={`${visibleCount} visible row${plural(visibleCount)}`}
+          value={`${visibleCount} on this device`}
         />
         <OwnershipTile
-          label="Accepted money rows"
-          detail="Confirmed local transactions affect Today, Calendar, Timeline, Plans and Melo."
+          label="Added to your money"
+          detail="What you've added shows up in Today, Calendar, Timeline, Plans and Melo."
           state={acceptedCount === 0 ? 'disabled' : 'saved'}
           value={`${acceptedCount} record${plural(acceptedCount)}`}
         />
         <OwnershipTile
-          label="Rows waiting"
-          detail="Rows waiting for review do not affect money until accepted."
+          label="Waiting for you"
+          detail="What's waiting for you to check doesn't touch your money until you add it."
           state={draftCount === 0 ? 'disabled' : 'requires review'}
           value={`${draftCount} draft${plural(draftCount)}`}
         />
@@ -111,7 +111,7 @@ export function DataControlOwnershipSurface({
           label="Exports"
           detail={exportMessage}
           state={exportBusy ? 'requires review' : 'available'}
-          value={exportBusy ? 'Preparing' : 'User-owned'}
+          value={exportBusy ? 'Preparing' : 'Yours'}
         />
         <OwnershipTile
           label="Clear data"

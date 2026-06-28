@@ -27,6 +27,7 @@
     "performanceMode": true
   },
   "dependencies": {
+    "@expo-google-fonts/fraunces": "^0.4.1",
     "@expo/metro-runtime": "~56.0.15",
     "@folio/ai-contracts": "workspace:*",
     "@folio/business-workspace": "workspace:*",
@@ -50,10 +51,13 @@
     "expo-crypto": "~56.0.4",
     "expo-document-picker": "~56.0.4",
     "expo-file-system": "~56.0.8",
+    "expo-font": "~56.0.7",
+    "expo-image-picker": "~56.0.18",
     "expo-linking": "~56.0.14",
     "expo-local-authentication": "~56.0.4",
     "expo-router": "~56.2.11",
     "expo-secure-store": "~56.0.4",
+    "expo-sharing": "~56.0.18",
     "expo-splash-screen": "~56.0.10",
     "expo-status-bar": "~56.0.4",
     "expo-system-ui": "~56.0.5",

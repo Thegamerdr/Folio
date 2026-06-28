@@ -236,7 +236,7 @@ describe('mobile product route surface truth guard', () => {
     expect(mobileShellSource).toContain('importDraftSourceName');
     expect(mobileShellSource).toContain('From your statement:');
     expect(productExperienceLoopSource).toContain(
-      'Keeps the row out of your money view and leaves Today, Timeline and Plans unchanged.',
+      'Keeps this one out of your money view and leaves Today, Timeline and Plans unchanged.',
     );
     expect(mobileShellSource).toContain("onDismissDraft(selectedReviewDraft.rowId, 'duplicate')");
     expect(mobileShellSource).toContain(
@@ -277,10 +277,16 @@ describe('mobile product route surface truth guard', () => {
   });
 
   it('bases Today headline truth on the full route, not only available cash today', () => {
-    expect(liveMobileSurfaceSource).toContain('buildLocalTodayModel');
-    expect(liveMobileSurfaceSource).toContain('today={todayModel}');
-    // The Today verdict is derived from the full route (routeComplete + tightest balance), then
-    // passed to MoneyHero as its headline — not read off available cash today.
+    // The rebuilt Today rich-home is presentation-only and reads the FULL route directly: the
+    // container passes route={localRoute}, and the hero "spare" figure is the magnitude at the
+    // tightest point — not available cash today.
+    expect(appRouteSource).toContain('route={localRoute}');
+    expect(appRouteSource).toContain('spareMinor={todaySpareMinor}');
+    expect(appRouteSource).toContain(
+      'const todaySpareMinor = Math.abs(localRoute.tightestBalanceMinor)',
+    );
+    // The Today verdict itself is derived from the full route's tightest balance (in todayPath),
+    // and the legacy mobileShell route-completeness verdict still backs MoneyHero where it renders.
     expect(mobileShellSource).toMatch(
       /const routeComplete =[\s\S]*route\.points\.some\(\(point\) => point\.deltaMinor < 0\)/u,
     );

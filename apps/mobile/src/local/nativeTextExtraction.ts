@@ -40,6 +40,9 @@
 // and side-effect-free; it is used today only inside the guarded probe below.
 import * as FileSystem from 'expo-file-system/legacy';
 
+// The on-device reader native module (ML Kit OCR + PdfRenderer). Resolves lazily and never throws.
+import { readDocumentText } from '../../modules/folio-reader';
+
 /**
  * Result of an on-device extraction attempt.
  *
@@ -132,14 +135,20 @@ export async function extractTextFromDocument(
     // -----------------------------------------------------------------------
 
     // Guarded availability probe: confirm the file is actually readable before
-    // we would hand it to the native module. This never throws out of here.
+    // we hand it to the native module. This never throws out of here.
     const exists = await fileIsReadable(uri);
     if (!exists) {
       return NOT_AVAILABLE;
     }
 
-    // No native module yet -> graceful "not available". The caller falls back
-    // to the manual-from-file workbench.
+    // Hand off to the on-device native reader (ML Kit Text Recognition for images, PdfRenderer +
+    // ML Kit for PDFs — see modules/folio-reader). It is local-only and never throws across the
+    // bridge. A 'none' result (no native module, unreadable, or empty extraction) falls through to
+    // NOT_AVAILABLE, so the caller still lands on the manual-from-file workbench.
+    const native = await readDocumentText(uri, mimeType);
+    if (native.source !== 'none' && native.text.trim().length > 0) {
+      return { text: native.text, source: native.source };
+    }
     return NOT_AVAILABLE;
   } catch {
     // Absolutely never propagate: a thrown extractor would break the picker

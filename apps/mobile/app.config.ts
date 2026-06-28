@@ -49,6 +49,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
       },
     ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Folio uses your photos only to read a statement you choose. Images stay on this device.',
+        cameraPermission:
+          'Folio uses the camera only to capture a statement you choose. Photos stay on this device.',
+      },
+    ],
+    'expo-sharing',
   ],
   experiments: {
     typedRoutes: true,

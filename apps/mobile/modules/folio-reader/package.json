@@ -1,0 +1,7 @@
+{
+  "name": "folio-reader",
+  "version": "0.1.0",
+  "description": "On-device statement reading for Folio: ML Kit OCR for images + PdfRenderer→OCR for PDFs. Local only, no cloud.",
+  "main": "index.ts",
+  "private": true
+}

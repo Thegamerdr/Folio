@@ -159,10 +159,8 @@ export function buildCanonicalTodayModel(
   const activeImports = activeReviewImportDrafts(canonical);
   const reviewCopy =
     activeImports.length === 0
-      ? 'No rows are waiting for review right now.'
-      : `You have ${activeImports.length} row${
-          activeImports.length === 1 ? '' : 's'
-        } waiting for review. Your picture may change after review.`;
+      ? 'Nothing is waiting for review right now.'
+      : `You have ${activeImports.length} waiting for review. Your picture may change after review.`;
   const meloBriefingText = buildTodayMeloText({
     asOfDate: input.asOfDate,
     canonical,
@@ -406,7 +404,7 @@ function canonicalCashflows(
       state: expectation.certainty === 'inferred' ? ('inferred' as const) : ('expected' as const),
       protected: expectation.commitmentId !== undefined,
       sourceId: String(expectation.provenanceId ?? expectation.id),
-      assumption: 'Future rows remain expectations until they become facts.',
+      assumption: 'Anything in the future stays an expectation until it becomes a fact.',
     };
   });
 
@@ -459,7 +457,7 @@ function canonicalTodayEvents(
   const activeImports = activeReviewImportDrafts(canonical);
   const reviewEvents = activeImports.map<TimelineEventInput>((draft) => ({
     id: `import:${String(draft.id)}`,
-    title: plannerTitleForProvenance(canonical, String(draft.provenanceId), 'Import row'),
+    title: plannerTitleForProvenance(canonical, String(draft.provenanceId), 'Imported payment'),
     localDate: plannerDateForProvenance(canonical, String(draft.provenanceId), asOfDate),
     sourceKind: 'task',
     state: 'expected',
@@ -958,9 +956,9 @@ function evidenceForTimelineRow(
   }
 
   return canonicalEvidenceForRecord(canonical, {
-    recordKind: 'timeline row',
+    recordKind: 'timeline entry',
     recordId: rowId,
-    why: 'This row is produced by the canonical Today projection.',
+    why: 'This comes from your Today picture.',
     authorityState: 'estimated',
   });
 }

@@ -1,11 +1,14 @@
-// One-row Truth Decision.
+// One decision at a time, before it counts.
 //
-// Review is a decision moment, not an import table. One waiting row at a time, the
-// action belongs to the row, nothing touches Today until the user taps Add. No file
-// machinery sits above the row; no parser / category / system wording.
+// Review is a decision moment, not an import table. One waiting payment at a time,
+// the decision is the editorial hero — eyebrow, a serif question that leads, the
+// amount given air, then one obvious action and quiet ways out. Nothing touches Today
+// until you add it. No file machinery sits above the decision; no parser / category /
+// system wording. Empty reads as a calm "nothing waiting", not a bare "no data".
 
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import type {
   DocumentItemInput,
@@ -16,10 +19,10 @@ import type {
 } from '../../local/localLedger';
 import {
   Body,
-  Display,
   Eyebrow,
   GhostButton,
   Hairline,
+  Headline,
   MoneyPad,
   Muted,
   PressureScreen,
@@ -29,6 +32,7 @@ import {
   magnitude,
   paper,
   poundsLabel,
+  serif,
 } from './kit';
 import { FileWorkbench, PasteSheet } from './fileWorkbench';
 import { MeloPresence } from './melo';
@@ -81,13 +85,18 @@ export function ImportReviewScreen({
   documentStages,
   drafts,
   onAddFromDocument,
+  onAddNote,
   onApplyDraftEdit,
+  onCapturePhoto,
   onConfirmDraft,
   onDismissDraft,
   onMeloSuggestDraft,
+  onOpenFoundItems,
   onPickDocument,
+  onPickImage,
   onRemoveDocument,
   onStageImport,
+  onViewFile,
 }: {
   discoveryRows?: unknown;
   documentStages?: readonly LocalDocumentStage[] | undefined;
@@ -95,7 +104,9 @@ export function ImportReviewScreen({
   importSurfaceMode?: string | undefined;
   lastAction?: string | null | undefined;
   onAddFromDocument: (input: DocumentItemInput) => void;
+  onAddNote?: ((documentId: string, note: string) => void) | undefined;
   onApplyDraftEdit: (rowId: string, input: LocalImportDraftEditInput) => void;
+  onCapturePhoto?: (() => void) | undefined;
   onConfirmDraft: (rowId: string) => void;
   onDismissDraft: (
     rowId: string,
@@ -103,10 +114,13 @@ export function ImportReviewScreen({
     status?: 'Rejected' | 'Excluded',
   ) => void;
   onMeloSuggestDraft: (rowId: string) => void;
+  onOpenFoundItems?: (() => void) | undefined;
   onPickDocument: () => void;
+  onPickImage?: (() => void) | undefined;
   onRemoveDocument: (documentId: string) => void;
   onStartManualFromFile?: () => void;
   onStageImport: (text: string) => void;
+  onViewFile?: ((file: LocalDocumentStage) => void) | undefined;
   privateExampleMode?: boolean | undefined;
   summary?: unknown;
 }) {
@@ -127,45 +141,84 @@ export function ImportReviewScreen({
     setDecided((prev) => (prev.includes(rowId) ? prev : [...prev, rowId]));
   };
 
+  // Re-label this payment as something else (a refund, income, a bill, a debt payment) without
+  // leaving the decision. It edits the same draft through the canonical edit path, flips the sign
+  // to match the flow, and stays on the card so the dominant "Add" remains the next step. Nothing
+  // is added until the user chooses — this only corrects what the card says it is.
+  const reclassify = (draft: LocalImportDraft, label: string, flow: 'in' | 'out') => {
+    const pounds = String(Math.round(Math.abs(draft.amountMinor) / 100));
+    onApplyDraftEdit(draft.rowId, {
+      interpretation: label,
+      amountText: `${flow === 'out' ? '-' : ''}${pounds}`,
+      date: draft.date,
+    });
+    setShowMore(false);
+  };
+
   if (!current) {
+    const handled = total > 0;
     return (
       <PressureScreen style={styles.screen}>
-        <View style={styles.intro}>
+        <View style={styles.calmHeader}>
           <Eyebrow>Review</Eyebrow>
-          <Display style={styles.title}>
-            {total === 0 ? 'Nothing to check right now.' : 'All caught up.'}
-          </Display>
-          <Body style={styles.sub}>
-            {total === 0
-              ? 'When you bring in a statement, each row waits here for you to decide — one at a time. Nothing is added on its own.'
-              : 'Every waiting row has been handled. Your money path only reflects what you chose to add.'}
+          <Headline
+            lead={handled ? 'Everything is ' : 'Nothing is '}
+            accent={handled ? 'checked' : 'waiting'}
+            tail="."
+          />
+          <Body style={styles.calmBody}>
+            {handled
+              ? 'Everything you brought in has been decided. Your path to payday only moves on what you chose to add.'
+              : 'Bring in a statement and each payment waits here, one at a time, for you to decide. Nothing is ever added on its own.'}
           </Body>
         </View>
+
+        {/* Preview the SHAPE of the answer: one calm doorway showing what a decision looks like —
+            never a bare "no data". */}
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={styles.shape}
+        >
+          <RestGlyph />
+          <Text style={styles.shapeLabel}>
+            {handled ? 'All caught up' : "One at a time, when you're ready"}
+          </Text>
+        </View>
+
         <MeloPresence state="melo_review_waiting" style={styles.melo} />
+
         <View style={styles.emptyActions}>
           <PrimaryAction
             accessibilityHint="Paste the lines from your banking app."
             label="Paste from your bank"
             onPress={() => setPasteOpen(true)}
           />
-          <GhostButton
-            accessibilityHint="Choose a statement file or a photo of one."
-            label="Choose a file"
-            onPress={onPickDocument}
-          />
-          <QuietLink
-            accessibilityHint="Loads a small sample statement so you can try reviewing."
-            label="Try it with a sample"
-            onPress={() => {
-              setDecided([]);
-              onStageImport(SAMPLE_CSV);
-            }}
-          />
+          <View style={styles.intakeGrid}>
+            <IntakeTile label="Choose a file" hint="PDF · CSV · text" onPress={onPickDocument} />
+            {onPickImage ? (
+              <IntakeTile label="Add an image" hint="screenshot · photo" onPress={onPickImage} />
+            ) : null}
+            {onCapturePhoto ? (
+              <IntakeTile label="Take a photo" hint="snap a statement" onPress={onCapturePhoto} />
+            ) : null}
+            <IntakeTile
+              label="Try a sample"
+              hint="see it first"
+              onPress={() => {
+                setDecided([]);
+                onStageImport(SAMPLE_CSV);
+              }}
+            />
+          </View>
         </View>
+
         <FileWorkbench
           files={files}
           onAddFromDocument={onAddFromDocument}
+          onAddNote={onAddNote}
           onRemoveDocument={onRemoveDocument}
+          onViewFile={onViewFile}
           showMelo={false}
         />
         <PasteSheet
@@ -182,30 +235,49 @@ export function ImportReviewScreen({
 
   return (
     <PressureScreen style={styles.screen}>
-      <View style={styles.header}>
-        <Eyebrow>Review</Eyebrow>
-        <Text style={styles.counter}>
-          {position} of {total} to check
-        </Text>
-      </View>
+      {/* The decision is the hero. Eyebrow + a quiet count, then a serif question that leads,
+          the amount given real air below it. No card, no heavy box — the cream is the depth. */}
+      <View style={styles.decision}>
+        <View style={styles.decisionHead}>
+          <Eyebrow>Review</Eyebrow>
+          <Text style={styles.counter}>
+            {position} of {total} to check
+          </Text>
+        </View>
+        {onOpenFoundItems && total > 1 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="Opens the full editable list of everything Folio found."
+            hitSlop={8}
+            onPress={onOpenFoundItems}
+            style={styles.seeAll}
+          >
+            <Text style={styles.seeAllText}>Check what Folio found — all {total}</Text>
+          </Pressable>
+        ) : null}
 
-      <MeloPresence state="melo_review_safe_to_add" style={styles.melo} />
-
-      <View style={styles.card}>
+        {/* The question leads the page in the editorial serif — one calm human line. The
+            interpretation is the variable part, so the whole question carries the accent (the
+            italic display face) rather than splitting mid-line; reads as one thought. */}
         <Text accessibilityRole="header" style={styles.question}>
           Is this your {current.interpretation}?
         </Text>
-        <Text style={styles.amount}>
-          {magnitude(current.amountMinor)} {out ? 'out' : 'in'} · {formatDay(current.date)}
-        </Text>
-        <Muted style={styles.source}>From your statement</Muted>
 
-        <View style={styles.consequence}>
-          <Text style={styles.consequenceText}>
-            If you add it, your payday picture {out ? 'drops' : 'rises'} by{' '}
-            {magnitude(current.amountMinor)}.
-          </Text>
-        </View>
+        <Text
+          accessibilityLabel={`${magnitude(current.amountMinor)} ${out ? 'out' : 'in'} on ${formatDay(
+            current.date,
+          )}, from your statement.`}
+          style={[styles.amount, out ? styles.amountOut : styles.amountIn]}
+        >
+          {magnitude(current.amountMinor)}
+          <Text style={styles.amountDirection}>{out ? '  out' : '  in'}</Text>
+        </Text>
+        <Muted style={styles.meta}>{formatDay(current.date)} · From your statement</Muted>
+
+        <Body style={styles.consequence}>
+          Add it and your payday picture {out ? 'drops' : 'rises'} by{' '}
+          {magnitude(current.amountMinor)}.
+        </Body>
 
         {flag ? (
           <View style={styles.flag}>
@@ -213,30 +285,32 @@ export function ImportReviewScreen({
             <Text style={styles.flagText}>{flag}</Text>
           </View>
         ) : null}
+      </View>
 
+      <MeloPresence state="melo_review_safe_to_add" style={styles.melo} />
+
+      {/* One obvious action, then quiet ways out — never three equal buttons. */}
+      <View style={styles.actions}>
         <PrimaryAction
-          accessibilityHint="Adds this row to your money. Nothing changed until now."
+          accessibilityHint="Adds this payment to your money. Nothing changed until now."
           label="Add to my money"
           onPress={() => decide(current.rowId, () => onConfirmDraft(current.rowId))}
         />
-
-        <View style={styles.secondaryRow}>
-          <GhostButton
-            accessibilityHint="Change this row before adding it."
-            flex
+        <View style={styles.quietRow}>
+          <QuietLink
+            accessibilityHint="Change this payment before adding it."
             label="Edit"
             onPress={() => setEditing(current)}
           />
-          <GhostButton
-            accessibilityHint="Keep this row out of your money."
-            flex
+          <QuietLink
+            accessibilityHint="Keep this one out of your money."
             label="Ignore"
             onPress={() => decide(current.rowId, () => onDismissDraft(current.rowId, 'other'))}
           />
         </View>
 
         <Pressable
-          accessibilityHint="Shows more ways to handle this row."
+          accessibilityHint="Shows more ways to handle this one."
           accessibilityRole="button"
           hitSlop={12}
           onPress={() => setShowMore((v) => !v)}
@@ -247,6 +321,7 @@ export function ImportReviewScreen({
 
         {showMore ? (
           <View style={styles.moreGrid}>
+            {/* Take it out of your money entirely. */}
             <Hairline />
             <MoreOption
               label="It's a duplicate"
@@ -254,6 +329,7 @@ export function ImportReviewScreen({
                 decide(current.rowId, () => onDismissDraft(current.rowId, 'duplicate'))
               }
             />
+            <Hairline />
             <MoreOption
               label="It's a transfer between my accounts"
               onPress={() =>
@@ -262,10 +338,28 @@ export function ImportReviewScreen({
                 )
               }
             />
+
+            {/* It's actually something else — re-label it, then add it. Stays on the card. */}
+            <Hairline />
+            <Text style={styles.moreCaption}>It's actually…</Text>
+            <MoreOption label="A refund" onPress={() => reclassify(current, 'Refund', 'in')} />
+            <Hairline />
+            <MoreOption label="Income" onPress={() => reclassify(current, 'Income', 'in')} />
+            <Hairline />
+            <MoreOption label="A bill" onPress={() => reclassify(current, 'Bill', 'out')} />
+            <Hairline />
+            <MoreOption
+              label="A debt payment"
+              onPress={() => reclassify(current, 'Debt payment', 'out')}
+            />
+
+            {/* Quiet ways to defer or get help naming it. */}
+            <Hairline />
             <MoreOption
               label="Suggest a label for me"
               onPress={() => decide(current.rowId, () => onMeloSuggestDraft(current.rowId))}
             />
+            <Hairline />
             <MoreOption
               label="Leave it for later"
               onPress={() => decide(current.rowId, () => undefined)}
@@ -286,10 +380,66 @@ export function ImportReviewScreen({
       <FileWorkbench
         files={files}
         onAddFromDocument={onAddFromDocument}
+        onAddNote={onAddNote}
         onRemoveDocument={onRemoveDocument}
+        onViewFile={onViewFile}
       />
       <PasteSheet onClose={() => setPasteOpen(false)} onStage={onStageImport} visible={pasteOpen} />
     </PressureScreen>
+  );
+}
+
+// One calm intake choice — a small surface tile in the empty-review grid. Not equal-weight with the
+// dominant Paste action; these sit quiet below it.
+function IntakeTile({
+  label,
+  hint,
+  onPress,
+}: {
+  label: string;
+  hint: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint={hint}
+      onPress={onPress}
+      style={({ pressed }) => [styles.intakeTile, pressed ? { opacity: 0.7 } : undefined]}
+    >
+      <Text style={styles.intakeTileLabel}>{label}</Text>
+      <Text style={styles.intakeTileHint}>{hint}</Text>
+    </Pressable>
+  );
+}
+
+// A calm "at rest" mark for the empty state — a soft paydown horizon with a single settled
+// point. It previews the shape of a decision (a payment landing on the line) without faking
+// data. Near-flat, hairline only; the cream is the depth.
+function RestGlyph() {
+  return (
+    <Svg width={72} height={44} viewBox="0 0 72 44">
+      <Line
+        x1={8}
+        y1={30}
+        x2={64}
+        y2={30}
+        stroke={paper.hairlineStrong}
+        strokeWidth={1.4}
+        strokeDasharray="2 5"
+        strokeLinecap="round"
+      />
+      <Path
+        d="M8 30c10 0 12-12 22-12s14 12 24 12"
+        stroke={paper.calm}
+        strokeWidth={2}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.55}
+      />
+      <Circle cx={30} cy={18} r={4} fill={paper.surface} stroke={paper.calm} strokeWidth={2} />
+    </Svg>
   );
 }
 
@@ -334,7 +484,7 @@ function EditSheet({
         </Text>
         <Text style={styles.editLabel}>What is it?</Text>
         <TextInput
-          accessibilityLabel="What this row is"
+          accessibilityLabel="What this payment is"
           onChangeText={setName}
           placeholder="e.g. Tesco shop"
           placeholderTextColor={paper.muted}
@@ -368,66 +518,121 @@ function EditSheet({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  screen: { gap: gap.lg },
-  melo: { marginBottom: gap.xs },
-  intro: { gap: gap.sm, paddingTop: gap.lg },
-  title: { fontSize: 30, lineHeight: 36 },
-  sub: { color: paper.secondary, fontSize: 16, lineHeight: 23 },
-  emptyActions: { gap: gap.sm, marginTop: gap.md },
 
-  header: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  counter: { color: paper.muted, fontSize: 13, fontWeight: '700' },
+  // Editorial page rhythm: generous, uneven air. The decision leads and owns the top of the
+  // page; the action sits quiet below with a clear gap between them. Not a uniform card stack.
+  screen: { gap: gap.xl },
+  melo: { marginTop: gap.xs },
 
-  card: {
+  // --- Empty state -------------------------------------------------------------------------
+  calmHeader: { gap: gap.sm, paddingTop: gap.lg },
+  calmBody: { color: paper.secondary, marginTop: gap.xxs },
+  shape: {
+    alignItems: 'center',
+    gap: gap.sm,
+    paddingVertical: gap.xl,
+  },
+  shapeLabel: {
+    color: paper.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  emptyActions: { gap: gap.md },
+  emptyQuiet: { alignItems: 'center', gap: gap.xxs },
+  intakeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm },
+  intakeTile: {
+    flexBasis: '47%',
+    flexGrow: 1,
     backgroundColor: paper.surface,
-    borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: paper.hairline,
-    padding: gap.xl,
-    gap: gap.md,
-    shadowColor: '#10241C',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 22,
-    elevation: 3,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: gap.md,
   },
+  intakeTileLabel: { color: paper.ink, fontSize: 14.5, fontWeight: '600' },
+  intakeTileHint: { color: paper.muted, fontSize: 11.5, marginTop: 2 },
+  seeAll: { alignSelf: 'flex-start', marginTop: gap.xs },
+  seeAllText: { color: paper.calmStrong, fontSize: 13.5, fontWeight: '700' },
+
+  // --- Active decision ---------------------------------------------------------------------
+  decision: { gap: gap.sm, paddingTop: gap.md },
+  decisionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  counter: { color: paper.muted, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
+
+  // The serif question is the editorial hero — it leads the page at headline scale, set in the
+  // italic display face so the whole human question reads as the accent (the interpretation is
+  // the variable part, so the line carries the accent rather than splitting mid-word).
   question: {
     color: paper.ink,
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: '800',
+    fontFamily: serif.displayItalic,
+    fontSize: 29,
+    lineHeight: 37,
     letterSpacing: -0.3,
+    marginTop: gap.xs,
   },
+
+  // The amount is the figure that matters next to the verdict — large, tabular, given air.
   amount: {
-    color: paper.ink,
-    fontSize: 19,
-    fontWeight: '700',
+    fontSize: 46,
+    lineHeight: 50,
+    fontWeight: '800',
+    letterSpacing: -1.4,
     fontVariant: ['tabular-nums'],
-    marginTop: 2,
+    marginTop: gap.md,
   },
-  source: { marginTop: -4 },
-
-  consequence: {
-    backgroundColor: paper.sunken,
-    borderRadius: 14,
-    padding: gap.md,
+  amountIn: { color: paper.positiveInk }, // money in reads green — "you make it"
+  amountOut: { color: paper.ink },
+  amountDirection: {
+    fontSize: 20,
+    lineHeight: 50,
+    fontWeight: '700',
+    letterSpacing: 0,
+    color: paper.muted,
   },
-  consequenceText: { color: paper.ink, fontSize: 15, lineHeight: 21, fontWeight: '500' },
+  meta: { marginTop: gap.xxs },
 
-  flag: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  consequence: { color: paper.secondary, marginTop: gap.sm },
+
+  flag: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+    marginTop: gap.xs,
+  },
   flagDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: paper.warm, marginTop: 7 },
   flagText: { color: paper.warmInk, fontSize: 14, lineHeight: 20, flex: 1 },
 
-  secondaryRow: { flexDirection: 'row', gap: gap.sm },
+  // --- Actions -----------------------------------------------------------------------------
+  actions: { gap: gap.sm },
+  quietRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: gap.xl,
+  },
 
-  moreToggle: { alignSelf: 'center', paddingVertical: 6 },
-  moreToggleText: { color: paper.secondary, fontSize: 15, fontWeight: '600' },
+  moreToggle: { alignSelf: 'center', paddingVertical: 6, marginTop: gap.xxs },
+  moreToggleText: { color: paper.muted, fontSize: 14, fontWeight: '600' },
 
-  moreGrid: { gap: 2 },
-  moreOption: { paddingVertical: 14 },
+  moreGrid: { marginTop: gap.xs },
+  moreOption: { paddingVertical: 15 },
   moreOptionText: { color: paper.ink, fontSize: 16 },
+  moreCaption: {
+    color: paper.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    paddingTop: gap.sm,
+  },
 
-  scrim: { flex: 1, backgroundColor: 'rgba(24, 35, 29, 0.42)' },
+  // --- Edit sheet --------------------------------------------------------------------------
+  scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
   editSheet: {
     backgroundColor: paper.surface,
     borderTopLeftRadius: 28,

@@ -30,18 +30,18 @@ export const MELO_COPY: Readonly<Record<MeloState, MeloCopy>> = {
     supporting: 'We only need enough to start your path.',
   },
   melo_review_waiting: {
-    primary: 'This row is waiting.',
+    primary: 'This one is waiting for you.',
     supporting: 'Add it only if it belongs to you.',
   },
   melo_review_safe_to_add: { primary: 'Nothing changes until you add it.' },
   melo_path_explaining: { primary: 'The tightest point is after bills are set aside.' },
-  melo_uncertainty: { primary: 'Some rows still need checking.' },
+  melo_uncertainty: { primary: 'A few still need checking.' },
   melo_file_unreadable: {
     primary: "I couldn't read this one clearly.",
     supporting: 'The file is saved — you can still add the numbers from it.',
   },
   melo_privacy_trust: {
-    primary: 'Files and rows stay on this device.',
+    primary: 'Your files and money stay on this device.',
     supporting: 'Nothing leaves unless you export it.',
   },
   melo_success_saved: { primary: 'Added. Your path just updated.' },

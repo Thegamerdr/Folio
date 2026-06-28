@@ -477,6 +477,10 @@ async function loadNormalizedLedgerState(
     typeof metadata.last_import_summary_json === 'string'
       ? parseImportSummary(metadata.last_import_summary_json)
       : undefined;
+  // Pots, subscriptions and cycles are durable containers/history that the normalized relational
+  // tables do not model. They round-trip through the full JSON snapshot blob written on every save,
+  // so we recover them from there (defaulting to []), keeping the SQLite schema untouched.
+  const durableContainers = await loadDurableContainersFromSnapshot(db);
   const state: LocalLedgerState = {
     asOfDate: metadata.as_of_date,
     cashOnHandMinor: metadata.cash_on_hand_minor,
@@ -487,10 +491,43 @@ async function loadNormalizedLedgerState(
     rejectedImports: rejectedImports.rows.map(rowToRejectedImport).filter(isPresent),
     documentStages: documentStages.rows.map(rowToDocumentStage).filter(isPresent),
     history: history.rows.map(rowToHistoryEntry).filter(isPresent),
+    pots: durableContainers.pots,
+    subscriptions: durableContainers.subscriptions,
+    cycles: durableContainers.cycles,
     ...(lastImportSummary === undefined ? {} : { lastImportSummary }),
   };
 
   return isLocalLedgerState(state) ? state : null;
+}
+
+type DurableContainers = Readonly<{
+  pots: LocalLedgerState['pots'];
+  subscriptions: LocalLedgerState['subscriptions'];
+  cycles: LocalLedgerState['cycles'];
+}>;
+
+async function loadDurableContainersFromSnapshot(
+  db: ReturnType<typeof open>,
+): Promise<DurableContainers> {
+  const empty: DurableContainers = { pots: [], subscriptions: [], cycles: [] };
+  try {
+    const result = await db.execute('SELECT json FROM local_ledger_snapshot WHERE id = ?', [
+      snapshotId,
+    ]);
+    const row = result.rows[0] as SnapshotRow | undefined;
+    if (typeof row?.json !== 'string') return empty;
+    const parsed: unknown = JSON.parse(row.json);
+    if (!isRecord(parsed)) return empty;
+    return {
+      pots: Array.isArray(parsed.pots) ? (parsed.pots as LocalLedgerState['pots']) : [],
+      subscriptions: Array.isArray(parsed.subscriptions)
+        ? (parsed.subscriptions as LocalLedgerState['subscriptions'])
+        : [],
+      cycles: Array.isArray(parsed.cycles) ? (parsed.cycles as LocalLedgerState['cycles']) : [],
+    };
+  } catch {
+    return empty;
+  }
 }
 
 async function saveNormalizedLedgerState(
@@ -984,6 +1021,11 @@ function isLocalLedgerState(value: unknown): value is LocalLedgerState {
     Array.isArray(value.importDrafts) &&
     (value.rejectedImports === undefined || Array.isArray(value.rejectedImports)) &&
     (value.documentStages === undefined || Array.isArray(value.documentStages)) &&
+    // Durable containers/history are optional on disk for backward compatibility — older saved
+    // pictures predate them, so absent is fine; normalizeLocalLedgerState defaults them to [].
+    (value.pots === undefined || Array.isArray(value.pots)) &&
+    (value.subscriptions === undefined || Array.isArray(value.subscriptions)) &&
+    (value.cycles === undefined || Array.isArray(value.cycles)) &&
     Array.isArray(value.history)
   );
 }
@@ -997,5 +1039,8 @@ function normalizeLocalLedgerState(state: LocalLedgerState): LocalLedgerState {
     ...state,
     documentStages: Array.isArray(state.documentStages) ? state.documentStages : [],
     rejectedImports: Array.isArray(state.rejectedImports) ? state.rejectedImports : [],
+    pots: Array.isArray(state.pots) ? state.pots : [],
+    subscriptions: Array.isArray(state.subscriptions) ? state.subscriptions : [],
+    cycles: Array.isArray(state.cycles) ? state.cycles : [],
   };
 }

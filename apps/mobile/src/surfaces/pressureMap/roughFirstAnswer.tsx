@@ -272,8 +272,8 @@ function SummaryStep({
         <Display style={styles.summaryHeadline}>{headline}</Display>
         <Body style={styles.summaryDetail}>{detail}</Body>
         <Muted style={styles.summaryNote}>
-          This is a rough start. You can correct anything, add a statement, or review real rows
-          next.
+          This is a rough start. You can correct anything, add a statement, or check your real
+          payments next.
         </Muted>
       </View>
 

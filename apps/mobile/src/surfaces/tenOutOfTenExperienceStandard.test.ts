@@ -105,7 +105,7 @@ describe('10/10 product experience standard pass', () => {
       'Read wrong',
       'Transfer',
     ]);
-    expect(surfaceSource).toContain('Rows to check');
+    expect(surfaceSource).toContain('What to check');
     expect(surfaceSource).toContain('Nothing has been added yet. Choose what to keep.');
     expect(surfaceSource).toContain('reviewActionSheet');
     expect(surfaceSource).toContain('setSelectedReviewDraftId(row.rowId)');

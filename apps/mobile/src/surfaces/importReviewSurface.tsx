@@ -30,7 +30,7 @@ export function ImportReviewDecisionGuide({
   );
   const meloNote = buildCompactMeloNote({
     control: 'Review the original wording, then add, edit or ignore.',
-    matters: 'Rows stay here until you choose.',
+    matters: 'These wait here until you choose.',
     noticed:
       latestSource === undefined
         ? 'A statement is waiting for review.'
@@ -48,7 +48,7 @@ export function ImportReviewDecisionGuide({
         style={styles.panel}
       >
         <Text style={styles.kicker}>Before anything changes</Text>
-        <Text style={styles.title}>Check rows before adding them.</Text>
+        <Text style={styles.title}>Check these before they count.</Text>
         {latestSource === undefined ? null : (
           <Text style={styles.sourceText}>Current file: {latestSource}</Text>
         )}
@@ -68,7 +68,7 @@ export function ImportReviewDecisionGuide({
           ))}
         </View>
         <View style={styles.meaningPanel}>
-          <Text style={styles.kicker}>Label this row</Text>
+          <Text style={styles.kicker}>What is this?</Text>
           <View style={styles.meaningRail}>
             {meaningActions.map((action) => (
               <Text key={action.id} style={styles.meaningChip}>
@@ -82,8 +82,9 @@ export function ImportReviewDecisionGuide({
           </Text>
         </View>
         <Text style={styles.footer}>
-          Add keeps a row in your money view. Edit keeps the original and stores your correction.
-          Ignore keeps the original wording but does not affect money.
+          {'Add keeps this payment in your money view. '}
+          {'Edit keeps the original and stores your correction. '}
+          {'Ignore keeps the original wording but does not affect money.'}
         </Text>
       </View>
     </View>

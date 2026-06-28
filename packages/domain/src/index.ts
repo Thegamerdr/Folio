@@ -40,6 +40,9 @@ export type ProvenanceId = EntityId<'Provenance'>;
 export type MeloMemoryId = EntityId<'MeloMemory'>;
 export type MeloProposalId = EntityId<'MeloProposal'>;
 export type AuditLogId = EntityId<'AuditLog'>;
+export type PotId = EntityId<'Pot'>;
+export type SubscriptionId = EntityId<'Subscription'>;
+export type CycleRecordId = EntityId<'CycleRecord'>;
 
 export type AuthorityState =
   | 'confirmed'
@@ -627,6 +630,51 @@ export type Forecast = Readonly<{
   provenanceId?: ProvenanceId;
 }>;
 
+// A Pot is a durable savings container the user puts money aside into (a goal with a weekly
+// contribution intention). It is not a single money event — it accrues over time — so it lives as
+// its own first-class entity rather than on transactions[].
+export type Pot = Readonly<{
+  id: PotId;
+  workspaceId: WorkspaceId;
+  name: string;
+  goal: Money;
+  saved: Money;
+  perWeek: Money;
+  accent: boolean;
+  version: EntityVersion;
+  provenanceId?: ProvenanceId;
+}>;
+
+// A Subscription is a recurring charge the user is carrying. Folio tracks how much value the user
+// is getting from it (renewal timing, usage) so the user can decide to keep, pause, or cancel.
+export type Subscription = Readonly<{
+  id: SubscriptionId;
+  workspaceId: WorkspaceId;
+  name: string;
+  cost: Money;
+  nextRenewalDaysAway: number;
+  lastUsedDaysAgo: number;
+  usesPerMonth: number;
+  paused: boolean;
+  version: EntityVersion;
+  provenanceId?: ProvenanceId;
+}>;
+
+// A CycleRecord is a closed pay-cycle the user has finished — durable history, not a forecast.
+// Insights reads across these to show how the user has been doing cycle over cycle.
+export type CycleRecord = Readonly<{
+  id: CycleRecordId;
+  workspaceId: WorkspaceId;
+  closedAt: InstantString;
+  label: string;
+  spare: Money;
+  tightPoint: Money;
+  setAside: Money;
+  version: EntityVersion;
+  note?: string;
+  provenanceId?: ProvenanceId;
+}>;
+
 export type DecisionKind =
   | 'confirm-import'
   | 'correct-record'
@@ -1127,6 +1175,18 @@ export function createMeloProposalId(input: string): MeloProposalId {
 
 export function createAuditLogId(input: string): AuditLogId {
   return createPrefixedId(input, 'audit') as AuditLogId;
+}
+
+export function createPotId(input: string): PotId {
+  return createPrefixedId(input, 'pot') as PotId;
+}
+
+export function createSubscriptionId(input: string): SubscriptionId {
+  return createPrefixedId(input, 'subscription') as SubscriptionId;
+}
+
+export function createCycleRecordId(input: string): CycleRecordId {
+  return createPrefixedId(input, 'cycle') as CycleRecordId;
 }
 
 export function createWorkspace(input: {

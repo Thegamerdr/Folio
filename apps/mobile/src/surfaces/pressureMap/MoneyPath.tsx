@@ -8,10 +8,17 @@
 // All geometry is derived from the canonical route points. When there isn't enough
 // real data to draw a meaningful path, it shows an honest "fills in as you add
 // money" state instead of a decorative line.
+//
+// The path is also lightly interactive (faithful to the web interactive path): a draggable scrub
+// thumb previews "spend more today", a band toggle (This week / Next week / To payday) re-frames the
+// range, a callout names the tight point, and a 3-column summary states coming in / going out /
+// lowest. These are all OPTIONAL — the plain read-only path (and its tests) is unchanged when the
+// extra props are absent.
 
-import { useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,10 +27,11 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import type { LocalRoutePoint, LocalRouteSummary } from '../../local/localLedger';
-import { Body, CheckGlyph, Eyebrow, gap, magnitude, money, paper } from './kit';
+import type { TodayPathBand, TodayPathSummary } from './todayTypes';
+import { Body, CheckGlyph, Eyebrow, gap, magnitude, money, paper, pressed, radius } from './kit';
 import { MeloPresence } from './melo';
 import { routeHasMeaningfulPath } from './routeMath';
 
@@ -38,7 +46,11 @@ const PAD_X = 16;
 const H_MIN = 220;
 const H_MAX = 320;
 const PLOT_TOP = 60;
-const PLOT_BOTTOM_INSET = 68; // distance from the bottom of the SVG to the baseline band
+const PLOT_BOTTOM_INSET = 40; // space below the baseline for the dashed drop-line (no text callout)
+
+// The scrub thumb may travel only across the plotted x-range (today → payday), never into the side
+// padding, so the previewed "spend" always lands on a real stretch of the path.
+const SCRUB_MIN_X = PAD_X;
 
 type Plot = { height: number; top: number; bottom: number };
 
@@ -66,6 +78,14 @@ type Layout = {
   baselineY: number;
   nodes: readonly Node[];
 };
+
+// The band toggle re-frames the range label + the strip of the path that is in view. The labels are
+// fixed copy (the data behind the path doesn't change); the band only changes how the range reads.
+const BANDS: readonly { id: TodayPathBand; label: string }[] = [
+  { id: 'week', label: 'This week' },
+  { id: 'next', label: 'Next week' },
+  { id: 'payday', label: 'To payday' },
+];
 
 function isWaiting(point: LocalRoutePoint): boolean {
   const s = point.reviewState;
@@ -130,12 +150,14 @@ function computeLayout(route: LocalRouteSummary, width: number, plot: Plot): Lay
 }
 
 function nodeTone(node: Node): string {
+  // The lowest point is the screen's attention object — terracotta accent while it holds (the
+  // "tight point"), coral when it actually runs short. Payday is the calm-green end-cap.
   if (node.isLowest) {
-    return node.point.balanceMinor < 0 ? paper.repair : paper.warm;
+    return node.point.balanceMinor < 0 ? paper.repair : paper.calm;
   }
   if (node.isPayday) return paper.payday;
   if (node.drop) return paper.warm;
-  return paper.calm;
+  return paper.positive;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,10 +168,28 @@ export function MoneyPath({
   route,
   selectedIndex,
   onSelectPoint,
+  band,
+  onChangeBand,
+  rangeLabel,
+  summary,
+  scrubPreviewMinor,
+  onScrub,
 }: {
   route: LocalRouteSummary;
   selectedIndex: number | null;
   onSelectPoint: (index: number) => void;
+  // --- optional interactive props (the Today rich-home passes these) ---
+  /** Active range band. When set, the band toggle renders below the path. */
+  band?: TodayPathBand | undefined;
+  onChangeBand?: ((band: TodayPathBand) => void) | undefined;
+  /** Range caption shown top-right of the path, e.g. "27 Jun → 25 Jul". */
+  rangeLabel?: string | undefined;
+  /** The 3-column coming-in / going-out / lowest summary under the path. */
+  summary?: TodayPathSummary | undefined;
+  /** A preview spend (minor units) the scrub thumb represents, for the caption under the path. */
+  scrubPreviewMinor?: number | undefined;
+  /** Called with a 0..1 fraction across the plotted range as the user drags the scrub thumb. */
+  onScrub?: ((fraction: number) => void) | undefined;
 }) {
   const [width, setWidth] = useState(340);
   const onLayout = (e: LayoutChangeEvent) => {
@@ -164,15 +204,60 @@ export function MoneyPath({
   const today = layout.nodes.find((n) => n.isToday);
   const payday = layout.nodes.find((n) => n.isPayday);
 
+  const interactive = onScrub !== undefined;
+  const [scrub, setScrub] = useState(0); // 0..1 across the plotted range
+  const scrubMaxX = Math.max(width - PAD_X, SCRUB_MIN_X + 1);
+  const scrubRange = scrubMaxX - SCRUB_MIN_X;
+
+  // The scrub thumb is dragged with a PanResponder (faithful to the web pointer-drag). We track the
+  // fraction in a ref too so the responder reads a live value without re-creating the responder.
+  const fractionRef = useRef(0);
+  const applyFraction = (fraction: number) => {
+    const clamped = Math.max(0, Math.min(1, fraction));
+    fractionRef.current = clamped;
+    setScrub(clamped);
+    onScrub?.(clamped);
+  };
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => interactive,
+        onMoveShouldSetPanResponder: () => interactive,
+        onPanResponderGrant: (e) => {
+          applyFraction((e.nativeEvent.locationX - SCRUB_MIN_X) / scrubRange);
+        },
+        onPanResponderMove: (e) => {
+          applyFraction((e.nativeEvent.locationX - SCRUB_MIN_X) / scrubRange);
+        },
+      }),
+    // Rebuild only when the geometry the responder maps against changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [interactive, scrubRange],
+  );
+  const thumbX = SCRUB_MIN_X + scrub * scrubRange;
+
+  // The route is the screen's hero — ONE line carrying the whole emotional payload. Its colour is
+  // the route's verdict: calm green while it holds to payday, gold when it stays tight, coral when
+  // it runs short. The single line says calm-or-pressure before a word is read.
+  const lineTone =
+    route.tightestBalanceMinor < 0
+      ? paper.repair
+      : route.tightestBalanceMinor < 10000
+        ? paper.warm
+        : paper.positive;
+
   return (
     <View
+      accessibilityRole="image"
       accessibilityLabel={routeAccessibilityLabel(route, layout.meaningful)}
       onLayout={onLayout}
       style={styles.routeSurface}
     >
       <View style={styles.routeHead}>
-        <Eyebrow>Your money path to payday</Eyebrow>
-        {route.pendingReviewCount > 0 ? (
+        <Eyebrow>Path to payday</Eyebrow>
+        {rangeLabel ? (
+          <Text style={styles.rangeLabel}>{rangeLabel}</Text>
+        ) : route.pendingReviewCount > 0 ? (
           <View style={styles.waitingChip}>
             <View style={styles.waitingDot} />
             <Text style={styles.waitingChipText}>{route.pendingReviewCount} still to check</Text>
@@ -184,72 +269,102 @@ export function MoneyPath({
         <RouteEmpty />
       ) : (
         <View>
-          <Svg width="100%" height={plot.height} viewBox={`0 0 ${width} ${plot.height}`}>
-            {/* zero baseline */}
-            <Line
-              x1={PAD_X}
-              y1={layout.baselineY}
-              x2={width - PAD_X}
-              y2={layout.baselineY}
-              stroke={paper.hairline}
-              strokeWidth={1}
-            />
-            {/* soft area under the path */}
-            <Path d={layout.areaD} fill={paper.calm} fillOpacity={0.09} />
-            {/* drop line from the lowest point down to the baseline */}
-            {lowest ? (
+          <View {...(interactive ? panResponder.panHandlers : {})}>
+            <Svg width="100%" height={plot.height} viewBox={`0 0 ${width} ${plot.height}`}>
+              {/* zero baseline */}
               <Line
-                x1={lowest.x}
-                y1={lowest.y}
-                x2={lowest.x}
-                y2={plot.bottom + 6}
-                stroke={nodeTone(lowest)}
-                strokeWidth={1.4}
-                strokeDasharray="3 4"
+                x1={PAD_X}
+                y1={layout.baselineY}
+                x2={width - PAD_X}
+                y2={layout.baselineY}
+                stroke={paper.hairline}
+                strokeWidth={1}
               />
-            ) : null}
-            {/* the path */}
-            <Path
-              d={layout.pathD}
-              fill="none"
-              stroke={paper.ink}
-              strokeWidth={3.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* nodes */}
-            {layout.nodes.map((node) => {
-              const tone = nodeTone(node);
-              if (node.waiting) {
-                // uncertain — a hollow dashed ring, never a solid claim
+              {/* soft area under the path — fades the line's own hue toward the baseline */}
+              <Path d={layout.areaD} fill={lineTone} fillOpacity={0.1} />
+              {/* drop line from the lowest point down to the baseline */}
+              {lowest ? (
+                <Line
+                  x1={lowest.x}
+                  y1={lowest.y}
+                  x2={lowest.x}
+                  y2={plot.bottom + 6}
+                  stroke={nodeTone(lowest)}
+                  strokeWidth={1.4}
+                  strokeDasharray="3 4"
+                />
+              ) : null}
+              {/* the path — the single muted semantic line */}
+              <Path
+                d={layout.pathD}
+                fill="none"
+                stroke={lineTone}
+                strokeWidth={2.75}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {/* nodes */}
+              {layout.nodes.map((node) => {
+                const tone = nodeTone(node);
+                if (node.waiting) {
+                  // uncertain — a hollow dashed ring, never a solid claim
+                  return (
+                    <Circle
+                      key={node.index}
+                      cx={node.x}
+                      cy={node.y}
+                      r={6}
+                      fill={paper.surface}
+                      stroke={paper.hairlineStrong}
+                      strokeWidth={1.6}
+                      strokeDasharray="2 3"
+                    />
+                  );
+                }
+                const selected = selectedIndex === node.index;
+                const r = node.isLowest || node.isToday || node.isPayday ? 7 : 5;
                 return (
                   <Circle
                     key={node.index}
                     cx={node.x}
                     cy={node.y}
-                    r={6}
-                    fill={paper.surface}
-                    stroke={paper.hairlineStrong}
-                    strokeWidth={1.6}
-                    strokeDasharray="2 3"
+                    r={selected ? r + 3 : r}
+                    fill={node.isToday ? paper.ink : tone}
+                    stroke={paper.surface}
+                    strokeWidth={selected ? 3 : 2.2}
                   />
                 );
-              }
-              const selected = selectedIndex === node.index;
-              const r = node.isLowest || node.isToday || node.isPayday ? 7 : 5;
-              return (
-                <Circle
-                  key={node.index}
-                  cx={node.x}
-                  cy={node.y}
-                  r={selected ? r + 3 : r}
-                  fill={node.isToday ? paper.ink : tone}
-                  stroke={paper.surface}
-                  strokeWidth={selected ? 3 : 2.2}
+              })}
+
+              {/* Tight-point callout — only at rest (no active scrub), naming when the dip lands. */}
+              {interactive && lowest && scrub < 0.04 ? (
+                <CalloutBox
+                  cx={lowest.x}
+                  topY={lowest.y - 14}
+                  label={`${lowest.point.label} · ${money(lowest.point.balanceMinor)}`}
+                  plotWidth={width}
                 />
-              );
-            })}
-          </Svg>
+              ) : null}
+
+              {/* Scrub thumb — a dashed vertical guide + a filled accent knob the user drags. */}
+              {interactive ? (
+                <>
+                  <Line
+                    x1={thumbX}
+                    y1={plot.top - 24}
+                    x2={thumbX}
+                    y2={plot.bottom}
+                    stroke={paper.calm}
+                    strokeWidth={1}
+                    strokeDasharray="2 3"
+                    opacity={0.7}
+                  />
+                  <Circle cx={thumbX} cy={plot.top - 24} r={6} fill={paper.calm} />
+                  <Circle cx={thumbX} cy={plot.top - 24} r={3} fill={paper.inverse} />
+                </>
+              ) : null}
+            </Svg>
+          </View>
 
           {/* Tappable overlays on each node (SVG nodes aren't pressable directly) */}
           {layout.nodes.map((node) => (
@@ -279,40 +394,122 @@ export function MoneyPath({
             </View>
           ) : null}
 
-          {/* Lowest-point callout — below the plot, leader line up, no overlap */}
-          {lowest ? (
-            <View
-              style={[styles.lowestCallout, lowestCalloutAlign(lowest.x, width)]}
-              pointerEvents="none"
-            >
-              <Text style={[styles.lowestLabel, { color: nodeTone(lowest) }]}>
-                {lowest.point.balanceMinor < 0 ? 'Lowest point — short' : 'Lowest point'}
-              </Text>
-              <Text style={styles.lowestValue}>{money(lowest.point.balanceMinor)}</Text>
-              <Text style={styles.lowestDay}>{lowestDayLabel(lowest.point)}</Text>
-            </View>
-          ) : null}
+          {/* The lowest point is marked on the chart by the gold node + dashed drop-line; its
+              value and context are stated once, in the hero above — never repeated here. */}
         </View>
       )}
+
+      {/* Band toggle — re-frames the range. Only shown for the interactive Today path. */}
+      {band && onChangeBand ? (
+        <View style={styles.bandRow}>
+          {BANDS.map((option) => {
+            const on = option.id === band;
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                key={option.id}
+                onPress={() => onChangeBand(option.id)}
+                style={({ pressed: isPressed }) => [
+                  styles.bandChip,
+                  on ? styles.bandChipOn : styles.bandChipOff,
+                  isPressed ? pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.bandLabel, on ? styles.bandLabelOn : styles.bandLabelOff]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {/* Scrub caption — what a previewed spend would mean. */}
+      {interactive && layout.meaningful ? (
+        <Text style={styles.scrubCaption}>
+          {scrubPreviewMinor !== undefined && scrubPreviewMinor > 0
+            ? `if you spend ${magnitude(scrubPreviewMinor)} today`
+            : 'drag the line to preview a spend'}
+        </Text>
+      ) : null}
+
+      {/* 3-column summary — coming in / going out / lowest. */}
+      {summary && layout.meaningful ? (
+        <View style={styles.summaryRow}>
+          <SummaryCell label="Coming in" value={money(summary.comingInMinor)} tone="positive" />
+          <SummaryCell
+            label="Going out"
+            value={`-${magnitude(summary.goingOutMinor)}`}
+            tone="repair"
+          />
+          <SummaryCell label="Lowest" value={money(summary.lowestMinor)} tone="ink" />
+        </View>
+      ) : null}
     </View>
   );
 }
 
-function lowestCalloutAlign(x: number, width: number) {
-  if (x < width * 0.33) return { left: PAD_X };
-  if (x > width * 0.66) return { right: PAD_X };
-  return { left: Math.max(PAD_X, x - 60) };
+function SummaryCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'positive' | 'repair' | 'ink';
+}) {
+  const color =
+    tone === 'positive' ? paper.positiveInk : tone === 'repair' ? paper.repairInk : paper.ink;
+  return (
+    <View style={styles.summaryCell}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={[styles.summaryValue, { color }]}>{value}</Text>
+    </View>
+  );
 }
 
-// The callout's day line names *when* the lowest point lands. A bare "Today" here would
-// duplicate the corner "Today" header and read as a second, contradicting figure — so when
-// the lowest point sits on today we name what causes the dip instead of repeating the day.
-function lowestDayLabel(point: LocalRoutePoint): string {
-  if (point.label !== 'Today') return point.label;
-  if (point.deltaMinor < 0 || point.pointKind === 'commitment' || point.pointKind === 'shortfall') {
-    return 'after bills are set aside';
-  }
-  return 'where you stand now';
+// A small rounded callout above the tight point. Clamped horizontally so it never overflows the plot.
+function CalloutBox({
+  cx,
+  topY,
+  label,
+  plotWidth,
+}: {
+  cx: number;
+  topY: number;
+  label: string;
+  plotWidth: number;
+}) {
+  const boxWidth = 120;
+  const half = boxWidth / 2;
+  const clampedCx = Math.max(PAD_X + half, Math.min(plotWidth - PAD_X - half, cx));
+  const boxTop = topY - 12 - 22;
+  return (
+    <>
+      <Line x1={cx} y1={topY} x2={cx} y2={topY - 12} stroke={paper.calm} strokeWidth={0.9} />
+      <Rect
+        x={clampedCx - half}
+        y={boxTop}
+        width={boxWidth}
+        height={22}
+        rx={6}
+        fill={paper.surface}
+        stroke={paper.calm}
+        strokeWidth={0.9}
+      />
+      <SvgText
+        x={clampedCx}
+        y={boxTop + 15}
+        fill={paper.ink}
+        fontSize={10}
+        fontWeight="600"
+        textAnchor="middle"
+      >
+        {label}
+      </SvgText>
+    </>
+  );
 }
 
 // A spoken summary of the route for screen readers. The path itself is a picture, so
@@ -325,7 +522,7 @@ function routeAccessibilityLabel(route: LocalRouteSummary, meaningful: boolean):
   const lowest = `Its lowest point is ${money(route.tightestBalanceMinor)} before ${route.nextPaydayLabel}.`;
   const waiting =
     route.pendingReviewCount > 0
-      ? ` ${route.pendingReviewCount} ${route.pendingReviewCount === 1 ? 'row is' : 'rows are'} still to check.`
+      ? ` ${route.pendingReviewCount} ${route.pendingReviewCount === 1 ? 'thing is' : 'things are'} still to check.`
       : '';
   return `Your money path to payday. ${lowest}${waiting}`;
 }
@@ -369,7 +566,7 @@ function causeLine(point: LocalRoutePoint): { label: string; value: string } | n
 }
 
 function waitingLine(point: LocalRoutePoint): string {
-  return isWaiting(point) ? 'Yes — 1 row still to check' : 'Nothing';
+  return isWaiting(point) ? 'Yes — 1 thing still to check' : 'Nothing';
 }
 
 export function PointExplanation({
@@ -409,7 +606,10 @@ export function PointExplanation({
             <Pressable
               accessibilityRole="button"
               onPress={onClose}
-              style={({ pressed }) => [styles.sheetDone, pressed ? { opacity: 0.85 } : undefined]}
+              style={({ pressed: isPressed }) => [
+                styles.sheetDone,
+                isPressed ? { opacity: 0.85 } : undefined,
+              ]}
             >
               <CheckGlyph color={paper.calmStrong} size={20} />
               <Text style={styles.sheetDoneText}>Got it</Text>
@@ -441,22 +641,20 @@ function ExplainRow({
 }
 
 const styles = StyleSheet.create({
+  // Full-bleed: the route is the screen's hero object, sitting directly on the cream — no card,
+  // no border, no fill. Near-flat by design; the cream IS the depth. (Editorial Ledger.)
   routeSurface: {
-    backgroundColor: paper.surface,
-    borderRadius: 24,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: paper.hairline,
-    paddingTop: gap.lg,
-    paddingBottom: gap.xl,
-    paddingHorizontal: gap.sm,
+    paddingTop: gap.sm,
+    paddingBottom: gap.lg,
   },
   routeHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: gap.sm,
-    marginBottom: gap.xs,
+    paddingHorizontal: PAD_X,
+    marginBottom: gap.sm,
   },
+  rangeLabel: { color: paper.muted, fontSize: 12, fontVariant: ['tabular-nums'] },
   waitingChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -472,7 +670,7 @@ const styles = StyleSheet.create({
   nodeHit: { position: 'absolute', width: 48, height: 48 },
 
   cornerLabel: { position: 'absolute', top: 8 },
-  cornerRight: { right: gap.sm },
+  cornerRight: { right: PAD_X },
   cornerCaption: { color: paper.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
   cornerValue: {
     color: paper.ink,
@@ -483,16 +681,41 @@ const styles = StyleSheet.create({
   },
   alignRight: { textAlign: 'right' },
 
-  lowestCallout: { position: 'absolute', bottom: 2, maxWidth: 150 },
-  lowestLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
-  lowestValue: {
-    color: paper.ink,
-    fontSize: 18,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-    marginTop: 1,
+  bandRow: { flexDirection: 'row', gap: 6, paddingHorizontal: PAD_X, marginTop: gap.sm },
+  bandChip: {
+    flex: 1,
+    height: 30,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  lowestDay: { color: paper.muted, fontSize: 12, marginTop: 1 },
+  bandChipOn: { backgroundColor: paper.ink },
+  bandChipOff: { backgroundColor: paper.sunken },
+  bandLabel: { fontSize: 11, letterSpacing: 0.2 },
+  bandLabelOn: { color: paper.inverse, fontWeight: '600' },
+  bandLabelOff: { color: paper.muted },
+
+  scrubCaption: {
+    color: paper.muted,
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: gap.sm,
+  },
+
+  summaryRow: {
+    flexDirection: 'row',
+    paddingHorizontal: PAD_X,
+    marginTop: gap.md,
+  },
+  summaryCell: { flex: 1, alignItems: 'center', gap: 2 },
+  summaryLabel: {
+    color: paper.muted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  summaryValue: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
 
   routeEmpty: { paddingHorizontal: gap.sm, paddingTop: gap.md, gap: gap.md },
   routeEmptyText: { color: paper.secondary },

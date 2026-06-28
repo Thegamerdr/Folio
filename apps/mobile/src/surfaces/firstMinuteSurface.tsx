@@ -41,7 +41,7 @@ export function FirstMinuteWelcomeSurface({
   const displayBody = compactFirstMinuteBody(body);
   const displayMelo = buildCompactMeloNote({
     control: 'Import, add three facts, or open the sample.',
-    matters: 'Your first picture comes from rows you review.',
+    matters: 'Your first picture comes from what you check and add.',
     noticed: meloSummary.includes('No account, cloud or AI is required')
       ? 'No account, cloud or AI is required to start.'
       : meloSummary,

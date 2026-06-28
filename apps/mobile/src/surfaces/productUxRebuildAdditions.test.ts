@@ -59,9 +59,9 @@ describe('product UX rebuild additions', () => {
     expect(addActivityIndex).toBeGreaterThanOrEqual(0);
     expect(reviewListIndex).toBeLessThan(addActivityIndex);
 
-    // The header is always "Rows to check" / "Nothing has been added yet"; empty state invites
+    // The header is always "What to check" / "Nothing has been added yet"; empty state invites
     // adding activity rather than leading with the import machinery.
-    expect(reviewSource).toContain('Rows to check');
+    expect(reviewSource).toContain('What to check');
     expect(reviewSource).toContain('Nothing has been added yet.');
     expect(reviewSource).toContain('Choose what to keep.');
 
@@ -183,6 +183,78 @@ describe('product UX rebuild additions', () => {
     expect(commentStrippedVisibleCopy).not.toMatch(/['"`]\s*not[\s-]required\s*['"`]/iu);
   });
 
+  // (h.2) Plain-language gate: a customer never reads "row"/"rows" and is never called "a user" /
+  // "the user". "row" is data-model vocabulary; on a statement a line is a payment or transaction.
+  //
+  // This guards the regression-prone class of copy — string-literal labels, hints, titles and
+  // accessibility text (label=/accessibilityLabel=/accessibilityHint=/returned message strings).
+  // We extract proper string literals only: `'…'` / `"…"` are matched WITHOUT embedded newlines
+  // (a JS string literal can't span raw newlines, and forbidding them stops an unbalanced
+  // apostrophe in JSX — can't / you'll — from swallowing code into the "string"), plus multiline
+  // `` `…` `` template literals. Then `${…}` interpolations are blanked (so `${row.title}`, a `.map`
+  // iteration read, is not scanned), and identifiers that merely contain the letters row/user are
+  // removed: `*Row`/`*Rows` (RouteRow, consequenceRows, inputRow), `row…` (rowId, rowText) and the
+  // internal engine state token 'needs user confirmation'. Whatever survives is real visible copy.
+  it('keeps "row"/"rows" and "a user"/"the user" out of visible string-literal copy', () => {
+    const renderedFiles = [
+      'mobileShell.tsx',
+      'dataControlSurface.tsx',
+      'firstMinuteSurface.tsx',
+      'importReviewSurface.tsx',
+      'sampleBriefingSurface.tsx',
+      'timelineSurface.tsx',
+      'todaySurface.tsx',
+      'plansSurface.tsx',
+      'pressureMap/startScreen.tsx',
+      'pressureMap/todayPath.tsx',
+      'pressureMap/reviewDecision.tsx',
+      'pressureMap/roughFirstAnswer.tsx',
+      'pressureMap/trustControl.tsx',
+      'pressureMap/fileWorkbench.tsx',
+      'pressureMap/melo/meloStates.ts',
+    ];
+
+    // Extract string-literal contents. Single/double-quoted: no embedded newlines. Backtick:
+    // may span lines. Each alternative is its own balanced pair so it can't run away across code.
+    const stringLiteralCopy = (source: string): string => {
+      const literals: string[] = [];
+      const re = /'((?:\\.|[^'\n\\])*)'|"((?:\\.|[^"\n\\])*)"|`((?:\\.|[^`\\])*)`/gu;
+      for (const match of source.matchAll(re)) {
+        literals.push(match[1] ?? match[2] ?? match[3] ?? '');
+      }
+      return literals.filter((literal) => /[A-Za-z]/u.test(literal)).join('\n');
+    };
+
+    // Drop the CSS flex value `flexDirection: 'row'` before extraction — `'row'` is a style token,
+    // not copy. (StyleSheet objects never carry user-visible strings.)
+    const stripStyleRow = (source: string): string =>
+      source.replace(/flexDirection:\s*['"]row['"]/gu, "flexDirection: 'x'");
+
+    const stripCodeTokens = (copy: string): string =>
+      stripInterpolations(copy)
+        .replace(/\b[A-Za-z]+Rows?\b/gu, ' ') // RouteRow, consequenceRows, inputRow, planRows …
+        .replace(/\brow[A-Z][A-Za-z]*\b/gu, ' ') // rowId, rowText, rowReady …
+        .replace(/needs user confirmation/gu, ' ');
+
+    const renderedCopy = renderedFiles
+      .map((file) =>
+        stripCodeTokens(
+          stringLiteralCopy(
+            stripStyleRow(
+              stripLineComments(
+                readFileSync(fileURLToPath(new URL(`./${file}`, import.meta.url).href), 'utf8'),
+              ),
+            ),
+          ),
+        ),
+      )
+      .join('\n');
+
+    for (const pattern of [/\brows?\b/iu, /\ba user\b/iu, /\bthe user\b/iu]) {
+      expect(renderedCopy).not.toMatch(pattern);
+    }
+  });
+
   // (h, cont.) Internal/test vocabulary must be absent from USER-FACING copy. Developer-mode-gated
   // surfaces and dev-only handlers legitimately use these words (exactly like DogfoodModeScreen),
   // so they are scoped out: gated JSX blocks, the dev-only dogfood ribbon data, and the dev-only
@@ -278,6 +350,12 @@ function quotedVisibleCopy(source: string): string {
     .filter((copy) => !/^[a-z0-9_-]+$/u.test(copy))
     .filter((copy) => /[\s.,;:!?]/u.test(copy) || /^[A-Z]/u.test(copy))
     .join('\n');
+}
+
+// Remove `${...}` template-literal interpolations so identifier reads (e.g. `${row.title}`, where
+// `row` is a `.map` iteration variable) are not scanned as if they were words a human reads.
+function stripInterpolations(source: string): string {
+  return source.replace(/\$\{[^}]*\}/gu, ' ');
 }
 
 // Remove `// ...` line comments (never rendered). Skips lines containing a URL so `https://` is not

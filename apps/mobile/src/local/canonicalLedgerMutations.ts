@@ -1,17 +1,28 @@
 import {
+  addCycle,
   addManualTransaction,
   addPlannedCommitment,
   addRecoverySpend,
+  addToPot,
   addTransactionFromDocument,
   applyMeloImportSuggestion,
+  bulkPauseQuiet,
+  cancelSubscription,
   confirmImportDraft,
+  createPot,
   createQuickEstimateLocalLedgerState,
   dismissImportDraft,
   editImportDraft,
+  pauseSubscription,
+  reallocateBetweenPots,
+  recordSubscriptionUse,
   removeDocumentStage,
   restoreRejectedImportForReview,
+  resumeSubscription,
   stageDocumentForManualReview,
   stageStatementImport,
+  type CreateCycleRecordInput,
+  type CreatePotInput,
   type DocumentItemInput,
   type StageDocumentForManualReviewResult,
   type LocalDocumentStageInput,
@@ -129,6 +140,79 @@ export function removeDocumentStageThroughCanonicalRepository(
   documentId: string,
 ): LocalLedgerState {
   return assertCanonicalRepositoryState(removeDocumentStage(state, documentId));
+}
+
+// Pots --------------------------------------------------------------------------------------
+
+export function createPotThroughCanonicalRepository(
+  state: LocalLedgerState,
+  input: CreatePotInput,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(createPot(state, input));
+}
+
+export function addToPotThroughCanonicalRepository(
+  state: LocalLedgerState,
+  potId: string,
+  amountMinor: number,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(addToPot(state, potId, amountMinor));
+}
+
+export function reallocateBetweenPotsThroughCanonicalRepository(
+  state: LocalLedgerState,
+  fromPotId: string,
+  toPotId: string,
+  amountMinor: number,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(
+    reallocateBetweenPots(state, fromPotId, toPotId, amountMinor),
+  );
+}
+
+// Subscriptions -----------------------------------------------------------------------------
+
+export function pauseSubscriptionThroughCanonicalRepository(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(pauseSubscription(state, subscriptionId));
+}
+
+export function resumeSubscriptionThroughCanonicalRepository(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(resumeSubscription(state, subscriptionId));
+}
+
+export function recordSubscriptionUseThroughCanonicalRepository(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(recordSubscriptionUse(state, subscriptionId));
+}
+
+export function cancelSubscriptionThroughCanonicalRepository(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(cancelSubscription(state, subscriptionId));
+}
+
+export function bulkPauseQuietThroughCanonicalRepository(
+  state: LocalLedgerState,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(bulkPauseQuiet(state));
+}
+
+// Cycles ------------------------------------------------------------------------------------
+
+export function addCycleThroughCanonicalRepository(
+  state: LocalLedgerState,
+  input: CreateCycleRecordInput,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(addCycle(state, input));
 }
 
 function assertCanonicalRepositoryState(state: LocalLedgerState): LocalLedgerState {

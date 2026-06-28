@@ -25,11 +25,8 @@ export function TimelineMeaningSurface({
   const meloNote = buildCompactMeloNote({
     control:
       reviewCount > 0 ? 'Open sources before anything changes.' : 'Open sources or calendar.',
-    matters: 'Facts, expectations and review rows stay separated.',
-    noticed:
-      reviewCount > 0
-        ? `${reviewCount} timeline row${reviewCount === 1 ? '' : 's'} need review.`
-        : briefing,
+    matters: 'What happened, what is coming and what needs checking stay separated.',
+    noticed: reviewCount > 0 ? `${reviewCount} to check on your timeline.` : briefing,
   });
 
   return (
@@ -62,7 +59,7 @@ export function TimelineMeaningSurface({
           onPress={onOpenCalendar}
         />
         <SurfaceButton
-          accessibilityHint="Opens the sources used for timeline rows."
+          accessibilityHint="Opens the sources behind your timeline."
           label="See sources"
           onPress={onOpenSources}
         />

@@ -80,15 +80,15 @@ describe('mobile shell extracted product surfaces', () => {
       'I need to make it to payday',
       'Organise debts',
       'Try fake data',
-      'See the loop without using your data.',
+      'See how Folio works without using your data.',
       'What changed?',
       'Needs review',
       'Money-aware planner',
-      'User-owned plans',
+      'Your plans',
       'Preview a pressure point before recording it.',
       'Recovery saved',
       'Your reviewed update is now part of the plan.',
-      'Check rows before adding them.',
+      'Check these before they count.',
       'Interpreter, not authority',
       'Your data stays inspectable.',
       'Clear deliberately',
@@ -106,10 +106,10 @@ describe('mobile shell extracted product surfaces', () => {
   });
 
   it('keeps review-first consequences visible in Import Review', () => {
-    expect(extractedSurfaceSource).toContain('Add keeps a row in your money view.');
+    expect(extractedSurfaceSource).toContain('Add keeps this payment in your money view.');
     expect(extractedSurfaceSource).toContain('Edit keeps the original and stores your correction.');
     expect(extractedSurfaceSource).toContain('Ignore keeps the original wording');
-    expect(extractedSurfaceSource).toContain('Rows to check');
+    expect(extractedSurfaceSource).toContain('What to check');
   });
 
   it('keeps primary mobile actions accessible after the polish pass', () => {

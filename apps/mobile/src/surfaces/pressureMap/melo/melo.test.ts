@@ -37,7 +37,9 @@ const figure = read('./MeloFigure.tsx');
 describe('Melo — core product asset', () => {
   it('appears across the core slice', () => {
     for (const [name, src] of Object.entries(coreScreens)) {
-      expect(src, name).toContain('MeloPresence');
+      // Melo appears either as the inline MeloPresence or as the secondary-surface MeloLine (both
+      // render the figure + her voice) — Lovable's Start uses the MeloLine form.
+      expect(src, name).toMatch(/MeloPresence|MeloLine/);
     }
   });
 
@@ -76,6 +78,17 @@ describe('Melo — core product asset', () => {
     for (const state of ALL_STATES) {
       const text = `${MELO_COPY[state].primary} ${MELO_COPY[state].supporting ?? ''}`.toLowerCase();
       for (const phrase of banned) expect(text, `${state} / ${phrase}`).not.toContain(phrase);
+    }
+  });
+
+  it('uses plain language — never "row"/"rows" or "a user"/"the user"', () => {
+    // A customer thinks money in / out, a payment, a transaction — never a data-model "row" — and is
+    // always addressed as "you", never "a user". Word boundaries so e.g. "borrow" would be allowed.
+    for (const state of ALL_STATES) {
+      const text = `${MELO_COPY[state].primary} ${MELO_COPY[state].supporting ?? ''}`;
+      for (const pattern of [/\brows?\b/iu, /\ba user\b/iu, /\bthe user\b/iu]) {
+        expect(text, `${state} / ${pattern}`).not.toMatch(pattern);
+      }
     }
   });
 

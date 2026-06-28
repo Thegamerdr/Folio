@@ -13,37 +13,54 @@ import { type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 
 import {
+  addDocumentNote,
   buildLocalRouteSummary,
   buildMeloSnapshotFromLocalState,
   createEmptyLocalLedgerState,
+  formatMinorAmount,
   isPrivateExampleLedger,
   refreshLocalLedgerAsOfDate,
+  type CreateCycleRecordInput,
+  type CreatePotInput,
   type DocumentItemInput,
+  type LocalDocumentStageInput,
   type LocalImportRejectionReason,
   type LocalImportDraftEditInput,
   type LocalLedgerState,
   type LocalPlannedCommitmentInput,
+  type LocalRouteSummary,
   type ManualTransactionInput,
   type QuickEstimateInput,
 } from '../src/local/localLedger';
 import {
   acceptImportDraftThroughCanonicalRepository,
+  addCycleThroughCanonicalRepository,
+  addToPotThroughCanonicalRepository,
+  bulkPauseQuietThroughCanonicalRepository,
+  cancelSubscriptionThroughCanonicalRepository,
   createPlannedCommitmentThroughCanonicalRepository,
+  createPotThroughCanonicalRepository,
   createQuickEstimateThroughCanonicalRepository,
   editImportDraftThroughCanonicalRepository,
+  pauseSubscriptionThroughCanonicalRepository,
+  reallocateBetweenPotsThroughCanonicalRepository,
   recordManualTransactionThroughCanonicalRepository,
   recordRecoverySpendThroughCanonicalRepository,
+  recordSubscriptionUseThroughCanonicalRepository,
   rejectImportDraftThroughCanonicalRepository,
+  resumeSubscriptionThroughCanonicalRepository,
   reviewMeloImportSuggestionThroughCanonicalRepository,
   addTransactionFromDocumentThroughCanonicalRepository,
   removeDocumentStageThroughCanonicalRepository,
   stageDocumentForManualReviewThroughCanonicalRepository,
   stageStatementImportThroughCanonicalRepository,
 } from '../src/local/canonicalLedgerMutations';
-import { buildLocalTodayModel } from '../src/local/localTodayAdapter';
 import { buildLocalTimelineModel } from '../src/local/localTimelineAdapter';
 import { buildLocalCalendarModel } from '../src/local/localCalendarAdapter';
 import { buildLocalPlansModel } from '../src/local/localPlansAdapter';
+import { buildLocalPotsModel } from '../src/local/localPotsAdapter';
+import { buildLocalSubscriptionsModel } from '../src/local/localSubscriptionsAdapter';
+import { buildLocalInsightsModel } from '../src/local/localInsightsAdapter';
 import { buildLocalPurchaseScenarioPreview } from '../src/local/localScenarioAdapter';
 import { summariseLocalLedgerVault } from '../src/local/localLedgerVault';
 import { writeLocalLedgerExport } from '../src/local/nativeDataExport';
@@ -75,22 +92,17 @@ import {
   AppLockOverlay,
   BillGuidedScreen,
   BULLETS,
-  CalendarScreen,
   DebtGuidedScreen,
   DogfoodModeScreen,
   FirstMinuteScreen,
   GuideMeScreen,
   MAX_TEST_PURCHASE,
-  MeloScreen,
   MIN_TEST_PURCHASE,
   MoneyScreen,
-  MoreScreen,
-  PlansScreen,
   RecoveryScreen,
   SampleBriefingScreen,
   SourceSheet,
   TEST_PURCHASE_STEP,
-  TimelineScreen,
   WhatIfSheet,
   buildDiscoveryRows,
   currentLocalIsoDate,
@@ -109,12 +121,53 @@ import {
 // New core-slice surface (premium money-pressure map). Drop-in over the same engine.
 import {
   BottomNav,
+  CalendarScreen,
   DataControlScreen,
+  FoundItemsScreen,
   ImportReviewScreen,
+  InsightsScreen,
+  MeloChatSheet,
+  MeloScreen,
+  MoreScreen,
+  OnboardingSheet,
+  PaydayRitualScreen,
+  PlansScreen,
+  PotsScreen,
   QuickEstimateScreen,
   StartScreen,
+  SubscriptionsScreen,
+  TimelineScreen,
   TodayScreen,
+  type InsightsNote,
+  type MeloChatSettings,
+  type OnboardingProfile,
 } from '../src/surfaces/pressureMap';
+import type { MeloMood } from '../src/surfaces/pressureMap/melo/meloStates';
+// Pots returns a bare Fragment (ScreenHeader first, no outer frame), so the container wraps it in the
+// shared PressureScreen column — the way sibling surfaces frame themselves.
+import { PressureScreen } from '../src/surfaces/pressureMap/kit';
+import {
+  sendMeloChat,
+  type MeloChatMessage,
+  type MeloChatResult,
+  type MeloToolSuggestion,
+} from '../src/local/meloAiClient';
+import {
+  deriveDateLabel,
+  deriveDaysToPayday,
+  deriveLastWeekMinor,
+  deriveNextCharge,
+  derivePathSummary,
+  deriveRangeLabel,
+  deriveRecentSpends,
+  deriveThisWeekMinor,
+  deriveTightPoint,
+  deriveWeekSpends,
+} from '../src/local/localTodayPathAdapter';
+import { routeHasMeaningfulPath } from '../src/surfaces/pressureMap/routeMath';
+import type { TodayPathBand } from '../src/surfaces/pressureMap/todayTypes';
+import { captureStatementPhoto, pickStatementImage } from '../src/local/nativeImageIntake';
+import { viewLocalFile } from '../src/local/nativeFileViewer';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -136,8 +189,20 @@ function isChromelessScreen(screen: Screen): boolean {
     screen === 'start' ||
     screen === 'today' ||
     screen === 'import' ||
+    screen === 'foundItems' ||
     screen === 'data' ||
-    screen === 'quickEstimate'
+    screen === 'quickEstimate' ||
+    // Converted secondary surfaces carry their own header now, so they drop the old chrome bar.
+    screen === 'more' ||
+    screen === 'timeline' ||
+    screen === 'plans' ||
+    screen === 'calendar' ||
+    screen === 'melo' ||
+    // New Stage-4 surfaces carry their own ScreenHeader, so they too drop the old chrome bar.
+    screen === 'pots' ||
+    screen === 'subscriptions' ||
+    screen === 'insights' ||
+    screen === 'ritual'
   );
 }
 
@@ -205,17 +270,32 @@ export default function FolioHome() {
   const [securityPosture, setSecurityPosture] = useState<LocalSecurityPosture | null>(null);
   const [dogfoodModeEnabled, setDogfoodModeEnabled] = useState(false);
   const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
+  // The active band on the Today money path (This week / Next week / To payday).
+  const [todayBand, setTodayBand] = useState<TodayPathBand>('payday');
+  // First-run onboarding sheet (name + payday + income + starter pots).
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
+  // Melo chat sheet — all state lives in the container; the sheet is presentation-only.
+  const [meloChatVisible, setMeloChatVisible] = useState(false);
+  const [meloMessages, setMeloMessages] = useState<readonly MeloChatMessage[]>([]);
+  const [meloSending, setMeloSending] = useState(false);
+  const [meloInput, setMeloInput] = useState('');
+  const [meloShowSettings, setMeloShowSettings] = useState(false);
+  const [meloSettings, setMeloSettings] = useState<MeloChatSettings>({ tone: 'calm', share: true });
+  const [meloLastStatus, setMeloLastStatus] = useState<
+    Exclude<MeloChatResult['status'], 'ok'> | undefined
+  >(undefined);
+  const [meloStatusMessage, setMeloStatusMessage] = useState<string | undefined>(undefined);
+  const [meloSuggestions, setMeloSuggestions] = useState<readonly MeloToolSuggestion[]>([]);
   const primaryScrollRef = useRef<ScrollView | null>(null);
   const lastInactiveAtRef = useRef<number | null>(null);
+  // The first-run onboarding sheet is offered once per session, on the fresh-ledger doorway.
+  const onboardingOfferedRef = useRef(false);
   const reduceMotionEnabled = useReducedMotionPreference();
-  const modalVisible = sheetVisible || sourcesVisible || appLocked;
+  const modalVisible =
+    sheetVisible || sourcesVisible || appLocked || meloChatVisible || onboardingVisible;
   const screenTitle = screenAccessibilityTitle(screen);
   const localRoute = useMemo(() => buildLocalRouteSummary(localLedger), [localLedger]);
   const privateExampleMode = useMemo(() => isPrivateExampleLedger(localLedger), [localLedger]);
-  const todayModel = useMemo(
-    () => buildLocalTodayModel(localLedger, localRoute, { privateExampleMode }),
-    [localLedger, localRoute, privateExampleMode],
-  );
   const timelineModel = useMemo(
     () => buildLocalTimelineModel(localLedger, { privateExampleMode }),
     [localLedger, privateExampleMode],
@@ -227,6 +307,18 @@ export default function FolioHome() {
   const plansModel = useMemo(
     () => buildLocalPlansModel(localLedger, localRoute, { privateExampleMode }),
     [localLedger, localRoute, privateExampleMode],
+  );
+  const potsModel = useMemo(
+    () => buildLocalPotsModel(localLedger, { privateExampleMode }),
+    [localLedger, privateExampleMode],
+  );
+  const subscriptionsModel = useMemo(
+    () => buildLocalSubscriptionsModel(localLedger, { privateExampleMode }),
+    [localLedger, privateExampleMode],
+  );
+  const insightsModel = useMemo(
+    () => buildLocalInsightsModel(localLedger, { privateExampleMode }),
+    [localLedger, privateExampleMode],
   );
   const meloSnapshot = useMemo(
     () => buildMeloSnapshotFromLocalState(localLedger, localRoute),
@@ -242,6 +334,66 @@ export default function FolioHome() {
     () => buildDogfoodStatus(localLedger, localRoute),
     [localLedger, localRoute],
   );
+
+  // Today rich-home derivations — the new TodayScreen is presentation-only, so the container maps
+  // its canonical/local data into the small surface shapes here (see localTodayPathAdapter).
+  const todayWeekSpends = useMemo(
+    () => deriveWeekSpends(localLedger, localLedger.asOfDate),
+    [localLedger],
+  );
+  const todayRecentSpends = useMemo(
+    () => deriveRecentSpends(localLedger, localLedger.asOfDate),
+    [localLedger],
+  );
+  const todayPathSummary = useMemo(() => derivePathSummary(localRoute), [localRoute]);
+  const todayDateLabel = useMemo(
+    () => deriveDateLabel(localLedger.asOfDate),
+    [localLedger.asOfDate],
+  );
+  const todayDaysToPayday = useMemo(
+    () => deriveDaysToPayday(localRoute, localLedger.asOfDate),
+    [localRoute, localLedger.asOfDate],
+  );
+  const todayRangeLabel = useMemo(
+    () => deriveRangeLabel(localRoute, localLedger.asOfDate),
+    [localRoute, localLedger.asOfDate],
+  );
+  const todayThisWeekMinor = useMemo(
+    () => deriveThisWeekMinor(localLedger, localLedger.asOfDate),
+    [localLedger],
+  );
+  const todayLastWeekMinor = useMemo(
+    () => deriveLastWeekMinor(localLedger, localLedger.asOfDate),
+    [localLedger],
+  );
+  const todayTightPoint = useMemo(() => deriveTightPoint(localRoute), [localRoute]);
+  const todayNextCharge = useMemo(() => deriveNextCharge(subscriptionsModel), [subscriptionsModel]);
+  // The hero "spare" figure is the magnitude at the tightest point (the verdict colours sign).
+  const todaySpareMinor = Math.abs(localRoute.tightestBalanceMinor);
+
+  // Insights "Notes from past you" — the engine model carries no per-cycle spare/note, so the
+  // container derives them from the same closed cycles (latest first).
+  const insightsNotes = useMemo<readonly InsightsNote[]>(
+    () =>
+      [...localLedger.cycles]
+        .sort((left, right) => right.closedAt.localeCompare(left.closedAt))
+        .map((cycle) => ({
+          id: cycle.closedAt,
+          label: cycle.label,
+          spare: formatMinorAmount(cycle.spare.minorUnits),
+          note: cycle.note,
+        })),
+    [localLedger.cycles],
+  );
+
+  // The label this cycle is recorded under in the payday ritual — the current month.
+  const currentCycleLabel = useMemo(
+    () => deriveCurrentMonthLabel(localLedger.asOfDate),
+    [localLedger.asOfDate],
+  );
+
+  // Melo's avatar mood, derived from the route pressure (same source the Melo companion uses).
+  const meloMood = useMemo<MeloMood>(() => meloMoodForRoute(localRoute), [localRoute]);
 
   const purchaseScenario = useMemo(
     () => buildLocalPurchaseScenarioPreview(localLedger, localRoute, purchaseAmount),
@@ -330,6 +482,352 @@ export default function FolioHome() {
     [commitLocalLedger, userOwnedLedgerBase],
   );
 
+  // Pots -------------------------------------------------------------------------------------
+
+  const handleCreatePot = useCallback(
+    (input: CreatePotInput) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          createPotThroughCanonicalRepository(ledgerBase, input),
+          'Pot created locally.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not create that pot.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  const handleAddToPot = useCallback(
+    (potId: string, amountMinor: number) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          addToPotThroughCanonicalRepository(ledgerBase, potId, amountMinor),
+          'Money added to pot locally.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not add to that pot.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  const handleReallocateBetweenPots = useCallback(
+    (fromPotId: string, toPotId: string, amountMinor: number) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          reallocateBetweenPotsThroughCanonicalRepository(
+            ledgerBase,
+            fromPotId,
+            toPotId,
+            amountMinor,
+          ),
+          'Money moved between pots locally.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not move that money.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  // Subscriptions ----------------------------------------------------------------------------
+
+  const handlePauseSubscription = useCallback(
+    (subscriptionId: string) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          pauseSubscriptionThroughCanonicalRepository(ledgerBase, subscriptionId),
+          'Subscription paused locally.',
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Could not pause that subscription.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  const handleResumeSubscription = useCallback(
+    (subscriptionId: string) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          resumeSubscriptionThroughCanonicalRepository(ledgerBase, subscriptionId),
+          'Subscription resumed locally.',
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Could not resume that subscription.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  const handleRecordSubscriptionUse = useCallback(
+    (subscriptionId: string) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          recordSubscriptionUseThroughCanonicalRepository(ledgerBase, subscriptionId),
+          'Subscription use recorded locally.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not record that use.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  const handleCancelSubscription = useCallback(
+    (subscriptionId: string) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          cancelSubscriptionThroughCanonicalRepository(ledgerBase, subscriptionId),
+          'Subscription cancelled locally.',
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Could not cancel that subscription.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  const handleBulkPauseQuiet = useCallback(() => {
+    try {
+      const ledgerBase = userOwnedLedgerBase();
+      commitLocalLedger(
+        bulkPauseQuietThroughCanonicalRepository(ledgerBase),
+        'Quiet subscriptions paused locally.',
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not pause quiet subscriptions.';
+      setLastReviewAction(message);
+      AccessibilityInfo.announceForAccessibility(message);
+    }
+  }, [commitLocalLedger, userOwnedLedgerBase]);
+
+  // Onboarding -------------------------------------------------------------------------------
+
+  // The onboarding sheet seeds the basics on first run. There is no separate profile store in the
+  // local engine, so the rough monthly income + payday day are seeded as a real income event through
+  // the canonical quick-estimate path (the same path the rough-first-answer flow uses), which draws a
+  // real route. The name is carried in the action label. Pots are created separately (batch below).
+  const handleSeedProfile = useCallback(
+    (profile: OnboardingProfile) => {
+      if (profile.monthlyIncomeMinor <= 0) return;
+      try {
+        const asOf = currentLocalIsoDate();
+        const incomeDate = nextPaydayIsoDate(asOf, profile.paydayDay);
+        const incomeTitle =
+          profile.name.trim().length > 0 ? `${profile.name.trim()} — pay` : 'Monthly pay';
+        commitLocalLedger(
+          createQuickEstimateThroughCanonicalRepository(asOf, {
+            billAmountText: '',
+            billDate: '',
+            billTitle: '',
+            cashNowText: '',
+            incomeAmountText: (profile.monthlyIncomeMinor / 100).toFixed(2),
+            incomeDate,
+            incomeTitle,
+            incomeRepeats: 'monthly',
+            incomeCertainty: 'expected',
+          }),
+          'Saved your basics locally. Route rebuilt.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not save your basics.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger],
+  );
+
+  // The onboarding sheet hands back several pot templates at once; the engine creates one pot per
+  // call, so fold them over the evolving picture (each through the canonical create path) and commit
+  // once. Only called when at least one pot was selected.
+  const handleCreatePotsBatch = useCallback(
+    (pots: readonly CreatePotInput[]) => {
+      if (pots.length === 0) return;
+      try {
+        let next = userOwnedLedgerBase();
+        for (const pot of pots) {
+          next = createPotThroughCanonicalRepository(next, pot);
+        }
+        commitLocalLedger(next, 'Starter pots created locally.');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not create those pots.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  // Today: log a spend ------------------------------------------------------------------------
+
+  // The Today LogSpend sheet hands up a POSITIVE magnitude. The canonical manual path takes a
+  // magnitude + a `kind` and applies the sign itself, so a spend is just the magnitude with
+  // kind:'spend' (the category is a presentation-only hint the engine does not store).
+  const handleLogSpend = useCallback(
+    (merchant: string, amountMinor: number, _category: string) => {
+      handleAddManualTransaction({
+        amountText: (Math.abs(amountMinor) / 100).toFixed(2),
+        title: merchant,
+        kind: 'spend',
+      });
+    },
+    [handleAddManualTransaction],
+  );
+
+  // Melo chat ---------------------------------------------------------------------------------
+
+  const openMeloChat = useCallback((prefill?: string) => {
+    setMeloMessages((current) => (current.length === 0 ? [buildMeloOpener()] : current));
+    if (prefill !== undefined) setMeloInput(prefill);
+    setMeloChatVisible(true);
+  }, []);
+
+  // Send one chat turn: append the user message, call the provider-agnostic client (passing the
+  // snapshot only when sharing is on, and the runtime key the owner supplies), then append the reply
+  // and surface any advisory suggestions. The client never mutates state — Melo is advisory-only.
+  const handleMeloSend = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (trimmed.length === 0 || meloSending) return;
+      const userMessage: MeloChatMessage = {
+        id: `melo-user-${Date.now()}`,
+        role: 'user',
+        text: trimmed,
+      };
+      const nextThread: readonly MeloChatMessage[] = [...meloMessages, userMessage];
+      setMeloMessages(nextThread);
+      setMeloInput('');
+      setMeloSuggestions([]);
+      setMeloLastStatus(undefined);
+      setMeloStatusMessage(undefined);
+      setMeloSending(true);
+
+      void sendMeloChat({
+        messages: nextThread,
+        tone: meloSettings.tone,
+        ...(meloSettings.share ? { snapshot: meloSnapshot } : {}),
+        // The secret key is supplied by the owner/host at runtime — never bundled. When a provider
+        // is configured but no key is wired, the client returns a clear no-key state.
+        apiKey: process.env.EXPO_PUBLIC_AI_API_KEY,
+      })
+        .then((result) => {
+          if (result.status === 'ok') {
+            setMeloMessages((current) => [
+              ...current,
+              { id: `melo-reply-${Date.now()}`, role: 'assistant', text: result.reply },
+            ]);
+            setMeloSuggestions(result.suggestions);
+          } else {
+            setMeloLastStatus(result.status);
+            setMeloStatusMessage(result.message);
+          }
+        })
+        .catch((error: unknown) => {
+          setMeloLastStatus('error');
+          setMeloStatusMessage(
+            error instanceof Error ? error.message : 'Could not reach Melo just now.',
+          );
+        })
+        .finally(() => {
+          setMeloSending(false);
+        });
+    },
+    [meloMessages, meloSending, meloSettings.share, meloSettings.tone, meloSnapshot],
+  );
+
+  const handleMeloStartFresh = useCallback(() => {
+    setMeloMessages([buildMeloOpener()]);
+    setMeloSuggestions([]);
+    setMeloLastStatus(undefined);
+    setMeloStatusMessage(undefined);
+    setMeloInput('');
+  }, []);
+
+  // Melo proposes; the user confirms here. Each accepted suggestion is validated + applied through
+  // the SAME canonical mutations the screens use — Melo never touches state directly.
+  const handleAcceptMeloSuggestion = useCallback(
+    (suggestion: MeloToolSuggestion) => {
+      applyMeloSuggestion(suggestion, {
+        ledger: localLedger,
+        pauseByName: (name) => {
+          const match = subscriptionsModel.rows.find(
+            (row) => row.name.toLowerCase() === name.toLowerCase(),
+          );
+          if (match) handlePauseSubscription(match.id);
+        },
+        moveBetweenPots: (fromName, toName, amountMinor) => {
+          const from = potsModel.rows.find(
+            (row) => row.name.toLowerCase() === fromName.toLowerCase(),
+          );
+          const to = potsModel.rows.find((row) => row.name.toLowerCase() === toName.toLowerCase());
+          if (from && to) handleReallocateBetweenPots(from.id, to.id, amountMinor);
+        },
+        logSpend: (merchant, amountMinor, category) =>
+          handleLogSpend(merchant, amountMinor, category),
+      });
+      setMeloSuggestions((current) => current.filter((entry) => entry.id !== suggestion.id));
+    },
+    [
+      handleLogSpend,
+      handlePauseSubscription,
+      handleReallocateBetweenPots,
+      localLedger,
+      potsModel.rows,
+      subscriptionsModel.rows,
+    ],
+  );
+
+  const handleDismissMeloSuggestion = useCallback((suggestion: MeloToolSuggestion) => {
+    setMeloSuggestions((current) => current.filter((entry) => entry.id !== suggestion.id));
+  }, []);
+
+  // Cycles -----------------------------------------------------------------------------------
+
+  const handleCloseCycle = useCallback(
+    (input: CreateCycleRecordInput) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          addCycleThroughCanonicalRepository(ledgerBase, input),
+          'Cycle closed locally.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not close that cycle.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
   const handleRecordRecoverySpend = useCallback(
     (input: ManualTransactionInput) => {
       try {
@@ -384,11 +882,35 @@ export default function FolioHome() {
           storageState: 'pasted_text',
         });
         commitLocalLedger(result.state, result.message);
+        if (result.state.importDrafts.length > 0) setScreen('foundItems');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not stage that statement.';
         setLastReviewAction(message);
         AccessibilityInfo.announceForAccessibility(message);
       }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  // The reader extracted some text from a file. If it parsed into found items, open the editable
+  // visualizer. If it parsed into NOTHING (a real bank layout the parser cannot read yet, a receipt,
+  // an unusual format) never strand the user on an empty screen: keep the file in the manual
+  // workbench with an honest message so they can always add the amounts by hand. "Nothing happened"
+  // must be impossible.
+  const commitExtractedTextOrSaveFile = useCallback(
+    (text: string, source: LocalDocumentStageInput) => {
+      const base = userOwnedLedgerBase();
+      const staged = stageStatementImportThroughCanonicalRepository(base, text, source);
+      if (staged.state.importDrafts.length > 0) {
+        commitLocalLedger(staged.state, staged.message);
+        setScreen('foundItems');
+        return;
+      }
+      const saved = stageDocumentForManualReviewThroughCanonicalRepository(base, source);
+      commitLocalLedger(
+        saved.state,
+        'I saved your file, but could not read the amounts from it automatically. You can add them from it below.',
+      );
     },
     [commitLocalLedger, userOwnedLedgerBase],
   );
@@ -410,20 +932,14 @@ export default function FolioHome() {
         return;
       }
 
-      const ledgerBase = userOwnedLedgerBase();
-      const result = stageStatementImportThroughCanonicalRepository(
-        ledgerBase,
-        picked.text,
-        picked.source,
-      );
-      commitLocalLedger(result.state, result.message);
+      commitExtractedTextOrSaveFile(picked.text, picked.source);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Could not stage that statement file.';
       setLastReviewAction(message);
       AccessibilityInfo.announceForAccessibility(message);
     }
-  }, [commitLocalLedger, userOwnedLedgerBase]);
+  }, [commitExtractedTextOrSaveFile, commitLocalLedger, userOwnedLedgerBase]);
 
   const handleConfirmImportDraft = useCallback(
     (rowId: string) => {
@@ -441,7 +957,7 @@ export default function FolioHome() {
           : localLedger;
       commitLocalLedger(
         acceptImportDraftThroughCanonicalRepository(promoted, rowId),
-        'Import row confirmed locally.',
+        'Payment confirmed locally.',
         {
           persist: !isPrivateExampleDraftAction(localLedger, rowId),
         },
@@ -458,7 +974,7 @@ export default function FolioHome() {
     ) => {
       commitLocalLedger(
         rejectImportDraftThroughCanonicalRepository(localLedger, rowId, { reason, status }),
-        'Import row dismissed locally.',
+        'Payment dismissed locally.',
         {
           persist: !isPrivateExampleDraftAction(localLedger, rowId),
         },
@@ -472,13 +988,13 @@ export default function FolioHome() {
       try {
         commitLocalLedger(
           editImportDraftThroughCanonicalRepository(localLedger, rowId, input),
-          'Import row edited locally.',
+          'Payment edited locally.',
           {
             persist: !isPrivateExampleDraftAction(localLedger, rowId),
           },
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Could not edit that row.';
+        const message = error instanceof Error ? error.message : 'Could not edit that payment.';
         setLastReviewAction(message);
         AccessibilityInfo.announceForAccessibility(message);
       }
@@ -517,16 +1033,100 @@ export default function FolioHome() {
     (documentId: string) => {
       commitLocalLedger(
         removeDocumentStageThroughCanonicalRepository(localLedger, documentId),
-        'File removed. Anything you added stays.',
+        'Source removed. Anything you added stays.',
       );
     },
     [commitLocalLedger, localLedger],
   );
 
+  // Add every still-included found item at once, the way the editable visualizer Add button does.
+  // Each row is promoted-then-accepted through the same engine path the one-row Review uses, folded
+  // over the evolving picture so they all land together.
+  const handleConfirmManyDrafts = useCallback(
+    (rowIds: readonly string[]) => {
+      let next = localLedger;
+      for (const rowId of rowIds) {
+        const draft = next.importDrafts.find((candidate) => candidate.rowId === rowId);
+        if (draft === undefined) continue;
+        const promoted =
+          draft.reviewState !== 'ready-for-user-confirmation'
+            ? editImportDraftThroughCanonicalRepository(next, rowId, {
+                amountText: (draft.amountMinor / 100).toFixed(2),
+                date: draft.date,
+                interpretation: draft.interpretation,
+              })
+            : next;
+        next = acceptImportDraftThroughCanonicalRepository(promoted, rowId);
+      }
+      commitLocalLedger(next, 'Added what you chose. Your path just updated.', {
+        persist: !isPrivateExampleLedger(localLedger),
+      });
+    },
+    [commitLocalLedger, localLedger],
+  );
+
+  const handleAddDocumentNote = useCallback(
+    (documentId: string, note: string) => {
+      commitLocalLedger(addDocumentNote(localLedger, documentId, note), 'Note added to your file.');
+    },
+    [commitLocalLedger, localLedger],
+  );
+
+  const handleViewFile = useCallback((file: { uri?: string }) => {
+    void viewLocalFile(file.uri).then((result) => {
+      setLastReviewAction(result.message);
+      AccessibilityInfo.announceForAccessibility(result.message);
+    });
+  }, []);
+
+  const handlePickStatementImage = useCallback(async () => {
+    try {
+      const picked = await pickStatementImage();
+      if (picked.kind === 'picked') {
+        commitExtractedTextOrSaveFile(picked.text, picked.source);
+      } else if (picked.kind === 'saved') {
+        const result = stageDocumentForManualReviewThroughCanonicalRepository(
+          userOwnedLedgerBase(),
+          picked.source,
+        );
+        commitLocalLedger(result.state, result.message);
+      } else {
+        setLastReviewAction(picked.message);
+        AccessibilityInfo.announceForAccessibility(picked.message);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not add that image.';
+      setLastReviewAction(message);
+      AccessibilityInfo.announceForAccessibility(message);
+    }
+  }, [commitExtractedTextOrSaveFile, commitLocalLedger, userOwnedLedgerBase]);
+
+  const handleCaptureStatementPhoto = useCallback(async () => {
+    try {
+      const picked = await captureStatementPhoto();
+      if (picked.kind === 'picked') {
+        commitExtractedTextOrSaveFile(picked.text, picked.source);
+      } else if (picked.kind === 'saved') {
+        const result = stageDocumentForManualReviewThroughCanonicalRepository(
+          userOwnedLedgerBase(),
+          picked.source,
+        );
+        commitLocalLedger(result.state, result.message);
+      } else {
+        setLastReviewAction(picked.message);
+        AccessibilityInfo.announceForAccessibility(picked.message);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not add that photo.';
+      setLastReviewAction(message);
+      AccessibilityInfo.announceForAccessibility(message);
+    }
+  }, [commitExtractedTextOrSaveFile, commitLocalLedger, userOwnedLedgerBase]);
+
   const resetExample = useCallback(() => {
     setFirstMinuteStep(0);
     setSurpriseMoved(false);
-    setLastReviewAction('Sample briefing opened. Saved rows were not changed.');
+    setLastReviewAction('Sample briefing opened. Nothing you saved was changed.');
     setScreen('sampleBriefing');
     AccessibilityInfo.announceForAccessibility('Sample briefing opened. Nothing was saved.');
   }, []);
@@ -722,8 +1322,10 @@ export default function FolioHome() {
     return false;
   }, [backFirstMinute, screen, sheetVisible, sourcesVisible]);
 
+  // The four primary tabs are Today / Review (import) / Melo / More. Every other product screen is
+  // reached under the More hub (or the cycle flows), so it lights the More tab.
   const primaryNavActive: ProductScreen =
-    screen === 'start' || screen === 'import' || screen === 'today' || screen === 'more'
+    screen === 'today' || screen === 'import' || screen === 'melo' || screen === 'more'
       ? screen
       : 'more';
 
@@ -833,6 +1435,17 @@ export default function FolioHome() {
         setPersistenceStatus(isMemoryOnlySaveError(error) ? 'memory_only' : 'failed'),
       );
   }, [ledgerHydrated, localLedger, shouldPersistLedger]);
+
+  // First-run onboarding — offer the seed sheet once, on the fresh-ledger Start doorway. It is
+  // skippable; nothing is recorded unless the user finishes or selects pots. A user with any real
+  // confirmed records is past first run, so they never see it.
+  useEffect(() => {
+    if (!ledgerHydrated || onboardingOfferedRef.current) return;
+    if (screen === 'start' && localRoute.confirmedTransactionCount === 0) {
+      onboardingOfferedRef.current = true;
+      setOnboardingVisible(true);
+    }
+  }, [ledgerHydrated, localRoute.confirmedTransactionCount, screen]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -950,17 +1563,37 @@ export default function FolioHome() {
           ) : null}
           {screen === 'today' ? (
             <TodayScreen
-              onOpenMelo={() => setScreen('melo')}
-              onOpenSources={() => setSourcesVisible(true)}
-              onOpenWhatIf={() => setSheetVisible(true)}
-              privateExampleMode={privateExampleMode}
+              asOfDate={localLedger.asOfDate}
+              band={todayBand}
+              dateLabel={todayDateLabel}
+              daysToPayday={todayDaysToPayday}
+              lastWeekMinor={todayLastWeekMinor}
+              nextCharge={todayNextCharge}
+              nudges={[]}
+              pathSummary={todayPathSummary}
+              rangeLabel={todayRangeLabel}
+              recentSpends={todayRecentSpends}
+              reduceMotion={reduceMotionEnabled}
               route={localRoute}
-              today={todayModel}
+              spareMinor={todaySpareMinor}
+              thisWeekMinor={todayThisWeekMinor}
+              tightPoint={todayTightPoint}
+              weekSpends={todayWeekSpends}
+              onAskTightPoint={() => openMeloChat('why is my tight point so low?')}
+              onAskWeekSpend={() => openMeloChat('where did this week go?')}
+              onChangeBand={setTodayBand}
+              onCompareWeeks={() => setScreen('insights')}
+              onLogSpend={handleLogSpend}
+              onOpenMelo={() => openMeloChat()}
+              onOpenNextCharge={() => setScreen('subscriptions')}
+              onOpenPayday={() => setScreen('ritual')}
             />
           ) : null}
           {screen === 'start' ? (
             <StartScreen
               onOpenSampleBriefing={openSampleBriefing}
+              onOpenMelo={() => setScreen('melo')}
+              onOpenPrivacy={() => setScreen('data')}
               onStartBillFlow={() => setScreen('billFlow')}
               onStartDebtFlow={() => setScreen('debtFlow')}
               onStartImportDiscovery={openUserStatementImport}
@@ -969,6 +1602,7 @@ export default function FolioHome() {
           ) : null}
           {screen === 'timeline' ? (
             <TimelineScreen
+              onBack={() => setScreen('more')}
               onOpenCalendar={() => setScreen('calendar')}
               onOpenSources={() => setSourcesVisible(true)}
               timeline={timelineModel}
@@ -1014,6 +1648,7 @@ export default function FolioHome() {
               calendar={calendarModel}
               ledger={localLedger}
               onAddCommitment={handleAddPlannedCommitment}
+              onBack={() => setScreen('more')}
               onOpenImports={openImportReview}
               onOpenMoney={() => setScreen('money')}
               privateExampleMode={privateExampleMode}
@@ -1022,6 +1657,9 @@ export default function FolioHome() {
           ) : null}
           {screen === 'plans' ? (
             <PlansScreen
+              onAddBill={() => setScreen('billFlow')}
+              onAddDebt={() => setScreen('debtFlow')}
+              onBack={() => setScreen('more')}
               onOpenCalendar={() => setScreen('calendar')}
               onOpenImports={openImportReview}
               plans={plansModel}
@@ -1030,6 +1668,7 @@ export default function FolioHome() {
           {screen === 'melo' ? (
             <MeloScreen
               ledger={localLedger}
+              onBack={() => setScreen('today')}
               onOpenWhatIf={() => setSheetVisible(true)}
               onOpenImports={openImportReview}
               onOpenRecovery={() => setScreen('recovery')}
@@ -1037,6 +1676,54 @@ export default function FolioHome() {
               privateExampleMode={privateExampleMode}
               route={localRoute}
               snapshot={meloSnapshot}
+            />
+          ) : null}
+          {screen === 'pots' ? (
+            <PressureScreen>
+              <PotsScreen
+                model={potsModel}
+                tightPointMinor={localRoute.tightestBalanceMinor}
+                onAddToPot={handleAddToPot}
+                onBack={() => setScreen('more')}
+                onCreatePot={handleCreatePot}
+                onReallocateBetweenPots={handleReallocateBetweenPots}
+              />
+            </PressureScreen>
+          ) : null}
+          {screen === 'subscriptions' ? (
+            <SubscriptionsScreen
+              subscriptions={subscriptionsModel}
+              reduceMotion={reduceMotionEnabled}
+              onAskMelo={(name) => openMeloChat(`talk me out of ${name}`)}
+              onBack={() => setScreen('more')}
+              onBulkPauseQuiet={handleBulkPauseQuiet}
+              onCancel={handleCancelSubscription}
+              onPause={handlePauseSubscription}
+              onRecordUse={handleRecordSubscriptionUse}
+              onResume={handleResumeSubscription}
+            />
+          ) : null}
+          {screen === 'insights' ? (
+            <InsightsScreen
+              insights={insightsModel}
+              notes={insightsNotes}
+              pausedCount={subscriptionsModel.pausedCount}
+              onBack={() => setScreen('more')}
+              onShareCycle={() => setSourcesVisible(true)}
+            />
+          ) : null}
+          {screen === 'ritual' ? (
+            <PaydayRitualScreen
+              cycleLabel={currentCycleLabel}
+              insights={insightsModel}
+              pots={potsModel}
+              reduceMotion={reduceMotionEnabled}
+              onBack={() => setScreen('today')}
+              onCloseCycle={handleCloseCycle}
+              onFinished={() => {
+                setScreen('today');
+                setSourcesVisible(true);
+              }}
             />
           ) : null}
           {screen === 'money' ? (
@@ -1091,6 +1778,11 @@ export default function FolioHome() {
               onConfirmDraft={handleConfirmImportDraft}
               onDismissDraft={handleDismissImportDraft}
               onAddFromDocument={handleAddFromDocument}
+              onAddNote={handleAddDocumentNote}
+              onViewFile={handleViewFile}
+              onCapturePhoto={handleCaptureStatementPhoto}
+              onOpenFoundItems={() => setScreen('foundItems')}
+              onPickImage={handlePickStatementImage}
               onMeloSuggestDraft={handleMeloSuggestImportDraft}
               onPickDocument={handlePickStatementDocument}
               onRemoveDocument={handleRemoveDocument}
@@ -1098,6 +1790,19 @@ export default function FolioHome() {
               onStageImport={handleStageStatementImport}
               summary={localLedger.lastImportSummary}
               privateExampleMode={privateExampleMode}
+            />
+          ) : null}
+          {screen === 'foundItems' ? (
+            <FoundItemsScreen
+              drafts={localLedger.importDrafts}
+              onApplyDraftEdit={handleApplyImportDraftEdit}
+              onConfirmMany={(rowIds) => {
+                handleConfirmManyDrafts(rowIds);
+                setScreen('today');
+              }}
+              onDismissDraft={handleDismissImportDraft}
+              onReviewItem={() => setScreen('import')}
+              onLeaveForLater={() => setScreen('today')}
             />
           ) : null}
           {screen === 'recovery' ? (
@@ -1119,12 +1824,18 @@ export default function FolioHome() {
               onOpenData={() => setScreen('data')}
               onOpenDogfood={openDogfoodMode}
               onOpenImport={openImportReview}
+              onOpenInsights={() => setScreen('insights')}
               onOpenPlans={() => setScreen('plans')}
+              onOpenPots={() => setScreen('pots')}
               onOpenRecovery={() => setScreen('recovery')}
+              onOpenRitual={() => setScreen('ritual')}
+              onOpenSubscriptions={() => setScreen('subscriptions')}
               onOpenTimeline={() => setScreen('timeline')}
+              onOpenWhatIf={() => setScreen('money')}
               onReplayFirstMinute={replayFirstMinute}
               onRefreshSecurity={refreshSecurityPosture}
               onResetSample={resetExample}
+              onShareCycle={() => setSourcesVisible(true)}
               onToggleDeveloperMode={() => setDeveloperModeEnabled((value) => !value)}
               persistenceStatus={persistenceStatus}
               privateExampleMode={privateExampleMode}
@@ -1134,7 +1845,10 @@ export default function FolioHome() {
           ) : null}
         </ScrollView>
 
-        {isProductScreen(screen) ? (
+        {/* The Start route is the single pre-onboarding doorway — the bottom tab bar is
+            chrome that dilutes it, so hide the nav there. (firstMinute isn't a product
+            screen, so it already shows no nav.) Every other product screen keeps the nav. */}
+        {isProductScreen(screen) && screen !== 'start' ? (
           <BottomNav active={primaryNavActive} onChange={setScreen} />
         ) : null}
       </View>
@@ -1160,6 +1874,36 @@ export default function FolioHome() {
         visible={sourcesVisible}
         onClose={() => setSourcesVisible(false)}
       />
+      <MeloChatSheet
+        input={meloInput}
+        isSending={meloSending}
+        lastResultStatus={meloLastStatus}
+        messages={meloMessages}
+        mood={meloMood}
+        pendingSuggestions={meloSuggestions}
+        reduceMotion={reduceMotionEnabled}
+        settings={meloSettings}
+        showSettings={meloShowSettings}
+        snapshot={meloSnapshot}
+        statusMessage={meloStatusMessage}
+        visible={meloChatVisible}
+        onAcceptSuggestion={handleAcceptMeloSuggestion}
+        onChangeInput={setMeloInput}
+        onChangeTone={(tone) => setMeloSettings((current) => ({ ...current, tone }))}
+        onClose={() => setMeloChatVisible(false)}
+        onDismissSuggestion={handleDismissMeloSuggestion}
+        onSend={handleMeloSend}
+        onStartFresh={handleMeloStartFresh}
+        onToggleSettings={() => setMeloShowSettings((visible) => !visible)}
+        onToggleShare={(next) => setMeloSettings((current) => ({ ...current, share: next }))}
+      />
+      <OnboardingSheet
+        reduceMotion={reduceMotionEnabled}
+        visible={onboardingVisible}
+        onClose={() => setOnboardingVisible(false)}
+        onCreatePots={handleCreatePotsBatch}
+        onSeedProfile={handleSeedProfile}
+      />
       <AppLockOverlay
         message={unlockMessage}
         onUnlock={unlockLocalApp}
@@ -1173,7 +1917,116 @@ export default function FolioHome() {
 function localStatusCopy(status: PersistenceStatus): string {
   if (status === 'saved') return 'Saved on this device';
   if (status === 'saving') return 'Saving on this device';
-  if (status === 'failed') return 'Device save failed; current rows are memory-only';
-  if (status === 'memory_only') return 'Current rows are memory-only on this device';
+  if (status === 'failed') return 'Device save failed; your latest changes are memory-only';
+  if (status === 'memory_only') return 'Your latest changes are memory-only on this device';
   return 'Checking device storage';
+}
+
+// Melo's avatar mood, read from the route pressure — the same mapping the Melo companion screen uses
+// (calm when there is room, soft-concern when tight, attentive at the squeeze, soft-concern when
+// short). An empty/eventless route sits calm rather than guessing a pressure.
+function meloMoodForRoute(route: LocalRouteSummary): MeloMood {
+  if (!routeHasMeaningfulPath(route)) return 'calm';
+  const tight = route.tightestBalanceMinor;
+  if (tight < 0) return 'soft-concern';
+  if (tight < 5000) return 'attentive'; // < £50 — the squeeze
+  if (tight < 18400) return 'soft-concern'; // < £184 — tight but holds
+  return 'calm';
+}
+
+// The cycle label the payday ritual records under — the current month, e.g. "June".
+function deriveCurrentMonthLabel(asOfDate: string): string {
+  const ms = Date.parse(`${asOfDate}T00:00:00Z`);
+  if (Number.isNaN(ms)) return 'This cycle';
+  return new Date(ms).toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' });
+}
+
+// The Melo chat opener — seeded as the first assistant message when the thread is empty, faithful to
+// the web SheetMeloChat autoSeed (a quiet, plain greeting that does not invent numbers).
+function buildMeloOpener(): MeloChatMessage {
+  return {
+    id: 'melo-opener',
+    role: 'assistant',
+    text: "hi, i'm melo. ask me anything about your money — what's tight, what's coming, or whether something's worth it.",
+  };
+}
+
+// The next occurrence of a day-of-month (1..31) on or after asOfDate, as an ISO yyyy-mm-dd. Used to
+// seed an onboarding income event on the user's chosen payday. Clamps to the month's last day for
+// short months (e.g. payday 31 in February lands on the 28th/29th).
+function nextPaydayIsoDate(asOfDate: string, paydayDay: number): string {
+  const base = new Date(`${asOfDate}T00:00:00Z`);
+  if (Number.isNaN(base.getTime())) return asOfDate;
+  const day = Math.min(31, Math.max(1, Math.round(paydayDay)));
+  const candidate = clampDayOfMonth(base.getUTCFullYear(), base.getUTCMonth(), day);
+  if (candidate >= base) return candidate.toISOString().slice(0, 10);
+  // Already past this month's payday — roll to next month.
+  const nextMonth = base.getUTCMonth() + 1;
+  const year = base.getUTCFullYear() + Math.floor(nextMonth / 12);
+  const month = nextMonth % 12;
+  return clampDayOfMonth(year, month, day).toISOString().slice(0, 10);
+}
+
+function clampDayOfMonth(year: number, month: number, day: number): Date {
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(day, lastDay)));
+}
+
+// Apply a user-confirmed Melo suggestion through the SAME canonical mutations the screens use. The
+// client only ever proposes; this is the single place a suggestion turns into an action, and every
+// branch validates the args before acting. set_tight_point_goal has no engine mutation (it is a goal,
+// not a posted fact), so it is intentionally a no-op here — surfaced but not applied.
+function applyMeloSuggestion(
+  suggestion: MeloToolSuggestion,
+  handlers: Readonly<{
+    ledger: LocalLedgerState;
+    pauseByName: (name: string) => void;
+    moveBetweenPots: (fromName: string, toName: string, amountMinor: number) => void;
+    logSpend: (merchant: string, amountMinor: number, category: string) => void;
+  }>,
+): void {
+  const { args } = suggestion;
+  switch (suggestion.name) {
+    case 'pause_subscription': {
+      const name = stringArg(args.name);
+      if (name !== undefined) handlers.pauseByName(name);
+      return;
+    }
+    case 'move_between_pots': {
+      const from = stringArg(args.from);
+      const to = stringArg(args.to);
+      const amountMinor = poundsArgToMinor(args.amount);
+      if (from !== undefined && to !== undefined && amountMinor > 0) {
+        handlers.moveBetweenPots(from, to, amountMinor);
+      }
+      return;
+    }
+    case 'log_spend': {
+      const merchant = stringArg(args.merchant) ?? 'Spend';
+      const amountMinor = poundsArgToMinor(args.amount);
+      const category = stringArg(args.category) ?? 'other';
+      if (amountMinor > 0) handlers.logSpend(merchant, amountMinor, category);
+      return;
+    }
+    case 'set_tight_point_goal':
+      // A floor goal, not a posted fact — no canonical mutation. Left as a surfaced-only suggestion.
+      return;
+  }
+}
+
+function stringArg(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+// Melo proposes amounts in whole pounds (the persona keeps £ with no decimals); convert to pence.
+function poundsArgToMinor(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value * 100);
+  if (typeof value === 'string') {
+    const digits = value.replace(/[^0-9.]/g, '');
+    const pounds = Number(digits);
+    return Number.isFinite(pounds) ? Math.round(pounds * 100) : 0;
+  }
+  return 0;
 }

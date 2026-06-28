@@ -123,9 +123,20 @@ type ProductScreen =
   | 'recovery'
   | 'more'
   | 'dogfood'
-  | 'data';
+  | 'data'
+  // New pressure-map surfaces (Stage 4) — reached from More / the cycle flows, not core tabs.
+  | 'pots'
+  | 'subscriptions'
+  | 'insights'
+  | 'ritual';
 type GuidedTaskScreen = 'billFlow' | 'debtFlow' | 'guideFlow';
-type Screen = ProductScreen | GuidedTaskScreen | 'firstMinute' | 'quickEstimate' | 'sampleBriefing';
+type Screen =
+  | ProductScreen
+  | GuidedTaskScreen
+  | 'firstMinute'
+  | 'quickEstimate'
+  | 'sampleBriefing'
+  | 'foundItems';
 type ImportSurfaceMode = 'example_review' | 'user_statement';
 
 type EventTone = 'confirmed' | 'estimated' | 'attention';
@@ -245,11 +256,11 @@ const CHEVRON = '\u203A';
 const BULLETS = '\u2022\u2022';
 const REVIEW_ICON = '?';
 const START_ICON = '+';
-const REVIEW_WAITING_REMINDER = 'Check rows before adding them.';
+const REVIEW_WAITING_REMINDER = 'Check these before they count.';
 
 // A real, deterministic sample statement. Staging it runs the same import path as a pasted
-// statement and creates real waiting rows you can review — handy for trying the flow on a
-// fresh device. Not example/private mode: these rows behave exactly like your own.
+// statement and creates real waiting payments you can review — handy for trying the flow on a
+// fresh device. Not example/private mode: these behave exactly like your own.
 const SAMPLE_STATEMENT_CSV = [
   'Date,Description,Amount',
   '2026-06-26,Tesco,-42.00',
@@ -259,7 +270,7 @@ const SAMPLE_STATEMENT_CSV = [
 
 const importInteractionSteps: readonly InteractionStep[] = [
   {
-    detail: 'Rows wait here first',
+    detail: 'These wait here first',
     label: 'Review first',
     mode: 'preview',
     state: 'requires review',
@@ -271,7 +282,7 @@ const importInteractionSteps: readonly InteractionStep[] = [
     state: 'available',
   },
   {
-    detail: 'Confirm one row at a time',
+    detail: 'Check one at a time',
     label: 'Add',
     mode: 'commit',
     state: 'needs user confirmation',
@@ -357,7 +368,11 @@ function isProductScreen(screen: Screen): screen is ProductScreen {
     screen === 'recovery' ||
     screen === 'more' ||
     screen === 'dogfood' ||
-    screen === 'data'
+    screen === 'data' ||
+    screen === 'pots' ||
+    screen === 'subscriptions' ||
+    screen === 'insights' ||
+    screen === 'ritual'
   );
 }
 
@@ -496,7 +511,7 @@ function FirstMinuteScreen({
         <Text style={styles.bodyText}>
           {privateExampleMode
             ? 'This starts from the private example. Move the repair to see the month update before anything is saved.'
-            : 'This starts from saved rows on this device. Test a pressure point before anything is saved.'}
+            : 'This starts from what you saved on this device. Test a pressure point before anything is saved.'}
         </Text>
 
         <View style={styles.routeCanvas}>
@@ -545,10 +560,10 @@ function FirstMinuteScreen({
               surpriseMoved
                 ? privateExampleMode
                   ? 'Continues to the import discovery example.'
-                  : 'Continues to the current row review.'
+                  : 'Continues to what you are checking now.'
                 : privateExampleMode
                   ? 'Moves the repair in the local example and updates the month summary.'
-                  : 'Tests pressure in saved rows and updates the month summary.'
+                  : 'Tests pressure in what you saved and updates the month summary.'
             }
             label={surpriseMoved ? 'Continue' : privateExampleMode ? 'Move the repair' : 'Move it'}
             onPress={onAdvance}
@@ -597,7 +612,7 @@ function FirstMinuteScreen({
               max: 100,
               min: 0,
               now: firstMinuteProgress.progressPercent,
-              text: `${firstMinuteProgress.progressPercent}% complete. ${firstMinuteProgress.readRows} rows read. ${firstMinuteProgress.resolvedRows} resolved; ${firstMinuteProgress.reviewRows} need your eye.`,
+              text: `${firstMinuteProgress.progressPercent}% complete. ${firstMinuteProgress.readRows} read. ${firstMinuteProgress.resolvedRows} resolved; ${firstMinuteProgress.reviewRows} need your eye.`,
             }}
             style={styles.progressTrack}
           >
@@ -606,12 +621,12 @@ function FirstMinuteScreen({
             />
           </View>
           <Text style={styles.rowText}>
-            {firstMinuteProgress.readRows} rows read. {firstMinuteProgress.resolvedRows} resolved;{' '}
+            {firstMinuteProgress.readRows} read. {firstMinuteProgress.resolvedRows} resolved;{' '}
             {firstMinuteProgress.reviewRows} need your eye.
           </Text>
           {firstMinuteProgress.skippedRows > 0 ? (
             <Text style={styles.noteText}>
-              {firstMinuteProgress.skippedRows} duplicate row
+              {firstMinuteProgress.skippedRows} duplicate
               {firstMinuteProgress.skippedRows === 1 ? '' : 's'} ignored.
             </Text>
           ) : null}
@@ -622,12 +637,12 @@ function FirstMinuteScreen({
         <DiscoveryList rows={discoveryRows} />
         <Text style={styles.noteText}>
           {privateExampleMode
-            ? 'Example rows are waiting for this rehearsal.'
+            ? 'Example payments are waiting for this rehearsal.'
             : 'Current records stay unchanged.'}
         </Text>
         <View style={styles.actionRow}>
           <PrimaryButton
-            accessibilityHint="Shows the first position based on the local example rows."
+            accessibilityHint="Shows the first position based on the local example payments."
             label="Build first answer"
             onPress={onAdvance}
           />
@@ -1581,10 +1596,10 @@ function DebtGuidedScreen({
         <SecondaryButton
           accessibilityHint={
             activeDebtStep === 0
-              ? 'Opens Review so a statement row can be marked as a debt payment.'
+              ? 'Opens Review so a statement payment can be marked as a debt payment.'
               : 'Returns to the previous debt question.'
           }
-          label={activeDebtStep === 0 ? 'Find debt row' : 'Back'}
+          label={activeDebtStep === 0 ? 'Find this payment' : 'Back'}
           onPress={
             activeDebtStep === 0
               ? onOpenImports
@@ -1745,8 +1760,8 @@ function BillGuidedScreen({
       </View>
       <View style={styles.actionRow}>
         <SecondaryButton
-          accessibilityHint="Opens Review so a bank row can be marked as a bill."
-          label="Find bill row"
+          accessibilityHint="Opens Review so a bank payment can be marked as a bill."
+          label="Find this bill"
           onPress={onOpenImports}
         />
         <PrimaryButton
@@ -1798,7 +1813,7 @@ function GuideMeScreen({
           onPress={onStartDebtFlow}
         />
         <StartJobButton
-          detail="Paste or choose a statement and check rows one by one."
+          detail="Paste or choose a statement and check each one, one by one."
           label="My bank activity"
           onPress={onStartImportDiscovery}
         />
@@ -1851,7 +1866,7 @@ function TodayScreen({
   const todayMeloNote = buildCompactMeloNote({
     control:
       route.pendingReviewCount > 0
-        ? 'Open details or review waiting rows.'
+        ? 'Open details or check what is waiting for you.'
         : 'Open details or Melo.',
     matters: privateExampleMode
       ? 'Example data cannot become your records.'
@@ -2272,7 +2287,7 @@ function PlansScreen({
       ) : null}
 
       <SectionHeader
-        title="Draft projections"
+        title="What's coming up"
         rightText={`${plans.planRows.length} item${plans.planRows.length === 1 ? '' : 's'}`}
       />
       {plans.planRows.length > 0 ? (
@@ -2283,9 +2298,9 @@ function PlansScreen({
         </View>
       ) : (
         <View style={styles.emptyStatePanel}>
-          <Text style={styles.noteTitle}>No plan projections yet.</Text>
+          <Text style={styles.noteTitle}>Nothing coming up yet.</Text>
           <Text style={styles.noteText}>
-            Add a dated commitment from Calendar to see a draft projection here.
+            Add a dated commitment from Calendar to see what's coming up here.
           </Text>
         </View>
       )}
@@ -2555,7 +2570,7 @@ function ImportReviewScreen({
 
       <View style={styles.answerCanvas}>
         <Eyebrow>Review</Eyebrow>
-        <ScreenHeading>Rows to check</ScreenHeading>
+        <ScreenHeading>What to check</ScreenHeading>
         <SupportText>Nothing has been added yet — you choose what to keep.</SupportText>
       </View>
 
@@ -2563,13 +2578,13 @@ function ImportReviewScreen({
         {visibleDrafts.length === 0 ? (
           <View
             accessible
-            accessibilityLabel="Nothing has been added yet. Choose what to keep. Add bank activity below to find rows."
+            accessibilityLabel="Nothing has been added yet. Choose what to keep. Add bank activity below to find what's coming in and going out."
             style={styles.emptyStatePanel}
           >
             <Text style={styles.noteTitle}>Choose what to keep.</Text>
             <Text style={styles.noteText}>
-              Add bank activity below and we’ll find the rows for you to check.{' '}
-              {REVIEW_WAITING_REMINDER}
+              Add bank activity below and we’ll find what's coming in and going out for you to
+              check. {REVIEW_WAITING_REMINDER}
             </Text>
           </View>
         ) : null}
@@ -2618,7 +2633,7 @@ function ImportReviewScreen({
       <FolioRevealRow
         accessibilityHint="Shows the ways to add bank activity: choose a file, paste text, and the latest file and progress."
         accessibilityLabel="Add bank activity. Choose a CSV or text file, paste statement text, and see the latest file and progress."
-        detail="Choose a file or paste text to find rows."
+        detail="Choose a file or paste text to find what's coming in and going out."
         expanded={showAddActivity}
         mode="reveal"
         onPress={() => setShowAddActivity((visible) => !visible)}
@@ -2630,7 +2645,7 @@ function ImportReviewScreen({
           <View style={styles.importPastePanel}>
             <Text style={styles.noteTitle}>Use a bank statement</Text>
             <Text style={styles.noteText}>
-              CSV or copied text can create rows to check. PDF and screenshots can be added for
+              CSV or copied text can create payments to check. PDF and screenshots can be added for
               review, but automatic reading is not ready for those files yet.
             </Text>
             <PrimaryButton
@@ -2644,7 +2659,7 @@ function ImportReviewScreen({
               onPress={() => setShowPastePanel((visible) => !visible)}
             />
             <Pressable
-              accessibilityHint="Adds a few example rows so you can try the review flow. They wait for your check, just like your own rows, and nothing is added until you add it."
+              accessibilityHint="Adds a few example payments so you can try the review flow. They wait for your check, just like your own, and nothing is added until you add it."
               accessibilityRole="button"
               onPress={() => onStageImport(SAMPLE_STATEMENT_CSV)}
               style={({ pressed }) => [
@@ -2671,9 +2686,9 @@ function ImportReviewScreen({
                 value={statementText}
               />
               <PrimaryButton
-                accessibilityHint="Reads the text locally and creates rows for review."
+                accessibilityHint="Reads the text locally and finds payments for review."
                 disabled={!statementReady}
-                label="Find rows to review"
+                label="Find payments to review"
                 onPress={() => onStageImport(statementText)}
               />
             </View>
@@ -2709,7 +2724,7 @@ function ImportReviewScreen({
                   max: 100,
                   min: 0,
                   now: progress.progressPercent,
-                  text: `${progress.progressPercent}% complete. ${progress.readRows} rows found. ${progress.resolvedRows} decided; ${progress.readyRows} ready to add; ${progress.reviewRows} need your eye.`,
+                  text: `${progress.progressPercent}% complete. ${progress.readRows} found. ${progress.resolvedRows} decided; ${progress.readyRows} ready to add; ${progress.reviewRows} need your eye.`,
                 }}
                 style={styles.progressTrack}
               >
@@ -2721,11 +2736,10 @@ function ImportReviewScreen({
               </Text>
               {progress.skippedRows > 0 ? (
                 <Text style={styles.noteText}>
-                  {progress.skippedRows} duplicate row{progress.skippedRows === 1 ? '' : 's'}{' '}
-                  skipped.
+                  {progress.skippedRows} duplicate{progress.skippedRows === 1 ? '' : 's'} skipped.
                 </Text>
               ) : null}
-              <Text style={styles.progressText}>Rows found - review before saving.</Text>
+              <Text style={styles.progressText}>Found — check before saving.</Text>
             </View>
           ) : null}
         </>
@@ -2749,7 +2763,7 @@ function ImportReviewScreen({
                 importantForAccessibility="no-hide-descendants"
                 style={styles.sheetHandle}
               />
-              <Text style={styles.answerLabel}>Row actions</Text>
+              <Text style={styles.answerLabel}>Ways to handle this</Text>
               <View style={styles.reviewHeader}>
                 <View style={styles.flex}>
                   <Text accessibilityRole="header" style={styles.sheetTitle}>
@@ -2787,7 +2801,7 @@ function ImportReviewScreen({
               </View>
 
               <FolioRevealRow
-                accessibilityHint="Shows other ways to handle this row: edit, set aside, or label it."
+                accessibilityHint="Shows other ways to handle this one: edit, set aside, or label it."
                 accessibilityLabel="More. Edit, ignore, duplicate, transfer, refund, income, bill, debt payment or later."
                 detail="Edit, set aside, or label it."
                 expanded={showMoreRowActions}
@@ -2799,7 +2813,7 @@ function ImportReviewScreen({
               {showMoreRowActions ? (
                 <View style={styles.reviewActionGrid}>
                   <SecondaryButton
-                    accessibilityHint="Opens fields to change this row before you add it."
+                    accessibilityHint="Opens fields to change this payment before you add it."
                     label="Edit"
                     onPress={() => {
                       startEditing(selectedReviewDraft);
@@ -2807,7 +2821,7 @@ function ImportReviewScreen({
                     }}
                   />
                   <SecondaryButton
-                    accessibilityHint="Keeps this row out of your money."
+                    accessibilityHint="Keeps this one out of your money."
                     label="Ignore"
                     onPress={() => {
                       onDismissDraft(selectedReviewDraft.rowId, 'other');
@@ -2815,7 +2829,7 @@ function ImportReviewScreen({
                     }}
                   />
                   <SecondaryButton
-                    accessibilityHint="Marks this row as a duplicate and keeps it out of your picture."
+                    accessibilityHint="Marks this as a duplicate and keeps it out of your picture."
                     label="Duplicate"
                     onPress={() => {
                       onDismissDraft(selectedReviewDraft.rowId, 'duplicate');
@@ -2823,7 +2837,7 @@ function ImportReviewScreen({
                     }}
                   />
                   <SecondaryButton
-                    accessibilityHint="Excludes this row as an internal transfer or movement."
+                    accessibilityHint="Excludes this as an internal transfer or movement."
                     label="Transfer"
                     onPress={() => {
                       onDismissDraft(selectedReviewDraft.rowId, 'transfer-internal', 'Excluded');
@@ -2831,7 +2845,7 @@ function ImportReviewScreen({
                     }}
                   />
                   <SecondaryButton
-                    accessibilityHint="Marks this row as a refund and keeps it waiting for Add."
+                    accessibilityHint="Marks this as a refund and keeps it waiting for Add."
                     label="Refund"
                     onPress={() => {
                       markDraftMeaning(selectedReviewDraft, 'Refund', 'incoming');
@@ -2839,7 +2853,7 @@ function ImportReviewScreen({
                     }}
                   />
                   <SecondaryButton
-                    accessibilityHint="Marks this row as income and keeps it waiting for Add."
+                    accessibilityHint="Marks this as income and keeps it waiting for Add."
                     label="Income"
                     onPress={() => {
                       markDraftMeaning(selectedReviewDraft, 'Income', 'incoming');
@@ -2847,7 +2861,7 @@ function ImportReviewScreen({
                     }}
                   />
                   <SecondaryButton
-                    accessibilityHint="Marks this row as a bill and keeps it waiting for Add."
+                    accessibilityHint="Marks this as a bill and keeps it waiting for Add."
                     label="Bill"
                     onPress={() => {
                       markDraftMeaning(selectedReviewDraft, 'Bill', 'outgoing');
@@ -2855,7 +2869,7 @@ function ImportReviewScreen({
                     }}
                   />
                   <SecondaryButton
-                    accessibilityHint="Marks this row as a debt payment and keeps it waiting for Add."
+                    accessibilityHint="Marks this as a debt payment and keeps it waiting for Add."
                     label="Debt payment"
                     onPress={() => {
                       markDraftMeaning(selectedReviewDraft, 'Debt payment', 'outgoing');
@@ -2863,7 +2877,7 @@ function ImportReviewScreen({
                     }}
                   />
                   <SecondaryButton
-                    accessibilityHint="Leaves this row waiting and changes nothing."
+                    accessibilityHint="Leaves this one waiting and changes nothing."
                     label="Later"
                     onPress={() => {
                       setLocalReviewAction(
@@ -2876,7 +2890,7 @@ function ImportReviewScreen({
               ) : null}
               <View style={styles.actionRow}>
                 <SecondaryButton
-                  accessibilityHint="Closes row actions without changing this row."
+                  accessibilityHint="Closes these actions without changing this payment."
                   label="Close"
                   onPress={() => setSelectedReviewDraftId(null)}
                 />
@@ -2935,13 +2949,13 @@ function ImportReviewScreen({
               importantForAccessibility="no-hide-descendants"
               style={styles.sheetHandle}
             />
-            <Text style={styles.answerLabel}>Edit import row</Text>
+            <Text style={styles.answerLabel}>Edit this payment</Text>
             <Text accessibilityRole="header" style={styles.sheetTitle}>
               Change it before confirming.
             </Text>
             <Text style={styles.bodyText}>
-              The original wording stays attached. Saving this edit still leaves the row waiting for
-              your Add tap.
+              The original wording stays attached. Saving this edit still leaves this payment
+              waiting for your Add tap.
             </Text>
             <TextInput
               accessibilityLabel="Edited interpretation"
@@ -2973,12 +2987,12 @@ function ImportReviewScreen({
             </View>
             <View style={styles.actionRow}>
               <SecondaryButton
-                accessibilityHint="Closes editing without changing this waiting row."
+                accessibilityHint="Closes editing without changing this waiting payment."
                 label="Cancel"
                 onPress={() => setEditingDraftId(null)}
               />
               <PrimaryButton
-                accessibilityHint="Saves this edited waiting row. It still needs acceptance before anything is added."
+                accessibilityHint="Saves this edited payment. It still needs your Add before anything changes."
                 disabled={!editReady}
                 label="Save edit"
                 onPress={() => {
@@ -3065,7 +3079,7 @@ function MeloScreen({
           requiresUserReview: true,
         },
         {
-          detail: 'Confirm, edit or dismiss statement rows one at a time.',
+          detail: 'Confirm, edit or dismiss each payment one at a time.',
           kind: 'review_imports',
           label: 'Review imports',
           requiresUserReview: true,
@@ -3158,7 +3172,7 @@ function MeloScreen({
           </Text>
           <Text style={styles.rowText}>
             Local rules -{' '}
-            {privateExampleMode ? 'using the private example' : 'using your saved rows'}
+            {privateExampleMode ? 'using the private example' : 'using what you have saved'}
           </Text>
         </View>
       </View>
@@ -3393,7 +3407,7 @@ function MoneyScreen({
       <Text style={styles.bodyText}>
         Preview only. Folio recalculates from{' '}
         {privateExampleMode
-          ? 'the private example until you add your own rows'
+          ? 'the private example until you add your own money'
           : 'the same confirmed data'}
         .
       </Text>
@@ -3661,7 +3675,7 @@ function RecoveryScreen({
           tone={previewRoute.tightestBalanceMinor < 0 ? 'attention' : 'estimated'}
         />
         <RouteRow
-          label="Plan projections"
+          label="Coming up"
           value={`${plans.planRows.length} draft${plans.planRows.length === 1 ? '' : 's'}`}
           tone={plans.planRows.length > 0 ? 'estimated' : 'confirmed'}
         />
@@ -3778,8 +3792,8 @@ function MoreScreen({
         onPress={onOpenCalendar}
       />
       <MenuRow
-        detail="Review optional plan projections from current commitments"
-        hint="Opens local plan projections."
+        detail="See what's coming up, based on what you've planned"
+        hint="Opens your plans."
         title="Plans"
         onPress={onOpenPlans}
       />
@@ -3790,9 +3804,9 @@ function MoreScreen({
         onPress={onOpenRecovery}
       />
       <MenuRow
-        detail="Waiting rows, ignored rows and review history"
+        detail="What's waiting, what you ignored and your review history"
         hint="Opens Review."
-        title="Review rows"
+        title="Review"
         onPress={onOpenImport}
       />
       <MenuRow
@@ -3803,7 +3817,7 @@ function MoreScreen({
       />
       <MenuRow
         detail="Example only, not your data, nothing saved"
-        hint="Opens the sample briefing without changing saved rows."
+        hint="Opens the sample briefing without changing anything you've saved."
         title="Sample briefing"
         onPress={onResetSample}
       />
@@ -3817,7 +3831,7 @@ function MoreScreen({
           />
           <MenuRow
             detail="Return to the relief-first introduction"
-            hint="Replays the first-minute product flow without changing saved rows."
+            hint="Replays the first-minute product flow without changing anything you've saved."
             title="Replay first minute"
             onPress={onReplayFirstMinute}
           />
@@ -3875,7 +3889,7 @@ function MoreScreen({
         {developerModeEnabled ? (
           <>
             <RouteRow
-              label="Rows"
+              label="Records"
               tone="confirmed"
               value={`${vaultSummary.transactionRows} transactions, ${vaultSummary.importDraftRows} drafts, ${vaultSummary.documentStageRows} files`}
             />
@@ -3969,7 +3983,7 @@ function DogfoodModeScreen({
           label="Facts"
           source="Local records on this device"
           tone="confirmed"
-          value={`${status.canonicalObjectCounts.transactions} money rows, ${status.canonicalObjectCounts.events} events`}
+          value={`${status.canonicalObjectCounts.transactions} payments, ${status.canonicalObjectCounts.events} events`}
         />
         <RouteRow
           label="Imports"
@@ -4108,7 +4122,7 @@ function DataControlScreen({
         exportBusy={exportBusy}
         lines={[
           'Your data stays on this device.',
-          'Rows you ignore stay separate from your money.',
+          'Anything you ignore stays separate from your money.',
           workspaceEmpty
             ? 'Nothing is saved yet — the opening figure is only a starting point.'
             : 'You can take a copy with you, or start fresh, anytime.',
@@ -4125,8 +4139,8 @@ function DataControlScreen({
 
       <View>
         <Reveal
-          accessibilityHint="Search and show your added, waiting and ignored rows on this device."
-          detail="Added, waiting and ignored rows on this device."
+          accessibilityHint="Search and show what you've added, what's waiting and what you ignored on this device."
+          detail="Added, waiting and ignored, on this device."
           expanded={showRecordDetails || query.trim().length > 0}
           onToggle={() => setShowRecordDetails((visible) => !visible)}
           title="See what's saved"
@@ -4717,7 +4731,7 @@ function BreathingHorizon({
                   body={
                     route?.pendingReviewCount
                       ? `${route.pendingReviewCount} ${
-                          route.pendingReviewCount === 1 ? 'row is' : 'rows are'
+                          route.pendingReviewCount === 1 ? 'is' : 'are'
                         } waiting — not counted here yet.`
                       : 'Nothing waiting for review.'
                   }
@@ -4758,8 +4772,8 @@ function TimelineList({ events }: { events: readonly TimelineEvent[] }) {
         <View key={group.id} style={styles.timelineGroup}>
           <View
             accessible
-            accessibilityLabel={`${group.title}. ${group.events.length} timeline row${
-              group.events.length === 1 ? '' : 's'
+            accessibilityLabel={`${group.title}. ${group.events.length} timeline entr${
+              group.events.length === 1 ? 'y' : 'ies'
             }. ${group.description}`}
             style={styles.timelineGroupHeader}
           >
@@ -4772,8 +4786,8 @@ function TimelineList({ events }: { events: readonly TimelineEvent[] }) {
             return (
               <Pressable
                 accessible
-                accessibilityHint="Reveals the source, authority state and action path for this timeline row."
-                accessibilityLabel={`${event.day}. ${event.kindLabel ?? 'Timeline row'}. ${
+                accessibilityHint="Reveals the source, authority state and action path for this timeline entry."
+                accessibilityLabel={`${event.day}. ${event.kindLabel ?? 'Timeline entry'}. ${
                   event.title
                 }. ${surfacePreviewText(event.detail, 84)}. ${
                   event.evidence?.summary ?? ''
@@ -5074,8 +5088,8 @@ function SourceSheet({
             What the answer is built from.
           </Text>
           <Text style={styles.bodyText}>
-            All current local source rows are shown with original wording, Folio interpretation,
-            source and review state together.
+            Everything on this device is shown with its original wording, Folio's reading, where it
+            came from and its review state together.
           </Text>
 
           <ScrollView
@@ -5279,8 +5293,9 @@ function persistenceStatusCopy(status: PersistenceStatus, privateExampleMode = f
   if (privateExampleMode) return 'Private example is not saved.';
   if (status === 'saved') return 'Saved on this device.';
   if (status === 'saving') return 'Saving on this device.';
-  if (status === 'failed') return 'Device save failed; current rows are in memory only.';
-  if (status === 'memory_only') return 'Current rows are in memory until device save succeeds.';
+  if (status === 'failed') return 'Device save failed; your latest changes are in memory only.';
+  if (status === 'memory_only')
+    return 'Your latest changes are in memory until device save succeeds.';
   return 'Checking device save.';
 }
 
@@ -5352,7 +5367,7 @@ function reviewReasonCopy(reason: string): string {
     ambiguous_date: 'Worth checking: the date looks unclear.',
     amount_changed: 'You changed the amount.',
     balance_mismatch: "The numbers don't quite add up yet.",
-    edited_locally: 'You edited this row.',
+    edited_locally: 'You edited this payment.',
     formula_like_text: 'Worth checking: this amount is higher than usual.',
     limited_evidence: "There isn't much to go on yet.",
     missing_required_field: 'Add the missing detail before you add it.',
@@ -5842,9 +5857,9 @@ function buildDiscoveryRows(
   const rows: DiscoveryRow[] = [
     {
       label: 'Confirmed local records',
-      detail: `${route.confirmedTransactionCount} saved row${
+      detail: `${route.confirmedTransactionCount} saved payment${
         route.confirmedTransactionCount === 1 ? '' : 's'
-      } included in route math.`,
+      } counted in your path.`,
       source: route.lastActionLabel,
       tone: 'confirmed',
     },
@@ -5871,7 +5886,7 @@ function buildDiscoveryRows(
     const firstDraft = ledger.importDrafts[0];
     rows.push({
       label: 'Review queue',
-      detail: `${ledger.importDrafts.length} import row${
+      detail: `${ledger.importDrafts.length} payment${
         ledger.importDrafts.length === 1 ? '' : 's'
       } waiting for your decision.`,
       source: firstDraft?.original ?? 'Local import draft',
@@ -6359,7 +6374,7 @@ function documentSourceCopy(stage: LocalDocumentStage): string {
     stage.storageState === 'copied_to_app_cache'
       ? 'Statement text added for review'
       : 'Pasted text added for review';
-  return `${source}; the file name stays attached to reviewed rows.`;
+  return `${source}; the file name stays attached to what you review.`;
 }
 
 function draftStateLabel(draft: LocalImportDraft): string {
@@ -6373,7 +6388,7 @@ function importReviewHeaderCopy(input: {
 }): Readonly<{ body: string; title: string }> {
   if (!input.showPrivateExampleRows) {
     return {
-      body: 'Choose or paste a statement. Check rows before adding them.',
+      body: 'Choose or paste a statement. Check these before they count.',
       title: 'Choose a statement to start.',
     };
   }
@@ -6382,15 +6397,15 @@ function importReviewHeaderCopy(input: {
     return {
       body:
         input.readRows > 0
-          ? 'No money rows are waiting. Ignored and duplicate rows stay out of your picture.'
-          : 'Paste text or choose a file when you want rows to check. Nothing is added yet.',
-      title: 'No import rows waiting.',
+          ? 'Nothing is waiting. What you ignore or mark as a duplicate stays out of your picture.'
+          : 'Paste text or choose a file when you want money to check. Nothing is added yet.',
+      title: 'Nothing waiting to check.',
     };
   }
 
   return {
-    body: 'Check each row before it affects Today or the route.',
-    title: 'Rows are ready for review.',
+    body: 'Check each one before it affects Today or your path.',
+    title: 'Ready for you to check.',
   };
 }
 
@@ -6521,10 +6536,10 @@ function buildMeloStateRows(input: {
     },
     {
       detail: gateMeloText(
-        'User decides what, if anything, becomes a record.',
-        'User decides what becomes a record.',
+        'You decide what, if anything, becomes a record.',
+        'You decide what becomes a record.',
       ),
-      label: 'User decides',
+      label: 'You decide',
       tone: 'confirmed',
     },
   ];
@@ -6564,16 +6579,21 @@ function screenAccessibilityTitle(screen: Screen): string {
     debtFlow: 'Organise debts',
     dogfood: 'Internal test mode',
     firstMinute: 'First minute',
+    foundItems: 'Check what Folio found',
     guideFlow: 'Guide me',
     import: 'Review',
+    insights: 'Insights',
     melo: 'Melo',
     money: 'Money what-if',
     more: 'More controls',
     plans: 'Plans',
+    pots: 'Pots',
     quickEstimate: 'Quick estimate',
     recovery: 'Recovery spend preview',
+    ritual: 'Payday ritual',
     sampleBriefing: 'Sample briefing',
     start: 'Start',
+    subscriptions: 'Subscriptions',
     timeline: 'Timeline',
     today: 'Today',
   };

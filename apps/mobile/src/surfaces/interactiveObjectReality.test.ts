@@ -120,12 +120,12 @@ describe('interactive object reality pass', () => {
     expect(mobileShellSource).toContain('point.point.accessibleLabel');
     expect(mobileShellSource).toContain('Preview guardrails');
     expect(mobileShellSource).toContain('importReviewHeaderCopy');
-    expect(mobileShellSource).toContain('No import rows waiting.');
+    expect(mobileShellSource).toContain('Nothing waiting to check.');
     expect(dataControlSurfaceSource).toContain('Audit history');
     expect(dataControlSurfaceSource).toContain('Clear data');
     expect(mobileShellSource).toContain('Melo noticed');
     expect(mobileShellSource).toContain('Melo proposes');
-    expect(mobileShellSource).toContain('User decides');
+    expect(mobileShellSource).toContain('You decide');
     expect(mobileShellSource).toContain('gateMeloText(');
     expect(appRouteSource).toContain('Business workspace is separate but not available in this UI');
     expect(appRouteSource).toContain('Cloud, AI and Open Banking are optional');

@@ -70,15 +70,13 @@ describe('cold-user usability rescue surface guard', () => {
   });
 
   it('states import truth without adding rows before review', () => {
-    expect(reviewScreenSource).toContain('CSV or copied text can create rows to check.');
+    expect(reviewScreenSource).toContain('CSV or copied text can create payments to check.');
     // The PDF/screenshot caveat wraps across two source lines in the paste panel, so match the
     // two halves rather than the line-broken whole.
     expect(reviewScreenSource).toContain('PDF and screenshots can be added for');
     expect(reviewScreenSource).toContain('automatic reading is not ready for those files yet');
-    expect(reviewScreenSource).toContain('Rows found');
-    expect(localLedgerSource).toContain(
-      'Nothing has been added yet. Review the rows you want to keep.',
-    );
+    expect(reviewScreenSource).toContain('Found — check before saving.');
+    expect(localLedgerSource).toContain('Nothing has been added yet. Keep the ones you want.');
     expect(localLedgerSource).toContain(
       'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
     );
@@ -87,9 +85,9 @@ describe('cold-user usability rescue surface guard', () => {
 
   it('keeps Today honest when review rows are pending', () => {
     expect(mobileShellSource).toMatch(
-      /route\.pendingReviewCount > 0\s*\?\s*'Open details or review waiting rows\.'/u,
+      /route\.pendingReviewCount > 0\s*\?\s*'Open details or check what is waiting for you\.'/u,
     );
-    expect(mobileShellSource).toContain('Check rows before adding them.');
+    expect(mobileShellSource).toContain('Check these before they count.');
     expect(mobileShellSource).toContain("Nothing's saved until you say so. Have a look first.");
   });
 

@@ -6,6 +6,19 @@
   type ImportReviewRowSummary,
 } from '@folio/import-engine';
 import { buildForecast } from '@folio/finance-engine';
+import {
+  createCycleRecordId,
+  createInstantString,
+  createMoney,
+  createPotId,
+  createSubscriptionId,
+  createWorkspaceId,
+  createEntityVersion,
+  type CycleRecord,
+  type Money,
+  type Pot,
+  type Subscription,
+} from '@folio/domain';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
 export type LocalTransactionSource = 'seed' | 'manual' | 'import';
@@ -108,6 +121,11 @@ export type LocalDocumentStage = Readonly<{
   sourceType?: LocalDocumentSourceType;
   extractionStatus?: LocalDocumentExtractionStatus;
   linkedTransactionIds?: readonly string[];
+  // The on-device file location of the saved original (when one exists), so the user can open it in
+  // a viewer. Local only — never sent anywhere. Absent for pasted text (there is no file).
+  uri?: string;
+  // Free-text notes the user attached to this saved file. Reference only — notes never affect Today.
+  notes?: readonly string[];
 }>;
 
 export type DocumentItemInput = Readonly<{
@@ -132,7 +150,16 @@ export type LocalHistoryEntry = Readonly<{
     | 'import_edited'
     | 'import_restored'
     | 'import_suggested'
-    | 'document_staged';
+    | 'document_staged'
+    | 'pot_created'
+    | 'pot_funded'
+    | 'pot_reallocated'
+    | 'subscription_paused'
+    | 'subscription_resumed'
+    | 'subscription_used'
+    | 'subscription_cancelled'
+    | 'subscription_bulk_paused'
+    | 'cycle_closed';
 }>;
 
 export type LocalLedgerState = Readonly<{
@@ -145,6 +172,12 @@ export type LocalLedgerState = Readonly<{
   documentStages: readonly LocalDocumentStage[];
   importIssueCount: number;
   history: readonly LocalHistoryEntry[];
+  // Durable containers/history that are NOT single money events, so they live as first-class arrays
+  // rather than being encoded onto transactions[]. The canonical financial snapshot ignores these;
+  // they are projected into the Pots/Subscriptions/Insights screens by their read-adapters.
+  pots: readonly Pot[];
+  subscriptions: readonly Subscription[];
+  cycles: readonly CycleRecord[];
   lastImportSummary?: LocalImportSummary;
 }>;
 
@@ -312,6 +345,22 @@ export type LocalPlannedCommitmentInput = Readonly<{
   paid?: boolean;
 }>;
 
+export type CreatePotInput = Readonly<{
+  name: string;
+  goalMinor: number;
+  perWeekMinor: number;
+  accent?: boolean;
+}>;
+
+export type CreateCycleRecordInput = Readonly<{
+  label: string;
+  spareMinor: number;
+  tightPointMinor: number;
+  setAsideMinor: number;
+  note?: string;
+  closedAt?: string;
+}>;
+
 export type QuickEstimateInput = Readonly<{
   billAmountText: string;
   billDate: string;
@@ -361,6 +410,9 @@ export type LocalDocumentStageInput = Readonly<{
   mediaType: string;
   byteSize: number;
   storageState: LocalDocumentStage['storageState'];
+  // Optional on-device file location (from the picker / camera), persisted so the file can be opened
+  // in a viewer later. Never leaves the device.
+  uri?: string;
 }>;
 
 const seedAsOfDate = '2026-06-21';
@@ -469,6 +521,9 @@ export function createInitialLocalLedgerState(asOfDate = seedAsOfDate): LocalLed
       parserName: 'local example parser',
       skippedRows: 0,
     },
+    pots: [],
+    subscriptions: [],
+    cycles: [],
   };
 }
 
@@ -483,6 +538,9 @@ export function createEmptyLocalLedgerState(asOfDate = seedAsOfDate): LocalLedge
     importIssueCount: 0,
     rejectedImports: [],
     transactions: [],
+    pots: [],
+    subscriptions: [],
+    cycles: [],
   };
 }
 
@@ -540,6 +598,9 @@ export function createQuickEstimateLocalLedgerState(
         original: `${billTitle} ${formatMinorAmount(-billAmountMinor)}`,
       },
     ],
+    pots: [],
+    subscriptions: [],
+    cycles: [],
   };
 }
 
@@ -1015,6 +1076,268 @@ export function addPlannedCommitment(
   );
 }
 
+// Pots, Subscriptions and Cycles are durable containers/history that share the local workspace
+// identity used by the canonical projection, so their entities reference the same workspace id.
+const localWorkspaceId = createWorkspaceId('workspace_personal_local');
+
+function localGbp(minorUnits: number): Money {
+  return createMoney({ minorUnits, currency: 'GBP' });
+}
+
+function assertNonNegativeSafeMinor(minorUnits: number, label: string): number {
+  if (!Number.isSafeInteger(minorUnits) || minorUnits < 0) {
+    throw new Error(`${label} must be a whole amount of zero or more.`);
+  }
+  return minorUnits;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pots
+// ---------------------------------------------------------------------------------------------
+
+export function createPot(state: LocalLedgerState, input: CreatePotInput): LocalLedgerState {
+  const name = cleanTitle(input.name, 'Pot');
+  const goalMinor = assertNonNegativeSafeMinor(Math.abs(input.goalMinor), 'Pot goal');
+  const perWeekMinor = assertNonNegativeSafeMinor(Math.abs(input.perWeekMinor), 'Pot weekly amount');
+  const index = state.pots.length;
+  const pot: Pot = {
+    id: createPotId(localId('pot', index)),
+    workspaceId: localWorkspaceId,
+    name,
+    goal: localGbp(goalMinor),
+    saved: localGbp(0),
+    perWeek: localGbp(perWeekMinor),
+    accent: input.accent ?? false,
+    version: createEntityVersion(),
+  };
+
+  return prependHistory(
+    { ...state, pots: [pot, ...state.pots] },
+    'pot_created',
+    `${name} pot created. Goal ${formatMinorAmount(goalMinor)}.`,
+  );
+}
+
+export function addToPot(
+  state: LocalLedgerState,
+  potId: string,
+  amountMinor: number,
+): LocalLedgerState {
+  const moveMinor = assertNonNegativeSafeMinor(Math.abs(amountMinor), 'Pot top-up');
+  if (moveMinor <= 0) throw new Error('Top-up must be more than zero.');
+  const target = state.pots.find((pot) => String(pot.id) === potId);
+  if (target === undefined) throw new Error('That pot does not exist.');
+
+  const nextPots = state.pots.map((pot) =>
+    String(pot.id) === potId
+      ? { ...pot, saved: localGbp(pot.saved.minorUnits + moveMinor) }
+      : pot,
+  );
+
+  return prependHistory(
+    { ...state, pots: nextPots },
+    'pot_funded',
+    `${formatMinorAmount(moveMinor)} added to ${target.name}.`,
+  );
+}
+
+export function reallocateBetweenPots(
+  state: LocalLedgerState,
+  fromPotId: string,
+  toPotId: string,
+  amountMinor: number,
+): LocalLedgerState {
+  if (fromPotId === toPotId) throw new Error('Choose two different pots to move money between.');
+  const moveMinor = assertNonNegativeSafeMinor(Math.abs(amountMinor), 'Pot transfer');
+  if (moveMinor <= 0) throw new Error('Transfer must be more than zero.');
+  const fromPot = state.pots.find((pot) => String(pot.id) === fromPotId);
+  const toPot = state.pots.find((pot) => String(pot.id) === toPotId);
+  if (fromPot === undefined || toPot === undefined) throw new Error('Both pots must exist.');
+  if (fromPot.saved.minorUnits < moveMinor) {
+    throw new Error(`${fromPot.name} only holds ${formatMinorAmount(fromPot.saved.minorUnits)}.`);
+  }
+
+  const nextPots = state.pots.map((pot) => {
+    if (String(pot.id) === fromPotId) {
+      return { ...pot, saved: localGbp(pot.saved.minorUnits - moveMinor) };
+    }
+    if (String(pot.id) === toPotId) {
+      return { ...pot, saved: localGbp(pot.saved.minorUnits + moveMinor) };
+    }
+    return pot;
+  });
+
+  return prependHistory(
+    { ...state, pots: nextPots },
+    'pot_reallocated',
+    `${formatMinorAmount(moveMinor)} moved from ${fromPot.name} to ${toPot.name}.`,
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Subscriptions
+// ---------------------------------------------------------------------------------------------
+
+function findSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): Subscription {
+  const target = state.subscriptions.find((item) => String(item.id) === subscriptionId);
+  if (target === undefined) throw new Error('That subscription does not exist.');
+  return target;
+}
+
+function updateSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+  change: (subscription: Subscription) => Subscription,
+): readonly Subscription[] {
+  return state.subscriptions.map((item) =>
+    String(item.id) === subscriptionId ? change(item) : item,
+  );
+}
+
+export function pauseSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  const target = findSubscription(state, subscriptionId);
+  const nextSubscriptions = updateSubscription(state, subscriptionId, (item) => ({
+    ...item,
+    paused: true,
+  }));
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_paused',
+    `${target.name} paused.`,
+  );
+}
+
+export function resumeSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  const target = findSubscription(state, subscriptionId);
+  const nextSubscriptions = updateSubscription(state, subscriptionId, (item) => ({
+    ...item,
+    paused: false,
+  }));
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_resumed',
+    `${target.name} resumed.`,
+  );
+}
+
+export function recordSubscriptionUse(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  const target = findSubscription(state, subscriptionId);
+  const nextSubscriptions = updateSubscription(state, subscriptionId, (item) => ({
+    ...item,
+    lastUsedDaysAgo: 0,
+    usesPerMonth: item.usesPerMonth + 1,
+  }));
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_used',
+    `${target.name} marked as used.`,
+  );
+}
+
+export function cancelSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  const target = findSubscription(state, subscriptionId);
+  const nextSubscriptions = state.subscriptions.filter(
+    (item) => String(item.id) !== subscriptionId,
+  );
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_cancelled',
+    `${target.name} cancelled.`,
+  );
+}
+
+// A subscription is "quiet" when the user is getting little or no use from it: it has gone unused
+// for a while AND is averaging under one use a month. bulkPauseQuiet pauses every quiet, still-active
+// subscription in one move so the user can stop the silent drain without reviewing each one.
+const QUIET_SUBSCRIPTION_UNUSED_DAYS = 30;
+const QUIET_SUBSCRIPTION_MAX_USES_PER_MONTH = 1;
+
+export function isQuietSubscription(subscription: Subscription): boolean {
+  return (
+    subscription.lastUsedDaysAgo >= QUIET_SUBSCRIPTION_UNUSED_DAYS &&
+    subscription.usesPerMonth < QUIET_SUBSCRIPTION_MAX_USES_PER_MONTH
+  );
+}
+
+export function bulkPauseQuiet(state: LocalLedgerState): LocalLedgerState {
+  const quietActive = state.subscriptions.filter(
+    (item) => !item.paused && isQuietSubscription(item),
+  );
+  if (quietActive.length === 0) {
+    return prependHistory(state, 'subscription_bulk_paused', 'No quiet subscriptions to pause.');
+  }
+
+  const nextSubscriptions = state.subscriptions.map((item) =>
+    !item.paused && isQuietSubscription(item) ? { ...item, paused: true } : item,
+  );
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_bulk_paused',
+    `${quietActive.length} quiet subscription${
+      quietActive.length === 1 ? '' : 's'
+    } paused.`,
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Cycles (closed-cycle history)
+// ---------------------------------------------------------------------------------------------
+
+export function addCycle(
+  state: LocalLedgerState,
+  input: CreateCycleRecordInput,
+): LocalLedgerState {
+  const label = cleanTitle(input.label, 'Closed cycle');
+  const spareMinor = assertNonNegativeSafeMinor(Math.abs(input.spareMinor), 'Cycle spare');
+  const tightPointMinor = assertNonNegativeSafeMinor(
+    Math.abs(input.tightPointMinor),
+    'Cycle tight point',
+  );
+  const setAsideMinor = assertNonNegativeSafeMinor(Math.abs(input.setAsideMinor), 'Cycle set aside');
+  const closedAt = createInstantString(
+    input.closedAt ?? `${state.asOfDate}T10:00:00.000Z`,
+  );
+  const index = state.cycles.length;
+  const note = input.note?.trim();
+  const record: CycleRecord = {
+    id: createCycleRecordId(localId('cycle', index)),
+    workspaceId: localWorkspaceId,
+    closedAt,
+    label,
+    spare: localGbp(spareMinor),
+    tightPoint: localGbp(tightPointMinor),
+    setAside: localGbp(setAsideMinor),
+    version: createEntityVersion(),
+    ...(note === undefined || note.length === 0 ? {} : { note }),
+  };
+
+  return prependHistory(
+    { ...state, cycles: [record, ...state.cycles] },
+    'cycle_closed',
+    `${label} closed with ${formatMinorAmount(spareMinor)} spare.`,
+  );
+}
+
 export function stageStatementImport(
   state: LocalLedgerState,
   text: string,
@@ -1104,8 +1427,8 @@ export function stageStatementImport(
     },
     documentStage === undefined ? 'import_staged' : 'document_staged',
     documentStage === undefined
-      ? `${packet.counts.parsedRows} rows found to check. ${packet.counts.needsUserReview} need review.`
-      : `${documentStage.filename} added for review. ${packet.counts.parsedRows} rows found to check.`,
+      ? `${packet.counts.parsedRows} found to check. ${packet.counts.needsUserReview} need review.`
+      : `${documentStage.filename} added for review. ${packet.counts.parsedRows} found to check.`,
   );
 
   return {
@@ -1114,8 +1437,8 @@ export function stageStatementImport(
     issues: parseResult.issues,
     message:
       documentStage === undefined
-        ? `${packet.counts.parsedRows} rows found to check. Nothing has been added yet. Review the rows you want to keep.`
-        : `${packet.counts.parsedRows} rows found to check. Nothing has been added yet. Review the rows you want to keep.`,
+        ? `${packet.counts.parsedRows} found to check. Nothing has been added yet. Keep the ones you want.`
+        : `${packet.counts.parsedRows} found to check. Nothing has been added yet. Keep the ones you want.`,
     ...(documentStage === undefined ? {} : { documentStage }),
   };
 }
@@ -1137,7 +1460,7 @@ export function stageDocumentForManualReview(
       documentStages: [documentStage, ...state.documentStages],
     },
     'document_staged',
-    `${documentStage.filename} added for manual review. No rows were added.`,
+    `${documentStage.filename} added for manual review. Nothing was added.`,
   );
 
   return {
@@ -1810,7 +2133,7 @@ function originalTextForRow(
       }>
     | undefined,
 ): string {
-  if (row === undefined) return 'Imported row';
+  if (row === undefined) return 'Imported payment';
   const sourceValues = Object.values(row.provenance.original).filter(
     (value) => value.trim().length > 0,
   );
@@ -1859,7 +2182,31 @@ function createLocalDocumentStage({
     sourceType: inferDocumentSourceType(mediaType, filename, source.storageState),
     extractionStatus,
     linkedTransactionIds: [],
+    ...(source.uri !== undefined ? { uri: source.uri } : {}),
+    notes: [],
   };
+}
+
+/**
+ * Attach a free-text note to a saved file. Reference only — a note never changes Today or the path,
+ * it just helps the user remember what the file was. No-op if the document is gone.
+ */
+export function addDocumentNote(
+  state: LocalLedgerState,
+  documentId: string,
+  note: string,
+): LocalLedgerState {
+  const trimmed = note.trim();
+  if (trimmed.length === 0) return state;
+  const target = state.documentStages.find((stage) => stage.id === documentId);
+  if (target === undefined) return state;
+  const withNote: LocalLedgerState = {
+    ...state,
+    documentStages: state.documentStages.map((stage) =>
+      stage.id === documentId ? { ...stage, notes: [...(stage.notes ?? []), trimmed] } : stage,
+    ),
+  };
+  return prependHistory(withNote, 'document_staged', `Note added to ${target.filename}.`);
 }
 
 function createLocalTextDigest(text: string): string {
