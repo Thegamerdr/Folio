@@ -734,12 +734,11 @@ export default function FolioHome() {
       void sendMeloChat({
         messages: nextThread,
         tone: meloSettings.tone,
+        // Snapshot is sent ONLY when the user turned on sharing (meloSettings.share, default false).
         ...(meloSettings.share ? { snapshot: meloSnapshot } : {}),
-        // WARNING: EXPO_PUBLIC_* vars are INLINED into the JS bundle at build time, so a key set
-        // here ships inside the APK and is extractable. Acceptable only for a self-hosted or
-        // low-value provider; for a real secret, proxy Melo through a backend that holds the key
-        // and leave this unset. Unset = the client returns a clear "no provider key" state (no crash).
-        apiKey: process.env.EXPO_PUBLIC_AI_API_KEY,
+        // KEYLESS: the client routes to Folio's gateway (EXPO_PUBLIC_MELO_GATEWAY_URL), which holds
+        // the real provider key server-side. No key is sent from the app. With the gateway URL unset
+        // the client returns a clear "Melo isn't configured yet" state (no crash).
       })
         .then((result) => {
           if (result.status === 'ok') {

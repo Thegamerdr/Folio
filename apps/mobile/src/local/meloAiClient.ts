@@ -1,15 +1,17 @@
-// Provider-agnostic AI client for Melo (RN port of the web /api/melo-chat route).
+// AI client for Melo (RN port of the web /api/melo-chat route).
 //
-// THE SEAM, NOT THE KEY. This module reads its provider config from the app's public
-// Expo config (EXPO_PUBLIC_AI_BASE_URL / EXPO_PUBLIC_AI_MODEL) and takes the secret key
-// at RUNTIME from the caller — the owner supplies it later. Nothing here hard-codes a key
-// or a vendor. When no provider is configured the client returns a clear, non-fatal
-// `no-provider` state so the sheet can show "No AI provider configured" instead of crashing.
+// KEYLESS BY DESIGN. This client holds NO provider key. It talks to Folio's own standalone
+// gateway (a Cloudflare Worker at `services/ai-gateway`) which holds the OpenRouter key as a
+// server-side secret and forwards to the model. The app only knows the gateway's URL
+// (EXPO_PUBLIC_MELO_GATEWAY_URL) and a weak shared token (EXPO_PUBLIC_MELO_GATEWAY_TOKEN) sent
+// in the `x-folio-gateway-token` header. The real secret never ships in the APK, and the app
+// depends on no Lovable / web-app infrastructure. When no gateway URL is configured the client
+// returns a clear, non-fatal `no-provider` state so the sheet can show "Melo isn't configured
+// yet" instead of crashing.
 //
-// It speaks the OpenAI-compatible Chat Completions shape (`POST {baseUrl}/chat/completions`),
-// which most providers (OpenAI, Together, Groq, OpenRouter, a local llama.cpp/Ollama proxy,
-// an Azure/OpenAI-compatible gateway, …) expose. Swapping providers is a config change, not
-// a code change.
+// It speaks the OpenAI-compatible Chat Completions shape (`POST {gatewayUrl}/chat/completions`).
+// The gateway accepts that exact shape, so swapping the upstream model/provider is a gateway
+// config change, not an app change.
 //
 // ADVISORY ONLY. Melo can SUGGEST tool moves (pause a sub, move between pots, set a tight-point
 // goal, log a spend), but this client never executes them. Suggestions come back as structured
@@ -51,16 +53,15 @@ export type MeloToolSuggestion = Readonly<{
 /** Melo's voice tone — the web persona's four modes. */
 export type MeloTone = 'calm' | 'honest' | 'dry' | 'coachy';
 
-/** The provider config resolved from app config. `configured: false` means no AI provider is set. */
+/** The gateway config resolved from app config. `configured: false` means the gateway URL is unset. */
 export type MeloAiProviderConfig =
   | Readonly<{ configured: false }>
-  | Readonly<{ configured: true; baseUrl: string; model: string }>;
+  | Readonly<{ configured: true; gatewayUrl: string; token: string | undefined }>;
 
 /** The result of a chat turn. A discriminated union so the sheet renders the right state. */
 export type MeloChatResult =
   | Readonly<{ status: 'ok'; reply: string; suggestions: readonly MeloToolSuggestion[] }>
   | Readonly<{ status: 'no-provider'; message: string }>
-  | Readonly<{ status: 'no-key'; message: string }>
   | Readonly<{ status: 'error'; message: string }>;
 
 export type MeloChatRequest = Readonly<{
@@ -69,8 +70,6 @@ export type MeloChatRequest = Readonly<{
   tone: MeloTone;
   /** Pass the snapshot ONLY when the user has turned on "let Melo see my money". Undefined = blind. */
   snapshot?: MeloLocalFinancialSnapshot | undefined;
-  /** The secret API key, supplied at runtime by the owner/host — never read from a bundled constant. */
-  apiKey?: string | undefined;
   /** Optional abort signal so the sheet can cancel an in-flight turn. */
   signal?: AbortSignal | undefined;
 }>;
@@ -90,17 +89,21 @@ function readPublicExtra(key: string): string | undefined {
   return value.length > 0 ? value : undefined;
 }
 
-/** Resolve the provider config from app config. Pure read — no network, no key. */
+/** Resolve the gateway config from app config. Pure read — no network, no key. The token is
+ *  optional: a gateway with no GATEWAY_TOKEN set accepts requests without the header. */
 export function resolveMeloAiProviderConfig(): MeloAiProviderConfig {
-  const baseUrl = readPublicExtra('EXPO_PUBLIC_AI_BASE_URL');
-  const model = readPublicExtra('EXPO_PUBLIC_AI_MODEL');
-  if (baseUrl === undefined || model === undefined) {
+  const gatewayUrl = readPublicExtra('EXPO_PUBLIC_MELO_GATEWAY_URL');
+  if (gatewayUrl === undefined) {
     return { configured: false };
   }
-  return { configured: true, baseUrl: stripTrailingSlash(baseUrl), model };
+  return {
+    configured: true,
+    gatewayUrl: stripTrailingSlash(gatewayUrl),
+    token: readPublicExtra('EXPO_PUBLIC_MELO_GATEWAY_TOKEN'),
+  };
 }
 
-/** Convenience: is an AI provider configured at all? (Key may still be missing at runtime.) */
+/** Convenience: is the Melo gateway configured at all? */
 export function isMeloAiConfigured(): boolean {
   return resolveMeloAiProviderConfig().configured;
 }
@@ -164,23 +167,16 @@ export function buildMeloSystemPrompt(
 
 type OpenAiChatMessage = Readonly<{ role: 'system' | 'user' | 'assistant'; content: string }>;
 
-/** Send one chat turn to the configured provider. Returns a discriminated result — never throws
- *  for the expected failure modes (no provider, no key, network/HTTP error). */
+/** Send one chat turn through Folio's Melo gateway. Returns a discriminated result — never throws
+ *  for the expected failure modes (no gateway configured, network/HTTP error). The gateway holds
+ *  the real provider key; this client sends only the shared token (when configured). */
 export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatResult> {
   const config = resolveMeloAiProviderConfig();
   if (!config.configured) {
     return {
       status: 'no-provider',
       message:
-        'No AI provider configured. Set EXPO_PUBLIC_AI_BASE_URL and EXPO_PUBLIC_AI_MODEL, then supply a key.',
-    };
-  }
-
-  const apiKey = request.apiKey?.trim();
-  if (apiKey === undefined || apiKey.length === 0) {
-    return {
-      status: 'no-key',
-      message: 'AI provider is configured, but no API key was supplied for this session.',
+        "Melo isn't configured yet. Set EXPO_PUBLIC_MELO_GATEWAY_URL to your deployed gateway and rebuild.",
     };
   }
 
@@ -192,15 +188,18 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
     })),
   ];
 
+  // The gateway injects its server-side model default, so the app sends no `model` — the upstream
+  // model is a gateway config concern, not an app concern.
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (config.token !== undefined) {
+    headers['x-folio-gateway-token'] = config.token;
+  }
+
   try {
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+    const response = await fetch(`${config.gatewayUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
-        model: config.model,
         messages: payloadMessages,
         temperature: 0.6,
         stream: false,
@@ -212,14 +211,14 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
       const detail = await safeReadErrorBody(response);
       return {
         status: 'error',
-        message: `Melo's provider returned ${response.status}.${detail ? ` ${detail}` : ''}`,
+        message: `Melo's gateway returned ${response.status}.${detail ? ` ${detail}` : ''}`,
       };
     }
 
     const data: unknown = await response.json();
     const rawReply = extractAssistantText(data);
     if (rawReply === null) {
-      return { status: 'error', message: "Melo's provider sent an unexpected response." };
+      return { status: 'error', message: "Melo's gateway sent an unexpected response." };
     }
 
     const { prose, suggestions } = splitReplyAndSuggestions(rawReply);

@@ -63,4 +63,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: {
     typedRoutes: true,
   },
+  // Surface the Melo gateway config on Constants.expoConfig.extra as a fallback for the
+  // meloAiClient (which prefers the inlined process.env value). These are PUBLIC, keyless
+  // values: the gateway URL and a weak shared token. The real OpenRouter key lives only as a
+  // Cloudflare Worker secret (see services/ai-gateway) and never reaches the app/APK.
+  extra: {
+    ...config.extra,
+    EXPO_PUBLIC_MELO_GATEWAY_URL: process.env.EXPO_PUBLIC_MELO_GATEWAY_URL,
+    EXPO_PUBLIC_MELO_GATEWAY_TOKEN: process.env.EXPO_PUBLIC_MELO_GATEWAY_TOKEN,
+  },
 });

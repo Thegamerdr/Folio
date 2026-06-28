@@ -70,9 +70,9 @@ export type MeloChatSheetProps = Readonly<{
   messages: readonly MeloChatMessage[];
   /** True while a turn is in flight — disables the composer + shows the thinking line. */
   isSending: boolean;
-  /** Set when the last turn returned a non-ok result (no-provider / no-key / error). */
+  /** Set when the last turn returned a non-ok result (no-provider / error). */
   lastResultStatus?: Exclude<MeloChatResult['status'], 'ok'> | undefined;
-  /** A short message for the non-ok state (e.g. "No AI provider configured."). */
+  /** A short message for the non-ok state (e.g. "Melo isn't configured yet."). */
   statusMessage?: string | undefined;
 
   /** Tune panel state, lifted to the container. */

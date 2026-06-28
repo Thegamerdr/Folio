@@ -1,0 +1,23 @@
+# Cloudflare Worker config for the Folio Melo AI gateway.
+#
+# This Worker is a thin OpenAI-compatible proxy in front of OpenRouter. It holds the
+# OpenRouter API key as a Cloudflare *secret* (set with `wrangler secret put`), so the
+# key lives only server-side and never ships inside the Folio APK.
+#
+# Deploy:   wrangler deploy
+# Secret:   wrangler secret put OPENROUTER_API_KEY
+# Optional: wrangler secret put GATEWAY_TOKEN     (shared app<->gateway token)
+
+name = "folio-ai-gateway"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+# Non-secret defaults. Override per-environment in the Cloudflare dashboard or here.
+# The OpenRouter API key is NEVER set here — it is a secret (`wrangler secret put`).
+[vars]
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = "google/gemini-2.0-flash-001"
+
+# Observability is handy for spotting abuse + errors. Safe to keep on.
+[observability]
+enabled = true
