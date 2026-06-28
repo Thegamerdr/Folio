@@ -159,7 +159,7 @@ import {
 } from '../src/local/recurringChargeDetection';
 // Pots returns a bare Fragment (ScreenHeader first, no outer frame), so the container wraps it in the
 // shared PressureScreen column — the way sibling surfaces frame themselves.
-import { PressureScreen, type VerdictTone } from '../src/surfaces/pressureMap/kit';
+import { PressureScreen, useTheme, type VerdictTone } from '../src/surfaces/pressureMap/kit';
 import {
   sendMeloChat,
   type MeloChatMessage,
@@ -269,6 +269,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 export default function FolioHome() {
+  const t = useTheme();
   const [screen, setScreen] = useState<Screen>('today');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [sourcesVisible, setSourcesVisible] = useState(false);
@@ -1655,11 +1656,11 @@ export default function FolioHome() {
   }, [ledgerHydrated, localRoute.confirmedTransactionCount, screen]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: t.canvas }]}>
       <View
         accessibilityElementsHidden={modalVisible}
         importantForAccessibility={modalVisible ? 'no-hide-descendants' : 'auto'}
-        style={styles.appFrame}
+        style={[styles.appFrame, { backgroundColor: t.canvas }]}
       >
         {!isChromelessScreen(screen) ? (
           <>
