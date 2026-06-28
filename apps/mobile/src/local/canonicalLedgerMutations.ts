@@ -21,6 +21,7 @@ import {
   removeTransaction,
   restoreRejectedImportForReview,
   resumeSubscription,
+  setTightPointGoal,
   stageDocumentForManualReview,
   stageStatementImport,
   type CreateCycleRecordInput,
@@ -58,6 +59,13 @@ export function removeTransactionThroughCanonicalRepository(
   transactionId: string,
 ): LocalLedgerState {
   return assertCanonicalRepositoryState(removeTransaction(state, transactionId));
+}
+
+export function setTightPointGoalThroughCanonicalRepository(
+  state: LocalLedgerState,
+  minorOrNull: number | null,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(setTightPointGoal(state, minorOrNull));
 }
 
 export function createPlannedCommitmentThroughCanonicalRepository(

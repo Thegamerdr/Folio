@@ -30,3 +30,14 @@ export type TodayPathSummary = Readonly<{
   goingOutMinor: number;
   lowestMinor: number;
 }>;
+
+/**
+ * The user's tight-point goal as the route surfaces it. tightPointGoalMinor is the floor the user
+ * set (minor units), or null when no goal is set. breachesGoal is true only when a goal IS set and
+ * the tightest balance on the route falls below it — the honest "this drops below your floor"
+ * signal the What-if / Today screens read.
+ */
+export type TodayGoalSignal = Readonly<{
+  tightPointGoalMinor: number | null;
+  breachesGoal: boolean;
+}>;

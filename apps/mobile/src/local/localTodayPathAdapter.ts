@@ -15,7 +15,11 @@
 
 import type { LocalLedgerState, LocalLedgerTransaction, LocalRouteSummary } from './localLedger';
 import type { LocalSubscriptionsModel } from './localSubscriptionsAdapter';
-import type { TodayPathSummary, TodayTransaction } from '../surfaces/pressureMap/todayTypes';
+import type {
+  TodayGoalSignal,
+  TodayPathSummary,
+  TodayTransaction,
+} from '../surfaces/pressureMap/todayTypes';
 import type { TodayNextCharge, TodayTightPoint } from '../surfaces/pressureMap/todayWeekTiles';
 
 const MS_PER_DAY = 86_400_000;
@@ -214,6 +218,23 @@ export function derivePathSummary(route: LocalRouteSummary): TodayPathSummary {
     goingOutMinor,
     lowestMinor: route.tightestBalanceMinor,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Goal signal — the user's tight-point goal (the "Melo-set floor") projected onto the route. The
+// goal is a scalar on the ledger state (minor units, or null when unset). breachesGoal is true only
+// when a goal is set AND the route's tightest balance falls below it — the honest "this drops below
+// your floor" signal the What-if and Today surfaces read. No goal → never a breach.
+// ---------------------------------------------------------------------------
+
+export function deriveGoalSignal(
+  ledger: LocalLedgerState,
+  route: LocalRouteSummary,
+): TodayGoalSignal {
+  const tightPointGoalMinor = ledger.tightPointGoalMinor;
+  const breachesGoal =
+    tightPointGoalMinor !== null && route.tightestBalanceMinor < tightPointGoalMinor;
+  return { tightPointGoalMinor, breachesGoal };
 }
 
 // ---------------------------------------------------------------------------

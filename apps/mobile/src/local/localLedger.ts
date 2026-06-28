@@ -161,6 +161,7 @@ export const LOCAL_HISTORY_KINDS = [
   'subscription_cancelled',
   'subscription_bulk_paused',
   'cycle_closed',
+  'tight_point_goal_set',
 ] as const;
 
 export type LocalHistoryKind = (typeof LOCAL_HISTORY_KINDS)[number];
@@ -176,6 +177,10 @@ export type LocalLedgerState = Readonly<{
   asOfDate: string;
   cashOnHandMinor: number;
   currency: 'GBP';
+  // The user's own "tight-point goal" — the floor they want their tightest balance to stay above.
+  // A scalar on the canonical metadata (NOT a durable-container blob): null means the user has not
+  // set one yet. Money in integer minor units, like everything else here.
+  tightPointGoalMinor: number | null;
   transactions: readonly LocalLedgerTransaction[];
   importDrafts: readonly LocalImportDraft[];
   rejectedImports: readonly LocalRejectedImportEvidence[];
@@ -451,6 +456,7 @@ export function createInitialLocalLedgerState(asOfDate = seedAsOfDate): LocalLed
     asOfDate,
     cashOnHandMinor: 119_047,
     currency: 'GBP',
+    tightPointGoalMinor: null,
     importIssueCount: 0,
     documentStages: [],
     rejectedImports: [],
@@ -556,6 +562,7 @@ export function createEmptyLocalLedgerState(asOfDate = seedAsOfDate): LocalLedge
     asOfDate,
     cashOnHandMinor: 0,
     currency: 'GBP',
+    tightPointGoalMinor: null,
     documentStages: [],
     history: [],
     importDrafts: [],
@@ -584,6 +591,7 @@ export function createQuickEstimateLocalLedgerState(
     asOfDate,
     cashOnHandMinor,
     currency: 'GBP',
+    tightPointGoalMinor: null,
     documentStages: [],
     rejectedImports: [],
     history: [
@@ -1118,6 +1126,31 @@ export function removeTransaction(
     },
     'manual_added',
     `${target.title} removed. Route rebuilt from what's left.`,
+  );
+}
+
+// Set (or clear) the user's tight-point goal — the floor they want their tightest balance to stay
+// above. A whole minor-unit amount of zero or more sets the floor; null clears it. Negative or
+// non-integer inputs are rejected (a floor below zero is meaningless). It is a scalar on the
+// canonical metadata, so this is a plain immutable field update — no containers touched.
+export function setTightPointGoal(
+  state: LocalLedgerState,
+  minorOrNull: number | null,
+): LocalLedgerState {
+  if (minorOrNull === null) {
+    if (state.tightPointGoalMinor === null) return state;
+    return prependHistory(
+      { ...state, tightPointGoalMinor: null },
+      'tight_point_goal_set',
+      'Tight-point goal cleared.',
+    );
+  }
+  const goalMinor = assertNonNegativeSafeMinor(minorOrNull, 'Tight-point goal');
+  if (state.tightPointGoalMinor === goalMinor) return state;
+  return prependHistory(
+    { ...state, tightPointGoalMinor: goalMinor },
+    'tight_point_goal_set',
+    `Tight-point goal set to ${formatMinorAmount(goalMinor)}.`,
   );
 }
 

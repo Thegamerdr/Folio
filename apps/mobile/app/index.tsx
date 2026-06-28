@@ -147,9 +147,19 @@ import {
 } from '../src/surfaces/pressureMap';
 import type { MeloMood } from '../src/surfaces/pressureMap/melo/meloStates';
 import type { TodayNudge } from '../src/surfaces/pressureMap/todayNudges';
+// New WIRE-phase surfaces — transient/modal states layered over the same engine. These are not in the
+// index barrel (they are reached by route id, not as core tabs), so import them directly.
+import { ShortfallScreen } from '../src/surfaces/pressureMap/shortfall';
+import { WhatIfScreen } from '../src/surfaces/pressureMap/whatIf';
+import { TodayAfterScreen } from '../src/surfaces/pressureMap/todayAfter';
+import { SubCaughtSheet } from '../src/surfaces/pressureMap/sheets/subCaught';
+import {
+  detectRecurringChargeCandidate,
+  type RecurringChargeCandidate,
+} from '../src/local/recurringChargeDetection';
 // Pots returns a bare Fragment (ScreenHeader first, no outer frame), so the container wraps it in the
 // shared PressureScreen column — the way sibling surfaces frame themselves.
-import { PressureScreen } from '../src/surfaces/pressureMap/kit';
+import { PressureScreen, type VerdictTone } from '../src/surfaces/pressureMap/kit';
 import {
   sendMeloChat,
   type MeloChatMessage,
@@ -160,6 +170,7 @@ import {
   deriveDateLabel,
   deriveDaysToPayday,
   deriveLastWeekMinor,
+  deriveGoalSignal,
   deriveNextCharge,
   derivePathSummary,
   deriveRangeLabel,
@@ -206,7 +217,11 @@ function isChromelessScreen(screen: Screen): boolean {
     screen === 'pots' ||
     screen === 'subscriptions' ||
     screen === 'insights' ||
-    screen === 'ritual'
+    screen === 'ritual' ||
+    // WIRE-phase transient/modal surfaces own their header too.
+    screen === 'shortfall' ||
+    screen === 'whatif' ||
+    screen === 'todayAfter'
   );
 }
 
@@ -280,6 +295,11 @@ export default function FolioHome() {
   const [onboardingVisible, setOnboardingVisible] = useState(false);
   // Melo chat sheet — all state lives in the container; the sheet is presentation-only.
   const [meloChatVisible, setMeloChatVisible] = useState(false);
+  // SubCaught sheet — open/close owned here; opened from the Today recurring-charge nudge.
+  const [subCaughtVisible, setSubCaughtVisible] = useState(false);
+  // Today > After — the transient "settled, here's what changed" snapshot, captured when a relevant
+  // action (e.g. a logged spend) moves the tightest point. Null when there's nothing to show.
+  const [todayAfterChange, setTodayAfterChange] = useState<TodayAfterChange | null>(null);
   const [meloMessages, setMeloMessages] = useState<readonly MeloChatMessage[]>([]);
   const [meloSending, setMeloSending] = useState(false);
   const [meloInput, setMeloInput] = useState('');
@@ -297,7 +317,12 @@ export default function FolioHome() {
   const onboardingOfferedRef = useRef(false);
   const reduceMotionEnabled = useReducedMotionPreference();
   const modalVisible =
-    sheetVisible || sourcesVisible || appLocked || meloChatVisible || onboardingVisible;
+    sheetVisible ||
+    sourcesVisible ||
+    appLocked ||
+    meloChatVisible ||
+    onboardingVisible ||
+    subCaughtVisible;
   const screenTitle = screenAccessibilityTitle(screen);
   const localRoute = useMemo(() => buildLocalRouteSummary(localLedger), [localLedger]);
   const privateExampleMode = useMemo(() => isPrivateExampleLedger(localLedger), [localLedger]);
@@ -376,6 +401,50 @@ export default function FolioHome() {
   // The hero "spare" figure is the magnitude at the tightest point (the verdict colours sign).
   const todaySpareMinor = Math.abs(localRoute.tightestBalanceMinor);
 
+  // The tight-point goal read-model — the user's set floor + whether the current route breaches it.
+  // Threaded into What if (and available to Today) so the goal read path is wired end to end.
+  const goalSignal = useMemo(
+    () => deriveGoalSignal(localLedger, localRoute),
+    [localLedger, localRoute],
+  );
+
+  // Shortfall derivations — only meaningful when the route actually dips below zero before payday.
+  // gap = the magnitude of the negative tightest point; everything else is derived from the real
+  // route / ledger so nothing here is fabricated.
+  const shortfallGapMinor =
+    localRoute.tightestBalanceMinor < 0 ? Math.abs(localRoute.tightestBalanceMinor) : 0;
+
+  // The active (non-paused) subscription with the largest cost is the most impactful one to pause.
+  const pausableSub = useMemo(() => {
+    const active = subscriptionsModel.rows.filter((row) => !row.paused);
+    if (active.length === 0) return null;
+    return active.reduce((best, row) => (row.costMinor > best.costMinor ? row : best));
+  }, [subscriptionsModel.rows]);
+
+  // The largest pot whose saved balance can cover the whole gap (Lovable's `saved >= gap` rule). Only
+  // then do we name a "borrow from a pot" move — otherwise it stays hidden (no half-measures offered).
+  const lendingPot = useMemo(() => {
+    if (shortfallGapMinor <= 0) return null;
+    const able = potsModel.rows.filter((row) => row.savedMinor >= shortfallGapMinor);
+    if (able.length === 0) return null;
+    return able.reduce((best, row) => (row.savedMinor > best.savedMinor ? row : best));
+  }, [potsModel.rows, shortfallGapMinor]);
+
+  // The daily-spend cap that closes the gap: spread the remaining headroom (after the gap) across the
+  // days left. Real-engine equivalent of the Lovable floor((window - gap)/max(1,daysLeft)).
+  const shortfallDailyCapMinor = useMemo(() => {
+    if (shortfallGapMinor <= 0) return 0;
+    const days = Math.max(1, todayDaysToPayday);
+    return Math.max(0, Math.floor((localRoute.availableNowMinor - shortfallGapMinor) / days));
+  }, [localRoute.availableNowMinor, shortfallGapMinor, todayDaysToPayday]);
+
+  // SubCaught — the likely-recurring-charge candidate, computed from real confirmed spends and the
+  // real subscriptions list (so an already-tracked merchant is excluded). Null when nothing qualifies.
+  const recurringChargeCandidate = useMemo<RecurringChargeCandidate | null>(
+    () => detectRecurringChargeCandidate(localLedger.transactions, subscriptionsModel.rows),
+    [localLedger.transactions, subscriptionsModel.rows],
+  );
+
   // Today nudges — at most two calm pills, derived ONLY from signals that are genuinely true right
   // now. Each one routes to a real screen; nothing here is always-on. The order is priority: things
   // waiting on the user first, then a heads-up that the month runs short.
@@ -393,18 +462,30 @@ export default function FolioHome() {
         onPress: () => setScreen('import'),
       });
     }
-    // The path actually dips below zero before payday → an honest heads-up into the week comparison.
+    // The path actually dips below zero before payday → an honest heads-up into the Shortfall moment
+    // (the "Short by £X" state with the three concrete moves).
     if (localRoute.tightestBalanceMinor < 0) {
       nudges.push({
         key: 'runs-short',
         tone: 'ink',
         label: 'Your money runs short before payday',
-        cta: 'See the weeks',
-        onPress: () => setScreen('insights'),
+        cta: 'See what would close it',
+        onPress: () => setScreen('shortfall'),
+      });
+    }
+    // Folio spotted a likely recurring charge that isn't tracked yet → a calm nudge that opens the
+    // confirm/dismiss sheet. Only ever shown when the engine actually surfaced a candidate.
+    if (recurringChargeCandidate !== null) {
+      nudges.push({
+        key: 'recurring-charge',
+        tone: 'accent',
+        label: `${recurringChargeCandidate.name} looks like a monthly charge`,
+        cta: 'Take a look',
+        onPress: () => setSubCaughtVisible(true),
       });
     }
     return nudges;
-  }, [localRoute.pendingReviewCount, localRoute.tightestBalanceMinor]);
+  }, [localRoute.pendingReviewCount, localRoute.tightestBalanceMinor, recurringChargeCandidate]);
 
   // Insights "Notes from past you" — the engine model carries no per-cycle spare/note, so the
   // container derives them from the same closed cycles (latest first).
@@ -595,6 +676,34 @@ export default function FolioHome() {
     [commitLocalLedger, userOwnedLedgerBase],
   );
 
+  // SubCaught confirm — turn the surfaced recurring-charge candidate into a real subscription through
+  // the SAME canonical create path the Subscriptions screen uses, then close the sheet. The candidate
+  // carries minor units + name; category is a presentation-only hint the engine does not store, so the
+  // create only needs name + cost + cadence.
+  const handleConfirmRecurringCharge = useCallback(
+    (candidate: RecurringChargeCandidate) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          createSubscriptionThroughCanonicalRepository(ledgerBase, {
+            name: candidate.name,
+            costMinor: candidate.amountMinor,
+            cadence: 'monthly',
+          }),
+          'Subscription added locally.',
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Could not add that subscription.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      } finally {
+        setSubCaughtVisible(false);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
   const handlePauseSubscription = useCallback(
     (subscriptionId: string) => {
       try {
@@ -744,15 +853,34 @@ export default function FolioHome() {
   // The Today LogSpend sheet hands up a POSITIVE magnitude. The canonical manual path takes a
   // magnitude + a `kind` and applies the sign itself, so a spend is just the magnitude with
   // kind:'spend' (the category is a presentation-only hint the engine does not store).
+  //
+  // A logged spend is exactly the kind of "you just did something" moment Today > After exists for, so
+  // after the real route rebuilds we capture the honest before→after change (the new verdict, the
+  // signed delta at the tightest point, a sentence naming the merchant) and show the transient After
+  // state. Everything is derived from the REAL re-built route — nothing is fabricated.
   const handleLogSpend = useCallback(
     (merchant: string, amountMinor: number, _category: string) => {
-      handleAddManualTransaction({
-        amountText: (Math.abs(amountMinor) / 100).toFixed(2),
-        title: merchant,
-        kind: 'spend',
-      });
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        const prevTightestMinor = buildLocalRouteSummary(ledgerBase).tightestBalanceMinor;
+        const nextLedger = recordManualTransactionThroughCanonicalRepository(ledgerBase, {
+          amountText: (Math.abs(amountMinor) / 100).toFixed(2),
+          title: merchant,
+          kind: 'spend',
+        });
+        const nextRoute = buildLocalRouteSummary(nextLedger);
+        commitLocalLedger(nextLedger, 'Local transaction added. Route rebuilt.');
+        setTodayAfterChange(
+          buildTodayAfterChange(merchant, prevTightestMinor, nextRoute.tightestBalanceMinor),
+        );
+        setScreen('todayAfter');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not add that transaction.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
     },
-    [handleAddManualTransaction],
+    [commitLocalLedger, userOwnedLedgerBase],
   );
 
   // Today: undo a mis-logged spend ------------------------------------------------------------
@@ -1374,6 +1502,11 @@ export default function FolioHome() {
   }, [finishFirstMinute, firstMinuteStep, surpriseMoved]);
 
   const handleBack = useCallback(() => {
+    if (subCaughtVisible) {
+      setSubCaughtVisible(false);
+      return true;
+    }
+
     if (sourcesVisible) {
       setSourcesVisible(false);
       return true;
@@ -1394,7 +1527,7 @@ export default function FolioHome() {
     }
 
     return false;
-  }, [backFirstMinute, screen, sheetVisible, sourcesVisible]);
+  }, [backFirstMinute, screen, sheetVisible, sourcesVisible, subCaughtVisible]);
 
   // The four primary tabs are Today / Review (import) / Melo / More. Every other product screen is
   // reached under the More hub (or the cycle flows), so it lights the More tab.
@@ -1744,7 +1877,7 @@ export default function FolioHome() {
             <MeloScreen
               ledger={localLedger}
               onBack={() => setScreen('today')}
-              onOpenWhatIf={() => setSheetVisible(true)}
+              onOpenWhatIf={() => setScreen('whatif')}
               onOpenImports={openImportReview}
               onOpenRecovery={() => setScreen('recovery')}
               onOpenSources={() => setSourcesVisible(true)}
@@ -1802,6 +1935,54 @@ export default function FolioHome() {
                 setScreen('today');
                 setSourcesVisible(true);
               }}
+            />
+          ) : null}
+          {screen === 'shortfall' ? (
+            <ShortfallScreen
+              gapMinor={shortfallGapMinor}
+              daysLeft={todayDaysToPayday}
+              pausableSubName={pausableSub?.name ?? null}
+              pausableSubCostMinor={pausableSub?.costMinor ?? 0}
+              lendingPotName={lendingPot?.name ?? null}
+              dailyCapMinor={shortfallDailyCapMinor}
+              reduceMotion={reduceMotionEnabled}
+              onPauseSub={() => {
+                if (pausableSub) handlePauseSubscription(pausableSub.id);
+                setScreen('today');
+              }}
+              onBorrowFromPot={() => {
+                // The reallocation/route-detail path — Pots is where money moves between pots.
+                setScreen('pots');
+              }}
+              onMelo={() => openMeloChat('help me hold a daily cap to payday')}
+              onClose={() => setScreen('today')}
+            />
+          ) : null}
+          {screen === 'whatif' ? (
+            <WhatIfScreen
+              baseLowMinor={localRoute.tightestBalanceMinor}
+              tightPointGoalMinor={goalSignal.tightPointGoalMinor}
+              potsTotalMinor={potsModel.sumSavedMinor}
+              reduceMotion={reduceMotionEnabled}
+              onOpenMelo={() => openMeloChat()}
+              onBack={() => setScreen('more')}
+            />
+          ) : null}
+          {screen === 'todayAfter' && todayAfterChange !== null ? (
+            <TodayAfterScreen
+              verdictLead={todayAfterChange.verdictLead}
+              verdictAccent={todayAfterChange.verdictAccent}
+              verdictTail={todayAfterChange.verdictTail}
+              verdictTone={todayAfterChange.verdictTone}
+              spareMinor={todaySpareMinor}
+              changeNote={todayAfterChange.changeNote}
+              changeDeltaMinor={todayAfterChange.changeDeltaMinor}
+              changeLine={todayAfterChange.changeLine}
+              routePoints={localRoute.points}
+              reduceMotion={reduceMotionEnabled}
+              onBack={() => setScreen('today')}
+              onOpenMelo={() => openMeloChat()}
+              onOpenTightPoint={() => openMeloChat('why is my tight point so low?')}
             />
           ) : null}
           {screen === 'money' ? (
@@ -1909,7 +2090,7 @@ export default function FolioHome() {
               onOpenRitual={() => setScreen('ritual')}
               onOpenSubscriptions={() => setScreen('subscriptions')}
               onOpenTimeline={() => setScreen('timeline')}
-              onOpenWhatIf={() => setScreen('money')}
+              onOpenWhatIf={() => setScreen('whatif')}
               onReplayFirstMinute={replayFirstMinute}
               onRefreshSecurity={refreshSecurityPosture}
               onResetSample={resetExample}
@@ -1982,6 +2163,13 @@ export default function FolioHome() {
         onCreatePots={handleCreatePotsBatch}
         onSeedProfile={handleSeedProfile}
       />
+      <SubCaughtSheet
+        candidate={recurringChargeCandidate}
+        reduceMotion={reduceMotionEnabled}
+        visible={subCaughtVisible}
+        onClose={() => setSubCaughtVisible(false)}
+        onConfirm={handleConfirmRecurringCharge}
+      />
       <AppLockOverlay
         message={unlockMessage}
         onUnlock={unlockLocalApp}
@@ -2010,6 +2198,61 @@ function meloMoodForRoute(route: LocalRouteSummary): MeloMood {
   if (tight < 5000) return 'attentive'; // < £50 — the squeeze
   if (tight < 18400) return 'soft-concern'; // < £184 — tight but holds
   return 'calm';
+}
+
+// The captured "what changed" snapshot the transient Today > After state renders. Built once, from the
+// real before→after route, when a relevant action moves the tightest point.
+type TodayAfterChange = Readonly<{
+  verdictLead: string;
+  verdictAccent: string;
+  verdictTail: string;
+  verdictTone: VerdictTone;
+  changeNote: string;
+  changeDeltaMinor: number;
+  changeLine: string;
+}>;
+
+// The settled verdict for a tightest-point balance — the same thresholds Today uses (< 0 runs short,
+// < £100 holds but tight, otherwise lasts), split into the lead + ONE accent word + tail.
+function verdictForTightest(tightestMinor: number): {
+  lead: string;
+  accent: string;
+  tail: string;
+  tone: VerdictTone;
+} {
+  if (tightestMinor < 0)
+    return { lead: 'It runs ', accent: 'short', tail: ' before payday.', tone: 'repair' };
+  if (tightestMinor < 10000)
+    return { lead: 'It holds — but stays ', accent: 'tight', tail: '.', tone: 'warm' };
+  return { lead: 'Your money ', accent: 'lasts', tail: ' to payday.', tone: 'positive' };
+}
+
+// Build the After snapshot from the real change: the settled verdict on the new route, the signed
+// delta the change moved the tightest point by (newTightest - prevTightest), and an honest sentence
+// naming the merchant. A negative delta lowered the tight point; a positive one lifted it.
+function buildTodayAfterChange(
+  merchant: string,
+  prevTightestMinor: number,
+  nextTightestMinor: number,
+): TodayAfterChange {
+  const verdict = verdictForTightest(nextTightestMinor);
+  const changeDeltaMinor = nextTightestMinor - prevTightestMinor;
+  const magnitudeLabel = formatMinorAmount(Math.abs(changeDeltaMinor));
+  const changeLine =
+    changeDeltaMinor < 0
+      ? `${merchant} lowered your tightest point by ${magnitudeLabel}.`
+      : changeDeltaMinor > 0
+        ? `${merchant} lifted your tightest point by ${magnitudeLabel}.`
+        : `${merchant} didn't move your tightest point.`;
+  return {
+    verdictLead: verdict.lead,
+    verdictAccent: verdict.accent,
+    verdictTail: verdict.tail,
+    verdictTone: verdict.tone,
+    changeNote: `after adding ${merchant}`,
+    changeDeltaMinor,
+    changeLine,
+  };
 }
 
 // The cycle label the payday ritual records under — the current month, e.g. "June".

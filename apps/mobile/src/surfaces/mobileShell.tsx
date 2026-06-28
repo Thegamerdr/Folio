@@ -128,7 +128,13 @@ type ProductScreen =
   | 'pots'
   | 'subscriptions'
   | 'insights'
-  | 'ritual';
+  | 'ritual'
+  // WIRE-phase transient/modal states — reached from Today (shortfall / after) or More (what if),
+  // never as core tabs. They keep the bottom nav (it lights the nearest tab) and carry their own
+  // header, so they are chromeless like the other map surfaces.
+  | 'shortfall'
+  | 'whatif'
+  | 'todayAfter';
 type GuidedTaskScreen = 'billFlow' | 'debtFlow' | 'guideFlow';
 type Screen =
   | ProductScreen
@@ -372,7 +378,10 @@ function isProductScreen(screen: Screen): screen is ProductScreen {
     screen === 'pots' ||
     screen === 'subscriptions' ||
     screen === 'insights' ||
-    screen === 'ritual'
+    screen === 'ritual' ||
+    screen === 'shortfall' ||
+    screen === 'whatif' ||
+    screen === 'todayAfter'
   );
 }
 
@@ -6596,6 +6605,9 @@ function screenAccessibilityTitle(screen: Screen): string {
     subscriptions: 'Subscriptions',
     timeline: 'Timeline',
     today: 'Today',
+    shortfall: 'Short by',
+    whatif: 'What if',
+    todayAfter: 'What changed',
   };
 
   return titles[screen];

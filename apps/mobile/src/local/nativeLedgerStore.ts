@@ -36,6 +36,7 @@ type MetadataRow = Readonly<{
   currency?: unknown;
   import_issue_count?: unknown;
   last_import_summary_json?: unknown;
+  tight_point_goal_minor?: unknown;
 }>;
 
 type TransactionRow = Readonly<{
@@ -296,11 +297,20 @@ async function ensureLocalLedgerTables(db: ReturnType<typeof open>): Promise<voi
         currency TEXT NOT NULL,
         import_issue_count INTEGER NOT NULL,
         last_import_summary_json TEXT,
+        tight_point_goal_minor INTEGER,
         data_version TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
     `,
   );
+  // Older installs created local_ledger_metadata before tight_point_goal_minor existed. Add the
+  // column if it is missing so the INSERT below never references an unknown column. A failure here
+  // (the column already exists) is expected and ignored.
+  try {
+    await db.execute('ALTER TABLE local_ledger_metadata ADD COLUMN tight_point_goal_minor INTEGER');
+  } catch {
+    // Column already present — nothing to do.
+  }
   await db.execute(
     `
       CREATE TABLE IF NOT EXISTS local_ledger_transactions (
@@ -410,7 +420,8 @@ async function loadNormalizedLedgerState(
 ): Promise<LocalLedgerState | null> {
   const metadataResult = await db.execute(
     `
-      SELECT as_of_date, cash_on_hand_minor, currency, import_issue_count, last_import_summary_json
+      SELECT as_of_date, cash_on_hand_minor, currency, import_issue_count, last_import_summary_json,
+        tight_point_goal_minor
       FROM local_ledger_metadata
       WHERE id = ?
     `,
@@ -483,10 +494,17 @@ async function loadNormalizedLedgerState(
   // tables do not model. They round-trip through the full JSON snapshot blob written on every save,
   // so we recover them from there (defaulting to []), keeping the SQLite schema untouched.
   const durableContainers = await loadDurableContainersFromSnapshot(db);
+  // tight_point_goal_minor is a nullable scalar added after the first releases. Old rows (and the
+  // freshly-ALTERed column) read back as null/undefined → default to null (no goal set).
+  const tightPointGoalMinor =
+    typeof metadata.tight_point_goal_minor === 'number'
+      ? metadata.tight_point_goal_minor
+      : null;
   const state: LocalLedgerState = {
     asOfDate: metadata.as_of_date,
     cashOnHandMinor: metadata.cash_on_hand_minor,
     currency: 'GBP',
+    tightPointGoalMinor,
     importIssueCount: metadata.import_issue_count,
     transactions: transactions.rows.map(rowToTransaction).filter(isPresent),
     importDrafts: drafts.rows.map(rowToImportDraft).filter(isPresent),
@@ -614,8 +632,8 @@ async function saveNormalizedLedgerState(
     `
       INSERT OR REPLACE INTO local_ledger_metadata (
         id, workspace_id, as_of_date, cash_on_hand_minor, currency, import_issue_count,
-        last_import_summary_json, data_version, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_import_summary_json, tight_point_goal_minor, data_version, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       snapshotId,
@@ -625,6 +643,7 @@ async function saveNormalizedLedgerState(
       state.currency,
       state.importIssueCount,
       state.lastImportSummary === undefined ? null : JSON.stringify(state.lastImportSummary),
+      state.tightPointGoalMinor,
       createLocalLedgerDataVersion(state),
       now,
     ],
@@ -1069,6 +1088,11 @@ function isLocalLedgerState(value: unknown): value is LocalLedgerState {
     value.currency === 'GBP' &&
     typeof value.asOfDate === 'string' &&
     typeof value.cashOnHandMinor === 'number' &&
+    // Optional on disk for backward compatibility — older blobs predate the tight-point goal, so
+    // absent is fine; normalizeLocalLedgerState defaults it to null.
+    (value.tightPointGoalMinor === undefined ||
+      value.tightPointGoalMinor === null ||
+      typeof value.tightPointGoalMinor === 'number') &&
     Array.isArray(value.transactions) &&
     Array.isArray(value.importDrafts) &&
     (value.rejectedImports === undefined || Array.isArray(value.rejectedImports)) &&
@@ -1089,6 +1113,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function normalizeLocalLedgerState(state: LocalLedgerState): LocalLedgerState {
   return {
     ...state,
+    tightPointGoalMinor:
+      typeof state.tightPointGoalMinor === 'number' ? state.tightPointGoalMinor : null,
     documentStages: Array.isArray(state.documentStages) ? state.documentStages : [],
     rejectedImports: Array.isArray(state.rejectedImports) ? state.rejectedImports : [],
     pots: Array.isArray(state.pots) ? state.pots : [],
