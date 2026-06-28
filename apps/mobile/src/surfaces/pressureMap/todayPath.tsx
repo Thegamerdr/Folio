@@ -14,7 +14,7 @@
 // and owns every mutation (onLogSpend writes through the canonical add-transaction path). When the
 // route has no meaningful movement yet, it honestly states position instead of faking a verdict.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { LocalRouteSummary } from '../../local/localLedger';
@@ -28,6 +28,7 @@ import { TodayRecentTxns } from './todayRecentTxns';
 import { TodaySpendStrip } from './todaySpendStrip';
 import { TodayWeekTiles } from './todayWeekTiles';
 import { MeloPresence } from './melo';
+import { useCountUp } from './useCountUp';
 import {
   Display,
   Eyebrow,
@@ -50,27 +51,9 @@ import {
 // the web does (drag → preview up to ~£120). It only re-reads the lowest point; it never mutates.
 const MAX_SCRUB_PREVIEW_MINOR = 12_000; // £120
 
-// A small count-up tween for the hero figure — rises to its target on mount/refresh (faithful to the
-// web useCountUp). Pure RN: requestAnimationFrame with an ease-out cubic, cleaned up on unmount.
-function useCountUp(target: number, durationMs = 500): number {
-  const [value, setValue] = useState(target);
-  const fromRef = useRef(target);
-  useEffect(() => {
-    const from = fromRef.current;
-    const start = Date.now();
-    let raf = 0;
-    const tick = () => {
-      const t = Math.min(1, (Date.now() - start) / durationMs);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(from + (target - from) * eased);
-      if (t < 1) raf = requestAnimationFrame(tick);
-      else fromRef.current = target;
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, durationMs]);
-  return value;
-}
+// The hero "spare" figure counts up to its target via the shared useCountUp (./useCountUp):
+// easeOutCubic over 500ms, honouring reduced motion (snaps straight to the value).
+const HERO_COUNT_UP_MS = 500;
 
 function verdict(route: LocalRouteSummary): {
   lead: string;
@@ -120,7 +103,7 @@ export function TodayScreen({
   const [scrubFraction, setScrubFraction] = useState(0);
   const scrubPreviewMinor = Math.round(scrubFraction * MAX_SCRUB_PREVIEW_MINOR);
   const previewedSpareMinor = Math.max(0, spareMinor - scrubPreviewMinor);
-  const heroDisplay = useCountUp(previewedSpareMinor, reduceMotion ? 0 : 500);
+  const heroDisplay = useCountUp(previewedSpareMinor, HERO_COUNT_UP_MS, reduceMotion);
 
   const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
   const [logSpendOpen, setLogSpendOpen] = useState(false);

@@ -1684,6 +1684,7 @@ export default function FolioHome() {
             <PressureScreen>
               <PotsScreen
                 model={potsModel}
+                reduceMotion={reduceMotionEnabled}
                 tightPointMinor={localRoute.tightestBalanceMinor}
                 onAddToPot={handleAddToPot}
                 onBack={() => setScreen('more')}

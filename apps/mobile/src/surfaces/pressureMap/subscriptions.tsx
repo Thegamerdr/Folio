@@ -13,7 +13,7 @@
 // primitives composing the pressure-map kit; the design is a faithful reproduction of the web
 // (verbatim copy + the same paper tokens), not a reinterpretation.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -28,6 +28,7 @@ import {
   serif,
 } from './kit';
 import { MeloLine, ScreenHeader } from './secondaryKit';
+import { useCountUp } from './useCountUp';
 import { formatMinorAmount } from '../../local/localLedger';
 import type {
   LocalSubscriptionPulse,
@@ -45,47 +46,10 @@ const SORTS: readonly { key: SortKey; label: string }[] = [
   { key: 'next', label: 'Next charge' },
 ];
 
-// ---------------------------------------------------------------------------
-// Count-up — the monthly total animates up to its target on mount / when it changes,
-// matching the web's useCountUp(monthly, 600). Pure rAF; respects reduced motion (jumps
+// The monthly total counts up to its target via the shared useCountUp (./useCountUp): the
+// web's useCountUp(monthly, 600) — easeOutCubic over 600ms, respecting reduced motion (jumps
 // straight to the value). Two decimals, to read as money.
-// ---------------------------------------------------------------------------
-
 const COUNT_UP_MS = 600;
-
-function useCountUp(target: number, reduceMotion: boolean): number {
-  const [value, setValue] = useState(reduceMotion ? target : 0);
-  const fromRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (reduceMotion) {
-      setValue(target);
-      return;
-    }
-    const from = fromRef.current;
-    const start = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - start;
-      const t = Math.min(1, elapsed / COUNT_UP_MS);
-      // easeOutCubic — a calm settle, never a linear crawl.
-      const eased = 1 - Math.pow(1 - t, 3);
-      const next = from + (target - from) * eased;
-      setValue(next);
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      } else {
-        fromRef.current = target;
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [target, reduceMotion]);
-
-  return value;
-}
 
 // ---------------------------------------------------------------------------
 // Row helpers — pulse colour + label, value-score subtitle, next-charge label.
@@ -295,7 +259,7 @@ export function SubscriptionsScreen({
   // The hero number counts up to the live monthly total (active subscriptions only). Animate
   // from the minor-unit pounds so the formatting (commas, two decimals) matches the rest.
   const monthlyPounds = subscriptions.monthlyTotalMinor / 100;
-  const animatedPounds = useCountUp(monthlyPounds, reduceMotion === true);
+  const animatedPounds = useCountUp(monthlyPounds, COUNT_UP_MS, reduceMotion === true);
   const monthlyDisplay = formatMinorAmount(Math.round(animatedPounds * 100));
   const yearlyDisplay = formatMinorAmount(subscriptions.monthlyTotalMinor * 12);
   const hasSavings = subscriptions.savedFromPausesMinor > 0;

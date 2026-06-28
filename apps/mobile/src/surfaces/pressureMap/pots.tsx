@@ -42,6 +42,7 @@ import {
 } from './kit';
 import { MeloLine, ScreenHeader } from './secondaryKit';
 import { Sheet } from './Sheet';
+import { useCountUp } from './useCountUp';
 
 // Quick-add increments, in whole pounds — the web's +£5 / +£10 / +£20 pills. Converted to pence at
 // the call site so the handler only ever sees minor units.
@@ -67,32 +68,9 @@ function shortName(name: string): string {
   return name.split(' · ')[0] ?? name;
 }
 
-// Count-up tween — the kit's useCountUp pattern (primitives.useCountUp), ported to RN. RN supports
-// requestAnimationFrame, so the same cubic ease-out from the web runs here unchanged. Returns the
-// tweened value; the screen rounds it for display.
-function useCountUp(target: number, durationMs = 700): number {
-  const [value, setValue] = useState(target);
-  const fromRef = useRef(target);
-  useEffect(() => {
-    const from = fromRef.current;
-    const start = Date.now();
-    let raf = 0;
-    const tick = () => {
-      const elapsed = Date.now() - start;
-      const t = Math.min(1, elapsed / durationMs);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(from + (target - from) * eased);
-      if (t < 1) {
-        raf = requestAnimationFrame(tick);
-      } else {
-        fromRef.current = target;
-      }
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, durationMs]);
-  return value;
-}
+// The across-pots total counts up via the shared useCountUp (./useCountUp) — the kit's
+// easeOutCubic count-up over 700ms, honouring reduced motion (snaps straight to the value).
+const TOTALS_COUNT_UP_MS = 700;
 
 type ReallocationTarget = Readonly<{ fromId: string; toId: string }>;
 
@@ -103,6 +81,7 @@ export function PotsScreen({
   onCreatePot,
   onAddToPot,
   onReallocateBetweenPots,
+  reduceMotion,
 }: PotsScreenProps) {
   const rows = model.rows;
 
@@ -112,7 +91,7 @@ export function PotsScreen({
   const [transfer, setTransfer] = useState<ReallocationTarget | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const sumDisplay = useCountUp(model.sumSavedMinor, 700);
+  const sumDisplay = useCountUp(model.sumSavedMinor, TOTALS_COUNT_UP_MS, reduceMotion === true);
   const totalGoalMinor = rows.reduce((sum, row) => sum + row.goalMinor, 0);
   const totalPct = totalGoalMinor > 0 ? Math.min(1, model.sumSavedMinor / totalGoalMinor) : 0;
 
@@ -339,17 +318,25 @@ function ReallocationSheet({
   // The chosen amount, in pence. Primed to min(£20, from-pot balance) when the sheet opens, then
   // stepped by £5 between 0 and the from-pot balance — exactly the web slider's bounds and step.
   const [amountMinor, setAmountMinor] = useState(0);
-  const [primedKey, setPrimedKey] = useState<string | null>(null);
+  // The last from→to pair we primed for, tracked in a ref so priming runs exactly once per opened
+  // pair (and re-runs if the same pair is reopened, since the ref is cleared on close).
+  const primedKeyRef = useRef<string | null>(null);
 
-  // Prime the amount once per opened pair, in render (no effect) — mirrors the sibling sheets in this
-  // surface and avoids an extra render frame.
-  if (transfer && primedKey !== keyFor(transfer)) {
-    setPrimedKey(keyFor(transfer));
-    setAmountMinor(Math.min(2000, maxMoveMinor));
-  }
-  if (!transfer && primedKey !== null) {
-    setPrimedKey(null);
-  }
+  // Prime the amount once per opened pair, after render (an effect, not during render — setting state
+  // in the render body is a React anti-pattern). Keyed on the active pair's key + the from-pot
+  // balance, so a newly initiated transfer resets the amount to its default; closing the sheet clears
+  // the primed key so reopening the same pair primes again. Behaviour is identical to before.
+  const transferKey = transfer ? keyFor(transfer) : null;
+  useEffect(() => {
+    if (transferKey === null) {
+      primedKeyRef.current = null;
+      return;
+    }
+    if (primedKeyRef.current !== transferKey) {
+      primedKeyRef.current = transferKey;
+      setAmountMinor(Math.min(2000, maxMoveMinor));
+    }
+  }, [transferKey, maxMoveMinor]);
 
   const clampedMinor = Math.max(0, Math.min(amountMinor, maxMoveMinor));
 
@@ -643,6 +630,10 @@ export type PotsScreenProps = {
   onCreatePot: (input: CreatePotInput) => void;
   onAddToPot: (potId: string, amountMinor: number) => void;
   onReallocateBetweenPots: (fromPotId: string, toPotId: string, amountMinor: number) => void;
+  // The user's reduced-motion preference. When true, the across-pots count-up snaps straight to its
+  // value instead of animating. Threaded from the container's useReducedMotionPreference, mirroring
+  // the sibling Subscriptions/Today screens.
+  reduceMotion?: boolean | undefined;
 };
 
 // ---------------------------------------------------------------------------
