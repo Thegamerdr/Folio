@@ -20,6 +20,7 @@ import {
   formatMinorAmount,
   isPrivateExampleLedger,
   refreshLocalLedgerAsOfDate,
+  type AddUserCalendarEventInput,
   type CreateCycleRecordInput,
   type CreatePotInput,
   type CreateSubscriptionInput,
@@ -35,10 +36,14 @@ import {
 } from '../src/local/localLedger';
 import {
   acceptImportDraftThroughCanonicalRepository,
+  addCalendarEventThroughCanonicalRepository,
   addCycleThroughCanonicalRepository,
   addToPotThroughCanonicalRepository,
   bulkPauseQuietThroughCanonicalRepository,
   cancelSubscriptionThroughCanonicalRepository,
+  nudgeSubThroughCanonicalRepository,
+  removeCalendarEventThroughCanonicalRepository,
+  updateCalendarEventThroughCanonicalRepository,
   createPlannedCommitmentThroughCanonicalRepository,
   createPotThroughCanonicalRepository,
   createQuickEstimateThroughCanonicalRepository,
@@ -61,8 +66,12 @@ import {
   stageStatementTransactionsThroughCanonicalRepository,
 } from '../src/local/canonicalLedgerMutations';
 import { readAddedStatement } from '../src/local/statementIntake';
+import {
+  computeSparePerDay,
+  deriveCalendarEvents,
+  groupCalendarEventsByDay,
+} from '../src/local/calendarEvents';
 import { buildLocalTimelineModel } from '../src/local/localTimelineAdapter';
-import { buildLocalCalendarModel } from '../src/local/localCalendarAdapter';
 import { buildLocalPlansModel } from '../src/local/localPlansAdapter';
 import { buildLocalPotsModel } from '../src/local/localPotsAdapter';
 import { buildLocalSubscriptionsModel } from '../src/local/localSubscriptionsAdapter';
@@ -128,6 +137,9 @@ import {
 import {
   BottomNav,
   CalendarScreen,
+  CalendarAddEventSheet,
+  CalendarConnectSheet,
+  CalendarExportSheet,
   DataControlScreen,
   FoundItemsScreen,
   ImportReviewScreen,
@@ -306,6 +318,18 @@ export default function FolioHome() {
   const [meloChatVisible, setMeloChatVisible] = useState(false);
   // SubCaught sheet — open/close owned here; opened from the Today recurring-charge nudge.
   const [subCaughtVisible, setSubCaughtVisible] = useState(false);
+  // Calendar sheets — add an event / export the .ics / connect to the phone calendar. Open/close
+  // owned here; opened from the Calendar footer actions.
+  const [calendarAddVisible, setCalendarAddVisible] = useState(false);
+  const [calendarExportVisible, setCalendarExportVisible] = useState(false);
+  const [calendarConnectVisible, setCalendarConnectVisible] = useState(false);
+  // Route <-> Calendar focus bridges — EPHEMERAL (never persisted), one-shot in each direction.
+  //  • calendarFocusDate: Route/Today -> Calendar. Set with a day; the Calendar jumps its active view
+  //    to that day once, then the screen clears it (we clear on the next Calendar open / nav).
+  //  • routeFocusDate: Calendar -> Route. Set with a day; Today pulses a vertical line + date chip on
+  //    the money path for ~6s, then we clear it here.
+  const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null);
+  const [routeFocusDate, setRouteFocusDate] = useState<string | null>(null);
   // Today > After — the transient "settled, here's what changed" snapshot, captured when a relevant
   // action (e.g. a logged spend) moves the tightest point. Null when there's nothing to show.
   const [todayAfterChange, setTodayAfterChange] = useState<TodayAfterChange | null>(null);
@@ -334,7 +358,10 @@ export default function FolioHome() {
     appLocked ||
     meloChatVisible ||
     onboardingVisible ||
-    subCaughtVisible;
+    subCaughtVisible ||
+    calendarAddVisible ||
+    calendarExportVisible ||
+    calendarConnectVisible;
   const screenTitle = screenAccessibilityTitle(screen);
   const localRoute = useMemo(() => buildLocalRouteSummary(localLedger), [localLedger]);
   const privateExampleMode = useMemo(() => isPrivateExampleLedger(localLedger), [localLedger]);
@@ -342,10 +369,44 @@ export default function FolioHome() {
     () => buildLocalTimelineModel(localLedger, { privateExampleMode }),
     [localLedger, privateExampleMode],
   );
-  const calendarModel = useMemo(
-    () => buildLocalCalendarModel(localLedger, localRoute),
-    [localLedger, localRoute],
+  // Calendar (new three-view planner) derivations — the screen is presentation-only, so the container
+  // calls the Phase-1 calendarEvents engine and passes results down. The derived timeline, its day
+  // grouping, and the running spare-per-day (off the Route opening balance) all come from here.
+  const calendarEvents = useMemo(
+    () => deriveCalendarEvents(localLedger, localLedger.asOfDate),
+    [localLedger],
   );
+  const calendarGroups = useMemo(
+    () => groupCalendarEventsByDay(calendarEvents),
+    [calendarEvents],
+  );
+  const calendarSpare = useMemo(
+    () => computeSparePerDay(calendarEvents, localRoute.availableNowMinor),
+    [calendarEvents, localRoute.availableNowMinor],
+  );
+
+  // Which lever the Calendar's empty state should name. Payday is missing when no confirmed income
+  // event reads like pay; bills are missing when there are no active subscriptions AND no confirmed
+  // money-out lines; pots are missing when none exist. Read off the same records the engine uses.
+  const calendarMissingPayday = useMemo(
+    () =>
+      !localLedger.transactions.some(
+        (transaction) =>
+          transaction.status === 'confirmed' &&
+          transaction.amountMinor > 0 &&
+          /pay|wage|salary/i.test(transaction.title),
+      ),
+    [localLedger.transactions],
+  );
+  const calendarMissingBills = useMemo(
+    () =>
+      localLedger.subscriptions.every((subscription) => subscription.paused) &&
+      !localLedger.transactions.some(
+        (transaction) => transaction.status === 'confirmed' && transaction.amountMinor < 0,
+      ),
+    [localLedger.subscriptions, localLedger.transactions],
+  );
+  const calendarMissingPots = localLedger.pots.length === 0;
   const plansModel = useMemo(
     () => buildLocalPlansModel(localLedger, localRoute, { privateExampleMode }),
     [localLedger, localRoute, privateExampleMode],
@@ -801,6 +862,120 @@ export default function FolioHome() {
       AccessibilityInfo.announceForAccessibility(message);
     }
   }, [commitLocalLedger, userOwnedLedgerBase]);
+
+  // Calendar (three-view planner) -------------------------------------------------------------
+
+  // Add a manual money event from the add sheet, then close it. The sheet hands up a validated
+  // AddUserCalendarEventInput with INTEGER MINOR money; the write goes through the canonical path.
+  const handleAddCalendarEvent = useCallback(
+    (input: AddUserCalendarEventInput) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          addCalendarEventThroughCanonicalRepository(ledgerBase, input),
+          'Added to your calendar.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not add that event.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      } finally {
+        setCalendarAddVisible(false);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  // Move a manual event to a new ISO day (the row's -1d / +1d nudges pass the already-shifted date).
+  const handleUpdateCalendarEvent = useCallback(
+    (eventId: string, nextDateIso: string) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          updateCalendarEventThroughCanonicalRepository(ledgerBase, eventId, {
+            dateIso: nextDateIso,
+          }),
+          'Event moved on your calendar.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not move that event.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  const handleRemoveCalendarEvent = useCallback(
+    (eventId: string) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          removeCalendarEventThroughCanonicalRepository(ledgerBase, eventId),
+          'Event removed from your calendar.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not remove that event.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  // Sub renewal day-nudge from a calendar sub row. The store clamps to ±7d cumulatively; the engine
+  // re-derives the renewal date from subOverrides[name] on the next render so the marker moves.
+  const handleNudgeSub = useCallback(
+    (subName: string, deltaDays: number) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          nudgeSubThroughCanonicalRepository(ledgerBase, subName, deltaDays),
+          'Renewal day nudged locally.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not nudge that renewal.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
+  // Reset a sub's nudge — the web's resetSubOverrides(name). There is no dedicated clear mutator, so
+  // nudge by the negative of the current override to land it back on its usual day (delta 0).
+  const handleResetSub = useCallback(
+    (subName: string) => {
+      const current = localLedger.subOverrides[subName] ?? 0;
+      if (current === 0) return;
+      handleNudgeSub(subName, -current);
+    },
+    [handleNudgeSub, localLedger.subOverrides],
+  );
+
+  // Pause a sub from a calendar sub row. The calendar carries the sub NAME; the existing pause path
+  // takes the subscription id, so resolve name -> id off the subscriptions model first.
+  const handlePauseSubByName = useCallback(
+    (subName: string) => {
+      const match = subscriptionsModel.rows.find((row) => row.name === subName);
+      if (match === undefined) {
+        const message = `I couldn't find a subscription called “${subName}”.`;
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+        return;
+      }
+      handlePauseSubscription(match.id);
+    },
+    [handlePauseSubscription, subscriptionsModel.rows],
+  );
+
+  // Calendar -> Route: focus a day on the money path. Set the transient focus date and jump to Today;
+  // a 6s timer (effect below) clears it so the pulse fades.
+  const handleFocusOnRoute = useCallback((dateIso: string) => {
+    setRouteFocusDate(dateIso);
+    setCalendarFocusDate(null);
+    setScreen('today');
+  }, []);
 
   // Onboarding -------------------------------------------------------------------------------
 
@@ -1613,6 +1788,21 @@ export default function FolioHome() {
       return true;
     }
 
+    if (calendarAddVisible) {
+      setCalendarAddVisible(false);
+      return true;
+    }
+
+    if (calendarExportVisible) {
+      setCalendarExportVisible(false);
+      return true;
+    }
+
+    if (calendarConnectVisible) {
+      setCalendarConnectVisible(false);
+      return true;
+    }
+
     if (sourcesVisible) {
       setSourcesVisible(false);
       return true;
@@ -1633,7 +1823,16 @@ export default function FolioHome() {
     }
 
     return false;
-  }, [backFirstMinute, screen, sheetVisible, sourcesVisible, subCaughtVisible]);
+  }, [
+    backFirstMinute,
+    calendarAddVisible,
+    calendarConnectVisible,
+    calendarExportVisible,
+    screen,
+    sheetVisible,
+    sourcesVisible,
+    subCaughtVisible,
+  ]);
 
   // The four primary tabs are Today / Review (import) / Melo / More. Every other product screen is
   // reached under the More hub (or the cycle flows), so it lights the More tab.
@@ -1759,6 +1958,25 @@ export default function FolioHome() {
       setOnboardingVisible(true);
     }
   }, [ledgerHydrated, localRoute.confirmedTransactionCount, screen]);
+
+  // Calendar -> Route pulse is transient: once a focus date is set, clear it after ~6s so the
+  // vertical guide + date chip on the money path fade on their own (STATES.md "pulses … for ~6s").
+  useEffect(() => {
+    if (routeFocusDate === null) return;
+    const timer = setTimeout(() => setRouteFocusDate(null), 6000);
+    return () => clearTimeout(timer);
+  }, [routeFocusDate]);
+
+  // Route -> Calendar focus is one-shot: the Calendar screen reads calendarFocusDate on mount (its
+  // initial active view jumps to that day), so once we're on the calendar we clear it on the container
+  // side. That keeps a later plain open of the calendar from re-jumping to a stale day.
+  useEffect(() => {
+    if (screen === 'calendar' && calendarFocusDate !== null) {
+      const timer = setTimeout(() => setCalendarFocusDate(null), 0);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [screen, calendarFocusDate]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: t.canvas }]}>
@@ -1888,6 +2106,7 @@ export default function FolioHome() {
               recentSpends={todayRecentSpends}
               reduceMotion={reduceMotionEnabled}
               route={localRoute}
+              routeFocusDateIso={routeFocusDate ?? undefined}
               spareMinor={todaySpareMinor}
               thisWeekMinor={todayThisWeekMinor}
               tightPoint={todayTightPoint}
@@ -1959,14 +2178,27 @@ export default function FolioHome() {
           ) : null}
           {screen === 'calendar' ? (
             <CalendarScreen
-              calendar={calendarModel}
-              ledger={localLedger}
-              onAddCommitment={handleAddPlannedCommitment}
+              asOfDateIso={localLedger.asOfDate}
+              events={calendarEvents}
+              groups={calendarGroups}
+              spareByDay={calendarSpare.spareByDay}
+              tightestDateIso={calendarSpare.tightestDateIso}
+              tightestSpareMinor={calendarSpare.tightestSpareMinor}
+              subOverrides={localLedger.subOverrides}
+              missingPayday={calendarMissingPayday}
+              missingBills={calendarMissingBills}
+              missingPots={calendarMissingPots}
+              focusDateIso={calendarFocusDate ?? undefined}
               onBack={() => setScreen('more')}
-              onOpenImports={openImportReview}
-              onOpenMoney={() => setScreen('money')}
-              privateExampleMode={privateExampleMode}
-              route={localRoute}
+              onFocusOnRoute={handleFocusOnRoute}
+              onNudgeSub={handleNudgeSub}
+              onPauseSub={handlePauseSubByName}
+              onResetSub={handleResetSub}
+              onUpdateEvent={handleUpdateCalendarEvent}
+              onRemoveEvent={handleRemoveCalendarEvent}
+              onAddEvent={() => setCalendarAddVisible(true)}
+              onExport={() => setCalendarExportVisible(true)}
+              onConnect={() => setCalendarConnectVisible(true)}
             />
           ) : null}
           {screen === 'plans' ? (
@@ -2280,6 +2512,24 @@ export default function FolioHome() {
         visible={subCaughtVisible}
         onClose={() => setSubCaughtVisible(false)}
         onConfirm={handleConfirmRecurringCharge}
+      />
+      <CalendarAddEventSheet
+        reduceMotion={reduceMotionEnabled}
+        visible={calendarAddVisible}
+        onAdd={handleAddCalendarEvent}
+        onClose={() => setCalendarAddVisible(false)}
+      />
+      <CalendarExportSheet
+        events={calendarEvents}
+        reduceMotion={reduceMotionEnabled}
+        visible={calendarExportVisible}
+        onClose={() => setCalendarExportVisible(false)}
+      />
+      <CalendarConnectSheet
+        events={calendarEvents}
+        reduceMotion={reduceMotionEnabled}
+        visible={calendarConnectVisible}
+        onClose={() => setCalendarConnectVisible(false)}
       />
       <AppLockOverlay
         message={unlockMessage}

@@ -34,10 +34,11 @@ const localTimelineAdapterPath = fileURLToPath(
   new URL('./localTimelineAdapter.ts', import.meta.url).href,
 );
 const localTimelineAdapterSource = readFileSync(localTimelineAdapterPath, 'utf8');
-const localCalendarAdapterPath = fileURLToPath(
-  new URL('./localCalendarAdapter.ts', import.meta.url).href,
-);
-const localCalendarAdapterSource = readFileSync(localCalendarAdapterPath, 'utf8');
+// The Calendar surface was rebuilt onto the calendarEvents engine (deriveCalendarEvents /
+// computeSparePerDay) and the three-view planner screen; the older buildLocalCalendarModel adapter is
+// no longer wired into the container. The truth test now asserts the calendarEvents engine contract.
+const calendarEventsPath = fileURLToPath(new URL('./calendarEvents.ts', import.meta.url).href);
+const calendarEventsSource = readFileSync(calendarEventsPath, 'utf8');
 const localPlansAdapterPath = fileURLToPath(
   new URL('./localPlansAdapter.ts', import.meta.url).href,
 );
@@ -342,15 +343,28 @@ describe('mobile product route surface truth guard', () => {
     expect(localTimelineAdapterSource).toContain('canonical.meloProposals');
   });
 
-  it('routes Calendar through canonical calendar items and the calendar engine', () => {
-    expect(liveMobileSurfaceSource).toContain('buildLocalCalendarModel');
-    expect(mobileShellSource).toContain('filterLocalCalendarEventsForDate');
-    expect(appRouteSource).toContain('calendar={calendarModel}');
-    expect(liveMobileSurfaceSource).not.toContain('function buildCalendarTimelineEvents');
-    expect(localCalendarAdapterSource).toContain("from '@folio/calendar-engine'");
-    expect(localCalendarAdapterSource).toContain('createCanonicalRepositoryForLocalLedgerState');
-    expect(localCalendarAdapterSource).toContain('canonical.calendarItems');
-    expect(localCalendarAdapterSource).toContain('localDateTimeToUtc');
+  it('routes Calendar through the calendarEvents engine and the three-view planner', () => {
+    // The container derives the timeline from the real ledger via the calendarEvents engine, then
+    // passes it down to the presentation-only CalendarScreen — it never re-derives in the screen.
+    expect(appRouteSource).toContain('deriveCalendarEvents(localLedger, localLedger.asOfDate)');
+    expect(appRouteSource).toContain('groupCalendarEventsByDay(calendarEvents)');
+    expect(appRouteSource).toContain(
+      'computeSparePerDay(calendarEvents, localRoute.availableNowMinor)',
+    );
+    expect(appRouteSource).toContain('<CalendarScreen');
+    expect(appRouteSource).toContain('events={calendarEvents}');
+    // Per-event actions + the Route<->Calendar bridges are wired to real mutators / focus state.
+    expect(appRouteSource).toContain('onNudgeSub={handleNudgeSub}');
+    expect(appRouteSource).toContain('onFocusOnRoute={handleFocusOnRoute}');
+    expect(appRouteSource).toContain('routeFocusDateIso={routeFocusDate ?? undefined}');
+    // The engine derives money events from REAL records (recurrence expansion), never a static seed:
+    // it filters confirmed transactions and folds them through the same expansion the Route uses.
+    expect(calendarEventsSource).toContain('expandRecurringTransactions');
+    expect(calendarEventsSource).toContain("transaction.status === 'confirmed'");
+    expect(calendarEventsSource).toContain('export function deriveCalendarEvents');
+    expect(calendarEventsSource).toContain('export function computeSparePerDay');
+    // No hardcoded bill array is declared in the engine (the web's static seed was not ported).
+    expect(calendarEventsSource).not.toContain('const RECURRING_BILLS');
   });
 
   it('keeps Plans available from More through repository-backed plan objects', () => {

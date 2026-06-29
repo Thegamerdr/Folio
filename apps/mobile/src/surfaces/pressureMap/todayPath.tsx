@@ -87,6 +87,7 @@ export function TodayScreen({
   nextCharge,
   tightPoint,
   reduceMotion,
+  routeFocusDateIso,
   onOpenMelo,
   onOpenPayday,
   onChangeBand,
@@ -185,6 +186,7 @@ export function TodayScreen({
       {/* The money path — the screen's hero object, here in its interactive form. */}
       <MoneyPath
         band={band}
+        focusDateIso={routeFocusDateIso}
         onChangeBand={onChangeBand}
         onScrub={setScrubFraction}
         onSelectPoint={setSelectedPoint}
@@ -402,6 +404,9 @@ export type TodayScreenProps = {
   nextCharge?: TodayNextCharge | undefined;
   tightPoint: TodayTightPoint;
   reduceMotion?: boolean | undefined;
+  /** Calendar -> Route bridge: an ISO day to pulse on the money path (transient; container clears it
+   *  after ~6s). Forwarded to MoneyPath; undefined when nothing is focused. */
+  routeFocusDateIso?: string | undefined;
   onOpenMelo: () => void;
   onOpenPayday: () => void;
   onChangeBand: (band: TodayPathBand) => void;

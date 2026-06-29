@@ -185,6 +185,7 @@ export function MoneyPath({
   summary,
   scrubPreviewMinor,
   onScrub,
+  focusDateIso,
 }: {
   route: LocalRouteSummary;
   selectedIndex: number | null;
@@ -201,6 +202,9 @@ export function MoneyPath({
   scrubPreviewMinor?: number | undefined;
   /** Called with a 0..1 fraction across the plotted range as the user drags the scrub thumb. */
   onScrub?: ((fraction: number) => void) | undefined;
+  /** Calendar -> Route bridge: an ISO day to pulse on the path. When set, the node at (or nearest
+   *  before) that date gets a vertical guide + a date chip. The container clears it after ~6s. */
+  focusDateIso?: string | undefined;
 }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
@@ -216,6 +220,18 @@ export function MoneyPath({
   const lowest = layout.nodes.find((n) => n.isLowest);
   const today = layout.nodes.find((n) => n.isToday);
   const payday = layout.nodes.find((n) => n.isPayday);
+
+  // Calendar -> Route focus: the node on (or nearest on/before) the requested ISO day. A calendar day
+  // need not land exactly on a route point, so we snap to the last point at/before it (else the first).
+  const focusNode = useMemo(() => {
+    if (!focusDateIso || layout.nodes.length === 0) return null;
+    let chosen = layout.nodes[0]!;
+    for (const node of layout.nodes) {
+      if (node.point.date <= focusDateIso) chosen = node;
+      else break;
+    }
+    return chosen;
+  }, [focusDateIso, layout.nodes]);
 
   const interactive = onScrub !== undefined;
   const [scrub, setScrub] = useState(0); // 0..1 across the plotted range
@@ -375,6 +391,38 @@ export function MoneyPath({
                   />
                   <Circle cx={thumbX} cy={plot.top - 24} r={6} fill={t.calm} />
                   <Circle cx={thumbX} cy={plot.top - 24} r={3} fill={t.inverse} />
+                </>
+              ) : null}
+
+              {/* Calendar -> Route focus marker: a vertical guide + ringed node + date chip at the
+                  day the user asked to see. Drawn last so it sits above the path; the container
+                  clears focusDateIso after ~6s so the pulse is transient. */}
+              {focusNode ? (
+                <>
+                  <Line
+                    x1={focusNode.x}
+                    y1={plot.top - 18}
+                    x2={focusNode.x}
+                    y2={plot.bottom + 6}
+                    stroke={t.calmStrong}
+                    strokeWidth={1.4}
+                    strokeDasharray="2 3"
+                  />
+                  <Circle
+                    cx={focusNode.x}
+                    cy={focusNode.y}
+                    r={9}
+                    fill="none"
+                    stroke={t.calmStrong}
+                    strokeWidth={2}
+                  />
+                  <CalloutBox
+                    cx={focusNode.x}
+                    topY={focusNode.y - 14}
+                    label={focusDayLabel(focusNode.point.date)}
+                    plotWidth={width}
+                    t={t}
+                  />
                 </>
               ) : null}
             </Svg>
@@ -542,6 +590,19 @@ function routeAccessibilityLabel(route: LocalRouteSummary, meaningful: boolean):
       ? ` ${route.pendingReviewCount} ${route.pendingReviewCount === 1 ? 'thing is' : 'things are'} still to check.`
       : '';
   return `Your money path to payday. ${lowest}${waiting}`;
+}
+
+// "Mon 14 Jul" chip label for the Calendar -> Route focus marker. Local-time parse so it agrees with
+// the ISO day the calendar passed (no UTC drift across the chip).
+function focusDayLabel(iso: string): string {
+  const parts = iso.split('-').map(Number);
+  const d = new Date(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1);
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] ?? '';
+  const mon = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ][d.getMonth()] ?? '';
+  return `${wd} ${d.getDate()} ${mon}`;
 }
 
 function RouteEmpty() {

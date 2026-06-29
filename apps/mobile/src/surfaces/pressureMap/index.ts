@@ -14,7 +14,17 @@ export { DataControlScreen } from './trustControl';
 export { MoreScreen } from './moreHub';
 export { TimelineScreen } from './timeline';
 export { PlansScreen } from './plans';
-export { CalendarScreen } from './calendarMonth';
+// Calendar — the new three-view planner (Month/Week/Agenda over one derived timeline). Replaces the
+// older calendarMonth read surface; the container drives it from the Phase-1 calendarEvents engine.
+export { CalendarScreen } from './calendar';
+export type { CalendarScreenProps, CalendarDayGroup, CalendarSparePerDay } from './calendar';
+// The calendar bottom-sheets (add / export / connect).
+export { CalendarAddEventSheet } from './sheets/calendarAddEvent';
+export type { CalendarAddEventSheetProps } from './sheets/calendarAddEvent';
+export { CalendarExportSheet } from './sheets/calendarExport';
+export type { CalendarExportSheetProps } from './sheets/calendarExport';
+export { CalendarConnectSheet } from './sheets/calendarConnect';
+export type { CalendarConnectSheetProps } from './sheets/calendarConnect';
 export { MeloScreen } from './meloCompanion';
 export { BottomNav } from './kit';
 
