@@ -17,7 +17,15 @@ const documentImportSource = readFileSync(documentImportPath, 'utf8');
 const nativeLedgerStorePath = fileURLToPath(
   new URL('./nativeLedgerStore.ts', import.meta.url).href,
 );
-const nativeLedgerStoreSource = readFileSync(nativeLedgerStorePath, 'utf8');
+// The pure snapshot-blob parser (the `corrupt` distinction) was extracted into its own native-free
+// module so it is unit-testable; the persistence corruption contract now spans both files.
+const nativeLedgerSnapshotBlobPath = fileURLToPath(
+  new URL('./nativeLedgerSnapshotBlob.ts', import.meta.url).href,
+);
+const nativeLedgerStoreSource =
+  readFileSync(nativeLedgerStorePath, 'utf8') +
+  '\n' +
+  readFileSync(nativeLedgerSnapshotBlobPath, 'utf8');
 const localTodayAdapterPath = fileURLToPath(
   new URL('./localTodayAdapter.ts', import.meta.url).href,
 );

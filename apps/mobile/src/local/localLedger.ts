@@ -164,9 +164,56 @@ export const LOCAL_HISTORY_KINDS = [
   'cycle_closed',
   'tight_point_goal_set',
   'cash_on_hand_set',
+  'sub_nudged',
+  'calendar_event_added',
+  'calendar_event_removed',
+  'calendar_event_updated',
 ] as const;
 
 export type LocalHistoryKind = (typeof LOCAL_HISTORY_KINDS)[number];
+
+// A user-ADDED calendar event. Derived events (payday, bills, sub renewals, deadlines, review
+// drafts) are computed on read by deriveCalendarEvents() in calendarEvents.ts and are NEVER stored
+// here. This array only holds events the user typed into the Calendar themselves.
+//
+// Named UserCalendarEvent (not LocalCalendarEvent) deliberately: localCalendarAdapter.ts already
+// exports a `LocalCalendarEvent` for the agenda READ surface (a fully-laid-out row). Reusing that
+// name on the ledger would collide. This is the durable input shape; that one is the derived output
+// shape.
+export type UserCalendarEventKind = 'in' | 'out' | 'review' | 'deadline' | 'manual';
+
+export type UserCalendarEvent = Readonly<{
+  id: string;
+  // ISO date (YYYY-MM-DD).
+  dateIso: string;
+  title: string;
+  kind: UserCalendarEventKind;
+  // Signed integer minor units (pence). Positive = money in, negative = money out, absent =
+  // informational. Stored exactly as given, never re-derived from text.
+  amountMinor?: number;
+  note?: string;
+  // When set, this event repeats; the read engine expands it over the window.
+  recurring?: 'monthly' | 'yearly';
+}>;
+
+export type AddUserCalendarEventInput = Readonly<{
+  id?: string;
+  dateIso: string;
+  title: string;
+  kind: UserCalendarEventKind;
+  amountMinor?: number;
+  note?: string;
+  recurring?: 'monthly' | 'yearly';
+}>;
+
+// The most user-added calendar events Folio keeps. Newest first; older ones fall off the end. A cap
+// keeps the durable snapshot bounded — the Calendar is a planner, not an unbounded event log.
+export const MAX_USER_CALENDAR_EVENTS = 100;
+
+// The widest day-delta a single sub renewal can be nudged in either direction. A renewal is a real
+// recurring charge; the user can slide it a few days to dodge a tight day, but not relocate it
+// arbitrarily. Clamped to keep the derived picture honest.
+export const MAX_SUB_OVERRIDE_DAYS = 7;
 
 export type LocalHistoryEntry = Readonly<{
   id: string;
@@ -195,6 +242,14 @@ export type LocalLedgerState = Readonly<{
   pots: readonly Pot[];
   subscriptions: readonly Subscription[];
   cycles: readonly CycleRecord[];
+  // Per-subscription day-delta nudge keyed by sub NAME (e.g. { "Netflix": 3 } slides Netflix's next
+  // renewal 3 days later when deriving calendar events). Clamped to ±MAX_SUB_OVERRIDE_DAYS. A name
+  // with delta 0 is removed (the default is "no nudge"). Durable: round-trips through the snapshot
+  // blob like pots/subscriptions/cycles, not the normalized relational tables.
+  subOverrides: Readonly<Record<string, number>>;
+  // User-ADDED calendar events only. Derived events are computed on read, never stored. Newest
+  // first, capped at MAX_USER_CALENDAR_EVENTS. Durable: same snapshot-blob round-trip as above.
+  calendarEvents: readonly UserCalendarEvent[];
   lastImportSummary?: LocalImportSummary;
 }>;
 
@@ -575,6 +630,8 @@ export function createInitialLocalLedgerState(asOfDate = seedAsOfDate): LocalLed
     pots: [],
     subscriptions: [],
     cycles: [],
+    subOverrides: {},
+    calendarEvents: [],
   };
 }
 
@@ -593,6 +650,8 @@ export function createEmptyLocalLedgerState(asOfDate = seedAsOfDate): LocalLedge
     pots: [],
     subscriptions: [],
     cycles: [],
+    subOverrides: {},
+    calendarEvents: [],
   };
 }
 
@@ -654,6 +713,8 @@ export function createQuickEstimateLocalLedgerState(
     pots: [],
     subscriptions: [],
     cycles: [],
+    subOverrides: {},
+    calendarEvents: [],
   };
 }
 
@@ -704,7 +765,9 @@ export function isPrivateExampleLedger(state: LocalLedgerState): boolean {
 // including a salary or rent after that single dated point — the tightest point past the first
 // payday was wrong. 95 days covers three monthly cycles (and ~13 weekly cycles), i.e. more than one
 // full cycle beyond the next payday, which is what the route needs to find the real tightest point.
-const RECURRENCE_HORIZON_DAYS = 95;
+// Exported so the Calendar engine (calendarEvents.ts) derives payday/bills over the SAME horizon and
+// the SAME recurrence expansion the Route uses — the two pictures must agree to the day.
+export const RECURRENCE_HORIZON_DAYS = 95;
 
 const REPEAT_TO_RRULE: Readonly<Record<Exclude<LocalCommitmentRepeat, 'none'>, string>> = {
   weekly: 'FREQ=WEEKLY;INTERVAL=1',
@@ -721,7 +784,7 @@ const REPEAT_TO_RRULE: Readonly<Record<Exclude<LocalCommitmentRepeat, 'none'>, s
 // produced with the same integer-minor amount, so no occurrence is double-counted. Synthetic
 // occurrences are non-protected projections (an expected future event, not a reserved-today bill) so
 // they move the running balance on their own date rather than being pulled forward to today.
-function expandRecurringTransactions(
+export function expandRecurringTransactions(
   transactions: readonly LocalLedgerTransaction[],
   asOfDate: string,
 ): readonly LocalLedgerTransaction[] {
@@ -1572,6 +1635,189 @@ export function addCycle(
     { ...state, cycles: [record, ...state.cycles] },
     'cycle_closed',
     `${label} closed with ${formatMinorAmount(spareMinor)} spare.`,
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Subscription renewal nudges + user-added calendar events
+// ---------------------------------------------------------------------------------------------
+
+function clampSubOverrideDays(deltaDays: number): number {
+  if (!Number.isFinite(deltaDays)) return 0;
+  const rounded = Math.round(deltaDays);
+  if (rounded > MAX_SUB_OVERRIDE_DAYS) return MAX_SUB_OVERRIDE_DAYS;
+  if (rounded < -MAX_SUB_OVERRIDE_DAYS) return -MAX_SUB_OVERRIDE_DAYS;
+  return rounded;
+}
+
+// Slide a subscription's next renewal by a day delta, keyed by sub NAME (the Calendar offers
+// −3d/−1d/+1d/+3d on a sub row). The delta is the ABSOLUTE override, clamped to ±MAX_SUB_OVERRIDE_DAYS
+// — not additive — so repeated taps converge instead of drifting past the clamp. A delta that clamps
+// to 0 removes the override entirely (back to "no nudge"). The override is applied in
+// deriveCalendarEvents when computing the renewal day; the stored Subscription is never mutated.
+export function nudgeSub(
+  state: LocalLedgerState,
+  subName: string,
+  deltaDays: number,
+): LocalLedgerState {
+  const name = subName.trim();
+  if (name.length === 0) return state;
+  const clamped = clampSubOverrideDays(deltaDays);
+  const current = state.subOverrides[name] ?? 0;
+  if (clamped === current) return state;
+
+  if (clamped === 0) {
+    if (!(name in state.subOverrides)) return state;
+    const nextOverrides: Record<string, number> = {};
+    for (const key of Object.keys(state.subOverrides)) {
+      if (key === name) continue;
+      const value = state.subOverrides[key];
+      if (value !== undefined) nextOverrides[key] = value;
+    }
+    return prependHistory(
+      { ...state, subOverrides: nextOverrides },
+      'sub_nudged',
+      `${name} renewal moved back to its usual day.`,
+    );
+  }
+
+  return prependHistory(
+    { ...state, subOverrides: { ...state.subOverrides, [name]: clamped } },
+    'sub_nudged',
+    `${name} renewal nudged ${clamped > 0 ? '+' : ''}${clamped}d.`,
+  );
+}
+
+function cleanOptionalNote(note: string | undefined): string | undefined {
+  if (note === undefined) return undefined;
+  const cleaned = note.trim().replace(/\s+/g, ' ');
+  return cleaned.length === 0 ? undefined : cleaned;
+}
+
+function assertSafeIntegerMinorOrUndefined(
+  amountMinor: number | undefined,
+  label: string,
+): number | undefined {
+  if (amountMinor === undefined) return undefined;
+  if (!Number.isSafeInteger(amountMinor)) {
+    throw new Error(`${label} must be a whole amount in pence.`);
+  }
+  return amountMinor;
+}
+
+// Add one event the user typed into the Calendar. This is reference/planner data — it surfaces on
+// the Calendar timeline but is NOT a posted transaction, so it never moves Today's available figure
+// on its own. Kept newest-first and capped at MAX_USER_CALENDAR_EVENTS.
+export function addCalendarEvent(
+  state: LocalLedgerState,
+  input: AddUserCalendarEventInput,
+): LocalLedgerState {
+  const dateIso = parseRequiredIsoDateInput(input.dateIso);
+  const title = cleanTitle(input.title, 'Calendar note');
+  const amountMinor = assertSafeIntegerMinorOrUndefined(input.amountMinor, 'Calendar amount');
+  const note = cleanOptionalNote(input.note);
+  const event: UserCalendarEvent = {
+    id: input.id ?? localId('calendar_event', state.calendarEvents.length + state.history.length),
+    dateIso,
+    title,
+    kind: input.kind,
+    ...(amountMinor === undefined ? {} : { amountMinor }),
+    ...(note === undefined ? {} : { note }),
+    ...(input.recurring === undefined ? {} : { recurring: input.recurring }),
+  };
+
+  return prependHistory(
+    {
+      ...state,
+      calendarEvents: [event, ...state.calendarEvents].slice(0, MAX_USER_CALENDAR_EVENTS),
+    },
+    'calendar_event_added',
+    `${title} added to your calendar for ${dateIso}.`,
+  );
+}
+
+export function removeCalendarEvent(state: LocalLedgerState, id: string): LocalLedgerState {
+  const target = state.calendarEvents.find((event) => event.id === id);
+  if (target === undefined) return state;
+  return prependHistory(
+    {
+      ...state,
+      calendarEvents: state.calendarEvents.filter((event) => event.id !== id),
+    },
+    'calendar_event_removed',
+    `${target.title} removed from your calendar.`,
+  );
+}
+
+export type UpdateUserCalendarEventPatch = Readonly<{
+  dateIso?: string;
+  title?: string;
+  kind?: UserCalendarEventKind;
+  amountMinor?: number | null;
+  note?: string | null;
+  recurring?: 'monthly' | 'yearly' | null;
+}>;
+
+// Patch a user-added event (a date nudge from the Calendar's −1d/+1d, or an edit). Only provided
+// fields change. Passing null for amountMinor / note / recurring CLEARS that optional field; omitting
+// it leaves it as-is. No-ops cleanly if the id is unknown.
+export function updateCalendarEvent(
+  state: LocalLedgerState,
+  id: string,
+  patch: UpdateUserCalendarEventPatch,
+): LocalLedgerState {
+  const target = state.calendarEvents.find((event) => event.id === id);
+  if (target === undefined) return state;
+
+  const nextDateIso =
+    patch.dateIso === undefined ? target.dateIso : parseRequiredIsoDateInput(patch.dateIso);
+  const nextTitle = patch.title === undefined ? target.title : cleanTitle(patch.title, target.title);
+  const nextKind = patch.kind ?? target.kind;
+
+  let nextAmountMinor: number | undefined;
+  if (patch.amountMinor === undefined) {
+    nextAmountMinor = target.amountMinor;
+  } else if (patch.amountMinor === null) {
+    nextAmountMinor = undefined;
+  } else {
+    nextAmountMinor = assertSafeIntegerMinorOrUndefined(patch.amountMinor, 'Calendar amount');
+  }
+
+  let nextNote: string | undefined;
+  if (patch.note === undefined) {
+    nextNote = target.note;
+  } else if (patch.note === null) {
+    nextNote = undefined;
+  } else {
+    nextNote = cleanOptionalNote(patch.note);
+  }
+
+  let nextRecurring: 'monthly' | 'yearly' | undefined;
+  if (patch.recurring === undefined) {
+    nextRecurring = target.recurring;
+  } else if (patch.recurring === null) {
+    nextRecurring = undefined;
+  } else {
+    nextRecurring = patch.recurring;
+  }
+
+  const updated: UserCalendarEvent = {
+    id: target.id,
+    dateIso: nextDateIso,
+    title: nextTitle,
+    kind: nextKind,
+    ...(nextAmountMinor === undefined ? {} : { amountMinor: nextAmountMinor }),
+    ...(nextNote === undefined ? {} : { note: nextNote }),
+    ...(nextRecurring === undefined ? {} : { recurring: nextRecurring }),
+  };
+
+  return prependHistory(
+    {
+      ...state,
+      calendarEvents: state.calendarEvents.map((event) => (event.id === id ? updated : event)),
+    },
+    'calendar_event_updated',
+    `${updated.title} updated.`,
   );
 }
 
@@ -2797,13 +3043,13 @@ function parseRequiredIsoDateInput(value: string): string {
   return parsed.toISOString().slice(0, 10);
 }
 
-function addIsoDays(date: string, days: number): string {
+export function addIsoDays(date: string, days: number): string {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   parsed.setUTCDate(parsed.getUTCDate() + days);
   return parsed.toISOString().slice(0, 10);
 }
 
-function isoDayDistance(fromDate: string, toDate: string): number {
+export function isoDayDistance(fromDate: string, toDate: string): number {
   return Math.round(
     (Date.parse(`${toDate}T00:00:00.000Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) /
       millisecondsPerDay,

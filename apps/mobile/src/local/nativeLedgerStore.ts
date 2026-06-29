@@ -18,6 +18,20 @@ import { createCanonicalMobileLedgerSnapshot } from './canonicalLedgerAdapter';
 import { createCanonicalRepositoryForMobileSnapshot } from './canonicalLedgerRepository';
 import { createLocalLedgerDataVersion, localLedgerWorkspaceId } from './localLedgerVault';
 import {
+  EMPTY_DURABLE_CONTAINERS,
+  isPlainRecord,
+  parseDurableContainersBlob,
+  sanitizeSubOverrides,
+  type DurableContainers,
+} from './nativeLedgerSnapshotBlob';
+
+// Re-export the pure blob helpers so existing import sites (and tests) keep their entry point.
+export {
+  parseDurableContainersBlob,
+  type DurableContainers,
+  type DurableContainersLoad,
+} from './nativeLedgerSnapshotBlob';
+import {
   getLastLocalDatabaseKeyState,
   resolveLocalLedgerEncryptionKey,
 } from './nativeLocalSecurity';
@@ -514,66 +528,12 @@ async function loadNormalizedLedgerState(
     pots: durableContainers.pots,
     subscriptions: durableContainers.subscriptions,
     cycles: durableContainers.cycles,
+    subOverrides: durableContainers.subOverrides,
+    calendarEvents: durableContainers.calendarEvents,
     ...(lastImportSummary === undefined ? {} : { lastImportSummary }),
   };
 
   return isLocalLedgerState(state) ? state : null;
-}
-
-type DurableContainers = Readonly<{
-  pots: LocalLedgerState['pots'];
-  subscriptions: LocalLedgerState['subscriptions'];
-  cycles: LocalLedgerState['cycles'];
-}>;
-
-const EMPTY_DURABLE_CONTAINERS: DurableContainers = {
-  pots: [],
-  subscriptions: [],
-  cycles: [],
-};
-
-// FIX 3: pots / subscriptions / cycles live ONLY in the JSON snapshot blob (the relational tables
-// do not model them). If that blob is corrupt — JSON.parse throws, or it is not a record — the old
-// code returned the empty default through a bare catch and the loss was completely silent and
-// unrecoverable. Here the parse is a pure, testable step that distinguishes "legitimately empty"
-// (no blob yet) from "corrupt" (a blob that failed to read), so the caller can surface the corruption
-// as a detectable signal instead of swallowing it.
-export type DurableContainersLoad = Readonly<{
-  containers: DurableContainers;
-  corrupt: boolean;
-}>;
-
-export function parseDurableContainersBlob(rawJson: string | undefined): DurableContainersLoad {
-  // No blob persisted yet is a legitimately empty picture, not corruption.
-  if (typeof rawJson !== 'string') {
-    return { containers: EMPTY_DURABLE_CONTAINERS, corrupt: false };
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(rawJson);
-  } catch {
-    return { containers: EMPTY_DURABLE_CONTAINERS, corrupt: true };
-  }
-  if (!isRecord(parsed)) {
-    return { containers: EMPTY_DURABLE_CONTAINERS, corrupt: true };
-  }
-  // A container key that is PRESENT but not an array is malformed data, not a legitimately empty
-  // picture — flag it as corrupt so the loss is surfaced (a warning) rather than silently coerced
-  // to []. Absent keys are fine (an older blob simply had no pots/subscriptions/cycles yet).
-  const malformed =
-    ('pots' in parsed && !Array.isArray(parsed.pots)) ||
-    ('subscriptions' in parsed && !Array.isArray(parsed.subscriptions)) ||
-    ('cycles' in parsed && !Array.isArray(parsed.cycles));
-  return {
-    containers: {
-      pots: Array.isArray(parsed.pots) ? (parsed.pots as LocalLedgerState['pots']) : [],
-      subscriptions: Array.isArray(parsed.subscriptions)
-        ? (parsed.subscriptions as LocalLedgerState['subscriptions'])
-        : [],
-      cycles: Array.isArray(parsed.cycles) ? (parsed.cycles as LocalLedgerState['cycles']) : [],
-    },
-    corrupt: malformed,
-  };
 }
 
 async function loadDurableContainersFromSnapshot(
@@ -1102,6 +1062,10 @@ function isLocalLedgerState(value: unknown): value is LocalLedgerState {
     (value.pots === undefined || Array.isArray(value.pots)) &&
     (value.subscriptions === undefined || Array.isArray(value.subscriptions)) &&
     (value.cycles === undefined || Array.isArray(value.cycles)) &&
+    // subOverrides (plain object) + calendarEvents (array) are also optional on disk — older blobs
+    // predate the Calendar engine, so absent is fine; normalizeLocalLedgerState defaults them.
+    (value.subOverrides === undefined || isPlainRecord(value.subOverrides)) &&
+    (value.calendarEvents === undefined || Array.isArray(value.calendarEvents)) &&
     Array.isArray(value.history)
   );
 }
@@ -1120,5 +1084,9 @@ function normalizeLocalLedgerState(state: LocalLedgerState): LocalLedgerState {
     pots: Array.isArray(state.pots) ? state.pots : [],
     subscriptions: Array.isArray(state.subscriptions) ? state.subscriptions : [],
     cycles: Array.isArray(state.cycles) ? state.cycles : [],
+    subOverrides: isPlainRecord(state.subOverrides)
+      ? sanitizeSubOverrides(state.subOverrides)
+      : {},
+    calendarEvents: Array.isArray(state.calendarEvents) ? state.calendarEvents : [],
   };
 }

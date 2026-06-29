@@ -1,4 +1,5 @@
 import {
+  addCalendarEvent,
   addCycle,
   addManualTransaction,
   addPlannedCommitment,
@@ -14,9 +15,11 @@ import {
   createQuickEstimateLocalLedgerState,
   dismissImportDraft,
   editImportDraft,
+  nudgeSub,
   pauseSubscription,
   reallocateBetweenPots,
   recordSubscriptionUse,
+  removeCalendarEvent,
   removeDocumentStage,
   removeTransaction,
   restoreRejectedImportForReview,
@@ -26,6 +29,8 @@ import {
   stageDocumentForManualReview,
   stageStatementImport,
   stageStatementTransactions,
+  updateCalendarEvent,
+  type AddUserCalendarEventInput,
   type CreateCycleRecordInput,
   type CreatePotInput,
   type CreateSubscriptionInput,
@@ -41,6 +46,7 @@ import {
   type ManualTransactionInput,
   type QuickEstimateInput,
   type StageStatementImportResult,
+  type UpdateUserCalendarEventPatch,
 } from './localLedger.js';
 import { createCanonicalRepositoryForLocalLedgerState } from './canonicalLedgerRepository.js';
 
@@ -252,6 +258,14 @@ export function bulkPauseQuietThroughCanonicalRepository(
   return assertCanonicalRepositoryState(bulkPauseQuiet(state));
 }
 
+export function nudgeSubThroughCanonicalRepository(
+  state: LocalLedgerState,
+  subName: string,
+  deltaDays: number,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(nudgeSub(state, subName, deltaDays));
+}
+
 // Cycles ------------------------------------------------------------------------------------
 
 export function addCycleThroughCanonicalRepository(
@@ -259,6 +273,30 @@ export function addCycleThroughCanonicalRepository(
   input: CreateCycleRecordInput,
 ): LocalLedgerState {
   return assertCanonicalRepositoryState(addCycle(state, input));
+}
+
+// User-added calendar events ----------------------------------------------------------------
+
+export function addCalendarEventThroughCanonicalRepository(
+  state: LocalLedgerState,
+  input: AddUserCalendarEventInput,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(addCalendarEvent(state, input));
+}
+
+export function removeCalendarEventThroughCanonicalRepository(
+  state: LocalLedgerState,
+  id: string,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(removeCalendarEvent(state, id));
+}
+
+export function updateCalendarEventThroughCanonicalRepository(
+  state: LocalLedgerState,
+  id: string,
+  patch: UpdateUserCalendarEventPatch,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(updateCalendarEvent(state, id, patch));
 }
 
 function assertCanonicalRepositoryState(state: LocalLedgerState): LocalLedgerState {
