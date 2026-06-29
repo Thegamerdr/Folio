@@ -169,6 +169,8 @@ export function FolioShell() {
   // frame (Start is reachable but is not a tab). One screen, one optional sheet.
   const [screen, setScreen] = useState<ScreenId>('today');
   const [sheet, setSheet] = useState<SheetId>(null);
+  // Carried into the melo-chat sheet when a flow opens Melo with a prefill/seed (web intent.*).
+  const [meloIntent, setMeloIntent] = useState<MeloIntent | undefined>(undefined);
   const reduceMotion = useReducedMotion();
 
   // The onboarding gate reads the live store flag (faithful to the web index, which reads
@@ -179,6 +181,7 @@ export function FolioShell() {
   // to the web setScreen, which clears the sheet before navigating.
   const go = useCallback((next: ScreenId) => {
     setSheet(null);
+    setMeloIntent(undefined);
     setScreen(next);
   }, []);
 
@@ -195,16 +198,16 @@ export function FolioShell() {
 
   const closeSheet = useCallback(() => {
     setSheet(null);
+    setMeloIntent(undefined);
   }, []);
 
-  // Melo is both a screen and a sheet on the web. Until the Melo flow is ported wave-by-wave, the
-  // shell's openMelo simply routes to the Melo screen (carrying no fabricated seed/prefill).
-  const openMelo = useCallback(
-    (_opts?: MeloIntent) => {
-      go('melo');
-    },
-    [go],
-  );
+  // Open the Melo companion CHAT sheet, carrying any prefill/seed the flow provided (web intent).
+  // The Melo mood SCREEN is a separate surface reached via go('melo'); openMelo is the chat — the
+  // surface wired to the live gateway (sendMeloChat). Every "Ask Melo" CTA lands here.
+  const openMelo = useCallback((opts?: MeloIntent) => {
+    setMeloIntent(opts);
+    setSheet('melo-chat');
+  }, []);
 
   // The single Nav contract handed to every ported screen (RN mirror of the web Nav). Memoised so a
   // child holding it as a dep doesn't churn; its members are themselves stable callbacks.
@@ -271,10 +274,10 @@ export function FolioShell() {
       )}
       {/* Melo-chat — the companion sheet. Self-hosting like RouteDetailSheet: it needs the shell's nav
           (its replies bridge to screens) and the shell's pressure default (the RN Nav contract carries
-          no `.pressure`, so the shell threads it alongside). No per-sheet intent is tracked, so the
-          prefilled-draft seed is left undefined. */}
+          no `.pressure`, so the shell threads it alongside). The shell threads the openMelo intent
+          (prefill/seed) so an "Ask Melo" CTA opens the chat with its draft. */}
       {sheet === 'melo-chat' && (
-        <MeloChatSheet visible onClose={closeSheet} nav={nav} pressure={DEFAULT_PRESSURE} />
+        <MeloChatSheet visible onClose={closeSheet} nav={nav} pressure={DEFAULT_PRESSURE} intent={meloIntent} />
       )}
       {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
       {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}

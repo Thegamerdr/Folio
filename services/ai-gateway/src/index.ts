@@ -29,7 +29,7 @@ export interface Env {
 }
 
 const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
-const DEFAULT_MODEL = 'google/gemini-2.0-flash-001';
+const DEFAULT_MODEL = 'google/gemini-2.5-flash';
 
 // Headers OpenRouter recommends so traffic is attributable to this app.
 const OPENROUTER_REFERER = 'https://folio.app';

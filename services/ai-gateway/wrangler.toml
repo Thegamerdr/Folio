@@ -16,7 +16,7 @@ compatibility_date = "2025-06-01"
 # The OpenRouter API key is NEVER set here — it is a secret (`wrangler secret put`).
 [vars]
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "google/gemini-2.0-flash-001"
+OPENROUTER_MODEL = "google/gemini-2.5-flash"
 
 # Observability is handy for spotting abuse + errors. Safe to keep on.
 [observability]

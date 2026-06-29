@@ -32,7 +32,7 @@ The RN client points its OpenAI base URL at the Worker, so its existing
 
 The Worker accepts the standard OpenAI Chat Completions JSON body and returns OpenRouter's
 response **verbatim** (same status, same body). If `model` is omitted, the Worker injects the
-default from `OPENROUTER_MODEL` (or `google/gemini-2.0-flash-001`).
+default from `OPENROUTER_MODEL` (or `google/gemini-2.5-flash`).
 
 ```jsonc
 // POST /v1/chat/completions
@@ -57,7 +57,7 @@ which the RN client already knows how to parse.
 | --------------------- | --------------- | -------------------------------- | --------------------------------------------------------------------- |
 | `OPENROUTER_API_KEY`  | **secret**      | _(required)_                     | Set with `wrangler secret put`. Never a literal, never logged.        |
 | `OPENROUTER_BASE_URL` | var             | `https://openrouter.ai/api/v1`   | Override to point at another OpenAI-compatible base.                  |
-| `OPENROUTER_MODEL`    | var             | `google/gemini-2.0-flash-001`    | Default model injected when the request omits `model`.                |
+| `OPENROUTER_MODEL`    | var             | `google/gemini-2.5-flash`    | Default model injected when the request omits `model`.                |
 | `GATEWAY_TOKEN`       | secret (or var) | _(unset)_                        | When set, requests must send a matching `x-folio-gateway-token`.      |
 
 The non-secret vars are declared in `wrangler.toml`. The secrets are set with the CLI below.

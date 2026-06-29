@@ -67,7 +67,7 @@ export type StatementReadResult =
 // ---------------------------------------------------------------------------
 
 /** Pin a vision-capable model in the body (the gateway forwards it verbatim). */
-const VISION_MODEL = 'google/gemini-2.0-flash-001';
+const VISION_MODEL = 'google/gemini-2.5-flash';
 /** Own timeout so a stuck request can't hang the review flow. */
 const REQUEST_TIMEOUT_MS = 45_000;
 
