@@ -148,9 +148,16 @@ export function InsightsScreen({
 }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const { kpis, trend, cycleCount } = insights;
+  const { kpis, trend, cycleCount, hasOnlyCurrentCycle } = insights;
   // Web caps the notes list at the latest 4 closed cycles.
   const noteRows = notes.slice(0, 4);
+
+  // Before the first cycle closes, the figures describe the live current cycle, not settled history —
+  // so the labels say "this cycle" rather than implying months of past data the user doesn't have yet.
+  const lowBalanceLabel = hasOnlyCurrentCycle ? 'This cycle’s low so far' : 'Average low balance';
+  const chartLabel = hasOnlyCurrentCycle
+    ? 'Lowest balance, this cycle so far'
+    : `Lowest balance, last ${trend.length}`;
 
   return (
     <PressureScreen>
@@ -158,7 +165,9 @@ export function InsightsScreen({
 
       <View style={{ gap: gap.xs }}>
         <Kicker>
-          {cycleCount} {cycleCount === 1 ? 'month' : 'months'} done
+          {hasOnlyCurrentCycle
+            ? 'No months closed yet'
+            : `${cycleCount} ${cycleCount === 1 ? 'month' : 'months'} done`}
         </Kicker>
         <Headline lead="The " accent="shape" tail=" of your months." />
       </View>
@@ -166,13 +175,13 @@ export function InsightsScreen({
       <View style={layout.kpiGrid}>
         <KpiTile label="Saved across all months" value={kpis.savedAcrossCycles} tone="positive" />
         <KpiTile label="In pots right now" value={kpis.inPotsNow} tone="ink" />
-        <KpiTile label="Average low balance" value={kpis.avgTightPoint} tone="accent" />
+        <KpiTile label={lowBalanceLabel} value={kpis.avgTightPoint} tone="accent" />
         <KpiTile label="Average set aside" value={kpis.avgSetAside} tone="ink" />
       </View>
 
       {trend.length > 0 ? (
         <Surface style={layout.chartCard}>
-          <SectionLabel>Lowest balance, last {trend.length}</SectionLabel>
+          <SectionLabel>{chartLabel}</SectionLabel>
           <TrendChart trend={trend} />
         </Surface>
       ) : null}

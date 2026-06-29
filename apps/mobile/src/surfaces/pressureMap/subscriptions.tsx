@@ -68,7 +68,8 @@ const COUNT_UP_MS = 600;
 // ---------------------------------------------------------------------------
 
 // Pulse dot. yes = the calm green (regular use), maybe = caution gold DATA mark (the active
-// palette's t.caution, never the text gold), no = a muted ink (gone quiet). Mirrors the web's
+// palette's t.caution, never the text gold), no = a muted ink (gone quiet), unknown = the same
+// muted ink (we have no usage signal yet — neutral, never alarming). Mirrors the web's
 // positive / caution / negative-at-70%-opacity dots.
 function pulseColor(t: Palette, pulse: LocalSubscriptionPulse): string {
   if (pulse === 'yes') return t.positive;
@@ -79,11 +80,16 @@ function pulseColor(t: Palette, pulse: LocalSubscriptionPulse): string {
 function pulseLabel(pulse: LocalSubscriptionPulse): string {
   if (pulse === 'yes') return 'Used recently';
   if (pulse === 'maybe') return 'Not sure';
+  // Never logged a use — say so plainly rather than calling it "quiet", which it has not earned.
+  if (pulse === 'unknown') return 'Not tracked yet';
   return 'Quiet a while';
 }
 
-// The web's "{p}p per use · {uses}/mo", or "no uses this month" when there are none.
+// The score subtitle. For a tracked subscription this is the web's "{p}p per use · {uses}/mo", or
+// "no uses this month" when it has fallen silent. For one we have never tracked, we say so honestly
+// and invite the first signal, rather than implying it earns nothing.
 function scoreLine(row: LocalSubscriptionRow): string {
+  if (!row.tracked) return 'tap "used" to start tracking value';
   if (row.usesPerMonth <= 0 || !Number.isFinite(row.valueScore)) return 'no uses this month';
   return `${row.valueScoreLabel} · ${row.usesPerMonth}/mo`;
 }
@@ -105,8 +111,11 @@ function nextChargeLabel(days: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Sorting — same comparators the web uses. Worst-value first sorts by valueScore
-// descending (Infinity = no uses floats to the top); cost descending; next-charge ascending.
+// Sorting. Worst-value first sorts TRACKED rows by valueScore descending (Infinity = tracked but no
+// uses floats to the top as the worst); cost descending; next-charge ascending. Untracked rows carry
+// no value verdict, so the worst-value sort holds them out of the ranking entirely — they sit below
+// the tracked rows in a neutral block (never posing as "worst value" nor as "best value"), kept in a
+// stable order. Cost and next-charge sorts treat every row equally; usage data is irrelevant there.
 // ---------------------------------------------------------------------------
 
 function sortRows(
@@ -114,7 +123,14 @@ function sortRows(
   sort: SortKey,
 ): readonly LocalSubscriptionRow[] {
   const next = [...rows];
-  if (sort === 'value') next.sort((a, b) => b.valueScore - a.valueScore);
+  if (sort === 'value') {
+    next.sort((a, b) => {
+      // Untracked rows have no verdict — sink them beneath every tracked row, regardless of score.
+      if (a.tracked !== b.tracked) return a.tracked ? -1 : 1;
+      if (!a.tracked) return 0;
+      return b.valueScore - a.valueScore;
+    });
+  }
   if (sort === 'cost') next.sort((a, b) => b.monthlyMinor - a.monthlyMinor);
   if (sort === 'next') next.sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway);
   return next;

@@ -105,6 +105,7 @@ export function TodayScreen({
   onCompareWeeks,
   onOpenNextCharge,
   onAskTightPoint,
+  onSeeOnCalendar,
 }: TodayScreenProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
@@ -273,6 +274,7 @@ export function TodayScreen({
 
       <PointExplanation
         onClose={() => setSelectedPoint(null)}
+        onSeeOnCalendar={onSeeOnCalendar}
         point={selectedPoint === null ? null : (route.points[selectedPoint] ?? null)}
       />
 
@@ -458,6 +460,10 @@ export type TodayScreenProps = {
   onCompareWeeks: () => void;
   onOpenNextCharge: () => void;
   onAskTightPoint: () => void;
+  /** Route -> Calendar bridge: open the calendar focused on a point's day. Threaded into the path's
+   *  point-explanation sheet as a secondary "See this day on the calendar" action. Omitted → the sheet
+   *  shows only its "Got it" close. */
+  onSeeOnCalendar?: ((dateIso: string) => void) | undefined;
 };
 
 // Colour-free styles — shared across light and dark.

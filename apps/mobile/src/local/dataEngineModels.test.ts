@@ -226,6 +226,83 @@ describe('data-engine subscription mutations through the canonical boundary', ()
     expect(pausedModel.savedFromPausesMinor).toBe(999);
     expect(pausedModel.monthlyTotalMinor).toBe(499);
   });
+
+  // A subscription the user has never logged a use for (a just-added one, or one they simply never
+  // tap "used" on) has no usage signal at all: usesPerMonth 0 AND lastUsedDaysAgo 0. It must read as
+  // "not tracked", never be scored as the worst value, and never be swept into the "quiet ones".
+  function ledgerWithNeverTrackedSubscription(): LocalLedgerState {
+    const base = seededLedger();
+    return {
+      ...base,
+      subscriptions: [
+        {
+          id: 'subscription_fresh_0003' as never,
+          workspaceId: 'workspace_personal_local' as never,
+          name: 'Just added',
+          cost: { minorUnits: 1299, currency: 'GBP' as never },
+          cadence: 'monthly',
+          nextRenewalDaysAway: 20,
+          // Never tracked: no use this month, and no recorded last-used point.
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 0,
+          paused: false,
+          version: { revision: 1, dataVersion: 'revision:1' as never },
+        },
+        {
+          id: 'subscription_active_0002' as never,
+          workspaceId: 'workspace_personal_local' as never,
+          name: 'Daily app',
+          cost: { minorUnits: 499, currency: 'GBP' as never },
+          cadence: 'monthly',
+          nextRenewalDaysAway: 3,
+          lastUsedDaysAgo: 1,
+          usesPerMonth: 20,
+          paused: false,
+          version: { revision: 1, dataVersion: 'revision:1' as never },
+        },
+      ],
+    };
+  }
+
+  it('reads a never-tracked subscription as neutral, not worst value, and not quiet', () => {
+    const model = buildLocalSubscriptionsModel(ledgerWithNeverTrackedSubscription());
+
+    const fresh = model.rows.find((row) => row.name === 'Just added');
+    const daily = model.rows.find((row) => row.name === 'Daily app');
+
+    // Untracked: honest "not tracked yet" framing, no worst-value verdict.
+    expect(fresh?.tracked).toBe(false);
+    expect(fresh?.pulse).toBe('unknown');
+    expect(fresh?.valueScore).toBe(0);
+    expect(fresh?.valueScore).not.toBe(Number.POSITIVE_INFINITY);
+    expect(fresh?.valueScoreLabel).toBe('Not tracked yet');
+    // Not "quiet" — so it is excluded from the quiet count and the bulk "pause the quiet ones" move.
+    expect(fresh?.quiet).toBe(false);
+    expect(model.quietActiveCount).toBe(0);
+
+    // The genuinely tracked sub keeps its real value score + pulse intact.
+    expect(daily?.tracked).toBe(true);
+    expect(daily?.valueScore).toBeCloseTo(499 / 20);
+    expect(daily?.pulse).toBe('yes');
+  });
+
+  it('does not pause a never-tracked subscription as if it were quiet', () => {
+    const paused = bulkPauseQuietThroughCanonicalRepository(ledgerWithNeverTrackedSubscription());
+    // Nothing is quiet here, so nothing should be paused.
+    expect(paused.subscriptions.find((item) => item.name === 'Just added')?.paused).toBe(false);
+    expect(paused.subscriptions.find((item) => item.name === 'Daily app')?.paused).toBe(false);
+  });
+
+  it('still scores a tracked-then-abandoned subscription as the worst value', () => {
+    // "Old streaming" was used 90 days ago (lastUsedDaysAgo 90) — it IS tracked, just abandoned, so it
+    // keeps the worst-value verdict. Only never-tracked subs are spared that label.
+    const model = buildLocalSubscriptionsModel(ledgerWithSubscriptions());
+    const abandoned = model.rows.find((row) => row.name === 'Old streaming');
+    expect(abandoned?.tracked).toBe(true);
+    expect(abandoned?.valueScore).toBe(Number.POSITIVE_INFINITY);
+    expect(abandoned?.pulse).toBe('no');
+    expect(abandoned?.quiet).toBe(true);
+  });
 });
 
 describe('data-engine cycle mutations and insights read-adapter', () => {

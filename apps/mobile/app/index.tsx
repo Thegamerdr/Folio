@@ -421,8 +421,18 @@ export default function FolioHome() {
     [localLedger, privateExampleMode],
   );
   const insightsModel = useMemo(
-    () => buildLocalInsightsModel(localLedger, { privateExampleMode }),
-    [localLedger, privateExampleMode],
+    () =>
+      buildLocalInsightsModel(localLedger, {
+        privateExampleMode,
+        // Thread the live current cycle so Insights shows the real projected low (and "in pots now")
+        // on session one, before any payday ritual has closed a cycle — instead of an all-zero
+        // dashboard. deriveCurrentMonthLabel is module-scope, so this stays a pure memo.
+        currentCycle: {
+          label: deriveCurrentMonthLabel(localLedger.asOfDate),
+          tightestBalanceMinor: localRoute.tightestBalanceMinor,
+        },
+      }),
+    [localLedger, localRoute.tightestBalanceMinor, privateExampleMode],
   );
   const meloSnapshot = useMemo(
     () => buildMeloSnapshotFromLocalState(localLedger, localRoute),
@@ -986,6 +996,16 @@ export default function FolioHome() {
     setRouteFocusDate(dateIso);
     setCalendarFocusDate(null);
     setScreen('today');
+  }, []);
+
+  // Today/Route -> Calendar: open the calendar focused on a day, from the money path's point sheet
+  // ("See this day on the calendar"). Mirror of handleFocusOnRoute — set the transient calendar focus
+  // date, clear the opposite (route) pulse, and switch to the Calendar tab. The Calendar reads
+  // calendarFocusDate on mount; the one-shot effect below then clears it.
+  const handleSeeOnCalendar = useCallback((dateIso: string) => {
+    setCalendarFocusDate(dateIso);
+    setRouteFocusDate(null);
+    setScreen('calendar');
   }, []);
 
   // Onboarding -------------------------------------------------------------------------------
@@ -2132,6 +2152,7 @@ export default function FolioHome() {
               onOpenMelo={() => openMeloChat()}
               onOpenNextCharge={() => setScreen('subscriptions')}
               onOpenPayday={() => setScreen('ritual')}
+              onSeeOnCalendar={handleSeeOnCalendar}
             />
           ) : null}
           {screen === 'start' ? (

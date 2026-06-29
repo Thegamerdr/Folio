@@ -652,9 +652,14 @@ function waitingLine(point: LocalRoutePoint): string {
 export function PointExplanation({
   point,
   onClose,
+  onSeeOnCalendar,
 }: {
   point: LocalRoutePoint | null;
   onClose: () => void;
+  /** Route -> Calendar bridge: open the calendar focused on this point's day. When provided, a
+   *  secondary "See this day on the calendar" action shows; it calls back with point.date then closes.
+   *  Omitted → only the "Got it" close button shows (the read-only path is unchanged). */
+  onSeeOnCalendar?: ((dateIso: string) => void) | undefined;
 }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
@@ -685,11 +690,30 @@ export function PointExplanation({
               ) : null}
               <ExplainRow label="Still waiting" value={waitingLine(point)} />
             </View>
+            {onSeeOnCalendar ? (
+              <Pressable
+                accessibilityHint="Opens the calendar focused on this day."
+                accessibilityLabel="See this day on the calendar"
+                accessibilityRole="button"
+                onPress={() => {
+                  onSeeOnCalendar(point.date);
+                  onClose();
+                }}
+                style={({ pressed: isPressed }) => [
+                  s.sheetSecondary,
+                  isPressed ? { opacity: 0.85 } : undefined,
+                ]}
+              >
+                <Text style={s.sheetSecondaryText}>See this day on the calendar</Text>
+                <Text style={s.sheetSecondaryArrow}>→</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               onPress={onClose}
               style={({ pressed: isPressed }) => [
                 s.sheetDone,
+                onSeeOnCalendar ? staticLayout.sheetDoneGrouped : undefined,
                 isPressed ? { opacity: 0.85 } : undefined,
               ]}
             >
@@ -769,6 +793,9 @@ const staticLayout = StyleSheet.create({
   sheetMelo: { marginTop: gap.md },
   sheetRows: { marginTop: gap.lg, gap: 2 },
   explainValueStrong: { fontSize: 19, fontWeight: '800' },
+  // When the secondary "See this day on the calendar" action is present, the two buttons read as one
+  // action group — so the "Got it" close tightens up under it instead of keeping its full gap.xl top.
+  sheetDoneGrouped: { marginTop: gap.sm },
 });
 
 // Colour-bearing styles, resolved against the active palette.
@@ -863,6 +890,22 @@ function makeStyles(t: Palette) {
       backgroundColor: t.calmSoft,
     },
     sheetDoneText: { color: t.calmStrong, fontSize: 16, fontWeight: '700' },
+    // Secondary, quieter than the filled "Got it": an outlined surface button so the close stays the
+    // primary. Colours come from the active palette (t.X) so it follows light/dark like the rest.
+    sheetSecondary: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginTop: gap.xl,
+      paddingVertical: 15,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairlineStrong,
+      backgroundColor: t.surface,
+    },
+    sheetSecondaryText: { color: t.ink, fontSize: 16, fontWeight: '700' },
+    sheetSecondaryArrow: { color: t.calmStrong, fontSize: 16, fontWeight: '700' },
   });
 }
 
