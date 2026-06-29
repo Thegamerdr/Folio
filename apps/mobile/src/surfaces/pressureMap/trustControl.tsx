@@ -12,26 +12,32 @@
 // "No tracking, no ads" are both true here (local-only ledger; no analytics/ads SDK in the app) and
 // are kept verbatim from the web.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { LocalRouteSummary } from '../../local/localLedger';
+import { formatMinorAmount, type LocalRouteSummary } from '../../local/localLedger';
 import {
   CheckGlyph,
   ChevronRight,
+  Display,
   Eyebrow,
   Headline,
+  MoneyPad,
   Muted,
   PressureScreen,
   PrimaryAction,
+  QuietLink,
   Surface,
   gap,
+  magnitude,
+  poundsLabel,
   radius,
   useTheme,
   useThemeMode,
   type Palette,
   type ThemeMode,
 } from './kit';
+import { Sheet } from './Sheet';
 import { MeloPresence } from './melo';
 
 // The Appearance choices, in reading order. 'system' follows the phone; the other two hold a look.
@@ -53,22 +59,31 @@ const GUARANTEES: readonly string[] = [
 ];
 
 export function DataControlScreen({
+  cashOnHandMinor,
   onClearLocalRecords,
   onPrepareExport,
+  onSetBalance,
+  reduceMotion,
   route,
 }: {
+  /** The money the user has on hand right now (minor units). Shown + edited here. */
+  cashOnHandMinor?: number | undefined;
   ledger?: unknown;
   lastAction?: string | null | undefined;
   onClearLocalRecords: () => void;
   onPrepareExport: () => Promise<string>;
+  /** Set the money-you-have-now figure directly (minor units). Omitted when editing isn't allowed. */
+  onSetBalance?: ((newMinor: number) => void) | undefined;
   persistenceStatus?: string | undefined;
   privateExampleMode?: boolean | undefined;
+  reduceMotion?: boolean | undefined;
   route: LocalRouteSummary;
 }) {
   const [busy, setBusy] = useState(false);
   const [exported, setExported] = useState(false);
   const [armed, setArmed] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const [balanceSheetOpen, setBalanceSheetOpen] = useState(false);
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
 
@@ -140,13 +155,37 @@ export function DataControlScreen({
 
         {showSaved ? (
           <View style={[layout.saved, s.saved]}>
-            <SavedLine label="Files kept for reference" value="On this device" first />
+            {cashOnHandMinor === undefined ? null : (
+              <SavedLine
+                label="Money you have now"
+                value={formatMinorAmount(cashOnHandMinor)}
+                first
+              />
+            )}
+            <SavedLine
+              label="Files kept for reference"
+              value="On this device"
+              first={cashOnHandMinor === undefined}
+            />
             <SavedLine
               label="Added to your money"
               value={String(route.confirmedTransactionCount)}
             />
             <SavedLine label="Waiting for you" value={String(route.pendingReviewCount)} />
             <SavedLine label="Kept aside for you" value={String(route.protectedItems.length)} />
+            {onSetBalance ? (
+              <Pressable
+                accessibilityHint="Updates the money you have on hand right now."
+                accessibilityRole="button"
+                onPress={() => setBalanceSheetOpen(true)}
+                style={({ pressed }) => [layout.updateBalance, pressed ? s.rowPressed : undefined]}
+              >
+                <Text style={[layout.updateBalanceText, s.updateBalanceText]}>
+                  Update what I have now
+                </Text>
+                <ChevronRight />
+              </Pressable>
+            ) : null}
             <Muted style={layout.savedNote}>
               This stays on your phone. What you type to Melo and any statement you add are read by
               your AI provider; a copy you export also leaves. Nothing else does.
@@ -190,7 +229,85 @@ export function DataControlScreen({
         state="melo_privacy_trust"
         style={layout.melo}
       />
+
+      {/* Update-balance sheet — a money keypad to set what you actually have now. */}
+      {onSetBalance ? (
+        <SetBalanceSheet
+          currentMinor={cashOnHandMinor ?? 0}
+          onClose={() => setBalanceSheetOpen(false)}
+          onSetBalance={(minor) => {
+            onSetBalance(minor);
+            setBalanceSheetOpen(false);
+          }}
+          reduceMotion={reduceMotion}
+          visible={balanceSheetOpen}
+        />
+      ) : null}
     </PressureScreen>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Update what I have now — a small bottom sheet with a money keypad. It sets the
+// "money you have now" figure directly; nothing else in the ledger is touched, so
+// every logged spend, obligation and pot stays exactly where it was.
+// ---------------------------------------------------------------------------
+
+function digitsToMinor(value: string): number {
+  const clean = value.replace(/[^0-9]/g, '');
+  return clean.length === 0 ? 0 : Number(clean) * 100;
+}
+
+function SetBalanceSheet({
+  visible,
+  currentMinor,
+  onClose,
+  onSetBalance,
+  reduceMotion,
+}: {
+  visible: boolean;
+  currentMinor: number;
+  onClose: () => void;
+  onSetBalance: (newMinor: number) => void;
+  reduceMotion?: boolean | undefined;
+}) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  const [amount, setAmount] = useState('');
+  const amountMinor = digitsToMinor(amount);
+  const ready = amount.replace(/[^0-9]/g, '').length > 0;
+
+  // Start each open from the figure currently saved, so a small correction is a small edit.
+  useEffect(() => {
+    if (visible) {
+      setAmount(currentMinor > 0 ? String(Math.round(currentMinor / 100)) : '');
+    } else {
+      setAmount('');
+    }
+  }, [visible, currentMinor]);
+
+  return (
+    <Sheet onClose={onClose} reduceMotion={reduceMotion} visible={visible}>
+      <Eyebrow>Money you have now</Eyebrow>
+      <Display style={sheet.title}>What do you actually have?</Display>
+      <Muted style={sheet.lede}>
+        Set the cash you can see across your everyday accounts right now. Your path redraws from it —
+        nothing you've added is lost.
+      </Muted>
+
+      <Text style={[sheet.readout, s.updateBalanceText]}>{poundsLabel(amount)}</Text>
+      <MoneyPad onChange={setAmount} value={amount} />
+
+      <View style={sheet.footer}>
+        <QuietLink accessibilityHint="Closes without changing the figure." label="Not now" onPress={onClose} />
+        <PrimaryAction
+          caption={ready ? `now ${magnitude(amountMinor)}` : undefined}
+          disabled={!ready}
+          label="Update it"
+          onPress={() => onSetBalance(amountMinor)}
+        />
+      </View>
+    </Sheet>
   );
 }
 
@@ -374,6 +491,16 @@ const layout = StyleSheet.create({
   savedValue: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   savedNote: { marginTop: gap.sm, marginBottom: gap.xs },
 
+  // The "Update what I have now" affordance sits at the foot of the saved-detail reveal.
+  updateBalance: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: gap.sm,
+    marginTop: gap.xs,
+  },
+  updateBalanceText: { fontSize: 14, fontWeight: '600' },
+
   // Appearance block — eyebrow + lede + the segmented control. Layout only; the control's own
   // colours are theme-aware (see makeAppearanceStyles).
   appearance: { gap: gap.sm },
@@ -399,5 +526,25 @@ function makeStyles(t: Palette) {
     savedLine: { borderTopColor: t.hairline },
     savedLabel: { color: t.secondary },
     savedValue: { color: t.ink },
+    updateBalanceText: { color: t.calmStrong },
   });
 }
+
+// Layout-only styles for the update-balance sheet.
+const sheet = StyleSheet.create({
+  title: { marginTop: gap.xs },
+  lede: { fontSize: 13, lineHeight: 19, marginTop: gap.xs, marginBottom: gap.md, maxWidth: 320 },
+  readout: {
+    fontSize: 40,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    marginVertical: gap.md,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: gap.lg,
+  },
+});

@@ -106,6 +106,9 @@ export type MeloChatSheetProps = Readonly<{
 
   /** Advisory suggestions Melo proposed for the latest reply (user-confirmed, never auto-applied). */
   pendingSuggestions?: readonly MeloToolSuggestion[] | undefined;
+  /** Per-suggestion feedback (keyed by suggestion id) shown on the chip — e.g. when the target of a
+   *  "Do it" couldn't be matched, so the action never silently no-ops. */
+  suggestionFeedback?: Readonly<Record<string, string>> | undefined;
   /** The user accepted a suggestion — the container validates + applies it (or opens a confirm). */
   onAcceptSuggestion: (suggestion: MeloToolSuggestion) => void;
   /** The user dismissed a suggestion without applying it. */
@@ -265,6 +268,11 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
                 <View style={s.suggestionBody}>
                   <Text style={s.suggestionKind}>{suggestion.name.replace(/_/g, ' ')}</Text>
                   <Text style={s.suggestionSummary}>{suggestion.summary}</Text>
+                  {props.suggestionFeedback?.[suggestion.id] ? (
+                    <Text style={s.suggestionFeedback}>
+                      {props.suggestionFeedback[suggestion.id]}
+                    </Text>
+                  ) : null}
                   <View style={s.suggestionActions}>
                     <Pressable
                       accessibilityHint="Applies this suggested change."
@@ -549,6 +557,7 @@ function makeStyles(t: Palette) {
     textTransform: 'uppercase',
   },
   suggestionSummary: { color: t.ink, fontSize: 14, lineHeight: 19 },
+  suggestionFeedback: { color: t.warmInk, fontSize: 13, lineHeight: 18, marginTop: 2 },
   suggestionActions: { flexDirection: 'row', gap: gap.lg, marginTop: 2 },
   suggestionAccept: { color: t.calmStrong, fontSize: 13, fontWeight: '700' },
   suggestionDismiss: { color: t.muted, fontSize: 13, fontWeight: '600' },

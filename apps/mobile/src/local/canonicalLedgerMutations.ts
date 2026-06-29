@@ -21,6 +21,7 @@ import {
   removeTransaction,
   restoreRejectedImportForReview,
   resumeSubscription,
+  setCashOnHand,
   setTightPointGoal,
   stageDocumentForManualReview,
   stageStatementImport,
@@ -69,6 +70,13 @@ export function setTightPointGoalThroughCanonicalRepository(
   minorOrNull: number | null,
 ): LocalLedgerState {
   return assertCanonicalRepositoryState(setTightPointGoal(state, minorOrNull));
+}
+
+export function setCashOnHandThroughCanonicalRepository(
+  state: LocalLedgerState,
+  minor: number,
+): LocalLedgerState {
+  return assertCanonicalRepositoryState(setCashOnHand(state, minor));
 }
 
 export function createPlannedCommitmentThroughCanonicalRepository(

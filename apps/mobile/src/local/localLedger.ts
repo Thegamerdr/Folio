@@ -163,6 +163,7 @@ export const LOCAL_HISTORY_KINDS = [
   'subscription_bulk_paused',
   'cycle_closed',
   'tight_point_goal_set',
+  'cash_on_hand_set',
 ] as const;
 
 export type LocalHistoryKind = (typeof LOCAL_HISTORY_KINDS)[number];
@@ -854,6 +855,10 @@ export function buildMeloSnapshotFromLocalState(
   state: LocalLedgerState,
   route: LocalRouteSummary = buildLocalRouteSummary(state),
 ): MeloLocalFinancialSnapshot {
+  // The user's own subscription + pot names go into the snapshot so Melo can echo an EXACT stored
+  // name back in a suggestion. The model only ever sees these when the user has turned on sharing.
+  const subscriptionNames = state.subscriptions.map((subscription) => subscription.name);
+  const potNames = state.pots.map((pot) => pot.name);
   return {
     currency: state.currency,
     availableNowMinor: route.availableNowMinor,
@@ -862,6 +867,8 @@ export function buildMeloSnapshotFromLocalState(
     protectedItems: route.protectedItems,
     pendingReviewCount: route.pendingReviewCount,
     nextPaydayLabel: route.nextPaydayLabel,
+    subscriptionNames,
+    potNames,
   };
 }
 
@@ -1244,6 +1251,23 @@ export function setTightPointGoal(
     { ...state, tightPointGoalMinor: goalMinor },
     'tight_point_goal_set',
     `Tight-point goal set to ${formatMinorAmount(goalMinor)}.`,
+  );
+}
+
+// Update the cash the user actually has on hand right now — the "what I have today" figure first
+// captured in the quick estimate. Until now that figure could only be changed by re-running the
+// whole estimate, leaving a dead end. This is the same plain scalar update as the tight-point goal
+// (cashOnHandMinor lives on the canonical metadata, not a durable container), so it is a single
+// immutable field replacement that REBUILDS the path without touching history: every logged spend,
+// planned obligation and pot stays exactly as it was. A whole minor-unit amount of zero or more is
+// accepted; negative or non-integer inputs are rejected (a cash figure below zero is meaningless).
+export function setCashOnHand(state: LocalLedgerState, minor: number): LocalLedgerState {
+  const cashMinor = assertNonNegativeSafeMinor(minor, 'Money you have now');
+  if (state.cashOnHandMinor === cashMinor) return state;
+  return prependHistory(
+    { ...state, cashOnHandMinor: cashMinor },
+    'cash_on_hand_set',
+    `Money you have now updated to ${formatMinorAmount(cashMinor)}. Path rebuilt from your records.`,
   );
 }
 

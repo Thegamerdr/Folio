@@ -12,7 +12,9 @@ import {
   confirmImportDraft,
   createEmptyLocalLedgerState,
   createInitialLocalLedgerState,
+  createPot,
   createQuickEstimateLocalLedgerState,
+  createSubscription,
   dismissImportDraft,
   editImportDraft,
   isPrivateExampleLedger,
@@ -20,6 +22,7 @@ import {
   restoreRejectedImportForReview,
   searchLocalLedgerEvidenceRecords,
   searchLocalLedgerRecords,
+  setCashOnHand,
   stageDocumentForManualReview,
   stageStatementImport,
 } from './localLedger.js';
@@ -831,5 +834,66 @@ describe('mobile local ledger state', () => {
     expect(
       inferred.transactions.find((transaction) => transaction.amountMinor > 0)?.certainty,
     ).toBe('expected');
+  });
+});
+
+describe('setCashOnHand — updating the money you have now', () => {
+  const baseEstimate = () =>
+    createQuickEstimateLocalLedgerState('2026-06-22', {
+      billAmountText: '0',
+      billDate: '2026-07-01',
+      billTitle: 'None',
+      cashNowText: '100.00',
+      incomeAmountText: '0',
+      incomeDate: '2026-06-30',
+      incomeTitle: 'Payday',
+    });
+
+  it('replaces the cash figure and rebuilds the route without touching history records', () => {
+    const before = addManualTransaction(baseEstimate(), {
+      title: 'Coffee',
+      amountText: '3.50',
+      kind: 'spend',
+    });
+    const transactionsBefore = before.transactions;
+    const after = setCashOnHand(before, 250_00);
+
+    expect(after.cashOnHandMinor).toBe(25_000);
+    // Non-destructive: every logged transaction is preserved, only the scalar moved.
+    expect(after.transactions).toEqual(transactionsBefore);
+    // The route now reflects the new cash (100 cash − 3.50 spend was 96.50; new cash 250 − 3.50).
+    expect(buildLocalRouteSummary(after).availableNowMinor).toBe(246_50);
+    // A history entry is recorded so the change is visible and reversible-by-record.
+    expect(after.history[0]).toMatchObject({ kind: 'cash_on_hand_set' });
+    expect(after.history[0]?.label).toContain('Money you have now updated');
+  });
+
+  it('is a no-op when the figure is unchanged', () => {
+    const state = baseEstimate();
+    expect(setCashOnHand(state, state.cashOnHandMinor)).toBe(state);
+  });
+
+  it('rejects negative or non-integer amounts', () => {
+    const state = baseEstimate();
+    expect(() => setCashOnHand(state, -1)).toThrow(/Money you have now/);
+    expect(() => setCashOnHand(state, 12.5)).toThrow(/Money you have now/);
+  });
+});
+
+describe('buildMeloSnapshotFromLocalState — names for tolerant matching', () => {
+  it('includes the user’s subscription and pot names so Melo can echo them exactly', () => {
+    let state = createEmptyLocalLedgerState('2026-06-22');
+    state = createSubscription(state, { name: 'Netflix', costMinor: 1099, cadence: 'monthly' });
+    state = createPot(state, { name: 'Holiday', goalMinor: 50_000, perWeekMinor: 2_000 });
+    const snapshot = buildMeloSnapshotFromLocalState(state);
+
+    expect(snapshot.subscriptionNames).toContain('Netflix');
+    expect(snapshot.potNames).toContain('Holiday');
+  });
+
+  it('returns empty name lists when there are no subscriptions or pots', () => {
+    const snapshot = buildMeloSnapshotFromLocalState(createEmptyLocalLedgerState('2026-06-22'));
+    expect(snapshot.subscriptionNames).toEqual([]);
+    expect(snapshot.potNames).toEqual([]);
   });
 });

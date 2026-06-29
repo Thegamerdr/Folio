@@ -50,6 +50,47 @@ export type MeloToolSuggestion = Readonly<{
   summary: string;
 }>;
 
+/** A thing a suggestion can target by name (a subscription or a pot). */
+export type NamedTarget = Readonly<{ id: string; name: string }>;
+
+/** Normalise a name for tolerant comparison: lowercased, trimmed, internal runs of whitespace and
+ *  punctuation collapsed away. So "Net flix", "netflix" and " Netflix! " all compare equal. */
+function normalizeName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+    .trim();
+}
+
+/** Resolve a model-proposed name against the user's real targets, tolerantly. The model can be
+ *  slightly off ("Net flix" vs the stored "Netflix"), so this matches in order of confidence:
+ *  exact (normalised) → one side contains the other → returns undefined if nothing is close enough.
+ *  Returning undefined (rather than silently doing nothing) is what lets the UI tell the user the
+ *  target couldn't be found instead of a chip no-op. */
+export function resolveNamedTarget(
+  query: string,
+  candidates: readonly NamedTarget[],
+): NamedTarget | undefined {
+  const wanted = normalizeName(query);
+  if (wanted.length === 0) return undefined;
+
+  // 1. Exact (normalised) match wins outright.
+  const exact = candidates.find((candidate) => normalizeName(candidate.name) === wanted);
+  if (exact !== undefined) return exact;
+
+  // 2. Containment either way — "spotify premium" matches a stored "Spotify", and vice versa. Pick
+  //    the shortest matching candidate name so the most specific stored name wins.
+  const contained = candidates
+    .filter((candidate) => {
+      const candidateName = normalizeName(candidate.name);
+      if (candidateName.length === 0) return false;
+      return candidateName.includes(wanted) || wanted.includes(candidateName);
+    })
+    .sort((left, right) => normalizeName(left.name).length - normalizeName(right.name).length);
+
+  return contained[0];
+}
+
 /** Melo's voice tone — the web persona's four modes. */
 export type MeloTone = 'calm' | 'honest' | 'dry' | 'coachy';
 
@@ -152,12 +193,41 @@ export function buildMeloSystemPrompt(
         2,
       )}`,
     );
+    // The snapshot carries the user's own subscription + pot names. Tell Melo to reuse them
+    // verbatim in any pause_subscription / move_between_pots suggestion — the app matches a
+    // suggestion's target by name, so an exact echo is what makes the "Do it" chip actually work.
+    const names = describeSnapshotNames(snapshot);
+    if (names !== undefined) {
+      parts.push(names);
+    }
   } else {
     parts.push(
       "You do not have access to the user's money data in this conversation. If they ask numerical questions, ask them to enable sharing or to tell you the number.",
     );
   }
   return parts.join('\n\n');
+}
+
+/** Build a short instruction naming the user's subscriptions + pots so Melo echoes them exactly in
+ *  suggestions. Returns undefined when the snapshot carries no names (nothing to reference). */
+function describeSnapshotNames(snapshot: MeloLocalFinancialSnapshot): string | undefined {
+  const subscriptions = (snapshot.subscriptionNames ?? []).filter(
+    (name) => name.trim().length > 0,
+  );
+  const pots = (snapshot.potNames ?? []).filter((name) => name.trim().length > 0);
+  if (subscriptions.length === 0 && pots.length === 0) {
+    return undefined;
+  }
+  const lines = [
+    'When you suggest a move, use the user’s exact names from these lists — copy a name verbatim, do not invent or rephrase one.',
+  ];
+  if (subscriptions.length > 0) {
+    lines.push(`Their subscriptions: ${subscriptions.join(', ')}.`);
+  }
+  if (pots.length > 0) {
+    lines.push(`Their pots: ${pots.join(', ')}.`);
+  }
+  return lines.join(' ');
 }
 
 // ---------------------------------------------------------------------------

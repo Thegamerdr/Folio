@@ -52,6 +52,7 @@ import {
   rejectImportDraftThroughCanonicalRepository,
   removeTransactionThroughCanonicalRepository,
   resumeSubscriptionThroughCanonicalRepository,
+  setCashOnHandThroughCanonicalRepository,
   reviewMeloImportSuggestionThroughCanonicalRepository,
   addTransactionFromDocumentThroughCanonicalRepository,
   removeDocumentStageThroughCanonicalRepository,
@@ -163,6 +164,7 @@ import {
 // shared PressureScreen column — the way sibling surfaces frame themselves.
 import { PressureScreen, useTheme, type VerdictTone } from '../src/surfaces/pressureMap/kit';
 import {
+  resolveNamedTarget,
   sendMeloChat,
   type MeloChatMessage,
   type MeloChatResult,
@@ -318,6 +320,9 @@ export default function FolioHome() {
   >(undefined);
   const [meloStatusMessage, setMeloStatusMessage] = useState<string | undefined>(undefined);
   const [meloSuggestions, setMeloSuggestions] = useState<readonly MeloToolSuggestion[]>([]);
+  // Per-suggestion feedback (keyed by suggestion id) — set when a "Do it" can't resolve its target,
+  // so the chip says "I couldn't find that one" instead of silently doing nothing.
+  const [meloSuggestionFeedback, setMeloSuggestionFeedback] = useState<Record<string, string>>({});
   const primaryScrollRef = useRef<ScrollView | null>(null);
   const lastInactiveAtRef = useRef<number | null>(null);
   // The first-run onboarding sheet is offered once per session, on the fresh-ledger doorway.
@@ -910,6 +915,28 @@ export default function FolioHome() {
     [commitLocalLedger, userOwnedLedgerBase],
   );
 
+  // Update the money you have now -------------------------------------------------------------
+  // The cash figure was captured once in the quick estimate with no way to change it afterward.
+  // This sets it directly through the canonical boundary — a NON-destructive scalar update that
+  // rebuilds the path and keeps every logged spend, obligation and pot exactly where it was. The
+  // sheet hands up a positive magnitude in minor units.
+  const handleSetBalance = useCallback(
+    (newMinor: number) => {
+      try {
+        const ledgerBase = userOwnedLedgerBase();
+        commitLocalLedger(
+          setCashOnHandThroughCanonicalRepository(ledgerBase, Math.abs(newMinor)),
+          'Money you have now updated. Path rebuilt.',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not update that figure.';
+        setLastReviewAction(message);
+        AccessibilityInfo.announceForAccessibility(message);
+      }
+    },
+    [commitLocalLedger, userOwnedLedgerBase],
+  );
+
   // Melo chat ---------------------------------------------------------------------------------
 
   const openMeloChat = useCallback((prefill?: string) => {
@@ -934,6 +961,7 @@ export default function FolioHome() {
       setMeloMessages(nextThread);
       setMeloInput('');
       setMeloSuggestions([]);
+      setMeloSuggestionFeedback({});
       setMeloLastStatus(undefined);
       setMeloStatusMessage(undefined);
       setMeloSending(true);
@@ -975,6 +1003,7 @@ export default function FolioHome() {
   const handleMeloStartFresh = useCallback(() => {
     setMeloMessages([buildMeloOpener()]);
     setMeloSuggestions([]);
+    setMeloSuggestionFeedback({});
     setMeloLastStatus(undefined);
     setMeloStatusMessage(undefined);
     setMeloInput('');
@@ -984,25 +1013,42 @@ export default function FolioHome() {
   // the SAME canonical mutations the screens use — Melo never touches state directly.
   const handleAcceptMeloSuggestion = useCallback(
     (suggestion: MeloToolSuggestion) => {
-      applyMeloSuggestion(suggestion, {
+      // Tolerant name resolution: the model can echo a name that's slightly off ("Net flix"), so we
+      // match case-insensitively / fuzzily against the user's real subs + pots (resolveNamedTarget).
+      const outcome = applyMeloSuggestion(suggestion, {
         ledger: localLedger,
         pauseByName: (name) => {
-          const match = subscriptionsModel.rows.find(
-            (row) => row.name.toLowerCase() === name.toLowerCase(),
-          );
-          if (match) handlePauseSubscription(match.id);
+          const match = resolveNamedTarget(name, subscriptionsModel.rows);
+          if (match === undefined) return false;
+          handlePauseSubscription(match.id);
+          return true;
         },
         moveBetweenPots: (fromName, toName, amountMinor) => {
-          const from = potsModel.rows.find(
-            (row) => row.name.toLowerCase() === fromName.toLowerCase(),
-          );
-          const to = potsModel.rows.find((row) => row.name.toLowerCase() === toName.toLowerCase());
-          if (from && to) handleReallocateBetweenPots(from.id, to.id, amountMinor);
+          const from = resolveNamedTarget(fromName, potsModel.rows);
+          const to = resolveNamedTarget(toName, potsModel.rows);
+          if (from === undefined || to === undefined) return false;
+          handleReallocateBetweenPots(from.id, to.id, amountMinor);
+          return true;
         },
         logSpend: (merchant, amountMinor, category) =>
           handleLogSpend(merchant, amountMinor, category),
       });
-      setMeloSuggestions((current) => current.filter((entry) => entry.id !== suggestion.id));
+
+      if (outcome.applied) {
+        // Done — clear the chip and any stale feedback for it.
+        setMeloSuggestions((current) => current.filter((entry) => entry.id !== suggestion.id));
+        setMeloSuggestionFeedback((current) => {
+          if (current[suggestion.id] === undefined) return current;
+          const next = { ...current };
+          delete next[suggestion.id];
+          return next;
+        });
+      } else {
+        // Couldn't apply — keep the chip and show why, so the action never silently no-ops.
+        const message = outcome.notFound ?? "I couldn't do that one.";
+        setMeloSuggestionFeedback((current) => ({ ...current, [suggestion.id]: message }));
+        AccessibilityInfo.announceForAccessibility(message);
+      }
     },
     [
       handleLogSpend,
@@ -1016,6 +1062,12 @@ export default function FolioHome() {
 
   const handleDismissMeloSuggestion = useCallback((suggestion: MeloToolSuggestion) => {
     setMeloSuggestions((current) => current.filter((entry) => entry.id !== suggestion.id));
+    setMeloSuggestionFeedback((current) => {
+      if (current[suggestion.id] === undefined) return current;
+      const next = { ...current };
+      delete next[suggestion.id];
+      return next;
+    });
   }, []);
 
   // Cycles -----------------------------------------------------------------------------------
@@ -2060,12 +2112,15 @@ export default function FolioHome() {
           ) : null}
           {screen === 'data' ? (
             <DataControlScreen
+              cashOnHandMinor={localLedger.cashOnHandMinor}
               ledger={localLedger}
               lastAction={lastReviewAction}
               onClearLocalRecords={clearLocalRecords}
               onPrepareExport={prepareDataExport}
+              onSetBalance={privateExampleMode ? undefined : handleSetBalance}
               persistenceStatus={persistenceStatus}
               privateExampleMode={privateExampleMode}
+              reduceMotion={reduceMotionEnabled}
               route={localRoute}
             />
           ) : null}
@@ -2200,6 +2255,7 @@ export default function FolioHome() {
         showSettings={meloShowSettings}
         snapshot={meloSnapshot}
         statusMessage={meloStatusMessage}
+        suggestionFeedback={meloSuggestionFeedback}
         visible={meloChatVisible}
         onAcceptSuggestion={handleAcceptMeloSuggestion}
         onChangeInput={setMeloInput}
@@ -2353,41 +2409,56 @@ function clampDayOfMonth(year: number, month: number, day: number): Date {
 // branch validates the args before acting. set_tight_point_goal has no engine mutation (it is a goal,
 // not a posted fact), so Melo no longer OFFERS it (removed from VALID_TOOL_NAMES in meloAiClient) —
 // the case below is now unreachable and kept only as a defensive no-op so the switch stays exhaustive.
+// The outcome of trying to apply a suggestion. `applied` clears the chip; a `notFound` message is
+// shown ON the chip so a "Do it" that can't resolve its target never silently no-ops.
+type MeloSuggestionOutcome = Readonly<{ applied: boolean; notFound?: string }>;
+
 function applyMeloSuggestion(
   suggestion: MeloToolSuggestion,
   handlers: Readonly<{
     ledger: LocalLedgerState;
-    pauseByName: (name: string) => void;
-    moveBetweenPots: (fromName: string, toName: string, amountMinor: number) => void;
+    // Resolve + pause a subscription by (tolerant) name. Returns false when no subscription matched.
+    pauseByName: (name: string) => boolean;
+    // Resolve + move between pots by (tolerant) name. Returns false when either pot couldn't match.
+    moveBetweenPots: (fromName: string, toName: string, amountMinor: number) => boolean;
     logSpend: (merchant: string, amountMinor: number, category: string) => void;
   }>,
-): void {
+): MeloSuggestionOutcome {
   const { args } = suggestion;
   switch (suggestion.name) {
     case 'pause_subscription': {
       const name = stringArg(args.name);
-      if (name !== undefined) handlers.pauseByName(name);
-      return;
+      if (name === undefined) {
+        return { applied: false, notFound: "I couldn't tell which subscription you meant." };
+      }
+      return handlers.pauseByName(name)
+        ? { applied: true }
+        : { applied: false, notFound: `I couldn't find a subscription called “${name}”.` };
     }
     case 'move_between_pots': {
       const from = stringArg(args.from);
       const to = stringArg(args.to);
       const amountMinor = poundsArgToMinor(args.amount);
-      if (from !== undefined && to !== undefined && amountMinor > 0) {
-        handlers.moveBetweenPots(from, to, amountMinor);
+      if (from === undefined || to === undefined || amountMinor <= 0) {
+        return { applied: false, notFound: "I couldn't read that move — try telling me again." };
       }
-      return;
+      return handlers.moveBetweenPots(from, to, amountMinor)
+        ? { applied: true }
+        : { applied: false, notFound: `I couldn't find one of those pots (“${from}”, “${to}”).` };
     }
     case 'log_spend': {
       const merchant = stringArg(args.merchant) ?? 'Spend';
       const amountMinor = poundsArgToMinor(args.amount);
       const category = stringArg(args.category) ?? 'other';
-      if (amountMinor > 0) handlers.logSpend(merchant, amountMinor, category);
-      return;
+      if (amountMinor <= 0) {
+        return { applied: false, notFound: "I couldn't read that amount." };
+      }
+      handlers.logSpend(merchant, amountMinor, category);
+      return { applied: true };
     }
     case 'set_tight_point_goal':
       // A floor goal, not a posted fact — no canonical mutation. Left as a surfaced-only suggestion.
-      return;
+      return { applied: false, notFound: "I can't change a tight-point goal yet." };
   }
 }
 

@@ -435,6 +435,12 @@ export type MeloLocalFinancialSnapshot = Readonly<{
   protectedItems: readonly string[];
   pendingReviewCount: number;
   nextPaydayLabel: string;
+  // The user's own subscription + pot names, so Melo can echo the EXACT stored name back in a
+  // suggestion (pause_subscription / move_between_pots). Without these the model guesses a name and
+  // the "Do it" chip silently no-ops. Optional so existing snapshot builders stay valid; when absent
+  // Melo simply has no names to reference.
+  subscriptionNames?: readonly string[] | undefined;
+  potNames?: readonly string[] | undefined;
 }>;
 
 export type MeloLocalAiRequest = Readonly<{
