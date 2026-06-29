@@ -32,7 +32,12 @@
 // produced by their own readers). `source` is narrowed to this engine's inputs.
 // ---------------------------------------------------------------------------
 
-export type CandidateSource = 'csv' | 'paste';
+// The §0 candidate-source union. `csv` / `paste` are produced by THIS sheet engine.
+// `pdf` / `photo` are produced by the LLM statement/photo reader
+// (src/local/statementReaderClient.ts) — a statement file the model read (pdf) or a
+// photographed/screenshotted statement (photo). All four land in the SAME Review
+// screen as candidates; the source only labels where a row came from.
+export type CandidateSource = 'csv' | 'paste' | 'pdf' | 'photo';
 
 export type CandidateKind =
   | 'income'

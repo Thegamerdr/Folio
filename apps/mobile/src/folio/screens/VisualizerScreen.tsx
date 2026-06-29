@@ -5,8 +5,10 @@
 // @rn-stack     Intake > Check
 // @purpose      Visual preview of what Folio found before the user reviews item-by-item — a
 //               multi-select checklist of candidate money items with a live "Add N · ±£X" CTA.
-// @reads        — (the web file imported 14 store symbols; ALL were dead — none are read here)
-// @writes       addTransaction (only on Accept — the chosen candidates flow into the money path)
+// @reads        readerCandidates (the store's review-before-truth slot — the Intake reader's staged
+//               PDF / photo / text candidates; the web file's other 14 store imports were all dead)
+// @writes       addTransaction + clearReaderCandidates (only on Accept — the chosen candidates flow
+//               into the money path, then the staged review queue is consumed)
 // @opens-sheet  — (the per-row Fix opens a LOCAL edit sheet, not a shell SheetId; nav stays screen-to-screen)
 // @copy         FROZEN — keyed strings from '@/folio/copy/copy' (add.*); the eyebrow / kicker /
 //               headline / subhead / chips / CTA are the web's inline literals (not in COPY_DECK,
@@ -27,16 +29,19 @@
 //   • MELO (MELO_MOODS.md): reading=curious. The web prototype has no Melo on this surface, so the
 //     port has none on the header either — faithful to the design. Melo appears ONLY on loading
 //     (curious). "No mood = no Melo" discipline holds everywhere else.
-//   • READER OUTPUT, now REAL: the web faked the found items with a module const. The candidates
-//     are now produced by the real pure `parseSheet` engine (apps/mobile/src/folio/lib/importSheet.ts,
-//     ENGINES.md §6) — the merchant + signed amount + date of every row flow THROUGH the engine, not
-//     a hand-built array. The demo has no live clipboard/CSV text threaded in (FolioShell renders
-//     this screen with `nav` only), so — per the build task — `parseSheet` is driven from the
-//     screen's existing eight rows, restated faithfully as spreadsheet text (the web's exact eight
-//     items: no new merchants / numbers). The display `type` label and the "to check" flag are the
-//     web's exact per-row values, re-attached after the parse (the engine owns the money facts; the
-//     UI owns the label). Review-before-truth: nothing mutates the money path until the user taps
-//     Add (which calls addTransaction for each chosen candidate); Fix opens the edit form.
+//   • READER OUTPUT, now REAL + LIVE: the web faked the found items with a module const. This screen
+//     now renders the STAGED reader candidates from the store (`readerCandidates`) when present — the
+//     LLM reader's output for a picked PDF / photo, or the pure `parseSheet` output for a picked CSV /
+//     TSV / TXT, both staged by the Intake screen. When the slot is empty (a cold / dev open, e.g.
+//     FolioShell rendering this screen with `nav` only), it falls back to the faithful sample: the
+//     web's exact eight rows, restated as spreadsheet text and run through the same real `parseSheet`
+//     engine (no hand-built array, no new merchants / numbers). The display `type` label and the "to
+//     check" flag are the web's exact per-row values for the sample, re-attached after the parse (the
+//     engine owns the money facts; the UI owns the label); a live read with no matching sample row
+//     degrades to the candidate's own kind/category and a low-confidence "to check" — honest, never
+//     invented. Review-before-truth: nothing mutates the money path until the user taps Add (which
+//     calls addTransaction for each chosen candidate, then clears the staged queue); Fix opens the
+//     edit form.
 //   • NUMBER FORMATTING is preserved deliberately: rows use toFixed(2) (pence), the CTA uses
 //     toFixed(0) (whole £). The − minus glyph (U+2212) and the '·' middot are kept exactly. Inflows
 //     read positive (green); spend reads ink. tabular figures throughout.
@@ -83,7 +88,12 @@ import {
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { addTransaction, type Transaction } from '@/folio/store';
+import {
+  addTransaction,
+  clearReaderCandidates,
+  useReaderCandidates,
+  type Transaction,
+} from '@/folio/store';
 import {
   parseSheet,
   type CandidateMoneyItem as SheetCandidate,
@@ -252,19 +262,32 @@ export function VisualizerScreen({
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  // The real engine derivation. Live pasted/CSV text (when threaded in) is read by `parseSheet`;
-  // otherwise we fall back to the faithful sample (the same module-level parse, no re-run). An
-  // explicit `candidates` prop still wins for fixtures. `issues` are the engine's honest prompts.
+  // The REAL staged candidates from the Intake reader (PDF / photo via the LLM reader, or CSV / TSV /
+  // TXT via `parseSheet`), held in the store's review-before-truth slot. When present they are what
+  // the user reviews here — the source of truth for this surface. They are mapped through the same
+  // `toRenderCandidates` as a live paste (the metadata fallbacks keep a non-sample read honest).
+  const staged = useReaderCandidates();
+
+  // The real engine derivation, in priority order:
+  //   1. an explicit `candidates` prop (fixtures / tests) always wins;
+  //   2. the store's STAGED reader candidates (the live PDF / photo / text read) when non-empty;
+  //   3. live pasted/CSV `sourceText` threaded in, read by `parseSheet`;
+  //   4. the faithful module-level SAMPLE (a cold / dev open, no read staged).
+  // `issues` are the engine's honest prompts; staged candidates carry none of their own (the reader
+  // already validated them), so they review cleanly.
   const { candidates, issues } = useMemo(() => {
     if (candidatesOverride) {
       return { candidates: candidatesOverride, issues: [] as readonly ColumnIssue[] };
+    }
+    if (staged.length > 0) {
+      return { candidates: toRenderCandidates(staged), issues: [] as readonly ColumnIssue[] };
     }
     if (sourceText === undefined) {
       return { candidates: SAMPLE_CANDIDATES, issues: SAMPLE_ISSUES };
     }
     const parsed = parseSheet(sourceText);
     return { candidates: toRenderCandidates(parsed.candidates), issues: parsed.issues };
-  }, [candidatesOverride, sourceText]);
+  }, [candidatesOverride, staged, sourceText]);
 
   // loading auto-resolve: when the curious holding moment times out (~4s, immediate under
   // reduce-motion), fall through to the populated checklist instead of spinning forever.
@@ -321,8 +344,10 @@ export function VisualizerScreen({
       : `Add ${count} · ${selectedTotal >= 0 ? '+' : '−'}£${Math.abs(selectedTotal).toFixed(0)}`;
 
   // Accept — the ONLY money-path mutation on this surface. Each chosen candidate becomes a posted
-  // Transaction (review-before-truth: this is the user's deliberate "add"), then the route is
-  // re-drawn on today-after.
+  // Transaction (review-before-truth: this is the user's deliberate "add"). Once the user has
+  // confirmed here, the staged reader queue is consumed: `clearReaderCandidates()` empties the
+  // store's review-before-truth slot so a returning open of this surface (or a later read) starts
+  // clean and the same candidates can't be reviewed twice. Then the route is re-drawn on today-after.
   function acceptSelected() {
     if (count === 0) return;
     for (const item of items) {
@@ -334,6 +359,7 @@ export function VisualizerScreen({
         source: 'manual',
       });
     }
+    clearReaderCandidates();
     nav.go('today-after');
   }
 

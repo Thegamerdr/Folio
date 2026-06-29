@@ -11,3 +11,7 @@ android/
 ios/
 !apps/mobile/android/.gitkeep
 !apps/mobile/ios/.gitkeep
+
+# Wrangler local secrets (OpenRouter key for local gateway dev) — never commit
+.dev.vars
+**/.dev.vars

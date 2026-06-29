@@ -19,6 +19,7 @@ import {
   addCycle,
   addTransaction,
   applyMeloTool,
+  clearReaderCandidates,
   editTransaction,
   fastForwardMonth,
   getPersistBlob,
@@ -29,9 +30,11 @@ import {
   resetAll,
   setPartial,
   setPots,
+  setReaderCandidates,
   setTightPointGoal,
   togglePaused,
 } from './store';
+import type { CandidateMoneyItem } from './lib/importSheet';
 
 beforeEach(() => {
   // Clean, known seed before every test (defaults + seeded transactions).
@@ -491,6 +494,66 @@ describe('persist blob round-trip', () => {
     setPartial({ tightPointGoal: 99 });
     hydrateFromBlob('not valid json');
     expect(getState().tightPointGoal).toBe(99);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// readerCandidates — transient statement-reader review queue.
+// Review-before-truth: candidates only, never auto-counted, and MUST NOT
+// survive a restart — excluded from getPersistBlob, reset by load(), exactly
+// like the ephemeral calendarFocusDate/routeFocusDate bridges.
+// ---------------------------------------------------------------------------
+describe('readerCandidates staging slot', () => {
+  // Model-extracted candidates carry the lowest/most-tentative confidence so
+  // they MUST be reviewed before becoming posted facts.
+  const candidate = (over: Partial<CandidateMoneyItem> = {}): CandidateMoneyItem => ({
+    id: 'reader-1',
+    source: 'csv',
+    kind: 'spend',
+    merchant: 'Tesco',
+    amount: -42.1,
+    confidence: 'low',
+    ...over,
+  });
+
+  it('defaults to an empty queue', () => {
+    expect(getState().readerCandidates).toEqual([]);
+  });
+
+  it('set then clear round-trips the staged candidates', () => {
+    const txnsBefore = getState().transactions.length;
+    const items = [candidate({ id: 'r1' }), candidate({ id: 'r2', merchant: 'Caffè Nero', amount: -4.2 })];
+    setReaderCandidates(items);
+
+    const staged = getState().readerCandidates;
+    expect(staged.length).toBe(2);
+    expect(staged.map((c) => c.id)).toEqual(['r1', 'r2']);
+    // Every staged item is a tentative candidate — never a posted fact.
+    expect(staged.every((c) => c.confidence === 'low')).toBe(true);
+    // Staging does NOT auto-count: it never touches the transactions ledger.
+    expect(getState().transactions.length).toBe(txnsBefore);
+
+    clearReaderCandidates();
+    expect(getState().readerCandidates).toEqual([]);
+  });
+
+  it('is dropped from the persist blob — the review queue must not survive a restart', () => {
+    setReaderCandidates([candidate()]);
+    const parsed = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+
+    expect('readerCandidates' in parsed).toBe(false);
+  });
+
+  it('hydrate leaves the staging slot empty even if a blob smuggled candidates in', () => {
+    // Stage candidates, then hand-build a blob that (illegitimately) carries
+    // them, to prove hydrate resets the slot rather than trusting the disk.
+    setReaderCandidates([candidate()]);
+    const blob = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    blob.readerCandidates = [candidate({ id: 'smuggled' })];
+
+    hydrateFromBlob(JSON.stringify(blob));
+
+    expect(getState().readerCandidates).toEqual([]);
   });
 });
 

@@ -77,7 +77,8 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { setSubs, type Sub } from '@/folio/store';
+import { addCalendarEvent, setSubs, type Sub } from '@/folio/store';
+import { buildDebtSchedule, type DebtCadence } from '@/folio/lib/debt';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy (STATES.md "AddEntry" row). For this typed form, the real
@@ -146,6 +147,33 @@ function whenToDay(when: string): number {
   if (when === 'Last day') return 31;
   const n = parseInt(when, 10);
   return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
+// Decode a debt "How often" label into the cadence + remaining-payment count the debt engine takes.
+// The debt freq options encode BOTH: "Weekly · 6 left", "Monthly · 6 left", "Monthly · 12 left".
+// Pure + total — an unrecognised label degrades to a sensible monthly default rather than throwing.
+// Defaults live in named constants so the fallback is explicit, not a magic number.
+const DEFAULT_DEBT_CADENCE: DebtCadence = 'monthly';
+const DEFAULT_DEBT_PAYMENTS_LEFT = 6;
+function parseDebtFreq(freq: string): { cadence: DebtCadence; paymentsLeft: number } {
+  const lower = freq.toLowerCase();
+  const cadence: DebtCadence = lower.includes('weekly')
+    ? 'weekly'
+    : lower.includes('yearly')
+      ? 'yearly'
+      : lower.includes('monthly')
+        ? 'monthly'
+        : DEFAULT_DEBT_CADENCE;
+  const leftMatch = /(\d+)\s*left/.exec(lower);
+  const parsed = leftMatch ? parseInt(leftMatch[1] ?? '', 10) : NaN;
+  const paymentsLeft = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DEBT_PAYMENTS_LEFT;
+  return { cadence, paymentsLeft };
+}
+
+// "Today" as an ISO date (YYYY-MM-DD) for the debt engine's `now` anchor — pure-UTC slice so the
+// scheduled dates agree with the calendar engine's ISO/UTC space.
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScreenProps) {
@@ -229,11 +257,38 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
       };
       setSubs((prev) => [...prev, sub]);
     } else {
-      // A debt payment mirrors to RN's own debt engine. The "N left" in the debt freq options implies
-      // a remaining-payments count the engine tracks; that engine is built later, so this commit hands
-      // the record to it then routes on. The shape stays {name, amount, when, freq} until then.
-      // @rn-engine debt-engine — persist {name, amount, dueDay, cadence, paymentsLeft} + amortization (see BUILD_PLAN §3)
-      void { name: name.trim() || 'Untitled', amount: value, dueDay: whenToDay(when), cadence: freq };
+      // A debt payment mirrors to RN's own debt engine. The "N left" in the debt freq options encodes
+      // both the cadence and the remaining-payments count; the pure engine turns {name, balance, dueDay,
+      // cadence, paymentsLeft} + the per-payment amount into a dated payoff schedule. Each remaining
+      // payment is persisted as a manual calendar event (a dated OUTFLOW, not a posted spend), so it
+      // flows into the calendar-events derivation through the same `manualEvents` path bills + sub
+      // renewals use — review-before-truth: these are upcoming commitments, never auto-counted as spent.
+      // @rn-engine debt-engine — persist {name, amount, dueDay, cadence, paymentsLeft} + amortization (BUILD_PLAN §3)
+      const debtName = name.trim() || 'Untitled';
+      const { cadence, paymentsLeft } = parseDebtFreq(freq);
+      // The typed amount is the agreed per-payment instalment; the modelled balance is that instalment
+      // across the remaining payments (the form captures no separate total), so the schedule clears the
+      // plan exactly over `paymentsLeft` payments.
+      const schedule = buildDebtSchedule(
+        {
+          name: debtName,
+          balance: value * paymentsLeft,
+          dueDay: whenToDay(when),
+          cadence,
+          paymentsLeft,
+          amount: value,
+        },
+        { now: todayIso() },
+      );
+      for (const payment of schedule.payments) {
+        addCalendarEvent({
+          date: payment.date,
+          kind: 'out',
+          title: debtName,
+          amount: -payment.amount,
+          note: `Payment ${payment.index} of ${schedule.remaining}`,
+        });
+      }
     }
 
     nav.go('plans');

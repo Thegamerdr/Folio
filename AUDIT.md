@@ -62,7 +62,7 @@ values, a platform-appropriate control, an additive empty/loading/error state, o
 | Major / missing / not-found | **0** |
 | Folio typecheck errors | **0** |
 | Folio tests | **237 passing (15 files)** |
-| Engines built (web only stubbed) | **14 lib modules + store** (§5) |
+| Engines built (web only stubbed) | **15 lib modules + LLM reader + store** (§5) |
 | Runs on device | **Yes** — `emulator-5554`, faithful render, see `docs/audit/` |
 
 ---
@@ -85,7 +85,8 @@ values, a platform-appropriate control, an additive empty/loading/error state, o
 | Local-first persistence (survives restart) | Built + wired | `store.ts` (`getPersistBlob`/`hydrateFromBlob`), `lib/persist.ts` |
 | Melo 4 tools (review-before-truth, reversible) | Built + wired | `store.ts` `applyMeloTool`, `MeloChatSheet` |
 | Melo live AI turn | Client wired; **needs gateway deploy** (owner) | `MeloChatSheet` → `src/local/meloAiClient.ts` |
-| Statement (PDF) / photo readers | Pickers + text path wired; **OCR native module not built** | `IntakeScreen`, `Pdf*/Image*` screens |
+| Statement (PDF) / photo readers | **Built — LLM vision reader via the gateway** (reads any PDF/photo → candidates → Review); needs the same gateway deploy | `statementReaderClient.ts`, `IntakeScreen`, `Pdf*/Image*`, `VisualizerScreen` |
+| Debt amortization schedule | Built | `lib/debt.ts`, `AddEntryScreen`, `lib/calendarEvents.ts` |
 | Honest claims (no banned privacy/AI claims) | Enforced (copyLint) + the "stays on device" fix kept | §7 |
 | Store migrations versioned | Done — schemaVersion 3 + v2→v3 migration | `store.ts` |
 
@@ -93,27 +94,29 @@ values, a platform-appropriate control, an additive empty/loading/error state, o
 
 ## 4. How far from 100% (honest)
 
-The faithful port + the pure engines are **complete and verified**. What is **not** 100% on a shipped device is
-exactly the work that requires a **native module, a deployed server, or an owner credential** — none of which can
-be finished in JS/TS alone. Each is wired up to its seam and flagged in-code:
+The faithful port, all engines, **and the LLM statement/photo reader** are **built and verified**. Only two
+things are not live on a shipped device, and both need an **owner action** (a deploy / a server), not more code:
 
-1. **PDF-text + photo OCR** (`@rn-engine ocr-extraction`). The readers pick real files (expo-document-picker /
-   expo-image-picker) and the **CSV/TSV/TXT path produces real candidates** through `parseSheet`. But extracting
-   text from a **PDF** or running **OCR on a photo** needs a native PdfRenderer + ML Kit module that is **not
-   built** (`apps/mobile/src/local/nativeTextExtraction.ts` returns `none` today). A real PDF/photo pick therefore
-   routes to the honest "saved — will read later" fallback rather than faking a parse. → owner/native work.
-2. **Live Melo AI** (`@rn-engine melo-gateway`). The chat calls the real `sendMeloChat` client and applies tool
-   calls; until `EXPO_PUBLIC_MELO_GATEWAY_URL` points at the **deployed `services/ai-gateway` Worker** (owner's
-   OpenRouter key, `wrangler deploy` per `MELO_AI_SETUP.md`), it shows the honest "Melo isn't configured yet"
-   line. → owner deploy.
-3. **Hosted calendar push** (`@rn-engine hosted-calendar`). Local `.ics` export works now; the **Google / webcal
-   live feed** needs a hosted endpoint (a server). → owner infra.
-4. **Debt amortization schedule** (`@rn-engine debt-engine`, `AddEntryScreen`). Recurring debt cadence is wired
-   via the calendar-events engine; a full multi-payment amortization schedule is scoped in `BUILD_PLAN §3` and is
-   partial. → small follow-up.
+1. **The gateway deploy — unlocks BOTH live Melo AND the statement/photo reader** (`@rn-engine melo-gateway`).
+   Melo chat calls the real `sendMeloChat` client; the reader (`statementReaderClient.ts`) sends a picked PDF or
+   photo to a multimodal model (Gemini, via the gateway) and gets structured candidates → Review. Both go live the
+   moment `EXPO_PUBLIC_MELO_GATEWAY_URL` points at the **deployed `services/ai-gateway` Worker** (owner's OpenRouter
+   key as a Worker secret, `wrangler deploy` per `MELO_AI_SETUP.md`). Until then: Melo shows the honest "isn't
+   configured yet" line, and a PDF/photo pick routes to the honest "saved — will read later" fallback (never a fake
+   parse). The CSV/TSV/TXT path produces candidates fully offline today. _(A fully-offline native OCR module is
+   optional and no longer the blocker — the LLM reads any format, see the note below.)_
+2. **Hosted calendar push** (`@rn-engine hosted-calendar`). Local `.ics` export works now; a **Google / webcal live
+   feed** needs a hosted endpoint that would hold event data server-side — deferred deliberately because it
+   conflicts with Folio's local-first stance (the device would have to upload its events). → owner decision + infra.
 
-Everything else — the 42 surfaces, all 14 engines, persistence, undo, edit, export, the calendar/pots/subs/
-money-path logic, and the honest reader/gateway fallbacks — is built, wired, typechecked, and tested.
+On "reads any PDF/photo regardless of format": the reader uses an LLM vision model, so it does OCR + layout
+understanding for arbitrary statement layouts — far more robust than a hand-rolled parser — but it is **not 100%**
+on every possible document. That is exactly why output is **candidates the user confirms** (review-before-truth),
+never silently posted. The copy stays honest about this.
+
+Everything else — the 42 surfaces, all 15 engines (incl. debt amortization + the LLM reader), persistence, undo,
+edit, export, the calendar/pots/subs/money-path logic, and the honest fallbacks — is built, wired, typechecked,
+and tested (264 folio tests).
 
 ---
 
@@ -137,6 +140,8 @@ layer runs under vitest in Node.
 | Undo policy | `lib/undoPolicy.ts` + `ui/useUndo.tsx` | `softDelete`, `isRecoverable`, `showUndo` |
 | Persistence | `store.ts` + `lib/persist.ts` | `getPersistBlob`/`hydrateFromBlob`, `loadPersisted`/`startPersisting` |
 | Melo tools (review-before-truth) | `store.ts` | `applyMeloTool` |
+| Debt amortization | `lib/debt.ts` | `buildSchedule` (dated payments → calendar/money-path) |
+| LLM statement/photo reader | `src/local/statementReaderClient.ts` + store `readerCandidates` | `extractStatementCandidates`, `parseCandidatesFromModelJson` |
 
 ---
 

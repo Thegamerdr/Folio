@@ -56,6 +56,7 @@ function fullState(): AppState {
     calendarEvents: [{ id: 'evt-1', date: '2026-07-01', kind: 'out', title: 'Rent', amount: -800, note: 'monthly' }],
     calendarFocusDate: null,
     routeFocusDate: null,
+    readerCandidates: [],
   };
 }
 
@@ -77,6 +78,7 @@ function emptyState(): AppState {
     calendarEvents: [],
     calendarFocusDate: null,
     routeFocusDate: null,
+    readerCandidates: [],
   };
 }
 

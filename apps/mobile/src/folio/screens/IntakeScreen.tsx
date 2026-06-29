@@ -1,5 +1,9 @@
 // @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review (see BUILD_PLAN §3)
-// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
+// @rn-engine ocr-extraction — the EXTRACTOR is now the LLM reader (gateway vision model,
+//   src/local/statementReaderClient.ts), NOT the native PdfRenderer + ML Kit module. A real PDF /
+//   photo is handed to `extractStatementCandidates`, which reads the page through the multimodal
+//   gateway and returns money movements as candidates. The unbuilt native module is therefore no
+//   longer the blocker for reading a PDF/photo — it only matters for a fully offline OCR path.
 //
 // IntakeScreen — the faithful 1:1 React Native port of the web "Add what you have" picker
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenIntake.tsx).
@@ -31,14 +35,20 @@
 //   • WIRED PICKERS (this wave): "PDF statement" opens the real document picker
 //     (`pickLocalStatementDocument`, src/local/nativeDocumentImport.ts); "Screenshot or photo"
 //     opens the real photo-library picker (`pickStatementImage`, src/local/nativeImageIntake.ts).
-//     When the adapter returns extracted TEXT (a CSV / TSV / TXT statement today; OCR / PDF-text
-//     later), it is run through the pure `parseSheet` engine into CandidateMoneyItem[]; if that
-//     produces real candidates the user is routed to the success preview (`pdf-success` /
-//     `image-success`), where they review-before-truth. If the adapter saved the file but could
-//     not read it — which is TODAY's reality for every PDF and photo, because the native OCR /
-//     PDF-text module is not built (returns `none`) — the user is routed to the HONEST fallback
-//     (`pdf-fallback` / `image-fallback`: "File saved" / "will read later"). We never pretend a
-//     read happened. A cancel / permission-refusal leaves the picker exactly where it was.
+//     Two real read paths now run behind those pickers:
+//       — TEXT (CSV / TSV / TXT): the adapter returns extracted TEXT, which is run through the pure
+//         `parseSheet` engine into CandidateMoneyItem[]. If that produces real candidates they are
+//         STAGED via `setReaderCandidates` and the user is routed to the success preview
+//         (`pdf-success` / `image-success`), where they review-before-truth.
+//       — PDF / PHOTO: the picked file's `uri` + `mediaType` are handed to the LLM reader
+//         (`extractStatementCandidates`, src/local/statementReaderClient.ts → the gateway vision
+//         model). While that call is in flight the screen shows a calm in-place "reading…" moment
+//         (a Melo line, NEVER a spinner). On `ok` with >=1 candidate the candidates are STAGED via
+//         `setReaderCandidates` and the user is routed to the success preview. On `no-provider` /
+//         `error` / an empty read the file is still saved and the user is routed to the HONEST
+//         fallback (`pdf-fallback` / `image-fallback`: "File saved" / "will read later"). We never
+//         pretend a read happened — an unread file always lands on the honest fallback.
+//     A cancel / permission-refusal leaves the picker exactly where it was.
 //   • The accent word in the headline ("**what**") renders terracotta and UPRIGHT (the web uses
 //     <em class="not-italic text-[accent]"> — NOT italic). The headline string is read VERBATIM
 //     from `copy.add.title` ('Add **what** you have.') and the **…** run is coloured t.calm in the
@@ -59,7 +69,9 @@
 //     populated — local-first, nothing fetched). All five branches are rendered for completeness:
 //     populated/offline = the picker; loading = Melo curious + a line (NEVER a spinner, max ~4s
 //     then fall through to the picker); empty/error = the calm EmptyState doorway that still
-//     routes into the picker so it never dead-ends.
+//     routes into the picker so it never dead-ends. A sixth, transient READING moment (also Melo
+//     curious + a line, NEVER a spinner) shows while the LLM reader reads a picked PDF / photo; it
+//     resolves to the success preview or the honest fallback the instant the read returns.
 //   • Layout: the web root is a scroll container with a flex-1 spacer before the footer, so the
 //     footer pins to the bottom on tall screens and the list scrolls on short ones. RN: a
 //     ScrollView with contentContainerStyle flexGrow:1 + a flex:1 spacer View reproduces the
@@ -90,9 +102,14 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { parseSheet } from '@/folio/lib/importSheet';
+import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { setReaderCandidates } from '@/folio/store';
 import { pickLocalStatementDocument } from '../../local/nativeDocumentImport';
 import { pickStatementImage } from '../../local/nativeImageIntake';
+import {
+  extractStatementCandidates,
+  type StatementReaderKind,
+} from '../../local/statementReaderClient';
 import type { Nav, ScreenId } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Intake is populated-only and offline is
@@ -161,13 +178,15 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-// A picked file/photo only routes to the success preview when the reader actually produced money to
-// review. `parseSheet` is the pure candidate engine (importSheet.ts): it returns CandidateMoneyItem[]
-// + honest issues, and NEVER auto-counts. A hard column issue (no amount / no name column, or empty
-// input) means the text could not be read as a statement at all — that is the "read failed" case, so
-// it falls to the honest fallback rather than a hollow preview. Row-level issues are not hard; a
-// single bad row still lets the good rows through to the preview.
-function textYieldsCandidates(text: string): boolean {
+// A picked text file (CSV / TSV / TXT) only routes to the success preview when the reader actually
+// produced money to review. `parseSheet` is the pure candidate engine (importSheet.ts): it returns
+// CandidateMoneyItem[] + honest issues, and NEVER auto-counts. A hard column issue (no amount / no
+// name column, or empty input) means the text could not be read as a statement at all — that is the
+// "read failed" case, so it falls to the honest fallback rather than a hollow preview. Row-level
+// issues are not hard; a single bad row still lets the good rows through to the preview. Returns the
+// candidate list to STAGE when the read succeeded, or `null` when it did not — so the caller stages
+// the real candidates before routing to the preview, never an empty list.
+function readTextCandidates(text: string): CandidateMoneyItem[] | null {
   const { candidates, issues } = parseSheet(text);
   const hasHardIssue = issues.some(
     (issue) =>
@@ -175,7 +194,8 @@ function textYieldsCandidates(text: string): boolean {
       issue.code === 'missing-merchant' ||
       issue.code === 'empty-input',
   );
-  return candidates.length > 0 && !hasHardIssue;
+  if (candidates.length === 0 || hasHardIssue) return null;
+  return candidates;
 }
 
 // Split a deck string carrying a single **accent** run into its three parts. The headline is read
@@ -225,36 +245,109 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     return () => clearTimeout(id);
   }, [state]);
 
+  // reading — the calm in-place moment while the LLM reader is reading a picked PDF / photo. It is
+  // driven by the real in-flight read (not a timer): the read either lands candidates (→ success),
+  // or honestly falls back (→ fallback), and either way clears this state before routing. It is a
+  // Melo line, NEVER a spinner — the same "no spinner" hard rule the loading branch obeys.
+  const [reading, setReading] = useState(false);
+
   const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.title), []);
 
+  // Run the LLM reader over a picked PDF / photo and route honestly. The picked file's `uri` +
+  // `mediaType` go to `extractStatementCandidates` (the gateway vision model). While the call is in
+  // flight the screen shows the calm "reading…" Melo moment (reading=true). On `ok` with >=1
+  // candidate the candidates are STAGED via setReaderCandidates and we route to the success preview
+  // (review-before-truth — they are staged, not counted). On `no-provider` / `error` / an empty read
+  // we route to the honest fallback (the file is already saved on-device by the adapter; we never
+  // fake a parse). Always clears `reading` before routing.
+  async function runReader(
+    uri: string,
+    mediaType: string,
+    kind: StatementReaderKind,
+    successScreen: ScreenId,
+    fallbackScreen: ScreenId,
+  ) {
+    setReading(true);
+    try {
+      const result = await extractStatementCandidates({ uri, mediaType, kind });
+      if (result.kind === 'ok' && result.candidates.length > 0) {
+        setReaderCandidates(result.candidates);
+        nav.go(successScreen);
+        return;
+      }
+      // no-provider / error / empty read → the file is saved, but nothing was read. Honest fallback.
+      nav.go(fallbackScreen);
+    } finally {
+      setReading(false);
+    }
+  }
+
   // Fire the real on-device picker for a file-shaped option, then route honestly:
-  //   • document (PDF statement): pickLocalStatementDocument copies the chosen file to the app cache,
-  //     reads CSV/TSV/TXT directly, and hands a PDF / image to the on-device extractor. When it returns
-  //     extracted TEXT (`picked`) that parseSheet reads into candidates → the success preview
-  //     ('pdf-success'). When it saved the file but could not read it (`unsupported`) — TODAY's reality
-  //     for every PDF, because the native PdfRenderer + ML Kit OCR module is not built (returns 'none')
-  //     — the HONEST fallback ('pdf-fallback': "File saved" / "will read later"). Cancel = no nav.
-  //   • photo (screenshot / camera-roll image): pickStatementImage saves the image on-device only and
-  //     hands it to the same extractor. `picked` (future OCR) → parseSheet → 'image-success'; `saved`
-  //     (TODAY — OCR not built) → the honest 'image-fallback'; `denied` / `cancelled` = no nav.
-  // The pick never throws (the adapters swallow + report); a no-candidates / hard-issue read also falls
-  // to the fallback so we never show a hollow preview. Nothing is counted here — review-before-truth.
+  //   • document (PDF statement): pickLocalStatementDocument copies the chosen file to the app cache.
+  //     A CSV / TSV / TXT statement comes back as extracted TEXT (`picked`) — parseSheet reads it into
+  //     candidates, which are STAGED before routing to the success preview ('pdf-success'); a hollow /
+  //     hard-issue read falls to the honest 'pdf-fallback'. A real PDF comes back `unsupported` (the
+  //     adapter saved it but read no text) — its `uri` + `mediaType` go to the LLM reader (runReader),
+  //     which stages the model's candidates → 'pdf-success' or honestly falls back → 'pdf-fallback'.
+  //     Cancel = no nav.
+  //   • photo (screenshot / camera-roll image): pickStatementImage saves the image on-device only.
+  //     Extracted TEXT (`picked`) → parseSheet → staged → 'image-success'. A real photo comes back
+  //     `saved` (no text extracted) — its `uri` + `mediaType` go to the LLM reader → staged →
+  //     'image-success', or honest 'image-fallback'. `denied` / `cancelled` = no nav.
+  // The pick never throws (the adapters swallow + report). Nothing is counted here — review-before-truth.
   async function runPick(option: IntakeOption) {
     if (option.pick === 'document') {
       const result = await pickLocalStatementDocument();
       if (result.kind === 'picked') {
-        nav.go(textYieldsCandidates(result.text) ? 'pdf-success' : 'pdf-fallback');
+        const candidates = readTextCandidates(result.text);
+        if (candidates !== null) {
+          setReaderCandidates(candidates);
+          nav.go('pdf-success');
+        } else {
+          nav.go('pdf-fallback');
+        }
       } else if (result.kind === 'unsupported') {
-        nav.go('pdf-fallback');
+        // The adapter saved the file but read no text. If it kept the on-device uri, hand it to the
+        // LLM reader; if there is no uri to read (defensive — the picker always provides one), the
+        // file is still saved, so honest fallback.
+        if (result.source.uri !== undefined) {
+          await runReader(
+            result.source.uri,
+            result.source.mediaType,
+            'pdf',
+            'pdf-success',
+            'pdf-fallback',
+          );
+        } else {
+          nav.go('pdf-fallback');
+        }
       }
       return;
     }
     // option.pick === 'photo'
     const result = await pickStatementImage();
     if (result.kind === 'picked') {
-      nav.go(textYieldsCandidates(result.text) ? 'image-success' : 'image-fallback');
+      const candidates = readTextCandidates(result.text);
+      if (candidates !== null) {
+        setReaderCandidates(candidates);
+        nav.go('image-success');
+      } else {
+        nav.go('image-fallback');
+      }
     } else if (result.kind === 'saved') {
-      nav.go('image-fallback');
+      // The adapter saved the image but read no text. If it kept the on-device uri, hand it to the
+      // LLM reader; if there is no uri (defensive), the image is saved, so honest fallback.
+      if (result.source.uri !== undefined) {
+        await runReader(
+          result.source.uri,
+          result.source.mediaType,
+          'image',
+          'image-success',
+          'image-fallback',
+        );
+      } else {
+        nav.go('image-fallback');
+      }
     }
   }
 
@@ -295,6 +388,23 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         ]}
       >
         <MeloLine mood="curious" text="One second — getting your options ready." />
+      </View>
+    );
+  }
+
+  // reading — the LLM reader is reading the picked PDF / photo. A calm Melo line, NEVER a spinner
+  // (the same hard rule). Driven by the real in-flight read, not a timer: it resolves the moment the
+  // read lands candidates (→ success) or honestly falls back (→ fallback). Curious is the reading
+  // mood (MELO_MOODS.md), matching the success screens' own "Folio is reading…" line.
+  if (reading) {
+    return (
+      <View
+        style={[
+          styles.loading,
+          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl },
+        ]}
+      >
+        <MeloLine mood="curious" text="Reading what's here…" />
       </View>
     );
   }

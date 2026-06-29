@@ -22,20 +22,20 @@
 //               The doc-block's "stamp on accept" belongs to the DOWNSTREAM accept moment
 //               (ritual/visualizer), NOT this screen — it is not fired here.
 //
-// @rn-engine statement-reader — WIRED to the pure candidate engine. The found list is the real
-//   `parseSheet` output (apps/mobile/src/folio/lib/importSheet.ts, ENGINES.md §6), not a hand-built
-//   array: a CSV / TSV / TXT statement picked on the Intake screen flows here as extracted TEXT and is
-//   parsed into CandidateMoneyItem[] (review-before-truth — candidates only, never auto-counted). The
-//   demo threads no live text (FolioShell renders this screen with `nav` only), so — per the build
-//   task and the PasteSuccessScreen precedent — `parseSheet` is driven from the screen's existing
-//   sample rows, restated faithfully as statement text (the web source's exact three items: no
-//   fabricated merchants / numbers). The file name + page count are the eventual reader's metadata,
-//   kept as the web source's sample until a live read threads them in.
-// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
-//   A scanned PDF with no embedded text layer needs the native OCR/PDF-text module to produce text.
-//   Until it lands the extractor returns `none`, so a real PDF pick routes to the honest pdf-fallback
-//   ("File saved" / "will read later") from the Intake screen — this success preview is reached only
-//   when real candidates were read.
+// @rn-engine statement-reader — WIRED to the real reader. When the Intake screen has STAGED
+//   candidates in the store (`readerCandidates`) — the LLM reader's output for a picked PDF, or the
+//   pure `parseSheet` output for a picked CSV / TSV / TXT — this screen renders THOSE real candidates
+//   (review-before-truth — candidates only, never auto-counted). When the slot is empty (a cold /
+//   dev open of this screen, e.g. FolioShell rendering it with `nav` only), it falls back to the
+//   faithful SAMPLE below: the web source's exact three items, restated as statement text and run
+//   through the real `parseSheet` engine (no hand-built array, no fabricated merchants / numbers).
+//   The file name + page count are the reader's metadata; the sample keeps the web source's values,
+//   and a live read shows an honest "read from your statement" label since the reader stages only the
+//   money movements, not the file's page count.
+// @rn-engine ocr-extraction — the extractor for a real PDF is the LLM reader (gateway vision model,
+//   src/local/statementReaderClient.ts), reached from the Intake screen. The native PdfRenderer +
+//   ML Kit module is NOT the blocker anymore; this success preview is reached when the reader staged
+//   real candidates, and a read that found nothing routes to the honest pdf-fallback instead.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • Accent word "read" is rendered UPRIGHT terracotta inside the Fraunces headline — the web uses
@@ -108,6 +108,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { useReaderCandidates } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio found in the statement — the eventual shape of one CandidateMoneyItem from the
@@ -201,6 +202,22 @@ const SAMPLE_FOUND: FoundStatement = {
   items: toFoundItems(parseSheet(SAMPLE_STATEMENT_TEXT, { source: 'csv' }).candidates),
 };
 
+// The honest file label for a LIVE read: the reader stages the money movements, not the file's name
+// or page count, so we never invent a filename or a page total. A single calm line tells the truth
+// about where the items came from.
+const LIVE_READ_FILE_LABEL = 'Your statement';
+const LIVE_READ_PAGE_COUNT = 1;
+
+// Build the FoundStatement for a live read from the store's staged candidates. Honest metadata (no
+// fabricated filename / page count); the money movements are the reader's real output.
+function liveStatementFrom(candidates: readonly CandidateMoneyItem[]): FoundStatement {
+  return {
+    fileName: LIVE_READ_FILE_LABEL,
+    pageCount: LIVE_READ_PAGE_COUNT,
+    items: toFoundItems(candidates),
+  };
+}
+
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 
@@ -235,12 +252,19 @@ function useReduceMotion(): boolean {
 
 export function PdfSuccessScreen({
   nav,
-  statement = SAMPLE_FOUND,
+  statement: statementProp,
   state = 'populated',
 }: PdfSuccessScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
+
+  // The REAL staged candidates the Intake reader produced for this statement (review-before-truth).
+  // When the slot is non-empty we render those; when it is empty (a cold / dev open of this screen)
+  // we fall back to the faithful sample. An explicit `statement` prop still wins (fixtures / tests).
+  const staged = useReaderCandidates();
+  const statement: FoundStatement =
+    statementProp ?? (staged.length > 0 ? liveStatementFrom(staged) : SAMPLE_FOUND);
 
   // slide-in-r — drives the whole screen. 0 = entering, 1 = resting (translateX 0, opacity 1). Under
   // reduce-motion we resolve straight to the final state instead of animating.

@@ -1,0 +1,21 @@
+# Local wrangler secrets for `wrangler dev` (gateway running on your machine).
+# Copy this file to `.dev.vars` (which is gitignored) and paste your real values.
+# DO NOT put real keys in this .example file, and never commit `.dev.vars`.
+#
+#   cd services/ai-gateway
+#   cp .dev.vars.example .dev.vars     # then edit .dev.vars with your key
+#   npx wrangler dev                   # serves http://127.0.0.1:8787
+#
+# The Android emulator reaches your machine at 10.0.2.2, so point the app at:
+#   EXPO_PUBLIC_MELO_GATEWAY_URL=http://10.0.2.2:8787/v1
+#   EXPO_PUBLIC_MELO_GATEWAY_TOKEN=<the same value as GATEWAY_TOKEN below>
+# then restart Metro so it re-inlines the env, and reload the app.
+
+# Required — your OpenRouter API key (set a spend cap on it at openrouter.ai).
+OPENROUTER_API_KEY=
+
+# Recommended — any random string; use the SAME value for EXPO_PUBLIC_MELO_GATEWAY_TOKEN.
+GATEWAY_TOKEN=
+
+# Optional — override the default model (vision + PDF capable). Default: google/gemini-2.0-flash-001
+# OPENROUTER_MODEL=google/gemini-2.0-flash-001

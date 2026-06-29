@@ -19,19 +19,19 @@
 // @motion       slide-in-r (whole screen) · press 0.97 (kit `pressed`) · Melo breathe + blink
 //               (from MeloLine, calm mood — the only continuous motion on this quiet screen).
 //
-// @rn-engine photo-reader — WIRED to the pure candidate engine. The found list is the real
-//   `parseSheet` output (apps/mobile/src/folio/lib/importSheet.ts, ENGINES.md §6), not a hand-built
-//   array: when the photo reader produces extracted TEXT it is parsed into CandidateMoneyItem[]
-//   (review-before-truth — candidates only, never auto-counted). The demo threads no live text
-//   (FolioShell renders this screen with `nav` only), so — per the build task and the
-//   PasteSuccessScreen precedent — `parseSheet` is driven from the screen's existing sample rows,
-//   restated faithfully as text (the web source's exact two items: no fabricated merchants / numbers).
-//   The image name is the eventual reader's metadata, kept as the web source's sample.
-// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
-//   Reading a photo / screenshot needs the native ML Kit Text Recognition module. Until it lands the
-//   extractor returns `none`, so a real photo pick routes to the honest image-fallback ("Image saved"
-//   / "will read later") from the Intake screen — this success preview is reached only when real
-//   candidates were read.
+// @rn-engine photo-reader — WIRED to the real reader. When the Intake screen has STAGED candidates
+//   in the store (`readerCandidates`) — the LLM reader's output for a picked photo, or the pure
+//   `parseSheet` output for a picked CSV / TSV / TXT — this screen renders THOSE real candidates
+//   (review-before-truth — candidates only, never auto-counted). When the slot is empty (a cold /
+//   dev open, e.g. FolioShell rendering it with `nav` only), it falls back to the faithful SAMPLE
+//   below: the web source's exact two items, restated as text and run through the real `parseSheet`
+//   engine (no hand-built array, no fabricated merchants / numbers). The image name is the reader's
+//   metadata; the sample keeps the web source's value, and a live read shows an honest label since
+//   the reader stages only the money movements, not the photo's filename.
+// @rn-engine ocr-extraction — the extractor for a real photo is the LLM reader (gateway vision
+//   model, src/local/statementReaderClient.ts), reached from the Intake screen. The native ML Kit
+//   Text Recognition module is NOT the blocker anymore; this success preview is reached when the
+//   reader staged real candidates, and a read that found nothing routes to the honest image-fallback.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • Accent word "read" is rendered UPRIGHT terracotta inside the Fraunces headline (web
@@ -86,6 +86,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { useReaderCandidates } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio read from the photo — `merchant` is the display name, `hint` is the voice-
@@ -179,6 +180,19 @@ const SAMPLE_IMAGE: FoundImage = {
   items: toFoundItems(parseSheet(SAMPLE_IMAGE_TEXT, { source: 'csv' }).candidates),
 };
 
+// The honest image label for a LIVE read: the reader stages the money movements, not the photo's
+// filename, so we never invent one. A calm line tells the truth about where the items came from.
+const LIVE_READ_IMAGE_LABEL = 'Your photo';
+
+// Build the FoundImage for a live read from the store's staged candidates. Honest metadata (no
+// fabricated filename); the money movements are the reader's real output.
+function liveImageFrom(candidates: readonly CandidateMoneyItem[]): FoundImage {
+  return {
+    imageName: LIVE_READ_IMAGE_LABEL,
+    items: toFoundItems(candidates),
+  };
+}
+
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 
@@ -219,12 +233,19 @@ function splitAccent(source: string): { lead: string; accent: string; tail: stri
 
 export function ImageSuccessScreen({
   nav,
-  image = SAMPLE_IMAGE,
+  image: imageProp,
   state = 'populated',
 }: ImageSuccessScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
+
+  // The REAL staged candidates the Intake reader produced for this photo (review-before-truth). When
+  // the slot is non-empty we render those; when it is empty (a cold / dev open) we fall back to the
+  // faithful sample. An explicit `image` prop still wins (fixtures / tests).
+  const staged = useReaderCandidates();
+  const image: FoundImage =
+    imageProp ?? (staged.length > 0 ? liveImageFrom(staged) : SAMPLE_IMAGE);
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.
   const enter = useSharedValue(reduceMotion ? 1 : 0);

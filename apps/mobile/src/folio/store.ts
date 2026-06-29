@@ -22,6 +22,7 @@
 //     byte-for-byte the web original.
 
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
+import type { CandidateMoneyItem } from './lib/importSheet';
 
 /** The element type of the persisted `AppState.edits` slot. It is the engine's
  *  full `TxnEdit` with `id` relaxed to optional: every record this store writes
@@ -202,6 +203,13 @@ export type AppState = {
    *  Read once by ScreenToday to scrub the path to that date and pulse
    *  the matching point, then cleared. */
   routeFocusDate: string | null;
+  /** Transient review queue — candidates the statement reader extracted from a
+   *  PDF/image, staged for the Review screen. Review-before-truth: these are
+   *  NEVER posted facts and are NEVER auto-counted; the user confirms each one
+   *  before it becomes a transaction. Excluded from `getPersistBlob` and reset
+   *  by `load()` — it must NOT survive a restart, exactly like the ephemeral
+   *  `calendarFocusDate` / `routeFocusDate` bridges. */
+  readerCandidates: CandidateMoneyItem[];
 };
 
 const KEY = 'folio.state.v1';
@@ -241,6 +249,7 @@ const DEFAULTS: AppState = {
   calendarEvents: [],
   calendarFocusDate: null,
   routeFocusDate: null,
+  readerCandidates: [],
 };
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
@@ -384,6 +393,9 @@ function load(): AppState {
       calendarEvents: migrated.calendarEvents ?? [],
       calendarFocusDate: null,
       routeFocusDate: null,
+      // Transient review queue — never restored from a persisted blob (it is
+      // excluded from getPersistBlob), so a load always starts it empty.
+      readerCandidates: [],
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
@@ -443,12 +455,20 @@ export function getState(): AppState {
 
 /** Serialize the current state to a JSON string for native persistence.
  *  Pure + Node-safe — the native adapter (lib/persist.ts) writes the returned
- *  string to disk. Excludes the two ephemeral cross-screen bridges
- *  (`calendarFocusDate` / `routeFocusDate`): they are read-once UI hand-offs
- *  that `load()` already resets to `null`, so persisting them would be noise.
+ *  string to disk. Excludes the ephemeral cross-screen bridges
+ *  (`calendarFocusDate` / `routeFocusDate`) and the transient statement-reader
+ *  review queue (`readerCandidates`): they are read-once / review-before-truth
+ *  hand-offs that `load()` already resets, so persisting them would be noise
+ *  and — for `readerCandidates` — would let unreviewed candidates survive a
+ *  restart, which the review-before-truth rule forbids.
  *  Per ENGINES §7 store-migration / RN_PORT "Store migration". */
 export function getPersistBlob(): string {
-  const { calendarFocusDate: _f, routeFocusDate: _r, ...persistable } = state;
+  const {
+    calendarFocusDate: _f,
+    routeFocusDate: _r,
+    readerCandidates: _rc,
+    ...persistable
+  } = state;
   return JSON.stringify(persistable);
 }
 
@@ -632,6 +652,30 @@ export function setCalendarFocusDate(date: string | null) {
  *  and clears, scrubbing its path to that date. */
 export function setRouteFocusDate(date: string | null) {
   setPartial({ routeFocusDate: date });
+}
+
+/** Stage the candidates the statement reader extracted from a PDF/image for the
+ *  Review screen. Review-before-truth: these are candidates only — NEVER posted
+ *  facts, NEVER auto-counted. The Review screen confirms each one before it
+ *  becomes a transaction. Excluded from `getPersistBlob`, so the queue does not
+ *  survive a restart (an unreviewed candidate must never be silently kept). */
+export function setReaderCandidates(items: CandidateMoneyItem[]) {
+  setPartial({ readerCandidates: items });
+}
+
+/** Clear the staged statement-reader review queue — call once Review has
+ *  consumed the candidates (confirmed or discarded) so the staging slot is
+ *  empty again. */
+export function clearReaderCandidates() {
+  setPartial({ readerCandidates: [] });
+}
+
+/** Read path for the staged statement-reader review queue. A thin selector over
+ *  `useAppStore` (the store's one reactive seam) so the Review surface subscribes
+ *  to just this slice. Defined down with the other `use*` hooks so it sits after
+ *  `useAppStore` is declared. */
+export function useReaderCandidates(): CandidateMoneyItem[] {
+  return useAppStore((s) => s.readerCandidates);
 }
 
 /** Nudge a flexible bill (subscription renewal) by `deltaDays`. This is
