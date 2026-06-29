@@ -62,7 +62,8 @@ Smoke-test it: `curl https://folio-ai-gateway.<your-subdomain>.workers.dev/` sho
 
 ### (d) Point the app at the gateway
 
-Set these public Expo env vars for the build (in your `.env`, EAS build profile, or shell):
+The app reads two public Expo env vars: `EXPO_PUBLIC_MELO_GATEWAY_URL` and
+`EXPO_PUBLIC_MELO_GATEWAY_TOKEN`. Their values are:
 
 ```bash
 # The deployed Worker URL from step (c), with the /v1 path so the client posts to
@@ -72,6 +73,29 @@ EXPO_PUBLIC_MELO_GATEWAY_URL=https://folio-ai-gateway.<your-subdomain>.workers.d
 # The SAME token you set as GATEWAY_TOKEN in step (b). Omit only if you did not set GATEWAY_TOKEN.
 EXPO_PUBLIC_MELO_GATEWAY_TOKEN=<the-random-token-from-step-b>
 ```
+
+**For EAS builds (the shipped APK), set these as EAS env vars/secrets — this is required, or
+the release build ships with no gateway and Melo stays in its "isn't configured yet" state even
+after you deploy the Worker.** The build profiles in `apps/mobile/eas.json`
+(`preview`, `tester`, `production`) already reference these by name via their `env` blocks
+(`"$EXPO_PUBLIC_MELO_GATEWAY_URL"` / `"$EXPO_PUBLIC_MELO_GATEWAY_TOKEN"`), so EAS only needs the
+values registered once:
+
+```bash
+cd apps/mobile
+
+# Register the values on EAS (run once; pick the environments you build for).
+# These are PUBLIC, keyless values — the URL and a weak shared token — so visibility "plaintext"
+# is fine; the real OpenRouter key never leaves the Worker (step b).
+eas env:create --name EXPO_PUBLIC_MELO_GATEWAY_URL   --value "https://folio-ai-gateway.<your-subdomain>.workers.dev/v1" --visibility plaintext --environment production --environment preview
+eas env:create --name EXPO_PUBLIC_MELO_GATEWAY_TOKEN --value "<the-random-token-from-step-b>"                          --visibility plaintext --environment production --environment preview
+```
+
+(Older EAS CLIs use `eas secret:create --scope project --name <NAME> --value <VALUE>` instead;
+either way the names must match the two `EXPO_PUBLIC_MELO_GATEWAY_*` vars above.)
+
+For a **local** debug/prebuild build, set the same two vars in a `.env` file under `apps/mobile`
+or export them in your shell before building — `app.config.ts` reads them from `process.env`.
 
 If `EXPO_PUBLIC_MELO_GATEWAY_URL` is unset, Melo shows a calm "isn't configured yet" state
 instead of crashing.

@@ -6,6 +6,7 @@
   type ImportReviewRowSummary,
 } from '@folio/import-engine';
 import { buildForecast } from '@folio/finance-engine';
+import { expandBoundedRecurrence } from '@folio/calendar-engine';
 import {
   createCycleRecordId,
   createInstantString,
@@ -697,9 +698,77 @@ export function isPrivateExampleLedger(state: LocalLedgerState): boolean {
   );
 }
 
+// How far past today the route projects recurring income and bills. A recurring transaction is
+// stored once (its first occurrence), so without expansion the projected balance silently stops
+// including a salary or rent after that single dated point — the tightest point past the first
+// payday was wrong. 95 days covers three monthly cycles (and ~13 weekly cycles), i.e. more than one
+// full cycle beyond the next payday, which is what the route needs to find the real tightest point.
+const RECURRENCE_HORIZON_DAYS = 95;
+
+const REPEAT_TO_RRULE: Readonly<Record<Exclude<LocalCommitmentRepeat, 'none'>, string>> = {
+  weekly: 'FREQ=WEEKLY;INTERVAL=1',
+  monthly: 'FREQ=MONTHLY;INTERVAL=1',
+};
+
+// Expand each recurring transaction into the future occurrences it implies, out to the route
+// horizon. The transaction the user/onboarding stored carries only its FIRST dated occurrence plus a
+// `repeats` cadence; the route is built purely from dated transactions, so the later occurrences have
+// to be materialised here or they never reach the projected balance or the tightest-point search.
+//
+// The original transaction is left untouched (it is the first occurrence). For each later occurrence
+// strictly after the original date and on/before the horizon, a synthetic confirmed transaction is
+// produced with the same integer-minor amount, so no occurrence is double-counted. Synthetic
+// occurrences are non-protected projections (an expected future event, not a reserved-today bill) so
+// they move the running balance on their own date rather than being pulled forward to today.
+function expandRecurringTransactions(
+  transactions: readonly LocalLedgerTransaction[],
+  asOfDate: string,
+): readonly LocalLedgerTransaction[] {
+  const horizonDate = addIsoDays(asOfDate, RECURRENCE_HORIZON_DAYS);
+  const expanded: LocalLedgerTransaction[] = [];
+
+  for (const transaction of transactions) {
+    expanded.push(transaction);
+    const repeat = transaction.repeats;
+    if (repeat === undefined || repeat === 'none') continue;
+    if (transaction.date > horizonDate) continue;
+
+    const occurrences = expandBoundedRecurrence({
+      dtstart: `${transaction.date}T12:00:00`,
+      timeZone: 'UTC',
+      rrule: REPEAT_TO_RRULE[repeat],
+      windowEnd: horizonDate,
+    });
+
+    let occurrenceIndex = 0;
+    for (const occurrence of occurrences) {
+      const occurrenceDate = occurrence.local.slice(0, 10);
+      // Skip the first occurrence (the original transaction already represents it) and anything
+      // past the horizon. expandBoundedRecurrence already bounds the window, but the date-only slice
+      // is the authoritative comparison the rest of the route uses.
+      if (occurrenceDate <= transaction.date) continue;
+      if (occurrenceDate > horizonDate) break;
+      occurrenceIndex += 1;
+      expanded.push({
+        ...transaction,
+        id: `${transaction.id}__r${occurrenceIndex}`,
+        date: occurrenceDate,
+        // Later occurrences are projected expectations, not money reserved today. Keeping them
+        // unprotected means each shows as a dated move on the route instead of collapsing into the
+        // "set aside for bills" amount pulled to today.
+        protected: false,
+        certainty: transaction.amountMinor > 0 ? 'expected' : transaction.certainty ?? 'expected',
+      });
+    }
+  }
+
+  return expanded;
+}
+
 export function buildLocalRouteSummary(state: LocalLedgerState): LocalRouteSummary {
-  const confirmedTransactions = state.transactions.filter(
-    (transaction) => transaction.status === 'confirmed',
+  const confirmedTransactions = expandRecurringTransactions(
+    state.transactions.filter((transaction) => transaction.status === 'confirmed'),
+    state.asOfDate,
   );
   const forecast = buildLocalFinanceForecast(state, confirmedTransactions);
   const openingBalanceMinor = latestForecastClosingOnOrBefore(
@@ -737,7 +806,12 @@ export function buildLocalRouteSummary(state: LocalLedgerState): LocalRouteSumma
     nextPaydayLabel: nextPaydayLabel(confirmedTransactions, state.asOfDate),
     timeline,
     points,
-    confirmedTransactionCount: confirmedTransactions.length,
+    // Count the records the user actually stored, not the projected future occurrences expansion
+    // adds — this is user-facing ("X added", "X confirmed records"), so it must stay honest about
+    // what is really saved on the device.
+    confirmedTransactionCount: state.transactions.filter(
+      (transaction) => transaction.status === 'confirmed',
+    ).length,
     lastActionLabel: state.history[0]?.label ?? 'Local route ready.',
   };
 }

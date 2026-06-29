@@ -21,63 +21,12 @@ import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 import { gap, Headline, PressureScreen, radius, serif, useTheme, type Palette } from './kit';
 import { HubRow, RowCard, ScreenHeader, SectionLabel } from './secondaryKit';
 import { MeloFigure } from './melo/MeloFigure';
-import type { MeloMood } from './melo/meloStates';
-import { routeHasMeaningfulPath } from './MoneyPath';
+import { SPECTRUM, currentPressure, type PressureKey } from './meloPressure';
 import type { LocalLedgerState, LocalRouteSummary } from '../../local/localLedger';
 
-type PressureKey = 'safe' | 'calm' | 'soft' | 'pressured' | 'overspent';
-
-// Melo's emotional range — the spectrum she moves through as the route tightens. Lines are her
-// voice (verbatim from the accepted design); the mood drives the figure's pose.
-const SPECTRUM: readonly {
-  key: PressureKey;
-  label: string;
-  mood: MeloMood;
-  line: string;
-}[] = [
-  {
-    key: 'safe',
-    label: 'Safe',
-    mood: 'calm',
-    line: 'Plenty of room. Breathe.',
-  },
-  {
-    key: 'calm',
-    label: 'Calm',
-    mood: 'calm',
-    line: 'You make it to payday.',
-  },
-  {
-    key: 'soft',
-    label: 'Soft',
-    mood: 'soft-concern',
-    line: 'Tight - but the path holds.',
-  },
-  {
-    key: 'pressured',
-    label: 'Pressured',
-    mood: 'attentive',
-    line: 'The middle of next week is the squeeze.',
-  },
-  {
-    key: 'overspent',
-    label: 'Overspent',
-    mood: 'soft-concern',
-    line: 'Something has to move. Let us look together.',
-  },
-];
-
-// Where Melo is right now, read from the route. A ledger with no meaningful path sits at calm
-// (neutral) rather than guessing a pressure from an empty £0.
-function currentPressure(route: LocalRouteSummary): PressureKey {
-  if (!routeHasMeaningfulPath(route)) return 'calm';
-  const tight = route.tightestBalanceMinor;
-  if (tight < 0) return 'overspent';
-  if (tight < 5000) return 'pressured'; // < £50
-  if (tight < 18400) return 'soft'; // < £184
-  if (tight < 32500) return 'calm'; // < £325
-  return 'safe';
-}
+// The pressure ladder lives in the pure ./meloPressure module (no React Native), so the screen and
+// the monotonicity tests share one source of truth. Re-export for existing importers of this file.
+export { SPECTRUM, currentPressure, type PressureKey };
 
 export function MeloScreen({
   onBack,

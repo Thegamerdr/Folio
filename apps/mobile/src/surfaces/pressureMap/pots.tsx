@@ -127,7 +127,7 @@ export function PotsScreen({
         onPress={() => setCreating(true)}
       />
 
-      <MeloLine tone="soft" text="Pots quietly lower your spare on the path — that's the point." />
+      <MeloLine tone="soft" text="Pots are money you set aside on purpose — they sit beside the path, they don't change it." />
 
       {/* Pick a destination for the pot being moved from. */}
       <DestinationPickerSheet
