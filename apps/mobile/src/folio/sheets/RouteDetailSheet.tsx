@@ -1,0 +1,698 @@
+// RouteDetailSheet — the faithful 1:1 React Native port of the web money-path point sheet
+// (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetRouteDetail.tsx).
+//
+// @rn-sheet     RouteDetailSheet
+// @purpose      Detail for a point on the money path — what's left after a bill day, what's counted,
+//               what's waiting. Opened when a point on the path-to-payday (Today / Visualizer) is
+//               tapped. Read-only; its one action bridges the user to that day on the Calendar.
+// @reads        pressure (mood line + the "Left after this" figure) + the tapped point (its date,
+//               bills, pots). The web Nav carried `pressure`; RN's Nav does not, so `pressure`
+//               arrives as a prop (the shell already threads a pressure default to its screens).
+// @writes       calendarFocusDate (via setCalendarFocusDate) — the ephemeral Route→Calendar bridge
+//               ScreenCalendar consumes-once-and-clears. No money-data mutation (the web @writes was
+//               "—"); the design's preview-then-commit rule means this read-only sheet never silently
+//               mutates the path.
+// @copy         FROZEN — verbatim from the web source. These strings are not yet in COPY_DECK, so the
+//               literals live here as the frozen source ('@/folio/copy/copy' carries only the £ glyph
+//               this sheet needs); per the COPY_DECK rule "if a string isn't here it doesn't ship",
+//               RN must promote eyebrow / headline / labels / Melo line / CTA keys before shipping.
+// @tokens       --paper (→ surface, the sheet body, via Sheet) · --surface (→ surface, the inner
+//               detail card — paper-on-paper is intentional) · --accent (→ calm, pot dot + primary
+//               CTA) · --positive (→ positive, available via Money tone) · --hairline (→ hairline,
+//               card border + pots divider) · --negative (→ repair, bill dot + counted/pots Money) ·
+//               --muted-ink (→ muted, eyebrow / labels / close / secondary CTA / dates) · --ink (→ ink)
+// @motion       sheet-rise + scrim-in (inherited from Sheet) · press 0.97 on the ×, primary CTA, and
+//               secondary CTA · Melo idle breathe + blink + mood-pulse (always-on, internal to Melo).
+//               Money is STATIC here — NO count-up (MOTION.md: money never slides, and this sheet
+//               doesn't animate figures). Everything collapses to its final state under reduce-motion.
+// @moods        Melo mood = canonical 5 only. Pressure maps DIRECTLY to a mood (the web `pressureMood`
+//               aliases 'soft'/'alert' are dropped per RN_PORT + the kit): safe / calm / soft → calm,
+//               pressured / overspent → concern. concern is never alarming (no red / no shake).
+//
+// @rn-engine money-path — the tapped point (which day, its real "left after this" balance, the bills
+//   and pots landing on/near it) is supplied by the money-path / route-curve engine, NOT yet built
+//   (ENGINES §6). When no `point` is passed this renders the design state with the web placeholder
+//   event so the sheet reads faithfully; the live engine will pass real per-point data via `point`.
+//   The "Left after this" figure likewise comes from the per-point balance the engine computes; until
+//   then it falls back to the synthetic pressure curve the web used (pressureLow[pressure]).
+//
+// Faithful 1:1 RN port. The web source renders ONE happy-path branch (populated) plus the activePots
+// conditional. STATES.md covers SCREENS, not sheets, but the spec asks every state to be addressed:
+//   • populated — eyebrow + headline + detail card (Left-after / Bills-counted summary, bills list,
+//                 optional pots block) + Melo line + two CTAs. The web's only branch.
+//   • activePots conditional — the "Pots · saved each Friday" divider + per-pot rows render only when
+//                 there ARE active pots; bills-only card otherwise.
+//   • empty — a point with no bills AND no active pots: a calm "nothing counted on this day" doorway
+//             (EmptyState, Melo calm), never an error. Empty ≠ broken.
+//   • loading — Melo CURIOUS + the quiet line, never a spinner (MOTION/STATES: Folio doesn't spin).
+//   • error / offline — N/A; this is a synchronous local read with no fetch (offline == populated).
+//
+// Design-system discipline: every colour / font / spacing / radius token comes from '@/folio/theme'
+// (which re-exports the pressure-map kit). Nothing new is defined — no colour, font, spacing, or
+// dependency. The web '×' close glyph is drawn inline with react-native-svg (no icon font ships).
+// Money is rendered through a small <Money> matching the web kit's size + tone maps (Fraunces +
+// tabular figures); the U+2212 '−' minus glyph from the web literals is preserved verbatim (never
+// ASCII '-'). This sheet OWNS its Sheet host (visible / onClose), mounted as a sibling in the shell,
+// mirroring AddEventSheet / EditItemSheet / LogSpendSheet.
+
+import { useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+
+import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
+import { setCalendarFocusDate, useAppStore, type Pot, type PotCadence } from '@/folio/store';
+import { type Nav, type Pressure } from '@/folio/types';
+import { Melo, type MeloMood } from '@/folio/melo/Melo';
+import { MeloLine } from '@/folio/melo/MeloLine';
+import { copy } from '@/folio/copy/copy';
+import { EmptyState } from '@/folio/ui/EmptyState';
+
+// ---------------------------------------------------------------------------
+// Pressure tables — verbatim from the web source (components/folio/types.ts).
+//
+// `pressureLow` is the synthetic demo curve the web used for "Left after this" until the real
+// per-point balance exists (@rn-engine money-path). `pressureMood` maps a pressure to the CANONICAL
+// Melo mood (the web's 'soft'/'alert' aliases are dropped — pressured/overspent → concern), per the
+// spec's @moods rule.
+// ---------------------------------------------------------------------------
+
+const pressureLow: Record<Pressure, number> = {
+  safe: 612,
+  calm: 325,
+  soft: 184,
+  pressured: 42,
+  overspent: -86,
+};
+
+// Pressure → canonical Melo mood. safe / calm / soft sit calm; pressured / overspent move to concern
+// (breathe-slow + worry-bead, never red / shake). No 'soft'/'alert' aliases reach RN.
+const pressureMood: Record<Pressure, MeloMood> = {
+  safe: 'calm',
+  calm: 'calm',
+  soft: 'calm',
+  pressured: 'concern',
+  overspent: 'concern',
+};
+
+// The frozen Melo line for this point (web literal). Quotes are added by <MeloLine> (its own rule:
+// one thought per line, double-quoted), so the raw thought is passed without surrounding quotes.
+const MELO_LINE = 'The lowest balance comes just after the bills go out.';
+
+// The Octopus / Council Tax / Rent / BT Broadband placeholder event the web hardcoded, with the
+// '1 Jul' label and ROUTE_POINT_ISO. Kept as the @rn-engine fallback so the sheet reads faithfully
+// when no real `point` is passed; the live engine supplies a real RoutePoint via the `point` prop.
+const PLACEHOLDER_POINT: RoutePoint = {
+  iso: '2026-07-01',
+  dateLabel: '1 Jul',
+  bills: [
+    { name: 'Octopus Energy', date: '1 Jul', amount: 118.4 },
+    { name: 'Council Tax', date: '1 Jul', amount: 162.0 },
+    { name: 'Rent', date: '1 Jul', amount: 540.0 },
+    { name: 'BT Broadband', date: '3 Jul', amount: 38.0 },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/** One bill landing on / near the tapped point. `amount` is the magnitude (positive £); the '−£'
+ *  minus glyph is added at render so it matches the web literals and the formatter. */
+export type RouteBill = {
+  name: string;
+  /** Short day label, e.g. "1 Jul". */
+  date: string;
+  amount: number;
+};
+
+/** The tapped point on the money path. @rn-engine money-path supplies this; until then the sheet
+ *  falls back to the web PLACEHOLDER_POINT so the design state still renders. */
+export type RoutePoint = {
+  /** ISO YYYY-MM-DD — the day this point stands for (bridged to the Calendar). */
+  iso: string;
+  /** Short label shown in the eyebrow, e.g. "1 Jul". */
+  dateLabel: string;
+  /** The bills counted at / around this point. */
+  bills: RouteBill[];
+};
+
+export type RouteDetailSheetProps = {
+  visible: boolean;
+  onClose: () => void;
+  /** The shell's nav — `nav.go('calendar')` bridges to the Calendar after the sheet closes. */
+  nav: Nav;
+  /** The tapped point. Absent until the money-path engine wires it (@rn-engine money-path) — falls
+   *  back to the web placeholder event so the populated branch still renders. */
+  point?: RoutePoint | undefined;
+  /** The route pressure — drives the "Left after this" figure (synthetic until @rn-engine) and the
+   *  Melo mood. The web read this off `nav.pressure`; RN's Nav has no pressure, so the shell threads
+   *  it as a prop (defaults to calm, matching the shell's neutral default). */
+  pressure?: Pressure | undefined;
+  /** When true, render the quiet loading state (Melo curious + the line) instead of the point. Never
+   *  a spinner. Defaults to false — the local read is synchronous, so this is only for a future
+   *  engine that resolves the point asynchronously. */
+  loading?: boolean | undefined;
+};
+
+// ---------------------------------------------------------------------------
+// Reduced-motion hook (AccessibilityInfo-backed; mirrors AddEventSheet / Melo)
+// ---------------------------------------------------------------------------
+
+function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduce(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+  }, []);
+  return reduce;
+}
+
+// ---------------------------------------------------------------------------
+// Pot cadence wording — derive the per-pot + section label from pot.cadence.
+//
+// The web hardcoded "Friday" and "saved each Friday". RN derives the real wording: per ENGINES §6 a
+// new pot defaults to `after-payday`, and an unmigrated pot (no cadence) falls through to the legacy
+// weekly-Friday stand-in the calendar engine still uses. The fidelity risk flagged in the spec —
+// blindly shipping "Friday" — is fixed here without inventing a new token.
+// ---------------------------------------------------------------------------
+
+const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+/** Per-pot cadence label, e.g. "Friday" / "After payday" / "12th". Mirrors the calendar engine's
+ *  legacy Friday fallback for an unmigrated (cadence-less) pot. */
+function cadenceLabel(cadence: PotCadence | undefined): string {
+  if (!cadence) return 'Friday'; // legacy weekly stand-in (matches deriveCalendarEvents fallback)
+  switch (cadence.kind) {
+    case 'after-payday':
+      return 'After payday';
+    case 'weekly':
+      return WEEKDAY_LABELS[cadence.weekday] ?? 'Friday';
+    case 'monthly':
+      return ordinal(cadence.dayOfMonth);
+    case 'custom':
+      return 'Custom';
+  }
+}
+
+/** The pots-section header suffix. When every active pot shares one cadence, name it ("saved each
+ *  Friday"); when they differ, stay general ("set aside"). Replaces the web's blanket "each Friday". */
+function potsSectionSuffix(pots: Pot[]): string {
+  if (pots.length === 0) return 'set aside';
+  const first = cadenceLabel(pots[0]?.cadence);
+  const allSame = pots.every((p) => cadenceLabel(p.cadence) === first);
+  if (!allSame) return 'set aside';
+  if (first === 'After payday') return 'saved after payday';
+  if (first === 'Custom') return 'set aside';
+  // Weekday or day-of-month → "saved each Friday" / "saved each 12th".
+  return `saved each ${first}`;
+}
+
+// ---------------------------------------------------------------------------
+// Money formatting — the web `formatGBP` (kit.tsx), verbatim. Keeps the U+2212 minus glyph and the
+// en-GB whole-pound grouping so there's no formatting drift with the web source.
+// ---------------------------------------------------------------------------
+
+function formatGBP(n: number): string {
+  const sign = n < 0 ? '−' : ''; // U+2212, not ASCII '-'
+  return `${sign}${copy.global.currency.symbol}${Math.abs(n).toLocaleString('en-GB', {
+    maximumFractionDigits: 0,
+  })}`;
+}
+
+// ---------------------------------------------------------------------------
+// RouteDetailSheet — owns its Sheet host.
+// ---------------------------------------------------------------------------
+
+export function RouteDetailSheet({
+  visible,
+  onClose,
+  nav,
+  point,
+  pressure = 'calm',
+  loading = false,
+}: RouteDetailSheetProps) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  const reduceMotion = useReduceMotion();
+
+  return (
+    <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
+      <RouteDetailBody
+        styles={s}
+        palette={t}
+        onClose={onClose}
+        nav={nav}
+        point={point}
+        pressure={pressure}
+        loading={loading}
+      />
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Body — picks the state branch (loading → empty → populated).
+// ---------------------------------------------------------------------------
+
+function RouteDetailBody({
+  styles: s,
+  palette: t,
+  onClose,
+  nav,
+  point,
+  pressure,
+  loading,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+  palette: Palette;
+  onClose: () => void;
+  nav: Nav;
+  point: RoutePoint | undefined;
+  pressure: Pressure;
+  loading: boolean;
+}) {
+  // Active pots = those that contribute (perWeek > 0), matching the web predicate. The spec flags
+  // that with the real cadence model perWeek may be 0 for non-weekly pots; that is the money-path
+  // engine's call (@rn-engine), so the read-only sheet keeps the web predicate to stay faithful.
+  const pots = useAppStore((store) => store.pots);
+  const activePots = useMemo(() => pots.filter((p) => p.perWeek > 0), [pots]);
+
+  const resolvedPoint = point ?? PLACEHOLDER_POINT;
+
+  // LOADING — Melo curious + the quiet line, never a spinner.
+  if (loading) {
+    return (
+      <View style={s.loadingColumn}>
+        <Melo mood="curious" grounded size={28} />
+        <Text style={s.loadingLine}>{`“${MELO_LINE}”`}</Text>
+      </View>
+    );
+  }
+
+  // EMPTY — a point with no bills AND no active pots. A calm doorway, not an error (Empty ≠ broken).
+  if (resolvedPoint.bills.length === 0 && activePots.length === 0) {
+    return (
+      <EmptyState
+        mood="calm"
+        headline="Nothing counted on this day."
+        body="No bills or set-asides land here. The path just keeps on its way."
+      />
+    );
+  }
+
+  return (
+    <PopulatedDetail
+      styles={s}
+      palette={t}
+      onClose={onClose}
+      nav={nav}
+      point={resolvedPoint}
+      pressure={pressure}
+      activePots={activePots}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Populated — the web's happy path. Detail card + Melo line + two CTAs.
+// ---------------------------------------------------------------------------
+
+function PopulatedDetail({
+  styles: s,
+  palette: t,
+  onClose,
+  nav,
+  point,
+  pressure,
+  activePots,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+  palette: Palette;
+  onClose: () => void;
+  nav: Nav;
+  point: RoutePoint;
+  pressure: Pressure;
+  activePots: Pot[];
+}) {
+  const billsTotal = point.bills.reduce((sum, b) => sum + b.amount, 0);
+  const potsTotal = activePots.reduce((sum, p) => sum + p.perWeek, 0);
+  const mood = pressureMood[pressure];
+  const potsSuffix = potsSectionSuffix(activePots);
+
+  // See this day on the calendar — set the ephemeral focus bridge, close the sheet, then navigate.
+  // Order matches the web seeCalendar(): setCalendarFocusDate → onClose → nav.go('calendar').
+  function seeOnCalendar() {
+    setCalendarFocusDate(point.iso);
+    onClose();
+    nav.go('calendar');
+  }
+
+  return (
+    <View>
+      {/* Header — eyebrow + close glyph, space-between. */}
+      <View style={s.headerRow}>
+        <Text style={s.eyebrow}>{`What's happening · ${point.dateLabel}`}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          hitSlop={12}
+          onPress={onClose}
+          style={({ pressed }) => [pressed ? s.pressed : undefined]}
+        >
+          <CloseGlyph color={t.muted} />
+        </Pressable>
+      </View>
+
+      {/* Headline — NO accent word here (unlike most Folio headlines). Reproduced as-is. */}
+      <Text accessibilityRole="header" style={s.headline}>
+        Set aside for bills
+      </Text>
+
+      {/* Detail card — sits on --surface inside the paper sheet (paper-on-paper, intentional). */}
+      <View style={s.card}>
+        {/* Summary row — Left after this / Bills counted. */}
+        <View style={s.summaryRow}>
+          <View>
+            <Text style={s.label}>Left after this</Text>
+            <Money value={formatGBP(pressureLow[pressure])} size="lg" palette={t} />
+          </View>
+          <View style={s.summaryRight}>
+            <Text style={s.label}>Bills counted</Text>
+            <Money value={`−${copy.global.currency.symbol}${billsTotal.toFixed(0)}`} size="md" tone="negative" palette={t} />
+          </View>
+        </View>
+
+        {/* Bills list. */}
+        <View style={s.list}>
+          {point.bills.map((b) => (
+            <View key={b.name} style={s.lineRow}>
+              <View style={s.lineLeft}>
+                <View style={[s.dot, { backgroundColor: t.repair }]} />
+                <Text style={s.lineName}>{b.name}</Text>
+                <Text style={s.lineDate}>{b.date}</Text>
+              </View>
+              <Money value={`−${copy.global.currency.symbol}${b.amount.toFixed(2)}`} size="sm" palette={t} />
+            </View>
+          ))}
+        </View>
+
+        {/* Pots — only when there are contributing pots. Top-bordered divider + per-pot rows. */}
+        {activePots.length > 0 ? (
+          <>
+            <View style={s.potsHeader}>
+              <Text style={s.label}>{`Pots · ${potsSuffix}`}</Text>
+              <Money
+                value={`−${copy.global.currency.symbol}${potsTotal.toFixed(0)}/wk`}
+                size="sm"
+                tone="negative"
+                palette={t}
+              />
+            </View>
+            <View style={s.potsList}>
+              {activePots.map((p) => (
+                <View key={p.id} style={s.lineRow}>
+                  <View style={s.lineLeft}>
+                    <View style={[s.dot, { backgroundColor: t.calm }]} />
+                    <Text style={s.lineName}>{p.name}</Text>
+                    <Text style={s.lineDate}>{cadenceLabel(p.cadence)}</Text>
+                  </View>
+                  <Money value={`−${copy.global.currency.symbol}${p.perWeek.toFixed(0)}`} size="sm" palette={t} />
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+      </View>
+
+      {/* Melo line — the companion beside one quoted thought (Fraunces italic). */}
+      <View style={s.meloRow}>
+        <MeloLine text={MELO_LINE} mood={mood} size={28} />
+      </View>
+
+      {/* Primary CTA — bridge to the Calendar. Terracotta, h-54, 2xl radius. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="See this day on the calendar"
+        onPress={seeOnCalendar}
+        style={({ pressed }) => [s.primary, { backgroundColor: t.calm }, pressed ? s.pressed : undefined]}
+      >
+        <Text style={[s.primaryLabel, { color: t.inverse }]}>See this day on the calendar</Text>
+      </Pressable>
+
+      {/* Secondary CTA — Close. The always-available refusal (one CTA per state + refusal). */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        onPress={onClose}
+        style={({ pressed }) => [s.secondary, pressed ? s.pressed : undefined]}
+      >
+        <Text style={[s.secondaryLabel, { color: t.muted }]}>Close</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Money — the web kit's <Money>, ported. Fraunces + tabular figures; size + tone maps mirrored.
+// Static (no count-up): money never slides on this sheet. The web ink/positive/negative/muted/accent
+// tones map to the RN palette: ink → ink, positive → positive, negative → repair (coral, data),
+// muted → muted, accent → calm.
+// ---------------------------------------------------------------------------
+
+const MONEY_SIZE: Record<NonNullable<MoneyProps['size']>, number> = {
+  sm: 15,
+  md: 20,
+  lg: 28,
+  xl: 44,
+};
+
+type MoneyProps = {
+  value: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | undefined;
+  tone?: 'ink' | 'positive' | 'negative' | 'muted' | 'accent' | undefined;
+  palette: Palette;
+};
+
+function moneyColor(t: Palette, tone: NonNullable<MoneyProps['tone']>): string {
+  switch (tone) {
+    case 'positive':
+      return t.positive;
+    case 'negative':
+      return t.repair;
+    case 'muted':
+      return t.muted;
+    case 'accent':
+      return t.calm;
+    case 'ink':
+    default:
+      return t.ink;
+  }
+}
+
+function Money({ value, size = 'lg', tone = 'ink', palette: t }: MoneyProps) {
+  const fontSize = MONEY_SIZE[size];
+  return (
+    <Text
+      style={{
+        color: moneyColor(t, tone),
+        fontFamily: serif.medium,
+        fontSize,
+        fontVariant: ['tabular-nums'],
+      }}
+    >
+      {value}
+    </Text>
+  );
+}
+
+// Close glyph — the web '×', drawn inline. 18×18 user space (matches AddEventSheet's CloseGlyph).
+function CloseGlyph({ color }: { color: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 18 18">
+      <Path d="M4 4 L14 14 M14 4 L4 14" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Styles — colour-bearing, resolved against the active palette (the kit makeStyles pattern).
+// ---------------------------------------------------------------------------
+
+function makeStyles(t: Palette) {
+  return StyleSheet.create({
+    // Header row — eyebrow + close, space-between.
+    headerRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    // 11px uppercase tracked eyebrow (web text-[11px] tracking-[0.14em] muted).
+    eyebrow: {
+      color: t.muted,
+      fontSize: 11,
+      letterSpacing: 1.5,
+      textTransform: 'uppercase',
+    },
+    // Display headline — Fraunces 26, leading-tight, mt-2. No accent word.
+    headline: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 26,
+      letterSpacing: -0.3,
+      lineHeight: 30,
+      marginTop: gap.sm,
+    },
+
+    // Detail card — --surface on the paper sheet, hairline border, 2xl radius, p-5, mt-5.
+    card: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.xxl,
+      borderWidth: StyleSheet.hairlineWidth,
+      marginTop: gap.xl - gap.xs, // 20
+      padding: gap.xl - gap.xs, // 20 (web p-5)
+    },
+
+    // Summary row — Left after / Bills counted, baseline-aligned, space-between.
+    summaryRow: {
+      alignItems: 'flex-end',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    summaryRight: {
+      alignItems: 'flex-end',
+    },
+
+    // 11px uppercase tracked label (web tracking-[0.12em] muted).
+    label: {
+      color: t.muted,
+      fontSize: 11,
+      letterSpacing: 1.3,
+      marginBottom: gap.xxs,
+      textTransform: 'uppercase',
+    },
+
+    // Bills list — web mt-5 + space-y-3.
+    list: {
+      gap: gap.md,
+      marginTop: gap.xl - gap.xs, // 20
+    },
+    // A single bill / pot row — name + date on the left, money on the right.
+    lineRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    lineLeft: {
+      alignItems: 'center',
+      columnGap: gap.sm + gap.xxs, // ~10 (web gap-2.5)
+      flexDirection: 'row',
+      flexShrink: 1,
+    },
+    // 6px coloured dot (web w-1.5 h-1.5 rounded-full).
+    dot: {
+      borderRadius: 3,
+      height: 6,
+      width: 6,
+    },
+    // The bill / pot name — 13px ink.
+    lineName: {
+      color: t.ink,
+      fontSize: 13,
+    },
+    // The small date / cadence — 11.5px muted.
+    lineDate: {
+      color: t.muted,
+      fontSize: 11.5,
+    },
+
+    // Pots header — top-bordered divider, baseline-aligned, space-between, mt-5 pt-4.
+    potsHeader: {
+      alignItems: 'flex-end',
+      borderTopColor: t.hairline,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: gap.xl - gap.xs, // 20
+      paddingTop: gap.lg, // 16 (web pt-4)
+    },
+    // Pots list — web mt-3 + space-y-3.
+    potsList: {
+      gap: gap.md,
+      marginTop: gap.md,
+    },
+
+    // Melo line — web mt-5; <MeloLine> owns its own row layout + Fraunces-italic line.
+    meloRow: {
+      marginTop: gap.xl - gap.xs, // 20
+    },
+
+    // Primary CTA — full width, h-54, 2xl radius, terracotta, mt-5.
+    primary: {
+      alignItems: 'center',
+      borderRadius: radius.xxl,
+      height: 54,
+      justifyContent: 'center',
+      marginTop: gap.xl - gap.xs, // 20
+    },
+    primaryLabel: {
+      fontSize: 15,
+      fontWeight: '500',
+    },
+
+    // Secondary CTA — full width, h-48, 2xl radius, muted text, mt-2.
+    secondary: {
+      alignItems: 'center',
+      borderRadius: radius.xxl,
+      height: 48,
+      justifyContent: 'center',
+      marginTop: gap.sm,
+    },
+    secondaryLabel: {
+      fontSize: 14,
+    },
+
+    // LOADING — Melo curious + the quiet line, centred. Never a spinner.
+    loadingColumn: {
+      alignItems: 'center',
+      gap: gap.md,
+      paddingVertical: gap.xxl,
+    },
+    loadingLine: {
+      color: t.secondary,
+      fontFamily: serif.displayItalic,
+      fontSize: 13.5,
+      lineHeight: 18,
+      paddingHorizontal: gap.xl,
+      textAlign: 'center',
+    },
+
+    // The kit press feel (web `press` util — scale 0.97 / lowered opacity).
+    pressed: {
+      opacity: 0.6,
+      transform: [{ scale: 0.97 }],
+    },
+  });
+}

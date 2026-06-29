@@ -1,0 +1,1075 @@
+/**
+ * @rn-screen    TodayScreen
+ * @rn-stack     MainTabs > Today
+ * @purpose      One-screen answer to "will my money last to payday?" — tight-point number,
+ *               money-path SVG with scrub preview, proactive nudges, weekly tiles, recent spend.
+ *               Faithful 1:1 RN port of the web design source
+ *               (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenToday.tsx).
+ * @reads        pressure (mood band), pots/subs/transactions/onboarding/cycles/currentBalance/
+ *               routeFocusDate (via the store + child components)
+ * @writes       setRouteFocusDate(null) (consume-once) · sweepSubOverrides() (mount) · removeTransaction (child)
+ * @opens-sheet  onboarding, log-spend, melo-chat (via nav.openSheet / nav.openMelo)
+ * @copy         FROZEN — every visible string ships verbatim (pressureLine / copy deck).
+ * @tokens       paper(canvas) · surface · inset · ink · muted · hairline · calm(accent) ·
+ *               calmSoft(accent-soft) · positive · caution · repair(negative) · Fraunces headlines ·
+ *               tabular money
+ * @motion       route-draw 2.2s · count-up 400ms · pulse-ring 1.8s · callout-in 600ms ·
+ *               press .98 · slide-in-r 360ms · respects reduce-motion (all collapse to final state)
+ * @melo-mood    derived from pressure via pressureMood (reconciled to the canonical Melo vocabulary)
+ * @notes        Path SVG is the hero — the scrub thumb maps a Pan gesture x → "if you spend £X today"
+ *               preview and re-targets the count-up. The path nodes / '27 Jun' / '7 Jul' / '£2,180' /
+ *               '£1,095' / '£1,240' figures are HARDCODED placeholders in the prototype (only
+ *               tightestSpare/tightestDate + balance source + the child sums are live), kept honest
+ *               by the sample-data chip + balance-source caption. Sub-components live in ./today/.
+ */
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  Line,
+  LinearGradient,
+  Path,
+  Rect,
+  Stop,
+  Text as SvgText,
+} from 'react-native-svg';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+
+import {
+  elevation,
+  gap,
+  PressureScreen,
+  pressed,
+  radius,
+  serif,
+  useCountUp,
+  useTheme,
+  type Palette,
+} from '@/folio/theme';
+import { Melo } from '@/folio/melo/Melo';
+import { MeloLine } from '@/folio/melo/MeloLine';
+import { copy } from '@/folio/copy/copy';
+import { useAppStore, setRouteFocusDate, sweepSubOverrides } from '@/folio/store';
+import { computeRoute, type DatedAmount } from '@/folio/lib/moneyPath';
+import { resolvePayday } from '@/folio/lib/payday';
+import type { Nav, Pressure } from '@/folio/types';
+
+import { pressureLine, pressureLow, pressureMood } from './today/pressure';
+import { formatDayProse, formatGBP, groupedPounds } from './today/format';
+import { TodayNudges } from './today/TodayNudges';
+import { TodaySpendStrip } from './today/TodaySpendStrip';
+import { TodayRecentTxns } from './today/TodayRecentTxns';
+import { TodayWeekTiles } from './today/TodayWeekTiles';
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedG = Animated.createAnimatedComponent(G);
+
+// The SVG is authored in the web's 400×240 user space; react-native-svg scales it to the card width
+// via the viewBox, so every coordinate below is the web coordinate, unchanged.
+const VB_W = 400;
+const VB_H = 240;
+const SVG_RENDER_H = 200; // the web rendered the 400×240 viewBox into a 200px-tall box
+const ROUTE_DASH = 1200; // >= the actual path length so route-draw never clips
+const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
+const DAY_MS = 86_400_000;
+
+// --- Local-calendar date helpers for the money-path engine -------------------------------------
+// The engine takes ISO "YYYY-MM-DD" strings and parses them as calendar days (UTC midnight). We
+// build those strings from the runtime's LOCAL date parts so "today" is the user's local day —
+// consistent with formatDayProse, which parses the same ISO at local midnight. Pure string math,
+// no timezone-offset surprises.
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+/** A Date → local-calendar ISO day "YYYY-MM-DD". */
+function toIsoDay(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+/** A Date → local-calendar "YYYY-MM" (the month resolvePayday expects). */
+function toYearMonth(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+}
+/** A Date shifted by whole days (local clock), for dating sub renewals N days out. */
+function addDays(date: Date, n: number): Date {
+  return new Date(date.getTime() + n * DAY_MS);
+}
+/** A Date shifted by whole months, for rolling to next month's payday. */
+function addMonths(date: Date, n: number): Date {
+  return new Date(date.getFullYear(), date.getMonth() + n, date.getDate());
+}
+
+type ScreenState = 'populated' | 'loading' | 'error' | 'offline';
+
+export function TodayScreen({
+  nav,
+  pressure,
+  state = 'populated',
+}: {
+  nav: Nav;
+  /** The route pressure mood. The web read this off `nav.pressure`; the RN Nav contract has no
+   *  pressure, so the shell threads it explicitly. */
+  pressure: Pressure;
+  /** STATES.md branch. 'populated' (happy) · 'loading' (no spinner — mount gate handles the only
+   *  transient) · 'error' (a dismissible non-blocking banner OVER populated content) · 'offline'
+   *  (same as populated — Folio is local-first). Defaults to 'populated'. */
+  state?: ScreenState;
+}) {
+  const t = useTheme();
+  const reduceMotion = useReduceMotion();
+
+  const mood = pressureMood[pressure];
+  const line = pressureLine[pressure];
+
+  // Live store reads. Today's tightest mirrors the Route/Calendar exactly.
+  const subs = useAppStore((st) => st.subs);
+  const subPaused = useAppStore((st) => st.subPaused);
+  const subOverrides = useAppStore((st) => st.subOverrides);
+  const onboarding = useAppStore((st) => st.onboarding);
+  const pots = useAppStore((st) => st.pots);
+  const transactions = useAppStore((st) => st.transactions);
+  const routeFocusDate = useAppStore((st) => st.routeFocusDate);
+  const currentBalance = useAppStore((st) => st.currentBalance);
+
+  // Mount-gate (kept from the web to avoid a flash of the fallback before the engine computes; on
+  // RN it also defers `new Date()` so the date-derived bits don't render on the first frame). When
+  // `state === 'loading'` we hold the gate closed so the loading branch (Melo curious + line, never
+  // a spinner) shows.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    sweepSubOverrides();
+  }, []);
+
+  const isLoading = state === 'loading' || now === null;
+
+  // @rn-engine money-path — the lowest-point figure + its date now come from the real pure route
+  // engine (`computeRoute`, @/folio/lib/moneyPath) fed from the live store, with payday resolved by
+  // `resolvePayday` (@/folio/lib/payday). The path runs from today's balance through the next payday,
+  // sampled once per day; the tight point is the lowest projected balance and the day it lands on.
+  //
+  // Inputs are mapped from store rows onto the engine's dated-amount shape:
+  //   · subs (skipping paused, applying the same +override the Calendar uses) → outflows dated
+  //     `now + nextRenewalDaysAway` days,
+  //   · transactions → spend (the engine reads spend as outflow magnitude, so a stored negative
+  //     spend becomes a positive magnitude and a stored positive inflow becomes a refund-style
+  //     negative — both via a single sign flip),
+  //   · monthly income → an inflow on the resolved payday,
+  //   · pots.saved → the flat earmark that lowers the whole path (ENGINES.md §6 "Pots ↔ spendable").
+  //
+  // Before the mount-gate opens (`now === null`) the engine has no honest "today", so the screen
+  // keeps the per-pressure sample (pressureLow) for that single transient frame — exactly the
+  // pre-engine populated layout, so a normal open never flashes a different figure.
+  const route = useMemo(() => {
+    if (!now) return null;
+    const todayIso = toIsoDay(now);
+
+    // Resolve the next payday: this month's resolved payday if it's still ahead, else next month's.
+    const thisMonthPayday = resolvePayday({ dayOfMonth: onboarding.payday || 25 }, toYearMonth(now));
+    const paydayIso =
+      thisMonthPayday >= todayIso
+        ? thisMonthPayday
+        : resolvePayday({ dayOfMonth: onboarding.payday || 25 }, toYearMonth(addMonths(now, 1)));
+
+    // Sub renewals → dated outflows. Skip paused; apply the stored day-nudge (same as the Calendar).
+    const subEvents: DatedAmount[] = subs
+      .filter((s) => !subPaused[s.name])
+      .map((s) => ({
+        date: toIsoDay(addDays(now, s.nextRenewalDaysAway + (subOverrides[s.name] ?? 0))),
+        amount: s.cost,
+      }));
+
+    // Transactions → spend. Stored sign is "negative = spend, positive = inflow"; the engine reads
+    // spend as outflow magnitude, so flip the sign once.
+    const spendEvents: DatedAmount[] = transactions.map((tx) => ({
+      date: toIsoDay(new Date(tx.when)),
+      amount: -tx.amount,
+    }));
+
+    // Monthly income lands on payday.
+    const incomeEvents: DatedAmount[] =
+      onboarding.monthlyIncome > 0 ? [{ date: paydayIso, amount: onboarding.monthlyIncome }] : [];
+
+    return computeRoute({
+      now: todayIso,
+      payday: paydayIso,
+      balance: currentBalance.amount,
+      income: incomeEvents,
+      bills: [],
+      subs: subEvents,
+      spend: spendEvents,
+      holds: [],
+      pots: pots.map((p) => ({ saved: p.saved })),
+      openBorrows: 0,
+    });
+  }, [now, onboarding.payday, onboarding.monthlyIncome, subs, subPaused, subOverrides, transactions, currentBalance.amount, pots]);
+
+  // The lowest-point figure (hero number + summary "Lowest") and its date. Until the mount-gate
+  // opens, fall back to the honest per-pressure sample with no live date — the pre-engine state.
+  const tight = useMemo(
+    () =>
+      route
+        ? { tightestSpare: route.tightPoint.amount, tightestDate: route.tightPoint.date }
+        : { tightestSpare: pressureLow[pressure], tightestDate: null as string | null },
+    [route, pressure],
+  );
+
+  // Days to payday — the live count from the route engine (whole calendar days, today → payday),
+  // falling back to the sample literal until the mount-gate opens.
+  const daysToPayday = route ? route.daysToPayday : 11;
+
+  // Honest balance-source caption (ENGINES.md §6) — every balance shows where it came from.
+  const balanceSourceLabel = useMemo(() => {
+    switch (currentBalance.source) {
+      case 'user-entered':
+        return 'you set this';
+      case 'statement':
+        return 'from your last statement';
+      case 'pdf-derived':
+        return 'from a statement you added';
+      case 'ocr-derived':
+        return 'from a photo you added';
+      case 'corrected':
+        return 'you corrected this';
+      case 'sample':
+      default:
+        return 'sample data';
+    }
+  }, [currentBalance.source]);
+
+  const tightestSpare = Math.max(0, Math.round(tight.tightestSpare));
+
+  // The lowest-point node's y, keyed to the pressure band (the dip lands deeper as pressure rises).
+  const lowY = useMemo(() => {
+    const map: Record<Pressure, number> = {
+      safe: 130,
+      calm: 160,
+      soft: 180,
+      pressured: 205,
+      overspent: 218,
+    };
+    return map[pressure];
+  }, [pressure]);
+
+  // The six route nodes. HARDCODED placeholders (today / salary rise / bill drop / debt drop /
+  // payday) save the lowest point, whose value/date are live. Faithful to the prototype.
+  const points = useMemo(
+    () =>
+      [
+        { x: 30, y: 140, label: 'today', value: '£1,240' },
+        { x: 95, y: 110, label: 'salary rise', value: '+£2,180' },
+        { x: 165, y: 95, label: 'bill drop', value: '−£875' },
+        { x: 235, y: 175, label: 'debt drop', value: '−£220' },
+        { x: 305, y: lowY, label: 'lowest point', value: formatGBP(tightestSpare) },
+        { x: 370, y: 150, label: 'payday', value: '+£2,180' },
+      ] as const,
+    [lowY, tightestSpare],
+  );
+  const d = `M ${points.map((p) => `${p.x} ${p.y}`).join(' L ')}`;
+  const areaD = `${d} L 370 240 L 30 240 Z`;
+
+  // Scrub — a 0..1 fraction across the plotted range, dragged with a PanResponder (the web used a
+  // pointer drag against the SVG bounding box). A live ref lets the responder read width without
+  // re-creating itself.
+  const [scrub, setScrub] = useState(0);
+  const svgWidthRef = useRef(0);
+  const onCardLayout = (e: LayoutChangeEvent) => {
+    svgWidthRef.current = e.nativeEvent.layout.width;
+  };
+  const applyScrubFromX = (localX: number) => {
+    const w = svgWidthRef.current || 1;
+    const x = Math.max(0, Math.min(1, localX / w));
+    setScrub(x);
+  };
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        // Stop the parent ScrollView from stealing the vertical pan while scrubbing (the web used
+        // touch-none on the svg).
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: (e) => applyScrubFromX(e.nativeEvent.locationX),
+        onPanResponderMove: (e) => applyScrubFromX(e.nativeEvent.locationX),
+      }),
+    [],
+  );
+
+  // The hero number counts up to the tightest spare minus the previewed scrub spend (£0..£120).
+  const lowDisplay = useCountUp(tightestSpare - Math.round(scrub * 120), 400, reduceMotion);
+
+  type Band = 'week' | 'next' | 'payday';
+  const [band, setBand] = useState<Band>('payday');
+  const bands: { id: Band; label: string; range: string }[] = [
+    { id: 'week', label: 'This week', range: '27 Jun → 3 Jul' },
+    { id: 'next', label: 'Next week', range: '4 Jul → 10 Jul' },
+    { id: 'payday', label: 'To payday', range: '27 Jun → 25 Jul' },
+  ];
+  const activeBand = bands.find((b) => b.id === band)!;
+
+  // Calendar → Route bridge. Map the focused ISO date to an x on the path (30..370), pulse it, and
+  // clear the focus so it never re-fires. One-shot with a 6s timeout cleaned up on unmount.
+  const [focusX, setFocusX] = useState<number | null>(null);
+  const [focusLabel, setFocusLabel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!now || !routeFocusDate) return;
+    const target = new Date(routeFocusDate + 'T00:00:00').getTime();
+    const days = Math.round((target - now.getTime()) / 86_400_000);
+    const clamped = Math.max(0, Math.min(28, days));
+    setFocusX(30 + (clamped / 28) * 340);
+    setFocusLabel(formatDayProse(routeFocusDate));
+    setRouteFocusDate(null);
+    const id = setTimeout(() => {
+      setFocusX(null);
+      setFocusLabel(null);
+    }, 6000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now, routeFocusDate]);
+
+  // Pot top-ups become a labelled Friday dip so the route reads honestly.
+  const activePots = pots.filter((p) => p.perWeek > 0);
+  const weeklyPotTotal = activePots.reduce((sum, p) => sum + p.perWeek, 0);
+
+  // --- Motion: route-draw (animated strokeDashoffset, keyed on `d`) -------------------------------
+  const draw = useSharedValue(reduceMotion ? 1 : 0);
+  useEffect(() => {
+    cancelAnimation(draw);
+    if (reduceMotion) {
+      draw.value = 1;
+      return;
+    }
+    draw.value = 0;
+    draw.value = withTiming(1, { duration: 2200, easing: EASE_OUT_EXPO });
+    return () => cancelAnimation(draw);
+  }, [draw, reduceMotion, d]);
+  const routeStrokeProps = useAnimatedProps(() => ({
+    strokeDashoffset: ROUTE_DASH * (1 - draw.value),
+  }));
+
+  // --- Motion: pulse-ring (lowest-point halo + focus halo) ----------------------------------------
+  const pulse = useSharedValue(reduceMotion ? 1 : 0);
+  useEffect(() => {
+    cancelAnimation(pulse);
+    if (reduceMotion) {
+      pulse.value = 1; // final state: ring at rest, fully shown
+      return;
+    }
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+    return () => cancelAnimation(pulse);
+  }, [pulse, reduceMotion]);
+  const pulseRingProps = useAnimatedProps(() => {
+    // 1.8s ease-in-out loop: ring scales 1→~1.25 and fades 0.5→0 (the web @keyframes pulse-ring).
+    const r = 11 + pulse.value * 3;
+    const opacity = 0.5 * (1 - pulse.value);
+    return { r, opacity };
+  });
+  const focusRingProps = useAnimatedProps(() => {
+    const r = 9 + pulse.value * 3;
+    const opacity = 0.8 * (1 - pulse.value * 0.7);
+    return { r, opacity };
+  });
+
+  // --- Motion: callout-in (idle lowest-point + focus chip), 600ms ease-out, 1.4s delay ------------
+  const callout = useSharedValue(reduceMotion ? 1 : 0);
+  useEffect(() => {
+    cancelAnimation(callout);
+    if (reduceMotion) {
+      callout.value = 1;
+      return;
+    }
+    callout.value = 0;
+    callout.value = withDelay(1400, withTiming(1, { duration: 600, easing: EASE_OUT_EXPO }));
+    return () => cancelAnimation(callout);
+  }, [callout, reduceMotion]);
+  const calloutStyle = useAnimatedProps(() => ({ opacity: callout.value }));
+
+  // --- Motion: slide-in-r screen entrance, 360ms (translateX 28→0) --------------------------------
+  const enter = useSharedValue(reduceMotion ? 1 : 0);
+  useEffect(() => {
+    if (reduceMotion) {
+      enter.value = 1;
+      return;
+    }
+    enter.value = withTiming(1, { duration: 360, easing: EASE_OUT_EXPO });
+  }, [enter, reduceMotion]);
+  const enterStyle = useAnimatedStyle(() => ({
+    opacity: enter.value,
+    transform: [{ translateX: 28 * (1 - enter.value) }],
+  }));
+
+  const thumbX = 30 + scrub * 340;
+  const strokeEndColor = pressure === 'overspent' ? t.repair : t.positive;
+
+  // Loading branch (STATES.md / spec): never a spinner. When the shell explicitly hands a loading
+  // state, Folio holds the screen on Melo (curious) + one quoted line — the same calm "working it
+  // out" affordance the rest of the app uses — instead of flashing the fallback figures. The
+  // mount-gate transient (now === null) stays on the populated layout with the pressureLow fallback,
+  // exactly as the web did, so a normal open never shows this branch.
+  if (state === 'loading') {
+    return (
+      <Animated.View style={[styles.root, enterStyle]}>
+        <PressureScreen centered>
+          <MeloLine mood="curious" text={line} />
+        </PressureScreen>
+      </Animated.View>
+    );
+  }
+
+  return (
+    <Animated.View style={[styles.root, enterStyle]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.headerDate, { color: t.muted }]}>Saturday, 27 June</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('ritual')}
+              hitSlop={8}
+              style={({ pressed: p }) => (p ? pressed : undefined)}
+            >
+              <Text style={[styles.headerDays, { color: t.muted }]}>
+                {daysToPayday} days to payday →
+              </Text>
+            </Pressable>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open Melo"
+            onPress={() => nav.openMelo()}
+            style={({ pressed: p }) => [
+              styles.meloButton,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+              p ? pressed : undefined,
+            ]}
+          >
+            <Melo size={22} mood={isLoading ? 'curious' : mood} />
+          </Pressable>
+        </View>
+
+        {/* Error branch — a dismissible, non-blocking banner OVER otherwise-populated content. */}
+        {state === 'error' ? <ErrorBanner palette={t} /> : null}
+
+        {/* Sample-numbers chip — the onboarding gate / empty branch. */}
+        {!onboarding.done ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="The numbers on this screen are sample data — tap to make them yours"
+            onPress={() => nav.openSheet('onboarding')}
+            style={({ pressed: p }) => [
+              styles.chip,
+              { backgroundColor: t.inset, borderColor: t.hairline },
+              p ? pressed : undefined,
+            ]}
+          >
+            <View style={[styles.chipDot, { backgroundColor: t.caution }]} />
+            <Text style={[styles.chipText, { color: t.muted }]}>Sample numbers</Text>
+            <Text style={[styles.chipText, { color: t.calm }]}>make them yours →</Text>
+          </Pressable>
+        ) : null}
+
+        {/* Hero */}
+        <View style={styles.hero}>
+          <Text
+            style={[
+              styles.verdict,
+              {
+                color:
+                  pressure === 'overspent'
+                    ? t.repair
+                    : pressure === 'pressured'
+                      ? t.calm
+                      : t.positive,
+              },
+            ]}
+          >
+            {line}
+          </Text>
+          <View style={styles.heroRow}>
+            <Text style={[styles.heroNumber, { color: t.ink }]}>£{groupedPounds(lowDisplay)}</Text>
+            <Text style={[styles.heroSpare, { color: t.muted }]}>spare</Text>
+          </View>
+          <Text style={[styles.heroCaption, { color: t.muted }]}>
+            {tight.tightestDate
+              ? `at its lowest point · ${formatDayProse(tight.tightestDate)}`
+              : 'at its lowest point'}
+          </Text>
+          <Text style={[styles.heroSource, { color: t.muted }]}>
+            starting from £{groupedPounds(currentBalance.amount)} · {balanceSourceLabel}
+          </Text>
+        </View>
+
+        <TodayNudges nav={nav} tightestSpare={isLoading ? null : tightestSpare} />
+        <TodaySpendStrip nav={nav} />
+        <TodayRecentTxns nav={nav} />
+
+        {/* Path card — the hero object */}
+        <View
+          style={[
+            styles.pathCard,
+            { backgroundColor: t.surface, borderColor: t.hairline },
+            elevation.card,
+          ]}
+        >
+          <View style={styles.pathHead}>
+            <Text style={[styles.pathEyebrow, { color: t.muted }]}>Your money path</Text>
+            <Text style={[styles.pathRange, { color: t.muted }]}>{activeBand.range}</Text>
+          </View>
+
+          <View
+            style={styles.svgWrap}
+            onLayout={onCardLayout}
+            accessibilityRole="image"
+            accessibilityLabel="Money path from today to payday — drag to preview a spend"
+            {...panResponder.panHandlers}
+          >
+            <Svg width="100%" height={SVG_RENDER_H} viewBox={`0 0 ${VB_W} ${VB_H}`}>
+              <Defs>
+                <LinearGradient id="todayRouteFill" x1="0" x2="0" y1="0" y2="1">
+                  <Stop offset="0%" stopColor={t.calm} stopOpacity={0.18} />
+                  <Stop offset="100%" stopColor={t.calm} stopOpacity={0} />
+                </LinearGradient>
+                <LinearGradient id="todayRouteStroke" x1="0" x2="1" y1="0" y2="0">
+                  <Stop offset="0%" stopColor={t.ink} />
+                  <Stop offset={`${60 - scrub * 30}%`} stopColor={t.calm} />
+                  <Stop offset="100%" stopColor={strokeEndColor} />
+                </LinearGradient>
+              </Defs>
+
+              {/* gridlines */}
+              {[60, 120, 180].map((y) => (
+                <Line
+                  key={y}
+                  x1={20}
+                  x2={380}
+                  y1={y}
+                  y2={y}
+                  stroke={t.hairline}
+                  strokeDasharray="2 4"
+                />
+              ))}
+
+              {/* breathing-room band */}
+              <Rect x={20} y={200} width={360} height={20} fill={t.inset} />
+              <SvgText x={24} y={216} fontSize={9} fill={t.muted}>
+                breathing room · £100
+              </SvgText>
+
+              {/* area under the path */}
+              <Path d={areaD} fill="url(#todayRouteFill)" />
+
+              {/* the route line — drawn on with an animated dashoffset, keyed on `d` */}
+              <AnimatedPath
+                animatedProps={routeStrokeProps}
+                d={d}
+                fill="none"
+                stroke="url(#todayRouteStroke)"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={ROUTE_DASH}
+              />
+
+              {/* nodes */}
+              {points.map((p, i) => (
+                <G key={i}>
+                  <Circle
+                    cx={p.x}
+                    cy={p.y}
+                    r={5}
+                    fill={t.surface}
+                    stroke={t.ink}
+                    strokeWidth={1.4}
+                  />
+                  {i === 4 ? (
+                    <>
+                      <AnimatedCircle
+                        animatedProps={pulseRingProps}
+                        cx={p.x}
+                        cy={p.y}
+                        fill="none"
+                        stroke={t.calm}
+                        strokeWidth={1}
+                      />
+                      <Circle cx={p.x} cy={p.y} r={5} fill={t.calm} />
+                    </>
+                  ) : null}
+                  <SvgText
+                    x={p.x}
+                    y={p.y - 12}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fontWeight="500"
+                    fill={t.muted}
+                  >
+                    {p.label}
+                  </SvgText>
+                </G>
+              ))}
+
+              {/* idle lowest-point callout — only at rest (no active scrub) */}
+              {scrub < 0.04 ? (
+                <AnimatedG animatedProps={calloutStyle}>
+                  <Line
+                    x1={305}
+                    y1={lowY - 14}
+                    x2={305}
+                    y2={lowY - 28}
+                    stroke={t.calm}
+                    strokeWidth={0.8}
+                  />
+                  <Rect
+                    x={262}
+                    y={lowY - 52}
+                    width={100}
+                    height={22}
+                    rx={6}
+                    fill={t.canvas}
+                    stroke={t.calm}
+                    strokeWidth={0.8}
+                  />
+                  <SvgText
+                    x={312}
+                    y={lowY - 37}
+                    textAnchor="middle"
+                    fontSize={9.5}
+                    fontWeight="600"
+                    fill={t.ink}
+                  >
+                    7 Jul · £{tightestSpare} spare
+                  </SvgText>
+                </AnimatedG>
+              ) : null}
+
+              {/* scrub thumb */}
+              <G transform={`translate(${thumbX}, 30)`}>
+                <Line
+                  x1={0}
+                  x2={0}
+                  y1={0}
+                  y2={200}
+                  stroke={t.calm}
+                  strokeWidth={1}
+                  strokeDasharray="2 3"
+                  opacity={0.7}
+                />
+                <Circle cx={0} cy={0} r={6} fill={t.calm} />
+                <Circle cx={0} cy={0} r={3} fill={t.inverse} />
+              </G>
+
+              {/* Calendar → Route focus marker */}
+              {focusX !== null ? (
+                <AnimatedG animatedProps={calloutStyle}>
+                  <Line
+                    x1={focusX}
+                    x2={focusX}
+                    y1={30}
+                    y2={220}
+                    stroke={t.calm}
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    opacity={0.7}
+                  />
+                  <AnimatedCircle
+                    animatedProps={focusRingProps}
+                    cx={focusX}
+                    cy={30}
+                    fill="none"
+                    stroke={t.calm}
+                    strokeWidth={1}
+                  />
+                  <Rect
+                    x={focusX - 48}
+                    y={10}
+                    width={96}
+                    height={18}
+                    rx={6}
+                    fill={t.canvas}
+                    stroke={t.calm}
+                    strokeWidth={0.8}
+                  />
+                  <SvgText
+                    x={focusX}
+                    y={22}
+                    textAnchor="middle"
+                    fontSize={9.5}
+                    fontWeight="600"
+                    fill={t.ink}
+                  >
+                    from Calendar · {focusLabel}
+                  </SvgText>
+                </AnimatedG>
+              ) : null}
+            </Svg>
+          </View>
+
+          {/* band pills */}
+          <View style={styles.bandRow}>
+            {bands.map((b) => {
+              const on = b.id === band;
+              return (
+                <Pressable
+                  key={b.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => setBand(b.id)}
+                  style={({ pressed: p }) => [
+                    styles.bandPill,
+                    { backgroundColor: on ? t.ink : t.inset },
+                    p ? pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.bandLabel, { color: on ? t.canvas : t.muted }]}>
+                    {b.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* scrub hint */}
+          <Text style={[styles.scrubHint, { color: t.muted }]}>
+            {scrub > 0.02
+              ? `if you spend £${Math.round(scrub * 120)} today`
+              : 'drag the line to preview a spend'}
+          </Text>
+
+          {/* Friday-dip — hidden when no active pots */}
+          {activePots.length > 0 ? (
+            <View style={[styles.fridayDip, { backgroundColor: t.inset }]}>
+              <Text style={[styles.fridayGlyph, { color: t.calm }]}>↘</Text>
+              <Text style={[styles.fridayText, { color: t.muted }]}>
+                Friday dip ·{' '}
+                {activePots.map((p) => `${p.name.split(' ')[0]} £${p.perWeek}`).join(' + ')}
+                {activePots.length > 1
+                  ? ` · £${weeklyPotTotal}/wk to your pots`
+                  : '/wk to your pot'}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* summary trio */}
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCell}>
+              <Text style={[styles.summaryLabel, { color: t.muted }]}>Coming in</Text>
+              <Text style={[styles.summaryValue, { color: t.positiveInk }]}>£2,180</Text>
+            </View>
+            <View style={styles.summaryCell}>
+              <Text style={[styles.summaryLabel, { color: t.muted }]}>Going out</Text>
+              <Text style={[styles.summaryValue, { color: t.repairInk }]}>£1,095</Text>
+            </View>
+            <View style={styles.summaryCell}>
+              <Text style={[styles.summaryLabel, { color: t.muted }]}>Lowest</Text>
+              <Text style={[styles.summaryValue, { color: t.ink }]}>
+                {formatGBP(tightestSpare)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Melo prompt card */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            nav.openMelo({
+              prefill: tight.tightestDate
+                ? `Why is my low point £${tightestSpare} on ${formatDayProse(tight.tightestDate)}?`
+                : `Why is my low point £${tightestSpare}?`,
+            })
+          }
+          style={({ pressed: p }) => [
+            styles.meloPrompt,
+            { backgroundColor: t.inset },
+            p ? pressed : undefined,
+          ]}
+        >
+          <Melo size={28} mood={isLoading ? 'curious' : mood} />
+          <View style={styles.meloPromptBody}>
+            <Text style={[styles.meloPromptLine, { color: t.ink }]}>&ldquo;{line}&rdquo;</Text>
+            <View style={styles.meloPromptMeta}>
+              <Text style={[styles.meloPromptMetaText, { color: t.muted }]}>
+                2 things still waiting to be checked.
+              </Text>
+              <Text style={[styles.meloPromptCta, { color: t.calm }]}>Ask Melo →</Text>
+            </View>
+          </View>
+        </Pressable>
+
+        <TodayWeekTiles nav={nav} pressure={pressure} />
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+// A dismissible, non-blocking "couldn't refresh" banner. STATES.md: error is a banner OVER
+// populated content, never a blank screen. Local dismiss state — tapping × hides it for the session.
+function ErrorBanner({ palette }: { palette: Palette }) {
+  const [shown, setShown] = useState(true);
+  if (!shown) return null;
+  return (
+    <View
+      style={[
+        styles.errorBanner,
+        { backgroundColor: palette.repairSoft, borderColor: palette.hairline },
+      ]}
+    >
+      <Text style={[styles.errorText, { color: palette.repairInk }]}>{copy.err.generic}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss"
+        hitSlop={10}
+        onPress={() => setShown(false)}
+        style={({ pressed: p }) => (p ? pressed : undefined)}
+      >
+        <Text style={[styles.errorDismiss, { color: palette.repairInk }]}>×</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// Reduced-motion (final state) — read once, then subscribe. Mirrors the kit's hook so route-draw,
+// pulse-ring, callout-in, the count-up, and the screen entrance all collapse to their final state.
+function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduce(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+  return reduce;
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  scrollContent: { paddingBottom: gap.xxxl },
+
+  header: {
+    paddingHorizontal: 28,
+    paddingTop: gap.md,
+    paddingBottom: gap.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerDate: {
+    fontFamily: serif.displayItalic,
+    fontSize: 13,
+  },
+  headerDays: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  meloButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  chip: {
+    marginHorizontal: 28,
+    marginTop: gap.xs,
+    marginBottom: gap.xs,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: gap.sm,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.md,
+    paddingVertical: 6,
+  },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipText: { fontSize: 11 },
+
+  hero: {
+    paddingHorizontal: 28,
+    paddingTop: gap.md,
+  },
+  verdict: {
+    fontFamily: serif.displayItalic,
+    fontSize: 15,
+  },
+  heroRow: {
+    marginTop: gap.sm,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: gap.sm,
+  },
+  heroNumber: {
+    fontFamily: serif.display,
+    fontSize: 64,
+    lineHeight: 64,
+    fontVariant: ['tabular-nums'],
+  },
+  heroSpare: {
+    fontFamily: serif.displayItalic,
+    fontSize: 18,
+  },
+  heroCaption: {
+    fontSize: 12.5,
+    marginTop: 4,
+  },
+  heroSource: {
+    fontSize: 10.5,
+    marginTop: 4,
+    opacity: 0.7,
+  },
+
+  pathCard: {
+    marginTop: gap.xl - 4,
+    marginHorizontal: gap.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.xl,
+    padding: gap.xl - 4,
+  },
+  pathHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: gap.sm,
+  },
+  pathEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  pathRange: {
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
+  },
+  svgWrap: {
+    width: '100%',
+    height: SVG_RENDER_H,
+  },
+
+  bandRow: {
+    marginTop: gap.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  bandPill: {
+    flex: 1,
+    height: 28,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bandLabel: {
+    fontSize: 10.5,
+    letterSpacing: 0.4,
+  },
+
+  scrubHint: {
+    marginTop: gap.sm,
+    fontSize: 10.5,
+    textAlign: 'center',
+  },
+
+  fridayDip: {
+    marginTop: gap.sm,
+    paddingHorizontal: gap.xs,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  fridayGlyph: { fontSize: 11 },
+  fridayText: { flex: 1, fontSize: 10.5, lineHeight: 15 },
+
+  summaryRow: {
+    marginTop: gap.md,
+    flexDirection: 'row',
+    gap: gap.md,
+  },
+  summaryCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  summaryLabel: {
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  summaryValue: {
+    fontFamily: serif.display,
+    fontSize: 15,
+    fontVariant: ['tabular-nums'],
+  },
+
+  meloPrompt: {
+    marginHorizontal: gap.lg,
+    marginTop: gap.md,
+    borderRadius: radius.md,
+    padding: gap.lg,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: gap.md,
+  },
+  meloPromptBody: { flex: 1 },
+  meloPromptLine: {
+    fontFamily: serif.displayItalic,
+    fontSize: 13,
+  },
+  meloPromptMeta: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  meloPromptMetaText: { fontSize: 11.5, flex: 1 },
+  meloPromptCta: { fontSize: 11.5, marginLeft: gap.sm },
+
+  errorBanner: {
+    marginHorizontal: 28,
+    marginTop: gap.xs,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  errorText: { fontSize: 12.5, flex: 1 },
+  errorDismiss: { fontSize: 16, marginLeft: gap.sm },
+});
