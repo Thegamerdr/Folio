@@ -5,7 +5,7 @@ import { extractTextFromDocument } from './nativeTextExtraction';
 import type { LocalDocumentStageInput } from './localLedger';
 
 const READING_NOT_READY =
-  'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.';
+  'File saved. I could not read this statement clearly enough to show things to check. You can add one thing yourself.';
 
 const statementMimeTypes = [
   'text/*',
@@ -88,8 +88,7 @@ export async function pickLocalStatementDocument(): Promise<PickStatementDocumen
   if (byteSize > maxStatementBytes) {
     return {
       kind: 'unsupported',
-      message:
-        'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
+      message: READING_NOT_READY,
       source,
     };
   }
@@ -98,8 +97,7 @@ export async function pickLocalStatementDocument(): Promise<PickStatementDocumen
   if (text.trim().length === 0) {
     return {
       kind: 'unsupported',
-      message:
-        'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
+      message: READING_NOT_READY,
       source,
     };
   }

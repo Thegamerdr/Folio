@@ -225,7 +225,7 @@ export function DataControlScreen({
 
       {/* Melo's single warm beat at the foot — serif italic, calm. */}
       <MeloPresence
-        line="Your money picture stays with you."
+        line="Your numbers are yours to keep or export."
         state="melo_privacy_trust"
         style={layout.melo}
       />

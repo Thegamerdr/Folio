@@ -71,7 +71,7 @@ export function TodayRecentTxns({
 
       {rows.length === 0 ? (
         <View style={s.empty}>
-          <Text style={s.emptyText}>Nothing logged yet. Tap +log to add one.</Text>
+          <Text style={s.emptyText}>Nothing logged yet. Tap + above to add one.</Text>
         </View>
       ) : (
         <View style={s.list}>

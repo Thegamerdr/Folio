@@ -165,7 +165,7 @@ export function ShortfallScreen({
 
         <MoveTile
           amount={`${magnitude(dailyCapMinor)}/day`}
-          eyebrow="Hold the line"
+          eyebrow="Spend a little less"
           onPress={onMelo}
           s={s}
         >

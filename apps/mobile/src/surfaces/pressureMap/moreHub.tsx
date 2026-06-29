@@ -142,9 +142,9 @@ export function MoreScreen({
               onPress={onOpenPots}
             />
             <HubRow
-              label="Payday ritual"
-              hint="close the cycle in four steps"
-              accessibilityHint="Opens the payday ritual."
+              label="Payday review"
+              hint="wrap up the month in four steps"
+              accessibilityHint="Opens the payday review."
               onPress={onOpenRitual}
             />
             <HubRow

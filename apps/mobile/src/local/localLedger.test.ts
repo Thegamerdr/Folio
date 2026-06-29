@@ -545,7 +545,7 @@ describe('mobile local ledger state', () => {
     });
 
     expect(result.message).toBe(
-      'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
+      'File saved. I could not read this statement clearly enough to show things to check. You can add one thing yourself.',
     );
     expect(result.documentStage).toMatchObject({
       filename: 'statement-photo.png',

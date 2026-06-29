@@ -155,10 +155,10 @@ export function WhatIfScreen({
           </Pressable>
 
           <View style={layout.holdValue}>
-            <HeroMoney accessibilityLabel={`${money(spendMinor)} today's hold`} tone={undefined}>
+            <HeroMoney accessibilityLabel={`${money(spendMinor)} today's spend`} tone={undefined}>
               <Text style={s.holdAccent}>{money(spendMinor)}</Text>
             </HeroMoney>
-            <Text style={[layout.holdCaption, s.holdCaption]}>today's hold</Text>
+            <Text style={[layout.holdCaption, s.holdCaption]}>today's spend</Text>
           </View>
 
           <Pressable
@@ -195,7 +195,7 @@ export function WhatIfScreen({
           s={s}
         />
         <StatCell
-          label="Days of cover"
+          label="Days this would last"
           value={`${coverDisplay.toFixed(1)}d`}
           tone={coverTone}
           footnote={`${magnitude(potsTotalMinor)} in pots`}

@@ -48,6 +48,13 @@ import {
   type Palette,
 } from './kit';
 
+// An active pot (a weekly top-up the user has set). The path names the dip these create so a Friday
+// dip caused by saving reads as a named choice. perWeekMinor is integer minor units.
+export type TodayActivePot = Readonly<{
+  name: string;
+  perWeekMinor: number;
+}>;
+
 // The scrub preview maps the 0..1 drag fraction onto a small "spend more today" amount, exactly as
 // the web does (drag → preview up to ~£120). It only re-reads the lowest point; it never mutates.
 const MAX_SCRUB_PREVIEW_MINOR = 12_000; // £120
@@ -86,6 +93,7 @@ export function TodayScreen({
   lastWeekMinor,
   nextCharge,
   tightPoint,
+  activePots,
   reduceMotion,
   routeFocusDateIso,
   onOpenMelo,
@@ -111,6 +119,22 @@ export function TodayScreen({
 
   const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
   const [logSpendOpen, setLogSpendOpen] = useState(false);
+
+  // Pot top-ups become a labelled dip so the path reads honestly — a Friday dip caused by saving
+  // isn't a mystery, it's a named choice. Mirrors the web's pot-dip annotation.
+  const pots = activePots ?? [];
+  const potDipText = useMemo(() => {
+    if (pots.length === 0) return null;
+    const parts = pots
+      .map((p) => `${(p.name.split(' ')[0] ?? p.name)} ${potPounds(p.perWeekMinor)}`)
+      .join(' + ');
+    const weeklyTotalMinor = pots.reduce((sum, p) => sum + p.perWeekMinor, 0);
+    const tail =
+      pots.length > 1
+        ? ` · ${potPounds(weeklyTotalMinor)}/wk to your pots`
+        : '/wk to your pot';
+    return `Friday dip · ${parts}${tail}`;
+  }, [pots]);
 
   return (
     <View style={layout.screen}>
@@ -157,7 +181,7 @@ export function TodayScreen({
               </Text>
               <Text style={s.heroSuffix}>spare</Text>
             </View>
-            <Text style={s.heroCaption}>at the tightest point</Text>
+            <Text style={s.heroCaption}>at its lowest point</Text>
           </>
         ) : (
           <>
@@ -197,10 +221,19 @@ export function TodayScreen({
         summary={pathSummary}
       />
 
-      {/* Melo prompt card — a quiet doorway into Melo with the tight-point context. */}
+      {/* Pot-dip annotation — names the weekly dip the user's pot top-ups create, so a Friday dip
+          caused by saving reads as a named choice rather than a mystery. */}
+      {potDipText ? (
+        <View style={s.potDip}>
+          <Text style={s.potDipArrow}>↘</Text>
+          <Text style={s.potDipText}>{potDipText}</Text>
+        </View>
+      ) : null}
+
+      {/* Melo prompt card — a quiet doorway into Melo with the low-point context. */}
       {real ? (
         <Pressable
-          accessibilityHint="Asks Melo about your tight point."
+          accessibilityHint="Asks Melo about your low point."
           accessibilityRole="button"
           onPress={onAskTightPoint}
           style={({ pressed: isPressed }) => [s.meloCard, isPressed ? pressed : undefined]}
@@ -374,6 +407,11 @@ const QUICK_MERCHANTS: readonly string[] = ['Tesco', 'Coffee', 'Bus', 'Lunch', '
 
 // ---------------------------------------------------------------------------
 
+// Whole-pound label for a pot's weekly top-up (minor units in), matching the web's "£12" form.
+function potPounds(minor: number): string {
+  return `£${Math.round(Math.abs(minor) / 100).toLocaleString('en-GB')}`;
+}
+
 function verdictLineColor(t: Palette, tone: 'positive' | 'warm' | 'repair') {
   if (tone === 'repair') return { color: t.repairInk };
   if (tone === 'warm') return { color: t.warmInk };
@@ -403,6 +441,9 @@ export type TodayScreenProps = {
   lastWeekMinor: number;
   nextCharge?: TodayNextCharge | undefined;
   tightPoint: TodayTightPoint;
+  /** Active pots (perWeek > 0), so the path can name the weekly dip its top-ups create — a Friday dip
+   *  caused by saving reads as a named choice, not a mystery. Empty/omitted → the callout is hidden. */
+  activePots?: readonly TodayActivePot[] | undefined;
   reduceMotion?: boolean | undefined;
   /** Calendar -> Route bridge: an ISO day to pulse on the money path (transient; container clears it
    *  after ~6s). Forwarded to MoneyPath; undefined when nothing is focused. */
@@ -481,6 +522,18 @@ function makeStyles(t: Palette) {
       borderRadius: radius.lg,
       padding: gap.lg,
     },
+    potDip: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: gap.sm,
+      backgroundColor: t.inset,
+      borderRadius: radius.md,
+      paddingVertical: 6,
+      paddingHorizontal: gap.sm,
+    },
+    potDipArrow: { color: t.calmStrong, fontSize: 10.5, lineHeight: 15 },
+    potDipText: { flex: 1, color: t.muted, fontSize: 10.5, lineHeight: 15 },
+
     meloCardLine: { color: t.ink, fontFamily: serif.displayItalic, fontSize: 13, lineHeight: 19 },
     meloCardFooterText: { flex: 1, color: t.muted, fontSize: 11.5 },
     meloCardAsk: { color: t.calmStrong, fontSize: 11.5, marginLeft: gap.sm },

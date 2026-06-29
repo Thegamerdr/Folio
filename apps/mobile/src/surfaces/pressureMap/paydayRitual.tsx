@@ -149,13 +149,13 @@ export function PaydayRitualScreen({
       {
         eyebrow: 'Step one',
         lead: 'Look at the ',
-        accent: 'cycle',
+        accent: 'month',
         tail: ' just gone.',
         body: 'Bills cleared. You held the path to payday and kept a little back.',
-        statLabel: 'Cycle spare',
+        statLabel: 'Left over',
         statValue: formatMinorAmount(heldSpareMinor),
         statTone: 'positive',
-        melo: 'You held the path. Quietly well done.',
+        melo: 'You made it through. Quietly well done.',
         cta: 'Pay yourself first',
       },
       {
@@ -168,15 +168,15 @@ export function PaydayRitualScreen({
         statValue: formatMinorAmount(setAsideMinor),
         statTone: 'ink',
         melo: 'Small, steady. Your future self will thank you.',
-        cta: 'Set the tight point',
+        cta: 'See the squeeze ahead',
       },
       {
         eyebrow: 'Step three',
         lead: "Where's the ",
         accent: 'squeeze',
-        tail: ' next cycle?',
+        tail: ' next month?',
         body: 'Set where the lowest point lands next time. Plan around it before it arrives.',
-        statLabel: 'Next tight point',
+        statLabel: 'Next low point',
         statValue: formatMinorAmount(nextTightMinor),
         statTone: 'accent',
         melo: 'Knowing in advance is half the work.',
@@ -191,8 +191,8 @@ export function PaydayRitualScreen({
         statLabel: 'Note',
         statValue: noteSaved ? 'Saved' : 'Suggested',
         statTone: 'positive',
-        melo: 'Done. The cycle is closed.',
-        cta: 'Finish the ritual',
+        melo: 'Done. The month is wrapped up.',
+        cta: 'Finish the review',
       },
     ],
     [heldSpareMinor, setAsideMinor, nextTightMinor, noteForRecord, noteSaved],
@@ -320,7 +320,7 @@ export function PaydayRitualScreen({
       <Sheet onClose={() => setTightSheetOpen(false)} reduceMotion={reduceMotion} visible={tightSheetOpen}>
         <KeypadSheet
           eyebrow="Step three"
-          title="Where's the squeeze next cycle?"
+          title="Where's the squeeze next month?"
           helper="The lowest your money is likely to dip next time. Roughly is fine."
           value={nextTightPounds}
           onChange={setNextTightPounds}

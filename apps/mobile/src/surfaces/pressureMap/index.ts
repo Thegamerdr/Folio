@@ -9,7 +9,7 @@ export { QuickEstimateScreen } from './roughFirstAnswer';
 export { ImportReviewScreen } from './reviewDecision';
 export { FoundItemsScreen } from './foundItems';
 export { TodayScreen } from './todayPath';
-export type { TodayScreenProps } from './todayPath';
+export type { TodayScreenProps, TodayActivePot } from './todayPath';
 export { DataControlScreen } from './trustControl';
 export { MoreScreen } from './moreHub';
 export { TimelineScreen } from './timeline';

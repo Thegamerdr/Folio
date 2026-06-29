@@ -55,7 +55,7 @@ export function TimelineScreen({
       <ScreenHeader label="Timeline" onBack={onBack} />
 
       <View style={layout.intro}>
-        <Headline lead="A record of " accent="your" tail=" hand." />
+        <Headline lead="Everything you've " accent="added" tail=" or skipped." />
         <Kicker>Newest first. Nothing is hidden.</Kicker>
       </View>
 

@@ -179,7 +179,7 @@ function SubscriptionRow({
 
       <View style={layout.actions}>
         <PausePill
-          label={row.paused ? 'Resume' : 'Pause one cycle'}
+          label={row.paused ? 'Resume' : 'Pause for a month'}
           onPress={() => (row.paused ? onResume(row.id) : onPause(row.id))}
         />
         {row.paused ? null : (
@@ -403,7 +403,7 @@ export function SubscriptionsScreen({
 
       <MeloLine
         tone="soft"
-        text="Pause is a small experiment. Nothing leaves your money picture."
+        text="Pausing for a month is a small experiment. You can always resume."
       />
 
       {/* Add a subscription. */}

@@ -2077,7 +2077,7 @@ export function stageDocumentForManualReview(
   return {
     documentStage,
     message:
-      'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
+      'File saved. I could not read this statement clearly enough to show things to check. You can add one thing yourself.',
     state: nextState,
   };
 }

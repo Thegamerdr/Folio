@@ -158,21 +158,21 @@ export function InsightsScreen({
 
       <View style={{ gap: gap.xs }}>
         <Kicker>
-          {cycleCount} {cycleCount === 1 ? 'cycle' : 'cycles'} closed
+          {cycleCount} {cycleCount === 1 ? 'month' : 'months'} done
         </Kicker>
         <Headline lead="The " accent="shape" tail=" of your months." />
       </View>
 
       <View style={layout.kpiGrid}>
-        <KpiTile label="Saved across all cycles" value={kpis.savedAcrossCycles} tone="positive" />
+        <KpiTile label="Saved across all months" value={kpis.savedAcrossCycles} tone="positive" />
         <KpiTile label="In pots right now" value={kpis.inPotsNow} tone="ink" />
-        <KpiTile label="Avg tight point" value={kpis.avgTightPoint} tone="accent" />
-        <KpiTile label="Avg set aside" value={kpis.avgSetAside} tone="ink" />
+        <KpiTile label="Average low balance" value={kpis.avgTightPoint} tone="accent" />
+        <KpiTile label="Average set aside" value={kpis.avgSetAside} tone="ink" />
       </View>
 
       {trend.length > 0 ? (
         <Surface style={layout.chartCard}>
-          <SectionLabel>Tight point, last {trend.length}</SectionLabel>
+          <SectionLabel>Lowest balance, last {trend.length}</SectionLabel>
           <TrendChart trend={trend} />
         </Surface>
       ) : null}
@@ -185,7 +185,7 @@ export function InsightsScreen({
               <View key={row.id} style={[s.noteRow, index === 0 ? layout.noteRowFirst : undefined]}>
                 <View style={layout.noteHead}>
                   <Text style={s.noteLabel}>{row.label}</Text>
-                  <Text style={s.noteSpare}>spare {row.spare}</Text>
+                  <Text style={s.noteSpare}>left over {row.spare}</Text>
                 </View>
                 {row.note ? <Text style={s.noteBody}>{`“${row.note}”`}</Text> : null}
               </View>
@@ -204,7 +204,7 @@ export function InsightsScreen({
       ) : null}
 
       <PrimaryAction
-        label="See what this cycle is built from"
+        label="See what this month is built from"
         tone="ink"
         accessibilityHint="Shows the trail behind these numbers."
         onPress={onShareCycle}

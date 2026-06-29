@@ -268,7 +268,7 @@ export function TodayAfterScreen({
       {/* A quiet Melo line — the reassurance. */}
       <View style={[layout.meloLine, s.meloLine]}>
         <MeloPresence reduceMotion={reduceMotion} size="sm" state="melo_path_explaining" withCopy={false} />
-        <Text style={[layout.meloLineText, s.meloLineText]}>“One less thing waiting. The path still holds.”</Text>
+        <Text style={[layout.meloLineText, s.meloLineText]}>“One less thing waiting. You're still on track.”</Text>
       </View>
 
       {/* Two calm doorways — back to Today, or open the tight point. */}
@@ -279,16 +279,16 @@ export function TodayAfterScreen({
           onPress={onBack}
           style={({ pressed: isPressed }) => [layout.actionTile, s.actionTile, isPressed ? pressed : undefined]}
         >
-          <Text style={[layout.actionLabel, s.actionLabel]}>View path</Text>
+          <Text style={[layout.actionLabel, s.actionLabel]}>Back to today</Text>
           <Text style={[layout.actionValue, s.actionValue]}>Today</Text>
         </Pressable>
         <Pressable
-          accessibilityHint="Opens the tight point."
+          accessibilityHint="Opens your low point."
           accessibilityRole="button"
           onPress={onOpenTightPoint}
           style={({ pressed: isPressed }) => [layout.actionTile, s.actionTile, isPressed ? pressed : undefined]}
         >
-          <Text style={[layout.actionLabel, s.actionLabel]}>Tight point</Text>
+          <Text style={[layout.actionLabel, s.actionLabel]}>Your low point</Text>
           <Text style={[layout.actionValue, s.actionValue, s.actionValueAccent]}>open</Text>
         </Pressable>
       </View>

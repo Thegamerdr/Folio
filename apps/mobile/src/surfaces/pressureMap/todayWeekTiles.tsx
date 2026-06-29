@@ -3,10 +3,10 @@
 // Faithful RN port of the web TodayWeekTiles (src/components/folio/screens/TodayWeekTiles.tsx): a
 // 2-up grid. The left tile is a real weekly spend figure with a "+/-£NN vs last" delta (or "no prior
 // week yet"); the right tile is either the next charge (name · £cost · in Nd) or, when there is no
-// upcoming charge, the tight-point fallback (date · £spare).
+// upcoming charge, the low-point fallback (date · £spare).
 //
 // Presentation-only: the container computes thisWeek/lastWeek (from the transactions prop) and the
-// nextCharge/tightPoint data, and hands them down already-shaped. Each tile is a tappable target.
+// nextCharge/lowPoint data, and hands them down already-shaped. Each tile is a tappable target.
 
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -98,12 +98,12 @@ export function TodayWeekTiles({
         </Pressable>
       ) : (
         <Pressable
-          accessibilityHint="Asks Melo why the tight point lands where it does."
+          accessibilityHint="Asks Melo why the low point lands where it does."
           accessibilityRole="button"
           onPress={onAskTightPoint}
           style={({ pressed: isPressed }) => [s.tile, isPressed ? pressed : undefined]}
         >
-          <Text style={s.tileLabel}>Tight point</Text>
+          <Text style={s.tileLabel}>Low point</Text>
           <Text numberOfLines={1} style={s.tileValue}>
             {tightPoint.dayLabel} · {pounds(tightPoint.spareMinor)}
           </Text>

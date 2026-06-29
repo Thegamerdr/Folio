@@ -25,7 +25,7 @@ export type ImageIntakeResult =
   | Readonly<{ kind: 'denied'; message: string }>;
 
 const SAVED_MESSAGE =
-  'Image saved. I could not read it automatically. You can still add the important numbers from it.';
+  'Image saved. I could not read it clearly enough to show things to check. You can add one thing yourself.';
 
 function mimeFor(uri: string, reported: string | null | undefined): string {
   if (reported && reported.length > 0) return reported;

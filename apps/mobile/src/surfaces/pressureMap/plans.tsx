@@ -113,7 +113,7 @@ export function PlansScreen({
           <Text style={s.summaryValue}>{plans.committedTotal}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <SectionLabel>Horizon</SectionLabel>
+          <SectionLabel>Next payday</SectionLabel>
           <Text style={s.summaryHorizon}>Payday</Text>
         </View>
       </Surface>
@@ -153,7 +153,7 @@ export function PlansScreen({
         />
       </View>
 
-      <MeloLine tone="soft" text="Move one if it sits in the wrong week." />
+      <MeloLine tone="soft" text="Move one if the timing doesn't suit you." />
     </PressureScreen>
   );
 }

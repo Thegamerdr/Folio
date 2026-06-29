@@ -159,6 +159,7 @@ import {
   type InsightsNote,
   type MeloChatSettings,
   type OnboardingProfile,
+  type TodayActivePot,
 } from '../src/surfaces/pressureMap';
 import type { MeloMood } from '../src/surfaces/pressureMap/melo/meloStates';
 import type { TodayNudge } from '../src/surfaces/pressureMap/todayNudges';
@@ -573,6 +574,16 @@ export default function FolioHome() {
           note: cycle.note,
         })),
     [localLedger.cycles],
+  );
+
+  // Active pots (a weekly top-up set) — Today names the dip these create so a saving-driven dip reads
+  // as a named choice. Minor units flow straight through (perWeek is a Money value).
+  const todayActivePots = useMemo<readonly TodayActivePot[]>(
+    () =>
+      localLedger.pots
+        .filter((pot) => pot.perWeek.minorUnits > 0)
+        .map((pot) => ({ name: pot.name, perWeekMinor: pot.perWeek.minorUnits })),
+    [localLedger.pots],
   );
 
   // The label this cycle is recorded under in the payday ritual — the current month.
@@ -2094,6 +2105,7 @@ export default function FolioHome() {
           ) : null}
           {screen === 'today' ? (
             <TodayScreen
+              activePots={todayActivePots}
               asOfDate={localLedger.asOfDate}
               band={todayBand}
               dateLabel={todayDateLabel}
@@ -2111,7 +2123,7 @@ export default function FolioHome() {
               thisWeekMinor={todayThisWeekMinor}
               tightPoint={todayTightPoint}
               weekSpends={todayWeekSpends}
-              onAskTightPoint={() => openMeloChat('why is my tight point so low?')}
+              onAskTightPoint={() => openMeloChat('why is my low point so low?')}
               onAskWeekSpend={() => openMeloChat('where did this week go?')}
               onChangeBand={setTodayBand}
               onCompareWeeks={() => setScreen('insights')}
@@ -2320,7 +2332,7 @@ export default function FolioHome() {
               reduceMotion={reduceMotionEnabled}
               onBack={() => setScreen('today')}
               onOpenMelo={() => openMeloChat()}
-              onOpenTightPoint={() => openMeloChat('why is my tight point so low?')}
+              onOpenTightPoint={() => openMeloChat('why is my low point so low?')}
             />
           ) : null}
           {screen === 'money' ? (
@@ -2601,10 +2613,10 @@ function buildTodayAfterChange(
   const magnitudeLabel = formatMinorAmount(Math.abs(changeDeltaMinor));
   const changeLine =
     changeDeltaMinor < 0
-      ? `${merchant} lowered your tightest point by ${magnitudeLabel}.`
+      ? `${merchant} lowered your low point by ${magnitudeLabel}.`
       : changeDeltaMinor > 0
-        ? `${merchant} lifted your tightest point by ${magnitudeLabel}.`
-        : `${merchant} didn't move your tightest point.`;
+        ? `${merchant} lifted your low point by ${magnitudeLabel}.`
+        : `${merchant} didn't move your low point.`;
   return {
     verdictLead: verdict.lead,
     verdictAccent: verdict.accent,

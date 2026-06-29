@@ -94,7 +94,7 @@ export function PotsScreen({
       <View style={layout.head}>
         <Text style={s.kicker}>Set aside</Text>
         <Headline lead="Small, " accent="calmly" tail=", on purpose." />
-        <Text style={s.subhead}>Move one pot onto another to reallocate.</Text>
+        <Text style={s.subhead}>Move one pot onto another to move money between them.</Text>
       </View>
 
       {/* Across-pots totals — the figure counts up; the bar fills to the share of the combined goal. */}
@@ -379,7 +379,7 @@ function ReallocationSheet({
               destination on the right (with the +£n it gains). */}
           <View style={s.impact}>
             <View>
-              <Text style={s.impactLabel}>Tight point</Text>
+              <Text style={s.impactLabel}>Lowest balance</Text>
               <Text style={s.impactValue}>
                 {tightPointMinor !== undefined ? formatMinorAmount(tightPointMinor) : '—'}
               </Text>

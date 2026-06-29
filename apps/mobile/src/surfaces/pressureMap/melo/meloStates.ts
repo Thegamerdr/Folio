@@ -26,7 +26,7 @@ export const MELO_COPY: Readonly<Record<MeloState, MeloCopy>> = {
   melo_idle: { primary: "I'm right here with you." },
   melo_start: { primary: 'Start rough — you can fix anything later.' },
   melo_guiding_input: {
-    primary: 'A rough number is fine.',
+    primary: 'An estimate is fine.',
     supporting: 'We only need enough to start your path.',
   },
   melo_review_waiting: {
@@ -38,7 +38,7 @@ export const MELO_COPY: Readonly<Record<MeloState, MeloCopy>> = {
   melo_uncertainty: { primary: 'A few still need checking.' },
   melo_file_unreadable: {
     primary: "I couldn't read this one clearly.",
-    supporting: 'The file is saved — you can still add the numbers from it.',
+    supporting: "Let's try the file again before we ask you to type.",
   },
   melo_privacy_trust: {
     primary: 'Your files and money stay on this device.',
