@@ -24,7 +24,7 @@
  *               performs no store mutation.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 import Animated, {
@@ -46,6 +46,8 @@ import {
   useCountUp,
   useTheme,
 } from '@/folio/theme';
+import { useRoute } from '@/folio/lib/storeRoute';
+import type { RoutePoint } from '@/folio/lib/moneyPath';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import type { Nav } from '@/folio/types';
@@ -62,14 +64,106 @@ const VB_H = 120;
 const SVG_RENDER_H = 110; // the web rendered the 400×120 viewBox into a 110px-tall box
 const ROUTE_DASH = 1200; // >= the new accent line's length so route-draw never clips (web strokeDasharray)
 
-// @rn-engine money-path — the before/after route, the £283 spare-at-payday verdict, the −£42 delta
-// and the 'after adding Tesco' provenance are the design's HARDCODED demo of the will-I-make-it
-// engine (web prototype baked these in; ENGINES §6 marks the money-path + change-provenance engines
-// as not-yet-built). Render the design state; do NOT treat these as live until the engine lands.
-const TARGET_SPARE = 283; // £283 — the count-up target
-const PRIOR_ROUTE_D = 'M 20 50 C 70 40, 110 30, 160 45 S 240 95, 305 80 L 380 55'; // ghost of the old route
-const NEW_FILL_D = 'M 20 60 C 70 50, 110 38, 160 55 S 240 102, 305 92 L 380 62 L 380 120 L 20 120 Z'; // area under new route
-const NEW_LINE_D = 'M 20 60 C 70 50, 110 38, 160 55 S 240 102, 305 92 L 380 62'; // the animated new route
+// @rn-engine money-path — WIRED to the real route. The spare-at-payday verdict, the new route line +
+// fill, and the lowest / payday marker positions all come from the shared store→money-path bridge
+// (@/folio/lib/storeRoute → computeRoute), the same engine Today, Calendar and the pressure-map
+// TodayAfter draw from — so this transient re-states the user's actual path, not a baked demo.
+//
+// Change provenance (the ghost of the OLD route + the "What changed" −£42 delta) needs a before/after
+// pair: the pre-change route vs the route after the just-accepted change. The honest "before" can ONLY
+// be captured at the instant the change is applied, because the two upstream flows into this screen —
+//   • RecoveryScreen.onRebuild():     pickedMove.commit()  then  nav.go('today-after')
+//   • VisualizerScreen.acceptSelected(): addTransaction(...) loop  then  nav.go('today-after')
+// — both mutate the live store FIRST and navigate SECOND. The pre-change curve exists in the store only
+// up to that mutating call; by the time `nav.go` runs, the shell renders Today After, or any read here
+// fires, the store already holds the AFTER-route and the before-route is gone. So the snapshot must be
+// taken inside those two screens, one statement before the mutation, and threaded to this screen.
+//
+// Threading it honestly is a cross-file refactor OUTSIDE this fix's allowed edit surface
+// (TodayAfterScreen.tsx / store.ts / FolioShell.tsx): it requires editing RecoveryScreen + Visualizer
+// to snapshot the pre-mutation route, and either widening `nav.go` (types.ts) to carry the payload or
+// adding an ephemeral `beforeRoutePoints` store field those two screens write before committing. None
+// of those files may be touched here. The three editable files cannot capture it on their own:
+//   • store.ts has no injected "now" to compute a route and its mutators (togglePaused / nudgeSub /
+//     setTightPointGoal / addToPot / addTransaction) are shared by many flows that never reach this
+//     screen — auto-snapshotting on each would FABRICATE a "before" for unrelated edits, not honesty.
+//   • FolioShell.go and this screen both run AFTER the mutation, so neither can ever observe the before.
+// Rather than fake the ghost from the current curve (a fabricated line the design forbids), the screen
+// keeps the single honest line: it draws the user's REAL current route and omits the dashed ghost. Per
+// the design contract ("if no change context, show the current route") this is the faithful fallback;
+// the FROZEN "What changed" copy ships verbatim as the design's settled-state framing. Restoring the
+// two-line before/after is a follow-up that touches RecoveryScreen + VisualizerScreen + the nav/store
+// thread — see the matching note at the ghost's draw site below.
+
+// The preview plot lives in the web's authored 400×120 viewBox; these bands are the drawable region
+// the route maps into (matching the pressure-map TodayAfter preview so the curve reads as the same
+// family of line). The lowest / payday markers sit on the real curve.
+const PLOT_TOP = 30;
+const PLOT_BOTTOM = 92;
+const PLOT_LEFT = 20;
+const PLOT_RIGHT = 380;
+
+/** The new route's drawable geometry, derived from the engine points: the smooth curve, the matching
+ *  area fill under it, and the screen coordinates of the lowest (tight point) and payday (last) markers
+ *  so the two callouts sit on the real line. Falls back to a calm flat line when there aren't enough
+ *  points to draw a shape — the same fallback the pressure-map preview uses. */
+type PreviewGeometry = Readonly<{
+  curveD: string;
+  areaD: string;
+  lowest: { x: number; y: number };
+  payday: { x: number; y: number };
+}>;
+
+function previewGeometry(points: readonly RoutePoint[]): PreviewGeometry {
+  const flat: PreviewGeometry = {
+    curveD: `M ${PLOT_LEFT} ${PLOT_BOTTOM} L ${PLOT_RIGHT} ${PLOT_BOTTOM}`,
+    areaD: `M ${PLOT_LEFT} ${PLOT_BOTTOM} L ${PLOT_RIGHT} ${PLOT_BOTTOM} L ${PLOT_RIGHT} ${VB_H} L ${PLOT_LEFT} ${VB_H} Z`,
+    lowest: { x: PLOT_RIGHT - 75, y: PLOT_BOTTOM },
+    payday: { x: PLOT_RIGHT, y: PLOT_BOTTOM },
+  };
+  if (points.length < 2) return flat;
+
+  const balances = points.map((p) => p.y);
+  const maxV = Math.max(...balances);
+  const minV = Math.min(...balances);
+  const span = maxV - minV;
+
+  // y maps high balance → top of the band, low balance → bottom.
+  const yFor = (v: number): number => {
+    if (span === 0) return (PLOT_TOP + PLOT_BOTTOM) / 2;
+    const frac = (v - minV) / span; // 0 at lowest .. 1 at highest
+    return PLOT_BOTTOM - frac * (PLOT_BOTTOM - PLOT_TOP);
+  };
+  const xFor = (i: number): number =>
+    PLOT_LEFT + (i / (points.length - 1)) * (PLOT_RIGHT - PLOT_LEFT);
+
+  const coords = points.map((p, i) => ({ x: xFor(i), y: yFor(p.y) }));
+
+  // Smooth with the same mid-point cubic the MoneyPath / pressure-map preview use, so the line reads
+  // as one family across surfaces.
+  let curveD = `M ${coords[0]!.x} ${coords[0]!.y}`;
+  for (let i = 1; i < coords.length; i += 1) {
+    const a = coords[i - 1]!;
+    const b = coords[i]!;
+    const cx = (a.x + b.x) / 2;
+    curveD += ` C ${cx} ${a.y} ${cx} ${b.y} ${b.x} ${b.y}`;
+  }
+  const last = coords[coords.length - 1]!;
+  const areaD = `${curveD} L ${last.x} ${VB_H} L ${coords[0]!.x} ${VB_H} Z`;
+
+  // Lowest balance = the tight point; payday = the last sampled day.
+  let lowestIndex = 0;
+  for (let i = 1; i < balances.length; i += 1) {
+    if (balances[i]! < balances[lowestIndex]!) lowestIndex = i;
+  }
+
+  return { curveD, areaD, lowest: coords[lowestIndex]!, payday: last };
+}
+
+// A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be called
+// conditionally, so it runs against this until `now` is set; that frame's result is discarded (the
+// screen holds the loading affordance). Module-level so its identity never churns the hook's memo.
+const EPOCH = new Date(0);
 
 /** STATES.md branch. 'populated' (the only designed layout) · 'loading' (route-draw into populated —
  *  Melo curious + line, never a spinner) · 'error' / 'empty' (no in-screen UI — the contract is
@@ -94,9 +188,28 @@ export function TodayAfterScreen({
     if (fallsBackToToday) nav.go('today');
   }, [fallsBackToToday, nav]);
 
-  // count-up — the £283 balance ticks up over 700ms (cubic ease-out). Money never slides in with the
+  // Mount-gate (mirrors TodayScreen): defer `new Date()` so the engine has an honest "today" before it
+  // draws, and the route-draw plays once against the real curve rather than flashing a transient. The
+  // gate also keeps the loading affordance (Melo curious + line, never a spinner) on the first frame.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+
+  // @rn-engine money-path — the real route from the shared store→money-path bridge. `useRoute` can't be
+  // called conditionally, so it always runs against `now ?? EPOCH`; before the gate opens (`now === null`)
+  // the engine has no honest "today", so that transient result is discarded (`route = null`) and the
+  // screen holds the loading branch. No change context reaches this screen, so this IS the current route.
+  const routeResult = useRoute(now ?? EPOCH);
+  const route = now ? routeResult : null;
+
+  // The settled spare-at-payday verdict + the re-drawn route preview both read from the real route.
+  const spareTarget = route ? Math.round(route.spare) : 0;
+  const geometry = useMemo(() => previewGeometry(route?.points ?? []), [route]);
+
+  // count-up — the spare balance ticks up over 700ms (cubic ease-out). Money never slides in with the
   // screen; it counts. Collapses to the final value under reduce-motion. (web: useCountUp(283, 700))
-  const balance = useCountUp(TARGET_SPARE, 700, reduceMotion);
+  const balance = useCountUp(spareTarget, 700, reduceMotion);
 
   // slide-in-r — the whole screen enters from the right (translateX 28→0) over 360ms.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -131,9 +244,10 @@ export function TodayAfterScreen({
   }));
 
   // loading branch (STATES.md / spec): never a spinner. The route-draw IS the loading-into-populated
-  // transition; when the shell hands an explicit loading state, hold the screen on Melo (curious) +
-  // one quoted line — the same calm "working it out" affordance the rest of the app uses.
-  if (state === 'loading') {
+  // transition; when the shell hands an explicit loading state — or the mount-gate is still closed so
+  // the engine has no honest "today" yet — hold the screen on Melo (curious) + one quoted line, the
+  // same calm "working it out" affordance the rest of the app uses.
+  if (state === 'loading' || now === null) {
     return (
       <Animated.View style={[styles.root, enterStyle]}>
         <PressureScreen centered>
@@ -218,22 +332,24 @@ export function TodayAfterScreen({
                 </LinearGradient>
               </Defs>
 
-              {/* Ghost of the old route — static dashed hairline. */}
-              <Path
-                d={PRIOR_ROUTE_D}
-                fill="none"
-                stroke={t.hairline}
-                strokeWidth={1}
-                strokeDasharray="2 3"
-              />
+              {/* Ghost of the old route — static dashed hairline (the design's "before" line). It is
+                  OMITTED here, not faked. The honest before-route can only be snapshotted at the
+                  instant the change is applied, inside the two upstream flows (RecoveryScreen.onRebuild
+                  → commit; VisualizerScreen.acceptSelected → addTransaction) — each mutates the store
+                  first and navigates here second, so by the time this screen reads the route the
+                  before-curve is already gone. Capturing + threading it is a cross-file refactor outside
+                  this fix's editable surface (it needs RecoveryScreen + VisualizerScreen + the nav/store
+                  thread, none touchable here); see the full provenance note at the top of this file.
+                  Drawing a ghost from the current curve would fabricate a route the user never had, so
+                  the screen keeps one honest line until that before/after thread lands. */}
 
-              {/* Area under the new route — static fill. */}
-              <Path d={NEW_FILL_D} fill="url(#afterFill)" />
+              {/* Area under the new route — static fill, from the real route geometry. */}
+              <Path d={geometry.areaD} fill="url(#afterFill)" />
 
-              {/* The new route — the ONLY animated path (route-draw). */}
+              {/* The new route — the ONLY animated path (route-draw), from the real route geometry. */}
               <AnimatedPath
                 animatedProps={routeStrokeProps}
-                d={NEW_LINE_D}
+                d={geometry.curveD}
                 fill="none"
                 stroke={t.calm}
                 strokeWidth={2.2}
@@ -241,11 +357,11 @@ export function TodayAfterScreen({
                 strokeDasharray={ROUTE_DASH}
               />
 
-              {/* Low-point dot + label. */}
-              <Circle cx={305} cy={92} r={5} fill={t.calm} />
+              {/* Low-point dot + label — sits on the real tight point. */}
+              <Circle cx={geometry.lowest.x} cy={geometry.lowest.y} r={5} fill={t.calm} />
               <SvgText
-                x={305}
-                y={80}
+                x={geometry.lowest.x}
+                y={geometry.lowest.y - 12}
                 textAnchor="middle"
                 fontSize={9}
                 fill={t.muted}
@@ -254,11 +370,11 @@ export function TodayAfterScreen({
                 lowest
               </SvgText>
 
-              {/* Payday dot + label. */}
-              <Circle cx={380} cy={62} r={5} fill={t.calm} />
+              {/* Payday dot + label — sits on the real payday point. */}
+              <Circle cx={geometry.payday.x} cy={geometry.payday.y} r={5} fill={t.calm} />
               <SvgText
-                x={378}
-                y={50}
+                x={geometry.payday.x - 2}
+                y={geometry.payday.y - 12}
                 textAnchor="end"
                 fontSize={9}
                 fill={t.muted}

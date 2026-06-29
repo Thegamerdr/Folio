@@ -98,7 +98,6 @@ import {
 import { elevation, gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { type MeloMood } from '@/folio/melo/Melo';
-import { EmptyState } from '@/folio/ui/EmptyState';
 import {
   deriveCalendarEvents,
   groupByDay,
@@ -108,17 +107,21 @@ import {
   previewSubNudge,
   type DerivedEvent,
 } from '@/folio/lib/calendarEvents';
+import { useRoute } from '@/folio/lib/storeRoute';
 import type { Nav } from '@/folio/types';
 
 // The three planner views. Default is Agenda (the web default), the most legible on a narrow phone.
 // Named CalendarView (not `View`) so it never shadows react-native's <View>.
 type CalendarView = 'month' | 'week' | 'agenda';
 
-// @rn-engine money-path — the starting spare anchor. The web prototype anchored the spare ladder to a
-// literal £720; here it is sourced from the store's sample balance (currentBalance.amount, which is
-// 720 in sample mode) so the Calendar and the rest of the app agree. The real Money-path engine will
-// own this figure once it is reachable from the folio surface.
-const STARTING_SPARE = 720;
+// @rn-engine money-path — the starting-spare anchor. The web prototype anchored the spare ladder to a
+// literal £720. The real Money-path engine now owns this figure: the ladder anchors to the ROUTE START
+// (the same spendable base TodayScreen draws the route from), via the shared `@/folio/lib/storeRoute`
+// bridge — `currentBalance.amount` minus earmarked pot cash (open borrows are 0 from `routeFromStore`).
+// That base is read reactively off the store in both the screen (the `startingSpare` selector) and the
+// per-event nudge preview (`previewStart`), so the Calendar's spare ladder, its tightest-day pill, and
+// the what-if preview all anchor to the IDENTICAL figure and agree with the Route's curve. The tightest
+// pill itself defers to `route.tightPoint` once the engine is ready, so it matches Today's lowest point.
 
 // slide-in-r geometry (web .slide-in-r): the whole screen enters from +28px on X with a fade, 360ms,
 // on the editorial ease-out-expo. Mirrors PotsScreen / ReviewScreen / Melo.
@@ -130,6 +133,11 @@ const SCALE_FROM = 0.97;
 // soft view crossfade — the body fades on a view switch without re-deriving the data, 180ms.
 const VIEW_FADE_MS = 180;
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
+
+// A stable sentinel "now" for the one frame before the mount-gate opens. `useRoute` can't be called
+// conditionally, so it runs against this until `today` is set; the result is discarded (`route = null`)
+// that frame. Module-level so its identity never churns the hook's memo. Mirrors TodayScreen.
+const EPOCH = new Date(0);
 
 // The legend / dot vocabulary. KIND_DOT resolves a kind to a palette colour at render time (it takes
 // the active palette, because an SVG-free coloured dot still needs a theme colour, not a class).
@@ -283,12 +291,29 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
 
   // RN has no SSR — set `today` at mount. The null-guard is kept only so the very first frame is a
   // calm empty frame rather than a flash of half-derived content (NOT the web's UTC/SSR rationale).
+  // It also doubles as the money-path mount-gate (mirrors TodayScreen): the route engine has no honest
+  // "today" until this is set, so the route is discarded that one frame.
   const [today, setToday] = useState<Date | null>(null);
   useEffect(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     setToday(d);
   }, []);
+
+  // @rn-engine money-path — the running-spare ladder + the tightest-day pill anchor to the REAL route,
+  // not the old literal £720. `useRoute` (the shared store→money-path bridge) maps the live store onto
+  // `computeRoute` exactly as TodayScreen does, so the Calendar's curve agrees with the Route's curve.
+  // The hook can't be called conditionally, so it always runs against `today ?? EPOCH`; before the
+  // mount-gate opens (`today === null`) the engine has no honest "today", so that transient result is
+  // discarded (`route = null`) and the pre-mount calm frame renders with no spare £ anyway.
+  const routeResult = useRoute(today ?? EPOCH);
+  const route = today ? routeResult : null;
+
+  // Where the ladder starts — the route's spendable base (currentBalance minus earmarked pot cash),
+  // read off the live store snapshot so it matches `routeFromStore`. Before the gate opens we still
+  // have a base (it doesn't depend on `today`), so the one pre-mount frame is harmless; it's only used
+  // once `today` is set and the body renders.
+  const startingSpare = useAppStore((st) => st.currentBalance.amount - st.pots.reduce((a, p) => a + p.saved, 0));
 
   // Events / groups / spare are memoised ABOVE the view branch so switching views never re-derives
   // the data (STATES: "switching never reloads"). Only the presentational subview swaps.
@@ -316,8 +341,8 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   }, [groups]);
 
   const { spareByDay, tightestDate, tightestSpare } = useMemo(
-    () => computeSpareAndTightest(groups, STARTING_SPARE),
-    [groups],
+    () => computeSpareAndTightest(groups, startingSpare),
+    [groups, startingSpare],
   );
 
   const [view, setView] = useState<CalendarView>('agenda');
@@ -326,9 +351,12 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // bumping `jumpPulse` re-triggers a smooth scroll / offset realignment.
   const [jumpPulse, setJumpPulse] = useState(0);
   const [jumpDate, setJumpDate] = useState<string | null>(null);
+  // Jump to the lowest-spare day. Targets the Route's tight point when the engine is ready (so the jump
+  // lands on the same day the pill names), else the ladder's tightest.
   const jumpToTightest = () => {
-    if (!tightestDate) return;
-    setJumpDate(tightestDate);
+    const target = route ? route.tightPoint.date : tightestDate;
+    if (!target) return;
+    setJumpDate(target);
     setJumpPulse((p) => p + 1);
   };
 
@@ -397,7 +425,15 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const missingBills = subs.length === 0;
   const missingPots = pots.length === 0 || pots.every((p) => !(p.perWeek > 0));
 
-  const tightestLeft = Math.max(0, Math.round(tightestSpare));
+  // The lowest-spare point. The tightest-day pill must AGREE with the Route's tight point (the same
+  // lowest-balance day TodayScreen shows), so when the route is ready it is authoritative — date and
+  // £ both come from `route.tightPoint`. Until the mount-gate opens, fall back to the ladder's tightest
+  // (anchored to the same route start) so the pre-mount-to-mounted transition never flips the figure.
+  // Driving the jump target and the views' accent-soft highlighting off this same `lowDate` keeps the
+  // pill, the jump, and the highlighted day pointing at one coherent day.
+  const lowDate = route ? route.tightPoint.date : tightestDate;
+  const lowSpare = route ? route.tightPoint.amount : tightestSpare;
+  const tightestLeft = Math.max(0, Math.round(lowSpare));
 
   return (
     <Animated.View style={[layout.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -440,11 +476,11 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
 
         {/* Tightest-day pill — a single line bridging to the lowest spare point. All three views
             already highlight that day in colour; this is just the jump action. scale-in on appear. */}
-        {tightestDate && !isEmpty ? (
+        {lowDate && !isEmpty ? (
           <TightestPill
             s={s}
             onPress={jumpToTightest}
-            dateProse={formatDayProse(tightestDate)}
+            dateProse={formatDayProse(lowDate)}
             left={tightestLeft}
             reduceMotion={reduceMotion}
           />
@@ -466,7 +502,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
               s={s}
               groups={groups}
               spareByDay={spareByDay}
-              tightestDate={tightestDate}
+              tightestDate={lowDate}
               today={today}
               jumpDate={jumpDate}
               jumpPulse={jumpPulse}
@@ -479,7 +515,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
               s={s}
               eventsByDay={eventsByDay}
               spareByDay={spareByDay}
-              tightestDate={tightestDate}
+              tightestDate={lowDate}
               today={today}
               jumpDate={jumpDate}
               jumpPulse={jumpPulse}
@@ -491,7 +527,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
               s={s}
               eventsByDay={eventsByDay}
               spareByDay={spareByDay}
-              tightestDate={tightestDate}
+              tightestDate={lowDate}
               today={today}
               jumpDate={jumpDate}
               jumpPulse={jumpPulse}
@@ -546,8 +582,8 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             loading is never a spinner; this line + the curious mood IS the calm "working" state. */}
         <View style={layout.meloBlock}>
           <MeloLine
-            text={meloCalendarLine(tightestSpare, isEmpty)}
-            mood={meloCalendarMood(tightestSpare, isEmpty)}
+            text={meloCalendarLine(lowSpare, isEmpty)}
+            mood={meloCalendarMood(lowSpare, isEmpty)}
           />
         </View>
       </ScrollView>
@@ -649,10 +685,12 @@ function TightestPill({
 }
 
 // ---------------------------------------------------------------------------
-// Empty state — name the first missing lever (payday > bills > pots, else generic). The web rendered
-// a quoted Fraunces head + a muted body inside a surface card; the EmptyState primitive carries the
-// same shape (Melo + headline + body), so the calendar copy is threaded verbatim into it. The
-// headline drops its quotes (the primitive owns the editorial framing); the band stays soft → curious.
+// Empty state — name the first missing lever (payday > bills > pots, else generic). The web renders a
+// QUOTED italic Fraunces head + a muted body inside a plain surface card (bg-surface · hairline ·
+// rounded-2xl · p-6 · centred) with NO mascot. This is the faithful 1:1 of that treatment, inlined
+// rather than routed through the shared EmptyState primitive — the primitive drops the surrounding
+// quote marks (it splits an accent word instead) and adds a grounded Melo, neither of which the
+// Calendar empty card has. The literal quote marks wrap the head exactly as the web's "{head}" did.
 // ---------------------------------------------------------------------------
 
 function CalendarEmptyState({
@@ -680,7 +718,10 @@ function CalendarEmptyState({
   }
   return (
     <View style={layout.emptyWrap}>
-      <EmptyState mood="curious" headline={head} body={line} />
+      <View style={s.emptyCard}>
+        <Text style={s.emptyHead}>{`"${head}"`}</Text>
+        <Text style={s.emptyBody}>{line}</Text>
+      </View>
     </View>
   );
 }
@@ -1395,8 +1436,16 @@ function SubRenewalActions({ name, s }: { name: string; s: ReturnType<typeof mak
   const [hover, setHover] = useState<number | null>(null);
   const currentDelta = subOverrides[name] ?? 0;
 
+  // The what-if anchor — the SAME route start the screen's ladder uses (currentBalance minus earmarked
+  // pot cash), so the previewed "lowest day" lift reads against the real curve, not the old £720.
+  const currentBalance = useAppStore((st) => st.currentBalance);
+  const previewStart = currentBalance.amount - pots.reduce((a, p) => a + p.saved, 0);
+
   const previewDelta = useMemo(() => {
     if (hover === null) return null;
+    // Re-route a HYPOTHETICAL scenario, never the live store: `previewSubNudge` builds the timeline
+    // twice (base + a nudged COPY of `subOverrides`) and computes each against `previewStart` without
+    // mutating any store slice — the same pure derivation the screen ladder runs.
     return previewSubNudge({
       subName: name,
       deltaDays: hover,
@@ -1406,9 +1455,9 @@ function SubRenewalActions({ name, s }: { name: string; s: ReturnType<typeof mak
       onboarding,
       manualEvents,
       pots,
-      startingSpare: STARTING_SPARE,
+      startingSpare: previewStart,
     });
-  }, [hover, name, subs, subPaused, subOverrides, onboarding, manualEvents, pots]);
+  }, [hover, name, subs, subPaused, subOverrides, onboarding, manualEvents, pots, previewStart]);
 
   return (
     <View style={layout.subActionsBlock}>
@@ -1633,6 +1682,29 @@ function makeStyles(t: Palette) {
     },
     headlineAccent: { color: t.calm },
     subhead: { color: t.muted, fontSize: 12.5, lineHeight: 17, marginTop: 4 },
+
+    // Empty state — plain surface card (web bg-surface · hairline · rounded-2xl · p-6 · text-center),
+    // a quoted italic Fraunces head + a muted body. No mascot, no shadow (the web card carries none).
+    emptyCard: {
+      backgroundColor: t.surface,
+      borderRadius: radius.xxl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      padding: 24,
+      alignItems: 'center',
+    },
+    emptyHead: {
+      color: t.ink,
+      fontFamily: serif.displayItalic,
+      fontSize: 15,
+      textAlign: 'center',
+    },
+    emptyBody: {
+      color: t.muted,
+      fontSize: 12,
+      marginTop: 8,
+      textAlign: 'center',
+    },
 
     // Pre-mount calm frame
     skeletonCard: {

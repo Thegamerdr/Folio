@@ -21,7 +21,9 @@ import {
   applyMeloTool,
   editTransaction,
   fastForwardMonth,
+  getPersistBlob,
   getState,
+  hydrateFromBlob,
   matchMeloTool,
   pauseMany,
   resetAll,
@@ -431,6 +433,64 @@ describe('seeding', () => {
     // No re-seed happens on a plain partial write.
     expect(getState().transactions.length).toBe(1);
     expect(getState().transactions[0]!.merchant).toBe('Mine');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getPersistBlob / hydrateFromBlob — native-persistence serialize round-trip
+// (ENGINES §7 store-migration / RN_PORT "Store migration"). Pure + Node-safe.
+// ---------------------------------------------------------------------------
+describe('persist blob round-trip', () => {
+  it('serializes the current state and rehydrates it faithfully', () => {
+    setPartial({
+      tightPointGoal: 180,
+      nextYouNote: 'hold the line',
+      onboarding: { done: true, name: 'Ada', payday: 1, monthlyIncome: 2600 },
+    });
+    const blob = getPersistBlob();
+
+    // Drift away, then restore from the captured blob.
+    setPartial({ tightPointGoal: null, nextYouNote: '' });
+    hydrateFromBlob(blob);
+
+    const s = getState();
+    expect(s.tightPointGoal).toBe(180);
+    expect(s.nextYouNote).toBe('hold the line');
+    expect(s.onboarding.name).toBe('Ada');
+    expect(s.onboarding.monthlyIncome).toBe(2600);
+  });
+
+  it('round-trips through schema v3 with the edit history intact', () => {
+    setPartial({ transactions: [], edits: [] });
+    const row = addTransaction({ merchant: 'Tesco', amount: -42.1, category: 'food', source: 'manual' });
+    editTransaction(row.id, { amount: -50 }, 'user');
+
+    const blob = getPersistBlob();
+    resetAll();
+    hydrateFromBlob(blob);
+
+    const s = getState();
+    expect(s.schemaVersion).toBe(3);
+    expect((s.edits ?? []).length).toBe(1);
+    expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
+  });
+
+  it('does not persist the ephemeral focus bridges; they hydrate to null', () => {
+    setPartial({ calendarFocusDate: '2026-07-04', routeFocusDate: '2026-07-04' });
+    const parsed = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+
+    expect('calendarFocusDate' in parsed).toBe(false);
+    expect('routeFocusDate' in parsed).toBe(false);
+
+    hydrateFromBlob(getPersistBlob());
+    expect(getState().calendarFocusDate).toBe(null);
+    expect(getState().routeFocusDate).toBe(null);
+  });
+
+  it('a malformed blob leaves state untouched', () => {
+    setPartial({ tightPointGoal: 99 });
+    hydrateFromBlob('not valid json');
+    expect(getState().tightPointGoal).toBe(99);
   });
 });
 

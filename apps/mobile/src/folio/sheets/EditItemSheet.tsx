@@ -1,13 +1,20 @@
-// @rn-engine edit-txn — the full correction-history of an edited item is wired later (see BUILD_PLAN §3)
+// @rn-engine edit-txn — the candidate-correction form is now REAL: it applies the user's edits to the
+//   in-review candidate (name / amount / date / category / note) and hands the corrected candidate
+//   back to its owner. It is a LOCAL correction before anything counts — never destructive, never a
+//   money-path write. The owner's later Accept (Review/Visualizer → store.addTransaction) is the only
+//   write. Full persisted correction-history is wired later (see BUILD_PLAN §3).
 //
 // EditItemSheet — the faithful 1:1 React Native port of the web found-item correction sheet
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetEditItem.tsx).
 //
 // @rn-sheet     EditItemSheet
-// @purpose      Correct a found item (name, amount, type, optional note) BEFORE it's added. This is
-//               the pre-truth correction form: it edits the candidate in hand, never the money path.
-//               Nothing is committed from here — the user's later Accept (in Review/Visualizer) is the
-//               only write. The web buttons all close; this port keeps that contract (close-only).
+// @purpose      Correct a found item (name, amount, date, category, optional note) BEFORE it's added.
+//               This is the pre-truth correction form: it edits the candidate in hand, never the money
+//               path. Nothing is committed from here — the user's later Accept (in Review/Visualizer)
+//               is the only write. "Save changes" returns the corrected candidate to the owner via
+//               `onSave`; the owner re-renders the row with the new values and lets Accept add them.
+//               When no candidate is supplied (the shell's `visible`/`onClose`-only call), the form
+//               renders the faithful sample and Save is a no-op close — the web close-only contract.
 // @writes       — (no store mutation — review-before-truth; an Accept downstream is the only write)
 // @copy         FROZEN (verbatim from the web source; these literals are not yet in COPY_DECK —
 //               '@/folio/copy/copy' carries only currency.symbol for this sheet)
@@ -50,15 +57,38 @@ import { copy } from '@/folio/copy/copy';
 // Public API
 // ---------------------------------------------------------------------------
 
+// The in-review candidate this sheet corrects. A LOCAL pre-truth shape — every field is editable
+// here, and nothing is a money fact until the owner's Accept calls `store.addTransaction`. `id` (when
+// present) lets the owner key the corrected candidate back onto the right row.
+export type EditCandidate = {
+  id?: string;
+  /** The merchant / "what is it" line. */
+  name: string;
+  /** Signed £ — negative = spend, positive = inflow. Sign is preserved across the edit. */
+  amount: number;
+  /** Short display date, e.g. "26 Jun" (read-only here, carried through unchanged). */
+  date?: string;
+  /** The suggested type label (one of TYPES). */
+  type?: string;
+  /** Optional free-text note. */
+  note?: string;
+};
+
 export type EditItemSheetProps = {
   visible: boolean;
   onClose: () => void;
+  /** The candidate to correct. Omitted in the shell's close-only call → the faithful sample renders. */
+  candidate?: EditCandidate;
+  /** Receives the corrected candidate when the user taps "Save changes". Omitted → Save just closes
+   *  (the web close-only contract, used by the shell's `visible`/`onClose`-only mount). */
+  onSave?: (next: EditCandidate) => void;
 };
 
 // The type chips — the web `types` list, verbatim.
 const TYPES = ['spending', 'income', 'bill', 'debt payment', 'transfer', 'refund'] as const;
 
-// The web sample priming values — reused verbatim (no fabricated numbers).
+// The web sample priming values — reused verbatim (no fabricated numbers). Used only when no
+// candidate is supplied (the shell's close-only mount), so the render stays byte-identical there.
 const SAMPLE = { name: 'Tesco', amount: '42.00', date: '26 Jun', type: 'spending' as string };
 
 // ---------------------------------------------------------------------------
@@ -85,16 +115,33 @@ function useReduceMotion(): boolean {
 // EditItemSheet
 // ---------------------------------------------------------------------------
 
-export function EditItemSheet({ visible, onClose }: EditItemSheetProps) {
+export function EditItemSheet({ visible, onClose, candidate, onSave }: EditItemSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReduceMotion();
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
-      <EditItemForm styles={s} palette={t} onClose={onClose} />
+      <EditItemForm
+        styles={s}
+        palette={t}
+        onClose={onClose}
+        candidate={candidate}
+        onSave={onSave}
+      />
     </Sheet>
   );
+}
+
+// The web type chip → an EditCandidate `type` label. The candidate's stored type may arrive in any
+// casing (e.g. a reader's "Spending"); match it to a chip case-insensitively so the right chip lights
+// up, falling back to the candidate's raw type, then the sample's. No new vocabulary — only the web's
+// own TYPES list is offered.
+function chipForType(type: string | undefined): string {
+  if (!type) return SAMPLE.type;
+  const lower = type.toLowerCase();
+  const match = TYPES.find((option) => option === lower);
+  return match ?? type;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,15 +152,54 @@ function EditItemForm({
   styles: s,
   palette: t,
   onClose,
+  candidate,
+  onSave,
 }: {
   styles: ReturnType<typeof makeStyles>;
   palette: Palette;
   onClose: () => void;
+  candidate?: EditCandidate | undefined;
+  onSave?: ((next: EditCandidate) => void) | undefined;
 }) {
-  const [name, setName] = useState(SAMPLE.name);
-  const [amount, setAmount] = useState(SAMPLE.amount);
-  const [note, setNote] = useState('');
-  const [type, setType] = useState<string>(SAMPLE.type);
+  // Prime each field from the candidate in hand (or the faithful sample when none is supplied). The
+  // amount shows the magnitude — the sign is the money fact and is preserved on save, not retyped.
+  const [name, setName] = useState(candidate?.name ?? SAMPLE.name);
+  const [amount, setAmount] = useState(
+    candidate ? Math.abs(candidate.amount).toFixed(2) : SAMPLE.amount,
+  );
+  const [note, setNote] = useState(candidate?.note ?? '');
+  const [type, setType] = useState<string>(
+    candidate ? chipForType(candidate.type) : SAMPLE.type,
+  );
+
+  // The Date well stays read-only (faithful to the web's static "26 Jun"); it is carried through the
+  // correction unchanged. With no candidate, the sample's date renders exactly as before.
+  const dateLabel = candidate?.date ?? SAMPLE.date;
+
+  // Build the corrected candidate and hand it to the owner (LOCAL correction — never a store write).
+  // The signed amount keeps the candidate's original sign: a blank/invalid amount falls back to the
+  // candidate's current value rather than coercing to 0. With no candidate / no onSave (the shell's
+  // close-only mount) this is a plain close — the web contract.
+  function handleSave() {
+    if (candidate && onSave) {
+      const cleaned = amount.replace(/[^0-9.]/g, '');
+      const magnitude = cleaned === '' ? Math.abs(candidate.amount) : Number(cleaned);
+      const safeMagnitude = Number.isFinite(magnitude) ? magnitude : Math.abs(candidate.amount);
+      const signed = candidate.amount >= 0 ? safeMagnitude : -safeMagnitude;
+      const trimmedNote = note.trim();
+      const resolvedType = type.trim() || candidate.type;
+      onSave({
+        ...candidate,
+        name: name.trim() || candidate.name,
+        amount: signed,
+        // exactOptionalPropertyTypes: only set these when they resolve to a value; the spread keeps
+        // the candidate's prior value otherwise (an emptied note/type is never written as undefined).
+        ...(resolvedType ? { type: resolvedType } : {}),
+        ...(trimmedNote ? { note: trimmedNote } : {}),
+      });
+    }
+    onClose();
+  }
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -162,7 +248,7 @@ function EditItemForm({
         </View>
         <View style={[s.well, s.gridCell]}>
           <Text style={s.fieldLabel}>Date</Text>
-          <Text style={s.dateValue}>{SAMPLE.date}</Text>
+          <Text style={s.dateValue}>{dateLabel}</Text>
         </View>
       </View>
 
@@ -204,11 +290,13 @@ function EditItemForm({
         />
       </View>
 
-      {/* Primary — Save changes (close-only, faithful to the web). */}
+      {/* Primary — Save changes: applies the correction to the in-review candidate and returns it to
+          the owner (review-before-truth — no money-path write). With no candidate/onSave it closes,
+          faithful to the web's close-only contract. */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Save changes"
-        onPress={onClose}
+        onPress={handleSave}
         style={({ pressed }) => [s.primary, { backgroundColor: t.calm }, pressed ? s.pressed : undefined]}
       >
         <Text style={[s.primaryLabel, { color: t.inverse }]}>Save changes</Text>

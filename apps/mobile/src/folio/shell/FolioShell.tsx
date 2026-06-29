@@ -61,6 +61,7 @@ import { CalendarConnectSheet } from '@/folio/sheets/CalendarConnectSheet';
 import { RouteDetailSheet } from '@/folio/sheets/RouteDetailSheet';
 import { MeloChatSheet } from '@/folio/sheets/MeloChatSheet';
 import { ShareSheet } from '@/folio/sheets/ShareSheet';
+import { UndoProvider } from '@/folio/ui/useUndo';
 import { useAppStore } from '@/folio/store';
 import type { MeloIntent, Nav, Pressure, ScreenId, SheetId } from '@/folio/types';
 
@@ -236,7 +237,9 @@ export function FolioShell() {
   const activeTab = useMemo(() => activeTabForScreen(screen), [screen]);
 
   return (
-    <>
+    // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
+    // (ENGINES §6) via useUndo(); its snackbar host renders above the screen + bottom nav.
+    <UndoProvider>
       <ScreenView screen={screen} nav={nav} />
       <BottomNav active={activeTab} onChange={onTabChange} />
       {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
@@ -275,7 +278,7 @@ export function FolioShell() {
       )}
       {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
       {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
-    </>
+    </UndoProvider>
   );
 }
 

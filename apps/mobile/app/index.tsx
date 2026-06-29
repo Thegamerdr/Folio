@@ -9,7 +9,7 @@
 // GestureHandlerRootView + SafeAreaProvider are mounted here so the shell is self-contained: the
 // shared kit primitives + ported screens rely on the gesture system and safe-area insets.
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -17,12 +17,36 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { useTheme } from '@/surfaces/pressureMap/kit';
 import { FolioShell } from '@/folio/shell/FolioShell';
+import { loadPersisted, startPersisting } from '@/folio/lib/persist';
 
 export default function FolioRoute() {
   const t = useTheme();
+  // Gate first render until persisted state is hydrated, so the shell never
+  // paints seeded defaults for a frame before the user's real data loads —
+  // the splash stays up (it is hidden only once `ready` flips).
+  const [ready, setReady] = useState(false);
+
   useEffect(() => {
-    void SplashScreen.hideAsync().catch(() => undefined);
+    let stop: (() => void) | undefined;
+    let cancelled = false;
+    void (async () => {
+      await loadPersisted(); // read blob off disk → hydrate store (no-op on first run).
+      if (cancelled) return;
+      stop = startPersisting(); // begin debounced write-on-change.
+      setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
   }, []);
+
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync().catch(() => undefined);
+  }, [ready]);
+
+  if (!ready) return null; // keep the native splash up until hydration finishes.
+
   return (
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>

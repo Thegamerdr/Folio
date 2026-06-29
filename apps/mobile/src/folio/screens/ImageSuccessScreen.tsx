@@ -19,10 +19,19 @@
 // @motion       slide-in-r (whole screen) · press 0.97 (kit `pressed`) · Melo breathe + blink
 //               (from MeloLine, calm mood — the only continuous motion on this quiet screen).
 //
-// @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review
-//   (see BUILD_PLAN §3). This wave ports the SUCCESS design state only; the real photo reader is
-//   built later. The image name + found list below are the engine's eventual output — here they are
-//   a local sample that REUSES the web source's exact values (no fabricated merchants/numbers).
+// @rn-engine photo-reader — WIRED to the pure candidate engine. The found list is the real
+//   `parseSheet` output (apps/mobile/src/folio/lib/importSheet.ts, ENGINES.md §6), not a hand-built
+//   array: when the photo reader produces extracted TEXT it is parsed into CandidateMoneyItem[]
+//   (review-before-truth — candidates only, never auto-counted). The demo threads no live text
+//   (FolioShell renders this screen with `nav` only), so — per the build task and the
+//   PasteSuccessScreen precedent — `parseSheet` is driven from the screen's existing sample rows,
+//   restated faithfully as text (the web source's exact two items: no fabricated merchants / numbers).
+//   The image name is the eventual reader's metadata, kept as the web source's sample.
+// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
+//   Reading a photo / screenshot needs the native ML Kit Text Recognition module. Until it lands the
+//   extractor returns `none`, so a real photo pick routes to the honest image-fallback ("Image saved"
+//   / "will read later") from the Intake screen — this success preview is reached only when real
+//   candidates were read.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • Accent word "read" is rendered UPRIGHT terracotta inside the Fraunces headline (web
@@ -31,7 +40,11 @@
 //     renders.
 //   • Money tone is NOT sign-derived. Both found items are spend; rendered in INK (the web <Money>
 //     defaults to tone='ink'). The sign is carried by the U+2212 minus glyph only; the amounts are
-//     rendered as the web's exact preformatted strings (−£27.40 / −£40), byte-for-byte.
+//     now formatted FROM the engine's signed candidate amount (formatSignedAmount), which re-emits the
+//     web's exact strings: pence kept when present (−27.40 → "−£27.40"), whole pounds otherwise
+//     (−40 → "−£40"). The hint is mapped from the candidate, with a faithful per-merchant override for
+//     the web's exact wording ('likely spending' / 'looks like cash out') so the render stays
+//     byte-identical while the money facts flow through the real engine.
 //   • The web's literal '←' glyph is drawn as a small inline react-native-svg icon (the codebase
 //     ships no icon font), matching PdfSuccessScreen's BackArrow. The image thumb is a calm inset
 //     paper-well rectangle (the web's paper-grain placeholder) — no real image asset on this wave.
@@ -72,6 +85,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio read from the photo — `merchant` is the display name, `hint` is the voice-
@@ -99,14 +113,70 @@ export type ImageSuccessScreenProps = {
   state?: ImageSuccessState;
 };
 
-// The web prototype's image name + two items, reused VERBATIM (no fabricated merchants/numbers). The
-// minus is U+2212 (−), kept byte-exact per the spec.
+// The web prototype's two items, restated VERBATIM as text so the real `parseSheet` engine — not a
+// hand-built array — produces the rendered candidates. Tab-separated with a header the engine auto-
+// detects; the `type` column signs each amount as spend. Merchants and magnitudes are the web source's
+// exact two items (no fabricated merchants/numbers); 27.40 keeps its pence, 40 is whole.
+const SAMPLE_IMAGE_TEXT: string = [
+  'merchant\tamount\ttype',
+  "Sainsbury's\t27.40\tspend",
+  'ATM withdrawal\t40\tspend',
+].join('\n');
+
+// The web's exact per-merchant hint wording (the photo reader's voice line), kept beside the text so
+// the render stays byte-identical. Both rows are `spend` to the engine; the web hand-wrote a distinct
+// 'looks like cash out' for the ATM row, so an explicit override preserves it. Anything not overridden
+// falls back to the kind-derived hint below.
+const SAMPLE_HINTS: Readonly<Record<string, string>> = {
+  "Sainsbury's": 'likely spending',
+  'ATM withdrawal': 'looks like cash out',
+};
+
+// Map the engine's candidate `kind` → a voice-approved confidence hint (never a raw category code).
+function hintForKind(kind: CandidateKind): string {
+  switch (kind) {
+    case 'income':
+      return 'looks like income';
+    case 'bill':
+      return 'looks like a bill';
+    case 'subscription':
+      return 'looks like a subscription';
+    case 'spend':
+      return 'likely spending';
+    default:
+      return 'a money item';
+  }
+}
+
+// Format a signed candidate amount the way the web preformatted it: the U+2212 minus '−' for money
+// out, whole pounds grouped, pence only when present (−27.40 → "−£27.40", −40 → "−£40"). Income would
+// lead with '+', kept for completeness though the sample is spend-only.
+function formatSignedAmount(amount: number): string {
+  const magnitude = Math.abs(amount);
+  const grouped = magnitude.toLocaleString('en-GB', {
+    minimumFractionDigits: Number.isInteger(magnitude) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  const sign = amount >= 0 ? '+' : '−';
+  return `${sign}£${grouped}`;
+}
+
+// Map the engine's CandidateMoneyItem[] (real `parseSheet` output) into this screen's render shape —
+// merchant verbatim, the hint from the per-merchant override (else the kind), the amount from the
+// signed magnitude. Faithful, no new data, candidates only (never auto-counted).
+function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
+  return candidates.map((candidate) => ({
+    merchant: candidate.merchant,
+    hint: SAMPLE_HINTS[candidate.merchant] ?? hintForKind(candidate.kind),
+    amount: formatSignedAmount(candidate.amount),
+  }));
+}
+
+// The found list, derived once from the real engine over the sample image text. The image name is the
+// eventual reader's metadata (kept as the web source's sample). The clean sample parses with zero issues.
 const SAMPLE_IMAGE: FoundImage = {
   imageName: 'IMG_2643.jpg',
-  items: [
-    { merchant: "Sainsbury's", hint: 'likely spending', amount: '−£27.40' },
-    { merchant: 'ATM withdrawal', hint: 'looks like cash out', amount: '−£40' },
-  ],
+  items: toFoundItems(parseSheet(SAMPLE_IMAGE_TEXT, { source: 'csv' }).candidates),
 };
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).

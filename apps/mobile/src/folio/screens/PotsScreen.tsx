@@ -9,7 +9,9 @@
 //               pace/ETA line, +£5/+£10/+£20 quick-add), an "Open a pot" doorway, and a closing Melo
 //               line. Moving money between pots opens a screen-owned Reallocate sheet (amount + a live
 //               tight-point preview + "Move £n").
-// @reads        pots · onboarding · currentBalance · potLedger (read via useAppStore)
+// @reads        pots · onboarding · currentBalance · potLedger (via useAppStore) · the full app state
+//               (via useAppStore) so the Reallocate sheet can re-route a hypothetical copy through the
+//               shared money-path bridge (@/folio/lib/storeRoute) for its real lowest-balance preview
 // @writes       addToPot (each +£n quick-add → a potLedger deposit) · setPots (the committed move)
 // @opens-sheet  — (the Reallocate sheet is a screen-owned <Sheet>, NOT a shell SheetId)
 // @copy         FROZEN — pots.* keys come VERBATIM from '@/folio/copy/copy'; the frame strings the
@@ -32,16 +34,23 @@
 //   • SLIDER → STEPPER. The web amount control was <input type=range step=5>. The app ships no slider
 //     dependency (checked), so the amount is a calm −£5 / +£5 stepper clamped to [0, from-pot balance]
 //     in £5 steps — exactly the web slider's bounds + step — matching the established reallocation sheet.
-//   • TIGHT-POINT PREVIEW is the web's explicit "Rough preview only" heuristic, reproduced verbatim:
-//     base = pressureLow[pressure]; delta = +round(clamped*0.6) when moving INTO buffer, −round(...)
-//     when moving OUT of buffer, else 0. Tagged @rn-engine money-path below — the real lowest-balance
-//     recompute replaces this stub when the money-path engine lands; until then it stays a labelled
-//     rough preview (spec enginesNeeded / fidelityRisks).
-//   • COPY reconciled to the deck (the deck is source of truth): the empty state uses pots.empty.head /
-//     .body / .cta VERBATIM from '@/folio/copy/copy' (the web component's longer inline body was a
-//     deck mismatch the spec tells us to drop). Frame strings the deck doesn't carry yet ("Set aside",
-//     "Small, calmly, on purpose.", the drag→move subhead, "Across pots", "+ Open a pot", the Melo
-//     line, and the Reallocate-sheet strings) are frozen inline literals.
+//   • TIGHT-POINT PREVIEW is now the REAL money-path engine, not the web's "Rough preview only"
+//     heuristic. The Reallocate sheet's "Lowest balance" base is the live route's tight point
+//     (routeFromStore(...).tightPoint.amount via @/folio/lib/storeRoute), and the delta is a true
+//     route diff: re-route a HYPOTHETICAL COPY of the state with the move applied (source pot down,
+//     destination up) and subtract the base tight point. Because every pot's saved is earmarked cash
+//     that lowers the whole path by the same flat offset (ENGINES §6 "Pots ↔ spendable money"),
+//     moving money between two pots keeps Σ saved constant, so a balanced transfer's honest delta is
+//     £0 — reallocating earmarked money doesn't change the lowest point — and it reads as the steady
+//     figure rather than the old fabricated buffer-only swing. The clock is mount-gated like
+//     TodayScreen (EPOCH sentinel + a `now` state); the single pre-mount frame keeps the honest
+//     per-pressure sample (pressureLow) so a normal open never flashes a different figure.
+//   • COPY: the empty state's head + cta come VERBATIM from '@/folio/copy/copy' (pots.empty.head /
+//     .cta); the .body is the design SoT's longer set-aside line, restored VERBATIM from the Lovable
+//     ScreenPots empty state as a frozen inline literal (the deck's shorter paraphrase was a fidelity
+//     gap). Frame strings the deck doesn't carry yet ("Set aside", "Small, calmly, on purpose.", the
+//     drag→move subhead, "Across pots", "+ Open a pot", the Melo line, and the Reallocate-sheet
+//     strings) are frozen inline literals too.
 //   • MELO MOOD reconciled to the mood map (MELO_MOODS): empty = calm (the web passed 'curious', a
 //     documented deviation; the map says calm and EmptyState defaults to calm). The closing MeloLine's
 //     web mood 'soft' normalises to 'calm' on the canonical Melo vocabulary. Loading = curious + a line
@@ -85,7 +94,8 @@ import { Sheet } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { addToPot, setPots, useAppStore, type Pot } from '@/folio/store';
+import { addToPot, setPots, useAppStore, type AppState, type Pot } from '@/folio/store';
+import { routeFromStore } from '@/folio/lib/storeRoute';
 import { pressureLow } from '@/folio/screens/today/pressure';
 import type { Nav, Pressure } from '@/folio/types';
 
@@ -97,8 +107,9 @@ export type PotsState = 'populated' | 'empty' | 'loading' | 'error' | 'offline';
 export type PotsScreenProps = {
   nav: Nav;
   /** The route pressure band. The web read this off `nav.pressure`; the RN Nav contract carries no
-   *  pressure, so the shell threads it explicitly (mirrors TodayScreen). Indexes pressureLow[] for the
-   *  Reallocate sheet's "Lowest balance" base figure. Defaults to the shell's calm band. */
+   *  pressure, so the shell threads it explicitly (mirrors TodayScreen). Now only the honest pre-mount
+   *  FALLBACK for the Reallocate sheet's "Lowest balance" (indexes pressureLow[]) — once the mount-gate
+   *  opens the real route engine supplies that figure. Defaults to the shell's calm band. */
   pressure?: Pressure;
   /** Force a render state (defaults to deriving from the live pots). Exposed for the shell + tests. */
   state?: PotsState;
@@ -122,6 +133,44 @@ const COUNT_MS = 700;
 const SLIDE_FROM_X = 28;
 const SLIDE_MS = 360;
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
+
+// A stable sentinel "now" for the one render before the mount-gate opens. `routeFromStore` needs an
+// honest "today"; until `now` is set we route against this and discard the figure that frame.
+// Module-level so its identity never churns the memo. (Same pattern as TodayScreen / RecoveryScreen.)
+const EPOCH = new Date(0);
+
+// The REAL reallocate impact — replaces the web's "Rough preview only" heuristic (which faked a
+// buffer-only ±round(clamped·0.6) nudge). The lowest balance comes from the shared money-path engine
+// via `routeFromStore`; the delta comes from re-routing a HYPOTHETICAL COPY of the live state with the
+// move applied (the source pot down `clamped`, the destination up `clamped`) and diffing its tight
+// point against the base route's. Pure given its inputs — never mutates the live store.
+//
+// Because the engine treats every pot's `saved` as earmarked cash that lowers the whole path by the
+// same flat offset (ENGINES §6 "Pots ↔ spendable money"), moving money BETWEEN two pots keeps Σ saved
+// unchanged, so the honest tight-point delta of a balanced transfer is £0. That's the truthful answer
+// — reallocating earmarked money doesn't change the lowest point — and it shows as the steady figure
+// rather than a fabricated swing.
+function routeImpact(
+  state: AppState,
+  fromId: string,
+  toId: string,
+  clamped: number,
+  now: Date,
+): { base: number; delta: number } {
+  const base = Math.round(routeFromStore(state, now).tightPoint.amount);
+  const candidateState: AppState = {
+    ...state,
+    pots: state.pots.map((p) =>
+      p.id === fromId
+        ? { ...p, saved: p.saved - clamped }
+        : p.id === toId
+          ? { ...p, saved: p.saved + clamped }
+          : p,
+    ),
+  };
+  const candidate = Math.round(routeFromStore(candidateState, now).tightPoint.amount);
+  return { base, delta: candidate - base };
+}
 
 // Shorten "Holiday · September" → "Holiday" for the sheet title + impact row (web name.split(' · ')[0]).
 function shortName(name: string): string {
@@ -165,6 +214,20 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
   const currentBalance = useAppStore((st) => st.currentBalance);
   const potLedger = useAppStore((st) => st.potLedger);
 
+  // The full app state — the same stable `useSyncExternalStore` snapshot the shared route bridge
+  // selects, so the Reallocate sheet can re-route a HYPOTHETICAL copy for its real tight-point delta
+  // without touching the live store. (Mirrors RecoveryScreen.)
+  const appState = useAppStore((st) => st);
+
+  // Mount-gate the clock (same as TodayScreen / RecoveryScreen): defer `new Date()` so nothing reads
+  // the clock during render and the route has an honest "today" before it computes. Until the gate
+  // opens we route against EPOCH and discard that frame's figure (`route` null), keeping the honest
+  // pre-engine fallback (pressureLow[pressure]) for that single frame.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+
   // Transfer flow state: which pot we're moving FROM (its move-picker is open), and the chosen
   // {from,to} pair (drives the Reallocate sheet). amount is the chosen move in whole £.
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
@@ -198,18 +261,22 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
   const maxMove = fromPot ? fromPot.saved : 0;
   const clamped = Math.max(0, Math.min(amount, maxMove));
 
-  // @rn-engine money-path — ROUGH PREVIEW ONLY (verbatim from the web source). The real lowest-balance
-  // recompute replaces this when the money-path engine lands. Moving INTO buffer leaves the tight point
-  // steady-to-up; moving OUT of buffer lowers it; any other pair leaves it unchanged.
-  const tightPointBase = pressureLow[pressure];
-  const tightDelta =
-    transfer && fromPot && toPot
-      ? toPot.id === 'buffer'
-        ? Math.round(clamped * 0.6)
-        : fromPot.id === 'buffer'
-          ? -Math.round(clamped * 0.6)
-          : 0
-      : 0;
+  // The REAL lowest-balance preview — the money-path engine, not the old "Rough preview only" stub.
+  // `routeImpact` reads the base tight point from the live route and re-routes a HYPOTHETICAL copy of
+  // the state with this exact move applied, diffing the tight points. The hook can't be called
+  // conditionally, so it always computes against `now ?? EPOCH`; before the mount-gate opens
+  // (`now === null`) the engine has no honest "today", so we discard that transient and fall back to
+  // the honest per-pressure sample (pressureLow) with no delta — exactly the pre-engine state, so the
+  // sheet never flashes a different figure on a normal open. The diff is recomputed only when the
+  // route inputs, the chosen pair, or the amount actually change.
+  const impact = useMemo(() => {
+    if (!now || !transfer || !fromPot || !toPot) return null;
+    return routeImpact(appState, transfer.from, transfer.to, clamped, now);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now, transfer, fromPot, toPot, clamped, appState]);
+
+  const tightPointBase = impact ? impact.base : pressureLow[pressure];
+  const tightDelta = impact ? impact.delta : 0;
 
   function openMove(fromId: string) {
     setMoveFrom((current) => (current === fromId ? null : fromId));
@@ -263,7 +330,7 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
             <EmptyState
               mood="calm"
               headline={copy.pots.empty.head}
-              body={copy.pots.empty.body}
+              body="A pot is a small set-aside for one thing — a holiday, a buffer, Christmas. Add the first one and Folio will quietly set it aside from what's left over."
               cta={{ label: copy.pots.empty.cta, onPress: () => nav.go('ritual') }}
             />
           </View>

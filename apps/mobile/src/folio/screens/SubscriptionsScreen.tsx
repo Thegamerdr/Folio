@@ -2,7 +2,8 @@
  * @rn-screen    SubscriptionsScreen
  * @rn-stack     MainTabs > Subs
  * @purpose      Subscription pulse — pause / cancel / used-today / ask-Melo per item.
- * @reads        subs, subPaused
+ * @reads        subs, subPaused (+ the money-path route slices via useRoute/routeFromStore:
+ *               currentBalance, onboarding, subOverrides, transactions, pots) for the tight-day lift
  * @writes       togglePaused, removeSub, markSubUsed
  * @opens-sheet  melo-chat
  * @copy         FROZEN — "still earns its place" voice.
@@ -21,21 +22,25 @@
  * visible string is verbatim from the design source / COPY_DECK.
  *
  * ENGINE NOTE (per the port rule "render the design state + tag // @rn-engine <name>"):
- * the web screen reads a live tight-day spare via the money-path calendar engine
- * (deriveCalendarEvents / groupByDay / computeSpareAndTightest / formatDayProse) to show what
- * pausing BUYS — "Your low point: £a → £b (day)" lines and the lift inside the toasts. That engine
- * is not yet reachable from the folio design-system import surface here, so those lift lines and
- * lift-bearing toasts are gated OFF (mirroring the web's hydration guard, where `now === null`
- * suppresses them) and tagged `// @rn-engine money-path-tight-day`. Everything that does NOT need
- * the engine — the monthly/yearly totals, the savings-from-pauses figure, the quiet-move £/mo +
- * £/yr saving, the per-row pulse/score, and the plain pause/cancel feedback — renders fully and
- * faithfully now.
+ * the web screen reads a live tight-day spare to show what pausing BUYS — "Your low point: £a → £b
+ * (day)" lines and the lift inside the toasts. RN reaches the same low-point figure through the
+ * shared store→money-path bridge (`@/folio/lib/storeRoute`): `useRoute(now)` gives the live route
+ * (its `tightPoint` is the lowest projected balance + the day it lands on), and the pure
+ * `routeFromStore(stateCopy, now)` re-routes a HYPOTHETICAL copy of the state with a sub (or the
+ * quiet set) paused — never mutating the live store — so the lift is a real route DELTA. The clock
+ * is mount-gated exactly as TodayScreen does (module-level `EPOCH` + a `now` state; `route` is null
+ * for the one pre-mount frame), which doubles as the web's hydration guard: while `now === null`
+ * the lift lines/lift-bearing toasts stay suppressed and only the engine-free feedback shows.
+ * Everything that never needed the engine — the monthly/yearly totals, the savings-from-pauses
+ * figure, the quiet-move £/mo + £/yr saving, the per-row pulse/score, and the plain pause/cancel
+ * feedback — renders fully and faithfully throughout. The catalog/pulse/actions render is unchanged.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
+  type AppState,
   type Sub as StoreSub,
   getState,
   markSubUsed,
@@ -54,10 +59,34 @@ import {
   useCountUp,
   useTheme,
 } from '@/folio/theme';
+import { routeFromStore, useRoute } from '@/folio/lib/storeRoute';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { useUndo } from '@/folio/ui/useUndo';
 import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
+
+// "Tuesday 8" inline prose for the tight-day date — byte-faithful to the web's
+// formatDayProse (lib/calendar-events). Parses at local midnight so the weekday agrees with the ISO
+// day (no UTC drift), matching TodayScreen's formatter. Kept local so the date prose reads
+// identically without coupling Subs to the Today wave's format module.
+function formatDayProse(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return `${d.toLocaleDateString('en-GB', { weekday: 'long' })} ${d.getDate()}`;
+}
+
+// A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be
+// called conditionally, so it runs against this until `now` is set; the result is discarded
+// (`route === null`) that frame. Module-level so its identity never churns the hook's memo —
+// exactly the pattern TodayScreen uses.
+const EPOCH = new Date(0);
+
+// The web's tight-day spare is rounded and floored at zero (computeSpareAndTightest →
+// Math.max(0, Math.round(...))). The money-path engine's `tightPoint.amount` is the same low-point
+// balance; mirror the web's clamp so the figure and the "£a → £b" delta read identically.
+function tightSpare(amount: number): number {
+  return Math.max(0, Math.round(amount));
+}
 
 // The three orderings the web offers. "value" (worst value first) is the default, because the whole
 // screen is built to surface what no longer earns its keep.
@@ -131,6 +160,7 @@ function poundsWhole(n: number): string {
 export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
+  const { showUndo } = useUndo();
 
   const subs = useAppStore((st) => st.subs);
   const paused = useAppStore((st) => st.subPaused);
@@ -161,19 +191,66 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   const showQuietMove = quietOnes.length > 0 && !quietPaused;
 
   // ---- @rn-engine money-path-tight-day -------------------------------------------------------
-  // The web reads a live tight-day spare here (deriveCalendarEvents → groupByDay →
-  // computeSpareAndTightest) to render "Your low point: £a → £b (day)" and the lift inside the
-  // pause toasts. That engine is not reachable from the folio design-system import surface yet, so
-  // the lift lines / lift-bearing toasts stay gated off — exactly as the web does while its
-  // hydration guard has `now === null`. Flip this to a real read once the money-path engine is
-  // exposed to the folio surface; the design state below is the faithful pre-hydration view.
-  const tightDayReady = false;
+  // The web reads a live tight-day spare here to render "Your low point: £a → £b (day)" and the
+  // lift inside the pause toasts. RN reaches the same low-point figure through the shared
+  // store→money-path bridge: `useRoute(now)` returns the live route whose `tightPoint` IS the
+  // lowest projected balance + the day it lands on. The clock is mount-gated exactly as TodayScreen
+  // does (EPOCH sentinel + a `now` state); before the gate opens `route === null`, which doubles as
+  // the web's `now === null` hydration guard — the lift lines/lift-bearing toasts stay suppressed
+  // for that one frame and only the engine-free feedback shows.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+
+  const routeResult = useRoute(now ?? EPOCH);
+  const route = now ? routeResult : null;
+
+  // Live tight-day spare + its day. `null` until the mount-gate opens — exactly the web's
+  // pre-hydration state, where the lift lines stay off until `now` is set.
+  const tightWith = route
+    ? { spare: tightSpare(route.tightPoint.amount), date: route.tightPoint.date }
+    : null;
+
+  // Re-route a HYPOTHETICAL COPY of the state with the given subs paused — never mutating the live
+  // store. `routeFromStore` is pure ((state, now) → RouteResult), so an overlaid `subPaused` map
+  // yields the low point the user WOULD see if they paused those subs. The lift is the real route
+  // delta (after − before), the RN equivalent of the web's deriveCalendarEvents re-run.
+  const tightIfPaused = (names: readonly string[]): { spare: number; date: string } | null => {
+    if (!now) return null;
+    const live = getState();
+    const hypotheticalPaused: AppState['subPaused'] = { ...live.subPaused };
+    for (const name of names) hypotheticalPaused[name] = true;
+    const hypothetical: AppState = { ...live, subPaused: hypotheticalPaused };
+    const result = routeFromStore(hypothetical, now);
+    return { spare: tightSpare(result.tightPoint.amount), date: result.tightPoint.date };
+  };
+
+  // What pausing all the quiet ones BUYS — computed up front so the banner can show the lift line
+  // and the press handler can show the matching toast. `null` while gated or when nothing is quiet.
+  const tightIfQuietPaused = useMemo(
+    () => (quietOnes.length > 0 ? tightIfPaused(quietOnes.map((q) => q.name)) : null),
+    // Recompute when the gate opens or the inputs the route depends on change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [now, quietOnes, subs, paused],
+  );
+  const quietLift = tightIfQuietPaused && tightWith ? tightIfQuietPaused.spare - tightWith.spare : 0;
   // -------------------------------------------------------------------------------------------
 
   const pauseQuietOnes = () => {
+    // Measure the lift BEFORE the store write, then pause. When the low point lifts, show the web's
+    // verbatim toast ("Your low point goes from £a to £b" + the room-around-{day} description).
+    const before = tightWith?.spare;
+    const after = tightIfQuietPaused?.spare ?? before;
     pauseMany(quietOnes.map((q) => q.name), true);
-    // @rn-engine money-path-tight-day — the web shows a lift toast here
-    // ("Your low point goes from £a to £b"). Gated until the tight-day engine is wired.
+    if (typeof before === 'number' && typeof after === 'number' && after > before) {
+      Alert.alert(
+        `Your low point goes from £${before} to £${after}`,
+        tightIfQuietPaused?.date
+          ? `A little more room around ${formatDayProse(tightIfQuietPaused.date)}.`
+          : 'A little more room before payday.',
+      );
+    }
   };
 
   const onPauseResume = (sub: StoreSub) => {
@@ -182,18 +259,27 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
       togglePaused(sub.name);
       return;
     }
+    // Pausing — measure the tight-day lift THIS one sub buys, off a hypothetical copy, before the
+    // store write. If the low point lifts on a known day, show the lift toast ("£X back on {day} ·
+    // Your low point: £a → £b"); otherwise the plain (engine-free) acknowledgement the web also
+    // shows. While the mount-gate is closed (`tightWith === null`) only the plain path runs.
+    const before = tightWith?.spare;
+    const lift = tightIfPaused([sub.name]);
     togglePaused(sub.name);
-    // The plain (engine-free) pause acknowledgement the web also shows. The lift variant
-    // ("£X back on {day} · Your low point: £a → £b") needs the tight-day engine, so it is gated.
-    if (!tightDayReady) {
+    if (typeof before === 'number' && lift && lift.spare > before) {
+      Alert.alert(
+        `${pounds(sub.cost)} back on ${formatDayProse(lift.date)}`,
+        `Your low point: £${before} → £${lift.spare}.`,
+      );
+    } else {
       Alert.alert(`Paused ${sub.name}`, `${pounds(sub.cost)} back this month.`);
     }
   };
 
   const onCancel = (sub: StoreSub) => {
-    // Snapshot BEFORE delete so the undo restores both the sub and its paused state — capture order
-    // matters (the web reads getState() before removeSub). Confirm + Undo via the native Alert,
-    // matching the web's "Cancelled {name} · Re-add any time." toast with an Undo action.
+    // The destructive intent still confirms first (a cancel is a real removal, not a one-tap undo —
+    // ENGINES §6 keeps the confirm). Snapshot BEFORE delete so the undo restores both the sub and
+    // its paused state — capture order matters (the web reads getState() before removeSub).
     Alert.alert(
       `Cancel ${sub.name}?`,
       'Re-add any time.',
@@ -206,16 +292,13 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
             const prevSubs = getState().subs;
             const prevPaused = !!getState().subPaused[sub.name];
             removeSub(sub.name);
-            Alert.alert(`Cancelled ${sub.name}`, 'Re-add any time.', [
-              {
-                text: 'Undo',
-                onPress: () => {
-                  setSubs(prevSubs);
-                  if (prevPaused) togglePaused(sub.name, true);
-                },
-              },
-              { text: 'OK', style: 'cancel' },
-            ]);
+            // The post-cancel acknowledgement is now the Tier-1 undo snackbar (6s window) instead of
+            // a second blocking Alert. The restore is byte-identical to the old "Undo" action:
+            // put the subs list back and re-pause if it had been paused.
+            showUndo(`Cancelled ${sub.name}`, () => {
+              setSubs(prevSubs);
+              if (prevPaused) togglePaused(sub.name, true);
+            });
           },
         },
       ],
@@ -298,8 +381,15 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
               Pause the {quietOnes.length} quiet {quietOnes.length === 1 ? 'one' : 'ones'} → save{' '}
               {pounds(quietSave)}/mo, {poundsWhole(quietSave * 12)}/yr
             </Text>
-            {/* @rn-engine money-path-tight-day — "Your low point: £a → £b ({day})" renders once
-                the tight-day engine is reachable. */}
+            {/* @rn-engine money-path-tight-day — the real route DELTA: "Your low point: £a → £b
+                ({day})", shown once the mount-gate has opened (route !== null) and pausing the quiet
+                ones actually lifts the low point on a known day. Verbatim web copy. */}
+            {quietLift > 0 && tightWith && tightIfQuietPaused?.date ? (
+              <Text style={s.quietLift}>
+                Your low point: £{tightWith.spare} → £{tightIfQuietPaused.spare} (
+                {formatDayProse(tightIfQuietPaused.date)})
+              </Text>
+            ) : null}
           </View>
           <Text style={s.quietArrow}>→</Text>
         </Pressable>
@@ -651,6 +741,15 @@ function makeStyles(t: Palette) {
       fontVariant: ['tabular-nums'],
     },
     quietArrow: { color: t.calm, fontSize: 18 },
+    // Tight-day lift line — the web's text-[11.5px] mt-1 text-[var(--positive)] tabular. Uses the
+    // text-grade positive (positiveInk) the screen already uses for positive prose (totalsSaved /
+    // "Used today"), per the kit's dark-mode pattern.
+    quietLift: {
+      color: t.positiveInk,
+      fontSize: 11.5,
+      marginTop: 4,
+      fontVariant: ['tabular-nums'],
+    },
 
     // Sort chips — ink fill + paper label when selected; inset fill + muted label at rest.
     sortChip: {

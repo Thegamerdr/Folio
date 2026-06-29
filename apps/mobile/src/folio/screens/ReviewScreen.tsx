@@ -73,7 +73,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
+import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { addTransaction, type Transaction } from '@/folio/store';
 import type { Nav } from '@/folio/types';
@@ -528,12 +528,15 @@ const styles = StyleSheet.create({
     fontStyle: 'normal',
   },
   // Card — surface, hairline, 2xl radius, p-6, mt-6, relative for the absolute stamp.
+  // Web carries boxShadow var(--shadow-card); the kit's elevation.card is that token's RN form
+  // (warm near-black lift, the same one the kit's own Surface uses) — the card floats on the cream.
   card: {
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
     marginTop: gap.xl,
     padding: gap.xl,
     position: 'relative',
+    ...elevation.card,
   },
   // The "Added" seal — top-right pill, 2px terracotta ring, uppercase tracked terracotta label.
   stamp: {
@@ -559,11 +562,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  // Money size 'xl' = 44px, Fraunces, tabular.
+  // Money size 'xl' = 44px, Fraunces, tabular. Web Money applies font-medium (weight 500).
   amountValue: {
     fontFamily: serif.display,
     fontSize: 44,
     fontVariant: ['tabular-nums'],
+    fontWeight: '500',
     letterSpacing: -1,
   },
   // 12px uppercase tracked muted.
@@ -655,11 +659,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   // Primary CTA — full width, h-[60px], 2xl radius, terracotta fill.
+  // Web carries boxShadow 0 12px 24px -10px rgba(224,99,58,.55); the kit's elevation.cta is that
+  // terracotta-tinted lift (the same one the kit's own PrimaryAction uses) — the dominant next step.
   primary: {
     alignItems: 'center',
     borderRadius: radius.xl,
     height: 60,
     justifyContent: 'center',
+    ...elevation.cta,
   },
   primaryStamped: {
     opacity: 0.7,

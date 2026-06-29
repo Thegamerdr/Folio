@@ -46,8 +46,12 @@
 //     to the upstream READER flow that routes INTO this form, so they are rendered with the reader's
 //     design language and the reader is tagged below.
 //
-// ENGINE DISCIPLINE: this wave ports UI only. The PDF/photo/text readers are real engines built later.
-// @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review (see BUILD_PLAN §3)
+// ENGINE DISCIPLINE: this screen is the manual typed path — it never reads a file, so it touches no
+// reader. The text-reader (CSV/TSV/TXT → candidates) is WIRED via parseSheet on the reader screens.
+// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
+//   — the still-missing PDF-text / OCR extraction. Until it lands, a PDF / photo pick on Intake that
+//   can't be read routes to the honest pdf-fallback / image-fallback, never to this form pretending it
+//   parsed; this typed form stays the deliberate last-resort manual path.
 // @rn-engine edit-txn — the full correction-history of an edited entry is wired later (see BUILD_PLAN §3)
 
 import { useEffect, useRef, useState } from 'react';

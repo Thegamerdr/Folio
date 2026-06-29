@@ -1,4 +1,5 @@
 // @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review (see BUILD_PLAN §3)
+// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
 //
 // IntakeScreen — the faithful 1:1 React Native port of the web "Add what you have" picker
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenIntake.tsx).
@@ -20,13 +21,24 @@
 //               breathe + blink (calm mood, inside MeloLine — the only continuous motion)
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store sources):
-//   • This screen is a PURE NAVIGATION / DISPATCH MENU — it reads and writes NO store state and
-//     opens NO sheet. PDF / photo / paste / CSV·TXT each fire into a downstream reader-success
-//     screen that runs the matching reader then lands in Review; ONLY "Add numbers yourself"
-//     (the failure-only manual path) goes straight to `review`. A reader is NEVER routed to a
-//     blank manual form. The two text-shaped options (Paste transactions AND CSV or TXT file)
+//   • This screen is a NAVIGATION / DISPATCH MENU that now also fires the REAL on-device pickers
+//     for the two file-shaped options. PDF / photo / paste / CSV·TXT each lead to a downstream
+//     reader-success screen that previews CandidateMoneyItem[] before Review; ONLY "Add numbers
+//     yourself" (the failure-only manual path) goes straight to `review`. A reader is NEVER routed
+//     to a blank manual form. The two text-shaped options (Paste transactions AND CSV or TXT file)
 //     both route to `paste-success`, exactly as the web source does — the text/file reader behind
 //     it handles both pasted text and an uploaded file.
+//   • WIRED PICKERS (this wave): "PDF statement" opens the real document picker
+//     (`pickLocalStatementDocument`, src/local/nativeDocumentImport.ts); "Screenshot or photo"
+//     opens the real photo-library picker (`pickStatementImage`, src/local/nativeImageIntake.ts).
+//     When the adapter returns extracted TEXT (a CSV / TSV / TXT statement today; OCR / PDF-text
+//     later), it is run through the pure `parseSheet` engine into CandidateMoneyItem[]; if that
+//     produces real candidates the user is routed to the success preview (`pdf-success` /
+//     `image-success`), where they review-before-truth. If the adapter saved the file but could
+//     not read it — which is TODAY's reality for every PDF and photo, because the native OCR /
+//     PDF-text module is not built (returns `none`) — the user is routed to the HONEST fallback
+//     (`pdf-fallback` / `image-fallback`: "File saved" / "will read later"). We never pretend a
+//     read happened. A cancel / permission-refusal leaves the picker exactly where it was.
 //   • The accent word in the headline ("**what**") renders terracotta and UPRIGHT (the web uses
 //     <em class="not-italic text-[accent]"> — NOT italic). The headline string is read VERBATIM
 //     from `copy.add.title` ('Add **what** you have.') and the **…** run is coloured t.calm in the
@@ -78,6 +90,9 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { parseSheet } from '@/folio/lib/importSheet';
+import { pickLocalStatementDocument } from '../../local/nativeDocumentImport';
+import { pickStatementImage } from '../../local/nativeImageIntake';
 import type { Nav, ScreenId } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Intake is populated-only and offline is
@@ -92,20 +107,25 @@ export type IntakeScreenProps = {
 
 // One row in the picker — a faithful port of the web `options` array (title / hint / icon / route /
 // optional `fastest` badge). Route ids are web ScreenId values (typed against ScreenId so a typo is
-// a compile error).
+// a compile error). `pick` tags the two file-shaped rows that now open a REAL on-device picker
+// before navigating; the others dispatch straight to their screen via `to`. `to` is the screen a
+// successful read routes to (so the route stays declarative + typed).
 type IntakeOption = {
   title: string;
   hint: string;
   icon: string;
   to: ScreenId;
+  pick?: 'document' | 'photo';
   fastest?: boolean;
 };
 
-// @copy FROZEN — byte-for-byte from the web ScreenIntake `options` array. Two text-shaped options
-// (Paste transactions + CSV or TXT file) both route to 'paste-success', preserved from the source.
+// @copy FROZEN — byte-for-byte from the web ScreenIntake `options` array. The titles / hints / icons
+// / `fastest` badge are unchanged. Two text-shaped options (Paste transactions + CSV or TXT file)
+// both route to 'paste-success', preserved from the source. The two file-shaped options carry a
+// `pick` tag so the row opens the real document / photo picker before routing (see runPick below).
 const OPTIONS: readonly IntakeOption[] = [
-  { title: 'PDF statement', hint: 'from your bank app', icon: '▤', to: 'pdf-success', fastest: true },
-  { title: 'Screenshot or photo', hint: 'from your phone', icon: '▢', to: 'image-success' },
+  { title: 'PDF statement', hint: 'from your bank app', icon: '▤', to: 'pdf-success', pick: 'document', fastest: true },
+  { title: 'Screenshot or photo', hint: 'from your phone', icon: '▢', to: 'image-success', pick: 'photo' },
   { title: 'Paste transactions', hint: 'copy from anywhere', icon: '❝', to: 'paste-success' },
   { title: 'CSV or TXT file', hint: 'if you have one', icon: '⌗', to: 'paste-success' },
   { title: 'Add numbers yourself', hint: 'type it in', icon: '✎', to: 'review' },
@@ -139,6 +159,23 @@ function useReduceMotion(): boolean {
     };
   }, []);
   return reduce;
+}
+
+// A picked file/photo only routes to the success preview when the reader actually produced money to
+// review. `parseSheet` is the pure candidate engine (importSheet.ts): it returns CandidateMoneyItem[]
+// + honest issues, and NEVER auto-counts. A hard column issue (no amount / no name column, or empty
+// input) means the text could not be read as a statement at all — that is the "read failed" case, so
+// it falls to the honest fallback rather than a hollow preview. Row-level issues are not hard; a
+// single bad row still lets the good rows through to the preview.
+function textYieldsCandidates(text: string): boolean {
+  const { candidates, issues } = parseSheet(text);
+  const hasHardIssue = issues.some(
+    (issue) =>
+      issue.code === 'missing-amount' ||
+      issue.code === 'missing-merchant' ||
+      issue.code === 'empty-input',
+  );
+  return candidates.length > 0 && !hasHardIssue;
 }
 
 // Split a deck string carrying a single **accent** run into its three parts. The headline is read
@@ -189,6 +226,47 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   }, [state]);
 
   const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.title), []);
+
+  // Fire the real on-device picker for a file-shaped option, then route honestly:
+  //   • document (PDF statement): pickLocalStatementDocument copies the chosen file to the app cache,
+  //     reads CSV/TSV/TXT directly, and hands a PDF / image to the on-device extractor. When it returns
+  //     extracted TEXT (`picked`) that parseSheet reads into candidates → the success preview
+  //     ('pdf-success'). When it saved the file but could not read it (`unsupported`) — TODAY's reality
+  //     for every PDF, because the native PdfRenderer + ML Kit OCR module is not built (returns 'none')
+  //     — the HONEST fallback ('pdf-fallback': "File saved" / "will read later"). Cancel = no nav.
+  //   • photo (screenshot / camera-roll image): pickStatementImage saves the image on-device only and
+  //     hands it to the same extractor. `picked` (future OCR) → parseSheet → 'image-success'; `saved`
+  //     (TODAY — OCR not built) → the honest 'image-fallback'; `denied` / `cancelled` = no nav.
+  // The pick never throws (the adapters swallow + report); a no-candidates / hard-issue read also falls
+  // to the fallback so we never show a hollow preview. Nothing is counted here — review-before-truth.
+  async function runPick(option: IntakeOption) {
+    if (option.pick === 'document') {
+      const result = await pickLocalStatementDocument();
+      if (result.kind === 'picked') {
+        nav.go(textYieldsCandidates(result.text) ? 'pdf-success' : 'pdf-fallback');
+      } else if (result.kind === 'unsupported') {
+        nav.go('pdf-fallback');
+      }
+      return;
+    }
+    // option.pick === 'photo'
+    const result = await pickStatementImage();
+    if (result.kind === 'picked') {
+      nav.go(textYieldsCandidates(result.text) ? 'image-success' : 'image-fallback');
+    } else if (result.kind === 'saved') {
+      nav.go('image-fallback');
+    }
+  }
+
+  // Dispatch a row: the two file-shaped rows open the real picker (runPick); every other row keeps the
+  // straight, declarative nav.go to its screen (web parity).
+  const onSelect = (option: IntakeOption) => {
+    if (option.pick !== undefined) {
+      void runPick(option);
+      return;
+    }
+    nav.go(option.to);
+  };
 
   // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness). The
   // single CTA still routes into the picker so the doorway never dead-ends.
@@ -270,7 +348,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         {/* Options list — the five dispatch rows (web space-y-2.5 = gap.md between rows). */}
         <View style={styles.options}>
           {OPTIONS.map((option) => (
-            <OptionRow key={option.title} option={option} onPress={() => nav.go(option.to)} />
+            <OptionRow key={option.title} option={option} onPress={() => onSelect(option)} />
           ))}
         </View>
 

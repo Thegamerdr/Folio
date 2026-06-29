@@ -18,10 +18,14 @@
 // @motion       slide-in-r (whole screen) · press 0.97 (kit `pressed`) · Melo breathe + blink
 //               (from MeloLine, calm mood — the only continuous motion on this quiet screen).
 //
-// @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review
-//   (see BUILD_PLAN §3). This wave ports the SUCCESS/FALLBACK design states only; the real PDF/photo/
-//   text readers are built later. The file name below is the engine's eventual output — here it is a
-//   local sample that REUSES the web source's exact value (no fabricated names).
+// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
+//   This screen IS the honest destination for that gap: today every PDF pick on the Intake screen
+//   reaches here because the on-device PDF-text / OCR extractor returns `none` (the native PdfRenderer
+//   + ML Kit module is not built). The file was saved to the app cache (nothing lost); we say so
+//   plainly ("File saved" / "will read later") and never claim a read happened. When the native module
+//   lands, a successful extract will parse to candidates and route to pdf-success instead — with NO
+//   change to this fallback. The file name below is the saved file's name; here it is a local sample
+//   that REUSES the web source's exact value (no fabricated names).
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • Accent word "saved." is rendered UPRIGHT terracotta inside the Fraunces headline (web

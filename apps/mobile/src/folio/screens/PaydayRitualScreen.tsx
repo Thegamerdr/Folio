@@ -27,17 +27,18 @@
 //   • The accent word in each headline (month / a little / squeeze / line) is rendered UPRIGHT
 //     terracotta inside the Fraunces line — the web <em class="not-italic text-[accent]"> — built as
 //     three Text runs so the accent run is the single coloured, non-italic span (NOT italic).
-//   • RETROSPECTIVE ACTUALS are REAL store data where the engine exists:
-//       spent    = Σ|negative txn amount| in the trailing 30 days (transactions)
-//       spare    = max(0, round(monthlyIncome − spent)) (onboarding.monthlyIncome)
-//       setAside = round(Σ potLedger DEPOSIT entries in the trailing 30 days) (potLedger)
-//     The tight point depends on the calendar-events engine (deriveCalendarEvents /
-//     computeSpareAndTightest / groupByDay), which is NOT yet built in the RN port. Per ENGINES §6 we
-//     render the design state from the real `currentBalance.amount` floor and tag it. See the
-//     `// @rn-engine ritual-actuals` block.
-//   • Step 3 body is the web's known placeholder string ("12 Jul looks tightest…") — kept verbatim and
-//     tagged, because the real tight-point DATE needs the same unbuilt calendar engine. The stat value
-//     IS the real (engine-pending) tight-point figure.
+//   • RETROSPECTIVE ACTUALS are REAL store data, end to end:
+//       spent     = Σ|negative txn amount| in the trailing 30 days (transactions)
+//       setAside  = round(Σ potLedger DEPOSIT entries in the trailing 30 days) (potLedger)
+//       spare     = route.spare      — balance on the resolved next payday (the curve's read-out)
+//       tightPoint = route.tightPoint.{amount,date} — lowest projected balance + the day it lands on
+//     `spare` and the tight point now come from the SAME pure money-path engine every other surface
+//     uses, via the shared store→route bridge (`@/folio/lib/storeRoute`: `useRoute(now)` reactive /
+//     `routeFromStore(state, now)` pure). The clock is mount-gated like TodayScreen (module-level EPOCH
+//     + a `now` state) so `new Date()` never runs during the first render. See `// @rn-engine money-path`.
+//   • Step 3 body now names the REAL tightest day from `route.tightPoint.date` (formatted with the same
+//     `formatDayProse` Today uses), replacing the web's hardcoded "12 Jul looks tightest…" placeholder.
+//     The unverifiable "two bills land that week" claim is dropped — only honest copy ships.
 //   • setNextYouNote fires on EVERY keystroke (web parity) so the draft survives leave/return; note is
 //     seeded from the persisted draft.
 //   • addCycle is local + synchronous → finish never shows a spinner. The finish choreography (Today →
@@ -91,6 +92,8 @@ import {
   useAppStore,
   type AppState,
 } from '@/folio/store';
+import { useRoute } from '@/folio/lib/storeRoute';
+import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -135,6 +138,11 @@ const MELO_SEED =
 // The fallback line written into the closed cycle when the textarea is empty (web verbatim).
 const NO_NOTE = 'No note this cycle.';
 
+// A stable sentinel "now" for the one render before the mount-gate opens (mirrors TodayScreen). The
+// route hook can't be called conditionally, so it runs against this until `now` is set; that frame's
+// route result is discarded (`route = null`). Module-level so its identity never churns the memo.
+const EPOCH = new Date(0);
+
 // ---------------------------------------------------------------------------
 // Money — whole-pound grouping, matching the web's `£${n.toLocaleString("en-GB")}`
 // ---------------------------------------------------------------------------
@@ -170,34 +178,26 @@ function useReduceMotion(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Retrospective actuals (ENGINES.md § 6 "cycle close numbers")
+// Ledger actuals (ENGINES.md § 6 "cycle close numbers")
 // ---------------------------------------------------------------------------
 
-type RitualActuals = {
+// The two close-day figures the money-path route does NOT supply — both are direct trailing-30-day
+// ledger reads. `spare` and the tight point come from the route (see `// @rn-engine money-path` in the
+// screen body), so they are intentionally absent here.
+type LedgerActuals = {
   spent: number;
-  spare: number;
-  tightPoint: number;
   setAside: number;
 };
 
-// @rn-engine ritual-actuals
-// The web reads the trailing-30-day actuals. Three of the four are REAL here (transactions /
-// onboarding / potLedger all exist in the RN store). The tight point is the lowest observed spare in
-// the cycle window — a calendar-events read (deriveCalendarEvents → groupByDay → computeSpareAndTightest)
-// that is NOT yet built in the RN port. Until that engine lands, the design state derives the tight
-// point from the real `currentBalance.amount` floor (the figure the calendar engine will eventually
-// resolve to), so the stat is honest-shaped and bound to real data rather than a literal.
-function computeActuals(s: AppState): RitualActuals {
-  const cutoff = Date.now() - CYCLE_WINDOW_MS;
+// Pure trailing-30-day ledger reads. `spent` = Σ|negative txn| in the window (transactions);
+// `setAside` = Σ pot DEPOSIT entries in the window (potLedger). The trailing window is anchored to the
+// injected `now` so nothing reads the clock during render — the mount-gated date is threaded in.
+function computeLedgerActuals(s: AppState, now: Date): LedgerActuals {
+  const cutoff = now.getTime() - CYCLE_WINDOW_MS;
 
   const spent = s.transactions
     .filter((tx) => tx.amount < 0 && new Date(tx.when).getTime() >= cutoff)
     .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-
-  const spare = Math.max(0, Math.round((s.onboarding.monthlyIncome || 0) - spent));
-
-  // @rn-engine ritual-actuals — design state: the lowest-spare read awaits the calendar engine.
-  const tightPoint = Math.max(0, Math.round(s.currentBalance.amount));
 
   const setAside = Math.round(
     s.potLedger
@@ -205,7 +205,7 @@ function computeActuals(s: AppState): RitualActuals {
       .reduce((sum, e) => sum + e.amount, 0),
   );
 
-  return { spent: Math.round(spent), spare, tightPoint, setAside };
+  return { spent: Math.round(spent), setAside };
 }
 
 // ---------------------------------------------------------------------------
@@ -248,12 +248,18 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const [step, setStep] = useState(0);
   const [sealed, setSealed] = useState(false);
 
-  // Store reads (the spec's @reads). The actuals are derived from the whole snapshot, so the screen
-  // re-renders honestly if any underlying slice changes mid-ritual.
+  // Mount-gate the clock (mirrors TodayScreen): defer `new Date()` to an effect so the first render
+  // never reads the clock. Until `now` is set, the route runs against EPOCH and its result is
+  // discarded (`route = null`); the ledger reads fall back to the same EPOCH window for that one frame.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+
+  // Store reads (the spec's @reads). `spent`/`setAside` derive from these ledger slices; `pots`
+  // backs step 2's first-name list; the route (below) reads the rest of the snapshot internally.
   const transactions = useAppStore((st) => st.transactions);
-  const onboarding = useAppStore((st) => st.onboarding);
   const potLedger = useAppStore((st) => st.potLedger);
-  const currentBalance = useAppStore((st) => st.currentBalance);
   const pots = useAppStore((st) => st.pots);
   const persistedNote = useAppStore((st) => st.nextYouNote);
 
@@ -261,10 +267,38 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // what they typed (ENGINES §7 "Cycle close note").
   const [note, setNote] = useState(persistedNote);
 
-  const actuals = useMemo<RitualActuals>(
-    () => computeActuals({ transactions, onboarding, potLedger, currentBalance } as AppState),
-    [transactions, onboarding, potLedger, currentBalance],
+  // @rn-engine money-path
+  // The cycle-close `spare` and tight point read the REAL route/ledger, not projections of their own:
+  // the shared store→money-path bridge (`useRoute`) maps the live store onto the same pure engine
+  // every other surface uses. `route.spare` is the balance on the resolved next payday; the tight
+  // point is the lowest projected balance and the day it lands on. The hook can't be called
+  // conditionally, so it always runs against `now ?? EPOCH`; before the mount-gate opens we discard
+  // that transient result (`route = null`).
+  const routeResult = useRoute(now ?? EPOCH);
+  const route = now ? routeResult : null;
+
+  // The two figures the route does not supply — direct trailing-30-day ledger reads, anchored to the
+  // mount-gated `now` (EPOCH for the pre-gate frame, discarded the same way the route result is).
+  const ledger = useMemo<LedgerActuals>(
+    () => computeLedgerActuals({ transactions, potLedger } as AppState, now ?? EPOCH),
+    [transactions, potLedger, now],
   );
+
+  // The cycle-close actuals the steps + addCycle read. `spent`/`setAside` are the ledger reads; `spare`
+  // and `tightPoint` are the route's read-outs (0 until the mount-gate opens — the pre-engine frame).
+  const actuals = useMemo(
+    () => ({
+      spent: ledger.spent,
+      setAside: ledger.setAside,
+      spare: route ? Math.max(0, Math.round(route.spare)) : 0,
+      tightPoint: route ? Math.max(0, Math.round(route.tightPoint.amount)) : 0,
+    }),
+    [ledger, route],
+  );
+
+  // The real tightest day, in the same prose form Today uses ("Tuesday 8"). Null until the route
+  // resolves, which gates step 3's body onto an honest fallback for that single pre-engine frame.
+  const tightestDayProse = route ? formatDayProse(route.tightPoint.date) : null;
 
   // Pot first-names for step 2's populated body — the first word of each pot that still tops up
   // (perWeek > 0), joined by ", " (web parity).
@@ -310,9 +344,13 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       headlineLead: "Where's the ",
       headlineAccent: 'squeeze',
       headlineTrail: ' next month?',
-      // @rn-engine ritual-actuals — the real tight-point DATE needs the calendar engine; the web ships
-      // this placeholder string. Kept verbatim until the engine resolves a real tightest-day line.
-      body: '12 Jul looks tightest. Two bills land that week. Worth knowing in advance.',
+      // @rn-engine money-path — the REAL tightest day comes from the route (`route.tightPoint.date`),
+      // formatted with Today's `formatDayProse`. The web's hardcoded "12 Jul … two bills land that week"
+      // placeholder is gone; we name the real day and drop the unverifiable bill claim. The pre-engine
+      // frame (route not yet resolved) uses an honest day-agnostic line.
+      body: tightestDayProse
+        ? `${tightestDayProse} looks tightest. Worth knowing in advance.`
+        : 'One day next month looks tightest. Worth knowing in advance.',
       stat: { label: 'Next low point', value: actuals.tightPoint, tone: 'accent' },
       melo: 'Knowing in advance is half the work.',
       meloMood: 'curious',
@@ -375,11 +413,12 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
     setSealed(true);
 
     // Record the closed cycle so Insights + Share have real data. addCycle clears nextYouNote and
-    // keeps the latest 24 cycles internally.
-    const now = new Date();
+    // keeps the latest 24 cycles internally. The close timestamp reads the clock at finish-time (an
+    // event handler, not render), so it's the live close moment — distinct from the mount-gated `now`.
+    const closedNow = new Date();
     addCycle({
-      closedAt: now.toISOString().slice(0, 10),
-      label: now.toLocaleString('en-GB', { month: 'long' }),
+      closedAt: closedNow.toISOString().slice(0, 10),
+      label: closedNow.toLocaleString('en-GB', { month: 'long' }),
       spare: actuals.spare,
       tightPoint: actuals.tightPoint,
       setAside: actuals.setAside,
@@ -422,8 +461,11 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   }
 
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md). addCycle is local +
-  // synchronous, so this is only a holding moment while the surface settles, not a finish state.
-  if (state === 'loading') {
+  // synchronous, so this is only a holding moment while the surface settles, not a finish state. The
+  // pre-engine frame (`now === null`, before the mount-gate opens) shows the same branch (mirrors
+  // TodayScreen's `isLoading = state === 'loading' || now === null`), so the ceremony never renders
+  // with zero figures for one frame.
+  if (state === 'loading' || now === null) {
     return (
       <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
         <MeloLine mood="curious" text="One quiet minute. Getting your month ready." />

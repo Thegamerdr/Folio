@@ -22,22 +22,34 @@
 //               The doc-block's "stamp on accept" belongs to the DOWNSTREAM accept moment
 //               (ritual/visualizer), NOT this screen — it is not fired here.
 //
-// @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review
-//   (see BUILD_PLAN §3). This wave ports the SUCCESS/FALLBACK design states only; the real PDF/photo/
-//   text readers are built later. The file name, page count, found count, and the candidate list
-//   below are the engine's eventual output — here they are bound from a local sample that REUSES the
-//   web source's exact values (no fabricated merchants/numbers). When the reader lands, it feeds this
-//   same prop shape; the screen does not change.
+// @rn-engine statement-reader — WIRED to the pure candidate engine. The found list is the real
+//   `parseSheet` output (apps/mobile/src/folio/lib/importSheet.ts, ENGINES.md §6), not a hand-built
+//   array: a CSV / TSV / TXT statement picked on the Intake screen flows here as extracted TEXT and is
+//   parsed into CandidateMoneyItem[] (review-before-truth — candidates only, never auto-counted). The
+//   demo threads no live text (FolioShell renders this screen with `nav` only), so — per the build
+//   task and the PasteSuccessScreen precedent — `parseSheet` is driven from the screen's existing
+//   sample rows, restated faithfully as statement text (the web source's exact three items: no
+//   fabricated merchants / numbers). The file name + page count are the eventual reader's metadata,
+//   kept as the web source's sample until a live read threads them in.
+// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
+//   A scanned PDF with no embedded text layer needs the native OCR/PDF-text module to produce text.
+//   Until it lands the extractor returns `none`, so a real PDF pick routes to the honest pdf-fallback
+//   ("File saved" / "will read later") from the Intake screen — this success preview is reached only
+//   when real candidates were read.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • Accent word "read" is rendered UPRIGHT terracotta inside the Fraunces headline — the web uses
 //     <em class="not-italic text-[accent]">. Exactly one accent word (voice rule). Built as nested
 //     Text runs in the same display face, the accent run coloured t.calm with normal style.
 //   • Money tone is NOT sign-derived. The income (+£2,180) is INK, the bills (−£118 / −£42) are INK —
-//     the web <Money> defaults to tone='ink'. Sign is carried by the +/− glyph only. We render the
-//     amounts as the web's exact preformatted strings (with U+2212 minus, em-dash in the salary name)
-//     rather than re-formatting, so the Unicode matches byte-for-byte (formatMinorAmount would emit an
-//     ASCII hyphen — see the spec fidelity note).
+//     the web <Money> defaults to tone='ink'. Sign is carried by the +/− glyph only. The amounts are
+//     now formatted FROM the engine's signed candidate amount (formatSignedAmount), which emits the
+//     same byte-exact strings the web hand-wrote: a '+' for income, the U+2212 minus '−' for spend /
+//     bills, whole pounds grouped (2180 → "+£2,180", 118 → "−£118", 42 → "−£42"). The salary name
+//     keeps its em-dash (U+2014). The hint ('looks like income' / 'looks like a bill' / 'likely
+//     spending') is mapped from the candidate `kind` — a voice-approved confidence line, never a raw
+//     category code — so the rendered list stays byte-identical while the money facts flow through
+//     the real engine.
 //   • Glyphs: the web's literal '←' and '▤' are drawn as small inline react-native-svg icons (the
 //     codebase draws its own glyphs — ChevronRight/CheckGlyph/Melo — and ships no icon font), not as
 //     unicode text that renders inconsistently across OSes.
@@ -95,6 +107,7 @@ import { elevation, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio found in the statement — the eventual shape of one CandidateMoneyItem from the
@@ -124,16 +137,68 @@ export type PdfSuccessScreenProps = {
   state?: PdfSuccessState;
 };
 
-// The web prototype's three hardcoded items, reused VERBATIM (no fabricated merchants/numbers). The
-// minus is U+2212 (−), the salary dash is an em-dash (U+2014) — both kept byte-exact per the spec.
+// The web prototype's three items, restated VERBATIM as statement text so the real `parseSheet`
+// engine — not a hand-built array — produces the rendered candidates. Tab-separated with a header the
+// engine auto-detects; the `type` column lets the engine sign + classify each amount. Merchants and
+// magnitudes are the web source's exact three items (no fabricated merchants/numbers); the salary name
+// keeps its em-dash (U+2014). The whole-pound magnitudes (2180 / 118 / 42) are restated as the same
+// integers the web hand-wrote, so the formatter below re-emits the byte-exact strings.
+const SAMPLE_STATEMENT_TEXT: string = [
+  'merchant\tamount\ttype',
+  'Salary — Whitstone Ltd\t2180\tincome',
+  'Octopus Energy\t118\tbill',
+  'Tesco\t42\tspend',
+].join('\n');
+
+// Map the engine's candidate `kind` → the voice-approved confidence hint the web hand-wrote. Never a
+// raw category code (banned). Income/bill/spend cover the sample; anything else degrades to the calm
+// generic 'a money item' rather than inventing a confident label.
+function hintForKind(kind: CandidateKind): string {
+  switch (kind) {
+    case 'income':
+      return 'looks like income';
+    case 'bill':
+      return 'looks like a bill';
+    case 'subscription':
+      return 'looks like a subscription';
+    case 'spend':
+      return 'likely spending';
+    default:
+      return 'a money item';
+  }
+}
+
+// Format a signed candidate amount the way the web preformatted it: a leading '+' for money in, the
+// U+2212 minus '−' for money out, whole pounds grouped, pence only when present (2180 → "+£2,180",
+// −118 → "−£118"). Pence are shown when the magnitude isn't whole so a real read never loses decimals.
+function formatSignedAmount(amount: number): string {
+  const magnitude = Math.abs(amount);
+  const grouped = magnitude.toLocaleString('en-GB', {
+    minimumFractionDigits: Number.isInteger(magnitude) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  const sign = amount >= 0 ? '+' : '−';
+  return `${sign}£${grouped}`;
+}
+
+// Map the engine's CandidateMoneyItem[] (real `parseSheet` output) into this screen's render shape —
+// merchant verbatim, the hint from the candidate kind, the amount from the signed magnitude. Faithful,
+// no new data, candidates only (never auto-counted).
+function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
+  return candidates.map((candidate) => ({
+    merchant: candidate.merchant,
+    hint: hintForKind(candidate.kind),
+    amount: formatSignedAmount(candidate.amount),
+  }));
+}
+
+// The found list, derived once from the real engine over the sample statement text. The file name +
+// page count are the eventual reader's metadata (kept as the web source's sample until a live read
+// threads them in). The clean sample parses with zero issues.
 const SAMPLE_FOUND: FoundStatement = {
   fileName: 'Statement_June_2025.pdf',
   pageCount: 8,
-  items: [
-    { merchant: 'Salary — Whitstone Ltd', hint: 'looks like income', amount: '+£2,180' },
-    { merchant: 'Octopus Energy', hint: 'looks like a bill', amount: '−£118' },
-    { merchant: 'Tesco', hint: 'likely spending', amount: '−£42' },
-  ],
+  items: toFoundItems(parseSheet(SAMPLE_STATEMENT_TEXT, { source: 'csv' }).candidates),
 };
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).

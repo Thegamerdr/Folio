@@ -17,13 +17,15 @@ import { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, pressed, radius, serif, useTheme } from '@/folio/theme';
-import { removeTransaction, useAppStore } from '@/folio/store';
+import { addTransaction, removeTransaction, useAppStore } from '@/folio/store';
+import { useUndo } from '@/folio/ui/useUndo';
 import type { Nav } from '@/folio/types';
 
 const MIN_TAP = 44;
 
 export function TodayRecentTxns({ nav }: { nav: Nav }) {
   const t = useTheme();
+  const { showUndo } = useUndo();
   const transactions = useAppStore((st) => st.transactions);
   const recent = useMemo(
     () => transactions.filter((tx) => tx.amount < 0).slice(0, 5),
@@ -86,7 +88,15 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                       {
                         text: 'Remove',
                         style: 'destructive',
-                        onPress: () => removeTransaction(tx.id),
+                        onPress: () => {
+                          // Snapshot the exact row BEFORE removing so the Tier-1 undo (6s) can
+                          // restore it identically — same id/when/merchant/amount/category/source.
+                          const snapshot = tx;
+                          removeTransaction(tx.id);
+                          showUndo(`Removed ${tx.merchant}`, () => {
+                            addTransaction(snapshot);
+                          });
+                        },
                       },
                     ])
                   }

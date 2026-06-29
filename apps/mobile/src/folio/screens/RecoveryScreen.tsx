@@ -1,10 +1,19 @@
-// @rn-engine money-path — the overspent verdict + each move's real £ lift + the re-drawn route are
-//   the money-path / spend-holds engines (ENGINES §6), NOT built this wave. This screen is the
-//   CONSUMER of an overspent verdict: it renders the design state (preview bundle of corrective
-//   moves, live after-move figure) and commits the real, available store mutations on Rebuild. The
-//   shortfall figure and per-move lift below are the engine's eventual output; until it lands they
-//   reuse the web source's exact sample (shortfall 94 · +£118 / +£12 / +£60), with the "Pause a sub"
-//   move bound to a real quiet sub from the store so nothing is fabricated where live data exists.
+// @rn-engine money-path — the overspent verdict + each move's real £ lift + the re-drawn route now
+//   come from the REAL pure route engine via the shared store→money-path bridge
+//   (@/folio/lib/storeRoute → routeFromStore → computeRoute, ENGINES §6). This screen is the CONSUMER
+//   of an overspent verdict:
+//     • VERDICT: the base route's tight point IS the verdict — its depth below zero
+//       (max(0, −tightPoint.amount)) is the live shortfall. No sample number.
+//     • PER-MOVE LIFT: each corrective move is applied to a HYPOTHETICAL copy of the store state
+//       (never the live store) and re-routed; the move's real £ lift is the route DELTA at the tight
+//       point (candidate.tightPoint − base.tightPoint, clamped ≥ 0). Pause-a-sub drops a renewal
+//       outflow; Move-a-bill slides a renewal later (subOverride); Set-a-hold frees the user's real
+//       average daily discretionary across the hold's days (room the engine adds back). A move with
+//       no honest lift in the live data simply shows +£0 — nothing is fabricated.
+//     • RE-DRAWN ROUTE: the after-move figure is the base shortfall lifted by the picked move's real
+//       delta, so the card shows the re-drawn tight point, not a guess.
+//   Preview-then-commit is unchanged: selecting a move mutates NOTHING (it only re-routes a copy);
+//   "Rebuild the plan" writes the bundle — the picked move's real store mutation — exactly once.
 //
 // RecoveryScreen — the faithful 1:1 React Native port of the web Recovery surface
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenRecovery.tsx).
@@ -79,15 +88,18 @@ import {
   setTightPointGoal,
   togglePaused,
   useAppStore,
+  type AppState,
   type Sub,
 } from '@/folio/store';
+import { routeFromStore } from '@/folio/lib/storeRoute';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import type { Nav } from '@/folio/types';
 
-// One corrective move the user can pick. `deltaValue` is the £ lift this move would give the route's
-// shortfall (the money-path engine's eventual output — see the @rn-engine note at the top). `commit`
-// applies the move's real, available store mutation once, on Rebuild. `subName` (when present) ties
-// a "Pause a sub" move to a live sub so the commit pauses the right one.
+// One corrective move the user can pick. `deltaValue` is the £ lift this move gives the route's tight
+// point — the REAL money-path delta (candidate route − base route at the tight point, see the
+// @rn-engine note at the top), computed against a hypothetical copy of the store, never the live one.
+// `commit` applies the move's real, available store mutation once, on Rebuild. `subName` (when
+// present) ties a "Pause a sub" move to a live sub so the commit pauses the right one.
 type Move = {
   id: string;
   /** The card's small uppercase kind label (e.g. "Pause a sub"). */
@@ -96,7 +108,7 @@ type Move = {
   title: string;
   /** The signed-figure delta line (e.g. "+£12 this month"). */
   delta: string;
-  /** The £ this move lifts the shortfall by (preview only until commit). */
+  /** The real £ this move lifts the tight point by (preview only until commit). */
   deltaValue: number;
   /** The expanded explanation shown when the card is active. */
   body: string;
@@ -119,17 +131,36 @@ export type RecoveryScreenProps = {
   state?: RecoveryState;
 };
 
-// The web source's overspent shortfall (money-path engine's eventual output). @rn-engine money-path.
-const SAMPLE_SHORTFALL = 94;
+// A stable sentinel "now" for the one render before the mount-gate opens. `routeFromStore` needs an
+// honest "today"; until `now` is set we route against this and discard the figure that frame.
+// Module-level so its identity never churns. (Same pattern as TodayScreen's EPOCH.)
+const EPOCH = new Date(0);
 
-// The web source's per-move lifts (money-path engine's eventual output). @rn-engine money-path.
-const MOVE_BILL_LIFT = 118;
-const MOVE_SUB_LIFT = 12;
-const MOVE_HOLD_LIFT = 60;
+// The web source's fallback shortfall — used ONLY when the real route shows no overspend (tight point
+// ≥ 0), so the screen — only reached from an overspent verdict upstream — still renders coherently
+// rather than a £0 gap. Mirrors ShortfallScreen's SYNTHETIC_GAP fallback. @rn-engine money-path.
+const FALLBACK_SHORTFALL = 94;
+
+// The "Move a bill" slides Octopus later in the cycle — +5 days, the same nudge the commit applies,
+// so the previewed lift and the committed move are the SAME route change.
+const BILL_NUDGE_DAYS = 5;
+
+// The "Set a hold" length in days — a 3-day soft pause on discretionary spend (matches the card copy).
+const HOLD_DAYS = 3;
+
+// How far back logged spend is averaged to estimate the daily discretionary a hold protects. A
+// month of real activity → a stable per-day figure; if there's no logged spend, the hold lift is £0.
+const HOLD_LOOKBACK_DAYS = 30;
 
 // A calm tight-point floor the "Set a hold" move commits when the user has none set — a soft pause
 // on discretionary spend reads as "protect this much at the low point". @rn-engine money-path.
 const HOLD_FLOOR = 60;
+
+const DAY_MS = 86_400_000;
+
+// Discretionary spend categories — the spend a 3-day hold can actually pause (bills/recurring still
+// pay, per the card body). Income is excluded; "bills" stays out because a hold doesn't stop them.
+const DISCRETIONARY: ReadonlySet<string> = new Set(['food', 'fun', 'shopping', 'transport', 'other']);
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1) — for the slide-in + fade-in.
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
@@ -180,57 +211,151 @@ function quietestSub(subs: Sub[], subPaused: Record<string, boolean>): Sub | und
   )[0];
 }
 
+// The first flexible bill the "Move a bill" move can slide: prefer the sub whose renewal lands at or
+// before the tight point's day (so sliding it later actually lifts the tight point), else the nearest
+// upcoming renewal. Falls back to the costliest sub. @rn-engine money-path: bill flexibility lives in
+// a fuller engine; here we slide the most-relevant real renewal.
+function flexibleBill(subs: Sub[], subPaused: Record<string, boolean>): Sub | undefined {
+  const active = subs.filter((s) => !subPaused[s.name]);
+  if (active.length === 0) return undefined;
+  return [...active].sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)[0];
+}
+
+// The real average daily discretionary spend, from logged transactions over the last
+// HOLD_LOOKBACK_DAYS. Outflows only (amount < 0), discretionary categories only, spread across the
+// lookback window. £0 when there's no honest logged spend — the hold then shows no fabricated lift.
+function avgDailyDiscretionary(state: AppState, nowMs: number): number {
+  const since = nowMs - HOLD_LOOKBACK_DAYS * DAY_MS;
+  let total = 0;
+  for (const tx of state.transactions) {
+    if (tx.amount >= 0) continue;
+    if (!DISCRETIONARY.has(tx.category)) continue;
+    const when = new Date(tx.when).getTime();
+    if (!Number.isFinite(when) || when < since || when > nowMs) continue;
+    total += -tx.amount;
+  }
+  return total / HOLD_LOOKBACK_DAYS;
+}
+
+// The real £ lift a move gives the tight point: route the HYPOTHETICAL state and diff its tight point
+// against the base route's. Clamped ≥ 0 (a move never reads as making things worse) and rounded to
+// whole pounds (money reads as money). Pure given its inputs — never touches the live store.
+function liftFromRoute(base: number, candidateState: AppState, now: Date): number {
+  const candidate = routeFromStore(candidateState, now).tightPoint.amount;
+  return Math.max(0, Math.round(candidate - base));
+}
+
 export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  // The doc-block @reads, now honoured (the web import was dead). Subs inform the "Pause a sub" move.
-  const subs = useAppStore((st) => st.subs);
-  const subPaused = useAppStore((st) => st.subPaused);
+  // The full app state — the same stable `useSyncExternalStore` snapshot the shared route bridge
+  // selects, so we can re-route HYPOTHETICAL copies for the per-move deltas without touching the live
+  // store. The doc-block @reads (subs, subPaused, tightPointGoal) are all carried within it.
+  const appState = useAppStore((st) => st);
+
+  // Mount-gate (same as TodayScreen): defer `new Date()` so nothing reads the clock during render and
+  // the route has an honest "today" before it draws. Until the gate opens we route against EPOCH and
+  // discard that frame's figure (`routeReady` false), keeping the pre-engine layout for one frame.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+  const routeNow = now ?? EPOCH;
+  const routeReady = now !== null;
 
   const [picked, setPicked] = useState<string | null>(null);
 
-  // The three corrective moves. Pause-a-sub binds to a real quiet sub when one exists; the others
-  // carry the web source's exact sample numbers until the money-path engine lands (@rn-engine above).
+  // The base route — the live verdict. Its tight point's depth below zero IS the shortfall. When the
+  // real route shows no overspend (tight point ≥ 0, e.g. on a direct mount), fall back to the web
+  // sample so this overspent-only surface still renders coherently. @rn-engine money-path.
+  const baseTight = useMemo(
+    () => routeFromStore(appState, routeNow).tightPoint.amount,
+    [appState, routeNow],
+  );
+  const shortfall = routeReady && baseTight < 0 ? Math.round(-baseTight) : FALLBACK_SHORTFALL;
+
+  // The three corrective moves, each carrying its REAL lift. Pause-a-sub and Move-a-bill re-route a
+  // hypothetical store copy and diff the tight point against the base; Set-a-hold frees the user's
+  // real daily discretionary across the hold (no dated outflow to drop, so the lift is that freed
+  // room). All three are honest derivations from live data — £0 where there's nothing real (@rn-engine).
   const moves: Move[] = useMemo(() => {
-    const sub = quietestSub(subs, subPaused);
-    const subTitle = sub ? `Pause ${sub.name} for a month` : 'Pause Disney+ for a month';
+    const subs = appState.subs;
+    const subPaused = appState.subPaused;
+
+    const quiet = quietestSub(subs, subPaused);
+    const bill = flexibleBill(subs, subPaused);
+    const subTitle = quiet ? `Pause ${quiet.name} for a month` : 'Pause Disney+ for a month';
+
+    // Move a bill: slide the flexible bill BILL_NUDGE_DAYS later, on a hypothetical copy, and diff.
+    const billLift = bill
+      ? liftFromRoute(
+          baseTight,
+          {
+            ...appState,
+            subOverrides: {
+              ...appState.subOverrides,
+              [bill.name]: (appState.subOverrides[bill.name] ?? 0) + BILL_NUDGE_DAYS,
+            },
+          },
+          routeNow,
+        )
+      : 0;
+
+    // Pause a sub: drop the quiet sub's renewal outflow on a hypothetical copy, and diff.
+    const subLift = quiet
+      ? liftFromRoute(
+          baseTight,
+          { ...appState, subPaused: { ...appState.subPaused, [quiet.name]: true } },
+          routeNow,
+        )
+      : 0;
+
+    // Set a hold: a 3-day soft pause frees the user's REAL average daily discretionary across those
+    // days — room that lifts the tight point by exactly that amount (it's the spend that doesn't
+    // happen). Derived from logged spend, so it's £0 when there's nothing real to pause — never faked.
+    // (Unlike pause/move, a future spend-hold has no dated outflow in the base route to drop, so the
+    // lift is the freed room itself, not a re-route diff.)
+    const holdLift = Math.max(0, Math.round(avgDailyDiscretionary(appState, routeNow.getTime()) * HOLD_DAYS));
+
     return [
       {
         id: 'move-bill',
         kind: 'Move a bill',
         title: 'Move Octopus to the 12th',
-        delta: `+£${MOVE_BILL_LIFT} this week`,
-        deltaValue: MOVE_BILL_LIFT,
+        delta: `+£${billLift} this week`,
+        deltaValue: billLift,
         body: 'Pushes Octopus from the 7th to the 12th. Lands two days after payday instead of two before.',
         cost: 'no fee · supplier allows it',
         melo: 'Quietest move. Same money, kinder timing.',
         // Slide the flexible bill later in the cycle — the real "what if I move this?" write.
-        commit: () => nudgeSub('Octopus Energy', 5),
+        commit: () => {
+          if (bill) nudgeSub(bill.name, BILL_NUDGE_DAYS);
+        },
       },
       {
         id: 'pause-sub',
         kind: 'Pause a sub',
         title: subTitle,
-        delta: `+£${MOVE_SUB_LIFT} this month`,
-        deltaValue: MOVE_SUB_LIFT,
+        delta: `+£${subLift} this month`,
+        deltaValue: subLift,
         body: 'Nothing comes out of your account for one month. Resumes automatically unless you cancel.',
         cost: '0 plays in 6 weeks · low-cost to pause',
         melo: 'Small experiment. You can resume any time.',
-        ...(sub ? { subName: sub.name } : {}),
+        ...(quiet ? { subName: quiet.name } : {}),
         // Pause the chosen quiet sub — the real store write.
         commit: () => {
-          if (sub) togglePaused(sub.name, true);
+          if (quiet) togglePaused(quiet.name, true);
         },
       },
       {
         id: 'hold-spend',
         kind: 'Set a hold',
         title: 'Hold spending for 3 days',
-        delta: `+£${MOVE_HOLD_LIFT} estimated`,
-        deltaValue: MOVE_HOLD_LIFT,
+        delta: `+£${holdLift} estimated`,
+        deltaValue: holdLift,
         body: "Bills and recurring still pay. Discretionary spend goes on a soft pause — you'll see a gentle nudge if you try.",
         cost: 'based on your average daily discretionary',
         melo: 'Three calm days. Not punishment, just space.',
@@ -238,15 +363,16 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         commit: () => setTightPointGoal(HOLD_FLOOR),
       },
     ];
-  }, [subs, subPaused]);
+  }, [appState, baseTight, routeNow]);
 
   const pickedMove = moves.find((m) => m.id === picked);
 
-  // The after-move figure: the shortfall (negative) lifted by the picked move, clamped so a move
-  // never reads as overshooting the gap downward. Negative = still short, >= 0 = reaches room.
+  // The after-move figure: the real shortfall (negative) lifted by the picked move's real route delta,
+  // clamped so a move never reads as overshooting the gap downward. Negative = still short, >= 0 =
+  // reaches room. The re-drawn tight point, straight off the engine — not a guess.
   const after = pickedMove
-    ? Math.max(-SAMPLE_SHORTFALL + pickedMove.deltaValue, -SAMPLE_SHORTFALL)
-    : -SAMPLE_SHORTFALL;
+    ? Math.max(-shortfall + pickedMove.deltaValue, -shortfall)
+    : -shortfall;
   const reachesRoom = after >= 0;
 
   // Count up the magnitude between selections (MOTION.md: money values count up, never slide).

@@ -62,6 +62,14 @@ import { copy } from '@/folio/copy/copy';
 import { Melo } from '@/folio/melo/Melo';
 import { applyMeloTool, useAppStore, type Sub, type Transaction } from '@/folio/store';
 import type { MeloIntent, Nav, Pressure } from '@/folio/types';
+import {
+  isMeloAiConfigured,
+  sendMeloChat,
+  type MeloChatMessage,
+  type MeloChatResult,
+  type MeloToolSuggestion,
+} from '@/local/meloAiClient';
+import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
 // ---------------------------------------------------------------------------
 // Constants — mirrored from the web original
@@ -349,6 +357,12 @@ function MeloChat({
         appliedRef.current.add(id);
         const name = p.type.replace(/^tool-/, '');
         const result = applyMeloTool(name, p.input ?? {});
+        // Write the REAL outcome back onto the part so the pill renders the truth: applyMeloTool's
+        // summary when it actually mutated, or its reason when it could not (unmatched target, etc.).
+        // The pill shows tp.output?.message; an unmatched move therefore reads as the reason, never a
+        // fake "done". Only an applied result gets the 8s Undo window.
+        const outputMessage = result.applied ? result.summary : result.reason;
+        recordToolOutput(id, { ok: result.applied, message: outputMessage });
         if (result.applied) {
           setUndoMap((prev) => ({ ...prev, [id]: { undo: result.undo } }));
           undoTimers.current[id] = setTimeout(() => {
@@ -361,7 +375,28 @@ function MeloChat({
         }
       }
     }
+    // recordToolOutput is a stable closure over setMessages; messages is the only reactive input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
+
+  // Attach a settled tool outcome to its part (matched by toolCallId), immutably. Drives the pill's
+  // visible result text from what applyMeloTool actually did.
+  function recordToolOutput(callId: string, output: { ok: boolean; message: string }) {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.role !== 'assistant') return m;
+        let changed = false;
+        const parts = m.parts.map((p) => {
+          if (!isToolPart(p)) return p;
+          const id = p.toolCallId ?? `${m.id}-${p.type}`;
+          if (id !== callId || p.output !== undefined) return p;
+          changed = true;
+          return { ...p, output };
+        });
+        return changed ? { ...m, parts } : m;
+      }),
+    );
+  }
 
   // Clear any pending undo timers on unmount (no leaked timeouts when the sheet closes).
   useEffect(() => {
@@ -386,12 +421,25 @@ function MeloChat({
     });
   }
 
-  // --- Send: append the user turn, then drive the engine seam. ------------------------------------
-  // @rn-engine melo-gateway (existing apps/mobile/src/local/meloAiClient.ts) — the LIVE turn is NOT
-  // wired. To go live, call `sendMeloChat({ messages, tone: settings.tone, snapshot: settings.share
-  // ? snapshot : undefined })` and stream the reply + tool parts in here. Until then a local echo
-  // handler produces an honest assistant turn (never a fabricated answer) so the shell, the loading
-  // shimmer and the local tool-application path can be exercised.
+  // --- Send: append the user turn, then drive the LIVE gateway. -----------------------------------
+  // @rn-engine melo-gateway (existing apps/mobile/src/local/meloAiClient.ts) — WIRED. On send we call
+  // `sendMeloChat` with the visible thread + the snapshot (shared ONLY when "let Melo see my money"
+  // is on; blind otherwise). The discriminated result drives the render:
+  //   • ok          → the returned assistant prose, plus one inline tool pill per advisory suggestion.
+  //                   Each tool part is emitted `output-available`; the existing tool-bridge effect
+  //                   applies it via applyMeloTool exactly once (deduped by toolCallId) and opens the
+  //                   8s Undo. Honest by construction: applyMeloTool only reports "done" when it
+  //                   actually mutated — an unmatched target shows "working on it…" with no Undo, not
+  //                   a fake success.
+  //   • no-provider → the client's honest "Melo isn't configured yet…" line, surfaced verbatim. We
+  //                   never fabricate an AI reply when the gateway URL is unset.
+  //   • error       → the existing inline accent error line (no transcript pollution, no faked answer).
+  // An AbortController lets an unmount cancel the in-flight turn (see cleanup effect below).
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
   function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
@@ -401,21 +449,65 @@ function MeloChat({
       role: 'user',
       parts: [{ type: 'text', text: trimmed }],
     };
-    setMessages((prev) => [...prev, userMsg]);
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
     setInput('');
-    setStatus('submitted');
 
-    // The engine seam stub: a short, honest, Melo-voiced acknowledgement that the gateway is not
-    // wired yet. Privacy stays real — the snapshot is NEVER sent from here (no network at all).
-    void runEngineSeam({
-      onReply: (reply) => {
-        setMessages((prev) => [
-          ...prev,
-          { id: `a-${Date.now()}`, role: 'assistant', parts: [{ type: 'text', text: reply }] },
-        ]);
-        setStatus('ready');
-      },
-    });
+    // Gateway not configured → keep the honest, non-fabricated line. No network is attempted.
+    if (!isMeloAiConfigured()) {
+      setStatus('submitted');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          parts: [{ type: 'text', text: NOT_CONFIGURED_LINE }],
+        },
+      ]);
+      setStatus('ready');
+      return;
+    }
+
+    setStatus('submitted');
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    void sendMeloChat({
+      messages: toClientMessages(nextMessages),
+      tone: settings.tone,
+      // Snapshot leaves the device ONLY when the user has turned sharing on. Off = blind turn.
+      snapshot: settings.share ? toRequestSnapshot(snapshot) : undefined,
+      signal: controller.signal,
+    })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        applyResult(result);
+      })
+      .finally(() => {
+        if (abortRef.current === controller) abortRef.current = null;
+      });
+  }
+
+  // Render a settled gateway result into the transcript / error line.
+  function applyResult(result: MeloChatResult) {
+    if (result.status === 'ok') {
+      setMessages((prev) => [...prev, assistantMessageFromResult(result.reply, result.suggestions)]);
+      setStatus('ready');
+      return;
+    }
+    if (result.status === 'no-provider') {
+      // Surface the client's honest line verbatim — never a fabricated answer.
+      setMessages((prev) => [
+        ...prev,
+        { id: `a-${Date.now()}`, role: 'assistant', parts: [{ type: 'text', text: result.message }] },
+      ]);
+      setStatus('ready');
+      return;
+    }
+    // error — the existing accent line already prefixes "Couldn't reach Melo just now.", so strip a
+    // duplicate lead from the client message before handing it over.
+    setError({ message: stripErrorLead(result.message) });
+    setStatus('ready');
   }
 
   function startFresh() {
@@ -672,20 +764,74 @@ function MeloChat({
 }
 
 // ---------------------------------------------------------------------------
-// Engine seam — the local stub/echo handler. NOT an AI response: an honest, Melo-voiced line that
-// the live gateway is not wired in this build. Wiring `sendMeloChat` (apps/mobile/src/local/
-// meloAiClient.ts) here replaces this with the real streamed reply + tool parts.
-// @rn-engine melo-gateway (existing apps/mobile/src/local/meloAiClient.ts)
+// Engine bridge — pure helpers between this sheet's ChatMessage model and the meloAiClient contract.
+// @rn-engine melo-gateway (existing apps/mobile/src/local/meloAiClient.ts) — WIRED via `sendMeloChat`.
 // ---------------------------------------------------------------------------
 
-function runEngineSeam({ onReply }: { onReply: (reply: string) => void }): Promise<void> {
-  return new Promise((resolve) => {
-    // A brief "thinking" beat so the shimmer state is exercised; no network, no snapshot leaves here.
-    setTimeout(() => {
-      onReply("I'm not wired to the gateway in this build yet — but I'm right here when I am.");
-      resolve();
-    }, 600);
+// Honest fallback when EXPO_PUBLIC_MELO_GATEWAY_URL is unset. We do NOT fabricate an AI reply; we say
+// plainly that Melo isn't connected. Kept short and in Melo's lowercase-y voice.
+const NOT_CONFIGURED_LINE = "i'm not connected to the gateway yet — set it up and i'll be right here.";
+
+// Flatten this sheet's ChatMessage[] into the client's MeloChatMessage[] (role + concatenated text,
+// most recent last). Empty turns (e.g. a tool-only assistant message) are dropped — the gateway only
+// needs the spoken thread.
+function toClientMessages(messages: readonly ChatMessage[]): readonly MeloChatMessage[] {
+  const out: MeloChatMessage[] = [];
+  for (const m of messages) {
+    const text = partsToText(m).trim();
+    if (text.length === 0) continue;
+    out.push({ id: m.id, role: m.role, text });
+  }
+  return out;
+}
+
+// Build the typed snapshot the client expects from the sheet's rich snapshot object. The snapshot is
+// the web-prototype context shape (Record<string, unknown>); the persona only JSON.stringifies it and
+// reads the name arrays, so we hand the whole object through (richer context) while ensuring the
+// subscription + pot NAMES are present so a suggestion can echo a stored name verbatim and match.
+function toRequestSnapshot(snapshot: Record<string, unknown>): MeloLocalFinancialSnapshot {
+  const subscriptions = Array.isArray(snapshot.subscriptions) ? snapshot.subscriptions : [];
+  const pots = Array.isArray(snapshot.pots) ? snapshot.pots : [];
+  const subscriptionNames = subscriptions
+    .map((entry) => (entry as { name?: unknown }).name)
+    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+  const potNames = pots
+    .map((entry) => (entry as { name?: unknown }).name)
+    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+  // The rich snapshot carries the web-prototype context shape, not the contract's exact fields; the
+  // persona only stringifies it + reads the name arrays, so the conversion is intentional (via
+  // unknown). The names are normalised above so a suggestion can echo a stored name and match.
+  const withNames: Record<string, unknown> = { ...snapshot, subscriptionNames, potNames };
+  return withNames as unknown as MeloLocalFinancialSnapshot;
+}
+
+// Turn an ok result into one assistant message: the prose text part (when non-empty) plus one
+// `output-available` tool part per advisory suggestion. Emitting the suggestions as tool parts routes
+// them through the existing tool-bridge effect, which calls applyMeloTool exactly once each (deduped
+// by toolCallId) and opens the inline Undo — so nothing is applied here directly.
+function assistantMessageFromResult(
+  reply: string,
+  suggestions: readonly MeloToolSuggestion[],
+): ChatMessage {
+  const baseId = `a-${Date.now()}`;
+  const parts: ChatPart[] = [];
+  const prose = reply.trim();
+  if (prose.length > 0) parts.push({ type: 'text', text: prose });
+  suggestions.forEach((suggestion) => {
+    parts.push({
+      type: `tool-${suggestion.name}`,
+      state: 'output-available',
+      toolCallId: suggestion.id,
+      input: suggestion.args as Record<string, unknown>,
+    });
   });
+  return { id: baseId, role: 'assistant', parts };
+}
+
+// The inline error line already opens with "Couldn't reach Melo just now."; drop a duplicate lead from
+// the client message so the surfaced text reads cleanly.
+function stripErrorLead(message: string): string {
+  return message.replace(/^Couldn't reach Melo just now\.\s*/i, '').trim();
 }
 
 // ---------------------------------------------------------------------------

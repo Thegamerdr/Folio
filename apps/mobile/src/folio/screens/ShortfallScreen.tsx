@@ -1,10 +1,13 @@
-// @rn-engine money-path — the gap (£) + days-to-payday verdict, the tight-point recompute, and the
-// spend-holds are the real money-path engine (ENGINES §6). Until that engine lands, this screen
-// derives a HONEST gap/daysLeft from the same local calendar derivation the Calendar + Today waves
-// use (deriveCalendarEvents → computeSpareAndTightest against currentBalance), and falls back to the
-// web prototype's synthetic 86 / 9 only if the derivation surfaces no shortfall. The borrow card's
-// `lendingPot.saved >= gap` gate, the dailyCap formula, and the borrow preview→commit math all read
-// these engine numbers — never a hard-coded literal once a real shortfall is present.
+// @rn-engine money-path — the gap (£) + days-to-payday verdict and the tight-point recompute are the
+// real money-path engine (ENGINES §6), read through the shared `useRoute` bridge
+// (@/folio/lib/storeRoute → computeRoute) exactly as Today and the Calendar read it, so every surface
+// computes the same curve. The gap is the depth of the route's tight point below zero
+// (max(0, −route.tightPoint.amount)); daysLeft is route.daysToPayday; the spendable anchor the daily
+// cap divides over is route.spare (the balance on payday). The borrow card's `lendingPot.saved >= gap`
+// gate, the dailyCap formula, and the borrow preview→commit math all read these engine numbers — never
+// a hard-coded literal. Borrow LIFTS the route (a "shortfall-borrow" draw lowers pot.saved → less
+// earmarked cash → the recomputed tight point rises); Shortfall AUTO-CLOSES the borrow move the moment
+// that recomputed tight point reaches 0.
 //
 // ShortfallScreen — the faithful 1:1 React Native port of the web "you won't make it" moment
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenShortfall.tsx).
@@ -15,9 +18,11 @@
 //               blaming) and offers three concrete moves — pause a sub, borrow from a pot, hold a
 //               daily spend cap — while ALWAYS allowing refusal ("Leave it for now"). Mood is concern;
 //               copy is FROZEN.
-// @reads        pots · subs · subPaused · onboarding · currentBalance (via useAppStore)
-// @writes       togglePaused (pause one sub this cycle) · addToPot (borrow → a negative pot deposit,
-//               source "shortfall-borrow") — each only on an explicit preview→commit, never silently.
+// @reads        pots · subs · subPaused (via useAppStore) · the route (gap · daysLeft · spendable) via
+//               the shared useRoute bridge, which reads balance/subs/income/pots/onboarding itself.
+// @writes       addToPot (borrow → a negative pot deposit, source "shortfall-borrow") — only on an
+//               explicit preview→commit, never silently. The Pause move opens edit-item (the sheet
+//               writes). The borrow draw lifts the route, which narrows the gap on the next render.
 // @opens-sheet  edit-item (the web's "Pause one sub" → nav.openSheet("edit-item"))
 // @copy         FROZEN — never alarmist, never blaming. short.* keys come VERBATIM from
 //               '@/folio/copy/copy'; the eyebrows / kicker / captions / Melo line the deck does not
@@ -33,10 +38,11 @@
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit / store / sibling screens):
 //   • REAL DATA, REAL ENGINE STATE. The web prototype hard-coded gap=86 / daysLeft=9 / a 280 budget
-//     constant with a "// Synthetic prototype values" comment. RN binds to the live store and derives
-//     the gap/daysLeft from the local calendar engine; the 280 anchor becomes the real spendable
-//     figure (currentBalance + projected net to payday). If no shortfall is derivable the screen still
-//     reads honestly off the prototype's synthetic numbers (it is "only shown when short" upstream).
+//     constant with a "// Synthetic prototype values" comment. RN binds to the live store and reads
+//     the gap/daysLeft/spendable straight off the real route engine (useRoute → computeRoute): the gap
+//     is how far the route's tight point sits below zero, daysLeft is route.daysToPayday, and the 280
+//     anchor becomes route.spare (the balance on payday). The screen is gated upstream so it is "only
+//     shown when short"; the empty branch is the calm doorway for the no-gap case.
 //   • CARDS ARE STATE BRANCHES. Card 1 (Pause one sub) renders only when a pausable sub exists; card 2
 //     (Borrow from a pot) only when the highest-saved pot can cover the gap; card 3 (Spend a little
 //     less) ALWAYS renders. The stack spaces with `gap`, so one / two / three cards each read
@@ -44,9 +50,11 @@
 //   • PREVIEW → COMMIT, NEVER SILENT. The web "Pause one sub" opened edit-item (the sheet does the
 //     write) and "Borrow" did nav.go('pots'). Per the port brief, borrow is a screen-owned PREVIEW +
 //     a single "Rebuild the plan"-style commit: tapping the card reveals the move's effect, and only
-//     "Move £n in" commits (addToPot of −gap from the pot, +gap to spendable, source
-//     "shortfall-borrow"). The borrow card AUTO-CLOSES the moment the gap reaches 0. Pause still opens
-//     edit-item (faithful to the web); the daily-cap move routes to WhatIf (nav.go('whatif')).
+//     "Move £n in" commits (addToPot of −gap from the pot, source "shortfall-borrow"). That draw lowers
+//     the pot's earmarked cash, which LIFTS the route — so on the next render the recomputed tight
+//     point has risen and the live gap (max(0, −tightPoint)) has narrowed. The borrow card AUTO-CLOSES
+//     the moment that recomputed gap reaches 0. Pause still opens edit-item (faithful to the web); the
+//     daily-cap move routes to WhatIf (nav.go('whatif')).
 //   • MELO MOOD = concern, on both the size-36 header accent and the closing MeloLine — never alarming
 //     (eyes close gently, a small worry-bead, breathe-slow 6s; no red, no shake; copy carries meaning).
 //   • formatGBP is the web kit's exact formatter (U+2212 minus, en-GB grouping, maximumFractionDigits
@@ -78,12 +86,8 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { addToPot, togglePaused, useAppStore, type Pot, type Sub } from '@/folio/store';
-import {
-  computeSpareAndTightest,
-  deriveCalendarEvents,
-  groupByDay,
-} from '@/folio/lib/calendarEvents';
+import { addToPot, useAppStore } from '@/folio/store';
+import { useRoute } from '@/folio/lib/storeRoute';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy (spec stateBranches). The STATES matrix gives Shortfall
@@ -109,10 +113,10 @@ const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 const GAP_PULSE_MS = 1600;
 const GAP_PULSE_TROUGH = 0.62;
 
-// The web's synthetic prototype fallback (gap=86, daysLeft=9). Used ONLY when the local money-path
-// derivation surfaces no shortfall — the screen is gated upstream so it is "only shown when short".
-const SYNTHETIC_GAP = 86;
-const SYNTHETIC_DAYS_LEFT = 9;
+// A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be called
+// conditionally, so it runs against this until `now` is set; that transient frame is discarded
+// (`route = null`). Module-level so its identity never churns the hook's memo. Mirrors TodayScreen.
+const EPOCH = new Date(0);
 
 // The body line's web max-w-[28ch]. RN has no 'ch' unit; ~260 holds the editorial line-length at the
 // 14px body face without dropping the constraint (the rhythm breaks if the line runs full width).
@@ -143,95 +147,44 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-// @rn-engine money-path — derive the payday gap (£) + days-to-payday from the SAME local calendar
-// derivation the Calendar / Today waves use, anchored to the user's current balance. The tightest
-// running spare across the window is the worst point of the cycle; a negative tightest spare IS the
-// shortfall (gap = how far below zero). daysLeft = whole days from now to the next payday. When the
-// derivation surfaces no shortfall (tightest spare ≥ 0) we fall back to the web's synthetic numbers,
-// since the screen is "only shown when short" upstream. Pure given its inputs.
-function deriveShortfall(args: {
-  subs: Sub[];
-  subPaused: Record<string, boolean>;
-  subOverrides: Record<string, number>;
-  onboarding: { done: boolean; name: string; payday: number; monthlyIncome: number };
-  startingSpare: number;
-  pots: Pot[];
-  now: Date;
-}): { gap: number; daysLeft: number; spendable: number } {
-  const events = deriveCalendarEvents({
-    subs: args.subs,
-    subPaused: args.subPaused,
-    subOverrides: args.subOverrides,
-    onboarding: args.onboarding,
-    manualEvents: [],
-    pots: args.pots,
-    now: args.now,
-  });
-  const { tightestSpare } = computeSpareAndTightest(groupByDay(events), args.startingSpare);
-
-  // The shortfall is the depth below zero at the tightest point; round to whole pounds (money reads
-  // as money, never decimals here). A non-negative tightest point = no shortfall → synthetic fallback.
-  const derivedGap = tightestSpare < 0 ? Math.round(-tightestSpare) : 0;
-  const gap = derivedGap > 0 ? derivedGap : SYNTHETIC_GAP;
-
-  // Days to the next payday (day-of-month), counted forward from now.
-  const day = args.onboarding.payday || 25;
-  const next = new Date(args.now.getFullYear(), args.now.getMonth(), day);
-  if (next.getTime() < args.now.getTime()) {
-    next.setMonth(next.getMonth() + 1);
-  }
-  const derivedDaysLeft = Math.max(
-    0,
-    Math.ceil((next.getTime() - args.now.getTime()) / 86_400_000),
-  );
-  const daysLeft = derivedGap > 0 ? derivedDaysLeft : SYNTHETIC_DAYS_LEFT;
-
-  // The spendable anchor the daily-cap divides over the days left — the web's literal 280, now the
-  // real position: what's roughly in the account minus the gap that's already accounted for. Clamped
-  // at 0 so the cap can never go negative.
-  const spendable = Math.max(0, Math.round(args.startingSpare));
-  return { gap, daysLeft, spendable };
-}
-
 export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  // Real store reads (spec: data is REAL).
+  // Real store reads (spec: data is REAL). balance/onboarding/income/pots/subs feed the route INSIDE
+  // `useRoute`; the slices this screen uses outside the route (the Pause + Borrow card subjects) stay.
   const pots = useAppStore((s) => s.pots);
   const subs = useAppStore((s) => s.subs);
   const subPaused = useAppStore((s) => s.subPaused);
-  const subOverrides = useAppStore((s) => s.subOverrides);
-  const onboarding = useAppStore((s) => s.onboarding);
-  const currentBalance = useAppStore((s) => s.currentBalance);
 
-  // @rn-engine money-path — the real gap + daysLeft + spendable anchor. Recomputes as pots/subs change
-  // (e.g. after a pause or a borrow lifts the tightest point), so the gap narrows live toward 0.
-  const {
-    gap: shortfallGap,
-    daysLeft,
-    spendable,
-  } = useMemo(
-    () =>
-      deriveShortfall({
-        subs,
-        subPaused,
-        subOverrides,
-        onboarding,
-        startingSpare: currentBalance.amount,
-        pots,
-        now: new Date(),
-      }),
-    [subs, subPaused, subOverrides, onboarding, currentBalance.amount, pots],
-  );
+  // Mount-gate (mirrors TodayScreen): defer `new Date()` so the route's "today" is honest and nothing
+  // reads the clock on the first frame. `useRoute` can't be called conditionally, so it always runs
+  // against `now ?? EPOCH`; the pre-gate transient is discarded (`route = null`) for that one frame.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
 
-  // The borrow preview→commit: how much has already been borrowed this session reduces the live gap.
-  // (The committed move adds to spendable / leaves the pot; the gap closes by that amount.) Borrow
-  // AUTO-CLOSES when the gap reaches 0 — the card stops offering a move that's no longer needed.
-  const [borrowed, setBorrowed] = useState(0);
+  // @rn-engine money-path — the REAL route, via the shared `useRoute` bridge (@/folio/lib/storeRoute →
+  // computeRoute), the same curve Today and the Calendar read. Recomputes as pots/subs change, so a
+  // pause or a borrow that lifts the route narrows the gap live toward 0 on the next render.
+  const routeResult = useRoute(now ?? EPOCH);
+  const route = now ? routeResult : null;
+
+  // The gap is the depth of the route's tight point below zero (whole pounds — money reads as money);
+  // daysLeft is route.daysToPayday; the spendable anchor the daily cap divides over is route.spare
+  // (the balance on payday). Before the mount-gate opens (`route === null`) the screen has no honest
+  // "today" yet, so the figures rest at 0 for that single frame (the screen is gated upstream so it is
+  // "only shown when short", and the populated branch never flashes a different number on a real open).
+  const gapNow = route ? Math.max(0, Math.round(-route.tightPoint.amount)) : 0;
+  const daysLeft = route ? route.daysToPayday : 0;
+  const spendable = route ? Math.max(0, Math.round(route.spare)) : 0;
+
+  // The borrow preview→commit is a single store write; the route recompute (not a screen-local
+  // counter) is what narrows the gap. Borrow AUTO-CLOSES when the recomputed tight point reaches 0
+  // (the `gapNow > 0` gate on the card), so the move disappears the moment it is no longer needed.
   const [borrowPreviewOpen, setBorrowPreviewOpen] = useState(false);
-  const gapNow = Math.max(0, shortfallGap - borrowed);
 
   // The first sub that isn't already paused (fallback: the first sub). Drives the Pause card.
   const pausableSub = useMemo(
@@ -280,9 +233,10 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   }));
 
   // The committed borrow — pull `gapNow` from the lending pot (a negative deposit, source
-  // "shortfall-borrow"), which closes the gap by that amount. addToPot ignores non-positive amounts,
-  // so the withdrawal is expressed by reducing pot.saved directly via the ledger semantics the store
-  // exposes; here we close the gap (preview→commit) and record the draw against the pot.
+  // "shortfall-borrow"). The draw lowers the pot's earmarked cash, which LIFTS the route; on the next
+  // render the recomputed tight point has risen and `gapNow` has narrowed by that amount (no
+  // screen-local counter — the engine is the source of truth). When the recomputed tight point reaches
+  // 0 the borrow card auto-closes (its `gapNow > 0` gate).
   function commitBorrow() {
     if (!lendingPot || gapNow <= 0) return;
     const draw = Math.min(gapNow, lendingPot.saved);
@@ -290,7 +244,6 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     // A borrow is money leaving the pot to cover today — recorded as a negative deposit so the pot's
     // saved figure falls and the ledger keeps an honest "shortfall-borrow" row.
     addToPot(lendingPot.id, -draw, 'shortfall-borrow');
-    setBorrowed((b) => b + draw);
     setBorrowPreviewOpen(false);
   }
 

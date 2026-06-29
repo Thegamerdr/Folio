@@ -29,11 +29,17 @@
  *               ships. WhatIf's documented exploring baseline is curious; the dynamic verdict overrides
  *               it because the line's meaning forks with newLow.
  *
- * @rn-engine money-path — the real lowest-to-payday baseline (faked here via pressureLow[pressure]),
- *            newLow = baseLow − amount, the dip shape, and the days-cover burn-rate are the money-path
- *            engine's job (ENGINES §6, not yet built). This wave renders the DESIGN STATE off the
- *            pressure constant + a burn-rate stand-in (28 days/cycle), preview-only — nothing is
- *            committed and no path is mutated.
+ * @rn-engine money-path — WIRED. baseLow is the real lowest-to-payday figure: the route engine's
+ *            tight point (route.tightPoint.amount), read through the shared `useRoute` bridge
+ *            (@/folio/lib/storeRoute → computeRoute) exactly as Today reads it, so this preview sits on
+ *            the same curve as the rest of the app. newLow = baseLow − amount; the days-cover burn-rate
+ *            is the trailing-28-day average daily spend from transactions (ENGINES §6 "days this would
+ *            last") rather than a fixed days/cycle constant. The hook can't be called conditionally, so
+ *            it runs against `now ?? EPOCH` and the result is discarded for the single pre-mount frame,
+ *            where baseLow falls back to the per-pressure sample (pressureLow[pressure]) — the same
+ *            mount-gate convention TodayScreen uses, so a normal open never flashes a different figure.
+ *            The mini path keeps its design dip shape (it is illustrative, bound to `amount`). Still
+ *            preview-only — nothing is committed and no path is mutated.
  *
  * Banned visible words (import / rows / parser / extraction / OCR / sync / dashboard / analytics /
  * users / 100% / bank-grade / AI-powered / smart / provenance / source record / indexed) are absent.
@@ -62,7 +68,8 @@ import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/
 import { Melo, type MeloMood } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { useAppStore } from '@/folio/store';
+import { useAppStore, type Transaction } from '@/folio/store';
+import { useRoute } from '@/folio/lib/storeRoute';
 import type { Nav, Pressure } from '@/folio/types';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -71,11 +78,13 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 // Constants — ported verbatim from the web source.
 // ---------------------------------------------------------------------------
 
-// The fallback lowest-to-payday spare for each route pressure band. The web WhatIf imported this from
-// types.ts (`pressureLow`); the RN `@/folio/types` defines the `Pressure` union but not the derived
-// maps (the Today wave keeps its own copy in screens/today/pressure.ts for the same reason). WhatIf is
-// strictly read-only and can only edit its own file, so it keeps the WhatIf-local copy here. These are
-// the @rn-engine money-path baseline stand-ins — replaced by the engine's real current low later.
+// The pre-mount-gate fallback lowest-to-payday spare for each route pressure band. The web WhatIf
+// imported this from types.ts (`pressureLow`); the RN `@/folio/types` defines the `Pressure` union but
+// not the derived maps (the Today wave keeps its own copy in screens/today/pressure.ts for the same
+// reason). WhatIf is strictly read-only and can only edit its own file, so it keeps the WhatIf-local
+// copy here. The real baseLow now comes from the route engine's tight point (route.tightPoint.amount);
+// this map is only the honest per-pressure sample shown for the single frame before the mount-gate
+// opens — the same fallback TodayScreen uses, so a normal open never flashes a different figure.
 const pressureLow: Readonly<Record<Pressure, number>> = {
   safe: 612,
   calm: 325,
@@ -90,9 +99,14 @@ const AMOUNT_MAX = 500;
 const AMOUNT_STEP = 5;
 const AMOUNT_DEFAULT = 40;
 
-// Burn-rate stand-in: days/cycle. @rn-engine money-path supplies the real daily burn (28 = the web's
-// magic number). daysCover = max(0, round((newLow / 28) * 10) / 10).
-const DAYS_PER_CYCLE = 28;
+// Burn-rate window: the trailing days of transactions whose average daily spend gives the real daily
+// burn (ENGINES §6 "days this would last"). The web used a fixed 28 as the divisor itself; here 28 is
+// the LOOK-BACK WINDOW — Σ spend magnitude over the last 28 days ÷ 28 = £/day. daysCover =
+// max(0, round((newLow / burn) * 10) / 10). When there is no recent spend the burn is 0 (a divide-by-
+// zero / Infinity), so we fall back to the web's literal 28-£/day stand-in to keep the figure honest
+// and the render identical to the pre-engine state.
+const TRAILING_DAYS = 28;
+const BURN_FALLBACK = 28;
 
 // Verdict thresholds — load-bearing (preserve exactly). New lowest reads negative when
 // breachesGoal || newLow < TIGHT; Days reads negative when daysCover < DAYS_NEGATIVE.
@@ -126,6 +140,16 @@ const ROUTE_DASH = 900; // >= the actual path length so the dash-offset draw nev
 // Minus glyph — the web rendered "−" (U+2212 minus sign), not a hyphen. Kept exact.
 const MINUS = '−';
 
+// A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be called
+// conditionally, so it runs against this until `now` is set; that frame's result is discarded (baseLow
+// falls back to pressureLow[pressure]). Module-level so its identity never churns the hook's memo.
+// Mirrors TodayScreen's EPOCH exactly.
+const EPOCH = new Date(0);
+
+// DAY_MS for the trailing-window cut-off (local-clock millisecond subtraction; consistent with the
+// transaction `when` ISO timestamps the burn-rate averages over).
+const DAY_MS = 86_400_000;
+
 // ---------------------------------------------------------------------------
 // Reduced-motion read — mirrors Melo.tsx / VisualizerScreen.tsx exactly: read once, then subscribe.
 // ---------------------------------------------------------------------------
@@ -144,6 +168,26 @@ function useReduceMotion(): boolean {
     };
   }, []);
   return reduce;
+}
+
+// ---------------------------------------------------------------------------
+// trailingDailyBurn — the real daily spend rate (£/day) behind "Days this would last" (ENGINES §6).
+// Pure: sums the SPEND magnitude (stored amount < 0 → −amount) of transactions in the trailing window
+// [now − TRAILING_DAYS, now] and divides by the window. Inflows (amount > 0, e.g. income/refunds) are
+// excluded — only money going out counts toward how long a balance lasts. Returns 0 when there is no
+// recent spend so the caller can apply the honest fallback rather than dividing by zero.
+// ---------------------------------------------------------------------------
+
+function trailingDailyBurn(transactions: readonly Transaction[], now: Date): number {
+  const cutoffMs = now.getTime() - TRAILING_DAYS * DAY_MS;
+  let spend = 0;
+  for (const tx of transactions) {
+    if (tx.amount >= 0) continue; // inflow — not spend
+    const whenMs = new Date(tx.when).getTime();
+    if (!Number.isFinite(whenMs) || whenMs < cutoffMs || whenMs > now.getTime()) continue;
+    spend += -tx.amount; // stored "negative = spend" → outflow magnitude
+  }
+  return spend / TRAILING_DAYS;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,15 +222,36 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // Live store reads (read-only — WhatIf writes nothing).
   const tightPointGoal = useAppStore((s) => s.tightPointGoal);
   const potsTotal = useAppStore((s) => s.pots.reduce((sum, p) => sum + p.saved, 0));
+  const transactions = useAppStore((s) => s.transactions);
 
   // The single piece of local state — the hypothetical spend. Clamp 0..500, step 5.
   const [amount, setAmount] = useState(AMOUNT_DEFAULT);
 
-  // @rn-engine money-path — baseLow is faked off the pressure band until the engine supplies the real
-  // current low; newLow = baseLow − amount, the dip shape and burn-rate derive from it.
-  const baseLow = pressureLow[pressure];
+  // Mount-gate (mirrors TodayScreen): defer `new Date()` so nothing date-derived renders on the first
+  // frame and the engine has an honest "today". Until it opens, baseLow falls back to the per-pressure
+  // sample so a normal open never flashes a different figure.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+
+  // @rn-engine money-path — the real lowest-to-payday baseline. The hook can't be called conditionally,
+  // so it always runs against `now ?? EPOCH`; before the mount-gate opens (`now === null`) the engine
+  // has no honest "today", so that transient result is discarded (`route = null`) and baseLow keeps the
+  // per-pressure sample for that single frame. Once open, baseLow = route.tightPoint.amount — the same
+  // curve Today reads. newLow = baseLow − amount.
+  const routeResult = useRoute(now ?? EPOCH);
+  const route = now ? routeResult : null;
+  const baseLow = route ? route.tightPoint.amount : pressureLow[pressure];
   const newLow = baseLow - amount;
-  const daysCover = Math.max(0, Math.round((newLow / DAYS_PER_CYCLE) * 10) / 10);
+
+  // Days this would last — newLow ÷ the real daily burn (trailing-28-day average spend from
+  // transactions, ENGINES §6). With no recent spend the burn is 0; fall back to the web's literal
+  // 28-£/day stand-in so the figure stays honest and the divide never blows up. Same rounding shape as
+  // the web (one decimal place, floored at 0).
+  const liveBurn = now ? trailingDailyBurn(transactions, now) : 0;
+  const burn = liveBurn > 0 ? liveBurn : BURN_FALLBACK;
+  const daysCover = Math.max(0, Math.round((newLow / burn) * 10) / 10);
 
   // count-up (380ms) drives the two stat-tile figures; reduce-motion snaps to the target. The centre
   // £{amount} uses the raw value (it is the input — instant, never animated).
@@ -198,7 +263,11 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // Honest signal: do you have enough across pots to absorb it? (Keep the >= direction.)
   const wouldEatPots = newLow < 0 && potsTotal >= Math.abs(newLow);
 
-  // path with shifted dip based on amount (web dipY = min(190, 130 + amount*0.55)).
+  // Mini money path — the illustrative envelope of the engine's route. `route.points` is the real
+  // today→payday curve (the same series Today plots); its minimum IS `route.tightPoint`, which this
+  // screen already consumes as `baseLow` above — so the mini path's lowest-point band sits on the real
+  // engine low. The pixel geometry is the FROZEN web shape (dipY = min(190, 130 + amount*0.55)): a fixed
+  // editorial stand-in whose dip depth tracks the hypothetical spend. Coordinates and copy unchanged.
   const dipY = Math.min(190, 130 + amount * 0.55);
   const d = `M 18 80 C 70 90, 110 70, 160 110 S 240 ${dipY}, 300 150 S 350 60, 372 50`;
 

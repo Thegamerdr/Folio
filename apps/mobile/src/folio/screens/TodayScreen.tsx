@@ -72,8 +72,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, setRouteFocusDate, sweepSubOverrides } from '@/folio/store';
-import { computeRoute, type DatedAmount } from '@/folio/lib/moneyPath';
-import { resolvePayday } from '@/folio/lib/payday';
+import { useRoute } from '@/folio/lib/storeRoute';
 import type { Nav, Pressure } from '@/folio/types';
 
 import { pressureLine, pressureLow, pressureMood } from './today/pressure';
@@ -93,32 +92,11 @@ const VB_H = 240;
 const SVG_RENDER_H = 200; // the web rendered the 400×240 viewBox into a 200px-tall box
 const ROUTE_DASH = 1200; // >= the actual path length so route-draw never clips
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-const DAY_MS = 86_400_000;
 
-// --- Local-calendar date helpers for the money-path engine -------------------------------------
-// The engine takes ISO "YYYY-MM-DD" strings and parses them as calendar days (UTC midnight). We
-// build those strings from the runtime's LOCAL date parts so "today" is the user's local day —
-// consistent with formatDayProse, which parses the same ISO at local midnight. Pure string math,
-// no timezone-offset surprises.
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
-}
-/** A Date → local-calendar ISO day "YYYY-MM-DD". */
-function toIsoDay(date: Date): string {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-/** A Date → local-calendar "YYYY-MM" (the month resolvePayday expects). */
-function toYearMonth(date: Date): string {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
-}
-/** A Date shifted by whole days (local clock), for dating sub renewals N days out. */
-function addDays(date: Date, n: number): Date {
-  return new Date(date.getTime() + n * DAY_MS);
-}
-/** A Date shifted by whole months, for rolling to next month's payday. */
-function addMonths(date: Date, n: number): Date {
-  return new Date(date.getFullYear(), date.getMonth() + n, date.getDate());
-}
+// A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be
+// called conditionally, so it runs against this until `now` is set; the result is discarded
+// (`route = null`) that frame. Module-level so its identity never churns the hook's memo.
+const EPOCH = new Date(0);
 
 type ScreenState = 'populated' | 'loading' | 'error' | 'offline';
 
@@ -142,13 +120,12 @@ export function TodayScreen({
   const mood = pressureMood[pressure];
   const line = pressureLine[pressure];
 
-  // Live store reads. Today's tightest mirrors the Route/Calendar exactly.
-  const subs = useAppStore((st) => st.subs);
-  const subPaused = useAppStore((st) => st.subPaused);
-  const subOverrides = useAppStore((st) => st.subOverrides);
+  // Live store reads. Today's tightest mirrors the Route/Calendar exactly — but the route inputs
+  // (subs/subPaused/subOverrides/transactions/income/balance/pots) are now read inside `useRoute`,
+  // the shared store→money-path bridge, so every screen computes the same curve. Only the slices
+  // this screen reads OUTSIDE the route stay here.
   const onboarding = useAppStore((st) => st.onboarding);
   const pots = useAppStore((st) => st.pots);
-  const transactions = useAppStore((st) => st.transactions);
   const routeFocusDate = useAppStore((st) => st.routeFocusDate);
   const currentBalance = useAppStore((st) => st.currentBalance);
 
@@ -164,66 +141,19 @@ export function TodayScreen({
 
   const isLoading = state === 'loading' || now === null;
 
-  // @rn-engine money-path — the lowest-point figure + its date now come from the real pure route
-  // engine (`computeRoute`, @/folio/lib/moneyPath) fed from the live store, with payday resolved by
-  // `resolvePayday` (@/folio/lib/payday). The path runs from today's balance through the next payday,
-  // sampled once per day; the tight point is the lowest projected balance and the day it lands on.
+  // @rn-engine money-path — the lowest-point figure + its date come from the real pure route engine
+  // via the shared `useRoute` bridge (@/folio/lib/storeRoute), which maps the live store onto
+  // `computeRoute` (with payday resolved by `resolvePayday`) exactly as this screen used to inline.
+  // The path runs from today's balance through the next payday, sampled once per day; the tight
+  // point is the lowest projected balance and the day it lands on.
   //
-  // Inputs are mapped from store rows onto the engine's dated-amount shape:
-  //   · subs (skipping paused, applying the same +override the Calendar uses) → outflows dated
-  //     `now + nextRenewalDaysAway` days,
-  //   · transactions → spend (the engine reads spend as outflow magnitude, so a stored negative
-  //     spend becomes a positive magnitude and a stored positive inflow becomes a refund-style
-  //     negative — both via a single sign flip),
-  //   · monthly income → an inflow on the resolved payday,
-  //   · pots.saved → the flat earmark that lowers the whole path (ENGINES.md §6 "Pots ↔ spendable").
-  //
-  // Before the mount-gate opens (`now === null`) the engine has no honest "today", so the screen
-  // keeps the per-pressure sample (pressureLow) for that single transient frame — exactly the
-  // pre-engine populated layout, so a normal open never flashes a different figure.
-  const route = useMemo(() => {
-    if (!now) return null;
-    const todayIso = toIsoDay(now);
-
-    // Resolve the next payday: this month's resolved payday if it's still ahead, else next month's.
-    const thisMonthPayday = resolvePayday({ dayOfMonth: onboarding.payday || 25 }, toYearMonth(now));
-    const paydayIso =
-      thisMonthPayday >= todayIso
-        ? thisMonthPayday
-        : resolvePayday({ dayOfMonth: onboarding.payday || 25 }, toYearMonth(addMonths(now, 1)));
-
-    // Sub renewals → dated outflows. Skip paused; apply the stored day-nudge (same as the Calendar).
-    const subEvents: DatedAmount[] = subs
-      .filter((s) => !subPaused[s.name])
-      .map((s) => ({
-        date: toIsoDay(addDays(now, s.nextRenewalDaysAway + (subOverrides[s.name] ?? 0))),
-        amount: s.cost,
-      }));
-
-    // Transactions → spend. Stored sign is "negative = spend, positive = inflow"; the engine reads
-    // spend as outflow magnitude, so flip the sign once.
-    const spendEvents: DatedAmount[] = transactions.map((tx) => ({
-      date: toIsoDay(new Date(tx.when)),
-      amount: -tx.amount,
-    }));
-
-    // Monthly income lands on payday.
-    const incomeEvents: DatedAmount[] =
-      onboarding.monthlyIncome > 0 ? [{ date: paydayIso, amount: onboarding.monthlyIncome }] : [];
-
-    return computeRoute({
-      now: todayIso,
-      payday: paydayIso,
-      balance: currentBalance.amount,
-      income: incomeEvents,
-      bills: [],
-      subs: subEvents,
-      spend: spendEvents,
-      holds: [],
-      pots: pots.map((p) => ({ saved: p.saved })),
-      openBorrows: 0,
-    });
-  }, [now, onboarding.payday, onboarding.monthlyIncome, subs, subPaused, subOverrides, transactions, currentBalance.amount, pots]);
+  // The hook can't be called conditionally, so it always runs against `now ?? EPOCH`; before the
+  // mount-gate opens (`now === null`) the engine has no honest "today", so we discard that transient
+  // result (`route = null`) and the screen keeps the per-pressure sample (pressureLow) for that
+  // single frame — exactly the pre-engine populated layout, so a normal open never flashes a
+  // different figure.
+  const routeResult = useRoute(now ?? EPOCH);
+  const route = now ? routeResult : null;
 
   // The lowest-point figure (hero number + summary "Lowest") and its date. Until the mount-gate
   // opens, fall back to the honest per-pressure sample with no live date — the pre-engine state.

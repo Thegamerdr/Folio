@@ -441,6 +441,36 @@ export function getState(): AppState {
   return state;
 }
 
+/** Serialize the current state to a JSON string for native persistence.
+ *  Pure + Node-safe — the native adapter (lib/persist.ts) writes the returned
+ *  string to disk. Excludes the two ephemeral cross-screen bridges
+ *  (`calendarFocusDate` / `routeFocusDate`): they are read-once UI hand-offs
+ *  that `load()` already resets to `null`, so persisting them would be noise.
+ *  Per ENGINES §7 store-migration / RN_PORT "Store migration". */
+export function getPersistBlob(): string {
+  const { calendarFocusDate: _f, routeFocusDate: _r, ...persistable } = state;
+  return JSON.stringify(persistable);
+}
+
+/** Hydrate the store from a persisted JSON blob (read off disk by the native
+ *  adapter). Runs the SAME path as `load()`: park the raw blob into
+ *  `persistedBlob`, then `setPartial` the loaded+migrated state so listeners
+ *  fire and the round-trip is identical to a first-run load. A malformed blob
+ *  is a safe no-op (matches `load()`'s catch). Pure + Node-safe. */
+export function hydrateFromBlob(raw: string): void {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return; // malformed blob — leave current state untouched.
+  }
+  if (parsed === null || typeof parsed !== 'object') return;
+  // Route through the persisted-blob slot so load() applies migrate() + the
+  // same field defaulting as a cold start, then publish via setPartial.
+  persistedBlob = parsed;
+  setPartial(load());
+}
+
 export function setPartial(patch: Partial<AppState>) {
   state = { ...state, ...patch };
   persist();
@@ -813,6 +843,14 @@ import { useSyncExternalStore } from 'react';
 function subscribe(cb: () => void) {
   listeners.add(cb);
   return () => listeners.delete(cb);
+}
+
+/** Public, non-React subscription to store changes — the same listener seam
+ *  `useAppStore` drives through `useSyncExternalStore`, exposed so the native
+ *  persistence adapter (lib/persist.ts) can debounce-write the blob on change
+ *  without mounting a hook. Returns an unsubscribe. Node-safe (no RN/expo). */
+export function subscribeStore(cb: () => void): () => void {
+  return subscribe(cb);
 }
 
 export function useAppStore<T>(selector: (s: AppState) => T): T {

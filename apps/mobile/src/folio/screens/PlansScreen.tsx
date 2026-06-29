@@ -1,9 +1,16 @@
 // @rn-engine money-path-bills — the dated bills/debt/renewal list + "set aside" total + next-payday
-//   marker (this screen's real data spine). Until the money-path/bills engine lands (BUILD_PLAN §;
-//   ENGINES §6) only the parts that can be derived honestly from the store render: subscription
-//   RENEWALS (from real subs + subPaused) become the upcoming list, and onboarding.payday anchors the
-//   next-payday marker. Standing bills + debt installments need a bills model the store does not yet
-//   carry, so their ROWS are designed-and-tagged here, not faked from the web demo's literals.
+//   marker (this screen's real data spine) now come from the REAL derived engines:
+//     • the dated list = `deriveCalendarEvents` (@/folio/lib/calendarEvents) "out" events (recurring
+//       bills + subscription renewals + pot top-ups — everything genuinely spoken for) that fall on
+//       or before the next payday, each turned into a dated row;
+//     • the "Set aside" total = the sum of those out-events' magnitudes;
+//     • the next-payday marker = the engine's resolved payday (the `payday` "in" event's date),
+//       which `deriveCalendarEvents` resolves through `resolvePayday` (Feb-31 clamp + weekend shift),
+//       the same date `routeFromStore`/`useRoute` give `daysToPayday` from.
+//   The shared store→money-path bridge `useRoute(now)` (@/folio/lib/storeRoute) ties this screen to
+//   the same curve every other surface reads. A debt installment is a real kind in the render, but
+//   the derivation engine carries no debt source yet, so no debt row is invented — bills/subs/pots
+//   are bills, and the `kind === 'debt'` branch lights up honestly once a debt model exists.
 //
 // PlansScreen — the faithful 1:1 React Native port of the web "What's coming before payday" screen
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPlans.tsx).
@@ -14,7 +21,8 @@
 //               between now and payday: upcoming renewals (and, once the engine lands, bills + a debt
 //               installment) shown as a dated list, with a "Set aside" total, a next-payday marker,
 //               two add CTAs (a bill / a debt), and a closing Melo line.
-// @reads        subs · subPaused · onboarding (read via useAppStore) — the doc-block @reads contract.
+// @reads        subs · subPaused · subOverrides · onboarding · pots · calendarEvents (via the shared
+//               `useRoute` bridge + `deriveCalendarEvents`) — the doc-block @reads contract.
 // @writes       — (navigation only: nav.back / nav.go('add-bill') / nav.go('add-debt'); tapping a row
 //               opens the route-detail sheet via nav.openSheet, honouring @opens-sheet).
 // @opens-sheet  route-detail
@@ -34,9 +42,12 @@
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit / store / sibling screens):
 //   • DATA IS REAL, NOT THE DEMO LITERALS. The web prototype hardcoded six upcoming items, a £959
 //     total, and a "25 Jul" payday. The spec's #1 fidelity risk is copying those literals. So the
-//     upcoming list is GENERATED from real subscription renewals due before the next payday (subs +
-//     subPaused via useAppStore), the total is summed from that real list, and the payday marker is
-//     derived from onboarding.payday. Paused subs are excluded (subPaused contract).
+//     upcoming list is GENERATED from the real derived timeline (`deriveCalendarEvents`): every "out"
+//     event (recurring bills + subscription renewals + pot top-ups) on or before the next payday
+//     becomes a dated row, the total is summed from that real list, and the payday marker is the
+//     engine-resolved payday (the derived `payday` event's date). Paused subs are excluded by the
+//     engine (subPaused contract); the same `now` feeds `useRoute`, so the list, the total, and
+//     `daysToPayday` all read one consistent curve.
 //   • MONEY IS REAL MONEY. formatGBP is the web's exact pure function (Intl en-GB, 0 fraction digits,
 //     U+2212 minus). It is reproduced locally — NOT the kit's money(), which uses a hyphen-minus — so
 //     the en-dash glyph and tabular alignment match the web byte-for-byte (spec fidelityRisk).
@@ -81,7 +92,9 @@ import Animated, {
 import { elevation, gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { useAppStore, type Sub } from '@/folio/store';
+import { useAppStore } from '@/folio/store';
+import { useRoute } from '@/folio/lib/storeRoute';
+import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -138,9 +151,10 @@ type Upcoming = {
   note: string;
 };
 
-// The render states this screen can occupy (spec stateBranches). The list is derived from local +
-// synchronous store data, so loading/error are defensive: loading shows Melo curious + a line (never a
-// spinner), error shows an inline retry, offline ≡ populated (local-first, no network language).
+// The render states this screen can occupy (spec stateBranches). The list is derived from the store +
+// the pure engines, so the only real transient is the one-frame mount-gate (before `now` is set),
+// which shows the loading branch: Melo curious + a line, never a spinner. Error shows an inline retry;
+// offline ≡ populated (local-first, no network language).
 export type PlansState = 'populated' | 'empty' | 'loading' | 'error' | 'offline';
 
 export type PlansScreenProps = {
@@ -156,54 +170,52 @@ const SLIDE_FROM_X = 28;
 const SLIDE_MS = 360;
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 
-const MS_PER_DAY = 86_400_000;
+// A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be called
+// conditionally, so it runs against this until `now` is set; the result is discarded (`route = null`)
+// that frame. Module-level so its identity never churns the hook's memo. Mirrors TodayScreen.
+const EPOCH = new Date(0);
+
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Days from "now" until the next payday (onboarding.payday is a day-of-month). Pure, derived from a
-// supplied `now` so the screen renders deterministically; mirrors the calendar engine's next-payday
-// intent without depending on it.
-function daysUntilNextPayday(payday: number, now: Date): number {
-  const day = Math.min(Math.max(Math.round(payday) || 25, 1), 28);
-  const candidate = new Date(now.getFullYear(), now.getMonth(), day);
-  if (candidate.getTime() <= now.getTime()) {
-    candidate.setMonth(candidate.getMonth() + 1);
-  }
-  return Math.max(0, Math.round((candidate.getTime() - now.getTime()) / MS_PER_DAY));
+// Parse a derived event's ISO day ("YYYY-MM-DD") into its split date parts ("12" / "Jul"). The
+// engine works in ISO/UTC; we read the calendar parts straight off the string so the displayed day
+// matches the engine's day exactly (no local-tz drift from re-parsing through a Date).
+function splitIsoDay(iso: string): { day: string; month: string } {
+  const [, m = '', d = ''] = iso.split('-');
+  const monthIdx = Number(m) - 1;
+  return { day: String(Number(d)), month: MONTH_SHORT[monthIdx] ?? '' };
 }
 
-// Build the upcoming list from REAL subscription renewals due on/before the next payday. Paused subs
-// are excluded (subPaused contract). Each surviving renewal becomes a dated bill row. Bills/debt rows
-// need the money-path/bills engine (tagged at file head); until then the honest forward-look is the
-// renewal set. Pure — takes the slice of state it reads + a `now`.
-function buildUpcoming(
-  subs: readonly Sub[],
-  subPaused: Record<string, boolean>,
-  paydayDelta: number,
-  now: Date,
-): Upcoming[] {
-  return subs
-    .filter((s) => !subPaused[s.name])
-    .filter((s) => s.nextRenewalDaysAway >= 0 && s.nextRenewalDaysAway <= paydayDelta)
-    .slice()
-    .sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)
-    .map((s) => {
-      const when = new Date(now.getTime() + s.nextRenewalDaysAway * MS_PER_DAY);
+// Build the upcoming list from the REAL derived timeline. Every "out" event the calendar engine
+// derives (recurring bills + subscription renewals + pot top-ups — money genuinely spoken for) that
+// lands on or before the next payday becomes a dated row, in the engine's date order. Paused subs are
+// already excluded by `deriveCalendarEvents` (subPaused contract). The engine carries no debt source
+// yet, so every row is a `bill`; the render's `debt` branch stays intact for when one lands. Pure —
+// takes the derived events + the resolved payday ISO.
+function buildUpcoming(events: readonly DerivedEvent[], paydayIso: string | null): Upcoming[] {
+  return events
+    .filter((e) => e.kind === 'out' && typeof e.amount === 'number')
+    .filter((e) => paydayIso === null || e.date <= paydayIso)
+    .map((e) => {
+      const { day, month } = splitIsoDay(e.date);
       return {
-        id: s.name,
-        day: String(when.getDate()),
-        month: MONTH_SHORT[when.getMonth()] ?? '',
-        name: s.name,
-        amount: Math.round(s.cost),
+        id: e.id,
+        day,
+        month,
+        name: e.title,
+        amount: Math.round(Math.abs(e.amount ?? 0)),
         kind: 'bill' as const,
-        note: 'monthly',
+        note: e.note ?? (e.recurring === 'monthly' ? 'monthly' : ''),
       };
     });
 }
 
-// The next-payday marker label — "Payday · 25 Jul" (web literal shape), derived from onboarding.payday.
-function paydayLabel(paydayDelta: number, now: Date): string {
-  const when = new Date(now.getTime() + paydayDelta * MS_PER_DAY);
-  return `Payday · ${when.getDate()} ${MONTH_SHORT[when.getMonth()] ?? ''}`;
+// The next-payday marker label — "Payday · 25 Jul" (web literal shape), from the engine-resolved
+// payday ISO (the derived `payday` event's date, already clamped + weekend-shifted by `resolvePayday`).
+function paydayLabel(paydayIso: string | null): string {
+  if (paydayIso === null) return 'Payday';
+  const { day, month } = splitIsoDay(paydayIso);
+  return `Payday · ${day} ${month}`;
 }
 
 // Local reduce-motion read, mirroring PotsScreen / ReviewScreen / Melo: read once, then subscribe.
@@ -228,25 +240,65 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  // Real store reads — the doc-block @reads contract (subs · subPaused · onboarding for the payday).
+  // Real store reads — the slices the derived timeline depends on (subs · subPaused · subOverrides ·
+  // onboarding · pots · manual calendarEvents). The route's own inputs are read inside `useRoute`.
   const subs = useAppStore((st) => st.subs);
   const subPaused = useAppStore((st) => st.subPaused);
+  const subOverrides = useAppStore((st) => st.subOverrides);
   const onboarding = useAppStore((st) => st.onboarding);
+  const pots = useAppStore((st) => st.pots);
+  const calendarEvents = useAppStore((st) => st.calendarEvents);
 
-  // A single "now" per mount keeps the dates stable across re-renders within a session.
-  const now = useMemo(() => new Date(), []);
-  const paydayDelta = useMemo(
-    () => daysUntilNextPayday(onboarding.payday, now),
-    [onboarding.payday, now],
+  // Mount-gate the clock (mirrors TodayScreen): defer `new Date()` to an effect so nothing reads the
+  // wall clock during the first render. Until it opens, the screen holds the loading branch.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+
+  // The shared store→money-path bridge — same curve every surface reads. The hook can't be called
+  // conditionally, so it always runs against `now ?? EPOCH`; before the mount-gate opens we discard
+  // that transient result (`route = null`). `daysToPayday` (and the resolved payday it implies) come
+  // from here; the dated list + the marker date come from `deriveCalendarEvents`, which resolves the
+  // SAME payday through `resolvePayday` (and the same `now`), so the two never disagree.
+  const routeResult = useRoute(now ?? EPOCH);
+  const route = now ? routeResult : null;
+
+  // The real derived timeline — bills + sub renewals + pot top-ups, payday, deadlines, reviews. We
+  // read its "out" events (money spoken for) and its `payday` event (the next-payday marker date).
+  const events = useMemo<DerivedEvent[]>(
+    () =>
+      now
+        ? deriveCalendarEvents({
+            subs,
+            subPaused,
+            subOverrides,
+            onboarding,
+            manualEvents: calendarEvents,
+            pots,
+            now,
+          })
+        : [],
+    [now, subs, subPaused, subOverrides, onboarding, calendarEvents, pots],
   );
-  const upcoming = useMemo(
-    () => buildUpcoming(subs, subPaused, paydayDelta, now),
-    [subs, subPaused, paydayDelta, now],
+
+  // The engine-resolved next payday — the first derived `payday` event's ISO date. `deriveCalendarEvents`
+  // resolves it through the SAME `resolvePayday` (Feb-31 clamp + weekend shift) that `routeFromStore`
+  // uses for the curve, off the SAME `now`, so this date is exactly `now + route.daysToPayday`. We
+  // take the engine's ISO directly (no local→UTC reconstruction, which would drift), and only trust it
+  // once the route has computed (the mount-gate is open and a real curve exists). Drives the marker
+  // and bounds the upcoming list, so the list, the total, and the marker stay tied to Today's curve.
+  const paydayIso = useMemo(
+    () => (route ? events.find((e) => e.source === 'payday')?.date ?? null : null),
+    [route, events],
   );
+
+  const upcoming = useMemo(() => buildUpcoming(events, paydayIso), [events, paydayIso]);
   const total = useMemo(() => upcoming.reduce((sum, u) => sum + u.amount, 0), [upcoming]);
-  const payday = useMemo(() => paydayLabel(paydayDelta, now), [paydayDelta, now]);
+  const payday = useMemo(() => paydayLabel(paydayIso), [paydayIso]);
 
-  const resolvedState: PlansState = state ?? (upcoming.length === 0 ? 'empty' : 'populated');
+  const resolvedState: PlansState =
+    state ?? (now === null ? 'loading' : upcoming.length === 0 ? 'empty' : 'populated');
 
   // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);

@@ -29,12 +29,16 @@
 //               aliases 'soft'/'alert' are dropped per RN_PORT + the kit): safe / calm / soft → calm,
 //               pressured / overspent → concern. concern is never alarming (no red / no shake).
 //
-// @rn-engine money-path — the tapped point (which day, its real "left after this" balance, the bills
-//   and pots landing on/near it) is supplied by the money-path / route-curve engine, NOT yet built
-//   (ENGINES §6). When no `point` is passed this renders the design state with the web placeholder
-//   event so the sheet reads faithfully; the live engine will pass real per-point data via `point`.
-//   The "Left after this" figure likewise comes from the per-point balance the engine computes; until
-//   then it falls back to the synthetic pressure curve the web used (pressureLow[pressure]).
+// @rn-engine money-path — WIRED. The tapped point (which day, its real "left after this" balance, the
+//   bills landing on it) now comes from the real route. `useRoute(now)` (the shared store→money-path
+//   bridge, @/folio/lib/storeRoute) computes the curve once per day today→payday; the tapped ISO is
+//   located in `route.points`, and that sample's `y` IS the "Left after this" balance (no synthetic
+//   pressureLow). The day's bills are derived from the SAME store slices the route consumes (subs
+//   renewing that ISO + transactions landing that ISO), using the exact date math routeFromStore uses,
+//   so the list never drifts from the curve. Pressure (and therefore the Melo mood) is DERIVED from
+//   that balance via the band thresholds, instead of being taken as a fixed prop. The `point` prop
+//   still overrides everything when an explicit RoutePoint is passed (and `pressure` still seeds the
+//   mount-gate frame + the no-tapped-date fallback), so callers that supply a point stay faithful.
 //
 // Faithful 1:1 RN port. The web source renders ONE happy-path branch (populated) plus the activePots
 // conditional. STATES.md covers SCREENS, not sheets, but the spec asks every state to be addressed:
@@ -60,7 +64,14 @@ import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-nati
 import Svg, { Path } from 'react-native-svg';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { setCalendarFocusDate, useAppStore, type Pot, type PotCadence } from '@/folio/store';
+import {
+  setCalendarFocusDate,
+  useAppStore,
+  type AppState,
+  type Pot,
+  type PotCadence,
+} from '@/folio/store';
+import { useRoute } from '@/folio/lib/storeRoute';
 import { type Nav, type Pressure } from '@/folio/types';
 import { Melo, type MeloMood } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
@@ -70,10 +81,12 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 // ---------------------------------------------------------------------------
 // Pressure tables — verbatim from the web source (components/folio/types.ts).
 //
-// `pressureLow` is the synthetic demo curve the web used for "Left after this" until the real
-// per-point balance exists (@rn-engine money-path). `pressureMood` maps a pressure to the CANONICAL
-// Melo mood (the web's 'soft'/'alert' aliases are dropped — pressured/overspent → concern), per the
-// spec's @moods rule.
+// `pressureLow` is the per-band low-point figure. It now serves two roles: (1) the pre-engine
+// fallback for "Left after this" on the single mount-gate frame / when there's no real route yet,
+// and (2) the BAND THRESHOLDS used to derive a `Pressure` from the real "left after this" balance
+// (each entry is that band's representative low point, safest→tightest). `pressureMood` maps a
+// pressure to the CANONICAL Melo mood (the web's 'soft'/'alert' aliases are dropped —
+// pressured/overspent → concern), per the spec's @moods rule.
 // ---------------------------------------------------------------------------
 
 const pressureLow: Record<Pressure, number> = {
@@ -83,6 +96,21 @@ const pressureLow: Record<Pressure, number> = {
   pressured: 42,
   overspent: -86,
 };
+
+// Band order, safest → tightest. A real "left after this" balance is bucketed by the pressureLow
+// boundaries above: at/above a band's figure (and below the next-safer one) puts you in that band.
+// This keeps the mood honest to the real curve without inventing a new threshold token.
+const PRESSURE_BANDS: readonly Pressure[] = ['safe', 'calm', 'soft', 'pressured', 'overspent'];
+
+/** Derive the route pressure band from a real "left after this" balance, using the `pressureLow`
+ *  figures as band floors (safest band whose floor the balance still clears wins). A balance below
+ *  every floor falls through to the tightest band ('overspent'). */
+function pressureForBalance(balance: number): Pressure {
+  for (const band of PRESSURE_BANDS) {
+    if (balance >= pressureLow[band]) return band;
+  }
+  return 'overspent';
+}
 
 // Pressure → canonical Melo mood. safe / calm / soft sit calm; pressured / overspent move to concern
 // (breathe-slow + worry-bead, never red / shake). No 'soft'/'alert' aliases reach RN.
@@ -99,8 +127,10 @@ const pressureMood: Record<Pressure, MeloMood> = {
 const MELO_LINE = 'The lowest balance comes just after the bills go out.';
 
 // The Octopus / Council Tax / Rent / BT Broadband placeholder event the web hardcoded, with the
-// '1 Jul' label and ROUTE_POINT_ISO. Kept as the @rn-engine fallback so the sheet reads faithfully
-// when no real `point` is passed; the live engine supplies a real RoutePoint via the `point` prop.
+// '1 Jul' label and ROUTE_POINT_ISO. Now only the absolute last-resort fallback for the single
+// mount-gate frame before the engine has an honest "today" (and for a caller that opens the sheet
+// with neither a `point` nor a resolvable route). On a normal open the real route supplies the
+// tapped point via `routePointFor` below.
 const PLACEHOLDER_POINT: RoutePoint = {
   iso: '2026-07-01',
   dateLabel: '1 Jul',
@@ -111,6 +141,60 @@ const PLACEHOLDER_POINT: RoutePoint = {
     { name: 'BT Broadband', date: '3 Jul', amount: 38.0 },
   ],
 };
+
+// ---------------------------------------------------------------------------
+// Store → tapped-point derivation. The money-path engine returns one `{ date, y }` sample per day
+// (it carries no per-day event breakdown), so the sheet pairs the route's per-day BALANCE with the
+// per-day EVENTS read straight from the store — using the EXACT date math `routeFromStore` uses to
+// place those events on the curve, so the list and the "Left after this" figure never disagree.
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 86_400_000;
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+/** A Date → local-calendar ISO day "YYYY-MM-DD" (same local-parts convention as storeRoute). */
+function toIsoDay(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+/** A Date shifted by whole days on the local clock (mirrors storeRoute's `addDays`). */
+function addDays(date: Date, n: number): Date {
+  return new Date(date.getTime() + n * DAY_MS);
+}
+
+/** An ISO "YYYY-MM-DD" → the short "1 Jul" label the eyebrow + rows use. Parsed at local midnight to
+ *  match the rest of the surface (no timezone-offset day slip). */
+function shortLabel(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  const date = new Date(y, m - 1, d);
+  return `${date.getDate()} ${SHORT_MONTHS[date.getMonth()] ?? ''}`.trim();
+}
+
+/** The bills landing on `iso` — active (non-paused) subs whose nudged renewal falls on that day, plus
+ *  any logged spend dated that day. Sign + filters mirror `routeFromStore` exactly: paused subs are
+ *  skipped, the stored day-nudge (`subOverrides`) is applied, and a transaction is a bill only when it
+ *  is spend (stored `amount < 0`, surfaced as a positive magnitude). Income/refunds are not bills. */
+function billsForIso(state: AppState, now: Date, iso: string): RouteBill[] {
+  const subBills: RouteBill[] = state.subs
+    .filter((s) => !state.subPaused[s.name])
+    .map((s) => {
+      const when = addDays(now, s.nextRenewalDaysAway + (state.subOverrides[s.name] ?? 0));
+      return { name: s.name, date: toIsoDay(when), amount: s.cost };
+    })
+    .filter((b) => b.date === iso)
+    .map((b) => ({ name: b.name, date: shortLabel(b.date), amount: b.amount }));
+
+  const spendBills: RouteBill[] = state.transactions
+    .filter((tx) => tx.amount < 0 && toIsoDay(new Date(tx.when)) === iso)
+    .map((tx) => ({ name: tx.merchant, date: shortLabel(iso), amount: -tx.amount }));
+
+  return [...subBills, ...spendBills];
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -141,12 +225,15 @@ export type RouteDetailSheetProps = {
   onClose: () => void;
   /** The shell's nav — `nav.go('calendar')` bridges to the Calendar after the sheet closes. */
   nav: Nav;
-  /** The tapped point. Absent until the money-path engine wires it (@rn-engine money-path) — falls
-   *  back to the web placeholder event so the populated branch still renders. */
+  /** The tapped point. When supplied (a caller that already knows which day was tapped) it wins; its
+   *  "Left after this" balance is read from the real route sample at `point.iso`. When omitted, the
+   *  sheet anchors on the real route's tight point (the lowest-balance day) and derives the day's
+   *  bills from the store — so the populated branch is live, not a placeholder. */
   point?: RoutePoint | undefined;
-  /** The route pressure — drives the "Left after this" figure (synthetic until @rn-engine) and the
-   *  Melo mood. The web read this off `nav.pressure`; RN's Nav has no pressure, so the shell threads
-   *  it as a prop (defaults to calm, matching the shell's neutral default). */
+  /** Seed pressure for the single mount-gate frame + the no-route fallback. On a normal open the
+   *  band is DERIVED from the real "Left after this" balance (and that derived band drives the Melo
+   *  mood); this prop only colours the pre-engine frame. The web read this off `nav.pressure`; RN's
+   *  Nav has no pressure, so the shell threads it as a prop (defaults to calm). */
   pressure?: Pressure | undefined;
   /** When true, render the quiet loading state (Melo curious + the line) instead of the point. Never
    *  a spinner. Defaults to false — the local read is synchronous, so this is only for a future
@@ -276,6 +363,12 @@ export function RouteDetailSheet({
 // Body — picks the state branch (loading → empty → populated).
 // ---------------------------------------------------------------------------
 
+// A stable sentinel "now" for the single render before the mount-gate opens. `useRoute` can't be
+// called conditionally, so it runs against this until `now` is set; that frame's route is discarded
+// (`route = null`) and the sheet keeps the per-pressure sample. Module-level so its identity never
+// churns the hook's memo. Mirrors TodayScreen's mount-gate pattern.
+const EPOCH = new Date(0);
+
 function RouteDetailBody({
   styles: s,
   palette: t,
@@ -293,13 +386,59 @@ function RouteDetailBody({
   pressure: Pressure;
   loading: boolean;
 }) {
+  // --- Hooks first (rules-of-hooks): all unconditional, before any state-branch early return. ---
+
   // Active pots = those that contribute (perWeek > 0), matching the web predicate. The spec flags
   // that with the real cadence model perWeek may be 0 for non-weekly pots; that is the money-path
-  // engine's call (@rn-engine), so the read-only sheet keeps the web predicate to stay faithful.
+  // engine's call, so the read-only sheet keeps the web predicate to stay faithful.
   const pots = useAppStore((store) => store.pots);
   const activePots = useMemo(() => pots.filter((p) => p.perWeek > 0), [pots]);
 
-  const resolvedPoint = point ?? PLACEHOLDER_POINT;
+  // The full state — read once so the per-day bills derive from the SAME slices the route consumes.
+  const state = useAppStore((store) => store);
+
+  // Mount-gate: defer `new Date()` so the route has an honest "today" and the first frame doesn't read
+  // the clock during render (mirrors TodayScreen). Until it opens, the route is discarded.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+
+  // @rn-engine money-path — the real curve. `useRoute` maps the live store onto `computeRoute`; it
+  // can't be called conditionally, so it always runs against `now ?? EPOCH` and we discard the
+  // pre-mount frame. The tapped point's day → its `{ date, y }` sample lives in `route.points`.
+  const routeResult = useRoute(now ?? EPOCH);
+  const route = now ? routeResult : null;
+
+  // Resolve the tapped point + its real "left after this" balance + the band derived from it.
+  //   • An explicit `point` prop always wins (engine/caller-supplied) — faithful for those callers.
+  //     Its balance comes from the route sample at that ISO when available, else the pressure sample.
+  //   • With no `point`, anchor on the route's real tight point (the lowest-balance day this sheet is
+  //     about); the day's bills come from the store at that ISO. Its `y` IS "left after this".
+  //   • Before the mount-gate opens (no route), fall back to the web placeholder + pressureLow sample
+  //     for that one frame, so a normal open never flashes a different figure.
+  const resolved = useMemo(() => {
+    const sampleAt = (iso: string): number | undefined => route?.points.find((p) => p.date === iso)?.y;
+
+    if (point) {
+      const balance = sampleAt(point.iso) ?? pressureLow[pressure];
+      return { point, leftAfter: balance, band: pressureForBalance(balance) };
+    }
+    if (route && now) {
+      const iso = route.tightPoint.date;
+      const balance = sampleAt(iso) ?? route.tightPoint.amount;
+      const derivedPoint: RoutePoint = {
+        iso,
+        dateLabel: shortLabel(iso),
+        bills: billsForIso(state, now, iso),
+      };
+      return { point: derivedPoint, leftAfter: balance, band: pressureForBalance(balance) };
+    }
+    // Pre-engine frame.
+    return { point: PLACEHOLDER_POINT, leftAfter: pressureLow[pressure], band: pressure };
+  }, [point, route, now, state, pressure]);
+
+  // --- State branches (after all hooks). ---
 
   // LOADING — Melo curious + the quiet line, never a spinner.
   if (loading) {
@@ -312,7 +451,7 @@ function RouteDetailBody({
   }
 
   // EMPTY — a point with no bills AND no active pots. A calm doorway, not an error (Empty ≠ broken).
-  if (resolvedPoint.bills.length === 0 && activePots.length === 0) {
+  if (resolved.point.bills.length === 0 && activePots.length === 0) {
     return (
       <EmptyState
         mood="calm"
@@ -328,8 +467,9 @@ function RouteDetailBody({
       palette={t}
       onClose={onClose}
       nav={nav}
-      point={resolvedPoint}
-      pressure={pressure}
+      point={resolved.point}
+      leftAfter={resolved.leftAfter}
+      pressure={resolved.band}
       activePots={activePots}
     />
   );
@@ -345,6 +485,7 @@ function PopulatedDetail({
   onClose,
   nav,
   point,
+  leftAfter,
   pressure,
   activePots,
 }: {
@@ -353,6 +494,9 @@ function PopulatedDetail({
   onClose: () => void;
   nav: Nav;
   point: RoutePoint;
+  /** The real "left after this" balance — the route sample's `y` at the tapped day. */
+  leftAfter: number;
+  /** The band DERIVED from `leftAfter` (drives the Melo mood). */
   pressure: Pressure;
   activePots: Pot[];
 }) {
@@ -396,7 +540,7 @@ function PopulatedDetail({
         <View style={s.summaryRow}>
           <View>
             <Text style={s.label}>Left after this</Text>
-            <Money value={formatGBP(pressureLow[pressure])} size="lg" palette={t} />
+            <Money value={formatGBP(leftAfter)} size="lg" palette={t} />
           </View>
           <View style={s.summaryRight}>
             <Text style={s.label}>Bills counted</Text>

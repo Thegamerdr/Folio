@@ -10,12 +10,16 @@
 //               change with her. This port reproduces what the web JSX actually renders, not the
 //               doc-block's chat/snapshot/applyMeloTool promises (see SPEC fidelityRisks: the rendered
 //               component does none of those — they are the melo-chat SHEET's concern, not this screen).
-// @reads        the active Pressure band (web read it off `nav.pressure`; the RN Nav contract carries
-//               no pressure, so the shell threads a `pressure` prop and this screen holds the picker's
-//               local selection on top of it — mirrors TodayScreen / PotsScreen / WhatIfScreen).
-// @writes       the active band is LOCAL component state (the web `nav.setPressure(p)` was a local nav
-//               flip with no store/engine behind it). No store mutator is wired — faithful to the web,
-//               whose ~20 store-action imports + meloHero/waxSeal assets are DEAD on this screen.
+// @reads        the live money-path route (via the shared `routeFromStore` bridge over the store
+//               snapshot — the SAME curve Today / WhatIf read) to choose the band Melo OPENS in, and
+//               the active Pressure band thereafter (web read it off `nav.pressure`; the RN Nav
+//               contract carries no pressure, so the shell threads a `pressure` prop as the pre-mount
+//               fallback and this screen holds the picker's local selection on top of it — mirrors
+//               TodayScreen / PotsScreen / WhatIfScreen).
+// @writes       — NONE. The active band is LOCAL component state (the web `nav.setPressure(p)` was a
+//               local nav flip with no store behind it); reading the route is pure and never mutates
+//               the store. No store mutator is wired — faithful to the web, whose ~20 store-action
+//               imports + meloHero/waxSeal assets are DEAD on this screen.
 // @opens-sheet  — (none; the rendered web component opens no sheet. The full chat lives in melo-chat.)
 // @copy         FROZEN. The hero line + row lines are VERBATIM from the design's pressureLine map
 //               (reconciled into ./today/pressure); the kicker / headline / footer hint are the web's
@@ -44,9 +48,13 @@
 //     so the data is never mutated.
 //   • Lines: rendered with the literal straight double-quotes the web wraps them in (typographic voice,
 //     part of the string — not a decoration). The em dash inside pressured/overspent is preserved.
-//   • The pressure band is local state. Flipping it is the only "write" the web performed; here it is a
-//     local selection (no engine), tagged @rn-engine money-path since the copy ("your money path shifts
-//     with her") implies a path re-draw this screen does not own.
+//   • The pressure band is local state, but its OPENING value is now @rn-engine money-path WIRED: the
+//     band Melo first poses in is read from the real route's tightest point (route.tightPoint.amount)
+//     through the shared `routeFromStore` bridge, mapped onto the canonical bands by the same
+//     per-band floors the rest of the app uses (pressureLow, safest→tightest) — so the copy ("your
+//     money path shifts with her") is honest. Flipping the picker is still a purely local selection
+//     (mirrors the web's `nav.setPressure`), and a deliberate flip is never overridden by a later
+//     engine update (tracked by `touched`). Reading the route is pure — the store is never mutated.
 //   • slide-in-r: translateX 28→0 + fade over 360ms ease-out-expo, gated to final state under
 //     reduce-motion (resolved layout, never a slower animation) — mirrors Melo's own gating.
 //   • STATES: the SPEC declares this screen populated-only (offline ≡ populated; empty/loading/error
@@ -57,7 +65,7 @@
 // HONEST CLAIMS: this screen asserts no privacy/security property. No banned product vocabulary appears
 // in any visible string. Tokens only; tap targets are >=44px (full-width rows) or carry hitSlop.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Pressable,
@@ -79,9 +87,11 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { useAppStore } from '@/folio/store';
+import { routeFromStore } from '@/folio/lib/storeRoute';
 import type { Nav, Pressure } from '@/folio/types';
 
-import { pressureLine, pressureMood } from './today/pressure';
+import { pressureLine, pressureLow, pressureMood } from './today/pressure';
 
 // The render states this screen can occupy. Per the SPEC, MeloScreen is populated-only and offline is
 // identical to populated (local-first, no network); loading/empty/error are n/a for a pure playground
@@ -113,6 +123,19 @@ const SLIDE_MS = 360;
 const HERO_MELO_SIZE = 120;
 const ROW_MELO_SIZE = 28;
 
+// The route → pressure band ladder. The active band Melo opens in is read from the real lowest point
+// of the money path (route.tightPoint.amount) via the SAME per-band floors the rest of the app uses
+// (pressureLow, from ./today/pressure) — scanned safest → tightest, so the first floor the tight
+// point clears wins. This is the codebase's documented convention (the money-pressure ladder is read
+// from the tightest point, safest→tightest, monotonic). Pure and deterministic.
+function bandFromTightPoint(tight: number): Pressure {
+  if (tight >= pressureLow.safe) return 'safe';
+  if (tight >= pressureLow.calm) return 'calm';
+  if (tight >= pressureLow.soft) return 'soft';
+  if (tight >= pressureLow.pressured) return 'pressured';
+  return 'overspent';
+}
+
 // Local reduce-motion read, mirroring Melo.tsx / StartScreen exactly: read once, then subscribe.
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
@@ -135,11 +158,46 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
+  // @rn-engine money-path — WIRED. The band Melo opens in is the REAL one her money path implies,
+  // not a static design-state seed. We read the whole store snapshot (its `useSyncExternalStore`
+  // identity is stable between writes) and run the shared store→money-path bridge `routeFromStore`
+  // (which maps the live store onto the pure `computeRoute`, payday resolved by `resolvePayday`) — the
+  // SAME curve Today and WhatIf read, so "your money path shifts with her" is honest: the path's
+  // tightest point selects her opening pressure band. `routeFromStore` is pure and never mutates the
+  // store (any what-if would re-route a spread COPY of the snapshot, never the live singleton).
+  const storeState = useAppStore((s) => s);
+
+  // Mount-gate the clock (mirrors TodayScreen / WhatIfScreen): defer `new Date()` so nothing
+  // date-derived renders on the first frame and the engine has an honest "today". `routeFromStore` is
+  // pure, so unlike the `useRoute` hook it can be called conditionally — before the gate opens
+  // (`now === null`) we skip it (`route = null`) and the band stays the threaded prop for that single
+  // frame, the same mount-gate convention, so a normal open never flashes a different band.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+  const route: ReturnType<typeof routeFromStore> | null = now
+    ? routeFromStore(storeState, now)
+    : null;
+
   // The active band. Web held this on `nav.pressure` and flipped it with `nav.setPressure`; the RN Nav
-  // carries no pressure, so the picker's selection is local state seeded from the threaded prop.
-  // @rn-engine money-path — the copy ("your money path shifts with her") implies a path re-draw this
-  // playground screen does not own; here flipping the band only re-poses Melo + swaps her line.
+  // carries no pressure, so the picker's selection is local state seeded from the threaded prop. Once
+  // the route resolves it adopts the route-derived band — UNLESS the user has already flipped the
+  // picker, which `touched` records so an engine update never overrides a deliberate selection.
   const [active, setActive] = useState<Pressure>(pressure);
+  const touched = useRef(false);
+  const selectBand = (p: Pressure) => {
+    touched.current = true;
+    setActive(p);
+  };
+  // Adopt the route-derived band when (and only when) the tight point changes — keyed on the scalar
+  // amount, not the route object (which `routeFromStore` rebuilds each render), so this only fires on
+  // a real change. A user flip sets `touched`, after which the engine never overrides the selection.
+  const routeTight = route ? route.tightPoint.amount : null;
+  useEffect(() => {
+    if (touched.current || routeTight === null) return;
+    setActive(bandFromTightPoint(routeTight));
+  }, [routeTight]);
 
   // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
   // resolve straight to the final state instead of animating.
@@ -254,7 +312,7 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
                 accessibilityRole="button"
                 accessibilityState={{ selected: isActive }}
                 key={p}
-                onPress={() => setActive(p)}
+                onPress={() => selectBand(p)}
                 style={({ pressed: isPressed }) => [
                   styles.row,
                   {

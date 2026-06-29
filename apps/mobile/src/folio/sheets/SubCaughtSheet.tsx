@@ -1,8 +1,10 @@
-// @rn-engine sub-detector — the recurring-charge detector that supplies this candidate is wired
-//   later (see RN_PORT.md "Subscription detector" + BUILD_PLAN §3). Until it exists, the sheet
-//   renders against a synthetic candidate (the web prototype's hardcoded one), so the layout, copy,
-//   states and Melo mood can be verified now. When the engine lands, pass `candidate` (or read a
-//   `pendingSubCandidate` slice) instead — the render branches below already cover the null case.
+// @rn-engine sub-detector — WIRED. The recurring-charge detector now supplies this candidate: when
+//   the shell mounts the sheet with no explicit `candidate`, it reads the first REAL caught candidate
+//   from `useCaughtSubs()` (lib/caughtSubs → lib/subSignals `detectRecurring` over the live ledger,
+//   filtered to merchants not already in the subs catalog). The synthetic candidate now stands in
+//   ONLY when nothing real is detected, so the populated branch still renders for verification. The
+//   candidate carries payment facts ONLY (name / amount / seen / last-charged) — never usage/value/
+//   cancel. An explicit `candidate={null}` still selects the empty branch.
 //
 // SubCaughtSheet — the faithful 1:1 React Native port of the web "subscription spotted" sheet
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetSubCaught.tsx).
@@ -11,7 +13,8 @@
 // @purpose      Folio spotted a likely recurring charge. Confirm to add it as a subscription, or
 //               dismiss this one. Hedged language throughout — "Looks like", never "is".
 // @reads        subs (REAL — to skip a duplicate add + keep the empty branch honest); candidate is
-//               synthetic until the detector engine exists (see @rn-engine above).
+//               the first REAL caught sub from useCaughtSubs() (detector over the live ledger), and
+//               falls back to the synthetic only when none is detected (see @rn-engine above).
 // @writes       setSubs (REAL — the confirmed candidate is appended to the subscriptions list before
 //               the sheet closes); removeSub is NOT called here. "Not this one" writes nothing.
 // @copy         FROZEN — never claims certainty. subs.caught.head / subs.caught.body verbatim from
@@ -46,6 +49,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { setSubs, useAppStore, type Sub } from '@/folio/store';
+import { useCaughtSubs } from '@/folio/lib/caughtSubs';
 
 // ---------------------------------------------------------------------------
 // Candidate — the recurring charge the detector flags.
@@ -62,8 +66,9 @@ export type SubCandidate = {
   category: string;
 };
 
-// The web prototype's synthetic candidate, verbatim. Replaced by the detector engine's output once
-// it exists (@rn-engine sub-detector). Kept here so the populated branch renders honestly today.
+// The web prototype's synthetic candidate, verbatim. The detector engine (useCaughtSubs) now drives
+// the real candidate; this stands in ONLY when the ledger has nothing to catch, so the populated
+// branch still renders for verification (@rn-engine sub-detector).
 const SYNTHETIC_CANDIDATE: SubCandidate = {
   name: 'Sound+ Studio',
   amount: 6.99,
@@ -118,10 +123,17 @@ export function SubCaughtSheet({ visible, onClose, candidate }: SubCaughtSheetPr
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReduceMotion();
 
-  // `candidate === null` is an explicit "nothing flagged" (empty branch). `undefined` (the default,
-  // pre-engine) falls back to the synthetic candidate so the populated branch renders today.
+  // Real detector output over the live ledger (payment facts only — name / amount / seen /
+  // last-charged). The shape matches SubCandidate, so the first real catch drops straight in.
+  const caught = useCaughtSubs();
+
+  // Resolution order:
+  //   • explicit `candidate` prop (including `null` → empty branch) always wins;
+  //   • otherwise the FIRST real caught candidate from the detector;
+  //   • otherwise the synthetic stand-in, so the populated branch still renders when the ledger
+  //     has nothing to catch (verification + honest empty-data fallback).
   const resolved: SubCandidate | null =
-    candidate === undefined ? SYNTHETIC_CANDIDATE : candidate;
+    candidate === undefined ? (caught[0] ?? SYNTHETIC_CANDIDATE) : candidate;
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>

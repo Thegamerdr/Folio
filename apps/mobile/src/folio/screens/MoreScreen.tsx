@@ -95,17 +95,12 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { fastForwardMonth, resetAll } from '@/folio/store';
-import { runExport } from '@/folio/lib/exportNative';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
-// @rn-engine export (real PURE engine: '@/folio/lib/export' buildExport, via '@/folio/lib/exportNative')
-// The web "Data & privacy" row's hint is "what's saved, what to export". On this hub that row now
-// FIRES the export directly: runExport() reads live state, builds the full bundle from the pure
-// buildExport() engine (one loss-free JSON of the complete AppState + per-surface CSVs), writes the
-// files to the document directory, and opens the OS share sheet. Export is free and never paywalled —
-// no gate in the engine or the wrapper. The label, hint, layout, and tone are unchanged; only the
-// row's action moves from a stub navigation to the real engine call (the closing line already says
-// "Tap export any time").
+// Routing: the web "Data & privacy" row navigates to the Privacy screen (web `to: "privacy"`), where
+// the export action lives (the Privacy "Export my data" CTA). This RN row is faithful to that — it
+// carries `to: 'privacy'` and navigates via nav.go('privacy'), so export is reached FROM Privacy, not
+// fired from this hub. The label, hint, layout, and tone are the web literals.
 
 // The render states this screen can occupy. Per the spec, More is populated-only and offline is
 // identical to populated (the hub is pure routing chrome with no data dependency); loading/empty/
@@ -221,13 +216,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
     {
       title: 'Your data',
       rows: [
-        {
-          label: 'Data & privacy',
-          hint: "what's saved, what to export",
-          onPress: () => {
-            void runExport();
-          },
-        },
+        { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
         {
           label: 'Appearance',
           hint: isDark ? 'dark · tap for light' : 'light · tap for dark',

@@ -24,9 +24,9 @@
 //     populated. empty = the calm EmptyState doorway ("Add a statement first"). error = the
 //     calm EmptyState with err.statement.unreadable + a route to a fallback. offline ≡ populated
 //     (local-first; nothing here needs the network).
-//   • MELO (MELO_MOODS.md): reading=curious, success=cheer. The web prototype omitted Melo; the
-//     port earns him on the header (cheer — Folio just read it) and on loading (curious). "No mood
-//     = no Melo" discipline holds everywhere else.
+//   • MELO (MELO_MOODS.md): reading=curious. The web prototype has no Melo on this surface, so the
+//     port has none on the header either — faithful to the design. Melo appears ONLY on loading
+//     (curious). "No mood = no Melo" discipline holds everywhere else.
 //   • READER OUTPUT, now REAL: the web faked the found items with a module const. The candidates
 //     are now produced by the real pure `parseSheet` engine (apps/mobile/src/folio/lib/importSheet.ts,
 //     ENGINES.md §6) — the merchant + signed amount + date of every row flow THROUGH the engine, not
@@ -81,7 +81,6 @@ import {
   useTheme,
 } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { Melo } from '@/folio/melo/Melo';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { addTransaction, type Transaction } from '@/folio/store';
@@ -110,6 +109,9 @@ export type CandidateMoneyItem = {
   type: string;
   /** 'ok' = clear, 'check' = wants a glance (rendered in caution + counted "to check"). */
   status: 'ok' | 'check';
+  /** Optional free-text correction note the user adds in the Fix form (LOCAL, pre-truth). Not shown
+   *  on the row; carried on the candidate so an Accept could thread it through later. */
+  note?: string;
 };
 
 // The web source's exact eight rows, restated VERBATIM as spreadsheet text so the real `parseSheet`
@@ -419,11 +421,6 @@ export function VisualizerScreen({
         </Text>
         <Text style={styles.subhead}>Nothing is added until you choose.</Text>
 
-        {/* Melo — cheer: Folio just read the statement (success mood). */}
-        <View style={styles.headerMelo}>
-          <Melo mood="cheer" size={32} />
-        </View>
-
         <View
           accessibilityRole="summary"
           accessibilityLabel="Summary"
@@ -630,25 +627,41 @@ function EditCandidateSheet({
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<string>(EDIT_TYPES[0]!);
+  const [date, setDate] = useState('');
+  const [note, setNote] = useState('');
   const [primed, setPrimed] = useState<string | null>(null);
 
-  // Prime the form from the candidate the first time this row opens (derive-from-prop on open).
+  // Prime the form from the candidate the first time this row opens (derive-from-prop on open). The
+  // full correction set is primed: name, amount (magnitude — sign stays the money fact), type, date,
+  // and the optional note.
   if (candidate && primed !== candidate.merchant) {
     setPrimed(candidate.merchant);
     setName(candidate.merchant);
     setAmount(Math.abs(candidate.amount).toFixed(2));
     setType(candidate.type);
+    setDate(candidate.date);
+    setNote(candidate.note ?? '');
   }
 
+  // Apply the correction to the in-review candidate and hand it back to the screen. This is a LOCAL
+  // edit — it updates the row the user sees; only the screen's Add CTA (Accept) writes to the money
+  // path via store.addTransaction. A blank/invalid amount falls back to the candidate's current value
+  // rather than coercing to 0, so an untouched amount field can never silently zero a real figure.
   function handleSave() {
     if (!candidate) return;
-    const parsed = Number(amount.replace(/[^0-9.]/g, '')) || 0;
-    const signed = candidate.amount >= 0 ? parsed : -parsed;
+    const cleaned = amount.replace(/[^0-9.]/g, '');
+    const magnitude = cleaned === '' ? Math.abs(candidate.amount) : Number(cleaned);
+    const safeMagnitude = Number.isFinite(magnitude) ? magnitude : Math.abs(candidate.amount);
+    const signed = candidate.amount >= 0 ? safeMagnitude : -safeMagnitude;
+    const trimmedNote = note.trim();
     onSave({
       ...candidate,
       merchant: name.trim() || candidate.merchant,
       amount: signed,
       type: type.trim() || candidate.type,
+      date: date.trim() || candidate.date,
+      // exactOptionalPropertyTypes: only carry `note` when it has content; an emptied note drops it.
+      ...(trimmedNote ? { note: trimmedNote } : {}),
     });
     setPrimed(null);
   }
@@ -707,6 +720,26 @@ function EditCandidateSheet({
             placeholderTextColor={t.muted}
             style={[styles.input, styles.amountInput]}
             value={amount}
+          />
+
+          <Text style={styles.fieldLabel}>When?</Text>
+          <TextInput
+            accessibilityLabel="When this was"
+            onChangeText={setDate}
+            placeholder="e.g. 26 Jun"
+            placeholderTextColor={t.muted}
+            style={styles.input}
+            value={date}
+          />
+
+          <Text style={styles.fieldLabel}>Note (optional)</Text>
+          <TextInput
+            accessibilityLabel="A note for this one"
+            onChangeText={setNote}
+            placeholder="e.g. weekly shop"
+            placeholderTextColor={t.muted}
+            style={styles.input}
+            value={note}
           />
 
           <View style={styles.editFooter}>
@@ -809,9 +842,6 @@ function makeStyles(t: Palette) {
       fontSize: 12.5,
       lineHeight: 18,
       marginTop: gap.sm,
-    },
-    headerMelo: {
-      marginTop: gap.md,
     },
 
     // Summary chips — near-white inset wells (web mt-4 row gap-2). "N found" is ink-medium; the

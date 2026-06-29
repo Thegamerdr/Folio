@@ -114,7 +114,7 @@ export const copy = {
     paused: 'Paused',
     caught: {
       head: (name: string): string => `Folio spotted **${name}.**`,
-      body: 'Looks like a monthly charge. Add it?',
+      body: 'Looks like a monthly charge. Add it to subscriptions so Folio can plan around it?',
     },
   },
 
