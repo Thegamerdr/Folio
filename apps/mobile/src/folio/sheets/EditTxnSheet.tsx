@@ -1,19 +1,28 @@
-// @rn-engine edit-txn — correction-history wired (non-destructive). Saving an edit no longer removes
-//   the row and adds a new one; it routes through the store's `editTransaction`, which runs the pure
-//   `applyTxnEdit` engine, REPLACES the row in place (same id — no duplicate, no double count), and
-//   appends one immutable correction record per changed field so the original value always survives
-//   inside the edit chain (ENGINES.md §6 "Editing existing transactions — required, never
-//   destructive"). A no-op edit writes nothing.
+// @rn-engine edit-txn — NO write. The web source's "Save changes" is a pure visual demo: it calls
+//   `onClose` and mutates nothing (SheetEditTxn.tsx). The fields are a FROZEN, hardcoded subject
+//   ("Tesco · 26 June" · £42.00 · Groceries · …) — not bound to any real transaction.
+//
+//   An earlier version of this port tried to make the save real by resolving the subject from a
+//   HARDCODED merchant name ("Tesco") and routing a fixed patch through `editTransaction`. But no
+//   caller threads a real subject: every opener (Timeline rows, the Review ⋯/Edit) calls
+//   nav.openSheet('edit-txn') with no payload, so the sheet has no way to know WHICH row the user
+//   meant. The hardcoded resolution therefore edited the wrong row — the first real txn that happened
+//   to be named "Tesco" — or silently no-op'd. That is the bug this file is being corrected for.
+//
+//   The honest, faithful behaviour is the web's: show the frozen fields and close on save without
+//   writing. `// @rn-engine edit-txn` marks where a non-destructive correction (the store's
+//   `editTransaction`, ENGINES.md §6 — replace-in-place + append one correction record per changed
+//   field, no-op on unchanged) would route ONCE a real subject can reach this sheet (a payload on
+//   nav.openSheet, or a store editing-target slot — both outside this file, neither built yet).
 //
 // EditTxnSheet — the faithful 1:1 React Native port of the web edit-transaction sheet
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetEditTxn.tsx).
 //
 // @rn-sheet     EditTxnSheet
-// @purpose      Review an existing transaction's fields (amount, category, repeat, note) before
-//               saving an edit. The web source renders the fields as read-only rows with a single
-//               "Save changes"; this port keeps that visual contract exactly while routing the save
-//               through the non-destructive correction-history engine.
-// @writes       editTransaction (non-destructive correction — replaces in place + appends edits)
+// @purpose      Review a transaction's fields (amount, category, repeat, note). The web source renders
+//               them as read-only rows with a single "Save changes" that closes without writing; this
+//               port keeps that visual + behavioural contract exactly.
+// @writes       — none (faithful to the web demo; see the @rn-engine edit-txn note above).
 // @copy         FROZEN (verbatim from the web source; these literals are not yet in COPY_DECK)
 // @tokens       --surface (field rows) · --hairline (row borders) · --accent (t.calm, primary fill) ·
 //               --muted-ink (field labels) · --ink (field values) · --inverse (primary label)
@@ -44,7 +53,6 @@ import {
 import Svg, { Path } from 'react-native-svg';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { editTransaction, getState } from '@/folio/store';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -64,20 +72,8 @@ const FIELDS: readonly Field[] = [
   { k: 'Note', v: 'Weekly shop' },
 ];
 
-// The web title — verbatim ('Tesco · 26 June').
+// The web title — verbatim ('Tesco · 26 June'). A frozen demo subject, not bound to a real row.
 const TITLE = 'Tesco · 26 June';
-
-// The transaction this frozen demo edits — the web source's subject row. Used
-// only to resolve the real store row to correct; the visible copy is unchanged.
-const SUBJECT_MERCHANT = 'Tesco';
-
-// Map the frozen field rows to a correction patch (ENGINES §6). The values
-// mirror FIELDS exactly: £42.00 → -42 (spend is negative), Groceries → 'food'
-// (the nearest Transaction.category), 'Weekly shop' → note. 'Repeat: Once' is
-// not a Transaction field, so it is intentionally absent. applyTxnEdit makes any
-// field already at its current value a no-op, so re-saving an unchanged row
-// writes nothing.
-const SUBJECT_PATCH = { amount: -42, category: 'food', note: 'Weekly shop' } as const;
 
 // ---------------------------------------------------------------------------
 // Reduced-motion hook (AccessibilityInfo-backed, mirrors the LogSpendSheet hook)
@@ -108,15 +104,13 @@ export function EditTxnSheet({ visible, onClose }: EditTxnSheetProps) {
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReduceMotion();
 
-  // Save the edit non-destructively, then close. Resolve the subject row in the
-  // live store and route the correction through `editTransaction` — it replaces
-  // the row in place (same id, no duplicate) and records the change so the
-  // original is recoverable from the edit chain (ENGINES §6). If the subject row
-  // is absent or unchanged, this is a safe no-op; either way the sheet closes,
-  // preserving the web source's close-after-save behaviour.
+  // Save = close, faithful to the web demo (SheetEditTxn's "Save changes" → onClose). The fields are
+  // a frozen, hardcoded subject not bound to any real row, and no caller threads a real subject
+  // (nav.openSheet carries no payload), so writing here would correct the WRONG transaction. The save
+  // therefore writes nothing and simply closes. `// @rn-engine edit-txn` — a non-destructive
+  // correction (store `editTransaction`, ENGINES §6) routes here once a real subject can reach this
+  // sheet; see the header note.
   function handleSave() {
-    const target = getState().transactions.find((x) => x.merchant === SUBJECT_MERCHANT);
-    if (target) editTransaction(target.id, SUBJECT_PATCH, 'user');
     onClose();
   }
 

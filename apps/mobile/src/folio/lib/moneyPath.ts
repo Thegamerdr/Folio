@@ -1,8 +1,13 @@
 /**
  * Money-path route engine — the curve behind Today.
  *
- * Builds the projected-balance path from today through payday, one sample per
- * calendar day, per ENGINES.md §6:
+ * Builds the projected-balance path forward from today, one sample per calendar
+ * day. By default the window is "today → payday inclusive"; a caller may pass
+ * `windowDays` to sample further (the Calendar's fixed 35-day picture) so a dip
+ * that lands AFTER payday — next month's start-of-month bills — is part of the
+ * curve and the tight point, not clipped at payday. `daysToPayday` and `spare`
+ * still describe payday itself regardless of how far the window runs. Per
+ * ENGINES.md §6:
  *   - "Today — path shape (curve definition)"
  *   - "Today — band toggle (the band is a LENS, not a recompute)"
  *   - "Today — path scrub"
@@ -56,9 +61,25 @@ export type PotSaved = {
 export type RouteInput = {
   /** "Today" as an ISO date YYYY-MM-DD. Injected — never Date.now(). */
   now: string;
-  /** Payday as an ISO date YYYY-MM-DD. The path runs today → payday inclusive. */
+  /** Payday as an ISO date YYYY-MM-DD. Defines `daysToPayday` (today → payday).
+   *  It no longer bounds the SAMPLED window — see `windowDays`. The path still
+   *  runs from today, but samples out to `max(daysToPayday, windowDays)` so a
+   *  dip that lands AFTER payday (e.g. month-start bills) is not clipped away. */
   payday: string;
-  /** The verifiable starting balance (currentBalance.amount). */
+  /** How many calendar days forward to SAMPLE the curve, today inclusive
+   *  (today..today+windowDays). Defaults to the days-to-payday span when omitted,
+   *  preserving the original "today → payday inclusive" shape. The Calendar's
+   *  ladder derives its events over a fixed 35-day window; `routeFromStore` passes
+   *  the same 35 here so the route's tight point and the Calendar ladder minimum
+   *  are ONE number on ONE day. The sampled window is always at least the
+   *  days-to-payday span, so payday itself is always sampled (spare stays a
+   *  read-out of payday's balance). */
+  windowDays?: number;
+  /** The verifiable starting balance. `routeFromStore` passes
+   *  `currentBalance.amount − Σ pots.saved` (earmarked pot cash folded in as the
+   *  flat starting earmark, matching the Calendar's ladder anchor), so pots are
+   *  modelled as DATED top-up dips in the buckets below, never as the internal
+   *  flat `pots` plateau. */
   balance: number;
   /** Income / inflows. `amount` positive = money in. */
   income: DatedAmount[];
@@ -85,12 +106,14 @@ export type RoutePoint = {
 };
 
 export type RouteResult = {
-  /** One point per calendar day, today → payday inclusive, in date order. */
+  /** One point per calendar day, today inclusive, in date order. Spans today →
+   *  payday by default, or today → today+windowDays when a window is given. */
   points: RoutePoint[];
-  /** The lowest projected balance across the cycle and the day it lands on
-   *  (earliest day wins ties). The headline "will my money last?" number. */
+  /** The lowest projected balance across the sampled window and the day it lands
+   *  on (earliest day wins ties). The headline "will my money last?" number. */
   tightPoint: { date: string; amount: number };
-  /** Balance on payday (the last sampled day) — a read-out, not a recompute. */
+  /** Balance on payday — the read-out of the curve at the days-to-payday sample,
+   *  not the last sampled day (the window can extend past payday). */
   spare: number;
   /** Whole calendar days from today to payday (0 when payday is today). */
   daysToPayday: number;
@@ -158,9 +181,22 @@ export function computeRoute(input: RouteInput): RouteResult {
 
   // Payday before today is meaningless for a forward path; clamp to a
   // single-day window (today only) rather than producing negative samples.
+  // `daysToPayday` stays the span to payday — that is what the headline
+  // "X days to payday" reads and what `spare` is sampled at, regardless of how
+  // far the curve is sampled.
   const rawSpan = dayDiff(todayMs, paydayMs);
-  const lastIndex = rawSpan > 0 ? rawSpan : 0;
-  const daysToPayday = lastIndex;
+  const daysToPayday = rawSpan > 0 ? rawSpan : 0;
+
+  // The SAMPLED window. Defaults to the days-to-payday span (the original
+  // "today → payday inclusive" shape, so the existing pure tests are unchanged).
+  // When a caller passes `windowDays` (the Calendar's 35-day picture), the curve
+  // samples at least that far — but never fewer days than it takes to reach
+  // payday, so payday is always a sampled point and `spare` below stays valid.
+  const requestedWindow =
+    typeof input.windowDays === 'number' && input.windowDays > daysToPayday
+      ? Math.trunc(input.windowDays)
+      : daysToPayday;
+  const lastIndex = requestedWindow;
 
   // Per-day net flows. Income is read positive; bills/subs/spend/holds are
   // outflow magnitudes (subtracted). Spend may carry a negative amount to
@@ -200,8 +236,12 @@ export function computeRoute(input: RouteInput): RouteResult {
     }
   }
 
-  const lastPoint = points[points.length - 1];
-  const spare = lastPoint ? lastPoint.y : input.balance + offset;
+  // `spare` is the balance ON PAYDAY — the read-out of the curve at the
+  // days-to-payday sample, NOT the last sampled day (the window can now extend
+  // past payday into the following month's bills, which must not masquerade as
+  // payday's spare). Falls back to the starting balance when no point exists.
+  const paydayPoint = points[daysToPayday];
+  const spare = paydayPoint ? paydayPoint.y : input.balance + offset;
 
   return {
     points,

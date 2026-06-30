@@ -15,7 +15,9 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import {
   Animated,
   Easing,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -145,28 +147,42 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
           onPress={handleClose}
           style={[s.scrim, { opacity: scrimOpacity }]}
         />
-        <Animated.View
-          accessibilityViewIsModal
-          accessibilityRole="none"
-          style={[
-            s.panel,
-            { maxHeight, paddingBottom: insets.bottom + gap.xxxl },
-            { transform: [{ translateY }] },
-          ]}
+        {/* Keyboard avoidance — when a TextInput inside the sheet (LogSpend / MeloChat / EditItem /
+            AddEvent / Onboarding / CalendarExport) is focused, the soft keyboard would otherwise cover
+            the input + its primary CTA. iOS needs an explicit 'padding' behaviour so the panel lifts
+            above the keyboard; Android resolves keyboard insets via the window's adjustResize, so the
+            KAV stays behaviour-less there (undefined) to avoid double-insetting. With no input focused
+            the KAV adds zero padding, so it is inert for the non-keyboard sheets. box-none lets scrim
+            taps fall through to the AnimatedPressable behind it. */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          pointerEvents="box-none"
+          style={layout.avoider}
         >
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={s.handle}
-          />
-          <ScrollView
-            bounces={false}
-            contentContainerStyle={layout.scrollContent}
-            showsVerticalScrollIndicator={false}
+          <Animated.View
+            accessibilityViewIsModal
+            accessibilityRole="none"
+            style={[
+              s.panel,
+              { maxHeight, paddingBottom: insets.bottom + gap.xxxl },
+              { transform: [{ translateY }] },
+            ]}
           >
-            {children}
-          </ScrollView>
-        </Animated.View>
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={s.handle}
+            />
+            <ScrollView
+              bounces={false}
+              contentContainerStyle={layout.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </ScrollView>
+          </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -178,6 +194,16 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const layout = StyleSheet.create({
   root: {
     flex: 1,
+    justifyContent: 'flex-end',
+  },
+  // The keyboard avoider overlays the same flex-end column as root, so the panel still sits at the
+  // bottom; when the keyboard shows on iOS the avoider's padding pushes the panel up above it.
+  avoider: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     justifyContent: 'flex-end',
   },
   scrollContent: {

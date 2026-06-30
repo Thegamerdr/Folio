@@ -12,14 +12,17 @@
 //
 // ThemeProvider is mounted once at the app root (app/_layout.tsx) — the shell never remounts it.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
 import {
   BottomNav,
   Body,
   Headline,
+  Muted,
   PressureScreen,
+  PrimaryAction,
 } from '@/surfaces/pressureMap/kit';
 import type { ProductScreen } from '@/surfaces/mobileShell';
 import { Sheet } from '@/surfaces/pressureMap/Sheet';
@@ -117,19 +120,43 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
 // vocabularies meet, so the kit stays untouched and the web nav semantics are preserved.
 // ---------------------------------------------------------------------------
 
-// Which bottom-tab lights up for a given screen. Review screen -> the `import` tab; the other
-// three tab screens map 1:1; every non-tab screen still nests under its nearest tab (default Today).
+// The screens that nest under the More tab — every leaf reachable from the More hub. Faithful to
+// the web TabBar's `moreSubtree` (TabBar.tsx): each of these lights the More tab. The RN union also
+// carries `shortfall` (a More-reachable leaf in this port), so it is included here too.
+const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
+  'more',
+  'timeline',
+  'calendar',
+  'plans',
+  'whatif',
+  'recovery',
+  'privacy',
+  'add-bill',
+  'add-debt',
+  'subs',
+  'pots',
+  'ritual',
+  'insights',
+  'shortfall',
+]);
+
+// Which bottom-tab lights up for a given screen. Faithful to the web TabBar's active-state map:
+// Today lights for `today` + `today-after`; the Review tab (kit id `import`) lights for `visualizer`
+// + `review`; Melo for `melo`; the whole More subtree lights the More tab. Anything else falls back
+// to Today (the home anchor).
 function activeTabForScreen(screen: ScreenId): ProductScreen {
-  if (screen === 'review') return 'import';
+  if (screen === 'today' || screen === 'today-after') return 'today';
+  if (screen === 'visualizer' || screen === 'review') return 'import';
   if (screen === 'melo') return 'melo';
-  if (screen === 'more') return 'more';
-  if (screen === 'today') return 'today';
+  if (MORE_SUBTREE.has(screen)) return 'more';
   return 'today';
 }
 
-// The screen a bottom-tab press navigates to. Inverse of the lit-tab map: `import` tab -> Review.
+// The screen a bottom-tab press navigates to. Faithful to the web TabBar, whose "Review" tab has
+// id `visualizer` and navigates to `visualizer` (the multi-candidate check), NOT the single-candidate
+// `review` screen. The kit's Review tab carries the id `import`, so `import` -> `visualizer`.
 function screenForTab(tab: ProductScreen): ScreenId {
-  if (tab === 'import') return 'review';
+  if (tab === 'import') return 'visualizer';
   if (tab === 'melo') return 'melo';
   if (tab === 'more') return 'more';
   return 'today';
@@ -173,24 +200,38 @@ export function FolioShell() {
   const [meloIntent, setMeloIntent] = useState<MeloIntent | undefined>(undefined);
   const reduceMotion = useReducedMotion();
 
+  // Back-history stack — a faithful port of the web shell's `historyRef` (HeroPhone.tsx): `go` pushes
+  // the destination, `back` pops to the previous screen. The shell opens on `today` (not the web's
+  // `start`), so the stack is seeded with `today` and `back` falls back to `today` when it empties.
+  // A ref (not state) so pushing/popping the trail never itself triggers a re-render — the screen
+  // state drives rendering; this only records where the user came from.
+  const historyRef = useRef<ScreenId[]>(['today']);
+
   // The onboarding gate reads the live store flag (faithful to the web index, which reads
   // `useAppStore((s) => s.onboarding.done)`). A returning, set-up user is never offered onboarding.
   const onboardingDone = useAppStore((st) => st.onboarding.done);
 
   // Opening a screen closes any open sheet (a navigation supersedes a transient sheet) — faithful
-  // to the web setScreen, which clears the sheet before navigating.
+  // to the web setScreen, which clears the sheet before navigating. Each navigation also pushes the
+  // destination onto the back-history trail (web nav.go pushes to historyRef before setScreen).
   const go = useCallback((next: ScreenId) => {
+    historyRef.current.push(next);
     setSheet(null);
     setMeloIntent(undefined);
     setScreen(next);
   }, []);
 
   const back = useCallback(() => {
-    // The shell is a flat in-memory machine with no history stack (the web index has no back
-    // either). `back` resolves to the home anchor — Today — so the contract is satisfied without
-    // fabricating a history we do not keep.
-    go('today');
-  }, [go]);
+    // Pop the current screen off the trail and return to the previous one — a faithful port of the
+    // web nav.back (historyRef.pop() then setScreen to the new top). When the trail empties, fall
+    // back to the home anchor, Today. Back also closes any open sheet and clears a pending intent,
+    // matching go's "a navigation supersedes a transient sheet" contract.
+    historyRef.current.pop();
+    const prev = historyRef.current[historyRef.current.length - 1] ?? 'today';
+    setSheet(null);
+    setMeloIntent(undefined);
+    setScreen(prev);
+  }, []);
 
   const openSheet = useCallback((next: SheetId) => {
     setSheet(next);
@@ -243,7 +284,13 @@ export function FolioShell() {
     // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
     // (ENGINES §6) via useUndo(); its snackbar host renders above the screen + bottom nav.
     <UndoProvider>
-      <ScreenView screen={screen} nav={nav} />
+      {/* Every screen renders inside the error boundary so one screen throwing renders a calm
+          fallback instead of taking down the whole shell (faithful to the web HeroPhone, which wraps
+          its screen switch in ScreenErrorBoundary). `screenLabel` resets the boundary when the screen
+          changes (a fresh navigation clears a prior crash); onReset returns to Today. */}
+      <ScreenErrorBoundary screenLabel={screen} onReset={() => go('today')}>
+        <ScreenView screen={screen} nav={nav} />
+      </ScreenErrorBoundary>
       <BottomNav active={activeTab} onChange={onTabChange} />
       {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
           sheets (onboarding, edit-item, edit-txn, log-spend, sub-caught, add-event, calendar-export,
@@ -366,6 +413,85 @@ function ScreenView({ screen, nav }: { screen: ScreenId; nav: Nav }) {
     </PressureScreen>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Screen error boundary — the RN port of the web ScreenErrorBoundary (folio-melo shell). One screen
+// throwing renders a calm, on-brand fallback inside the same paper canvas instead of crashing the
+// whole shell. React has no functional error boundary, so this is a small class component — the only
+// class in the shell, kept minimal. The fallback is built from existing kit primitives (no new
+// tokens, no fabricated Melo glyph the kit does not export): a PressureScreen, an editorial Headline
+// whose accent word is the design's "tripped.", a calm reassurance line, and a "Try again" action.
+//
+// `screenLabel` doubles as a reset key: when the user navigates to a different screen the boundary
+// clears any captured error (mirrors the web wrapper's `key={screen}` remount), so a fresh screen is
+// never hidden behind a stale crash.
+// ---------------------------------------------------------------------------
+
+type ScreenErrorBoundaryProps = {
+  children: ReactNode;
+  screenLabel: ScreenId;
+  onReset: () => void;
+};
+type ScreenErrorBoundaryState = { error: Error | null; forLabel: ScreenId };
+
+class ScreenErrorBoundary extends Component<
+  ScreenErrorBoundaryProps,
+  ScreenErrorBoundaryState
+> {
+  override state: ScreenErrorBoundaryState = { error: null, forLabel: this.props.screenLabel };
+
+  static getDerivedStateFromError(error: Error): Partial<ScreenErrorBoundaryState> {
+    return { error };
+  }
+
+  // A navigation to a different screen clears a prior crash (the web wrapper remounts on `key`).
+  static getDerivedStateFromProps(
+    props: ScreenErrorBoundaryProps,
+    state: ScreenErrorBoundaryState,
+  ): Partial<ScreenErrorBoundaryState> | null {
+    if (props.screenLabel !== state.forLabel) {
+      return { error: null, forLabel: props.screenLabel };
+    }
+    return null;
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
+    // Quiet by design — the shell is not wired to a logger. Surface enough to debug in dev.
+    // eslint-disable-next-line no-console
+    console.error('Screen crashed:', this.props.screenLabel, error, info);
+  }
+
+  private handleReset = (): void => {
+    this.setState({ error: null });
+    this.props.onReset();
+  };
+
+  override render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <PressureScreen centered>
+          <Muted style={errorStyles.eyebrow}>A small slip</Muted>
+          <Headline accent="This screen tripped." style={errorStyles.headline} />
+          <Body style={errorStyles.body}>
+            Nothing was lost. The rest of Folio is still here — try the screen again, or head back to
+            Today.
+          </Body>
+          <View style={errorStyles.action}>
+            <PrimaryAction label="Try again" onPress={this.handleReset} />
+          </View>
+        </PressureScreen>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const errorStyles = StyleSheet.create({
+  eyebrow: { marginBottom: 8 },
+  headline: { marginBottom: 12 },
+  body: { marginBottom: 24 },
+  action: { alignSelf: 'stretch' },
+});
 
 // ---------------------------------------------------------------------------
 // Placeholder sheet body — a title for the active sheet. `null` renders nothing (the host is

@@ -309,11 +309,11 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const routeResult = useRoute(today ?? EPOCH);
   const route = today ? routeResult : null;
 
-  // Where the ladder starts — the route's spendable base (currentBalance minus earmarked pot cash),
-  // read off the live store snapshot so it matches `routeFromStore`. Before the gate opens we still
-  // have a base (it doesn't depend on `today`), so the one pre-mount frame is harmless; it's only used
-  // once `today` is set and the body renders.
-  const startingSpare = useAppStore((st) => st.currentBalance.amount - st.pots.reduce((a, p) => a + p.saved, 0));
+  // Where the ladder starts — the FULL currentBalance.amount, matching the design's single engine
+  // (`computeSpareAndTightest(groups, currentBalance.amount)`) and `routeFromStore`. Pots lower the
+  // curve ONLY as their dated −perWeek top-up dips (already in the events), never as a start offset —
+  // subtracting Σ saved here too would double-count them.
+  const startingSpare = useAppStore((st) => st.currentBalance.amount);
 
   // Events / groups / spare are memoised ABOVE the view branch so switching views never re-derives
   // the data (STATES: "switching never reloads"). Only the presentational subview swaps.
@@ -1436,10 +1436,11 @@ function SubRenewalActions({ name, s }: { name: string; s: ReturnType<typeof mak
   const [hover, setHover] = useState<number | null>(null);
   const currentDelta = subOverrides[name] ?? 0;
 
-  // The what-if anchor — the SAME route start the screen's ladder uses (currentBalance minus earmarked
-  // pot cash), so the previewed "lowest day" lift reads against the real curve, not the old £720.
+  // The what-if anchor — the SAME full-balance start the screen's ladder + route use (pots are dated
+  // dips in the events, never a start offset), so the previewed "lowest day" lift reads against the
+  // real curve.
   const currentBalance = useAppStore((st) => st.currentBalance);
-  const previewStart = currentBalance.amount - pots.reduce((a, p) => a + p.saved, 0);
+  const previewStart = currentBalance.amount;
 
   const previewDelta = useMemo(() => {
     if (hover === null) return null;

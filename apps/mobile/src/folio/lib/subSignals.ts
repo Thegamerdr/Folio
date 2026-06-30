@@ -346,18 +346,23 @@ function buildSignalForCluster(
 ): RecurringSignal | null {
   if (cluster.length < 2) return null; // a single charge is not recurring
 
-  const byDate = [...cluster].sort((a, b) => toMs(a.date) - toMs(b.date));
+  const sorted = [...cluster].sort((a, b) => toMs(a.date) - toMs(b.date));
   const gaps: number[] = [];
-  for (let i = 1; i < byDate.length; i += 1) {
-    gaps.push(calendarDaysBetween((byDate[i - 1] as Charge).date, (byDate[i] as Charge).date));
+  for (let i = 1; i < sorted.length; i += 1) {
+    gaps.push(calendarDaysBetween((sorted[i - 1] as Charge).date, (sorted[i] as Charge).date));
   }
   const medianGap = median([...gaps].sort((a, b) => a - b));
   const cadence = classifyCadence(medianGap);
 
-  // In-series check: every consecutive gap must be within the cadence period
-  // ± the working-day tolerance for that pair's payment type. A pair that
-  // drifts beyond tolerance would, in a fuller engine, split the series; here
-  // we keep the run intact when drift stays inside the band (the tested cases).
+  // In-series check (research §6.3): every consecutive gap must land within the
+  // cadence period ± the working-day tolerance for that pair's payment type
+  // (card ≤3, Direct Debit ≤4 working days). A pair whose actual date drifts
+  // beyond the band breaks the run; we keep the longest consecutive in-tolerance
+  // sub-run as the confirmed series for this cluster. Working-day distance is
+  // used so a charge that merely slips over a weekend is not penalised.
+  const byDate = longestInToleranceRun(sorted, cadence);
+  if (byDate.length < 2) return null; // no two consecutive charges held the band
+
   const occurrences = byDate.length;
   const status: RecurringStatus =
     occurrences >= CADENCE_MIN_OCCURRENCES[cadence] ? 'series' : 'candidate';
@@ -386,6 +391,47 @@ function buildSignalForCluster(
   };
   // Only attach priceChanged when present (exactOptionalPropertyTypes-safe).
   return priceChanged === null ? signal : { ...signal, priceChanged };
+}
+
+/** The wider band of a consecutive pair: a Direct Debit on either side widens the
+ *  tolerance to the DD window, matching the research's "DD can be over 4 working
+ *  days" allowance. Charges default to `card` (the tighter ≤3 band). */
+function pairToleranceWorkingDays(a: Charge, b: Charge): number {
+  const cardBand = TOLERANCE_WORKING_DAYS.card;
+  const ddBand = TOLERANCE_WORKING_DAYS['direct-debit'];
+  const isDd = a.paymentType === 'direct-debit' || b.paymentType === 'direct-debit';
+  return isDd ? ddBand : cardBand;
+}
+
+/**
+ * The longest run of consecutive charges whose every step holds the cadence
+ * within its working-day tolerance band. For each consecutive pair the expected
+ * date is `prev + nominal cadence`; the drift is the WORKING-day distance from
+ * that expected date to the actual one, compared against the pair's tolerance
+ * (DD-wide when either side is a Direct Debit). The first pair that drifts beyond
+ * the band ends the current run; the longest run found is returned. Pure — the
+ * input is never mutated; ties resolve to the earliest (longest) run.
+ */
+function longestInToleranceRun(sortedByDate: readonly Charge[], cadence: Cadence): Charge[] {
+  if (sortedByDate.length < 2) return [...sortedByDate];
+  const nominalDays = CADENCE_DAYS[cadence];
+
+  let best: Charge[] = [];
+  let run: Charge[] = [sortedByDate[0] as Charge];
+  for (let i = 1; i < sortedByDate.length; i += 1) {
+    const prev = sortedByDate[i - 1] as Charge;
+    const current = sortedByDate[i] as Charge;
+    const expectedIso = isoOf(toMs(prev.date) + nominalDays * DAY_MS);
+    const driftWorkingDays = workingDaysBetween(expectedIso, current.date);
+    if (driftWorkingDays <= pairToleranceWorkingDays(prev, current)) {
+      run.push(current);
+    } else {
+      if (run.length > best.length) best = run;
+      run = [current];
+    }
+  }
+  if (run.length > best.length) best = run;
+  return best;
 }
 
 function amountRange(byDate: readonly Charge[]): AmountRange {

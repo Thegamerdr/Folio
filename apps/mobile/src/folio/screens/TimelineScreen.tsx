@@ -9,16 +9,30 @@
 //               rendered a hardcoded 8-item demo array. Per the spec fidelityRisks — "Port the
 //               CONTRACT, not the demo stub. Do not ship the 8 fake rows." — this port reads the REAL
 //               store `transactions`, newest-first, and derives the calm projection below.)
-// @writes       removeTransaction  (the undo affordance, wired through the edit-txn sheet)
-// @opens-sheet  edit-txn  (row tap → nav.openSheet('edit-txn'), honouring the doc-block contract the
-//               web body never wired)
+// @writes       — none. The web body wires NO write here (see @opens-sheet); this read-only port
+//               matches it. (The web doc block's @writes removeTransaction is the doc-block contract
+//               the web body never wired — see below.)
+// @opens-sheet  — none. The web doc block names @opens-sheet edit-txn, but the web BODY never wires a
+//               row tap to it: every row is read-only, and the only interactive element is a category
+//               chip that cycles a COMPONENT-LOCAL label (a real bug the spec says NOT to replicate).
+//               An earlier version of this port invented `row tap → nav.openSheet('edit-txn')`, but
+//               the shell's edit-txn sheet is a frozen visual demo keyed to a HARDCODED subject
+//               ("Tesco · 26 June") — and nav.openSheet carries no payload — so a tapped row could not
+//               thread its own transaction and instead edited the wrong (or a phantom) row. Per the
+//               task's fidelity fallback ("if the design's Timeline is read-only demo data, make the
+//               rows non-editable instead of editing the wrong subject"), the rows are read-only here:
+//               tapping a row does nothing, exactly as the web body behaves. `// @rn-engine
+//               timeline-edit` marks where a real per-row edit would wire once nav can thread a
+//               transaction subject (or a store editing-target slot lands) — neither exists yet, and
+//               both are outside this screen.
 // @copy         FROZEN — every visible string ships verbatim. COPY_DECK.md has NO Timeline section, so
 //               none of these strings are keyed; they are reproduced as the web's exact inline literals
 //               (the hard rule keys copy "where keyed" — Timeline has no keys). The empty branch reuses
 //               STATES.md's "Your story starts here" via the EmptyState primitive.
 // @tokens       surface · hairline · muted(--muted-ink) · calm(--accent) · canvas(--paper, the marker
 //               halo) · positive · caution · ink — all from the kit via '@/folio/theme'. No new token.
-// @motion       slide-in-r 360ms (whole screen) · press 0.97 (back arrow + each category chip) · Melo
+// @motion       slide-in-r 360ms (whole screen) · press 0.97 (back arrow — the only press target, as
+//               the rows are a read-only log) · Melo
 //               breathe + blink (the bottom MeloLine, the only always-on motion). No count-up (the
 //               money in each note is static text, not an animated <Money>). Reduced motion → final
 //               state everywhere; the MeloLine's Melo gates its own breathe internally.
@@ -45,10 +59,11 @@
 //     verbs come from sub-pause + Review-decision events the engine does not yet emit, so they are
 //     tagged `// @rn-engine timeline-verbs` and simply do not appear until that projection lands.
 //   • Category chip: the web cycled a COMPONENT-LOCAL category that reset on unmount — a real bug the
-//     spec says NOT to replicate. The chip here reflects the PERSISTED transaction.category (read-only
-//     display); changing it is an edit, so the chip + the row open the edit-txn sheet. There is no
-//     `updateTransaction` mutator in the store, so no local cycler is invented. `// @rn-engine
-//     category-edit` marks where a persisted re-categorise would write once edit-txn is built.
+//     spec says NOT to replicate. The chip here reflects the PERSISTED transaction.category as a
+//     read-only label (no cycler, no edit). There is no `updateTransaction` mutator in the store, and
+//     the edit-txn sheet is keyed to a hardcoded subject, so the chip does NOT open it — that would
+//     re-categorise the wrong row. `// @rn-engine category-edit` marks where a persisted re-categorise
+//     would write once a real per-row edit path exists.
 //   • Five STATES branches (spec): empty → EmptyState "Your story starts here" · loading → Melo curious
 //     + one quoted line (never a spinner) · populated → the list · error → falls back to More (no
 //     in-screen error UI) · offline → identical to populated (Folio is local-first).
@@ -337,7 +352,6 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
               styles={s}
               palette={t}
               isLast={i === rows.length - 1}
-              onPress={() => nav.openSheet('edit-txn')}
             />
           ))}
         </View>
@@ -383,20 +397,29 @@ function TimelineRowView({
   styles,
   palette,
   isLast,
-  onPress,
 }: {
   row: TimelineRow;
   styles: Styles;
   palette: Palette;
   isLast: boolean;
-  onPress: () => void;
 }) {
   const tone = verbTone(row.verb, palette);
   const hasCategory = !!row.category;
   const chipLabel = row.category ?? 'Add a label';
 
+  // Read-only row — the web body wires no row tap (see the @opens-sheet note in the header). It is a
+  // log line: when / verb+what / optional note / a persisted-category label. The whole row is one
+  // accessible text node so a screen reader announces the entry without implying a tap target.
+  const a11yLabel = `${row.verb} ${row.what}${row.note !== undefined ? `, ${row.note}` : ''}, ${
+    hasCategory ? row.category : 'uncategorised'
+  }, ${row.when}`;
+
   return (
-    <View style={[styles.row, isLast ? undefined : styles.rowGap]}>
+    <View
+      accessible
+      accessibilityLabel={a11yLabel}
+      style={[styles.row, isLast ? undefined : styles.rowGap]}
+    >
       {/* Marker node — a verb-toned dot inside a canvas (paper) halo, so the rail reads behind it. */}
       <View style={styles.markerSlot} pointerEvents="none">
         <View style={[styles.halo, { backgroundColor: palette.canvas }]}>
@@ -404,13 +427,8 @@ function TimelineRowView({
         </View>
       </View>
 
-      {/* Row body — tap anywhere opens the edit sheet (the undo / re-categorise affordance). */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${row.verb} ${row.what}. Tap to edit.`}
-        onPress={onPress}
-        style={({ pressed: p }) => [styles.rowBody, p ? styles.pressed : undefined]}
-      >
+      {/* Row body — a read-only log line (the web body is not interactive). */}
+      <View style={styles.rowBody}>
         <Text style={[styles.when, { color: palette.muted }]}>{row.when}</Text>
         <Text style={styles.whatLine}>
           <Text style={[styles.verb, { color: palette.muted }]}>{`${row.verb} `}</Text>
@@ -420,24 +438,19 @@ function TimelineRowView({
           <Text style={[styles.note, { color: palette.muted }]}>{row.note}</Text>
         ) : null}
 
-        {/* Category chip — reflects the persisted category; tapping it edits the entry.
-            `// @rn-engine category-edit` — a persisted re-categorise writes once edit-txn is built. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Category: ${hasCategory ? row.category : 'uncategorised'}. Tap to change.`}
-          onPress={onPress}
-          style={({ pressed: p }) => [
-            styles.chip,
-            { backgroundColor: palette.surface, borderColor: palette.hairline },
-            p ? styles.pressed : undefined,
-          ]}
+        {/* Category chip — a read-only label reflecting the persisted category (the web cycler was a
+            local-state bug not replicated). `// @rn-engine category-edit` — a persisted re-categorise
+            writes once a real per-row edit path exists; until then this never opens the edit sheet
+            (which is keyed to a hardcoded subject and would change the wrong row). */}
+        <View
+          style={[styles.chip, { backgroundColor: palette.surface, borderColor: palette.hairline }]}
         >
           <View
             style={[styles.chipDot, { backgroundColor: hasCategory ? palette.calm : palette.hairline }]}
           />
           <Text style={[styles.chipText, { color: palette.muted }]}>{chipLabel}</Text>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </View>
   );
 }

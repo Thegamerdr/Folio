@@ -174,9 +174,10 @@ const PERSONA_TONES: Readonly<Record<MeloTone, string>> = {
 // Melo's moves stay ADVISORY: she proposes, the user confirms in the app. The model is told to
 // emit a suggestion (not execute) by appending a single fenced ```melo-suggest JSON block — the
 // client parses it out of the reply and hands it to the UI as a confirm chip.
-const PERSONA_TOOLS = `You can SUGGEST three moves. You never perform them — the user confirms each one in the app, and only then does anything change. To suggest a move, end your reply with ONE fenced code block tagged melo-suggest containing a JSON array of suggestions, each {"name": <tool>, "args": {…}, "summary": <one short line>}:
+const PERSONA_TOOLS = `You can SUGGEST four moves. You never perform them — the user confirms each one in the app, and only then does anything change. To suggest a move, end your reply with ONE fenced code block tagged melo-suggest containing a JSON array of suggestions, each {"name": <tool>, "args": {…}, "summary": <one short line>}:
 - pause_subscription(name, cycles=1): suggest pausing a recurring sub. Use the exact name from the snapshot.
 - move_between_pots(from, to, amount): suggest shifting money between pots. Never suggest more than the source pot's saved balance.
+- set_tight_point_goal(amount): suggest the floor £ to hold at the tightest point of the month. Only after the user has named a specific amount.
 - log_spend(merchant, amount, category): suggest recording a spend the user just told you about. Only for a real, completed spend — never a hypothetical.
 Only suggest a move after the user has clearly agreed to the specific change. If they're vague, ask one short clarifying question first and suggest nothing. Keep the melo-suggest block out of your visible prose — it is parsed, not read aloud.`;
 
@@ -314,13 +315,14 @@ function extractAssistantText(data: unknown): string | null {
 }
 
 const SUGGEST_BLOCK = /```melo-suggest\s*([\s\S]*?)```/i;
-// Only tools that map to a REAL action are surfaced as confirmable suggestions. `set_tight_point_goal`
-// is deliberately absent: there is no goal mutation yet, so offering it would let the user tap "Do it"
-// and get a fake "done". It stays in the MeloToolName union (so the persona docs + switches stay
-// exhaustive) but is never proposed until a real goal feature exists.
+// All four advisory tools map to a REAL, confirmable action: the store's applyMeloTool handles
+// `set_tight_point_goal` (it writes tightPointGoal via setTightPointGoal, with undo), so suggesting it
+// lets the user tap "Do it" and actually set their tight-point floor — matching the web design's
+// four-tool persona. The set is the full MeloToolName union; nothing is withheld.
 const VALID_TOOL_NAMES: ReadonlySet<string> = new Set<MeloToolName>([
   'pause_subscription',
   'move_between_pots',
+  'set_tight_point_goal',
   'log_spend',
 ]);
 

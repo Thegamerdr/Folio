@@ -288,7 +288,6 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         seed={seedIntent ?? autoSeed}
         reduceMotion={reduceMotion}
         nav={nav}
-        onClose={onClose}
       />
     </Sheet>
   );
@@ -304,14 +303,12 @@ function MeloChat({
   seed,
   reduceMotion,
   nav,
-  onClose,
 }: {
   snapshot: Record<string, unknown>;
   prefill?: string | undefined;
   seed?: string | undefined;
   reduceMotion: boolean;
   nav: Nav;
-  onClose: () => void;
 }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
@@ -486,6 +483,19 @@ function MeloChat({
       .finally(() => {
         if (abortRef.current === controller) abortRef.current = null;
       });
+  }
+
+  // Stop the in-flight turn. Faithful to the web design's stop affordance (the AI SDK's `stop`
+  // aborts the streaming request and returns the chat to a ready state) — NOT a sheet close. We abort
+  // the AbortController so the settled `.then` short-circuits on `signal.aborted` and never appends a
+  // partial reply, then reset status to ready. The transcript (including the user's turn) stays
+  // intact; the sheet stays open. No-op when nothing is in flight.
+  function stop() {
+    const controller = abortRef.current;
+    if (!controller) return;
+    controller.abort();
+    abortRef.current = null;
+    setStatus('ready');
   }
 
   // Render a settled gateway result into the transcript / error line.
@@ -755,7 +765,7 @@ function MeloChat({
             disabled={!input.trim() && !isLoading}
             palette={t}
             reduceMotion={reduceMotion}
-            onStop={onClose}
+            onStop={stop}
           />
         </View>
       </View>

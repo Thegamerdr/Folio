@@ -70,6 +70,9 @@ const CATS: readonly Transaction['category'][] = [
 const PRESS_SCALE = 0.97; // .press — scale 0.97 on :active
 const DISABLED_FILL_ALPHA = '4D'; // --muted-ink @ 30% (0x4D ≈ 0.30 * 255), appended as #RRGGBBAA
 const MIN_TAP = 44; // tap-only, >=44px
+// Chips render at h-8 (32px) to stay visually faithful; (44 - 32) / 2 = 6px of vertical slop lifts the
+// touch target to the 44px minimum without changing the chip's drawn height or the row's rhythm.
+const CHIP_TAP_SLOP = (MIN_TAP - 32) / 2; // 6
 
 // ---------------------------------------------------------------------------
 // Reduced-motion hook (AccessibilityInfo-backed, mirrors the OnboardingSheet hook)
@@ -252,6 +255,8 @@ function CategoryChip({
       onPress={onPress}
       onPressIn={() => press(PRESS_SCALE)}
       onPressOut={() => press(1)}
+      // Lift the 32px chip's touch target to the 44px minimum without changing its drawn height.
+      hitSlop={{ top: CHIP_TAP_SLOP, bottom: CHIP_TAP_SLOP, left: CHIP_TAP_SLOP, right: CHIP_TAP_SLOP }}
     >
       <Animated.View
         style={[s.chip, selected ? s.chipSelected : s.chipUnselected, { transform: [{ scale }] }]}
@@ -459,7 +464,6 @@ function makeStyles(t: Palette) {
 }
 
 // Tap-target note: the chips are h-8 (32) and the dismiss row is h-10 (40); both are under the 44px
-// minimum by the web's own rhythm. The chips keep the faithful 32px visual height; the dismiss row
-// uses hitSlop to extend the touch area to >=44px tall without changing the vertical rhythm (the
-// same technique OnboardingSheet uses for its skip row). MIN_TAP is the reference the slop targets.
-void MIN_TAP;
+// minimum by the web's own rhythm. Both keep their faithful visual height and use hitSlop to extend
+// the touch area to >=44px without changing the vertical rhythm (the same technique OnboardingSheet
+// uses for its skip row). MIN_TAP is the reference CHIP_TAP_SLOP targets.

@@ -34,10 +34,16 @@
  * Everything that never needed the engine — the monthly/yearly totals, the savings-from-pauses
  * figure, the quiet-move £/mo + £/yr saving, the per-row pulse/score, and the plain pause/cancel
  * feedback — renders fully and faithfully throughout. The catalog/pulse/actions render is unchanged.
+ *
+ * FEEDBACK SURFACE: pause / pause-the-quiet-ones / cancel all surface as the EPHEMERAL Tier-1 undo
+ * snackbar (useUndo / showUndo) — the RN equal of the web's sonner toast — never a blocking
+ * Alert.alert. Pausing is reversible, so each pause toast's Undo resumes; cancel is kept safe by the
+ * undo window itself (one-tap restore of the sub + its paused state), not by a confirm gate, exactly
+ * as the design removes immediately and offers Undo.
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   type AppState,
@@ -238,18 +244,21 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   // -------------------------------------------------------------------------------------------
 
   const pauseQuietOnes = () => {
-    // Measure the lift BEFORE the store write, then pause. When the low point lifts, show the web's
-    // verbatim toast ("Your low point goes from £a to £b" + the room-around-{day} description).
+    // Measure the lift BEFORE the store write, then pause. The design surfaces the outcome as an
+    // EPHEMERAL toast — sonner in the web, the Tier-1 undo snackbar here — never a blocking confirm.
+    // Pausing is a reversible Tier-1 action ("pause sub" in undoPolicy), so the snackbar's Undo
+    // genuinely resumes the set; capture the names so the restore reverses exactly this pause.
+    const names = quietOnes.map((q) => q.name);
     const before = tightWith?.spare;
     const after = tightIfQuietPaused?.spare ?? before;
-    pauseMany(quietOnes.map((q) => q.name), true);
+    pauseMany(names, true);
     if (typeof before === 'number' && typeof after === 'number' && after > before) {
-      Alert.alert(
-        `Your low point goes from £${before} to £${after}`,
-        tightIfQuietPaused?.date
-          ? `A little more room around ${formatDayProse(tightIfQuietPaused.date)}.`
-          : 'A little more room before payday.',
-      );
+      // The web's "Your low point goes from £a to £b" + room-around-{day} description, folded into
+      // the single snackbar line (the toast carries one label, not a title/body pair).
+      const room = tightIfQuietPaused?.date
+        ? `more room around ${formatDayProse(tightIfQuietPaused.date)}`
+        : 'more room before payday';
+      showUndo(`Low point £${before} → £${after} · ${room}`, () => pauseMany(names, false));
     }
   };
 
@@ -260,50 +269,39 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
       return;
     }
     // Pausing — measure the tight-day lift THIS one sub buys, off a hypothetical copy, before the
-    // store write. If the low point lifts on a known day, show the lift toast ("£X back on {day} ·
-    // Your low point: £a → £b"); otherwise the plain (engine-free) acknowledgement the web also
-    // shows. While the mount-gate is closed (`tightWith === null`) only the plain path runs.
+    // store write. The design surfaces the outcome as an EPHEMERAL toast (sonner in the web, the
+    // Tier-1 undo snackbar here), never a blocking Alert. Pausing is a reversible Tier-1 action, so
+    // the snackbar's Undo resumes this sub. If the low point lifts on a known day, show the lift line
+    // ("£X back on {day} · Your low point: £a → £b"); otherwise the plain "£X back this month"
+    // acknowledgement the web also shows. While the mount-gate is closed (`tightWith === null`) only
+    // the plain path runs.
     const before = tightWith?.spare;
     const lift = tightIfPaused([sub.name]);
     togglePaused(sub.name);
+    const resume = () => togglePaused(sub.name, false);
     if (typeof before === 'number' && lift && lift.spare > before) {
-      Alert.alert(
-        `${pounds(sub.cost)} back on ${formatDayProse(lift.date)}`,
-        `Your low point: £${before} → £${lift.spare}.`,
+      showUndo(
+        `${pounds(sub.cost)} back on ${formatDayProse(lift.date)} · low point £${before} → £${lift.spare}`,
+        resume,
       );
     } else {
-      Alert.alert(`Paused ${sub.name}`, `${pounds(sub.cost)} back this month.`);
+      showUndo(`Paused ${sub.name} · ${pounds(sub.cost)} back this month`, resume);
     }
   };
 
   const onCancel = (sub: StoreSub) => {
-    // The destructive intent still confirms first (a cancel is a real removal, not a one-tap undo —
-    // ENGINES §6 keeps the confirm). Snapshot BEFORE delete so the undo restores both the sub and
-    // its paused state — capture order matters (the web reads getState() before removeSub).
-    Alert.alert(
-      `Cancel ${sub.name}?`,
-      'Re-add any time.',
-      [
-        { text: 'Keep it', style: 'cancel' },
-        {
-          text: 'Cancel it',
-          style: 'destructive',
-          onPress: () => {
-            const prevSubs = getState().subs;
-            const prevPaused = !!getState().subPaused[sub.name];
-            removeSub(sub.name);
-            // The post-cancel acknowledgement is now the Tier-1 undo snackbar (6s window) instead of
-            // a second blocking Alert. The restore is byte-identical to the old "Undo" action:
-            // put the subs list back and re-pause if it had been paused.
-            showUndo(`Cancelled ${sub.name}`, () => {
-              setSubs(prevSubs);
-              if (prevPaused) togglePaused(sub.name, true);
-            });
-          },
-        },
-      ],
-      { cancelable: true },
-    );
+    // Cancel is safe via the UNDO window, not a confirm gate — exactly the design (the web removes
+    // the sub immediately and raises a sonner toast with an inline Undo, no "are you sure?"). Snapshot
+    // BEFORE delete so the undo restores both the sub and its paused state — capture order matters
+    // (read getState() before removeSub). The Tier-1 snackbar (6s) then carries the verbatim
+    // "Cancelled {name}" line and the one-tap restore.
+    const prevSubs = getState().subs;
+    const prevPaused = !!getState().subPaused[sub.name];
+    removeSub(sub.name);
+    showUndo(`Cancelled ${sub.name}`, () => {
+      setSubs(prevSubs);
+      if (prevPaused) togglePaused(sub.name, true);
+    });
   };
 
   const onAskMelo = (sub: StoreSub) => {

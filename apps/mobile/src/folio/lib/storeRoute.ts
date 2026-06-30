@@ -25,95 +25,153 @@
 import { useMemo } from 'react';
 
 import { computeRoute, type DatedAmount, type RouteResult } from './moneyPath';
+import { deriveCalendarEvents } from './calendarEvents';
 import { resolvePayday } from './payday';
 import { useAppStore, type AppState } from '../store';
 
-const DAY_MS = 86_400_000;
 /** Fallback day-of-month payday when onboarding hasn't set one. Matches the
  *  literal TodayScreen used inline (`onboarding.payday || 25`). */
 const DEFAULT_PAYDAY_DOM = 25;
 
-// --- Local-calendar date helpers (lifted verbatim from TodayScreen) ----------------------------
-// The engine takes ISO "YYYY-MM-DD" strings and parses them as calendar days. We build those
-// strings from the runtime's LOCAL date parts so "today" is the user's local day — consistent with
-// the rest of Today, which parses the same ISO at local midnight. Pure string math, no
-// timezone-offset surprises.
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
+/** The forward window the route samples, in days. Identical to the Calendar
+ *  ladder's `deriveCalendarEvents({ windowDays: 35 })` so the route's tight point
+ *  and the Calendar's ladder minimum are ONE number on ONE day — a dip that lands
+ *  after payday (next month's start-of-month bills) is in BOTH or neither. */
+const ROUTE_WINDOW_DAYS = 35;
+
+// --- Date helpers ----------------------------------------------------------------------------
+// "Today" must be the user's LOCAL calendar day. The design's Today reads `new Date()` (a local
+// instant) and feeds it to `deriveCalendarEvents`, which keys "today" and every event date off
+// `now.toISOString().slice(0,10)` — the UTC slice (calendarEvents `isoDay`). On a UTC host those
+// coincide; on a non-UTC host (e.g. BST = UTC+1) the UTC slice of a local-midnight Date is the
+// PREVIOUS day, so slicing the route's "today" straight off `toISOString()` drifts a day early
+// (daysToPayday 16 not 15; the next-month roll reads 0). The fix is two-part and keeps the route and
+// the Calendar ladder on ONE shared day:
+//   (1) derive the route's `todayIso` from the LOCAL calendar fields (`isoDayLocal`), so it is the
+//       day the user is actually living; and
+//   (2) feed `deriveCalendarEvents` a `now` reconstructed at UTC midnight of that SAME local day
+//       (`utcMidnightOf`), so the slice it takes internally (`isoDay`) equals `todayIso` exactly —
+//       route day-indices and calendar event days then line up by construction on any host timezone.
+// `resolvePayday` (for the fallback payday) takes a "YYYY-MM" sliced from the same local `todayIso`.
+/** A Date → LOCAL-calendar ISO day "YYYY-MM-DD" (the day the user is in, host-tz aware). */
+function isoDayLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const pad2 = (n: number): string => (n < 10 ? `0${n}` : String(n));
+  return `${year}-${pad2(month)}-${pad2(day)}`;
 }
-/** A Date → local-calendar ISO day "YYYY-MM-DD". */
-function toIsoDay(date: Date): string {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+/** UTC-midnight Date for a "YYYY-MM-DD" — its `toISOString().slice(0,10)` is that exact day, so the
+ *  `now` we hand `deriveCalendarEvents` slices to the same local day the route uses for indexing. */
+function utcMidnightOf(iso: string): Date {
+  return new Date(`${iso}T00:00:00.000Z`);
 }
-/** A Date → local-calendar "YYYY-MM" (the month resolvePayday expects). */
-function toYearMonth(date: Date): string {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
-}
-/** A Date shifted by whole days (local clock), for dating sub renewals N days out. */
-function addDays(date: Date, n: number): Date {
-  return new Date(date.getTime() + n * DAY_MS);
-}
-/** A Date shifted by whole months, for rolling to next month's payday. */
-function addMonths(date: Date, n: number): Date {
-  return new Date(date.getFullYear(), date.getMonth() + n, date.getDate());
+/** The "YYYY-MM" one calendar month after a "YYYY-MM-DD" (or "YYYY-MM") ISO string. */
+function nextYearMonthOf(iso: string): string {
+  const y = Number(iso.slice(0, 4));
+  const m = Number(iso.slice(5, 7));
+  const month = m === 12 ? 1 : m + 1;
+  const year = m === 12 ? y + 1 : y;
+  return `${year}-${month < 10 ? `0${month}` : month}`;
 }
 
 /**
  * Build the `computeRoute` inputs from the store and return the route.
  *
- * Pure: same `(state, now)` → byte-identical `RouteResult`. The mapping mirrors
- * what TodayScreen did inline, so any screen that calls this gets the identical
- * curve, tight point, and days-to-payday.
+ * Pure: same `(state, now)` → byte-identical `RouteResult`.
+ *
+ * The buckets are derived from the SAME engine the Calendar uses
+ * (`deriveCalendarEvents`, over the SAME 35-day window) so the route's curve is
+ * the Calendar's ladder by construction — recurring bills (Rent / Council Tax /
+ * Octopus / BT), sub renewals, payday income, manual events, and pot top-ups are
+ * all present once, from one place, never re-listed here. The path starts from
+ * the FULL `currentBalance.amount` (the design's single engine,
+ * `computeSpareAndTightest(groups, currentBalance.amount)`), and pots enter the
+ * curve ONLY as their future DATED `−perWeek` top-up dips (already in `spend` via
+ * `deriveCalendarEvents`) — NOT as a flat `Σ pots.saved` earmark subtracted at the
+ * start, and never the engine's internal flat `pots` plateau (we pass `pots: []`).
+ * Subtracting earmarked pot cash again at the start would double-count pots and
+ * drag the tight point ~£Σsaved too low.
+ *
+ * The previous mapping dropped bills entirely, modelled pots as a flat plateau,
+ * and clamped the window at payday — so the tight point disagreed with the
+ * Calendar (and with the design's Today, which computes the tightest the same
+ * way). It also folded `state.transactions` in as spend; the design's tight
+ * point is derived purely from the calendar timeline, so logged transactions are
+ * no longer part of this curve (they were past-dated and out-of-window on seed
+ * data anyway). `daysToPayday` / `spare` still describe payday itself, while the
+ * sampled 35-day window finds the lowest point wherever it lands (before OR after
+ * payday) — the two are distinct and never conflated.
  *
  * @param state The full app state (the slices read: currentBalance, onboarding,
- *   subs, subPaused, subOverrides, transactions, pots).
+ *   subs, subPaused, subOverrides, calendarEvents, pots).
  * @param now   "Today" — a Date or its local ISO day. Defaults to `new Date()`
  *   only when omitted; the reactive hook always injects the mount-gated date so
  *   nothing reads the clock during render.
  */
 export function routeFromStore(state: AppState, now: Date | string = new Date()): RouteResult {
   const nowDate = typeof now === 'string' ? new Date(`${now}T00:00:00`) : now;
-  const todayIso = toIsoDay(nowDate);
+  // The route's "today" is the user's LOCAL calendar day (see the helper note above) — not the UTC
+  // slice, which drifts a day early on a non-UTC host. `daysToPayday` and the day indices are all
+  // measured from this.
+  const todayIso = isoDayLocal(nowDate);
   const paydayDom = state.onboarding.payday || DEFAULT_PAYDAY_DOM;
 
-  // Resolve the next payday: this month's resolved payday if it's still ahead, else next month's.
-  const thisMonthPayday = resolvePayday({ dayOfMonth: paydayDom }, toYearMonth(nowDate));
+  // The Calendar's timeline — the single derivation that owns bills, subs, payday, pot top-ups, and
+  // manual events. Same inputs + same 35-day window the Calendar screen feeds, so the curve below IS
+  // the Calendar's ladder. Anchored to UTC midnight of `todayIso` so `deriveCalendarEvents`' own UTC
+  // slice resolves to the SAME local day — event dates then land on the indices `computeRoute` uses.
+  const events = deriveCalendarEvents({
+    subs: state.subs,
+    subPaused: state.subPaused,
+    subOverrides: state.subOverrides,
+    onboarding: state.onboarding,
+    manualEvents: state.calendarEvents,
+    pots: state.pots,
+    windowDays: ROUTE_WINDOW_DAYS,
+    now: utcMidnightOf(todayIso),
+  });
+
+  // Split the derived timeline into the engine's buckets by sign: positive = income (payday),
+  // negative = an outflow magnitude (bills, sub renewals, pot top-ups, manual out). Reviews and
+  // deadlines carry no amount and fall through. One pass, no per-source re-derivation.
+  const income: DatedAmount[] = [];
+  const spend: DatedAmount[] = [];
+  for (const e of events) {
+    if (typeof e.amount !== 'number') continue;
+    if (e.amount >= 0) income.push({ date: e.date, amount: e.amount });
+    else spend.push({ date: e.date, amount: -e.amount });
+  }
+
+  // The route's `payday` — it bounds `daysToPayday` and where `spare` is read, NOT the sampled
+  // window (that is the 35-day picture above). Take the FIRST payday the timeline itself resolved
+  // (its in-window `payday`-source event), so payday is the same concrete day the Calendar shows.
+  // When income is 0 (no payday event), fall back to resolving the day-of-month in the same UTC
+  // month space: this month's resolved payday if still ahead of today, else next month's.
+  const firstPaydayEvent = events.find((e) => e.source === 'payday');
+  const thisMonthPayday = resolvePayday({ dayOfMonth: paydayDom }, todayIso.slice(0, 7));
   const paydayIso =
-    thisMonthPayday >= todayIso
+    firstPaydayEvent?.date ??
+    (thisMonthPayday >= todayIso
       ? thisMonthPayday
-      : resolvePayday({ dayOfMonth: paydayDom }, toYearMonth(addMonths(nowDate, 1)));
+      : resolvePayday({ dayOfMonth: paydayDom }, nextYearMonthOf(todayIso)));
 
-  // Sub renewals → dated outflows. Skip paused; apply the stored day-nudge (same as the Calendar).
-  const subEvents: DatedAmount[] = state.subs
-    .filter((s) => !state.subPaused[s.name])
-    .map((s) => ({
-      date: toIsoDay(addDays(nowDate, s.nextRenewalDaysAway + (state.subOverrides[s.name] ?? 0))),
-      amount: s.cost,
-    }));
-
-  // Transactions → spend. Stored sign is "negative = spend, positive = inflow"; the engine reads
-  // spend as outflow magnitude, so flip the sign once.
-  const spendEvents: DatedAmount[] = state.transactions.map((tx) => ({
-    date: toIsoDay(new Date(tx.when)),
-    amount: -tx.amount,
-  }));
-
-  // Monthly income lands on payday.
-  const incomeEvents: DatedAmount[] =
-    state.onboarding.monthlyIncome > 0
-      ? [{ date: paydayIso, amount: state.onboarding.monthlyIncome }]
-      : [];
-
+  // Start from the FULL currentBalance.amount — faithful to the design's single engine
+  // (`computeSpareAndTightest(groups, currentBalance.amount)`, design ScreenToday.tsx:64). Pots are
+  // already in `spend` as dated −perWeek top-up dips (via deriveCalendarEvents), so earmarked pot
+  // cash must NOT be subtracted again at the start — doing so double-counts pots and drags the tight
+  // point ~£Σsaved too low. Pots affect the curve ONLY as their future weekly contributions.
   return computeRoute({
     now: todayIso,
     payday: paydayIso,
+    windowDays: ROUTE_WINDOW_DAYS,
     balance: state.currentBalance.amount,
-    income: incomeEvents,
+    income,
     bills: [],
-    subs: subEvents,
-    spend: spendEvents,
+    subs: [],
+    spend,
     holds: [],
-    pots: state.pots.map((p) => ({ saved: p.saved })),
+    pots: [],
     openBorrows: 0,
   });
 }

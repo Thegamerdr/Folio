@@ -15,3 +15,6 @@ ios/
 # Wrangler local secrets (OpenRouter key for local gateway dev) — never commit
 .dev.vars
 **/.dev.vars
+
+# Wrangler local cache/state
+**/.wrangler/
