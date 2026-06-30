@@ -5,11 +5,16 @@ packages:
 
 nodeLinker: hoisted
 
-onlyBuiltDependencies:
-  - dtrace-provider
-  - esbuild
+# Build-script decisions (pnpm 11 `allowBuilds`). Filling these is what stops pnpm aborting every
+# top-level command with ERR_PNPM_IGNORED_BUILDS (the block was previously left as unfilled
+# "set this to true or false" placeholders).
+#   esbuild / dtrace-provider -> true: their native binary is needed by the toolchain (vitest/tsx).
+#   sharp (image processing) / workerd (Cloudflare runtime, services/ai-gateway) -> false: they ship
+#   prebuilt binaries and their build scripts are not needed for lint / typecheck / test or the RN app.
 allowBuilds:
   dtrace-provider: true
   esbuild: true
+  sharp: false
+  workerd: false
 patchedDependencies:
   '@react-native/gradle-plugin@0.85.3': patches/@react-native__gradle-plugin@0.85.3.patch

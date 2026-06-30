@@ -5,10 +5,9 @@
 // @rn-stack     More > Data & privacy
 // @purpose      Plain statement of what Folio does (and doesn't do) with the user's data, plus export
 //               and reset.
-// @reads        — (no store reads for render; getState() is read imperatively only inside the Start
-//               fresh handler to snapshot state for Undo — never a reactive subscription)
+// @reads        — (no store reads for render)
 // @writes       resetAll() (via "Reset to the demo") · resetToEmpty() (via "Clear everything to
-//               empty") · setPartial(snapshot) (via Undo, on either reset)
+//               empty"). NO post-wipe Undo (D3: no fake undo after a confirmed wipe).
 // @writes-export runExport() — "Export my data" runs the real export engine (full JSON + CSVs +
 //               OS share sheet, ENGINES §6 D6). It opens the OS share sheet itself, not a Folio sheet.
 // @copy         FROZEN — must match what the app actually does. No false claims. Checked by the RN
@@ -41,14 +40,13 @@
 //     1 or below the last row). Each row is a Pressable with the kit `pressed` feel and a right
 //     chevron. The card now holds THREE rows ("See what's saved" + the two resets), each split by one
 //     inter-row hairline.
-//   • TWO distinct destructive resets, both gated, snapshot the full state, run their wipe, navigate
-//     to Start, then offer Undo. "Reset to the demo" → resetAll() (RESEEDS the sample/demo set, so its
-//     toast says the example was put back); "Clear to empty" → resetToEmpty() (leaves a GENUINELY
-//     empty app — no reseed — for a real user who wants only their own data, so its toast truthfully
-//     says the app is empty). Both run the SAME tier-3 confirm chain (exportedAck → typedConfirm →
-//     finalConfirm); only the final branch wipes. The web used a 6s sonner toast with a tappable Undo;
-//     the RN-native analog already established in this codebase (SubscriptionsScreen) is Alert.alert
-//     with an Undo action that restores the snapshot via setPartial — both resets reuse it. The frozen
+//   • TWO distinct destructive resets, both gated, run their wipe, then navigate to Start. "Reset to
+//     the demo" → resetAll() (RESEEDS the sample/demo set, so its toast says the example was put back);
+//     "Clear to empty" → resetToEmpty() (leaves a GENUINELY empty app — no reseed — for a real user who
+//     wants only their own data, so its toast truthfully says the app is empty). Both run the SAME
+//     tier-3 confirm chain (exportedAck → typedConfirm → finalConfirm); only the final branch wipes.
+//     Per D3 there is NO post-wipe Undo (no fake undo after a confirmed wipe): the toast is a plain
+//     confirmation, and the export acknowledged in gate 1 is the real recovery path. The frozen
 //     web claims ("Delete everything in one tap") describe the user's OWN data being wiped; the gate is
 //     deliberately multi-step, and what's LEFT after differs by which reset was chosen. See @rn-engine.
 //   • slide-in-r resolves straight to its final state under reduce-motion (resolved layout, never a
@@ -93,7 +91,7 @@ import {
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { getState, resetAll, resetToEmpty, setPartial } from '@/folio/store';
+import { resetAll, resetToEmpty } from '@/folio/store';
 import { runExport } from '@/folio/lib/exportNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
 import type { Nav } from '@/folio/types';
@@ -189,8 +187,9 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // step rather than a free-text box. Each step is independently cancellable, and the wipe only runs
   // inside the final branch after the gate returns true.
   //
-  // Once the gate clears: snapshot the full state for Undo, run the chosen wipe, jump to Start, then
-  // offer Undo (the web's 6s sonner toast → the RN Alert.alert + Undo analog). Both wipes share this
+  // Once the gate clears: run the chosen wipe and jump to Start. There is NO post-wipe Undo — D3
+  // forbids a fake undo after a confirmed wipe, and the final gate already says "there is no going
+  // back" (the web's 6s sonner-with-Undo is deliberately dropped). Both wipes share this
   // shell; they differ only in the wipe function and the confirmation wording. Export is now REAL:
   // "Export my data" calls runExport() (the export engine), which builds the complete JSON + CSVs and
   // opens the OS share sheet on them — it no longer opens the cycle-share card (D6, never paywalled).
@@ -205,18 +204,13 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     const gate: StartFreshState = { typedConfirm: true, exportedAck: true, finalConfirm: true };
     if (!canStartFresh(gate)) return;
 
-    const snapshot = { ...getState() };
     wipe();
     nav.go('start');
-    Alert.alert(
-      toastTitle,
-      toastBody,
-      [
-        { text: 'Undo', onPress: () => setPartial(snapshot) },
-        { text: 'OK', style: 'cancel' },
-      ],
-      { cancelable: true },
-    );
+    // D3: NO fake undo after a confirmed wipe. The three-gate confirm (export ack → typed confirm →
+    // final confirm) IS the protection, and the final dialog already tells the user "there is no going
+    // back" — offering an Undo here would contradict that. So this is a plain confirmation (OK only);
+    // the export the user acknowledged in gate 1 is the real recovery path.
+    Alert.alert(toastTitle, toastBody, [{ text: 'OK', style: 'cancel' }], { cancelable: true });
   };
 
   // The shared tier-3 confirm chain. Both destructive resets run the SAME three independently

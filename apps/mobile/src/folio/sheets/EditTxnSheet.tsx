@@ -18,11 +18,13 @@
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetEditTxn.tsx).
 //
 // @rn-sheet     EditTxnSheet
-// @purpose      Correct an existing transaction. The web source renders amount / category / repeat /
-//               note as read-only rows with a single "Save changes" that closes without writing; this
-//               port keeps that visual frame and read-only Amount / Category / Repeat rows, and makes
-//               the Note row a single editable field (the engine's `note` field — ENGINES §6) so a
-//               real correction is possible. Save applies the change via the store, then closes.
+// @purpose      Correct an existing transaction. The web source rendered amount / category / repeat /
+//               note as read-only rows with a "Save changes" that closed without writing. Per ENGINES
+//               §6 D4 (meaningful money-field edits, NOT note-only) this port makes Amount, Category
+//               and Note EDITABLE — each change routes through the store's editTransaction as one
+//               immutable correction per changed field, replacing the row in place. Repeat is not a
+//               Transaction field, so it stays a display row; date editing (needs a platform picker)
+//               is a follow-up. Save applies the change(s) via the store, then closes.
 // @writes       editTransaction (store; replace-in-place + one TxnEdit per changed field, §6). With no
 //               target, or an unchanged note, NOTHING is written (the web close-only contract holds).
 // @copy         FROZEN (verbatim frame; the field VALUES are bound from the real transaction)
@@ -83,18 +85,23 @@ const CATEGORY_LABEL: Readonly<Record<Transaction['category'], string>> = {
   other: 'Other',
 };
 
+// The category chips, in a stable display order, for the editable category selector.
+const CATEGORY_ORDER: readonly Transaction['category'][] = [
+  'food',
+  'transport',
+  'fun',
+  'bills',
+  'shopping',
+  'income',
+  'other',
+];
+
 // "26 June" — the web title's date prose, computed from the real ISO `when`. Parsed at local midnight
 // so the day agrees with the stored timestamp (no UTC drift), matching the Today/Timeline formatters.
 function monthDay(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
-}
-
-// The amount row value — magnitude with two decimals, faithful to the web "£42.00" (the sign is the
-// money fact and is shown as the direction, not retyped here; this row is read-only).
-function amountLabel(amount: number): string {
-  return `£${Math.abs(amount).toFixed(2)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,25 +166,36 @@ function EditTxnForm({
   onClose: () => void;
   txn: EditableTransaction;
 }) {
-  // The Note row is the one editable field (the engine's `note` field — §6). Primed from the real
-  // transaction's note. Amount / Category / Repeat stay read-only display rows, faithful to the web.
+  // Real correction fields (ENGINES §6 D4 — "meaningful money-field edits", not note-only). Amount,
+  // Category and Note are editable; each change routes through the store's editTransaction, which
+  // records one immutable correction per changed field and replaces the row in place. Amount is held
+  // as an unsigned magnitude — the original DIRECTION (spend vs income) is preserved on save, so a
+  // correction fixes the figure without silently flipping a spend into income. (Date editing needs a
+  // platform date-picker and is a follow-up; Repeat is not a Transaction field, so it stays a display
+  // row.)
+  const [amountText, setAmountText] = useState(Math.abs(txn.amount).toFixed(2));
+  const [category, setCategory] = useState<Transaction['category']>(txn.category);
   const [note, setNote] = useState(txn.note ?? '');
 
   const title = `${txn.merchant} · ${monthDay(txn.when)}`.replace(/ · $/, '');
 
+  // The signed amount the magnitude input resolves to: keep the original sign (direction), apply the
+  // new magnitude. Unparseable input falls back to the current amount, so a bad keystroke never wipes
+  // the figure — it simply records no amount change.
+  function resolvedAmount(): number {
+    const mag = Number(amountText.replace(/[^0-9.]/g, ''));
+    if (!Number.isFinite(mag)) return txn.amount;
+    const sign = txn.amount < 0 ? -1 : 1;
+    return sign * mag;
+  }
+
   // Save — apply the correction to THIS transaction via the store. editTransaction runs the pure
-  // applyTxnEdit engine, replaces the row in place (same id, no duplicate), and appends one immutable
-  // TxnEdit record per changed field. A note left at its current value is a no-op and records nothing
-  // (§6), so an accidental Save never fabricates history. Then close.
+  // applyTxnEdit engine, which records ONE immutable TxnEdit per ACTUALLY-changed field and no-ops any
+  // field left at its current value (so an untouched field fabricates no history, and a Save that
+  // changes nothing writes nothing). It replaces the row in place (same id, no duplicate); every
+  // transaction-derived view (Timeline, Insights, Today's recent spend) updates reactively. Then close.
   function handleSave() {
-    const trimmed = note.trim();
-    const current = txn.note ?? '';
-    // Only thread the note when it actually changed — exactOptionalPropertyTypes means we pass the
-    // single changed field. editTransaction itself also no-ops an unchanged value, but skipping the
-    // call when nothing changed keeps the write path quiet.
-    if (trimmed !== current) {
-      editTransaction(txn.id, { note: trimmed }, 'user');
-    }
+    editTransaction(txn.id, { amount: resolvedAmount(), category, note: note.trim() }, 'user');
     onClose();
   }
 
@@ -200,21 +218,32 @@ function EditTxnForm({
         {title}
       </Text>
 
-      {/* Read-only field rows — bound from the real transaction. */}
+      {/* Editable field rows — bound to the real transaction; Save routes a correction per change. */}
       <View style={s.fields}>
+        {/* Amount — unsigned magnitude input; the original direction is preserved on save. */}
         <View style={s.fieldRow}>
           <Text style={s.fieldLabel}>Amount</Text>
-          <Text style={s.fieldValue}>{amountLabel(txn.amount)}</Text>
+          <View style={s.amountInputWrap}>
+            <Text style={s.amountPrefix}>£</Text>
+            <TextInput
+              accessibilityLabel="Amount"
+              keyboardType="decimal-pad"
+              onChangeText={setAmountText}
+              placeholder="0.00"
+              placeholderTextColor={t.muted}
+              style={s.amountInput}
+              value={amountText}
+            />
+          </View>
         </View>
-        <View style={s.fieldRow}>
-          <Text style={s.fieldLabel}>Category</Text>
-          <Text style={s.fieldValue}>{CATEGORY_LABEL[txn.category]}</Text>
-        </View>
+
+        {/* Repeat — not a Transaction field; stays a display row. */}
         <View style={s.fieldRow}>
           <Text style={s.fieldLabel}>Repeat</Text>
           <Text style={s.fieldValue}>Once</Text>
         </View>
-        {/* Note — the one editable field. Styled exactly like a value cell so the row reads the same. */}
+
+        {/* Note — free-text correction. */}
         <View style={s.fieldRow}>
           <Text style={s.fieldLabel}>Note</Text>
           <TextInput
@@ -228,12 +257,43 @@ function EditTxnForm({
         </View>
       </View>
 
-      {/* Primary — Save changes (non-destructive correction, then close). */}
+      {/* Category — a tappable chip per category; the selected one is filled. */}
+      <View style={s.categoryBlock}>
+        <Text style={s.categoryLabel}>Category</Text>
+        <View style={s.categoryChips}>
+          {CATEGORY_ORDER.map((c) => {
+            const selected = c === category;
+            return (
+              <Pressable
+                key={c}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => setCategory(c)}
+                style={({ pressed }) => [
+                  s.catChip,
+                  selected ? s.catChipOn : undefined,
+                  pressed ? s.pressed : undefined,
+                ]}
+              >
+                <Text style={[s.catChipLabel, selected ? s.catChipLabelOn : undefined]}>
+                  {CATEGORY_LABEL[c]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Primary — Save changes (one non-destructive correction per changed field, then close). */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Save changes"
         onPress={handleSave}
-        style={({ pressed }) => [s.primary, { backgroundColor: t.calm }, pressed ? s.pressed : undefined]}
+        style={({ pressed }) => [
+          s.primary,
+          { backgroundColor: t.calm },
+          pressed ? s.pressed : undefined,
+        ]}
       >
         <Text style={[s.primaryLabel, { color: t.inverse }]}>Save changes</Text>
       </Pressable>
@@ -275,8 +335,8 @@ function InertFallback({
 
       <View style={s.fields}>
         <Text style={[s.fieldValue, { color: t.muted }]}>
-          Open this from a transaction — tap one in your timeline or a found item — and you can correct
-          it here. Nothing&apos;s selected right now.
+          Open this from a transaction — tap one in your timeline or a found item — and you can
+          correct it here. Nothing&apos;s selected right now.
         </Text>
       </View>
 
@@ -284,7 +344,11 @@ function InertFallback({
         accessibilityRole="button"
         accessibilityLabel="Close"
         onPress={onClose}
-        style={({ pressed }) => [s.primary, { backgroundColor: t.calm }, pressed ? s.pressed : undefined]}
+        style={({ pressed }) => [
+          s.primary,
+          { backgroundColor: t.calm },
+          pressed ? s.pressed : undefined,
+        ]}
       >
         <Text style={[s.primaryLabel, { color: t.inverse }]}>Close</Text>
       </Pressable>
@@ -366,6 +430,61 @@ function makeStyles(t: Palette) {
       marginLeft: gap.md,
       paddingVertical: 0,
       textAlign: 'right',
+    },
+    // Amount — a right-aligned magnitude input with a £ prefix, reading like the value cell it replaced.
+    amountInputWrap: {
+      alignItems: 'center',
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginLeft: gap.md,
+    },
+    amountPrefix: {
+      color: t.ink,
+      fontSize: 14,
+      fontWeight: '500',
+      marginRight: 2,
+    },
+    amountInput: {
+      color: t.ink,
+      fontSize: 14,
+      fontWeight: '500',
+      minWidth: 72,
+      paddingVertical: 0,
+      textAlign: 'right',
+    },
+    // Category — a labelled block of tappable chips below the field rows.
+    categoryBlock: {
+      marginTop: gap.md,
+    },
+    categoryLabel: {
+      color: t.muted,
+      fontSize: 12,
+      letterSpacing: 1.3,
+      marginBottom: gap.sm,
+      marginLeft: 2,
+      textTransform: 'uppercase',
+    },
+    categoryChips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: gap.sm,
+    },
+    catChip: {
+      backgroundColor: t.inset,
+      borderRadius: radius.pill,
+      paddingHorizontal: gap.md,
+      paddingVertical: 6,
+    },
+    catChipOn: {
+      backgroundColor: t.ink,
+    },
+    catChipLabel: {
+      color: t.ink,
+      fontSize: 12,
+    },
+    catChipLabelOn: {
+      color: t.inverse,
     },
     // Primary — full width, h-[54px], 2xl radius, terracotta, mt-6.
     primary: {

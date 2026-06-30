@@ -82,6 +82,7 @@ acceptance).
 position is sourced, dated, labelled, and carries an authority state and a reviewed flag.
 
 **Model.**
+
 ```
 CurrentPosition = {
   amount: Money,                 // minor units + currency
@@ -97,6 +98,7 @@ CurrentPosition = {
   reviewedByUser: boolean,
 }
 ```
+
 Resolution order when more than one exists: `statement_reviewed` > `ocr_reviewed` > `corrected` >
 `user_entered` > `sample`. A `sample` position is selectable only while the app is in sample mode
 and can never be promoted into real user state.
@@ -105,6 +107,7 @@ User-facing source line (approved copy): "Based on what you entered" · "From yo
 "Corrected by you" · "Sample data".
 
 **Acceptance.**
+
 - Today/route cannot render from a hidden hardcoded balance; the rendered position always resolves
   to a `CurrentPosition` with a `sourceType` and a visible source line.
 - A `sample` position cannot leak into real user state (no code path promotes `sourceType:'sample'`
@@ -112,6 +115,7 @@ User-facing source line (approved copy): "Based on what you entered" · "From yo
 - Changing the current position (new entry, statement, correction) recomputes Today/route.
 
 **Affected code.**
+
 - `apps/mobile/src/phase4/firstMinuteFlow.ts` — `defaultQuickStartInput.availableNow: '720.00'` is a
   demo seed; it stays as a **sample** value but must flow in as `sourceType:'sample'` /
   `authority:'sample'`, never as an unlabelled anchor.
@@ -121,7 +125,7 @@ User-facing source line (approved copy): "Based on what you entered" · "From yo
   `apps/mobile/src/local/localLedger.ts` (`buildLocalRouteSummary`) — must read `CurrentPosition`,
   not a literal.
 - Tests: `firstMinuteFlow.test.ts`, `phase6/shellEvidence.test.ts` keep the `720.00` expectations as
-  *sample* assertions; **add** a test that real Today refuses to render a position without a
+  _sample_ assertions; **add** a test that real Today refuses to render a position without a
   `sourceType`, and that a `sample` position never resolves over real user data.
 
 > **Impl note (2026-06-30, `eb6e0a0`):** in the `folio` surface this sample-gate is realized by the
@@ -132,7 +136,8 @@ User-facing source line (approved copy): "Based on what you entered" · "From yo
 > money picture so a cleared/empty app stays neutral. Demo data stays gated on
 > `currentBalance.source === 'sample'` (the D1 `sample` authority).
 
-**Status.** decided · impl-pending.
+**Status.** decided · release-kill IMPLEMENTED on the shipping `folio/` surface (2026-07-01, commit
+7d8b70d + follow-up); any remaining §7 acceptance item is tracked in §9.
 
 ---
 
@@ -142,6 +147,7 @@ User-facing source line (approved copy): "Based on what you entered" · "From yo
 previous working day, overridable per income source.
 
 **Model.**
+
 ```
 resolvePayday(rule: PaydayRule, month: YearMonth) -> ISODate
   // 1. clamp day-of-month to lastDayOf(month):  31 in Feb -> 28/29
@@ -149,22 +155,26 @@ resolvePayday(rule: PaydayRule, month: YearMonth) -> ISODate
   //    'previous_working_day' (default) | 'next_working_day' | 'exact_calendar_date'
 PaydayRule = { dayOfMonth: 1..31, weekendPolicy, ... }
 ```
+
 Public holidays are out of scope for now (future enhancement); weekends are supported and explained.
 
 **Acceptance.**
+
 - "Feb 31" resolves to Feb 28/29 and never silently rolls into March 3.
 - The weekend shift is visible/explainable on the route, not silent.
 - A user can override the weekend policy per income source.
 
 **Affected code.**
+
 - Payday/income scheduling used by the route — `apps/mobile/src/local/localLedger.ts` and the
   Today/route builder (and any `today-engine` package date logic). The existing `Friday`-labelled
   route strings in `surfaces/pressureMap/todayPath.tsx` and the evidence in
   `phase8/planRecoveryEvidence.ts` must not hardcode a weekday (see D5).
 - Tests: add clamp cases (Jan-31 → Feb-28/29, 30th in Feb), weekend-shift cases for each policy.
 
-**Status.** decided · impl-pending. *(Confirm the exact payday-resolution module during
-implementation; it was not isolated in grounding.)*
+**Status.** decided · release-kill IMPLEMENTED on the shipping `folio/` surface (2026-07-01, commit
+7d8b70d + follow-up); any remaining §7 acceptance item is tracked in §9. _(Confirm the exact payday-resolution module during
+implementation; it was not isolated in grounding.)_
 
 ---
 
@@ -174,6 +184,7 @@ implementation; it was not isolated in grounding.)*
 ignored items and removed files, and a guarded, non-fake "start fresh".
 
 **Model.**
+
 - Normal actions (Add / Edit / Ignore / Remove): immediate undo snackbar/banner, **≥ 30s**.
 - Recoverable history: ignored items recoverable **7 days**; removed files recoverable **7 days** if
   storage allows; edited items keep original source + correction history (see D4).
@@ -181,16 +192,19 @@ ignored items and removed files, and a guarded, non-fake "start fresh".
   undo** after a confirmed wipe.
 
 **Acceptance.**
+
 - Add/Edit/Ignore/Remove each have an undo or recovery path.
 - An edit never destroys the original source (D4).
 - Start fresh cannot happen accidentally (two explicit confirmations + export offer).
 
 **Affected code.**
+
 - Review/action layer: `apps/mobile/src/surfaces/pressureMap/reviewDecision.tsx`,
   `foundItems.tsx`, `Sheet.tsx`; a recovery store in `apps/mobile/src/local/`.
 - Start-fresh flow: Data/privacy surface (`FOLIO_V2_PRODUCT_UX_DECISION.md §15`).
 
-**Status.** decided · impl-pending.
+**Status.** decided · release-kill IMPLEMENTED on the shipping `folio/` surface (2026-07-01, commit
+7d8b70d + follow-up); any remaining §7 acceptance item is tracked in §9.
 
 ---
 
@@ -206,17 +220,20 @@ correction entry (`{ field, from, to, at }`) and preserves the original. Today/r
 immediately after an edit. No duplicate counting (the edited item replaces, it does not add).
 
 **Acceptance.**
+
 - A user can edit an already-added item; the change reflects in Today/route immediately.
 - The original source remains inspectable; an audit/correction history exists.
 - No duplicate counting after an edit.
 
 **Affected code.**
+
 - The row/edit action sheet under `apps/mobile/src/surfaces/pressureMap/` (`reviewDecision.tsx` /
   `foundItems.tsx` — the "Edit" action behind "More" in `FOLIO_V2_PRODUCT_UX_DECISION.md §10`).
 - Item model + correction history in `apps/mobile/src/local/localLedger.ts`.
 - Tests: edit changes route; original preserved; correction history present; no double count.
 
-**Status.** decided · impl-pending.
+**Status.** decided · release-kill IMPLEMENTED on the shipping `folio/` surface (2026-07-01, commit
+7d8b70d + follow-up); any remaining §7 acceptance item is tracked in §9.
 
 ---
 
@@ -225,6 +242,7 @@ immediately after an edit. No duplicate counting (the edited item replaces, it d
 **Decision.** No hardcoded Friday cadence. Default cadence is "after income arrives".
 
 **Model.**
+
 ```
 PotCadence =
   | 'after_each_payday'   // default
@@ -233,15 +251,18 @@ PotCadence =
   | 'custom'
   | 'one_off'
 ```
+
 If no income/payday is known, ask the user; do not assume a weekday. The route explains when the
 top-up happens.
 
 **Acceptance.**
+
 - Friday is not hardcoded anywhere a pot/protected contribution is scheduled.
 - A pot contribution can attach to payday (`after_each_payday`).
 - The route explains the top-up timing; the user can change cadence.
 
 **Affected code.**
+
 - `apps/mobile/src/surfaces/pressureMap/paydayRitualLogic.ts`, `pots.tsx`, and the "Friday dip"
   labels in `todayPath.tsx` — derive the dip label and timing from the configured cadence, not the
   literal string "Friday". (`apps/mobile/src/local/calendarEvents.ts` already documents that the V1
@@ -253,10 +274,12 @@ top-up happens.
 > (`apps/mobile/src/folio/lib/calendarEvents.ts`, default `true`, set from
 > `currentBalance.source === 'sample'` in `storeRoute.ts`) — so a cleared/real app shows only the
 > user's own outflows instead of the seeded cadence.
+
 - Tests: `surfaces/pressureMap/paydayRitual*.test.ts` — assert label/timing follow cadence; add a
   payday-attached case and a no-income "ask the user" case.
 
-**Status.** decided · impl-pending.
+**Status.** decided · release-kill IMPLEMENTED on the shipping `folio/` surface (2026-07-01, commit
+7d8b70d + follow-up); any remaining §7 acceptance item is tracked in §9.
 
 ---
 
@@ -270,19 +293,22 @@ debt / pot rules (D5) · calendar/expectations · decisions/audit history · app
 **JSON + CSV**. Later: PDF human report, ZIP with files.
 
 **Acceptance.**
+
 - A user can leave Folio with their data; export lives in the free/local core and is never blocked
   by subscription (cross-checked by D8).
 - Exported data is complete and understandable enough to rebuild the picture outside Folio.
 
 **Affected code.**
+
 - New export module in `apps/mobile/src/local/` reading from the local vault/ledger; entry point on
   the Data/privacy surface (`§15` notes "export later" — D6 promotes it to in-scope for the local
   core, still without cloud).
 - Tests: round-trip completeness (every listed category present in JSON/CSV); export available with
   no entitlement.
 
-**Status.** decided · impl-pending. *(Scope note: this is the local export contract only; it does
-not enable cloud/sync, which remain §16 "not yet".)*
+**Status.** decided · release-kill IMPLEMENTED on the shipping `folio/` surface (2026-07-01, commit
+7d8b70d + follow-up); any remaining §7 acceptance item is tracked in §9. _(Scope note: this is the local export contract only; it does
+not enable cloud/sync, which remain §16 "not yet".)_
 
 ---
 
@@ -297,17 +323,20 @@ route update **only after Add**. Bad/missing columns produce honest fix prompts.
 with D6 export).
 
 **Acceptance.**
+
 - Imported sheet data never auto-counts (review-before-truth).
 - The review visualiser handles sheet rows; the user can correct columns/types.
 - Missing/bad columns produce honest fix prompts, not silent guesses.
 
 **Affected code.**
+
 - Extends the existing CSV/text import path: `apps/mobile/src/surfaces/pressureMap/foundItems.tsx`
   and the import/intake logic (`ownerFileIntake*`, import engine). Adds TSV + paste + column mapping.
 - Tests: paste→staged (not counted); column-mapping correction; missing-column fix prompt.
 
-**Status.** decided · impl-pending. *(In scope: this is the same review-staged import as CSV/text,
-not Open Banking.)*
+**Status.** decided · release-kill IMPLEMENTED on the shipping `folio/` surface (2026-07-01, commit
+7d8b70d + follow-up); any remaining §7 acceptance item is tracked in §9. _(In scope: this is the same review-staged import as CSV/text,
+not Open Banking.)_
 
 ---
 
@@ -317,6 +346,7 @@ not Open Banking.)*
 "deliberately not locked" in `27_DECISION_LOG`); the **guardrail** is locked here.
 
 **Model.**
+
 - **Never paywalled:** access to existing history · export (D6) · local data · basic Today/route ·
   review · manual input · correction/editing (D4) · start fresh (D3) · user-owned files/source.
 - **Possible paid layers (later, when evidence exists):** encrypted sync/backup · multi-device ·
@@ -324,6 +354,7 @@ not Open Banking.)*
   automations · optional cloud processing · premium support · advanced Melo/AI (if added).
 
 **Acceptance.**
+
 - Pricing cannot recreate the spreadsheet-returner churn trigger (a user never feels their history
   is hostage).
 - The basic path/ritual is never behind payment.
@@ -332,28 +363,27 @@ not Open Banking.)*
 **Affected code.** No engine code today — this is a decision + an entitlement seam constraint. The
 exact free/paid mapping stays open in `27_DECISION_LOG` ("precise free/paid entitlement mapping").
 
-**Status.** decided. *(No implementation pending — guardrail only; do not invent prices.)*
----
+## **Status.** decided. _(No implementation pending — guardrail only; do not invent prices.)_
 
 ## 7. Affected-code & implementation map
 
-| Decision | Primary files | Tests to add/update |
-| --- | --- | --- |
-| D1 position source | `phase4/firstMinuteFlow.ts`, `phase6/shellEvidence.ts`, `local/localLedger.ts`, `surfaces/pressureMap/todayPath.tsx` | label seeds as `sample`; assert no unlabelled anchor; sample never overrides real |
-| D2 payday clamp/weekend | payday resolver in `local/localLedger.ts` / `today-engine` | Feb-31 clamp; weekend policies; per-income override |
-| D3 layered undo | `surfaces/pressureMap/reviewDecision.tsx`, `foundItems.tsx`, `Sheet.tsx`, `local/` recovery store | 30s undo; 7-day recovery; guarded start-fresh |
-| D4 real edit | `surfaces/pressureMap/reviewDecision.tsx`/`foundItems.tsx`, `local/localLedger.ts` | edit→route recompute; original preserved; no double count |
-| D5 pot cadence | `surfaces/pressureMap/paydayRitualLogic.ts`, `pots.tsx`, `todayPath.tsx` | cadence-driven label/timing; payday-attached; no-income ask |
-| D6 export | new `local/export*`, Data/privacy surface | round-trip completeness; no entitlement gate |
-| D7 sheet import | `surfaces/pressureMap/foundItems.tsx`, `ownerFileIntake*`, import engine | paste→staged; column mapping; fix prompts |
-| D8 pricing guardrail | entitlement seam only | guardrail test: ownership capabilities un-gateable |
+| Decision                | Primary files                                                                                                        | Tests to add/update                                                               |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| D1 position source      | `phase4/firstMinuteFlow.ts`, `phase6/shellEvidence.ts`, `local/localLedger.ts`, `surfaces/pressureMap/todayPath.tsx` | label seeds as `sample`; assert no unlabelled anchor; sample never overrides real |
+| D2 payday clamp/weekend | payday resolver in `local/localLedger.ts` / `today-engine`                                                           | Feb-31 clamp; weekend policies; per-income override                               |
+| D3 layered undo         | `surfaces/pressureMap/reviewDecision.tsx`, `foundItems.tsx`, `Sheet.tsx`, `local/` recovery store                    | 30s undo; 7-day recovery; guarded start-fresh                                     |
+| D4 real edit            | `surfaces/pressureMap/reviewDecision.tsx`/`foundItems.tsx`, `local/localLedger.ts`                                   | edit→route recompute; original preserved; no double count                         |
+| D5 pot cadence          | `surfaces/pressureMap/paydayRitualLogic.ts`, `pots.tsx`, `todayPath.tsx`                                             | cadence-driven label/timing; payday-attached; no-income ask                       |
+| D6 export               | new `local/export*`, Data/privacy surface                                                                            | round-trip completeness; no entitlement gate                                      |
+| D7 sheet import         | `surfaces/pressureMap/foundItems.tsx`, `ownerFileIntake*`, import engine                                             | paste→staged; column mapping; fix prompts                                         |
+| D8 pricing guardrail    | entitlement seam only                                                                                                | guardrail test: ownership capabilities un-gateable                                |
 
 ## 8. Open items — external research only
 
-These remain open and are *research*, not build. Deliverables (in `docs/source-package/research/`):
+These remain open and are _research_, not build. Deliverables (in `docs/source-package/research/`):
 
 - **Past-dated manual events & de-dupe** → `OPEN_BANKING_DEDUPE_RESEARCH.md`. Policy seed: a manual
-  item stays user-added; a similar later import is *proposed* ("This looks like something you already
+  item stays user-added; a similar later import is _proposed_ ("This looks like something you already
   added.") with Link / Keep both / Ignore imported / Edit before linking. Never auto-merge.
 - **Subscription usage decay** → `SUBSCRIPTION_SIGNAL_RESEARCH.md`. Boundary: bank data proves
   payment recurrence, not product usage; allowed vs banned claims enumerated in the doc.
@@ -363,11 +393,11 @@ These remain open and are *research*, not build. Deliverables (in `docs/source-p
 The eight product-decision blockers (D1–D8) are **resolved and recorded** — the RN port is unblocked
 at the decision level; nothing here is waiting on a founder answer except the exact price points
 (D8), which were intentionally left open and do not block the port. **Technical blockers remain:**
-D1–D7 carry `impl-pending` code/test work per §7. "RN PORT UNBLOCKED" is true for *decisions*; it is
-not yet true for *implementation* until §7 lands and its acceptance tests pass.
+D1–D7 carry `impl-pending` code/test work per §7. "RN PORT UNBLOCKED" is true for _decisions_; it is
+not yet true for _implementation_ until §7 lands and its acceptance tests pass.
 
 > **Progress (2026-06-30 evening, commits eb6e0a0/3783c9c/a3f81c9):** on the `apps/mobile/src/folio/`
-> faithful-port surface the D1 and D5 *sample/hardcoded-anchor* concerns are now satisfied — Today's
+> faithful-port surface the D1 and D5 _sample/hardcoded-anchor_ concerns are now satisfied — Today's
 > money-path chart, summary trio and low-point tile read real route totals (`RouteResult.incomingTotal`
 > / `outgoingTotal`), app-wide Melo pressure is derived from the real route (`derivePressure`), and the
 > demo bill/tax cadence is gated behind the `sample` regime (`includeSampleBills` on
@@ -375,3 +405,17 @@ not yet true for *implementation* until §7 lands and its acceptance tests pass.
 > of D1/D5 for the shipping surface. It does **not** complete the full §7 acceptance-test matrix
 > (clamp/weekend cases, layered-undo, real-edit history, export round-trip, sheet import), so the
 > overall `impl-pending` status above still stands.
+
+> **Progress (2026-07-01, commit 7d8b70d + follow-up) — release-kill implementation LANDED on the
+> shipping `apps/mobile/src/folio/` surface.** D3 undo window is the canonical 30s (`undoPolicy.ts`),
+> start-fresh is triple-gated with NO fake post-wipe undo (`PrivacyScreen`); D4 edits real money fields
+> (amount/category/note) with one correction record per change (`EditTxnSheet` → `editTransaction`);
+> D5 pot dips are cadence-derived (`TodayScreen`/`RouteDetailSheet`, no hardcoded Friday); D6 export is
+> real (`PrivacyScreen` → `runExport`); the subscription surface makes no usage/value/cancel claim; and
+> the de-dupe `proposeMatches` engine + F1–F10 ships (`lib/dedupe.ts`). Verified: `tsc -p
+apps/mobile/tsconfig.json` exit 0, folio vitest 325/325, and an independent 7-blocker re-audit PASS.
+> STILL OPEN (tracked, NOT release-kill): D3 7-day recoverable soft-delete UI wiring, D2 per-income
+> weekend-override UI, and de-dupe Review-UI integration (Link / Keep both / Ignore / unlink) — the
+> engine ships first, the surface wiring follows. Top-level `pnpm` verification is also unblocked: the
+> `pnpm-workspace.yaml` `allowBuilds` placeholder (sharp/workerd) was filled, so `pnpm install` no
+> longer aborts with ERR_PNPM_IGNORED_BUILDS.
