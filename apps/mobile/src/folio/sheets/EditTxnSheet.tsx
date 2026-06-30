@@ -83,18 +83,6 @@ const CATEGORY_LABEL: Readonly<Record<Transaction['category'], string>> = {
   other: 'Other',
 };
 
-// The frozen demo subject the web source shows — used ONLY as the inert fallback when no real target
-// is threaded (cold open). Verbatim from SheetEditTxn (title + four rows), so that branch stays
-// byte-identical to the web. Never written: with no target, Save closes and edits nothing.
-const SAMPLE_TITLE = 'Tesco · 26 June';
-type Row = { k: string; v: string };
-const SAMPLE_ROWS: readonly Row[] = [
-  { k: 'Amount', v: '£42.00' },
-  { k: 'Category', v: 'Groceries' },
-  { k: 'Repeat', v: 'Once' },
-  { k: 'Note', v: 'Weekly shop' },
-];
-
 // "26 June" — the web title's date prose, computed from the real ISO `when`. Parsed at local midnight
 // so the day agrees with the stored timestamp (no UTC drift), matching the Today/Timeline formatters.
 function monthDay(iso: string): string {
@@ -282,25 +270,23 @@ function InertFallback({
         </Pressable>
       </View>
       <Text accessibilityRole="header" style={s.headline}>
-        {SAMPLE_TITLE}
+        Nothing to edit here
       </Text>
 
       <View style={s.fields}>
-        {SAMPLE_ROWS.map((f) => (
-          <View key={f.k} style={s.fieldRow}>
-            <Text style={s.fieldLabel}>{f.k}</Text>
-            <Text style={s.fieldValue}>{f.v}</Text>
-          </View>
-        ))}
+        <Text style={[s.fieldValue, { color: t.muted }]}>
+          Open this from a transaction — tap one in your timeline or a found item — and you can correct
+          it here. Nothing&apos;s selected right now.
+        </Text>
       </View>
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Save changes"
+        accessibilityLabel="Close"
         onPress={onClose}
         style={({ pressed }) => [s.primary, { backgroundColor: t.calm }, pressed ? s.pressed : undefined]}
       >
-        <Text style={[s.primaryLabel, { color: t.inverse }]}>Save changes</Text>
+        <Text style={[s.primaryLabel, { color: t.inverse }]}>Close</Text>
       </Pressable>
     </ScrollView>
   );

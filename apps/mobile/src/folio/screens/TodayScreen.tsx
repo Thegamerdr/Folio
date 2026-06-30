@@ -532,10 +532,12 @@ export function TodayScreen({
                 />
               ))}
 
-              {/* breathing-room band */}
+              {/* breathing-room band — a generic "keep a buffer" zone near the bottom of the plot. The
+                  old "· £100" label was a fixed claim that no longer maps to any real level on the
+                  data-driven curve, so it's dropped; the band stays as a calm visual cue. */}
               <Rect x={20} y={200} width={360} height={20} fill={t.inset} />
               <SvgText x={24} y={216} fontSize={9} fill={t.muted}>
-                breathing room · £100
+                breathing room
               </SvgText>
 
               {/* area under the path */}

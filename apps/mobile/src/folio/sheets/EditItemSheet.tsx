@@ -87,9 +87,10 @@ export type EditItemSheetProps = {
 // The type chips — the web `types` list, verbatim.
 const TYPES = ['spending', 'income', 'bill', 'debt payment', 'transfer', 'refund'] as const;
 
-// The web sample priming values — reused verbatim (no fabricated numbers). Used only when no
-// candidate is supplied (the shell's close-only mount), so the render stays byte-identical there.
-const SAMPLE = { name: 'Tesco', amount: '42.00', date: '26 Jun', type: 'spending' as string };
+// Blank defaults for a cold open (no candidate supplied — e.g. the shell's close-only mount or the
+// Shortfall "edit" entry). The fields show their placeholders, NEVER a fake "Tesco · £42 · 26 Jun"
+// pre-fill. `type` keeps a sensible default chip selected. A real candidate overrides every field.
+const SAMPLE = { name: '', amount: '', date: '', type: 'spending' as string };
 
 // ---------------------------------------------------------------------------
 // Reduced-motion hook (AccessibilityInfo-backed, mirrors the LogSpendSheet hook)

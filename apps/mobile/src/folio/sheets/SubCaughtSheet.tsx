@@ -66,17 +66,6 @@ export type SubCandidate = {
   category: string;
 };
 
-// The web prototype's synthetic candidate, verbatim. The detector engine (useCaughtSubs) now drives
-// the real candidate; this stands in ONLY when the ledger has nothing to catch, so the populated
-// branch still renders for verification (@rn-engine sub-detector).
-const SYNTHETIC_CANDIDATE: SubCandidate = {
-  name: 'Sound+ Studio',
-  amount: 6.99,
-  seen: 3,
-  lastDate: '12 Jun',
-  category: 'music',
-};
-
 // The web `formatGBP` rounds to whole pounds (maximumFractionDigits: 0), so £6.99 shows as "£7".
 // The kit's `magnitude` formats MINOR units (pence) and shows pence when non-zero — so to preserve
 // the web's whole-pound display the amount is rounded to the nearest pound first, then ×100.
@@ -93,8 +82,8 @@ export type SubCaughtSheetProps = {
   visible: boolean;
   onClose: () => void;
   // The detector-supplied candidate. Optional so the shell can mount the sheet before the engine
-  // exists; when omitted, the synthetic candidate stands in (and the empty branch is reachable by
-  // passing `null` explicitly once the engine can report "nothing to add").
+  // exists; when omitted, the FIRST real caught sub is used, else the empty doorway — never a synthetic
+  // sample. Pass `null` explicitly to force the empty branch.
   candidate?: SubCandidate | null | undefined;
 };
 
@@ -130,10 +119,10 @@ export function SubCaughtSheet({ visible, onClose, candidate }: SubCaughtSheetPr
   // Resolution order:
   //   • explicit `candidate` prop (including `null` → empty branch) always wins;
   //   • otherwise the FIRST real caught candidate from the detector;
-  //   • otherwise the synthetic stand-in, so the populated branch still renders when the ledger
-  //     has nothing to catch (verification + honest empty-data fallback).
+  //   • otherwise NULL → the empty doorway. We NEVER fall back to a synthetic "Sound+ Studio · 12 Jun"
+  //     sample — a real/cleared app with nothing to catch shows the honest empty state, not fake data.
   const resolved: SubCandidate | null =
-    candidate === undefined ? (caught[0] ?? SYNTHETIC_CANDIDATE) : candidate;
+    candidate === undefined ? (caught[0] ?? null) : candidate;
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
