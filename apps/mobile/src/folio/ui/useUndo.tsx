@@ -1,6 +1,6 @@
 // useUndo — the Tier-1 undo provider (ENGINES §6 "Undo windows").
 //
-// This is the runtime that mounts an UndoToast for exactly `UNDO_WINDOW_MS` (the canonical 6s
+// This is the runtime that mounts an UndoToast for exactly `UNDO_WINDOW_MS` (the canonical 30s
 // immediate-undo window from apps/mobile/src/folio/lib/undoPolicy.ts) and hands every screen a
 // single call: `showUndo(label, onUndo)`. A destructive action does its store write, then raises
 // `showUndo("Cancelled Netflix", restore)`; the toast appears, and if the user taps Undo inside the
@@ -16,7 +16,7 @@
 //
 // Reduced-motion is read once from the OS (AccessibilityInfo) and threaded into the toast so the
 // progress bar rests instead of draining, mirroring how the kit Sheet appears at rest under
-// reduce-motion. The window timer is unaffected — the 6s still elapses.
+// reduce-motion. The window timer is unaffected — the 30s still elapses.
 //
 // No store, no engine, no native I/O beyond the OS reduce-motion read. It composes only the toast
 // and the policy constant.

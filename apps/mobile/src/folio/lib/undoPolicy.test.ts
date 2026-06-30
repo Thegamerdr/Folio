@@ -8,8 +8,9 @@
 // .test.ts (the runner has no @ alias).
 //
 // Contract under test (three canonical tiers):
-//   Tier 1 — UNDO_WINDOW_MS = 6000 (single immediate-undo window for all
-//            normal destructive actions; replaces the old 3.5s/4.5s/5s/8s mix).
+//   Tier 1 — UNDO_WINDOW_MS = 30000 (single immediate-undo window for all
+//            normal destructive actions; D3 >= 30s floor, replaces the old
+//            3.5s/4.5s/5s/8s mix that sat below the decided minimum).
 //   Tier 2 — 7-day recoverable soft-delete:
 //     softDelete(item, atIso)            -> stamps removedAt (non-destructive)
 //     isRecoverable(removedAtIso, nowIso)-> true within 7 days inclusive
@@ -30,11 +31,11 @@ import {
 } from './undoPolicy';
 
 // ---------------------------------------------------------------------------
-// Tier 1 — immediate undo window is the canonical 6 seconds
+// Tier 1 — immediate undo window is the canonical 30 seconds (D3: >= 30s floor)
 // ---------------------------------------------------------------------------
 describe('Tier 1 — UNDO_WINDOW_MS', () => {
-  it('is exactly 6000ms (the unified 6s snackbar window)', () => {
-    expect(UNDO_WINDOW_MS).toBe(6000);
+  it('is exactly 30000ms (the unified 30s snackbar window — D3 >= 30s floor)', () => {
+    expect(UNDO_WINDOW_MS).toBe(30000);
   });
 });
 
@@ -176,9 +177,9 @@ describe('Tier 3 — canStartFresh', () => {
   });
 
   it('blocks on an all-false (one-tap) attempt', () => {
-    expect(
-      canStartFresh({ typedConfirm: false, exportedAck: false, finalConfirm: false }),
-    ).toBe(false);
+    expect(canStartFresh({ typedConfirm: false, exportedAck: false, finalConfirm: false })).toBe(
+      false,
+    );
   });
 
   it('blocks every two-of-three combination (no shortcut past any gate)', () => {

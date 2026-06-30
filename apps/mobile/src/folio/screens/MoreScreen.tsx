@@ -7,16 +7,18 @@
 //               trying a move, your data), plus two dev/demo actions and an appearance toggle.
 // @reads        appearance (light|dark) — RN reads the resolved theme via useIsDark(); used only to
 //               drive the Appearance row hint. The web @reads is empty; the group data is static.
-// @writes       fastForwardMonth(), resetToEmpty() (Start fresh → clears to empty) · setMode (appearance toggle)
+// @writes       fastForwardMonth() (demo) · setMode (appearance toggle). Start fresh ROUTES to Data &
+//               privacy (the gated D3 reset); it no longer wipes from here (one-confirm bypass removed).
 // @opens-sheet  share (from "Share a cycle") · onboarding (from "Payday & income")
 // @copy         FROZEN
 // @tokens       calm (accent) · surface · hairline · muted · repairInk (negative) · canvas (paper) ·
 //               ink · caution — all from the kit, no new token defined here.
 // @motion       slide-in-r on mount (translateX 28→0 + fade, 360ms ease-out-expo) · press 0.97/120ms
 //               on every row · Melo breathe + blink (the only continuous motion on this quiet screen).
-// @notes        Fast-forward and Start fresh are dev/demo actions — kept LAST and visually quiet
-//               (same row styling; only "Start fresh" carries the negative label tone). No buttons,
-//               no badges, no elevation on them.
+// @notes        Fast-forward is a dev/demo action; Start fresh routes to the gated reset on Data &
+//               privacy (D3 forbids a one-confirm wipe here, so it no longer wipes from this hub).
+//               Both are kept LAST and visually quiet (same row styling; only "Start fresh" carries
+//               the negative label tone). No buttons, no badges, no elevation on them.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store source):
 //   • Theme mechanism: the web useTheme() is web-coupled (document.documentElement.classList,
@@ -64,15 +66,7 @@
 // @copy FROZEN inline literals exactly as the web keeps them; only app.name is keyed in COPY_DECK).
 
 import { useEffect, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -95,7 +89,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { fastForwardMonth, resetToEmpty } from '@/folio/store';
+import { fastForwardMonth } from '@/folio/store';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
 // Routing: the web "Data & privacy" row navigates to the Privacy screen (web `to: "privacy"`), where
@@ -200,7 +194,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
     {
       title: 'Tend the picture',
       rows: [
-        { label: 'Subscriptions', hint: 'what still earns its place', to: 'subs' },
+        { label: 'Subscriptions', hint: 'everything that repeats', to: 'subs' },
         { label: 'Pots', hint: 'set aside, calmly', to: 'pots' },
         { label: 'Payday & income', hint: 'change when money lands', sheet: 'onboarding' },
         { label: 'Payday review', hint: 'wrap up the month in four steps', to: 'ritual' },
@@ -234,28 +228,13 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         },
         {
           label: 'Start fresh',
-          hint: 'clears everything to empty',
-          onPress: () => {
-            // Genuinely CLEAR to empty (resetToEmpty) — the old wiring called resetAll(), which RESEEDS
-            // the demo, so "Start fresh" appeared to "bring it all back". One confirm guards an
-            // accidental wipe; the demo can still be restored via Data & privacy → "Reset to the demo".
-            Alert.alert(
-              'Clear everything?',
-              "This wipes everything you've added and leaves the app empty. This can't be undone.",
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Clear everything',
-                  style: 'destructive',
-                  onPress: () => {
-                    resetToEmpty();
-                    nav.go('start');
-                  },
-                },
-              ],
-              { cancelable: true },
-            );
-          },
+          hint: 'review your data, then clear it',
+          // D3 (layered undo) forbids a one-tap / single-confirm wipe. The old wiring here was a
+          // single-confirm resetToEmpty(), which BYPASSED the tier-3 "start fresh" policy (double
+          // confirmation + an export warning). Start fresh now ROUTES to Data & privacy, where the
+          // gated "Clear to empty" reset lives (exportedAck → typedConfirm → finalConfirm), so the
+          // destructive wipe only ever runs behind that gate. No destructive call is made from here.
+          to: 'privacy',
           tone: 'negative',
         },
       ],
@@ -282,10 +261,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   if (state === 'loading') {
     return (
       <View
-        style={[
-          styles.loading,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl },
-        ]}
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
         <MeloLine mood="curious" text="One second — gathering everything else." />
       </View>
@@ -345,7 +321,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         {/* Closing reassurance — the verbatim web line. MeloLine adds the straight quotes; we pass
             the raw text. No mood prop → MeloLine's default (calm), faithful to the web. */}
         <View style={styles.closing}>
-          <MeloLine text="Tap export any time. Tap start fresh and it's gone." />
+          <MeloLine text="Tap export any time. Start fresh whenever you're ready." />
         </View>
       </ScrollView>
     </Animated.View>

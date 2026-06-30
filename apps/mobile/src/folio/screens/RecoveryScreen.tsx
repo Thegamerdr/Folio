@@ -63,14 +63,7 @@
 // smart / provenance / source record / indexed) are absent from every visible string.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -160,7 +153,13 @@ const DAY_MS = 86_400_000;
 
 // Discretionary spend categories — the spend a 3-day hold can actually pause (bills/recurring still
 // pay, per the card body). Income is excluded; "bills" stays out because a hold doesn't stop them.
-const DISCRETIONARY: ReadonlySet<string> = new Set(['food', 'fun', 'shopping', 'transport', 'other']);
+const DISCRETIONARY: ReadonlySet<string> = new Set([
+  'food',
+  'fun',
+  'shopping',
+  'transport',
+  'other',
+]);
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1) — for the slide-in + fade-in.
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
@@ -198,17 +197,15 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-// Pick the quietest live sub to offer as the "Pause a sub" move: prefer one not already paused, with
-// the fewest plays (0 = quiet), tie-broken by longest since last used. Falls back to the web sample
-// (Disney+) shape when there is nothing live. @rn-engine money-path will rank these properly later.
-function quietestSub(subs: Sub[], subPaused: Record<string, boolean>): Sub | undefined {
+// Pick a live sub to offer as the "Pause a sub" move, by PAYMENT TIMING — the active (not-paused) sub
+// whose renewal lands soonest, so pausing it drops the nearest upcoming charge before the low point.
+// This is a money-timing choice, NOT a usage / "quiet" / "unused" verdict: banking or seed data proves
+// a charge recurs, it cannot prove a product was used (SUBSCRIPTION_SIGNAL_RESEARCH §5). Falls back to
+// the web sample (Disney+) shape when there is nothing live. @rn-engine money-path will rank later.
+function pausableSub(subs: Sub[], subPaused: Record<string, boolean>): Sub | undefined {
   const candidates = subs.filter((s) => !subPaused[s.name]);
   if (candidates.length === 0) return undefined;
-  return [...candidates].sort((a, b) =>
-    a.usesPerMonth !== b.usesPerMonth
-      ? a.usesPerMonth - b.usesPerMonth
-      : b.lastUsedDaysAgo - a.lastUsedDaysAgo,
-  )[0];
+  return [...candidates].sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)[0];
 }
 
 // The first flexible bill the "Move a bill" move can slide: prefer the sub whose renewal lands at or
@@ -285,9 +282,9 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     const subs = appState.subs;
     const subPaused = appState.subPaused;
 
-    const quiet = quietestSub(subs, subPaused);
+    const pausable = pausableSub(subs, subPaused);
     const bill = flexibleBill(subs, subPaused);
-    const subTitle = quiet ? `Pause ${quiet.name} for a month` : 'Pause Disney+ for a month';
+    const subTitle = pausable ? `Pause ${pausable.name} for a month` : 'Pause Disney+ for a month';
 
     // Move a bill: slide the flexible bill BILL_NUDGE_DAYS later, on a hypothetical copy, and diff.
     const billLift = bill
@@ -304,11 +301,11 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         )
       : 0;
 
-    // Pause a sub: drop the quiet sub's renewal outflow on a hypothetical copy, and diff.
-    const subLift = quiet
+    // Pause a sub: drop the chosen sub's renewal outflow on a hypothetical copy, and diff.
+    const subLift = pausable
       ? liftFromRoute(
           baseTight,
-          { ...appState, subPaused: { ...appState.subPaused, [quiet.name]: true } },
+          { ...appState, subPaused: { ...appState.subPaused, [pausable.name]: true } },
           routeNow,
         )
       : 0;
@@ -318,7 +315,10 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     // happen). Derived from logged spend, so it's £0 when there's nothing real to pause — never faked.
     // (Unlike pause/move, a future spend-hold has no dated outflow in the base route to drop, so the
     // lift is the freed room itself, not a re-route diff.)
-    const holdLift = Math.max(0, Math.round(avgDailyDiscretionary(appState, routeNow.getTime()) * HOLD_DAYS));
+    const holdLift = Math.max(
+      0,
+      Math.round(avgDailyDiscretionary(appState, routeNow.getTime()) * HOLD_DAYS),
+    );
 
     return [
       {
@@ -342,12 +342,14 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         delta: `+£${subLift} this month`,
         deltaValue: subLift,
         body: 'Nothing comes out of your account for one month. Resumes automatically unless you cancel.',
-        cost: '0 plays in 6 weeks · low-cost to pause',
+        cost: pausable
+          ? `£${pausable.cost.toFixed(2)}/mo back · resumes automatically`
+          : '£8.99/mo back · resumes automatically',
         melo: 'Small experiment. You can resume any time.',
-        ...(quiet ? { subName: quiet.name } : {}),
-        // Pause the chosen quiet sub — the real store write.
+        ...(pausable ? { subName: pausable.name } : {}),
+        // Pause the chosen sub (nearest renewal) — the real store write.
         commit: () => {
-          if (quiet) togglePaused(quiet.name, true);
+          if (pausable) togglePaused(pausable.name, true);
         },
       },
       {
@@ -370,9 +372,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // The after-move figure: the real shortfall (negative) lifted by the picked move's real route delta,
   // clamped so a move never reads as overshooting the gap downward. Negative = still short, >= 0 =
   // reaches room. The re-drawn tight point, straight off the engine — not a guess.
-  const after = pickedMove
-    ? Math.max(-shortfall + pickedMove.deltaValue, -shortfall)
-    : -shortfall;
+  const after = pickedMove ? Math.max(-shortfall + pickedMove.deltaValue, -shortfall) : -shortfall;
   const reachesRoom = after >= 0;
 
   // Count up the magnitude between selections (MOTION.md: money values count up, never slide).
@@ -424,7 +424,9 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
         <MeloLine mood="curious" text="One second — working out what would move." />
       </View>
     );
@@ -457,7 +459,10 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             accessibilityLabel="Back"
             hitSlop={12}
             onPress={nav.back}
-            style={({ pressed: isPressed }) => [styles.pressIcon, isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [
+              styles.pressIcon,
+              isPressed ? styles.pressed : undefined,
+            ]}
           >
             <BackArrow color={t.muted} />
           </Pressable>
@@ -475,7 +480,9 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         </View>
 
         {/* Shortfall card — Melo (mood softens when the move closes the gap) + the live after figure. */}
-        <View style={[styles.shortfallCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+        <View
+          style={[styles.shortfallCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+        >
           <Melo size={56} mood={reachesRoom ? 'calm' : 'concern'} grounded={false} />
           <View style={styles.shortfallBody} accessibilityLiveRegion="polite">
             <Text style={[styles.cardLabel, { color: t.muted }]}>
@@ -514,7 +521,10 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           accessibilityLabel="Talk it through with Melo"
           hitSlop={8}
           onPress={() => nav.openMelo({ prefill: MELO_PREFILL })}
-          style={({ pressed: isPressed }) => [styles.talkLink, isPressed ? styles.pressed : undefined]}
+          style={({ pressed: isPressed }) => [
+            styles.talkLink,
+            isPressed ? styles.pressed : undefined,
+          ]}
         >
           <Text style={[styles.talkLinkText, { color: t.muted }]}>
             {'Not sure? Talk it through with Melo →'}
@@ -549,7 +559,10 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           accessibilityRole="button"
           accessibilityLabel="Not now"
           onPress={nav.back}
-          style={({ pressed: isPressed }) => [styles.secondary, isPressed ? styles.pressed : undefined]}
+          style={({ pressed: isPressed }) => [
+            styles.secondary,
+            isPressed ? styles.pressed : undefined,
+          ]}
         >
           <Text style={[styles.secondaryLabel, { color: t.muted }]}>Not now</Text>
         </Pressable>
@@ -618,7 +631,9 @@ function MoveCard({
       {active ? (
         <Animated.View style={[styles.moveExpanded, revealStyle]}>
           <Text style={[styles.moveBody, { color: t.secondary }]}>{move.body}</Text>
-          {move.cost ? <Text style={[styles.moveCost, { color: t.muted }]}>{move.cost}</Text> : null}
+          {move.cost ? (
+            <Text style={[styles.moveCost, { color: t.muted }]}>{move.cost}</Text>
+          ) : null}
         </Animated.View>
       ) : null}
     </Pressable>

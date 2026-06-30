@@ -6,7 +6,7 @@
  * 3.5s, hold 4.5s, cancel 5s, some with no real undo). This module is the single
  * source of truth for the three canonical tiers the user decided on:
  *
- *   Tier 1 — immediate undo (snackbar). One window, `UNDO_WINDOW_MS = 6000`,
+ *   Tier 1 — immediate undo (snackbar). One window, `UNDO_WINDOW_MS = 30000`,
  *            for every normal destructive action: log spend/income, pause sub,
  *            move between pots, edit txn, dismiss nudge, accept Melo move.
  *
@@ -39,9 +39,11 @@ const DAYS_PER_RECOVERY_WINDOW = 7;
  * Tier 1 — the single canonical immediate-undo window, in milliseconds.
  *
  * Every normal destructive action surfaces an undo snackbar for exactly this
- * long. Replaces the prototype's inconsistent 3.5s / 4.5s / 5s / 8s timings.
+ * long. ENGINES.md §6 D3 / 27_DECISION_LOG fix the floor at **>= 30s**, so this
+ * is 30s — replacing the prototype's inconsistent 3.5s / 4.5s / 5s / 8s timings,
+ * all of which were below the decided minimum and are now folded into this one.
  */
-export const UNDO_WINDOW_MS = 6 * MS_PER_SECOND;
+export const UNDO_WINDOW_MS = 30 * MS_PER_SECOND;
 
 /**
  * Tier 2 — the recoverable-history window, in milliseconds (7 days).

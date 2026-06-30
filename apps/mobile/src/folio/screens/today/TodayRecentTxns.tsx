@@ -89,7 +89,7 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                         text: 'Remove',
                         style: 'destructive',
                         onPress: () => {
-                          // Snapshot the exact row BEFORE removing so the Tier-1 undo (6s) can
+                          // Snapshot the exact row BEFORE removing so the Tier-1 undo (30s) can
                           // restore it identically — same id/when/merchant/amount/category/source.
                           const snapshot = tx;
                           removeTransaction(tx.id);

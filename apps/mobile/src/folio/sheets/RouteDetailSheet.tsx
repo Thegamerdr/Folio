@@ -126,7 +126,6 @@ const pressureMood: Record<Pressure, MeloMood> = {
 // one thought per line, double-quoted), so the raw thought is passed without surrounding quotes.
 const MELO_LINE = 'The lowest balance comes just after the bills go out.';
 
-
 // ---------------------------------------------------------------------------
 // Store → tapped-point derivation. The money-path engine returns one `{ date, y }` sample per day
 // (it carries no per-day event breakdown), so the sheet pairs the route's per-day BALANCE with the
@@ -135,7 +134,20 @@ const MELO_LINE = 'The lowest balance comes just after the bills go out.';
 // ---------------------------------------------------------------------------
 
 const DAY_MS = 86_400_000;
-const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const SHORT_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
@@ -249,13 +261,21 @@ function useReduceMotion(): boolean {
 // ---------------------------------------------------------------------------
 // Pot cadence wording — derive the per-pot + section label from pot.cadence.
 //
-// The web hardcoded "Friday" and "saved each Friday". RN derives the real wording: per ENGINES §6 a
-// new pot defaults to `after-payday`, and an unmigrated pot (no cadence) falls through to the legacy
-// weekly-Friday stand-in the calendar engine still uses. The fidelity risk flagged in the spec —
-// blindly shipping "Friday" — is fixed here without inventing a new token.
+// The web hardcoded "Friday" and "saved each Friday". RN derives the real wording: per ENGINES §6 D5 a
+// new pot defaults to `after-payday`, and an unmigrated (cadence-less) pot is treated as `after-payday`
+// too — matching deriveCalendarEvents, which resolves a missing cadence as { kind: 'after-payday' }.
+// No "Friday" is hardcoded anywhere a pot top-up is labelled or scheduled.
 // ---------------------------------------------------------------------------
 
-const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAY_LABELS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
 
 function ordinal(n: number): string {
   const v = n % 100;
@@ -272,15 +292,16 @@ function ordinal(n: number): string {
   }
 }
 
-/** Per-pot cadence label, e.g. "Friday" / "After payday" / "12th". Mirrors the calendar engine's
- *  legacy Friday fallback for an unmigrated (cadence-less) pot. */
+/** Per-pot cadence label, e.g. "After payday" / "Tuesday" / "12th". A cadence-less (unmigrated) pot
+ *  defaults to "After payday" — matching deriveCalendarEvents, which resolves a missing cadence as
+ *  { kind: 'after-payday' } (ENGINES §6 D5). No hardcoded "Friday" anywhere a top-up is scheduled. */
 function cadenceLabel(cadence: PotCadence | undefined): string {
-  if (!cadence) return 'Friday'; // legacy weekly stand-in (matches deriveCalendarEvents fallback)
+  if (!cadence) return 'After payday'; // matches the engine's `cadence ?? { kind: 'after-payday' }`
   switch (cadence.kind) {
     case 'after-payday':
       return 'After payday';
     case 'weekly':
-      return WEEKDAY_LABELS[cadence.weekday] ?? 'Friday';
+      return WEEKDAY_LABELS[cadence.weekday] ?? 'After payday';
     case 'monthly':
       return ordinal(cadence.dayOfMonth);
     case 'custom':
@@ -403,7 +424,8 @@ function RouteDetailBody({
   //   • Before the mount-gate opens (no route), fall back to the web placeholder + pressureLow sample
   //     for that one frame, so a normal open never flashes a different figure.
   const resolved = useMemo(() => {
-    const sampleAt = (iso: string): number | undefined => route?.points.find((p) => p.date === iso)?.y;
+    const sampleAt = (iso: string): number | undefined =>
+      route?.points.find((p) => p.date === iso)?.y;
 
     if (point) {
       const balance = sampleAt(point.iso) ?? pressureLow[pressure];
@@ -534,7 +556,12 @@ function PopulatedDetail({
           </View>
           <View style={s.summaryRight}>
             <Text style={s.label}>Bills counted</Text>
-            <Money value={`−${copy.global.currency.symbol}${billsTotal.toFixed(0)}`} size="md" tone="negative" palette={t} />
+            <Money
+              value={`−${copy.global.currency.symbol}${billsTotal.toFixed(0)}`}
+              size="md"
+              tone="negative"
+              palette={t}
+            />
           </View>
         </View>
 
@@ -547,7 +574,11 @@ function PopulatedDetail({
                 <Text style={s.lineName}>{b.name}</Text>
                 <Text style={s.lineDate}>{b.date}</Text>
               </View>
-              <Money value={`−${copy.global.currency.symbol}${b.amount.toFixed(2)}`} size="sm" palette={t} />
+              <Money
+                value={`−${copy.global.currency.symbol}${b.amount.toFixed(2)}`}
+                size="sm"
+                palette={t}
+              />
             </View>
           ))}
         </View>
@@ -572,7 +603,11 @@ function PopulatedDetail({
                     <Text style={s.lineName}>{p.name}</Text>
                     <Text style={s.lineDate}>{cadenceLabel(p.cadence)}</Text>
                   </View>
-                  <Money value={`−${copy.global.currency.symbol}${p.perWeek.toFixed(0)}`} size="sm" palette={t} />
+                  <Money
+                    value={`−${copy.global.currency.symbol}${p.perWeek.toFixed(0)}`}
+                    size="sm"
+                    palette={t}
+                  />
                 </View>
               ))}
             </View>
@@ -590,7 +625,11 @@ function PopulatedDetail({
         accessibilityRole="button"
         accessibilityLabel="See this day on the calendar"
         onPress={seeOnCalendar}
-        style={({ pressed }) => [s.primary, { backgroundColor: t.calm }, pressed ? s.pressed : undefined]}
+        style={({ pressed }) => [
+          s.primary,
+          { backgroundColor: t.calm },
+          pressed ? s.pressed : undefined,
+        ]}
       >
         <Text style={[s.primaryLabel, { color: t.inverse }]}>See this day on the calendar</Text>
       </Pressable>

@@ -9,7 +9,8 @@
 //               fresh handler to snapshot state for Undo — never a reactive subscription)
 // @writes       resetAll() (via "Reset to the demo") · resetToEmpty() (via "Clear everything to
 //               empty") · setPartial(snapshot) (via Undo, on either reset)
-// @opens-sheet  share (export)
+// @writes-export runExport() — "Export my data" runs the real export engine (full JSON + CSVs +
+//               OS share sheet, ENGINES §6 D6). It opens the OS share sheet itself, not a Folio sheet.
 // @copy         FROZEN — must match what the app actually does. No false claims. Checked by the RN
 //               copy-lint tests (copyLint.test.ts): no banned words, no false privacy/security claims.
 // @tokens       calm (accent) · positive (check) · repair (negative reset rows) · surface · hairline
@@ -62,7 +63,15 @@
 // CTA have generous padding; the back glyph carries hitSlop). Named export (the route file is separate).
 
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -85,6 +94,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { getState, resetAll, resetToEmpty, setPartial } from '@/folio/store';
+import { runExport } from '@/folio/lib/exportNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
 import type { Nav } from '@/folio/types';
 
@@ -181,19 +191,15 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   //
   // Once the gate clears: snapshot the full state for Undo, run the chosen wipe, jump to Start, then
   // offer Undo (the web's 6s sonner toast → the RN Alert.alert + Undo analog). Both wipes share this
-  // shell; they differ only in the wipe function and the confirmation wording. @rn-engine export,
-  // melo-gateway: there is no export/share engine wired from the folio import surface yet — Export my
-  // data just opens the 'share' sheet.
+  // shell; they differ only in the wipe function and the confirmation wording. Export is now REAL:
+  // "Export my data" calls runExport() (the export engine), which builds the complete JSON + CSVs and
+  // opens the OS share sheet on them — it no longer opens the cycle-share card (D6, never paywalled).
   //   • "Reset to the demo" runs resetAll(), which reseeds the sample/demo set (it does NOT leave a
   //     truly empty store), so its copy talks about going back to the example, not an empty app.
   //   • "Clear everything to empty" runs resetToEmpty(), which leaves NO demo data, so its copy
   //     truthfully says the app is left empty — the right choice for a real user who wants only their
   //     own data. Either way the user's OWN data is wiped first; the difference is what's left after.
-  const performReset = (
-    wipe: () => void,
-    toastTitle: string,
-    toastBody: string,
-  ) => {
+  const performReset = (wipe: () => void, toastTitle: string, toastBody: string) => {
     // The gate is cleared — build the StartFreshState the engine vets and confirm all three are set
     // before the destructive call. This keeps the engine as the single source of truth for the policy.
     const gate: StartFreshState = { typedConfirm: true, exportedAck: true, finalConfirm: true };
@@ -217,10 +223,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // cancellable gates (exportedAck → typedConfirm → finalConfirm); only the final branch wipes, and
   // only with the wipe + wording the caller passes. Reusing one chain keeps the gate identical across
   // both actions, so neither path can drift into being weaker than the other.
-  const confirmReset = (
-    finalActionLabel: string,
-    perform: () => void,
-  ) => {
+  const confirmReset = (finalActionLabel: string, perform: () => void) => {
     // Gate 1 — exportedAck: confirm the user has exported before anything is destroyed.
     Alert.alert(
       'Clear your data?',
@@ -265,7 +268,11 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // "Reset to the demo" — resetAll(): wipe the user's data and reseed the sample/demo set.
   const handleResetToDemo = () =>
     confirmReset('Reset to the demo', () =>
-      performReset(resetAll, 'Reset to the demo', 'Your data was cleared and the example put back.'),
+      performReset(
+        resetAll,
+        'Reset to the demo',
+        'Your data was cleared and the example put back.',
+      ),
     );
 
   // "Clear everything to empty" — resetToEmpty(): wipe to a genuinely empty app, no demo reseed.
@@ -273,6 +280,22 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     confirmReset('Clear to empty', () =>
       performReset(resetToEmpty, 'Cleared to empty', 'Everything cleared. The app is empty now.'),
     );
+
+  // Export my data — runs the REAL export engine (ENGINES §6 D6 "export everything", free + never
+  // paywalled). runExport builds the complete JSON + per-surface CSVs from live state, writes them to
+  // the app's document directory, and opens the OS share sheet on the canonical JSON. It opens the OS
+  // sheet itself (not a Folio sheet), so the CTA calls it directly instead of nav.openSheet('share')
+  // — the old wiring opened the cycle-share card, which is NOT a data export. On a device without
+  // storage/sharing the call rejects; we surface that honestly rather than imply the export happened.
+  const handleExport = () => {
+    void runExport().catch((err: unknown) => {
+      const message =
+        err instanceof Error ? err.message : 'Export could not finish on this device.';
+      Alert.alert('Export didn’t finish', message, [{ text: 'OK', style: 'cancel' }], {
+        cancelable: true,
+      });
+    });
+  };
 
   // empty / error — the calm EmptyState doorway (n/a in practice — no async path — rendered for
   // completeness). The single CTA routes back to the doorway so it never dead-ends.
@@ -287,7 +310,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
         mood="calm"
         headline={headline}
         body={body}
-        cta={{ label: 'Export my data', onPress: () => nav.openSheet('share') }}
+        cta={{ label: 'Export my data', onPress: handleExport }}
       />
     );
   }
@@ -296,7 +319,9 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // moment while the surface settles.
   if (state === 'loading') {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
         <MeloLine mood="curious" text="One second — gathering what's saved." />
       </View>
     );
@@ -311,7 +336,11 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       style={[
         styles.screen,
         enterStyle,
-        { backgroundColor: t.canvas, paddingTop: insets.top + gap.md, paddingBottom: insets.bottom },
+        {
+          backgroundColor: t.canvas,
+          paddingTop: insets.top + gap.md,
+          paddingBottom: insets.bottom,
+        },
       ]}
     >
       {/* The whole surface scrolls — on a short viewport (or with large OS text) the action card's
@@ -323,128 +352,130 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
         contentContainerStyle={styles.scrollBody}
         showsVerticalScrollIndicator={false}
       >
-      {/* Top bar — back glyph · centred eyebrow · an equal-width invisible spacer so the eyebrow stays
+        {/* Top bar — back glyph · centred eyebrow · an equal-width invisible spacer so the eyebrow stays
           optically centred (the web balances the back arrow with a w-5 spacer, not textAlign:center). */}
-      <View style={styles.topBar}>
-        <Pressable
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-          hitSlop={16}
-          onPress={nav.back}
-          style={({ pressed: isPressed }) => [styles.backHit, isPressed ? pressed : undefined]}
-        >
-          <Text style={[styles.backGlyph, { color: t.muted }]}>←</Text>
-        </Pressable>
-        <Text style={[styles.eyebrow, { color: t.muted }]}>Your data</Text>
-        <View style={styles.topBarSpacer} aria-hidden />
-      </View>
+        <View style={styles.topBar}>
+          <Pressable
+            accessibilityLabel="Back"
+            accessibilityRole="button"
+            hitSlop={16}
+            onPress={nav.back}
+            style={({ pressed: isPressed }) => [styles.backHit, isPressed ? pressed : undefined]}
+          >
+            <Text style={[styles.backGlyph, { color: t.muted }]}>←</Text>
+          </Pressable>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>Your data</Text>
+          <View style={styles.topBarSpacer} aria-hidden />
+        </View>
 
-      {/* Headline block — "Your data, " + the upright terracotta accent "your call." + the body line. */}
-      <View style={styles.headlineBlock}>
-        <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-          {'Your data, '}
-          <Text style={[styles.headlineAccent, { color: t.calm }]}>your call.</Text>
-        </Text>
-        <Text style={[styles.body, { color: t.muted }]}>
-          Folio shows you what&apos;s saved, lets you export it, and wipes it when you say so.
-        </Text>
-      </View>
+        {/* Headline block — "Your data, " + the upright terracotta accent "your call." + the body line. */}
+        <View style={styles.headlineBlock}>
+          <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+            {'Your data, '}
+            <Text style={[styles.headlineAccent, { color: t.calm }]}>your call.</Text>
+          </Text>
+          <Text style={[styles.body, { color: t.muted }]}>
+            Folio shows you what&apos;s saved, lets you export it, and wipes it when you say so.
+          </Text>
+        </View>
 
-      {/* Three honest claims — each a positive-tinted check badge + the claim text. */}
-      <View style={styles.claims}>
-        {HONEST_CLAIMS.map((claim) => (
-          <View key={claim} style={styles.claimRow}>
-            <View
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={[styles.checkBadge, { backgroundColor: positiveTint }]}
-            >
-              <CheckGlyph color={t.positive} size={12} />
+        {/* Three honest claims — each a positive-tinted check badge + the claim text. */}
+        <View style={styles.claims}>
+          {HONEST_CLAIMS.map((claim) => (
+            <View key={claim} style={styles.claimRow}>
+              <View
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                style={[styles.checkBadge, { backgroundColor: positiveTint }]}
+              >
+                <CheckGlyph color={t.positive} size={12} />
+              </View>
+              <Text style={[styles.claimText, { color: t.ink }]}>{claim}</Text>
             </View>
-            <Text style={[styles.claimText, { color: t.ink }]}>{claim}</Text>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
 
-      {/* Primary CTA — terracotta fill + the warm raised glow; opens the share (export) sheet. Plain
+        {/* Primary CTA — terracotta fill + the warm raised glow; opens the share (export) sheet. Plain
           centred label, no arrow, faithful to the web button. */}
-      <Pressable
-        accessibilityHint="Opens the export sheet"
-        accessibilityRole="button"
-        onPress={() => nav.openSheet('share')}
-        style={({ pressed: isPressed }) => [
-          styles.primary,
-          { backgroundColor: t.calmStrong },
-          isPressed ? pressed : undefined,
-        ]}
-      >
-        <Text style={[styles.primaryLabel, { color: t.inverse }]}>Export my data</Text>
-      </Pressable>
+        <Pressable
+          accessibilityHint="Builds a full copy of your data and opens the share sheet"
+          accessibilityRole="button"
+          onPress={handleExport}
+          style={({ pressed: isPressed }) => [
+            styles.primary,
+            { backgroundColor: t.calmStrong },
+            isPressed ? pressed : undefined,
+          ]}
+        >
+          <Text style={[styles.primaryLabel, { color: t.inverse }]}>Export my data</Text>
+        </Pressable>
 
-      {/* Action list card — one surface with the kit hairline border. Three rows split by ONE inter-row
+        {/* Action list card — one surface with the kit hairline border. Three rows split by ONE inter-row
           hairline each (web divide-y): "See what's saved", then the two distinct destructive resets.
           Both resets are gated; their subtitles tell the truth about what each one leaves behind. */}
-      <View style={[styles.actionCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => nav.go('timeline')}
-          style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
-        >
-          <View style={styles.actionText}>
-            <Text style={[styles.actionTitle, { color: t.ink }]}>See what&apos;s saved</Text>
-            <Text style={[styles.actionSubtitle, { color: t.muted }]}>everything you&apos;ve added</Text>
-          </View>
-          <ChevronRight color={t.muted} />
-        </Pressable>
+        <View style={[styles.actionCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.go('timeline')}
+            style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
+          >
+            <View style={styles.actionText}>
+              <Text style={[styles.actionTitle, { color: t.ink }]}>See what&apos;s saved</Text>
+              <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+                everything you&apos;ve added
+              </Text>
+            </View>
+            <ChevronRight color={t.muted} />
+          </Pressable>
 
-        {/* Inter-row divider (web divide-y) — between "See what's saved" and "Reset to the demo". */}
-        <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
+          {/* Inter-row divider (web divide-y) — between "See what's saved" and "Reset to the demo". */}
+          <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
 
-        {/* Reset to the demo — resetAll(): wipes your data, then puts the example data back. */}
-        <Pressable
-          accessibilityHint="Asks you to confirm before clearing your data"
-          accessibilityRole="button"
-          onPress={handleResetToDemo}
-          style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
-        >
-          <View style={styles.actionText}>
-            <Text style={[styles.actionTitle, { color: t.repair }]}>Reset to the demo</Text>
-            <Text style={[styles.actionSubtitle, { color: t.muted }]}>
-              clears yours, puts the example back
-            </Text>
-          </View>
-          <ChevronRight color={t.muted} />
-        </Pressable>
+          {/* Reset to the demo — resetAll(): wipes your data, then puts the example data back. */}
+          <Pressable
+            accessibilityHint="Asks you to confirm before clearing your data"
+            accessibilityRole="button"
+            onPress={handleResetToDemo}
+            style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
+          >
+            <View style={styles.actionText}>
+              <Text style={[styles.actionTitle, { color: t.repair }]}>Reset to the demo</Text>
+              <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+                clears yours, puts the example back
+              </Text>
+            </View>
+            <ChevronRight color={t.muted} />
+          </Pressable>
 
-        {/* Inter-row divider — between "Reset to the demo" and "Clear to empty". */}
-        <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
+          {/* Inter-row divider — between "Reset to the demo" and "Clear to empty". */}
+          <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
 
-        {/* Clear to empty — resetToEmpty(): wipes to a genuinely empty app, no demo data left. */}
-        <Pressable
-          accessibilityHint="Asks you to confirm before clearing your data"
-          accessibilityRole="button"
-          onPress={handleClearToEmpty}
-          style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
-        >
-          <View style={styles.actionText}>
-            <Text style={[styles.actionTitle, { color: t.repair }]}>Clear to empty</Text>
-            <Text style={[styles.actionSubtitle, { color: t.muted }]}>
-              wipes everything, leaves a blank app
-            </Text>
-          </View>
-          <ChevronRight color={t.muted} />
-        </Pressable>
-      </View>
+          {/* Clear to empty — resetToEmpty(): wipes to a genuinely empty app, no demo data left. */}
+          <Pressable
+            accessibilityHint="Asks you to confirm before clearing your data"
+            accessibilityRole="button"
+            onPress={handleClearToEmpty}
+            style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
+          >
+            <View style={styles.actionText}>
+              <Text style={[styles.actionTitle, { color: t.repair }]}>Clear to empty</Text>
+              <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+                wipes everything, leaves a blank app
+              </Text>
+            </View>
+            <ChevronRight color={t.muted} />
+          </Pressable>
+        </View>
 
-      {/* Spacer pushes the Melo footer line to the bottom, mirroring the web flex-1 spacer. */}
-      <View style={styles.spacer} />
+        {/* Spacer pushes the Melo footer line to the bottom, mirroring the web flex-1 spacer. */}
+        <View style={styles.spacer} />
 
-      {/* Melo footer line — the only Melo on screen: the folded-document character (size 28, calm) beside
+        {/* Melo footer line — the only Melo on screen: the folded-document character (size 28, calm) beside
           one Fraunces-italic thought. The web mood "soft" is non-canonical (MELO_MOODS maps Privacy to
           'calm'), so the canonical 'calm' is used. MeloLine supplies the straight quotes; pass raw text. */}
-      <View style={styles.footer}>
-        <MeloLine mood="calm" size={28} text="Your numbers are yours to keep or export." />
-      </View>
+        <View style={styles.footer}>
+          <MeloLine mood="calm" size={28} text="Your numbers are yours to keep or export." />
+        </View>
       </ScrollView>
     </Animated.View>
   );

@@ -231,7 +231,7 @@ export function deriveCalendarEvents({
       kind: 'review',
       source: 'review',
       title: `Decide about ${s.name}`,
-      note: `Free trial ends in ${Math.max(1, s.trialEndsInDays - nudge)}d — cancel now to avoid the charge`,
+      note: `Free trial ends in ${Math.max(1, s.trialEndsInDays - nudge)}d — decide before it becomes a charge`,
       subName: s.name,
     });
   }

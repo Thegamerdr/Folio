@@ -9,22 +9,17 @@
 //               rendered a hardcoded 8-item demo array. Per the spec fidelityRisks — "Port the
 //               CONTRACT, not the demo stub. Do not ship the 8 fake rows." — this port reads the REAL
 //               store `transactions`, newest-first, and derives the calm projection below.)
-// @writes       — none. The web body wires NO write here (see @opens-sheet); this read-only port
-//               matches it. (The web doc block's @writes removeTransaction is the doc-block contract
-//               the web body never wired — see below.)
-// @opens-sheet  — none. The web doc block names @opens-sheet edit-txn, but the web BODY never wires a
-//               row tap to it: every row is read-only, and the only interactive element is a category
-//               chip that cycles a COMPONENT-LOCAL label (a real bug the spec says NOT to replicate).
-//               An earlier version of this port invented `row tap → nav.openSheet('edit-txn')`, but
-//               the shell's edit-txn sheet is a frozen visual demo keyed to a HARDCODED subject
-//               ("Tesco · 26 June") — and nav.openSheet carries no payload — so a tapped row could not
-//               thread its own transaction and instead edited the wrong (or a phantom) row. Per the
-//               task's fidelity fallback ("if the design's Timeline is read-only demo data, make the
-//               rows non-editable instead of editing the wrong subject"), the rows are read-only here:
-//               tapping a row does nothing, exactly as the web body behaves. `// @rn-engine
-//               timeline-edit` marks where a real per-row edit would wire once nav can thread a
-//               transaction subject (or a store editing-target slot lands) — neither exists yet, and
-//               both are outside this screen.
+// @writes       — none directly. A row tap OPENS the edit-txn sheet for that transaction; the write
+//               (a non-destructive correction) happens in the store's editTransaction, called by the
+//               sheet's Save — not from this screen.
+// @opens-sheet  edit-txn ({ id }). Each row is a button that opens nav.openSheet('edit-txn', { id }).
+//               The blocker that once made this read-only is FIXED at the source: nav.openSheet now
+//               carries an optional { id } payload (types.ts), the shell parks it in editTxnTarget and
+//               threads it into <EditTxnSheet target={id}>, and the sheet's Save routes a real
+//               correction through the store's editTransaction (replace-in-place + one immutable
+//               TxnEdit per changed field, ENGINES §6 D4) — proven by editTxnSave.test.ts. So a
+//               tapped row threads ITS OWN transaction, never the old hardcoded "Tesco · 26 June"
+//               subject; a cold open with no target keeps the sheet's safe inert fallback.
 // @copy         FROZEN — every visible string ships verbatim. COPY_DECK.md has NO Timeline section, so
 //               none of these strings are keyed; they are reproduced as the web's exact inline literals
 //               (the hard rule keys copy "where keyed" — Timeline has no keys). The empty branch reuses
@@ -60,10 +55,10 @@
 //     tagged `// @rn-engine timeline-verbs` and simply do not appear until that projection lands.
 //   • Category chip: the web cycled a COMPONENT-LOCAL category that reset on unmount — a real bug the
 //     spec says NOT to replicate. The chip here reflects the PERSISTED transaction.category as a
-//     read-only label (no cycler, no edit). There is no `updateTransaction` mutator in the store, and
-//     the edit-txn sheet is keyed to a hardcoded subject, so the chip does NOT open it — that would
-//     re-categorise the wrong row. `// @rn-engine category-edit` marks where a persisted re-categorise
-//     would write once a real per-row edit path exists.
+//     read-only label (no cycler). The ROW is the edit affordance — it opens the edit-txn sheet for
+//     this transaction (the sheet's Note is editable; Save routes a correction via editTransaction).
+//     The chip stays a label. `// @rn-engine category-edit` marks where an in-place re-categorise
+//     would write once EditTxnSheet exposes the category row as editable.
 //   • Five STATES branches (spec): empty → EmptyState "Your story starts here" · loading → Melo curious
 //     + one quoted line (never a spinner) · populated → the list · error → falls back to More (no
 //     in-screen error UI) · offline → identical to populated (Folio is local-first).
@@ -352,6 +347,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
               styles={s}
               palette={t}
               isLast={i === rows.length - 1}
+              nav={nav}
             />
           ))}
         </View>
@@ -397,28 +393,37 @@ function TimelineRowView({
   styles,
   palette,
   isLast,
+  nav,
 }: {
   row: TimelineRow;
   styles: Styles;
   palette: Palette;
   isLast: boolean;
+  nav: Nav;
 }) {
   const tone = verbTone(row.verb, palette);
   const hasCategory = !!row.category;
   const chipLabel = row.category ?? 'Add a label';
 
-  // Read-only row — the web body wires no row tap (see the @opens-sheet note in the header). It is a
-  // log line: when / verb+what / optional note / a persisted-category label. The whole row is one
-  // accessible text node so a screen reader announces the entry without implying a tap target.
+  // Tappable row — opens the edit sheet for THIS transaction: nav.openSheet('edit-txn', { id }). The
+  // shell threads the id into <EditTxnSheet target={id}>, so Save corrects this exact row via the
+  // store's editTransaction (replace-in-place + one immutable correction record, ENGINES §6 D4). The
+  // row is one button; a screen reader announces the entry and that it opens for correction.
   const a11yLabel = `${row.verb} ${row.what}${row.note !== undefined ? `, ${row.note}` : ''}, ${
     hasCategory ? row.category : 'uncategorised'
   }, ${row.when}`;
 
   return (
-    <View
-      accessible
+    <Pressable
+      accessibilityRole="button"
       accessibilityLabel={a11yLabel}
-      style={[styles.row, isLast ? undefined : styles.rowGap]}
+      accessibilityHint="Opens this entry so you can correct it"
+      onPress={() => nav.openSheet('edit-txn', { id: row.id })}
+      style={({ pressed }) => [
+        styles.row,
+        isLast ? undefined : styles.rowGap,
+        pressed ? styles.pressed : undefined,
+      ]}
     >
       {/* Marker node — a verb-toned dot inside a canvas (paper) halo, so the rail reads behind it. */}
       <View style={styles.markerSlot} pointerEvents="none">
@@ -439,19 +444,22 @@ function TimelineRowView({
         ) : null}
 
         {/* Category chip — a read-only label reflecting the persisted category (the web cycler was a
-            local-state bug not replicated). `// @rn-engine category-edit` — a persisted re-categorise
-            writes once a real per-row edit path exists; until then this never opens the edit sheet
-            (which is keyed to a hardcoded subject and would change the wrong row). */}
+            local-state bug not replicated). Tapping the ROW opens the edit sheet (the Note is editable
+            there); the chip itself stays a label — `// @rn-engine category-edit` marks where an
+            in-place re-categorise would write once EditTxnSheet makes the category row editable. */}
         <View
           style={[styles.chip, { backgroundColor: palette.surface, borderColor: palette.hairline }]}
         >
           <View
-            style={[styles.chipDot, { backgroundColor: hasCategory ? palette.calm : palette.hairline }]}
+            style={[
+              styles.chipDot,
+              { backgroundColor: hasCategory ? palette.calm : palette.hairline },
+            ]}
           />
           <Text style={[styles.chipText, { color: palette.muted }]}>{chipLabel}</Text>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

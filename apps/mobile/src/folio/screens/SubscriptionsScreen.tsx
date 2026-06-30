@@ -6,16 +6,20 @@
  *               currentBalance, onboarding, subOverrides, transactions, pots) for the tight-day lift
  * @writes       togglePaused, removeSub, markSubUsed
  * @opens-sheet  melo-chat
- * @copy         FROZEN — "still earns its place" voice.
+ * @copy         Honest payment-facts voice — no usage/value/cancel claims (SUBSCRIPTION_SIGNAL_RESEARCH §5).
  * @tokens       --surface --hairline --accent --positive --muted-ink
  * @motion       press · slide-in-r · subtle pulse on the "used today" tick
  *
  * Faithful 1:1 RN port of the web screen
  * (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenSubscriptions.tsx).
- * It answers one question: of everything that recurs, what still earns its place? The recurring
- * drain is the hero (a count-up monthly total, with what pauses have already saved beneath it); a
- * single quiet "pause the quiet ones" move; three sort chips reorder the list (worst value first
- * by default); each row carries a usage pulse dot + a value-score subtitle + per-row actions.
+ * It shows everything that recurs — the upcoming charges and what pausing buys before your low point.
+ * The recurring drain is the hero (a count-up monthly total, with what pauses have already saved
+ * beneath it); a single PAYMENT-TIMING "pause what renews before your low point" move; two sort chips
+ * reorder the list (next charge by default, then cost); each row carries a calm marker dot + a
+ * payment-fact subtitle ("Repeats monthly" / "Paused") + per-row actions. NO usage / value / cancel
+ * CLAIM is made — banking or seed data proves a charge recurs, not that a product was used
+ * (SUBSCRIPTION_SIGNAL_RESEARCH §2/§5); the "Cancel" button stays (a user action), but Folio never
+ * tells the user something is unused, wasted, or should be cancelled.
  *
  * Data is REAL — read from the store via useAppStore, written through the real mutators
  * (togglePaused / pauseMany / markSubUsed / removeSub / setSubs). The voice is FROZEN and every
@@ -32,8 +36,8 @@
  * for the one pre-mount frame), which doubles as the web's hydration guard: while `now === null`
  * the lift lines/lift-bearing toasts stay suppressed and only the engine-free feedback shows.
  * Everything that never needed the engine — the monthly/yearly totals, the savings-from-pauses
- * figure, the quiet-move £/mo + £/yr saving, the per-row pulse/score, and the plain pause/cancel
- * feedback — renders fully and faithfully throughout. The catalog/pulse/actions render is unchanged.
+ * figure, the due-before-low-point move's £/mo + £/yr, the per-row marker + payment-fact subtitle, and
+ * the plain pause/cancel feedback — renders fully throughout. The catalog/marker/actions render holds.
  *
  * FEEDBACK SURFACE: pause / pause-the-quiet-ones / cancel all surface as the EPHEMERAL Tier-1 undo
  * snackbar (useUndo / showUndo) — the RN equal of the web's sonner toast — never a blocking
@@ -56,15 +60,7 @@ import {
   togglePaused,
   useAppStore,
 } from '@/folio/store';
-import {
-  elevation,
-  gap,
-  type Palette,
-  radius,
-  serif,
-  useCountUp,
-  useTheme,
-} from '@/folio/theme';
+import { elevation, gap, type Palette, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { routeFromStore, useRoute } from '@/folio/lib/storeRoute';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -94,53 +90,33 @@ function tightSpare(amount: number): number {
   return Math.max(0, Math.round(amount));
 }
 
-// The three orderings the web offers. "value" (worst value first) is the default, because the whole
-// screen is built to surface what no longer earns its keep.
-type SortKey = 'value' | 'cost' | 'next';
+// The orderings offered. NO "worst value" sort — that ranks by a usage/value judgement banking or seed
+// data cannot make (SUBSCRIPTION_SIGNAL_RESEARCH §5). The honest orderings are payment facts: by next
+// charge (the default — what's coming first) and by cost.
+type SortKey = 'next' | 'cost';
 
 const SORTS: readonly { key: SortKey; label: string }[] = [
-  { key: 'value', label: 'Worst value' },
-  { key: 'cost', label: 'Cost' },
   { key: 'next', label: 'Next charge' },
+  { key: 'cost', label: 'Cost' },
 ];
 
 // The monthly total counts up to its target via the shared useCountUp — the web's
 // useCountUp(monthly, 600): easeOutCubic over 600ms, snapping to the value under reduced motion.
 const COUNT_UP_MS = 600;
 
-// Pulse derived from real usage signal — byte-for-byte the web's pulseOf().
-type Pulse = 'yes' | 'maybe' | 'no';
-function pulseOf(s: StoreSub): Pulse {
-  if (s.usesPerMonth >= 8 || s.lastUsedDaysAgo <= 3) return 'yes';
-  if (s.usesPerMonth === 0 || s.lastUsedDaysAgo > 21) return 'no';
-  return 'maybe';
+// Marker dot colour — a calm, NON-usage marker. Banking/seed data can't prove a product was used, so
+// the dot never encodes a "good/bad value" verdict (SUBSCRIPTION_SIGNAL_RESEARCH §5). It flags only a
+// payment fact: a free trial about to convert (the one high-regret moment) reads caution; everything
+// else is a neutral calm dot.
+function dotColor(t: Palette, sub: StoreSub): string {
+  return typeof sub.trialEndsInDays === 'number' ? t.caution : t.calm;
 }
 
-// value = pence per use. Higher is worse. Zero uses → Infinity sentinel (worst value floats up).
-function valueScore(s: StoreSub): number {
-  return s.usesPerMonth === 0 ? Infinity : (s.cost * 100) / s.usesPerMonth;
-}
-
-// Pulse dot colour. yes = the calm green; maybe = caution gold DATA mark (t.caution, never the text
-// gold); no = a muted ink at reduced strength (the web's negative @ 70% opacity → a faint repair
-// coral). Mirrors the web's positive / caution / negative-at-70%.
-function pulseColor(t: Palette, p: Pulse): string {
-  if (p === 'yes') return t.positive;
-  if (p === 'maybe') return t.caution;
-  return t.repair;
-}
-
-function pulseLabel(p: Pulse): string {
-  if (p === 'yes') return 'Used recently';
-  if (p === 'maybe') return 'Not sure';
-  return 'Quiet a while';
-}
-
-// "{p}p per use · {n}/mo", or "no uses this month" when it has fallen silent — verbatim web format.
-function formatScore(s: StoreSub): string {
-  if (s.usesPerMonth === 0) return 'no uses this month';
-  const p = Math.round(valueScore(s));
-  return `${p}p per use · ${s.usesPerMonth}/mo`;
+// The row's subtitle — a payment fact only. No usage / value / per-use claim: just that the charge
+// recurs ("Repeats monthly" — the safe recurrence claim, SUBSCRIPTION_SIGNAL_RESEARCH §4), or that
+// the user has paused it.
+function metaLine(paused: boolean): string {
+  return paused ? 'Paused' : 'Repeats monthly';
 }
 
 // next "today"/"tomorrow"/"in {n}d"/date — verbatim web formatNext.
@@ -171,13 +147,12 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   const subs = useAppStore((st) => st.subs);
   const paused = useAppStore((st) => st.subPaused);
 
-  const [sort, setSort] = useState<SortKey>('value');
+  const [sort, setSort] = useState<SortKey>('next');
 
   const sorted = useMemo(() => {
     const arr = [...subs];
-    if (sort === 'value') arr.sort((a, b) => valueScore(b) - valueScore(a));
     if (sort === 'cost') arr.sort((a, b) => b.cost - a.cost);
-    if (sort === 'next') arr.sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway);
+    else arr.sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway);
     return arr;
   }, [sort, subs]);
 
@@ -187,14 +162,9 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   const totalIfNoPause = subs.reduce((acc, x) => acc + x.cost, 0);
   const monthlySaved = totalIfNoPause - monthly;
 
-  // "Quiet 3" recommendation: subs the user clearly isn't getting value from.
-  const quietOnes = useMemo(
-    () => subs.filter((x) => pulseOf(x) === 'no' || valueScore(x) > 200),
-    [subs],
-  );
-  const quietSave = quietOnes.reduce((acc, x) => acc + x.cost, 0);
-  const quietPaused = quietOnes.length > 0 && quietOnes.every((q) => paused[q.name]);
-  const showQuietMove = quietOnes.length > 0 && !quietPaused;
+  // The "pause what renews before your low point" move is a PAYMENT-TIMING set (when a charge lands),
+  // not a usage/"quiet" verdict — it is computed below (dueBeforeTight) once the route's tight day is
+  // known, so it can read the projected low point honestly.
 
   // ---- @rn-engine money-path-tight-day -------------------------------------------------------
   // The web reads a live tight-day spare here to render "Your low point: £a → £b (day)" and the
@@ -218,6 +188,19 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     ? { spare: tightSpare(route.tightPoint.amount), date: route.tightPoint.date }
     : null;
 
+  // Active subs that renew ON OR BEFORE the projected low point — a PAYMENT-TIMING set (when a charge
+  // lands), never a usage verdict. Pausing these is what genuinely buys room before the squeeze, and
+  // the copy can stay honest about WHY. Empty until the mount-gate opens (tightWith === null).
+  const dueBeforeTight = useMemo<StoreSub[]>(() => {
+    if (!tightWith) return [];
+    const tightMs = new Date(`${tightWith.date}T00:00:00`).getTime();
+    const base = (now ?? EPOCH).getTime();
+    const daysToTight = Math.round((tightMs - base) / 86_400_000);
+    return subs.filter((x) => !paused[x.name] && x.nextRenewalDaysAway <= daysToTight);
+  }, [subs, paused, tightWith, now]);
+  const dueSave = dueBeforeTight.reduce((acc, x) => acc + x.cost, 0);
+  const showDueMove = dueBeforeTight.length > 0;
+
   // Re-route a HYPOTHETICAL COPY of the state with the given subs paused — never mutating the live
   // store. `routeFromStore` is pure ((state, now) → RouteResult), so an overlaid `subPaused` map
   // yields the low point the user WOULD see if they paused those subs. The lift is the real route
@@ -234,29 +217,29 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
 
   // What pausing all the quiet ones BUYS — computed up front so the banner can show the lift line
   // and the press handler can show the matching toast. `null` while gated or when nothing is quiet.
-  const tightIfQuietPaused = useMemo(
-    () => (quietOnes.length > 0 ? tightIfPaused(quietOnes.map((q) => q.name)) : null),
+  const tightIfDuePaused = useMemo(
+    () => (dueBeforeTight.length > 0 ? tightIfPaused(dueBeforeTight.map((q) => q.name)) : null),
     // Recompute when the gate opens or the inputs the route depends on change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [now, quietOnes, subs, paused],
+    [now, dueBeforeTight, subs, paused],
   );
-  const quietLift = tightIfQuietPaused && tightWith ? tightIfQuietPaused.spare - tightWith.spare : 0;
+  const dueLift = tightIfDuePaused && tightWith ? tightIfDuePaused.spare - tightWith.spare : 0;
   // -------------------------------------------------------------------------------------------
 
-  const pauseQuietOnes = () => {
-    // Measure the lift BEFORE the store write, then pause. The design surfaces the outcome as an
-    // EPHEMERAL toast — sonner in the web, the Tier-1 undo snackbar here — never a blocking confirm.
-    // Pausing is a reversible Tier-1 action ("pause sub" in undoPolicy), so the snackbar's Undo
-    // genuinely resumes the set; capture the names so the restore reverses exactly this pause.
-    const names = quietOnes.map((q) => q.name);
+  const pauseDueOnes = () => {
+    // Measure the lift BEFORE the store write, then pause. The outcome surfaces as an EPHEMERAL Tier-1
+    // undo snackbar (never a blocking confirm). Pausing is a reversible Tier-1 action ("pause sub" in
+    // undoPolicy), so the snackbar's Undo genuinely resumes the set; capture the names so the restore
+    // reverses exactly this pause.
+    const names = dueBeforeTight.map((q) => q.name);
     const before = tightWith?.spare;
-    const after = tightIfQuietPaused?.spare ?? before;
+    const after = tightIfDuePaused?.spare ?? before;
     pauseMany(names, true);
     if (typeof before === 'number' && typeof after === 'number' && after > before) {
-      // The web's "Your low point goes from £a to £b" + room-around-{day} description, folded into
-      // the single snackbar line (the toast carries one label, not a title/body pair).
-      const room = tightIfQuietPaused?.date
-        ? `more room around ${formatDayProse(tightIfQuietPaused.date)}`
+      // "Your low point goes from £a to £b" + room-around-{day}, folded into the single snackbar line
+      // (the toast carries one label, not a title/body pair). Payment-timing framing only.
+      const room = tightIfDuePaused?.date
+        ? `more room around ${formatDayProse(tightIfDuePaused.date)}`
         : 'more room before payday';
       showUndo(`Low point £${before} → £${after} · ${room}`, () => pauseMany(names, false));
     }
@@ -293,7 +276,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     // Cancel is safe via the UNDO window, not a confirm gate — exactly the design (the web removes
     // the sub immediately and raises a sonner toast with an inline Undo, no "are you sure?"). Snapshot
     // BEFORE delete so the undo restores both the sub and its paused state — capture order matters
-    // (read getState() before removeSub). The Tier-1 snackbar (6s) then carries the verbatim
+    // (read getState() before removeSub). The Tier-1 snackbar (30s) then carries the verbatim
     // "Cancelled {name}" line and the one-tap restore.
     const prevSubs = getState().subs;
     const prevPaused = !!getState().subPaused[sub.name];
@@ -306,7 +289,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
 
   const onAskMelo = (sub: StoreSub) => {
     nav.openMelo({
-      prefill: `Talk me out of ${sub.name} (${pounds(sub.cost)}/mo, ${sub.usesPerMonth} uses last month).`,
+      prefill: `Tell me about ${sub.name} (${pounds(sub.cost)}/mo, renews in ${sub.nextRenewalDaysAway}d).`,
     });
   };
 
@@ -323,7 +306,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
         <View style={layout.head}>
           <Text style={s.kicker}>Recurring spend</Text>
           <Text style={s.headline}>
-            What still <Text style={s.headlineAccent}>earns</Text> its place?
+            Everything that <Text style={s.headlineAccent}>repeats</Text>.
           </Text>
         </View>
 
@@ -331,7 +314,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           <EmptyState
             mood="calm"
             headline={copy.subs.empty.head.replace(/\*\*/g, '')}
-            body="Add a streaming service, gym, or anything that comes out every month. You'll see what still earns its place."
+            body="Add a streaming service, gym, or anything that comes out every month. You'll see everything that repeats and what's coming."
             cta={{ label: copy.subs.empty.cta, onPress: () => nav.go('add-debt') }}
           />
         </View>
@@ -351,7 +334,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
       <View style={layout.head}>
         <Text style={s.kicker}>Recurring spend</Text>
         <Text style={s.headline}>
-          What still <Text style={s.headlineAccent}>earns</Text> its place?
+          Everything that <Text style={s.headlineAccent}>repeats</Text>.
         </Text>
       </View>
 
@@ -374,26 +357,30 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
       {/* QUIET-MOVE CTA — one accent-soft banner with a forward arrow, only when there are quiet,
           still-active subs. The £/mo + £/yr saving is engine-free and shows now; the "Your low
           point: £a → £b (day)" lift line is gated behind the tight-day engine. */}
-      {showQuietMove ? (
+      {showDueMove ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityHint="Pauses every subscription that has gone quiet."
-          onPress={pauseQuietOnes}
-          style={({ pressed: isPressed }) => [s.quietBanner, isPressed ? layout.pressed : undefined]}
+          accessibilityHint="Pauses the subscriptions that renew before your low point."
+          onPress={pauseDueOnes}
+          style={({ pressed: isPressed }) => [
+            s.quietBanner,
+            isPressed ? layout.pressed : undefined,
+          ]}
         >
           <View style={layout.flex1}>
-            <Text style={s.quietEyebrow}>A quiet move</Text>
+            <Text style={s.quietEyebrow}>Before your low point</Text>
             <Text style={s.quietBody}>
-              Pause the {quietOnes.length} quiet {quietOnes.length === 1 ? 'one' : 'ones'} → save{' '}
-              {pounds(quietSave)}/mo, {poundsWhole(quietSave * 12)}/yr
+              Pause the {dueBeforeTight.length} that{' '}
+              {dueBeforeTight.length === 1 ? 'renews' : 'renew'} before then → {pounds(dueSave)}/mo,{' '}
+              {poundsWhole(dueSave * 12)}/yr back
             </Text>
             {/* @rn-engine money-path-tight-day — the real route DELTA: "Your low point: £a → £b
-                ({day})", shown once the mount-gate has opened (route !== null) and pausing the quiet
-                ones actually lifts the low point on a known day. Verbatim web copy. */}
-            {quietLift > 0 && tightWith && tightIfQuietPaused?.date ? (
+                ({day})", shown once the mount-gate has opened (route !== null) and pausing these
+                actually lifts the low point on a known day. */}
+            {dueLift > 0 && tightWith && tightIfDuePaused?.date ? (
               <Text style={s.quietLift}>
-                Your low point: £{tightWith.spare} → £{tightIfQuietPaused.spare} (
-                {formatDayProse(tightIfQuietPaused.date)})
+                Your low point: £{tightWith.spare} → £{tightIfDuePaused.spare} (
+                {formatDayProse(tightIfDuePaused.date)})
               </Text>
             ) : null}
           </View>
@@ -401,7 +388,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
         </Pressable>
       ) : null}
 
-      {/* SORT CHIPS — Worst value (default) · Cost · Next charge. A pill row matching the web's
+      {/* SORT CHIPS — Next charge (default) · Cost. A pill row matching the web's
           ink-fill-on-selected / inset-on-rest. */}
       <View style={layout.sortRow}>
         {SORTS.map((option) => {
@@ -461,15 +448,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
 // Header — back chevron · centred uppercase title · symmetric spacer.
 // ---------------------------------------------------------------------------
 
-function Header({
-  nav,
-  t,
-  s,
-}: {
-  nav: Nav;
-  t: Palette;
-  s: ReturnType<typeof makeStyles>;
-}) {
+function Header({ nav, t, s }: { nav: Nav; t: Palette; s: ReturnType<typeof makeStyles> }) {
   return (
     <View style={layout.header}>
       <Pressable
@@ -512,13 +491,14 @@ function SubscriptionRow({
   onAskMelo: () => void;
   onCancel: () => void;
 }) {
-  const p = pulseOf(sub);
   const hasTrial = typeof sub.trialEndsInDays === 'number';
 
   return (
-    <View style={[s.row, first ? layout.rowFirst : undefined, paused ? layout.rowPaused : undefined]}>
+    <View
+      style={[s.row, first ? layout.rowFirst : undefined, paused ? layout.rowPaused : undefined]}
+    >
       <View style={layout.rowHead}>
-        <View style={[layout.pulseDot, { backgroundColor: pulseColor(t, p) }]} />
+        <View style={[layout.pulseDot, { backgroundColor: dotColor(t, sub) }]} />
         <View style={layout.rowText}>
           <View style={layout.nameLine}>
             <Text style={s.rowName} numberOfLines={1}>
@@ -536,7 +516,7 @@ function SubscriptionRow({
             ) : null}
           </View>
           <Text style={s.rowMeta} numberOfLines={1}>
-            {pulseLabel(p)} · {formatScore(sub)}
+            {metaLine(paused)}
           </Text>
         </View>
         <View style={layout.rowAmountCol}>
@@ -602,7 +582,10 @@ function ActionLink({
       accessibilityHint={accessibilityHint}
       hitSlop={10}
       onPress={onPress}
-      style={({ pressed: isPressed }) => [layout.actionLink, isPressed ? layout.pressed : undefined]}
+      style={({ pressed: isPressed }) => [
+        layout.actionLink,
+        isPressed ? layout.pressed : undefined,
+      ]}
     >
       <Text style={[layout.actionLinkText, { color }]}>{label}</Text>
     </Pressable>

@@ -1,7 +1,7 @@
 // @rn-sheet     MeloChatSheet
 // @purpose      Melo conversation surface — a snapshot of app state + a proactive opener, hosting the
 //               full Melo chat (transcript, tone/share settings, the four store-recording tool calls
-//               with an 8s undo window, composer).
+//               with a 30s undo window, composer).
 // @reads        Full app snapshot (pots, subs, subPaused, tightPointGoal, onboarding, last-14d txns)
 // @writes       applyMeloTool via tool callbacks — the log_* family (log spend / log income /
 //               log refund / log transfer), each recorded as a Transaction with a captured undo
@@ -15,7 +15,7 @@
 //               --accent(calm) --hairlineStrong (grip) — all via '@/folio/theme'.
 // @motion       sheet-rise + scrim-in (inherited from the kit Sheet) · press (scale 0.97) on every
 //               tappable (Tune, tone buttons, starter chips, Undo, Start fresh, submit) · message
-//               fade-in on each bubble · Melo's-thinking shimmer (2s) · undo-pill 8s timer. Every
+//               fade-in on each bubble · Melo's-thinking shimmer (2s) · undo-pill 30s timer. Every
 //               motion collapses to its final state under reduce-motion (MOTION.md).
 // @moods        calm — the only mood used here. MELO_MOODS.md fixes the chat sheet at calm; the web
 //               passed pressureMood[pressure] (soft/alert aliases). RN drops the aliases and renders
@@ -63,6 +63,7 @@ import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme
 import { copy } from '@/folio/copy/copy';
 import { Melo } from '@/folio/melo/Melo';
 import { applyMeloTool, useAppStore, type Sub, type Transaction } from '@/folio/store';
+import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
 import type { MeloIntent, Nav, Pressure } from '@/folio/types';
 import {
   isMeloAiConfigured,
@@ -105,7 +106,9 @@ const PRESSURE_LOW: Record<Pressure, number> = {
 
 const DEFAULT_SETTINGS: Settings = { tone: 'calm', share: false };
 
-const UNDO_WINDOW_MS = 8000; // the 8s Undo affordance window (web setTimeout)
+// UNDO_WINDOW_MS — the Tier-1 undo window — is imported from the policy engine (lib/undoPolicy),
+// which is now the canonical 30s (ENGINES §6 D3 >= 30s floor). The prior local 8000 shadowed it
+// and sat below the decided minimum; it is removed so every undo affordance shares one window.
 const PRESS_SCALE = 0.97; // .press — scale 0.97 on :active
 const FOURTEEN_DAYS_MS = 14 * 86_400_000;
 const SHIMMER_MS = 2000; // Melo's-thinking shimmer cycle (web 2s linear infinite)
@@ -229,8 +232,10 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         name: s.name,
         monthly: s.cost,
         renewsInDays: s.nextRenewalDaysAway,
-        lastUsedDaysAgo: s.lastUsedDaysAgo,
-        usesPerMonth: s.usesPerMonth,
+        // Usage fields (lastUsedDaysAgo / usesPerMonth) are intentionally NOT shared with the gateway:
+        // bank/seed data proves a charge recurs, not that the product was used
+        // (SUBSCRIPTION_SIGNAL_RESEARCH §2/§5), so Melo is never handed a usage signal she could turn
+        // into an "unused / you should cancel" claim. Only payment facts (cost, renewal, paused) go.
         paused: !!subPaused[s.name],
       })),
       recentSpend: {
@@ -257,16 +262,19 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
   const autoSeed = useMemo(() => {
     if (prefill || seedIntent) return undefined;
     const liveSubs = subs.filter((s) => !subPaused[s.name]);
-    const quiet = liveSubs.find((s) => s.usesPerMonth === 0 || s.lastUsedDaysAgo > 21);
     const soon = [...liveSubs].sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)[0] as
       | Sub
       | undefined;
     const name = onboarding.name ? `${onboarding.name}, ` : '';
-    if (quiet && quiet.nextRenewalDaysAway <= 7) {
-      return `${name}heads up — ${quiet.name} (£${quiet.cost.toFixed(2)}) renews in ${quiet.nextRenewalDaysAway} day${quiet.nextRenewalDaysAway === 1 ? '' : 's'} and you haven't opened it in ${quiet.lastUsedDaysAgo} days. want to pause this cycle?`;
-    }
+    // Payment-TIMING openers only. Bank/seed data proves a charge RECURS, it cannot prove the product
+    // was used (SUBSCRIPTION_SIGNAL_RESEARCH §2/§5), so Melo never opens with a usage / "you haven't
+    // opened it" claim or a "pause/cancel it" directive — she surfaces the upcoming charge and asks a
+    // neutral question; the user decides. Both branches key on the renewal date, never on usage.
     if (soon && soon.nextRenewalDaysAway <= 3) {
       return `${name}quick one — ${soon.name} £${soon.cost.toFixed(2)} leaves ${soon.nextRenewalDaysAway === 0 ? 'today' : `in ${soon.nextRenewalDaysAway}d`}. all good with that?`;
+    }
+    if (soon && soon.nextRenewalDaysAway <= 7) {
+      return `${name}heads up — ${soon.name} (£${soon.cost.toFixed(2)}) renews in ${soon.nextRenewalDaysAway} day${soon.nextRenewalDaysAway === 1 ? '' : 's'}. want a look before it goes out?`;
     }
     if (snapshot.recentSpend.totalLast14Days > 0) {
       const top = Object.entries(snapshot.recentSpend.byCategory).sort(
@@ -339,7 +347,7 @@ function MeloChat({
 
   // --- Tool bridge: when a tool part is "output-available", mutate the real app store ONCE. -------
   // Faithful to the web: dedupe by toolCallId (appliedRef), only apply on output-available, call
-  // applyMeloTool, and on applied=true open an 8s Undo window then auto-expire it. The undo closures
+  // applyMeloTool, and on applied=true open a 30s Undo window then auto-expire it. The undo closures
   // captured by applyMeloTool hold the exact pre-change state.
   const appliedRef = useRef<Set<string>>(new Set());
   const undoTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -359,7 +367,7 @@ function MeloChat({
         // Write the REAL outcome back onto the part so the pill renders the truth: applyMeloTool's
         // summary when it actually mutated, or its reason when it could not (unmatched target, etc.).
         // The pill shows tp.output?.message; an unmatched move therefore reads as the reason, never a
-        // fake "done". Only an applied result gets the 8s Undo window.
+        // fake "done". Only an applied result gets the 30s Undo window.
         const outputMessage = result.applied ? result.summary : result.reason;
         recordToolOutput(id, { ok: result.applied, message: outputMessage });
         if (result.applied) {
@@ -427,7 +435,7 @@ function MeloChat({
   //   • ok          → the returned assistant prose, plus one inline tool pill per advisory suggestion.
   //                   Each tool part is emitted `output-available`; the existing tool-bridge effect
   //                   applies it via applyMeloTool exactly once (deduped by toolCallId) and opens the
-  //                   8s Undo. Honest by construction: applyMeloTool only reports "done" when it
+  //                   30s Undo. Honest by construction: applyMeloTool only reports "done" when it
   //                   actually mutated — an unmatched target shows "working on it…" with no Undo, not
   //                   a fake success.
   //   • no-provider → the client's honest "Melo isn't configured yet…" line, surfaced verbatim. We
@@ -503,7 +511,10 @@ function MeloChat({
   // Render a settled gateway result into the transcript / error line.
   function applyResult(result: MeloChatResult) {
     if (result.status === 'ok') {
-      setMessages((prev) => [...prev, assistantMessageFromResult(result.reply, result.suggestions)]);
+      setMessages((prev) => [
+        ...prev,
+        assistantMessageFromResult(result.reply, result.suggestions),
+      ]);
       setStatus('ready');
       return;
     }
@@ -511,7 +522,11 @@ function MeloChat({
       // Surface the client's honest line verbatim — never a fabricated answer.
       setMessages((prev) => [
         ...prev,
-        { id: `a-${Date.now()}`, role: 'assistant', parts: [{ type: 'text', text: result.message }] },
+        {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          parts: [{ type: 'text', text: result.message }],
+        },
       ]);
       setStatus('ready');
       return;
@@ -790,7 +805,8 @@ function MeloChat({
 
 // Honest fallback when EXPO_PUBLIC_MELO_GATEWAY_URL is unset. We do NOT fabricate an AI reply; we say
 // plainly that Melo isn't connected. Kept short and in Melo's lowercase-y voice.
-const NOT_CONFIGURED_LINE = "i'm not connected to the gateway yet — set it up and i'll be right here.";
+const NOT_CONFIGURED_LINE =
+  "i'm not connected to the gateway yet — set it up and i'll be right here.";
 
 // Flatten this sheet's ChatMessage[] into the client's MeloChatMessage[] (role + concatenated text,
 // most recent last). Empty turns (e.g. a tool-only assistant message) are dropped — the gateway only

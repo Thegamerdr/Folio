@@ -73,6 +73,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, setRouteFocusDate, sweepSubOverrides } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { resolveNextTopUp } from '@/folio/lib/potCadence';
 import type { Nav, Pressure } from '@/folio/types';
 
 import { pressureLine, pressureLow, pressureMood } from './today/pressure';
@@ -305,9 +306,32 @@ export function TodayScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, routeFocusDate]);
 
-  // Pot top-ups become a labelled Friday dip so the route reads honestly.
+  // Pot top-ups become a labelled, cadence-derived dip (ENGINES §6 D5 — NO hardcoded Friday). Each
+  // active pot's own cadence (default "after income arrives") resolves to a real top-up date via the
+  // pot-cadence engine, anchored to the route-resolved payday; the dip is labelled with the soonest
+  // such day. If no date can be honestly resolved (e.g. an after-payday pot with no known payday), the
+  // dip reads "Pot top-up" with NO fabricated weekday.
   const activePots = pots.filter((p) => p.perWeek > 0);
   const weeklyPotTotal = activePots.reduce((sum, p) => sum + p.perWeek, 0);
+  const potDipDay = useMemo<string | null>(() => {
+    if (!now || activePots.length === 0) return null;
+    const DAY_MS = 86_400_000;
+    const isoOf = (date: Date): string => date.toISOString().slice(0, 10);
+    const nowIso = isoOf(now);
+    const nextPayday = route
+      ? isoOf(new Date(now.getTime() + route.daysToPayday * DAY_MS))
+      : undefined;
+    let soonest: string | null = null;
+    for (const p of activePots) {
+      const res = resolveNextTopUp(p.cadence ?? { kind: 'after-payday' }, {
+        now: nowIso,
+        nextPayday,
+      });
+      if (res.kind === 'date' && (soonest === null || res.date < soonest)) soonest = res.date;
+    }
+    if (soonest === null) return null;
+    return new Date(`${soonest}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
+  }, [now, route, activePots]);
 
   // --- Motion: route-draw (animated strokeDashoffset, keyed on `d`) -------------------------------
   const draw = useSharedValue(reduceMotion ? 1 : 0);
@@ -727,12 +751,14 @@ export function TodayScreen({
               : 'drag the line to preview a spend'}
           </Text>
 
-          {/* Friday-dip — hidden when no active pots */}
+          {/* Pot dip — the labelled pot top-up. Hidden when no active pots. The day is DERIVED from
+              each pot's cadence (ENGINES §6 D5), never a hardcoded Friday; with no resolvable date it
+              reads "Pot top-up" with no fabricated weekday. */}
           {activePots.length > 0 ? (
-            <View style={[styles.fridayDip, { backgroundColor: t.inset }]}>
-              <Text style={[styles.fridayGlyph, { color: t.calm }]}>↘</Text>
-              <Text style={[styles.fridayText, { color: t.muted }]}>
-                Friday dip ·{' '}
+            <View style={[styles.potDip, { backgroundColor: t.inset }]}>
+              <Text style={[styles.potDipGlyph, { color: t.calm }]}>↘</Text>
+              <Text style={[styles.potDipText, { color: t.muted }]}>
+                {potDipDay ? `${potDipDay} dip` : 'Pot top-up'} ·{' '}
                 {activePots.map((p) => `${p.name.split(' ')[0]} £${p.perWeek}`).join(' + ')}
                 {activePots.length > 1
                   ? ` · £${weeklyPotTotal}/wk to your pots`
@@ -974,7 +1000,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  fridayDip: {
+  potDip: {
     marginTop: gap.sm,
     paddingHorizontal: gap.xs,
     paddingVertical: 6,
@@ -983,8 +1009,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 6,
   },
-  fridayGlyph: { fontSize: 11 },
-  fridayText: { flex: 1, fontSize: 10.5, lineHeight: 15 },
+  potDipGlyph: { fontSize: 11 },
+  potDipText: { flex: 1, fontSize: 10.5, lineHeight: 15 },
 
   summaryRow: {
     marginTop: gap.md,

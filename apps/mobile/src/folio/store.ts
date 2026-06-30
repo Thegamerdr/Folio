@@ -69,12 +69,19 @@ export type Sub = {
 };
 
 const DEFAULT_SUBS: Sub[] = [
-  { name: 'Spotify',  cost: 11.0,  nextRenewalDaysAway: 2,  lastUsedDaysAgo: 0,  usesPerMonth: 28 },
-  { name: 'Netflix',  cost: 12.99, nextRenewalDaysAway: 9,  lastUsedDaysAgo: 21, usesPerMonth: 2  },
-  { name: 'Notion',   cost: 8.0,   nextRenewalDaysAway: 11, lastUsedDaysAgo: 0,  usesPerMonth: 30 },
-  { name: 'Disney+',  cost: 8.99,  nextRenewalDaysAway: 6,  lastUsedDaysAgo: 42, usesPerMonth: 0, trialEndsInDays: 6 },
-  { name: 'iCloud',   cost: 2.99,  nextRenewalDaysAway: 13, lastUsedDaysAgo: 0,  usesPerMonth: 30 },
-  { name: 'Strava',   cost: 9.99,  nextRenewalDaysAway: 17, lastUsedDaysAgo: 18, usesPerMonth: 1  },
+  { name: 'Spotify', cost: 11.0, nextRenewalDaysAway: 2, lastUsedDaysAgo: 0, usesPerMonth: 28 },
+  { name: 'Netflix', cost: 12.99, nextRenewalDaysAway: 9, lastUsedDaysAgo: 21, usesPerMonth: 2 },
+  { name: 'Notion', cost: 8.0, nextRenewalDaysAway: 11, lastUsedDaysAgo: 0, usesPerMonth: 30 },
+  {
+    name: 'Disney+',
+    cost: 8.99,
+    nextRenewalDaysAway: 6,
+    lastUsedDaysAgo: 42,
+    usesPerMonth: 0,
+    trialEndsInDays: 6,
+  },
+  { name: 'iCloud', cost: 2.99, nextRenewalDaysAway: 13, lastUsedDaysAgo: 0, usesPerMonth: 30 },
+  { name: 'Strava', cost: 9.99, nextRenewalDaysAway: 17, lastUsedDaysAgo: 18, usesPerMonth: 1 },
 ];
 
 export type CycleRecord = {
@@ -238,7 +245,14 @@ const EMPTY_BALANCE: Omit<CurrentBalance, 'setAt'> = {
 const DEFAULTS: AppState = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   pots: [
-    { id: 'holiday', name: 'Holiday · September', saved: 420, goal: 1200, perWeek: 35, accent: true },
+    {
+      id: 'holiday',
+      name: 'Holiday · September',
+      saved: 420,
+      goal: 1200,
+      perWeek: 35,
+      accent: true,
+    },
     { id: 'buffer', name: 'Buffer', saved: 140, goal: 500, perWeek: 20, accent: false },
     { id: 'christmas', name: 'Christmas', saved: 60, goal: 300, perWeek: 15, accent: false },
   ],
@@ -247,8 +261,22 @@ const DEFAULTS: AppState = {
   subOverrides: {},
   cycles: [
     // Seed two prior cycles so Insights has something to show on first run.
-    { closedAt: '2026-05-25', label: 'May', spare: 142, tightPoint: 38, setAside: 60, note: 'Held the line on takeaway.' },
-    { closedAt: '2026-04-25', label: 'April', spare: 88, tightPoint: 24, setAside: 50, note: 'Tight one — buffer saved it.' },
+    {
+      closedAt: '2026-05-25',
+      label: 'May',
+      spare: 142,
+      tightPoint: 38,
+      setAside: 60,
+      note: 'Held the line on takeaway.',
+    },
+    {
+      closedAt: '2026-04-25',
+      label: 'April',
+      spare: 88,
+      tightPoint: 24,
+      setAside: 50,
+      note: 'Tight one — buffer saved it.',
+    },
   ],
   onboarding: { done: false, name: '', payday: 25, monthlyIncome: 2180 },
   currentBalance: SAMPLE_BALANCE,
@@ -268,7 +296,12 @@ const DEFAULTS: AppState = {
 function seedTransactions(): Transaction[] {
   const now = Date.now();
   const day = 86_400_000;
-  const t = (d: number, merchant: string, amount: number, category: Transaction['category']): Transaction => ({
+  const t = (
+    d: number,
+    merchant: string,
+    amount: number,
+    category: Transaction['category'],
+  ): Transaction => ({
     id: `seed-${merchant}-${d}`.toLowerCase().replace(/\s+/g, '-'),
     when: new Date(now - d * day).toISOString(),
     merchant,
@@ -277,17 +310,17 @@ function seedTransactions(): Transaction[] {
     source: 'seed',
   });
   return [
-    t(0, 'Pret',         -4.20, 'food'),
-    t(0, 'Tube',         -2.80, 'transport'),
-    t(1, 'Tesco',       -42.10, 'food'),
-    t(2, 'Pub',         -18.50, 'fun'),
-    t(3, 'Coffee',       -3.20, 'food'),
-    t(4, 'Amazon',      -27.99, 'shopping'),
-    t(5, 'Spotify',     -11.00, 'bills'),
-    t(6, 'Uber',        -14.30, 'transport'),
-    t(7, 'Tesco',       -36.40, 'food'),
-    t(8, 'Cinema',      -16.00, 'fun'),
-    t(11, 'Salary',   1840.00, 'income'),
+    t(0, 'Pret', -4.2, 'food'),
+    t(0, 'Tube', -2.8, 'transport'),
+    t(1, 'Tesco', -42.1, 'food'),
+    t(2, 'Pub', -18.5, 'fun'),
+    t(3, 'Coffee', -3.2, 'food'),
+    t(4, 'Amazon', -27.99, 'shopping'),
+    t(5, 'Spotify', -11.0, 'bills'),
+    t(6, 'Uber', -14.3, 'transport'),
+    t(7, 'Tesco', -36.4, 'food'),
+    t(8, 'Cinema', -16.0, 'fun'),
+    t(11, 'Salary', 1840.0, 'income'),
   ];
 }
 
@@ -420,7 +453,10 @@ function load(): AppState {
 /** Drop overrides whose effective renewal has already passed
  *  (`nextRenewalDaysAway + delta < 0`), or whose sub no longer exists.
  *  Pure — call from load and from the Today mount sweep. */
-function sweepStaleOverrides(subs: Sub[], overrides: Record<string, number>): Record<string, number> {
+function sweepStaleOverrides(
+  subs: Sub[],
+  overrides: Record<string, number>,
+): Record<string, number> {
   const byName = new Map(subs.map((s) => [s.name, s] as const));
   const next: Record<string, number> = {};
   for (const [name, delta] of Object.entries(overrides)) {
@@ -592,7 +628,9 @@ export function setTightPointGoal(amount: number | null) {
   setPartial({ tightPointGoal: amount });
 }
 
-export function addTransaction(t: Omit<Transaction, 'id' | 'when'> & { id?: string; when?: string }): Transaction {
+export function addTransaction(
+  t: Omit<Transaction, 'id' | 'when'> & { id?: string; when?: string },
+): Transaction {
   const full: Transaction = {
     id: t.id ?? `txn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     when: t.when ?? new Date().toISOString(),
@@ -755,12 +793,7 @@ export function resetToEmpty() {
  *  its own — operates only on the snapshot it's given, so it's safe to call from
  *  selectors, `load()`, or tests. */
 export function hasAnyUserData(s: AppState): boolean {
-  return (
-    s.transactions.length > 0 ||
-    s.pots.length > 0 ||
-    s.subs.length > 0 ||
-    s.cycles.length > 0
-  );
+  return s.transactions.length > 0 || s.pots.length > 0 || s.subs.length > 0 || s.cycles.length > 0;
 }
 
 /** Debug: shift every dated thing backwards by ~30 days and add a synthetic
@@ -804,18 +837,9 @@ export function fastForwardMonth() {
  * The Melo tool set is the log_* family (record money as transactions). Pot
  * moves are NOT a Melo tool — addToPot / borrowFromPot are called directly.
  */
-export type MeloToolName =
-  | 'log_spend'
-  | 'log_income'
-  | 'log_refund'
-  | 'log_transfer';
+export type MeloToolName = 'log_spend' | 'log_income' | 'log_refund' | 'log_transfer';
 
-const MELO_TOOL_NAMES: MeloToolName[] = [
-  'log_spend',
-  'log_income',
-  'log_refund',
-  'log_transfer',
-];
+const MELO_TOOL_NAMES: MeloToolName[] = ['log_spend', 'log_income', 'log_refund', 'log_transfer'];
 
 export type MeloToolResult =
   | { applied: true; summary: string; undo: () => void }
@@ -885,7 +909,7 @@ function coerceCategory(raw: unknown): Transaction['category'] {
  * NOT in the design code, so these are a reasonable, documented implementation
  * built ONLY on the existing Transaction model (no new fields, no new category
  * values). Every tool is candidate/honest: Melo proposes, the user confirms in
- * the chat, and each result carries an `undo` closure for the 8s revert.
+ * the chat, and each result carries an `undo` closure for the 30s revert.
  *
  *   log_spend({ merchant, amount>0, category? })
  *     → one NEGATIVE transaction (a spend). `category` is best-fit or 'other'.

@@ -1,13 +1,13 @@
 // UndoToast — the Tier-1 immediate-undo snackbar (ENGINES §6 "Undo windows").
 //
 // Per the canonical undo policy (apps/mobile/src/folio/lib/undoPolicy.ts), every NORMAL
-// destructive action surfaces one undo window for exactly `UNDO_WINDOW_MS` (6s). This is the
+// destructive action surfaces one undo window for exactly `UNDO_WINDOW_MS` (30s). This is the
 // visible half of that contract: a calm bottom snackbar carrying the action label, a single
 // "Undo" action, and a hairline-thin progress bar that drains over the window so the time left
 // reads at a glance. When the bar empties the toast auto-dismisses; tapping Undo dismisses it
 // immediately and runs the caller's restore.
 //
-// Presentation only — it owns no policy. The 6s timing lives in `useUndo` (which mounts this for
+// Presentation only — it owns no policy. The 30s timing lives in `useUndo` (which mounts this for
 // UNDO_WINDOW_MS); this component is told `durationMs` and animates the bar across it. It never
 // touches the store. It composes only confirmed design-system tokens from '@/folio/theme'
 // (Palette via useTheme, gap, radius, elevation, pressed) — no new colour/font/spacing/radius/
@@ -102,12 +102,7 @@ export function UndoToast({ label, onUndo, onDismiss, durationMs, reduceMotion }
           pointerEvents="none"
           style={s.progressTrack}
         >
-          <Animated.View
-            style={[
-              s.progressFill,
-              { transform: [{ scaleX: progress }] },
-            ]}
-          />
+          <Animated.View style={[s.progressFill, { transform: [{ scaleX: progress }] }]} />
         </View>
       </View>
 
