@@ -69,7 +69,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // Cloudflare Worker secret (see services/ai-gateway) and never reaches the app/APK.
   extra: {
     ...config.extra,
-    EXPO_PUBLIC_MELO_GATEWAY_URL: process.env.EXPO_PUBLIC_MELO_GATEWAY_URL,
-    EXPO_PUBLIC_MELO_GATEWAY_TOKEN: process.env.EXPO_PUBLIC_MELO_GATEWAY_TOKEN,
+    // Prefer an env override (EAS env / .env), else the deployed gateway. These ship in the app by
+    // design — the URL and the WEAK shared token only. The real OpenRouter key is a Cloudflare Worker
+    // secret and never reaches the app. Embedding here (Constants.expoConfig.extra) is reliable across
+    // gradle/EAS builds, unlike EXPO_PUBLIC_* babel inlining which depends on the bundler's env.
+    EXPO_PUBLIC_MELO_GATEWAY_URL:
+      process.env.EXPO_PUBLIC_MELO_GATEWAY_URL ?? 'https://folio-ai-gateway.tgdroppin.workers.dev/v1',
+    EXPO_PUBLIC_MELO_GATEWAY_TOKEN:
+      process.env.EXPO_PUBLIC_MELO_GATEWAY_TOKEN ?? 'folio-local-38cf0d6da78a33a51382b91cafe0a7f2',
   },
 });

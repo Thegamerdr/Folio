@@ -298,7 +298,16 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   async function runPick(option: IntakeOption) {
     if (option.pick === 'document') {
       const result = await pickLocalStatementDocument();
-      if (result.kind === 'picked') {
+      if (result.kind === 'cancelled') return;
+      const src = result.source;
+      // ROUTE BY FILE TYPE, not by whether text was extracted. Only a genuinely DELIMITED statement
+      // (CSV / TSV / TXT) goes to the offline column parser. A PDF — even one whose embedded text
+      // layer the picker read — is unstructured prose, NOT CSV columns, so parseSheet always fails on
+      // it; the LLM vision reader is the right tool and handles arbitrary statement layouts.
+      const looksDelimited =
+        /text\/csv|application\/csv|tab-separated|text\/plain/i.test(src.mediaType) ||
+        /\.(csv|tsv|txt)$/i.test(src.filename);
+      if (result.kind === 'picked' && looksDelimited) {
         const candidates = readTextCandidates(result.text);
         if (candidates !== null) {
           setReaderCandidates(candidates);
@@ -306,48 +315,20 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         } else {
           nav.go('pdf-fallback');
         }
-      } else if (result.kind === 'unsupported') {
-        // The adapter saved the file but read no text. If it kept the on-device uri, hand it to the
-        // LLM reader; if there is no uri to read (defensive — the picker always provides one), the
-        // file is still saved, so honest fallback.
-        if (result.source.uri !== undefined) {
-          await runReader(
-            result.source.uri,
-            result.source.mediaType,
-            'pdf',
-            'pdf-success',
-            'pdf-fallback',
-          );
-        } else {
-          nav.go('pdf-fallback');
-        }
+      } else if (src.uri !== undefined) {
+        await runReader(src.uri, src.mediaType, 'pdf', 'pdf-success', 'pdf-fallback');
+      } else {
+        nav.go('pdf-fallback');
       }
       return;
     }
-    // option.pick === 'photo'
+    // option.pick === 'photo' — a photographed/screenshotted statement is an image. OCR-text → CSV
+    // parser is wrong for a photo, so route the image itself to the LLM reader. Cancelled/denied stop.
     const result = await pickStatementImage();
-    if (result.kind === 'picked') {
-      const candidates = readTextCandidates(result.text);
-      if (candidates !== null) {
-        setReaderCandidates(candidates);
-        nav.go('image-success');
-      } else {
-        nav.go('image-fallback');
-      }
-    } else if (result.kind === 'saved') {
-      // The adapter saved the image but read no text. If it kept the on-device uri, hand it to the
-      // LLM reader; if there is no uri (defensive), the image is saved, so honest fallback.
-      if (result.source.uri !== undefined) {
-        await runReader(
-          result.source.uri,
-          result.source.mediaType,
-          'image',
-          'image-success',
-          'image-fallback',
-        );
-      } else {
-        nav.go('image-fallback');
-      }
+    if ('source' in result && result.source.uri !== undefined) {
+      await runReader(result.source.uri, result.source.mediaType, 'image', 'image-success', 'image-fallback');
+    } else if (result.kind === 'picked' || result.kind === 'saved') {
+      nav.go('image-fallback');
     }
   }
 

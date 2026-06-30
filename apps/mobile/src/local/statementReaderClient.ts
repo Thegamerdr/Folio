@@ -118,7 +118,6 @@ export async function extractStatementCandidates(
   }
   const config = resolveMeloAiProviderConfig();
   if (!config.configured) {
-    // Defensive: isMeloAiConfigured() already gated this, but keep the type narrowing honest.
     return { kind: 'no-provider' };
   }
 

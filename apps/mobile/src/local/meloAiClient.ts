@@ -127,17 +127,23 @@ function readPublicExtra(key: string): string | undefined {
   return value.length > 0 ? value : undefined;
 }
 
-/** Resolve the gateway config from app config. Pure read — no network, no key. The token is
+/** The deployed gateway this build ships against by default. An env var (EXPO_PUBLIC_*) or
+ *  app.config `extra` overrides it — but those are unreliable in the gradle RELEASE bundle (it
+ *  inlines neither process.env nor expoConfig.extra dependably), so these source literals are the
+ *  guaranteed fallback (a string literal is always in the JS bundle). URL + a WEAK shared token
+ *  only; the real OpenRouter key is a Cloudflare Worker secret and never reaches the app. */
+const DEFAULT_GATEWAY_URL = 'https://folio-ai-gateway.tgdroppin.workers.dev/v1';
+const DEFAULT_GATEWAY_TOKEN = 'folio-local-38cf0d6da78a33a51382b91cafe0a7f2';
+
+/** Resolve the gateway config. Pure read — no network, no key. Prefers an explicit env/extra
+ *  override, else the deployed default above, so a shipped build is always configured. The token is
  *  optional: a gateway with no GATEWAY_TOKEN set accepts requests without the header. */
 export function resolveMeloAiProviderConfig(): MeloAiProviderConfig {
-  const gatewayUrl = readPublicExtra('EXPO_PUBLIC_MELO_GATEWAY_URL');
-  if (gatewayUrl === undefined) {
-    return { configured: false };
-  }
+  const gatewayUrl = readPublicExtra('EXPO_PUBLIC_MELO_GATEWAY_URL') ?? DEFAULT_GATEWAY_URL;
   return {
     configured: true,
     gatewayUrl: stripTrailingSlash(gatewayUrl),
-    token: readPublicExtra('EXPO_PUBLIC_MELO_GATEWAY_TOKEN'),
+    token: readPublicExtra('EXPO_PUBLIC_MELO_GATEWAY_TOKEN') ?? DEFAULT_GATEWAY_TOKEN,
   };
 }
 
