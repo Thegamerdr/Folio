@@ -43,7 +43,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   type AppState,
@@ -313,7 +313,11 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   // EMPTY BRANCH — the calm doorway. No top Melo on the populated screen; here EmptyState owns it.
   if (subs.length === 0) {
     return (
-      <View style={layout.screen}>
+      <ScrollView
+        style={layout.scrollFlex}
+        contentContainerStyle={layout.screen}
+        showsVerticalScrollIndicator={false}
+      >
         <Header nav={nav} t={t} s={s} />
 
         <View style={layout.head}>
@@ -331,13 +335,17 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
             cta={{ label: copy.subs.empty.cta, onPress: () => nav.go('add-debt') }}
           />
         </View>
-      </View>
+      </ScrollView>
     );
   }
 
   // POPULATED BRANCH.
   return (
-    <View style={layout.screen}>
+    <ScrollView
+      style={layout.scrollFlex}
+      contentContainerStyle={layout.screen}
+      showsVerticalScrollIndicator={false}
+    >
       <Header nav={nav} t={t} s={s} />
 
       <View style={layout.head}>
@@ -445,7 +453,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           text="Pausing for a month is a small experiment. You can always resume."
         />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -606,10 +614,17 @@ function ActionLink({
 // ---------------------------------------------------------------------------
 
 const layout = StyleSheet.create({
+  // The screen scrolls as one column — a long subs list overflowed the fixed viewport and the lower
+  // rows + footer were unreachable. The ScrollView fills the screen (scrollFlex); the content grows to
+  // at least a full viewport (flexGrow) so a short/empty list still fills, then scrolls when long.
+  scrollFlex: {
+    flex: 1,
+  },
   screen: {
     paddingHorizontal: 28,
     paddingTop: 16,
     gap: gap.lg,
+    flexGrow: 1,
   },
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

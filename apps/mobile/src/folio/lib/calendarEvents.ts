@@ -114,6 +114,7 @@ export function deriveCalendarEvents({
   pots = [],
   windowDays = 35,
   now = new Date(),
+  includeSampleBills = true,
 }: {
   subs: Sub[];
   subPaused: Record<string, boolean>;
@@ -127,6 +128,12 @@ export function deriveCalendarEvents({
   pots?: Pot[];
   windowDays?: number;
   now?: Date;
+  /** Whether to inject the hardcoded DEMO example bills (RECURRING_BILLS). True for the seeded demo
+   *  regime so its money path is rich; the live callers pass FALSE once the app holds real/cleared
+   *  data, so a real user never sees phantom Octopus/Council Tax/Rent they never entered. A real
+   *  user's own recurring bills come through `subs` (Add a bill → setSubs), not this const. Defaults
+   *  true for back-compat with the engine's own tests + the relative nudge helper. */
+  includeSampleBills?: boolean;
 }): DerivedEvent[] {
   const out: DerivedEvent[] = [];
   const windowEnd = addDays(now, windowDays);
@@ -158,8 +165,12 @@ export function deriveCalendarEvents({
     payIso = nextDayOfMonth(nextYearMonth(yearMonthOf(payIso)) + '-01', onboarding.payday || 25);
   }
 
-  // Recurring bills — next occurrence per bill.
-  for (const bill of RECURRING_BILLS) {
+  // Recurring bills — DEMO scaffolding only. RECURRING_BILLS are the design's hardcoded example bills;
+  // a real user's recurring bills come through `subs` (Add a bill → setSubs). Gated by
+  // `includeSampleBills` (the demo regime) so a cleared/real app shows only the user's own outflows —
+  // no phantom bills that can't be cleared. Next occurrence per bill.
+  const billSource = includeSampleBills ? RECURRING_BILLS : [];
+  for (const bill of billSource) {
     const whenIso = nextDayOfMonth(nowIso, bill.dayOfMonth);
     if (whenIso <= windowEndIso) {
       out.push({
@@ -254,34 +265,40 @@ export function deriveCalendarEvents({
     });
   }
 
-  // A small review nudge mid-window (stands in for derived review tasks).
-  const reviewDay = addDays(now, 14);
-  out.push({
-    id: `review-klarna-${isoDay(reviewDay)}`,
-    date: isoDay(reviewDay),
-    kind: 'review',
-    source: 'review',
-    title: 'Check Klarna · 2 of 3',
-    note: 'Confirm the next instalment lands cleanly',
-  });
+  // DEMO-only stand-ins, gated behind the demo regime so a real/cleared user never sees phantom events
+  // they never created. The Klarna review is a hardcoded placeholder ("stands in for derived review
+  // tasks" — there is no real Klarna on a cleared/real app); PERSONAL_DEADLINES are generic UK tax dates
+  // shown to everyone. Real review tasks come from the user's own subs/debts; a real opt-in "my
+  // deadlines" feature is future work.
+  if (includeSampleBills) {
+    const reviewDay = addDays(now, 14);
+    out.push({
+      id: `review-klarna-${isoDay(reviewDay)}`,
+      date: isoDay(reviewDay),
+      kind: 'review',
+      source: 'review',
+      title: 'Check Klarna · 2 of 3',
+      note: 'Confirm the next instalment lands cleanly',
+    });
 
-  // Personal deadlines within window.
-  for (const d of PERSONAL_DEADLINES) {
-    // noUncheckedIndexedAccess: the two split halves are always present for the
-    // static "MM-DD" seeds; fall back to 0 so the types stay sound. Same output.
-    const [mm = 0, dd = 0] = d.mmdd.split('-').map((n) => parseInt(n, 10));
-    for (const year of [now.getFullYear(), now.getFullYear() + 1]) {
-      const when = new Date(year, mm - 1, dd);
-      if (when.getTime() >= now.getTime() && when.getTime() <= windowEnd.getTime()) {
-        out.push({
-          id: `deadline-${d.mmdd}-${year}`,
-          date: isoDay(when),
-          kind: 'deadline',
-          source: 'deadline',
-          title: d.title,
-          note: d.note,
-          recurring: 'yearly',
-        });
+    // Personal deadlines within window.
+    for (const d of PERSONAL_DEADLINES) {
+      // noUncheckedIndexedAccess: the two split halves are always present for the
+      // static "MM-DD" seeds; fall back to 0 so the types stay sound. Same output.
+      const [mm = 0, dd = 0] = d.mmdd.split('-').map((n) => parseInt(n, 10));
+      for (const year of [now.getFullYear(), now.getFullYear() + 1]) {
+        const when = new Date(year, mm - 1, dd);
+        if (when.getTime() >= now.getTime() && when.getTime() <= windowEnd.getTime()) {
+          out.push({
+            id: `deadline-${d.mmdd}-${year}`,
+            date: isoDay(when),
+            kind: 'deadline',
+            source: 'deadline',
+            title: d.title,
+            note: d.note,
+            recurring: 'yearly',
+          });
+        }
       }
     }
   }

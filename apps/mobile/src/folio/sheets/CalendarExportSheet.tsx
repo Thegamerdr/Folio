@@ -177,6 +177,8 @@ export function CalendarExportSheet({ visible, onClose }: CalendarExportSheetPro
   const onboarding = useAppStore((s) => s.onboarding);
   const calendarEvents = useAppStore((s) => s.calendarEvents);
   const pots = useAppStore((s) => s.pots);
+  // Demo example bills only while the seed is untouched; a cleared/real export carries only real events.
+  const includeSampleBills = useAppStore((s) => s.currentBalance.source === 'sample');
 
   const events = useMemo<DerivedEvent[]>(
     () =>
@@ -188,8 +190,9 @@ export function CalendarExportSheet({ visible, onClose }: CalendarExportSheetPro
         manualEvents: calendarEvents,
         pots,
         windowDays: WINDOW_DAYS,
+        includeSampleBills,
       }),
-    [subs, subPaused, subOverrides, onboarding, calendarEvents, pots],
+    [subs, subPaused, subOverrides, onboarding, calendarEvents, pots, includeSampleBills],
   );
 
   return (

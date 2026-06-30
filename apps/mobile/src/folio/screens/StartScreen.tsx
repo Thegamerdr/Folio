@@ -37,7 +37,7 @@
 // inline; they are not keyed in COPY_DECK — only app.name/app.tag are).
 
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -143,6 +143,14 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
         { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl, paddingBottom: insets.bottom },
       ]}
     >
+      {/* The doorway scrolls — on a short viewport or with large OS text the CTA + secondary links
+          sit below the fold. flexGrow:1 keeps the spacer pinning them to the bottom when there's room
+          and lets the column scroll when there isn't. */}
+      <ScrollView
+        style={styles.scrollFlex}
+        contentContainerStyle={styles.scrollBody}
+        showsVerticalScrollIndicator={false}
+      >
       {/* Header — wordmark + Privacy link. */}
       <View style={styles.header}>
         <Text style={[styles.wordmark, { color: t.ink }]}>{copy.global.app.name}</Text>
@@ -193,6 +201,7 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
         <View style={[styles.divider, { backgroundColor: t.hairline }]} />
         <SecondaryLink label="Meet Melo" onPress={() => nav.go('melo')} />
       </View>
+      </ScrollView>
     </Animated.View>
   );
 }
@@ -220,6 +229,14 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     paddingHorizontal: gap.xl,
+  },
+  // Scroll container fills the screen; content grows to a full viewport so the flex:1 spacer keeps
+  // pinning the CTA when there's room, then scrolls when there isn't.
+  scrollFlex: {
+    flex: 1,
+  },
+  scrollBody: {
+    flexGrow: 1,
   },
   loading: {
     flex: 1,

@@ -79,4 +79,8 @@ export type Nav = {
   // alone, exactly as before. The slot is optional so existing callers are unchanged.
   openSheet: (sheet: SheetId, payload?: SheetPayload) => void;
   openMelo: (opts?: MeloIntent) => void;
+  /** Override the app-wide money-pressure band — the mood that reshapes Today / What-if / Melo's tone.
+   *  Pass a band to set it (the Melo mood picker calls this), or null to fall back to the band DERIVED
+   *  from the real route. Held in the shell so a pick on the Melo tab actually propagates everywhere. */
+  setPressure: (p: Pressure | null) => void;
 };

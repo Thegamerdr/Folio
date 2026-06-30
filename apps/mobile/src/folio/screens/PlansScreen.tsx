@@ -248,6 +248,8 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   const onboarding = useAppStore((st) => st.onboarding);
   const pots = useAppStore((st) => st.pots);
   const calendarEvents = useAppStore((st) => st.calendarEvents);
+  // Demo example bills only while the seed is untouched; a cleared/real user sees only their own.
+  const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
   // Mount-gate the clock (mirrors TodayScreen): defer `new Date()` to an effect so nothing reads the
   // wall clock during the first render. Until it opens, the screen holds the loading branch.
@@ -277,9 +279,10 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
             manualEvents: calendarEvents,
             pots,
             now,
+            includeSampleBills,
           })
         : [],
-    [now, subs, subPaused, subOverrides, onboarding, calendarEvents, pots],
+    [now, subs, subPaused, subOverrides, onboarding, calendarEvents, pots, includeSampleBills],
   );
 
   // The engine-resolved next payday — the first derived `payday` event's ISO date. `deriveCalendarEvents`

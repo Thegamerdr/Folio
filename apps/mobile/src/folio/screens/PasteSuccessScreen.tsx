@@ -94,30 +94,16 @@ export type PasteSuccessState = 'populated' | 'loading' | 'empty' | 'error' | 'o
 export type PasteSuccessScreenProps = {
   nav: Nav;
   /** Live pasted/CSV text. When present it is read by the real `parseSheet` engine into the found
-   *  list (+ honest issues). Omitted in the demo — the screen falls back to the faithful sample. */
+   *  list (+ honest issues). Omitted on a cold open — the screen then shows the empty doorway. */
   pasteText?: string;
   /** Pre-derived found list. Overrides the engine derivation when supplied (e.g. for a fixture). */
   items?: readonly PastedItem[];
   state?: PasteSuccessState;
 };
 
-// The web prototype's three items, restated VERBATIM as pasted spreadsheet text so the real
-// `parseSheet` engine — not a hand-built array — produces the rendered candidates. Tab-separated
-// (the shape a spreadsheet paste actually has), with a header row the engine auto-detects. The
-// `type` column lets the engine sign each amount (income vs spend) without a sign glyph. Merchants,
-// magnitudes, and the short dates are the web source's exact three items — nothing fabricated. The
-// ISO `date` is the long form of the web's short label (26 Jun → 2026-06-26, etc.), so the engine
-// reads a real date; the short label the row renders is restated below from the same day.
-const SAMPLE_PASTE_TEXT: string = [
-  'date\tmerchant\tamount\ttype',
-  '2026-06-26\tTesco\t42\tspend',
-  '2026-06-25\tSalary\t1200\tincome',
-  '2026-07-01\tRent\t750\tspend',
-].join('\n');
-
-// The short date label each row shows, keyed by merchant — the web source's exact labels (the ISO
-// date in the paste text is the same day in long form). Kept beside the text so the render stays
-// byte-identical while the money facts flow through the engine.
+// The short date label each row shows, keyed by merchant — restated labels layered on top of a live
+// parse's money facts (the same metadata-map role SAMPLE_ROW_META plays in the Visualizer). Kept
+// because `toPastedItems` reads it for known merchants; a real paste falls back to the parsed date.
 const SAMPLE_DATE_LABELS: Readonly<Record<string, string>> = {
   Tesco: '26 Jun',
   Salary: '25 Jun',
@@ -147,14 +133,6 @@ function toPastedItems(candidates: readonly CandidateMoneyItem[]): PastedItem[] 
     date: SAMPLE_DATE_LABELS[candidate.merchant] ?? candidate.date ?? '',
   }));
 }
-
-// The found list, derived once from the real engine over the sample paste text. `parseSheet`
-// auto-detects the header + tab delimiter and signs each amount from the type column. The clean
-// sample parses with zero issues (the honest ColumnIssue[] path is exercised by the engine's own
-// tests + would surface on a malformed real paste).
-const SAMPLE_PARSE = parseSheet(SAMPLE_PASTE_TEXT, { source: 'paste' });
-const SAMPLE_ITEMS: readonly PastedItem[] = toPastedItems(SAMPLE_PARSE.candidates);
-const SAMPLE_ISSUES: readonly ColumnIssue[] = SAMPLE_PARSE.issues;
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
@@ -211,11 +189,13 @@ export function PasteSuccessScreen({
     if (itemsOverride) {
       return { items: itemsOverride, issues: [] as readonly ColumnIssue[] };
     }
-    if (pasteText === undefined) {
-      return { items: SAMPLE_ITEMS, issues: SAMPLE_ISSUES };
+    if (pasteText !== undefined) {
+      const parsed = parseSheet(pasteText, { source: 'paste' });
+      return { items: toPastedItems(parsed.candidates), issues: parsed.issues };
     }
-    const parsed = parseSheet(pasteText, { source: 'paste' });
-    return { items: toPastedItems(parsed.candidates), issues: parsed.issues };
+    // Nothing pasted (a cold open from the nav): show the empty doorway below, never a fabricated
+    // sample list. The SAMPLE_* consts are gone — a real paste is the only source of rows here.
+    return { items: [] as readonly PastedItem[], issues: [] as readonly ColumnIssue[] };
   }, [itemsOverride, pasteText]);
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.

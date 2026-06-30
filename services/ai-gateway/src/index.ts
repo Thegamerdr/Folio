@@ -22,6 +22,9 @@ export interface Env {
   OPENROUTER_BASE_URL?: string;
   /** Default model id injected when the request omits one. A plain var, not a secret. */
   OPENROUTER_MODEL?: string;
+  /** Comma-separated allow-list of models this gateway will proxy. A leaked weak token therefore
+   *  cannot bill a costlier model than these. Overrides DEFAULT_ALLOWED_MODELS. A plain var, not a secret. */
+  OPENROUTER_ALLOWED_MODELS?: string;
   /** Optional shared token the app sends in `x-folio-gateway-token`. When set, requests without
    *  a matching token are rejected with 401. A weak guard (it lives in the app) — the real
    *  backstops are the Worker's platform rate limits + an OpenRouter spend cap. */
@@ -30,6 +33,10 @@ export interface Env {
 
 const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 const DEFAULT_MODEL = 'google/gemini-2.5-flash';
+// Cost guard: the ONLY models this gateway will proxy. Chat rides the cheap `-lite` tier; PDF/photo
+// extraction uses the vision-capable `flash`. A leaked weak token cannot run the bill up on a frontier
+// model — anything outside this set is rejected (400). Override via OPENROUTER_ALLOWED_MODELS.
+const DEFAULT_ALLOWED_MODELS = 'google/gemini-2.5-flash-lite,google/gemini-2.5-flash';
 
 // Headers OpenRouter recommends so traffic is attributable to this app.
 const OPENROUTER_REFERER = 'https://folio.app';
@@ -103,6 +110,16 @@ export default {
     // Inject the default model when the caller omitted one.
     if (typeof body['model'] !== 'string' || (body['model'] as string).trim().length === 0) {
       body['model'] = env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+    }
+
+    // Cost guard: only proxy approved models, so a leaked weak token can't bill a costlier model.
+    const allowedModels = (env.OPENROUTER_ALLOWED_MODELS?.trim() || DEFAULT_ALLOWED_MODELS)
+      .split(',')
+      .map((m) => m.trim())
+      .filter((m) => m.length > 0);
+    const requestedModel = (body['model'] as string).trim();
+    if (!allowedModels.includes(requestedModel)) {
+      return json({ error: `Model "${requestedModel}" is not permitted by this gateway.` }, 400);
     }
 
     const baseUrl = stripTrailingSlash(env.OPENROUTER_BASE_URL?.trim() || DEFAULT_BASE_URL);

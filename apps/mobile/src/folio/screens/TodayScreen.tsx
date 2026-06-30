@@ -190,34 +190,50 @@ export function TodayScreen({
 
   const tightestSpare = Math.max(0, Math.round(tight.tightestSpare));
 
-  // The lowest-point node's y, keyed to the pressure band (the dip lands deeper as pressure rises).
-  const lowY = useMemo(() => {
-    const map: Record<Pressure, number> = {
-      safe: 130,
-      calm: 160,
-      soft: 180,
-      pressured: 205,
-      overspent: 218,
-    };
-    return map[pressure];
-  }, [pressure]);
-
-  // The six route nodes. HARDCODED placeholders (today / salary rise / bill drop / debt drop /
-  // payday) save the lowest point, whose value/date are live. Faithful to the prototype.
-  const points = useMemo(
-    () =>
-      [
-        { x: 30, y: 140, label: 'today', value: '£1,240' },
-        { x: 95, y: 110, label: 'salary rise', value: '+£2,180' },
-        { x: 165, y: 95, label: 'bill drop', value: '−£875' },
-        { x: 235, y: 175, label: 'debt drop', value: '−£220' },
-        { x: 305, y: lowY, label: 'lowest point', value: formatGBP(tightestSpare) },
-        { x: 370, y: 150, label: 'payday', value: '+£2,180' },
-      ] as const,
-    [lowY, tightestSpare],
-  );
+  // ---- The money-path curve, from the REAL route (no hardcoded geometry) ------------------------
+  // The chart plots the route engine's projected day-by-day balance (`route.points`) into the SVG's
+  // 400×240 user space. An empty/cleared store yields a flat, honest line (no fabricated dips); a real
+  // one yields the user's actual curve. Only the meaningful nodes are labelled (today / lowest /
+  // payday) — the prototype's fake "salary rise / bill drop / debt drop" annotations are gone.
+  const PLOT = { x0: 30, x1: 370, yTop: 72, yBottom: 196, baseline: 240 } as const;
+  const PLOT_MID = (PLOT.yTop + PLOT.yBottom) / 2;
+  const { points, lowIndex } = useMemo(() => {
+    const rp = route?.points ?? [];
+    if (rp.length < 2) {
+      // No real series yet (pre-mount, or a single-day window) — a calm flat line, never a fake dip.
+      return {
+        points: [
+          { x: PLOT.x0, y: PLOT_MID, label: 'today' },
+          { x: PLOT.x1, y: PLOT_MID, label: 'payday' },
+        ],
+        lowIndex: 0,
+      };
+    }
+    const bals = rp.map((p) => p.y);
+    const maxB = Math.max(...bals);
+    const minB = Math.min(...bals);
+    const span = maxB - minB;
+    const n = rp.length;
+    const xAt = (i: number) => PLOT.x0 + (i / (n - 1)) * (PLOT.x1 - PLOT.x0);
+    // Higher balance sits nearer the top; a flat series rests at mid-height (no fabricated shape).
+    const yAt = (b: number) =>
+      span < 1 ? PLOT_MID : PLOT.yBottom - ((b - minB) / span) * (PLOT.yBottom - PLOT.yTop);
+    let lowIdx = 0;
+    for (let i = 1; i < bals.length; i += 1) {
+      if ((bals[i] ?? 0) < (bals[lowIdx] ?? 0)) lowIdx = i;
+    }
+    const paydayIdx = Math.max(0, Math.min(n - 1, daysToPayday));
+    const pts = rp.map((p, i) => {
+      const label = i === 0 ? 'today' : i === lowIdx ? 'lowest' : i === paydayIdx ? 'payday' : '';
+      return { x: xAt(i), y: yAt(p.y), label };
+    });
+    return { points: pts, lowIndex: lowIdx };
+  }, [route, daysToPayday, PLOT_MID]);
+  // The lowest node's coordinates — used by the callout + scrub thumb. Derived from the real curve.
+  const lowY = points[lowIndex]?.y ?? PLOT_MID;
+  const lowX = points[lowIndex]?.x ?? 305;
   const d = `M ${points.map((p) => `${p.x} ${p.y}`).join(' L ')}`;
-  const areaD = `${d} L 370 240 L 30 240 Z`;
+  const areaD = `${d} L ${PLOT.x1} ${PLOT.baseline} L ${PLOT.x0} ${PLOT.baseline} Z`;
 
   // Scrub — a 0..1 fraction across the plotted range, dragged with a PanResponder (the web used a
   // pointer drag against the SVG bounding box). A live ref lets the responder read width without
@@ -251,10 +267,21 @@ export function TodayScreen({
 
   type Band = 'week' | 'next' | 'payday';
   const [band, setBand] = useState<Band>('payday');
+  // Band date ranges, computed live from `now` (the mount-gated clock) — never hardcoded dates. The
+  // "to payday" span runs to the route-resolved payday.
+  const bandRange = (fromDays: number, toDays: number): string => {
+    const base = now ?? EPOCH;
+    const fmt = (d: number) =>
+      new Date(base.getTime() + d * 86_400_000).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+      });
+    return `${fmt(fromDays)} → ${fmt(toDays)}`;
+  };
   const bands: { id: Band; label: string; range: string }[] = [
-    { id: 'week', label: 'This week', range: '27 Jun → 3 Jul' },
-    { id: 'next', label: 'Next week', range: '4 Jul → 10 Jul' },
-    { id: 'payday', label: 'To payday', range: '27 Jun → 25 Jul' },
+    { id: 'week', label: 'This week', range: bandRange(0, 6) },
+    { id: 'next', label: 'Next week', range: bandRange(7, 13) },
+    { id: 'payday', label: 'To payday', range: bandRange(0, route ? route.daysToPayday : 28) },
   ];
   const activeBand = bands.find((b) => b.id === band)!;
 
@@ -526,56 +553,64 @@ export function TodayScreen({
                 strokeDasharray={ROUTE_DASH}
               />
 
-              {/* nodes */}
-              {points.map((p, i) => (
-                <G key={i}>
-                  <Circle
-                    cx={p.x}
-                    cy={p.y}
-                    r={5}
-                    fill={t.surface}
-                    stroke={t.ink}
-                    strokeWidth={1.4}
-                  />
-                  {i === 4 ? (
-                    <>
-                      <AnimatedCircle
-                        animatedProps={pulseRingProps}
+              {/* nodes — only the meaningful, labelled points (today / lowest / payday); the lowest
+                  carries the live pulse halo. */}
+              {points
+                .filter((p) => p.label !== '')
+                .map((p) => {
+                  const isLow = p.label === 'lowest';
+                  return (
+                    <G key={p.label}>
+                      <Circle
                         cx={p.x}
                         cy={p.y}
-                        fill="none"
-                        stroke={t.calm}
-                        strokeWidth={1}
+                        r={5}
+                        fill={t.surface}
+                        stroke={t.ink}
+                        strokeWidth={1.4}
                       />
-                      <Circle cx={p.x} cy={p.y} r={5} fill={t.calm} />
-                    </>
-                  ) : null}
-                  <SvgText
-                    x={p.x}
-                    y={p.y - 12}
-                    textAnchor="middle"
-                    fontSize={9}
-                    fontWeight="500"
-                    fill={t.muted}
-                  >
-                    {p.label}
-                  </SvgText>
-                </G>
-              ))}
+                      {isLow ? (
+                        <>
+                          <AnimatedCircle
+                            animatedProps={pulseRingProps}
+                            cx={p.x}
+                            cy={p.y}
+                            fill="none"
+                            stroke={t.calm}
+                            strokeWidth={1}
+                          />
+                          <Circle cx={p.x} cy={p.y} r={5} fill={t.calm} />
+                        </>
+                      ) : null}
+                      <SvgText
+                        x={p.x}
+                        y={p.y - 12}
+                        textAnchor="middle"
+                        fontSize={9}
+                        fontWeight="500"
+                        fill={t.muted}
+                      >
+                        {p.label}
+                      </SvgText>
+                    </G>
+                  );
+                })}
 
-              {/* idle lowest-point callout — only at rest (no active scrub) */}
-              {scrub < 0.04 ? (
+              {/* idle lowest-point callout — only at rest (no active scrub), and only once the route has
+                  resolved a real tight-point date. Anchored to the real lowest node; the date is the
+                  route's tight-point day and the figure the live spare — no hardcoded "7 Jul". */}
+              {scrub < 0.04 && tight.tightestDate ? (
                 <AnimatedG animatedProps={calloutStyle}>
                   <Line
-                    x1={305}
+                    x1={lowX}
                     y1={lowY - 14}
-                    x2={305}
+                    x2={lowX}
                     y2={lowY - 28}
                     stroke={t.calm}
                     strokeWidth={0.8}
                   />
                   <Rect
-                    x={262}
+                    x={Math.max(20, Math.min(280, lowX - 50))}
                     y={lowY - 52}
                     width={100}
                     height={22}
@@ -585,14 +620,14 @@ export function TodayScreen({
                     strokeWidth={0.8}
                   />
                   <SvgText
-                    x={312}
+                    x={Math.max(70, Math.min(330, lowX))}
                     y={lowY - 37}
                     textAnchor="middle"
                     fontSize={9.5}
                     fontWeight="600"
                     fill={t.ink}
                   >
-                    7 Jul · £{tightestSpare} spare
+                    {`${formatDayProse(tight.tightestDate)} · £${tightestSpare} spare`}
                   </SvgText>
                 </AnimatedG>
               ) : null}
@@ -708,11 +743,15 @@ export function TodayScreen({
           <View style={styles.summaryRow}>
             <View style={styles.summaryCell}>
               <Text style={[styles.summaryLabel, { color: t.muted }]}>Coming in</Text>
-              <Text style={[styles.summaryValue, { color: t.positiveInk }]}>£2,180</Text>
+              <Text style={[styles.summaryValue, { color: t.positiveInk }]}>
+                {formatGBP(Math.round(route?.incomingTotal ?? 0))}
+              </Text>
             </View>
             <View style={styles.summaryCell}>
               <Text style={[styles.summaryLabel, { color: t.muted }]}>Going out</Text>
-              <Text style={[styles.summaryValue, { color: t.repairInk }]}>£1,095</Text>
+              <Text style={[styles.summaryValue, { color: t.repairInk }]}>
+                {formatGBP(Math.round(route?.outgoingTotal ?? 0))}
+              </Text>
             </View>
             <View style={styles.summaryCell}>
               <Text style={[styles.summaryLabel, { color: t.muted }]}>Lowest</Text>
@@ -751,7 +790,7 @@ export function TodayScreen({
           </View>
         </Pressable>
 
-        <TodayWeekTiles nav={nav} pressure={pressure} />
+        <TodayWeekTiles nav={nav} tightSpare={tightestSpare} tightDate={tight.tightestDate} />
       </ScrollView>
     </Animated.View>
   );

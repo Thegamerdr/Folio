@@ -7,7 +7,7 @@
 //               trying a move, your data), plus two dev/demo actions and an appearance toggle.
 // @reads        appearance (light|dark) — RN reads the resolved theme via useIsDark(); used only to
 //               drive the Appearance row hint. The web @reads is empty; the group data is static.
-// @writes       fastForwardMonth(), resetAll() (dev/demo store actions) · setMode (appearance toggle)
+// @writes       fastForwardMonth(), resetToEmpty() (Start fresh → clears to empty) · setMode (appearance toggle)
 // @opens-sheet  share (from "Share a cycle") · onboarding (from "Payday & income")
 // @copy         FROZEN
 // @tokens       calm (accent) · surface · hairline · muted · repairInk (negative) · canvas (paper) ·
@@ -66,6 +66,7 @@
 import { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -94,7 +95,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { fastForwardMonth, resetAll } from '@/folio/store';
+import { fastForwardMonth, resetToEmpty } from '@/folio/store';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
 // Routing: the web "Data & privacy" row navigates to the Privacy screen (web `to: "privacy"`), where
@@ -233,10 +234,27 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         },
         {
           label: 'Start fresh',
-          hint: 'clears everything',
+          hint: 'clears everything to empty',
           onPress: () => {
-            resetAll();
-            nav.go('start');
+            // Genuinely CLEAR to empty (resetToEmpty) — the old wiring called resetAll(), which RESEEDS
+            // the demo, so "Start fresh" appeared to "bring it all back". One confirm guards an
+            // accidental wipe; the demo can still be restored via Data & privacy → "Reset to the demo".
+            Alert.alert(
+              'Clear everything?',
+              "This wipes everything you've added and leaves the app empty. This can't be undone.",
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Clear everything',
+                  style: 'destructive',
+                  onPress: () => {
+                    resetToEmpty();
+                    nav.go('start');
+                  },
+                },
+              ],
+              { cancelable: true },
+            );
           },
           tone: 'negative',
         },

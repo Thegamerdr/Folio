@@ -315,6 +315,9 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // are different money and stay in the dated events ("bends the path") — two distinct effects, no
   // double-count. We do NOT re-add those dated dips to the start.
   const startingSpare = useAppStore((st) => st.currentBalance.amount - st.pots.reduce((acc, p) => acc + p.saved, 0));
+  // Demo example bills (RECURRING_BILLS) only while the seed is untouched; a cleared/real user's
+  // calendar shows only their own bills (added as subs), never phantom ones.
+  const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
   // Events / groups / spare are memoised ABOVE the view branch so switching views never re-derives
   // the data (STATES: "switching never reloads"). Only the presentational subview swaps.
@@ -329,9 +332,10 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             manualEvents: manual,
             pots,
             now: today,
+            includeSampleBills,
           })
         : [],
-    [subs, subPaused, subOverrides, onboarding, manual, pots, today],
+    [subs, subPaused, subOverrides, onboarding, manual, pots, today, includeSampleBills],
   );
 
   const groups = useMemo(() => groupByDay(events), [events]);

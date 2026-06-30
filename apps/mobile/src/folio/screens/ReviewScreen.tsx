@@ -181,12 +181,21 @@ function useReduceMotion(): boolean {
 
 export function ReviewScreen({
   nav,
-  candidate = SAMPLE_CANDIDATE,
+  candidate: candidateProp,
   state = 'populated',
 }: ReviewScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
+
+  // Whether a REAL candidate was handed in. A cold open from the shell (FolioShell renders
+  // <ReviewScreen nav={nav} /> with no candidate — e.g. the Intake "Add numbers yourself" path)
+  // passes none. We never fabricate a sample row in that case: the empty doorway shows below, so the
+  // user can never accidentally Add a fake "Tesco £42" as a real transaction. SAMPLE_CANDIDATE is kept
+  // ONLY as a safe fallback so the hooks/derivations below never read undefined — its values are never
+  // displayed when `hasRealCandidate` is false.
+  const hasRealCandidate = candidateProp !== undefined;
+  const candidate = candidateProp ?? SAMPLE_CANDIDATE;
 
   const [stamped, setStamped] = useState(false);
   const [category, setCategory] = useState<Category>('Groceries');
@@ -251,8 +260,9 @@ export function ReviewScreen({
     dwellRef.current = setTimeout(() => nav.go('today'), reduceMotion ? 0 : ADD_DWELL_MS);
   }
 
-  // empty — no candidate to review; the screen routes back to intake rather than dead-ending.
-  if (state === 'empty') {
+  // empty — no candidate to review: an explicit empty state, OR a cold open with no candidate passed
+  // (we show the doorway instead of a fabricated sample row). Routes to intake rather than dead-ending.
+  if (state === 'empty' || !hasRealCandidate) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.emptyWrap, { paddingTop: insets.top + gap.xxl }]}>

@@ -67,6 +67,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -491,6 +492,15 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
           },
         ]}
       >
+        {/* The ceremony scrolls — on a short viewport the stat card + CTAs sit below the fold, and the
+            step-4 textarea needs to scroll clear of the keyboard. flexGrow:1 keeps the spacer pinning
+            the CTAs when there's room; keyboardShouldPersistTaps keeps the CTAs tappable mid-edit. */}
+        <ScrollView
+          style={styles.scrollFlex}
+          contentContainerStyle={styles.scrollBody}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Header — back glyph · "{n} of {total}" · animated progress dots · balancing spacer. */}
         <View style={styles.header}>
           <Pressable
@@ -619,6 +629,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
         >
           <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
         </Pressable>
+        </ScrollView>
       </Animated.View>
     </KeyboardAvoidingView>
   );
@@ -740,6 +751,14 @@ function BackArrow({ color }: { color: string }) {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
+  },
+  // Scroll container fills the screen; content grows to a full viewport so the flex:1 spacer keeps
+  // pinning the CTAs when there's room, then scrolls when there isn't.
+  scrollFlex: {
+    flex: 1,
+  },
+  scrollBody: {
+    flexGrow: 1,
   },
   // px-7 ≈ screen inset (gap.xl = 24). A flex:1 spacer pins the CTAs to the bottom.
   screen: {

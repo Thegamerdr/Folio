@@ -117,6 +117,11 @@ export type RouteResult = {
   spare: number;
   /** Whole calendar days from today to payday (0 when payday is today). */
   daysToPayday: number;
+  /** Total income (£) over the sampled window — the Today "Coming in" figure. Optional: set by
+   *  `routeFromStore` (which holds the split income/spend), not by the pure `computeRoute`. */
+  incomingTotal?: number;
+  /** Total outflow magnitude (£, positive) over the window — the Today "Going out" figure. Optional. */
+  outgoingTotal?: number;
 };
 
 /** Parse an ISO YYYY-MM-DD to a UTC-midnight epoch. Using UTC (not local)

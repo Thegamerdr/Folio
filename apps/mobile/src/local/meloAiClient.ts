@@ -261,8 +261,11 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
     })),
   ];
 
-  // The gateway injects its server-side model default, so the app sends no `model` — the upstream
-  // model is a gateway config concern, not an app concern.
+  // COST SPLIT: chat pins a CHEAP text model. The expensive vision/file model (gemini-2.5-flash) is
+  // reserved for PDF/photo EXTRACTION (statementReaderClient); chat is high-volume and must not ride
+  // the pricey vision tier. The gateway forwards this model verbatim and only allows the approved
+  // chat/vision models (services/ai-gateway), so a leaked token can't request a costlier one.
+  const CHAT_MODEL = 'google/gemini-2.5-flash-lite';
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (config.token !== undefined) {
     headers['x-folio-gateway-token'] = config.token;
@@ -273,6 +276,7 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
       method: 'POST',
       headers,
       body: JSON.stringify({
+        model: CHAT_MODEL,
         messages: payloadMessages,
         temperature: 0.6,
         stream: false,

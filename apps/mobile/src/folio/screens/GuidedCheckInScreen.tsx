@@ -62,7 +62,7 @@
 // back + Skip carry hitSlop). Honest claims only — this screen asserts no privacy/security property.
 
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -255,6 +255,15 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
         },
       ]}
     >
+      {/* The check-in scrolls — on a short viewport the keypad + Continue sit below the fold. flexGrow:1
+          keeps the spacer pinning them to the bottom when there's room and scrolls when there isn't.
+          keyboardShouldPersistTaps lets the custom keypad keys register even mid-interaction. */}
+      <ScrollView
+        style={styles.scrollFlex}
+        contentContainerStyle={styles.scrollBody}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       {/* Top bar — back glyph · four progress ticks (2 filled = step two) · Skip. */}
       <View style={styles.topBar}>
         <Pressable
@@ -363,6 +372,7 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
       >
         <Text style={[styles.continueLabel, { color: t.inverse }]}>Continue</Text>
       </Pressable>
+      </ScrollView>
     </Animated.View>
   );
 }
@@ -372,6 +382,14 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     paddingHorizontal: gap.xl,
+  },
+  // Scroll container fills the screen; content grows to a full viewport so the flex:1 spacer keeps
+  // pinning the keypad + Continue when there's room, then scrolls when there isn't.
+  scrollFlex: {
+    flex: 1,
+  },
+  scrollBody: {
+    flexGrow: 1,
   },
   loading: {
     flex: 1,

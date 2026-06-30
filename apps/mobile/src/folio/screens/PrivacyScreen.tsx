@@ -62,7 +62,7 @@
 // CTA have generous padding; the back glyph carries hitSlop). Named export (the route file is separate).
 
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -314,6 +314,15 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
         { backgroundColor: t.canvas, paddingTop: insets.top + gap.md, paddingBottom: insets.bottom },
       ]}
     >
+      {/* The whole surface scrolls — on a short viewport (or with large OS text) the action card's
+          last row ("Clear to empty") and the Melo footer sit below the fold; without a scroll
+          container they were unreachable. flexGrow:1 keeps the footer pinned to the bottom when there
+          IS room (the spacer below expands), and lets the column scroll when there isn't. */}
+      <ScrollView
+        style={styles.scrollFlex}
+        contentContainerStyle={styles.scrollBody}
+        showsVerticalScrollIndicator={false}
+      >
       {/* Top bar — back glyph · centred eyebrow · an equal-width invisible spacer so the eyebrow stays
           optically centred (the web balances the back arrow with a w-5 spacer, not textAlign:center). */}
       <View style={styles.topBar}>
@@ -436,6 +445,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       <View style={styles.footer}>
         <MeloLine mood="calm" size={28} text="Your numbers are yours to keep or export." />
       </View>
+      </ScrollView>
     </Animated.View>
   );
 }
@@ -445,6 +455,14 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     paddingHorizontal: gap.xl,
+  },
+  // The scroll container fills the screen; its content grows to at least a full viewport so the
+  // flex:1 spacer can still pin the footer when there's room, then scrolls past it when there isn't.
+  scrollFlex: {
+    flex: 1,
+  },
+  scrollBody: {
+    flexGrow: 1,
   },
   loading: {
     flex: 1,

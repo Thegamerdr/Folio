@@ -114,17 +114,8 @@ export type ImageSuccessScreenProps = {
   state?: ImageSuccessState;
 };
 
-// The web prototype's two items, restated VERBATIM as text so the real `parseSheet` engine — not a
-// hand-built array — produces the rendered candidates. Tab-separated with a header the engine auto-
-// detects; the `type` column signs each amount as spend. Merchants and magnitudes are the web source's
-// exact two items (no fabricated merchants/numbers); 27.40 keeps its pence, 40 is whole.
-const SAMPLE_IMAGE_TEXT: string = [
-  'merchant\tamount\ttype',
-  "Sainsbury's\t27.40\tspend",
-  'ATM withdrawal\t40\tspend',
-].join('\n');
-
-// The web's exact per-merchant hint wording (the photo reader's voice line), kept beside the text so
+// Per-merchant hint wording (the photo reader's voice line), layered on top of a live parse's money
+// facts (the same metadata-map role SAMPLE_ROW_META plays in the Visualizer). Kept beside the text so
 // the render stays byte-identical. Both rows are `spend` to the engine; the web hand-wrote a distinct
 // 'looks like cash out' for the ATM row, so an explicit override preserves it. Anything not overridden
 // falls back to the kind-derived hint below.
@@ -172,13 +163,6 @@ function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
     amount: formatSignedAmount(candidate.amount),
   }));
 }
-
-// The found list, derived once from the real engine over the sample image text. The image name is the
-// eventual reader's metadata (kept as the web source's sample). The clean sample parses with zero issues.
-const SAMPLE_IMAGE: FoundImage = {
-  imageName: 'IMG_2643.jpg',
-  items: toFoundItems(parseSheet(SAMPLE_IMAGE_TEXT, { source: 'csv' }).candidates),
-};
 
 // The honest image label for a LIVE read: the reader stages the money movements, not the photo's
 // filename, so we never invent one. A calm line tells the truth about where the items came from.
@@ -241,11 +225,15 @@ export function ImageSuccessScreen({
   const reduceMotion = useReduceMotion();
 
   // The REAL staged candidates the Intake reader produced for this photo (review-before-truth). When
-  // the slot is non-empty we render those; when it is empty (a cold / dev open) we fall back to the
-  // faithful sample. An explicit `image` prop still wins (fixtures / tests).
+  // the slot is non-empty we render those; when it is empty (a cold open from the nav) we render an
+  // EMPTY image so the empty-doorway gate below shows — never a fabricated sample. An explicit `image`
+  // prop still wins (fixtures / tests).
   const staged = useReaderCandidates();
   const image: FoundImage =
-    imageProp ?? (staged.length > 0 ? liveImageFrom(staged) : SAMPLE_IMAGE);
+    imageProp ??
+    (staged.length > 0
+      ? liveImageFrom(staged)
+      : { imageName: LIVE_READ_IMAGE_LABEL, items: [] });
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.
   const enter = useSharedValue(reduceMotion ? 1 : 0);

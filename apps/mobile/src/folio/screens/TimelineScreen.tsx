@@ -500,6 +500,10 @@ function makeStyles(_t: Palette) {
       marginTop: gap.xl,
     },
     headline: {
+      // BUG FIX: no `color` was set → RN defaulted to black, invisible on the dark canvas (the
+      // dark-mode "text blends with the brown" the owner saw in Timeline). Light mode happened to look
+      // fine because black-on-cream reads. Bind to the theme ink so it's correct in both modes.
+      color: _t.ink,
       fontFamily: serif.display,
       fontSize: 28,
       lineHeight: 32, // leading-tight
@@ -514,6 +518,8 @@ function makeStyles(_t: Palette) {
       color: _t.calm,
     },
     subhead: {
+      // Same missing-color bug as the headline above — defaulted to black, invisible on dark canvas.
+      color: _t.muted,
       fontSize: 13,
       lineHeight: 18,
       marginTop: gap.sm,

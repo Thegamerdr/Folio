@@ -66,6 +66,8 @@ import { MeloChatSheet } from '@/folio/sheets/MeloChatSheet';
 import { ShareSheet } from '@/folio/sheets/ShareSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { useAppStore } from '@/folio/store';
+import { useRoute } from '@/folio/lib/storeRoute';
+import { derivePressure } from '@/folio/screens/today/pressure';
 import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from '@/folio/types';
 
 // The shell's landing pressure. The web showcase let a design tool flip Melo through her five moods
@@ -73,6 +75,11 @@ import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from 
 // (folio-melo index: `search.p ?? "calm"`). Until the pressure engine is ported wave-by-wave, the
 // shell threads this calm default into Today, faithful to the web's default landing mood.
 const DEFAULT_PRESSURE: Pressure = 'calm';
+
+// A stable sentinel "now" for the one render before the shell's pressure mount-gate opens (mirrors
+// TodayScreen's EPOCH). `useRoute` can't be called conditionally, so it runs against this until the
+// real clock is set; that frame's result is discarded and the shell shows DEFAULT_PRESSURE.
+const PRESSURE_EPOCH = new Date(0);
 
 // How long after first reaching Today before the onboarding sheet is offered — byte-faithful to the
 // web index (setTimeout 600ms before setSheet('onboarding')).
@@ -216,6 +223,29 @@ export function FolioShell() {
   // `useAppStore((s) => s.onboarding.done)`). A returning, set-up user is never offered onboarding.
   const onboardingDone = useAppStore((st) => st.onboarding.done);
 
+  // App-wide money-pressure — the mood/tone the WHOLE app reads. DERIVED from the real route (the
+  // tightest projected spare → a band), replacing the old hardcoded 'calm' so Today / What-if / Melo
+  // reflect the user's actual money instead of a fixed pretend-calm. The Melo mood picker sets an
+  // OVERRIDE via nav.setPressure that wins until cleared (null → back to derived). Mount-gated like the
+  // screens: for the single pre-clock frame `pressureNow === null`, the shell shows DEFAULT_PRESSURE.
+  const [pressureNow, setPressureNow] = useState<Date | null>(null);
+  useEffect(() => setPressureNow(new Date()), []);
+  const pressureRoute = useRoute(pressureNow ?? PRESSURE_EPOCH);
+  // Only let the REAL route drive the band when the app holds a real CURRENT money picture — a balance
+  // the user actually set (amount > 0) or some logged activity. A past cycle alone or the £0 default
+  // is NOT enough: an empty/just-cleared app must stay neutral calm, never fret "the middle of next
+  // week is the squeeze" over an unconfigured £0. (Verified on-device: gating on hasAnyUserData still
+  // alarmed because a leftover cycle counted; this current-picture gate fixes it.)
+  const hasMoneyPicture = useAppStore(
+    (st) => st.transactions.length > 0 || st.currentBalance.amount > 0,
+  );
+  const derivedPressure: Pressure =
+    pressureNow && hasMoneyPicture
+      ? derivePressure(Math.round(pressureRoute.tightPoint.amount))
+      : DEFAULT_PRESSURE;
+  const [pressureOverride, setPressureOverride] = useState<Pressure | null>(null);
+  const activePressure: Pressure = pressureOverride ?? derivedPressure;
+
   // Opening a screen closes any open sheet (a navigation supersedes a transient sheet) — faithful
   // to the web setScreen, which clears the sheet before navigating. Each navigation also pushes the
   // destination onto the back-history trail (web nav.go pushes to historyRef before setScreen).
@@ -266,7 +296,7 @@ export function FolioShell() {
   // The single Nav contract handed to every ported screen (RN mirror of the web Nav). Memoised so a
   // child holding it as a dep doesn't churn; its members are themselves stable callbacks.
   const nav = useMemo<Nav>(
-    () => ({ go, back, openSheet, openMelo }),
+    () => ({ go, back, openSheet, openMelo, setPressure: setPressureOverride }),
     [go, back, openSheet, openMelo],
   );
 
@@ -302,7 +332,7 @@ export function FolioShell() {
           its screen switch in ScreenErrorBoundary). `screenLabel` resets the boundary when the screen
           changes (a fresh navigation clears a prior crash); onReset returns to Today. */}
       <ScreenErrorBoundary screenLabel={screen} onReset={() => go('today')}>
-        <ScreenView screen={screen} nav={nav} />
+        <ScreenView screen={screen} nav={nav} pressure={activePressure} />
       </ScreenErrorBoundary>
       <BottomNav active={activeTab} onChange={onTabChange} />
       {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
@@ -333,14 +363,14 @@ export function FolioShell() {
           (the "Left after this" figure + Melo mood, threaded the same way as the screens). The tapped
           `point` is the money-path engine's job (@rn-engine), so it falls back to its own placeholder. */}
       {sheet === 'route-detail' && (
-        <RouteDetailSheet visible onClose={closeSheet} nav={nav} pressure={DEFAULT_PRESSURE} />
+        <RouteDetailSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} />
       )}
       {/* Melo-chat — the companion sheet. Self-hosting like RouteDetailSheet: it needs the shell's nav
           (its replies bridge to screens) and the shell's pressure default (the RN Nav contract carries
           no `.pressure`, so the shell threads it alongside). The shell threads the openMelo intent
           (prefill/seed) so an "Ask Melo" CTA opens the chat with its draft. */}
       {sheet === 'melo-chat' && (
-        <MeloChatSheet visible onClose={closeSheet} nav={nav} pressure={DEFAULT_PRESSURE} intent={meloIntent} />
+        <MeloChatSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} intent={meloIntent} />
       )}
       {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
       {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
@@ -370,10 +400,10 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
 // wave; the placeholder fallback still covers the whole ScreenId space.
 // ---------------------------------------------------------------------------
 
-function ScreenView({ screen, nav }: { screen: ScreenId; nav: Nav }) {
+function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pressure: Pressure }) {
   // Wave 1 — the real ported screens.
   if (screen === 'start') return <StartScreen nav={nav} />;
-  if (screen === 'today') return <TodayScreen nav={nav} pressure={DEFAULT_PRESSURE} />;
+  if (screen === 'today') return <TodayScreen nav={nav} pressure={pressure} />;
 
   // Wave 2 — the intake / reader-state / review surfaces.
   if (screen === 'intake') return <IntakeScreen nav={nav} />;
@@ -390,7 +420,7 @@ function ScreenView({ screen, nav }: { screen: ScreenId; nav: Nav }) {
 
   // Wave 3 — the set-aside / recurring / retrospective / close-the-cycle surfaces. Pots threads the
   // shell's pressure default (mirrors TodayScreen — the Nav contract carries no pressure).
-  if (screen === 'pots') return <PotsScreen nav={nav} pressure={DEFAULT_PRESSURE} />;
+  if (screen === 'pots') return <PotsScreen nav={nav} pressure={pressure} />;
   if (screen === 'subs') return <SubscriptionsScreen nav={nav} />;
   if (screen === 'insights') return <InsightsScreen nav={nav} />;
   if (screen === 'ritual') return <PaydayRitualScreen nav={nav} />;
@@ -404,7 +434,7 @@ function ScreenView({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   // re-draw (TodayAfter), the gap + moves (Shortfall), and the corrective bundle (Recovery) all render
   // the design state off the not-yet-built money-path engine (@rn-engine money-path). TodayAfter +
   // Recovery open the route-detail / melo-chat sheets hosted above.
-  if (screen === 'whatif') return <WhatIfScreen nav={nav} pressure={DEFAULT_PRESSURE} />;
+  if (screen === 'whatif') return <WhatIfScreen nav={nav} pressure={pressure} />;
   if (screen === 'shortfall') return <ShortfallScreen nav={nav} />;
   if (screen === 'recovery') return <RecoveryScreen nav={nav} />;
   if (screen === 'today-after') return <TodayAfterScreen nav={nav} />;
@@ -419,7 +449,7 @@ function ScreenView({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   if (screen === 'timeline') return <TimelineScreen nav={nav} />;
   if (screen === 'plans') return <PlansScreen nav={nav} />;
   if (screen === 'guided') return <GuidedCheckInScreen nav={nav} />;
-  if (screen === 'melo') return <MeloScreen nav={nav} pressure={DEFAULT_PRESSURE} />;
+  if (screen === 'melo') return <MeloScreen nav={nav} pressure={pressure} />;
 
   // Every other screen is still a placeholder — a calm title through the editorial Headline.
   const title = SCREEN_TITLE[screen];

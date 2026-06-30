@@ -110,7 +110,7 @@ import {
   extractStatementCandidates,
   type StatementReaderKind,
 } from '../../local/statementReaderClient';
-import type { Nav, ScreenId } from '@/folio/types';
+import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Intake is populated-only and offline is
 // identical to populated (local-first, no network dependency); loading/empty/error are n/a for a
@@ -134,6 +134,9 @@ type IntakeOption = {
   to: ScreenId;
   pick?: 'document' | 'photo';
   fastest?: boolean;
+  /** When set, the row opens this sheet instead of navigating to `to`. Used by "Add numbers
+   *  yourself", which opens the manual log-spend entry rather than the candidate-review screen. */
+  sheet?: SheetId;
 };
 
 // @copy FROZEN — byte-for-byte from the web ScreenIntake `options` array. The titles / hints / icons
@@ -145,7 +148,7 @@ const OPTIONS: readonly IntakeOption[] = [
   { title: 'Screenshot or photo', hint: 'from your phone', icon: '▢', to: 'image-success', pick: 'photo' },
   { title: 'Paste transactions', hint: 'copy from anywhere', icon: '❝', to: 'paste-success' },
   { title: 'CSV or TXT file', hint: 'if you have one', icon: '⌗', to: 'paste-success' },
-  { title: 'Add numbers yourself', hint: 'type it in', icon: '✎', to: 'review' },
+  { title: 'Add numbers yourself', hint: 'type it in', icon: '✎', to: 'review', sheet: 'log-spend' },
 ] as const;
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
@@ -337,6 +340,13 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   const onSelect = (option: IntakeOption) => {
     if (option.pick !== undefined) {
       void runPick(option);
+      return;
+    }
+    // A row can open a sheet instead of navigating — "Add numbers yourself" opens the manual
+    // log-spend entry (a real typed spend → addTransaction) rather than the candidate-review screen,
+    // which has no candidate to review and would only show the empty doorway.
+    if (option.sheet !== undefined) {
+      nav.openSheet(option.sheet);
       return;
     }
     nav.go(option.to);

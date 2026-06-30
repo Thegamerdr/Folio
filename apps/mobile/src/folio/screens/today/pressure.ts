@@ -44,3 +44,15 @@ export const pressureLow: Readonly<Record<Pressure, number>> = {
   pressured: 42,
   overspent: -86,
 };
+
+/** Derive the REAL money-pressure band from the route's tightest projected spare (£), using the
+ *  pressureLow anchors as band floors so the derived band agrees with the per-band copy/visuals.
+ *  This is what replaces the old hardcoded 'calm' default — so the whole app's tone (Melo's mood, the
+ *  verdict line, the visuals) reflects the user's ACTUAL money situation, not a fixed pretend-calm. */
+export function derivePressure(tightSpare: number): Pressure {
+  if (tightSpare < 0) return 'overspent';
+  if (tightSpare < pressureLow.soft) return 'pressured'; // 0..183 — the squeeze
+  if (tightSpare < pressureLow.calm) return 'soft'; // 184..324 — tight but holds
+  if (tightSpare < pressureLow.safe) return 'calm'; // 325..611 — you make it
+  return 'safe'; // >=612 — plenty of room
+}

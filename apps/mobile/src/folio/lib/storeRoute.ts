@@ -141,6 +141,9 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
     pots: state.pots,
     windowDays: ROUTE_WINDOW_DAYS,
     now: utcMidnightOf(todayIso),
+    // Sample/demo bills only while the seed is untouched (currentBalance still 'sample'). A cleared or
+    // real user's money path must reflect ONLY their own outflows — never the hardcoded example bills.
+    includeSampleBills: state.currentBalance.source === 'sample',
   });
 
   // Split the derived timeline into the engine's buckets by sign: positive = income (payday),
@@ -176,7 +179,7 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // (NO flat internal plateau on top of the dips). The double-count to avoid is folding those dated
   // dips into the start; we don't.
   const sigmaSaved = state.pots.reduce((acc, p) => acc + p.saved, 0);
-  return computeRoute({
+  const result = computeRoute({
     now: todayIso,
     payday: paydayIso,
     windowDays: ROUTE_WINDOW_DAYS,
@@ -189,6 +192,12 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
     pots: [],
     openBorrows: 0,
   });
+  // Window income/outflow totals for the Today summary ("Coming in" / "Going out"), summed from the
+  // SAME derived events the curve uses — so the trio agrees with the path. Replaces the old hardcoded
+  // £2,180 / £1,095 figures.
+  const incomingTotal = income.reduce((acc, d) => acc + d.amount, 0);
+  const outgoingTotal = spend.reduce((acc, d) => acc + d.amount, 0);
+  return { ...result, incomingTotal, outgoingTotal };
 }
 
 /**

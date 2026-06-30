@@ -47,6 +47,7 @@ import {
   useTheme,
 } from '@/folio/theme';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { useAppStore } from '@/folio/store';
 import type { RoutePoint } from '@/folio/lib/moneyPath';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
@@ -211,6 +212,19 @@ export function TodayAfterScreen({
   // screen; it counts. Collapses to the final value under reduce-motion. (web: useCountUp(283, 700))
   const balance = useCountUp(spareTarget, 700, reduceMotion);
 
+  // What actually changed: the most-recently-added transaction. The store keeps transactions
+  // newest-first, and this screen is reached immediately after addTransaction (Visualizer accept /
+  // Recovery rebuild). The screen carries no separate change payload, so transactions[0] IS the
+  // change — its real merchant + signed amount drive the honest "what changed" copy below, never a
+  // hardcoded "Tesco · −£42".
+  const lastTxn = useAppStore((s) => s.transactions[0]);
+  const changeMerchant = lastTxn?.merchant ?? 'your change';
+  const changeAmount = lastTxn?.amount ?? 0;
+  const changeMagnitude = Math.abs(Math.round(changeAmount));
+  const changeIsOut = changeAmount < 0;
+  // The verdict is conditional on the REAL spare, never an unconditional "you make it".
+  const makesIt = spareTarget >= 0;
+
   // slide-in-r — the whole screen enters from the right (translateX 28→0) over 360ms.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
@@ -286,7 +300,7 @@ export function TodayAfterScreen({
               p ? pressed : undefined,
             ]}
           >
-            <Melo size={22} mood="cheer" />
+            <Melo size={22} mood={makesIt ? 'cheer' : 'concern'} />
           </Pressable>
         </View>
 
@@ -295,14 +309,16 @@ export function TodayAfterScreen({
           style={styles.verdictBlock}
           accessibilityLiveRegion="polite"
         >
-          <Text style={[styles.positiveLine, { color: t.positive }]}>You make it to payday.</Text>
+          <Text style={[styles.positiveLine, { color: makesIt ? t.positive : t.repair }]}>
+            {makesIt ? 'You make it to payday.' : "It's tight to payday."}
+          </Text>
           <View style={styles.amountRow}>
             <Text style={[styles.amount, { color: t.ink }]}>
               £{Math.round(balance).toLocaleString('en-GB')}
             </Text>
             <Text style={[styles.amountSuffix, { color: t.muted }]}>spare</Text>
           </View>
-          <Text style={[styles.subLine, { color: t.muted }]}>after adding Tesco</Text>
+          <Text style={[styles.subLine, { color: t.muted }]}>after adding {changeMerchant}</Text>
         </View>
 
         {/* What-changed card */}
@@ -315,11 +331,16 @@ export function TodayAfterScreen({
         >
           <View style={styles.cardHead}>
             <Text style={[styles.eyebrow, { color: t.muted }]}>What changed</Text>
-            <Text style={[styles.delta, { color: t.calm }]}>−£42</Text>
+            <Text style={[styles.delta, { color: t.calm }]}>
+              {changeIsOut ? '−' : '+'}£{changeMagnitude.toLocaleString('en-GB')}
+            </Text>
           </View>
           <Text style={[styles.cardBody, { color: t.ink }]}>
-            Tesco lowered your low point by{' '}
-            <Text style={[styles.cardBodyAccent, { color: t.calm }]}>£42</Text>.
+            {changeMerchant} {changeIsOut ? 'lowered' : 'raised'} your low point by{' '}
+            <Text style={[styles.cardBodyAccent, { color: t.calm }]}>
+              £{changeMagnitude.toLocaleString('en-GB')}
+            </Text>
+            .
           </Text>
           <View style={[styles.divider, { backgroundColor: t.hairline }]} />
 

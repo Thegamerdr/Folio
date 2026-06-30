@@ -65,7 +65,7 @@
 // HONEST CLAIMS: this screen asserts no privacy/security property. No banned product vocabulary appears
 // in any visible string. Tokens only; tap targets are >=44px (full-width rows) or carry hitSlop.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
   Pressable,
@@ -87,11 +87,9 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { useAppStore } from '@/folio/store';
-import { routeFromStore } from '@/folio/lib/storeRoute';
 import type { Nav, Pressure } from '@/folio/types';
 
-import { pressureLine, pressureLow, pressureMood } from './today/pressure';
+import { pressureLine, pressureMood } from './today/pressure';
 
 // The render states this screen can occupy. Per the SPEC, MeloScreen is populated-only and offline is
 // identical to populated (local-first, no network); loading/empty/error are n/a for a pure playground
@@ -123,19 +121,6 @@ const SLIDE_MS = 360;
 const HERO_MELO_SIZE = 120;
 const ROW_MELO_SIZE = 28;
 
-// The route → pressure band ladder. The active band Melo opens in is read from the real lowest point
-// of the money path (route.tightPoint.amount) via the SAME per-band floors the rest of the app uses
-// (pressureLow, from ./today/pressure) — scanned safest → tightest, so the first floor the tight
-// point clears wins. This is the codebase's documented convention (the money-pressure ladder is read
-// from the tightest point, safest→tightest, monotonic). Pure and deterministic.
-function bandFromTightPoint(tight: number): Pressure {
-  if (tight >= pressureLow.safe) return 'safe';
-  if (tight >= pressureLow.calm) return 'calm';
-  if (tight >= pressureLow.soft) return 'soft';
-  if (tight >= pressureLow.pressured) return 'pressured';
-  return 'overspent';
-}
-
 // Local reduce-motion read, mirroring Melo.tsx / StartScreen exactly: read once, then subscribe.
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
@@ -158,46 +143,13 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  // @rn-engine money-path — WIRED. The band Melo opens in is the REAL one her money path implies,
-  // not a static design-state seed. We read the whole store snapshot (its `useSyncExternalStore`
-  // identity is stable between writes) and run the shared store→money-path bridge `routeFromStore`
-  // (which maps the live store onto the pure `computeRoute`, payday resolved by `resolvePayday`) — the
-  // SAME curve Today and WhatIf read, so "your money path shifts with her" is honest: the path's
-  // tightest point selects her opening pressure band. `routeFromStore` is pure and never mutates the
-  // store (any what-if would re-route a spread COPY of the snapshot, never the live singleton).
-  const storeState = useAppStore((s) => s);
-
-  // Mount-gate the clock (mirrors TodayScreen / WhatIfScreen): defer `new Date()` so nothing
-  // date-derived renders on the first frame and the engine has an honest "today". `routeFromStore` is
-  // pure, so unlike the `useRoute` hook it can be called conditionally — before the gate opens
-  // (`now === null`) we skip it (`route = null`) and the band stays the threaded prop for that single
-  // frame, the same mount-gate convention, so a normal open never flashes a different band.
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-  }, []);
-  const route: ReturnType<typeof routeFromStore> | null = now
-    ? routeFromStore(storeState, now)
-    : null;
-
-  // The active band. Web held this on `nav.pressure` and flipped it with `nav.setPressure`; the RN Nav
-  // carries no pressure, so the picker's selection is local state seeded from the threaded prop. Once
-  // the route resolves it adopts the route-derived band — UNLESS the user has already flipped the
-  // picker, which `touched` records so an engine update never overrides a deliberate selection.
-  const [active, setActive] = useState<Pressure>(pressure);
-  const touched = useRef(false);
-  const selectBand = (p: Pressure) => {
-    touched.current = true;
-    setActive(p);
-  };
-  // Adopt the route-derived band when (and only when) the tight point changes — keyed on the scalar
-  // amount, not the route object (which `routeFromStore` rebuilds each render), so this only fires on
-  // a real change. A user flip sets `touched`, after which the engine never overrides the selection.
-  const routeTight = route ? route.tightPoint.amount : null;
-  useEffect(() => {
-    if (touched.current || routeTight === null) return;
-    setActive(bandFromTightPoint(routeTight));
-  }, [routeTight]);
+  // The active band IS the shell's app-wide pressure (the `pressure` prop) — already DERIVED from the
+  // real route AND gated (an empty/cleared app stays neutral calm, never alarmist) AND override-aware.
+  // Reading the prop keeps the Melo screen in LOCKSTEP with Today, instead of running a second, ungated
+  // derivation that could disagree (it did: an empty app showed "overspent" here while Today was calm).
+  // Picking a row sets the band APP-WIDE via nav.setPressure — the shell owns the override.
+  const active = pressure;
+  const selectBand = (p: Pressure) => nav.setPressure(p);
 
   // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
   // resolve straight to the final state instead of animating.

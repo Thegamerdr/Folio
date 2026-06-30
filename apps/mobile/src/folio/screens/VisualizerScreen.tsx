@@ -122,25 +122,11 @@ export type CandidateMoneyItem = {
   /** Optional free-text correction note the user adds in the Fix form (LOCAL, pre-truth). Not shown
    *  on the row; carried on the candidate so an Accept could thread it through later. */
   note?: string;
+  /** The reader's REAL statement date as ISO (YYYY-MM-DD), carried separately from the display `date`
+   *  label so Accept can stamp the posted transaction with the day it actually happened — not "today".
+   *  Survives a Fix edit (which only changes the display `date`). Absent → Accept falls back to now. */
+  whenIso?: string;
 };
-
-// The web source's exact eight rows, restated VERBATIM as spreadsheet text so the real `parseSheet`
-// engine — not a hand-built array — produces the rendered candidates. The amounts are explicitly
-// signed (so the engine preserves the sign regardless of the display type label), the merchants /
-// magnitudes / days are the web's exact values, and the ISO date is the long form of each short
-// label. Quoted because the merchant fields contain a comma-free em-dash but the splitter is comma-
-// delimited; quoting keeps them whole and future-proofs a comma in a name.
-const SAMPLE_CSV_TEXT: string = [
-  'date,merchant,amount',
-  '2026-06-26,"Tesco",-42.00',
-  '2026-06-25,"Salary — Whitstone Ltd",+2180.00',
-  '2026-06-24,"Octopus Energy",-118.40',
-  '2026-06-24,"Transfer to Sarah",-85.00',
-  '2026-06-23,"Pret a Manger",-6.85',
-  '2026-06-22,"Klarna",-31.50',
-  '2026-06-22,"Spotify",-11.99',
-  '2026-06-21,"Refund — ASOS",+28.50',
-].join('\n');
 
 // Per-merchant display metadata the reader layers on top of the money facts: the web's exact short
 // date label, suggested type label, and "to check" flag. The engine owns merchant + signed amount;
@@ -170,16 +156,11 @@ function toRenderCandidates(candidates: readonly SheetCandidate[]): CandidateMon
       type: meta?.type ?? candidate.category ?? 'Unknown',
       // No web-supplied flag (a real paste): a low-confidence read "wants a glance".
       status: meta?.status ?? (candidate.confidence === 'low' ? 'check' : 'ok'),
+      // Carry the real ISO statement date through to Accept (exactOptionalPropertyTypes: omit when absent).
+      ...(candidate.date ? { whenIso: candidate.date } : {}),
     };
   });
 }
-
-// The found list, derived once from the real engine over the sample text. `parseSheet` auto-detects
-// the header + comma delimiter and keeps each explicitly-signed amount. The clean sample parses with
-// zero issues; the honest ColumnIssue[] path is exercised by a live paste + the engine's own tests.
-const SAMPLE_PARSE = parseSheet(SAMPLE_CSV_TEXT, { source: 'csv' });
-const SAMPLE_CANDIDATES: readonly CandidateMoneyItem[] = toRenderCandidates(SAMPLE_PARSE.candidates);
-const SAMPLE_ISSUES: readonly ColumnIssue[] = SAMPLE_PARSE.issues;
 
 // The render states this screen can occupy (STATES.md). offline ≡ populated (local-first).
 export type VisualizerState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
@@ -272,7 +253,11 @@ export function VisualizerScreen({
   //   1. an explicit `candidates` prop (fixtures / tests) always wins;
   //   2. the store's STAGED reader candidates (the live PDF / photo / text read) when non-empty;
   //   3. live pasted/CSV `sourceText` threaded in, read by `parseSheet`;
-  //   4. the faithful module-level SAMPLE (a cold / dev open, no read staged).
+  //   4. nothing staged → an EMPTY list, so the calm "add a statement first" doorway shows.
+  // There is deliberately NO sample fallback: the Review tab is reachable from the bottom nav at any
+  // time, and fabricating rows the user can never clear is exactly the "sample everywhere" problem.
+  // Sample/demo content lives in the store (source: 'sample'/'seed') and is gated by the demo regime;
+  // this transient review surface only ever shows a REAL staged read.
   // `issues` are the engine's honest prompts; staged candidates carry none of their own (the reader
   // already validated them), so they review cleanly.
   const { candidates, issues } = useMemo(() => {
@@ -282,11 +267,14 @@ export function VisualizerScreen({
     if (staged.length > 0) {
       return { candidates: toRenderCandidates(staged), issues: [] as readonly ColumnIssue[] };
     }
-    if (sourceText === undefined) {
-      return { candidates: SAMPLE_CANDIDATES, issues: SAMPLE_ISSUES };
+    if (sourceText !== undefined) {
+      const parsed = parseSheet(sourceText);
+      return { candidates: toRenderCandidates(parsed.candidates), issues: parsed.issues };
     }
-    const parsed = parseSheet(sourceText);
-    return { candidates: toRenderCandidates(parsed.candidates), issues: parsed.issues };
+    return {
+      candidates: [] as readonly CandidateMoneyItem[],
+      issues: [] as readonly ColumnIssue[],
+    };
   }, [candidatesOverride, staged, sourceText]);
 
   // loading auto-resolve: when the curious holding moment times out (~4s, immediate under
@@ -351,11 +339,17 @@ export function VisualizerScreen({
   function commit(chosen: readonly CandidateMoneyItem[]) {
     if (chosen.length === 0) return;
     for (const item of chosen) {
+      // Preserve the statement date the reader captured (whenIso, YYYY-MM-DD) so an imported item lands
+      // on the day it ACTUALLY happened in the timeline + money path — not stamped "today". Falls back
+      // to now only when the reader gave no usable date.
+      const isoDay =
+        item.whenIso && /^\d{4}-\d{2}-\d{2}$/.test(item.whenIso) ? item.whenIso : null;
       addTransaction({
         merchant: item.merchant,
         amount: item.amount,
         category: categoryFor(item),
         source: 'manual',
+        ...(isoDay ? { when: new Date(`${isoDay}T00:00:00`).toISOString() } : {}),
       });
     }
     clearReaderCandidates();
@@ -377,9 +371,11 @@ export function VisualizerScreen({
     commit(items);
   }
 
-  // empty — the calm doorway: no statement read yet, so there is nothing to check. The single CTA
-  // routes to intake so the doorway never dead-ends. (verbatim: add.option.statement)
-  if (state === 'empty') {
+  // empty — the calm doorway: no statement read yet, so there is nothing to check. Shown when the
+  // caller asks for it OR there is simply nothing staged to review (a cold open from the bottom nav),
+  // so the Review tab never fabricates rows. Loading keeps its own branch below. The single CTA routes
+  // to intake so the doorway never dead-ends. (verbatim: add.option.statement)
+  if (state === 'empty' || (items.length === 0 && state !== 'loading')) {
     return (
       <EmptyState
         mood="calm"

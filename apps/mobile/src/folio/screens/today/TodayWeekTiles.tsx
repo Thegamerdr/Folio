@@ -18,10 +18,20 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, pressed, radius, serif, useTheme } from '@/folio/theme';
 import { useAppStore } from '@/folio/store';
-import type { Nav, Pressure } from '@/folio/types';
-import { pressureLow } from './pressure';
+import type { Nav } from '@/folio/types';
+import { formatDayProse } from './format';
 
-export function TodayWeekTiles({ nav, pressure }: { nav: Nav; pressure: Pressure }) {
+export function TodayWeekTiles({
+  nav,
+  tightSpare,
+  tightDate,
+}: {
+  nav: Nav;
+  /** The REAL lowest-point spare (£, clamped ≥0) from the route — replaces the old hardcoded fallback. */
+  tightSpare: number;
+  /** The REAL lowest-point ISO date from the route, or null before the mount-gate opens. */
+  tightDate: string | null;
+}) {
   const t = useTheme();
   const transactions = useAppStore((st) => st.transactions);
   const subs = useAppStore((st) => st.subs);
@@ -96,7 +106,9 @@ export function TodayWeekTiles({ nav, pressure }: { nav: Nav; pressure: Pressure
           accessibilityRole="button"
           onPress={() =>
             nav.openMelo({
-              prefill: `Why does my low point land at £${pressureLow[pressure]} on 7 Jul?`,
+              prefill: tightDate
+                ? `Why does my low point land at £${tightSpare} on ${formatDayProse(tightDate)}?`
+                : 'When does my money get tightest?',
             })
           }
           style={({ pressed: isPressed }) => [
@@ -106,7 +118,9 @@ export function TodayWeekTiles({ nav, pressure }: { nav: Nav; pressure: Pressure
           ]}
         >
           <Text style={[styles.tileEyebrow, { color: t.muted }]}>Low point</Text>
-          <Text style={[styles.tileValue, { color: t.ink }]}>7 Jul · £{pressureLow[pressure]}</Text>
+          <Text style={[styles.tileValue, { color: t.ink }]}>
+            {tightDate ? `${formatDayProse(tightDate)} · £${tightSpare}` : `£${tightSpare}`}
+          </Text>
         </Pressable>
       )}
     </View>
