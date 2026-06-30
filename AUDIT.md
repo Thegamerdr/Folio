@@ -16,6 +16,47 @@ the "Folio — RN Implementation Handoff", built against `ENGINES.md` §6/§7 an
 
 ---
 
+## 0. Read this first — behavioral audit + correctness fixes (2026-06-30)
+
+The fidelity table in §6 audits how each surface **looks**. A second pass then audited what each interaction
+**does** — every `onPress`, `nav.*` call, store action, and engine calculation, traced against the design.
+That behavioral pass found real wiring/correctness bugs a visual pass can't see; they are now fixed
+(commit `24489b5` · **0** typecheck errors · **266** folio tests). The key ones:
+
+- **Money-path was feeding wrong data — now corrected.** `storeRoute` dropped every recurring bill
+  (`bills: []` — ~£858/mo of rent/council-tax/energy/broadband) and double-counted pots (subtracted Σ saved
+  at the start *and* dated the weekly dips), so the lowest-point/spare was wrong everywhere and the Calendar
+  pill disagreed with its own day-ladder. It now derives from the same `deriveCalendarEvents` stream the
+  Calendar uses (bills + subs + payday + pot dips, 35-day window), starts from the **full
+  `currentBalance.amount`** with pots as dated `−perWeek` dips only — matching the design's single engine
+  `computeSpareAndTightest(groups, currentBalance.amount)`. A timezone off-by-one in "today" was also fixed.
+  **Seed lowest point: a wrong £39 → £136**, and the route now equals the Calendar ladder by construction.
+- **Real-device usability:** the kit `Sheet` had no keyboard avoidance, so the soft keyboard covered inputs +
+  the send button (you couldn't type to log a spend or chat). Added `KeyboardAvoidingView` +
+  `keyboardShouldPersistTaps`.
+- **Resilience / nav:** per-screen error boundary (one crash no longer kills the app), a `back()` history
+  stack (back returns where you came from), and More-subtree tab lighting.
+- **Smaller wiring:** Melo chat "stop" aborts the turn (was closing the sheet); restored Melo's 4th tool
+  (`set_tight_point_goal`); wired sub-detection's working-day tolerance (was dead code); Timeline edits the
+  tapped row (was a hardcoded demo); Subscriptions use the undo toast (was blocking alerts); `openMelo` opens
+  the chat sheet (was a stub to the mood screen); model pinned to `google/gemini-2.5-flash`.
+
+### Deliberately deferred — owner design decisions, NOT bugs to flag
+Documented RN choices left for the owner (several fold into the planned Melo-entry redesign):
+
+1. **The global `pressure`/`setPressure` channel.** In the design the Melo mood-picker flips a global
+   "pressure" that Today/WhatIf read, making "your money path shifts with her" literal. The RN port dropped
+   that channel and drives the money path from the **real engine** instead, so the picker only re-poses the
+   local Melo face. Restoring the manual mood-explorer vs keeping the real-data path is an owner call.
+2. **Visualizer "Fix"** opens a local edit sheet instead of navigating to the Review screen.
+3. **Shortfall borrow** is an inline preview→commit instead of routing to Pots.
+4. **Melo "start fresh"** clears without a confirm dialog.
+
+> The `docs/audit/` screenshots predate the money fix, so they show the old £39 lowest-point; the corrected
+> engine renders £136 on seed state (and bill-inclusive figures on real data).
+
+---
+
 ## 1. How to audit each dimension
 
 **Code (faithful render + engines).**
@@ -27,7 +68,7 @@ the fidelity table in §6. Engines live in `apps/mobile/src/folio/lib/` (§5) an
 **Tests + types.**
 ```
 pnpm --config.verify-deps-before-run=false --filter @folio/mobile typecheck      # 0 folio errors
-pnpm --config.verify-deps-before-run=false exec vitest run apps/mobile/src/folio   # 237 tests, 15 files
+pnpm --config.verify-deps-before-run=false exec vitest run apps/mobile/src/folio   # 266 tests, 16 files
 ```
 `store.ts` and every `lib/*.ts` engine are pure and unit-tested (round-trip persistence, money-path,
 payday clamp, pot cadence, sub detection, caught-subs, undo policy, edit-txn, import-sheet, calendar events,
@@ -61,7 +102,7 @@ values, a platform-appropriate control, an additive empty/loading/error state, o
 | Minor (documented, intentional deltas) | **22** |
 | Major / missing / not-found | **0** |
 | Folio typecheck errors | **0** |
-| Folio tests | **237 passing (15 files)** |
+| Folio tests | **266 passing (16 files)** |
 | Engines built (web only stubbed) | **15 lib modules + LLM reader + store** (§5) |
 | Runs on device | **Yes** — `emulator-5554`, faithful render, see `docs/audit/` |
 
