@@ -126,21 +126,6 @@ const pressureMood: Record<Pressure, MeloMood> = {
 // one thought per line, double-quoted), so the raw thought is passed without surrounding quotes.
 const MELO_LINE = 'The lowest balance comes just after the bills go out.';
 
-// The Octopus / Council Tax / Rent / BT Broadband placeholder event the web hardcoded, with the
-// '1 Jul' label and ROUTE_POINT_ISO. Now only the absolute last-resort fallback for the single
-// mount-gate frame before the engine has an honest "today" (and for a caller that opens the sheet
-// with neither a `point` nor a resolvable route). On a normal open the real route supplies the
-// tapped point via `routePointFor` below.
-const PLACEHOLDER_POINT: RoutePoint = {
-  iso: '2026-07-01',
-  dateLabel: '1 Jul',
-  bills: [
-    { name: 'Octopus Energy', date: '1 Jul', amount: 118.4 },
-    { name: 'Council Tax', date: '1 Jul', amount: 162.0 },
-    { name: 'Rent', date: '1 Jul', amount: 540.0 },
-    { name: 'BT Broadband', date: '3 Jul', amount: 38.0 },
-  ],
-};
 
 // ---------------------------------------------------------------------------
 // Store → tapped-point derivation. The money-path engine returns one `{ date, y }` sample per day
@@ -434,8 +419,13 @@ function RouteDetailBody({
       };
       return { point: derivedPoint, leftAfter: balance, band: pressureForBalance(balance) };
     }
-    // Pre-engine frame.
-    return { point: PLACEHOLDER_POINT, leftAfter: pressureLow[pressure], band: pressure };
+    // Pre-engine frame (route not yet resolved): a neutral EMPTY point — NEVER the fake Octopus /
+    // Council Tax / Rent bills. The real route + its real bills replace this on the very next frame.
+    return {
+      point: { iso: '', dateLabel: '', bills: [] } as RoutePoint,
+      leftAfter: pressureLow[pressure],
+      band: pressure,
+    };
   }, [point, route, now, state, pressure]);
 
   // --- State branches (after all hooks). ---
