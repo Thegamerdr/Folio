@@ -224,6 +224,17 @@ const SAMPLE_BALANCE: CurrentBalance = {
   setAt: '2026-06-27T00:00:00.000Z',
 };
 
+/** A genuinely empty, honest starting balance for a CLEAN-EMPTY reset. £0 with a
+ *  `user-entered` source + `rough` confidence — NOT `sample` (sample implies demo
+ *  data the user never entered). A returning clean user has chosen to start from
+ *  nothing, so the source label tells the truth: this is their own zero, not a
+ *  seeded placeholder. `setAt` is stamped at reset time by `resetToEmpty`. */
+const EMPTY_BALANCE: Omit<CurrentBalance, 'setAt'> = {
+  amount: 0,
+  source: 'user-entered',
+  confidence: 'rough',
+};
+
 const DEFAULTS: AppState = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   pots: [
@@ -701,6 +712,55 @@ export function resetAll() {
   state = { ...DEFAULTS, transactions: seedTransactions(), calendarEvents: [] };
   persist();
   emit();
+}
+
+/** CLEAN-EMPTY reset — wipe the user's data to a genuinely empty state, with NO
+ *  sample/demo reseed (the opposite of `resetAll`, which reseeds the demo set).
+ *  Every user-data slot is cleared: transactions, pots, subs, the sub
+ *  paused/override maps, ritual cycles, the correction-edit history, calendar
+ *  events, the pot ledger, and the staged statement-reader review queue. The
+ *  balance becomes a neutral, honest empty (£0, `user-entered`/`rough` — NOT
+ *  `sample`), and `onboarding.done` is forced true so a returning clean user is
+ *  NOT re-onboarded. `schemaVersion` is preserved so the empty state still loads
+ *  through the same migration contract. Pure + immutable — builds a brand-new
+ *  state object, never mutates the previous one. */
+export function resetToEmpty() {
+  const empty: AppState = {
+    schemaVersion: state.schemaVersion,
+    pots: [],
+    subs: [],
+    subPaused: {},
+    subOverrides: {},
+    cycles: [],
+    onboarding: { ...state.onboarding, done: true },
+    currentBalance: { ...EMPTY_BALANCE, setAt: new Date().toISOString() },
+    potLedger: [],
+    nextYouNote: '',
+    tightPointGoal: null,
+    transactions: [],
+    edits: [],
+    calendarEvents: [],
+    calendarFocusDate: null,
+    routeFocusDate: null,
+    readerCandidates: [],
+  };
+  state = empty;
+  persist();
+  emit();
+}
+
+/** Pure selector — true when the app holds any real user data (transactions,
+ *  pots, subs, or ritual cycles). Lets a surface tell a genuinely-used app from
+ *  a fresh/demo one (e.g. after `resetToEmpty`, this is false). No state read of
+ *  its own — operates only on the snapshot it's given, so it's safe to call from
+ *  selectors, `load()`, or tests. */
+export function hasAnyUserData(s: AppState): boolean {
+  return (
+    s.transactions.length > 0 ||
+    s.pots.length > 0 ||
+    s.subs.length > 0 ||
+    s.cycles.length > 0
+  );
 }
 
 /** Debug: shift every dated thing backwards by ~30 days and add a synthetic

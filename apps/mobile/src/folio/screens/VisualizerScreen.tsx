@@ -348,10 +348,9 @@ export function VisualizerScreen({
   // confirmed here, the staged reader queue is consumed: `clearReaderCandidates()` empties the
   // store's review-before-truth slot so a returning open of this surface (or a later read) starts
   // clean and the same candidates can't be reviewed twice. Then the route is re-drawn on today-after.
-  function acceptSelected() {
-    if (count === 0) return;
-    for (const item of items) {
-      if (!selected[item.merchant]) continue;
+  function commit(chosen: readonly CandidateMoneyItem[]) {
+    if (chosen.length === 0) return;
+    for (const item of chosen) {
       addTransaction({
         merchant: item.merchant,
         amount: item.amount,
@@ -361,6 +360,21 @@ export function VisualizerScreen({
     }
     clearReaderCandidates();
     nav.go('today-after');
+  }
+
+  // Accept the per-row selection — the chosen subset (the one-by-one path: tick rows, then Add N).
+  function acceptSelected() {
+    if (count === 0) return;
+    commit(items.filter((item) => selected[item.merchant]));
+  }
+
+  // Add all — the bulk option. Tapping it IS the user's review-before-truth confirmation of the
+  // whole batch: EVERY staged candidate is posted through the SAME add path as a per-row accept,
+  // then the queue is cleared. It does not remove or replace the per-row Edit / Ignore controls —
+  // bulk is an OPTION beside the one-by-one flow, never the only path. No-op on an empty list.
+  function acceptAll() {
+    if (items.length === 0) return;
+    commit(items);
   }
 
   // empty — the calm doorway: no statement read yet, so there is nothing to check. The single CTA
@@ -447,20 +461,46 @@ export function VisualizerScreen({
         </Text>
         <Text style={styles.subhead}>Nothing is added until you choose.</Text>
 
-        <View
-          accessibilityRole="summary"
-          accessibilityLabel="Summary"
-          style={styles.chipsRow}
-        >
-          <View style={styles.chip}>
-            <Text style={styles.chipStrongText}>{items.length} found</Text>
+        <View style={styles.summaryRow}>
+          <View
+            accessibilityRole="summary"
+            accessibilityLabel="Summary"
+            style={styles.chipsRow}
+          >
+            <View style={styles.chip}>
+              <Text style={styles.chipStrongText}>{items.length} found</Text>
+            </View>
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>{clearCount} clear</Text>
+            </View>
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>{checkCount} to check</Text>
+            </View>
           </View>
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>{clearCount} clear</Text>
-          </View>
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>{checkCount} to check</Text>
-          </View>
+
+          {/* Add all — the bulk OPTION. A quiet text action beside the summary, set apart from the
+              dominant footer CTA so the per-row flow stays primary. Tapping it adds every found item
+              at once (the tap is the batch's review-before-truth confirmation). Disabled with nothing
+              to add. The per-row Edit / Ignore controls below are untouched — one-by-one stays. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Add all ${items.length}`}
+            accessibilityHint="Adds everything Folio found at once. You can still add them one by one instead."
+            accessibilityState={{ disabled: items.length === 0 }}
+            disabled={items.length === 0}
+            hitSlop={10}
+            onPress={acceptAll}
+            style={({ pressed: isPressed }) => [
+              styles.addAll,
+              isPressed && items.length > 0 ? styles.pressed : undefined,
+            ]}
+          >
+            <Text
+              style={[styles.addAllText, items.length === 0 ? styles.addAllTextDisabled : undefined]}
+            >
+              Add all
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -870,12 +910,36 @@ function makeStyles(t: Palette) {
       marginTop: gap.sm,
     },
 
-    // Summary chips — near-white inset wells (web mt-4 row gap-2). "N found" is ink-medium; the
-    // others muted. tabular figures.
-    chipsRow: {
+    // Summary row — the chips on the left, the quiet "Add all" bulk action on the right. Mirrors
+    // the web summary's mt-4 vertical rhythm; the chips keep their own row so they wrap as before.
+    summaryRow: {
+      alignItems: 'center',
       flexDirection: 'row',
       gap: gap.sm,
+      justifyContent: 'space-between',
       marginTop: gap.lg,
+    },
+    // Summary chips — near-white inset wells (web mt-4 row gap-2). "N found" is ink-medium; the
+    // others muted. tabular figures. flexShrink so the chips give way to "Add all" if space is tight.
+    chipsRow: {
+      flexDirection: 'row',
+      flexShrink: 1,
+      flexWrap: 'wrap',
+      gap: gap.sm,
+    },
+    // "Add all" — a quiet text action in the kit's calm accent, never a filled button (the filled
+    // CTA is the footer's job). Reuses the press feel + accent token; no new visual style.
+    addAll: {
+      paddingHorizontal: gap.xs,
+      paddingVertical: 4,
+    },
+    addAllText: {
+      color: t.calm,
+      fontSize: 12.5,
+      fontWeight: '500',
+    },
+    addAllTextDisabled: {
+      color: t.muted,
     },
     chip: {
       backgroundColor: t.inset,

@@ -24,10 +24,12 @@ import {
   fastForwardMonth,
   getPersistBlob,
   getState,
+  hasAnyUserData,
   hydrateFromBlob,
   matchMeloTool,
   pauseMany,
   resetAll,
+  resetToEmpty,
   setPartial,
   setPots,
   setReaderCandidates,
@@ -136,6 +138,102 @@ describe('resetAll', () => {
     resetAll();
     expect(getState().pots.length).toBe(3);
     expect(getState().transactions.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resetToEmpty — CLEAN-EMPTY reset (no demo reseed), keeps onboarding.done +
+// schemaVersion; hasAnyUserData distinguishes a real app from a demo one.
+// ---------------------------------------------------------------------------
+describe('resetToEmpty', () => {
+  it('wipes every user-data slot to a genuinely empty state', () => {
+    // Start from the demo seed (resetAll runs in beforeEach) + add some more data.
+    setPartial({
+      subPaused: { Spotify: true },
+      subOverrides: { Netflix: 2 },
+      potLedger: [{ id: 'pl-1', potId: 'holiday', at: '2026-06-01T00:00:00.000Z', kind: 'deposit', amount: 10, source: 'manual' }],
+      calendarEvents: [{ id: 'e1', date: '2026-07-01', kind: 'out', title: 'Rent', amount: -900 }],
+      edits: [],
+    });
+
+    resetToEmpty();
+    const s = getState();
+
+    expect(s.transactions).toEqual([]);
+    expect(s.pots).toEqual([]);
+    expect(s.subs).toEqual([]);
+    expect(s.subPaused).toEqual({});
+    expect(s.subOverrides).toEqual({});
+    expect(s.cycles).toEqual([]);
+    expect(s.edits).toEqual([]);
+    expect(s.calendarEvents).toEqual([]);
+    expect(s.potLedger).toEqual([]);
+    expect(s.readerCandidates).toEqual([]);
+    expect(s.nextYouNote).toBe('');
+    expect(s.tightPointGoal).toBe(null);
+  });
+
+  it('does NOT reseed any sample/demo data', () => {
+    resetToEmpty();
+    const s = getState();
+    // resetAll seeds 3 pots + a non-empty seeded transaction list; resetToEmpty must not.
+    expect(s.pots.length).toBe(0);
+    expect(s.transactions.length).toBe(0);
+    expect(s.subs.length).toBe(0);
+    expect(s.cycles.length).toBe(0);
+  });
+
+  it('sets a neutral, honest empty balance (£0, not a sample source)', () => {
+    resetToEmpty();
+    const bal = getState().currentBalance;
+    expect(bal.amount).toBe(0);
+    expect(bal.source).not.toBe('sample'); // a chosen empty, not seeded demo data
+    expect(bal.confidence).not.toBe('sample');
+    expect(typeof bal.setAt).toBe('string');
+    expect(bal.setAt.length).toBeGreaterThan(0);
+  });
+
+  it('forces onboarding.done true so a returning clean user is NOT re-onboarded', () => {
+    setPartial({ onboarding: { done: false, name: 'Ada', payday: 25, monthlyIncome: 2180 } });
+    resetToEmpty();
+    expect(getState().onboarding.done).toBe(true);
+  });
+
+  it('preserves schemaVersion', () => {
+    const before = getState().schemaVersion;
+    resetToEmpty();
+    expect(getState().schemaVersion).toBe(before);
+  });
+
+  it('is immutable — produces a new state object, never mutating the previous one', () => {
+    const prev = getState();
+    resetToEmpty();
+    const next = getState();
+    expect(next).not.toBe(prev); // brand-new object reference
+    // The captured previous snapshot still has its demo data (was not mutated).
+    expect(prev.pots.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hasAnyUserData — true on a seeded/used app, false after a CLEAN-EMPTY reset
+// ---------------------------------------------------------------------------
+describe('hasAnyUserData', () => {
+  it('is true on the seeded demo state (transactions + pots + subs + cycles)', () => {
+    resetAll();
+    expect(hasAnyUserData(getState())).toBe(true);
+  });
+
+  it('is false after resetToEmpty (a genuinely empty app)', () => {
+    resetToEmpty();
+    expect(hasAnyUserData(getState())).toBe(false);
+  });
+
+  it('is true if ANY one data slot is non-empty', () => {
+    resetToEmpty();
+    expect(hasAnyUserData(getState())).toBe(false);
+    addTransaction({ merchant: 'Tesco', amount: -42.1, category: 'food', source: 'manual' });
+    expect(hasAnyUserData(getState())).toBe(true);
   });
 });
 

@@ -60,6 +60,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import {
+  resetToEmpty,
   setCurrentBalance,
   setOnboarding,
   setPots as storeSetPots,
@@ -261,19 +262,35 @@ function OnboardingFlow({
   }
 
   function done() {
+    // CLEAN SLATE on completion — finishing onboarding (the primary "make them yours" path) takes
+    // the app OUT of the demo REGIME and into a genuinely empty app ready for the user's real data.
+    // The sample (demo transactions/subs/cycles/pots/balance) was a PRE-ONBOARDING preview only;
+    // it must NOT persist once the user has chosen to begin. `resetToEmpty` wipes every demo slot,
+    // sets the balance to a neutral £0, and forces onboarding.done true (so the sample-numbers nudge
+    // is gone and no demo number lingers). We then write the user's real values on top of that empty
+    // state. This is the ONLY place the demo→clean transition happens; "Skip for now" never runs it,
+    // so skipping is an explicit, deliberate choice to KEEP exploring the sample.
+    resetToEmpty();
+
+    // The user's real onboarding identity, written over the clean state. `resetToEmpty` preserved the
+    // prior (still-blank) onboarding fields and flipped done→true; this overwrites name/payday/income
+    // with what they entered while keeping done true.
     setOnboarding({ name, payday, monthlyIncome: income, done: true });
-    // Write the balance the user just entered with an honest source label (ENGINES.md §6).
+
+    // Write the balance the user just entered with an honest source label (ENGINES.md §6). If they
+    // left it at £0, `resetToEmpty`'s neutral £0 (user-entered/rough) already stands — no demo balance
+    // survives either way.
     if (balance > 0) {
       setCurrentBalance({ amount: balance, source: 'user-entered', confidence: 'rough' });
     }
-    // Keep saved balance for any pot the user already had, drop unchecked, create new ones at 0.
-    const savedById: Record<string, number> = Object.fromEntries(
-      existingPots.map((p) => [p.id, p.saved]),
-    );
+
+    // The pots the user picked, created fresh at £0 saved. The app is now empty, so there are no prior
+    // saved amounts to carry — every chosen pot is a brand-new, honestly-zero set-aside the user will
+    // fund themselves. Picking none leaves Pots genuinely empty (its empty state invites the first one).
     const nextPots = POT_TEMPLATES.filter((tpl) => picked.has(tpl.id)).map((tpl) => ({
       id: tpl.id,
       name: tpl.name,
-      saved: savedById[tpl.id] ?? 0,
+      saved: 0,
       goal: tpl.goal,
       perWeek: tpl.perWeek,
       accent: tpl.accent,
