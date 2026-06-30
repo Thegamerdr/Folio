@@ -44,10 +44,11 @@ That behavioral pass found real wiring/correctness bugs a visual pass can't see;
 ### Deliberately deferred — owner design decisions, NOT bugs to flag
 Documented RN choices left for the owner (several fold into the planned Melo-entry redesign):
 
-1. **The global `pressure`/`setPressure` channel.** In the design the Melo mood-picker flips a global
-   "pressure" that Today/WhatIf read, making "your money path shifts with her" literal. The RN port dropped
-   that channel and drives the money path from the **real engine** instead, so the picker only re-poses the
-   local Melo face. Restoring the manual mood-explorer vs keeping the real-data path is an owner call.
+1. **The global `pressure`/`setPressure` channel — NOW WIRED (2026-06-30 evening, see the new section below).**
+   The RN port had dropped it (the picker only re-posed the local Melo face). It is now restored honestly:
+   pressure is DERIVED from the real route (gated so an empty/cleared app stays calm) AND the Melo mood picker
+   sets a global override (`nav.setPressure`) that propagates to Today / What-if / Melo / chat. "Your money
+   path shifts with her" is now both literal and honest.
 2. **Visualizer "Fix"** opens a local edit sheet instead of navigating to the Review screen.
 3. **Shortfall borrow** is an inline preview→commit instead of routing to Pots.
 4. **Melo "start fresh"** clears without a confirm dialog.
@@ -71,6 +72,49 @@ docs and the money-path fix is sound). The items it flagged are all resolved —
   (was a no-op demo with a hardcoded subject).
 - **Privacy "Start fresh"** now gates `resetAll` behind the tier-3 `canStartFresh` chain (export-ack → typed
   confirm → final confirm); it previously bypassed the policy.
+
+### Session 2026-06-30 (evening) — sample-data PURGE, Melo mood WIRED, dark-mode + cost split
+Owner dogfooded on a real device and caught that a **cleared app still showed fabricated data**, plus several
+toy/no-op surfaces. A behavioral-by-LOOKING pass (clear the app, walk every screen with your own eyes) found
+and fixed a whole class the visual/code audits missed. Commits **`eb6e0a0` · `3783c9c` · `a3f81c9`** (0
+typecheck errors, 306 folio tests; the visible fixes verified on-device).
+
+**Sample/placeholder data — purged or gated (the headline). The pattern: nothing fabricated is present 24/7;
+a cleared/real app shows ONLY the user's data; demo/illustrative data is gated behind the demo regime
+(`currentBalance.source === 'sample'`). LOVABLE SHOULD MIRROR THIS — the design code has the same hardcodes:**
+- **Today money-path chart** was fixed SVG geometry with baked-in values ("salary rise +£2,180 / bill drop
+  −£875 / 7 Jul") — now plotted from the real `route.points` daily series. The design's chart is illustrative
+  too; for a real app it must be data-driven.
+- **Today summary trio** "Coming in £2,180 / Going out £1,095" → real route window totals (new
+  `RouteResult.incomingTotal`/`outgoingTotal`). **TodayWeekTiles** "7 Jul · £X" low-point tile → real route
+  tight point.
+- **Calendar agenda** injected a hardcoded **"Check Klarna · 2 of 3"** review + generic UK tax deadlines
+  (Self Assessment / Payment on account) for EVERY user → both gated behind the demo regime. **RECURRING_BILLS**
+  (Octopus/Council Tax/Rent/BT, ~£858/mo) in `deriveCalendarEvents` → gated the same way.
+- **Reader screens** (Visualizer/Review/Paste/Image), **SubCaughtSheet**, and the **edit sheets** fell back to
+  sample rows / a fake "Tesco · £42 · 26 Jun" on a cold open → now honest empty doorways / blank forms.
+  **RouteDetailSheet** Octopus/Rent placeholder → empty point. Chart "breathing room · £100" → "breathing
+  room" (the £100 didn't map to the data-driven curve).
+
+**Melo mood — WIRED (resolves deferred #1 above).** `derivePressure(route.tightPoint.amount)` gives the
+app-wide band (gated on a real money picture so an empty/cleared app stays calm, never alarmist), and the Melo
+mood picker sets a global override via the new `nav.setPressure` that propagates everywhere. The picker now
+actually reshapes Today's verdict + Melo's mood + the chat tone.
+
+**Dark-mode bug.** `TimelineScreen`'s headline + subhead had **no `color`** → defaulted to black → invisible
+on the dark canvas (light mode read fine, so it slipped past review). A WCAG token-pair audit can't catch a
+*missing* color — only looking (or a "fontSize-but-no-color, applied bare" scan) does. **Lovable: check the
+design's Timeline + any screen for text without an explicit color.**
+
+**Other:** scroll fixed on 5 fixed-height screens (Privacy's "Clear to empty" was unreachable below the fold);
+**More → "Start fresh"** called `resetAll` (reseeded the demo — "it all came back") → `resetToEmpty` + a
+confirm; imported transactions now keep their **real statement date** (was stamped "today"); **AI cost split** —
+chat pins cheap `gemini-2.5-flash-lite`, vision (`gemini-2.5-flash`) reserved for PDF/photo extraction, + a
+gateway model allow-list (needs `wrangler deploy`).
+
+**Still open (owner/QA, not RN bugs):** exhaustive per-screen dark-mode + cross-device visual pass on an
+emulator; iOS (needs a Mac/EAS — unbuildable on the Windows dev box); the gateway redeploy + an OpenRouter
+spend cap.
 
 > The `docs/audit/` screenshots predate these engine fixes, so the lowest-point numbers shown there are stale
 > (the seed figure has moved £39 → £136 → £0-clamped as bills were added then pots earmarked). The current
