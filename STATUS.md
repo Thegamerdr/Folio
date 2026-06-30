@@ -1,5 +1,17 @@
 # Folio V2 Greenfield Status
 
+> Updated 2026-06-30 (evening) — commits eb6e0a0/3783c9c/a3f81c9 (+ 7147884 AUDIT.md) on branch
+> `claude/folio-rn-faithful-port`: sample/placeholder-data purge (charts, summary trio, calendar
+> agenda, reader/edit sheets now plot real route data or show honest empty doorways, demo data gated
+> behind `currentBalance.source==='sample'`), Melo mood wired to a real-route-derived pressure
+> (`derivePressure`) with a nav override, TimelineScreen dark-mode invisible-text fix, ScrollView
+> wrapping for five fixed-height screens, "Start fresh" → `resetToEmpty` + one-tap confirm, imported
+> transactions keep their real statement date, and an AI cost split (chat = cheap
+> `gemini-2.5-flash-lite`, vision = `gemini-2.5-flash`, gateway model allow-list). 0 typecheck
+> errors, 306 folio tests green; visible fixes verified on-device by screenshot. Remaining open work
+> (exhaustive dark-mode/cross-device visual pass, iOS, gateway redeploy + OpenRouter spend cap) is
+> owner/QA, not RN bugs.
+
 ## Current checkpoint
 
 Phase 15 Android local-use hardening is implemented for the standalone tester APK, and the
@@ -31,6 +43,21 @@ visible routes and made SecureStore fallback memory-only instead of using a hard
 fallback key. Evidence remains in docs/test adapters, not in the local tester APK route surface. UX
 readiness is not complete until real interaction polish, native accessibility recordings, large-
 text/reduced-motion checks, user testing and Figma/code alignment are complete.
+
+Update on 2026-06-30 (evening, commits eb6e0a0/3783c9c/a3f81c9): the same "nothing fabricated is
+present 24/7" rule was carried into the `apps/mobile/src/folio/` faithful-port surface tree (the
+Lovable 1:1 port), which still held demo geometry the 06-22 pass had not reached. The Today
+money-path chart no longer draws hardcoded SVG geometry (the "salary rise +£2,180 / bill drop
+−£875 / 7 Jul" curve) — it plots the real `route.points` daily series. The Today summary trio
+("Coming in £2,180 / Going out £1,095") now reads real route totals
+(`RouteResult.incomingTotal`/`outgoingTotal`) and the low-point week tile reads the real route tight
+point. The Calendar agenda's hardcoded "Check Klarna · 2 of 3" review, generic UK tax deadlines and
+`RECURRING_BILLS` (Octopus/Council Tax/Rent/BT) are now gated behind the demo regime
+(`currentBalance.source==='sample'`, via `deriveCalendarEvents`'s `includeSampleBills`), so a
+cleared/real app shows only the user's own data. Reader screens (Visualizer/Review/Paste/Image),
+`SubCaughtSheet` and the edit sheets no longer fall back to sample rows or a fake
+"Tesco · £42 · 26 Jun" on a cold open — they show honest empty doorways / blank forms; the
+`RouteDetailSheet` Octopus/Rent placeholder and the chart "breathing room · £100" literal are gone.
 
 - Phase 0: complete for Android native smoke; iOS remains blocked by macOS/Xcode or EAS iOS signing.
 - Phase 1: Android database/storage risk retired with live emulator proof. Non-database native spikes remain explicit blockers before Phase 4 vault/mobile release claims.

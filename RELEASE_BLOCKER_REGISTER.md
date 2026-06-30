@@ -2,6 +2,13 @@
 
 Date: 2026-06-23
 
+Updated 2026-06-30 (evening) — commits eb6e0a0/3783c9c/a3f81c9 (+ 7147884 AUDIT.md). Reviewed
+against tonight's RN faithful-port work (`claude/folio-rn-faithful-port`). That work was app-behavior
+correctness — sample-data purge/gating, Melo mood wiring, a dark-mode fix, scroll fixes, a real
+"start fresh", import-date fix, and the AI cost split. None of it produces the device/iOS/legal/store/
+security-review evidence these gates require, so **no blocker row below is marked resolved by it**;
+the gates stand. See "Tonight's RN work vs these gates" under the status summary.
+
 Purpose: make release blockers auditable without claiming Folio V2 is public-release-ready.
 
 Status summary:
@@ -10,12 +17,32 @@ Status summary:
 - External beta: blocked by device, security, privacy, accessibility, research and support evidence.
 - Public release: blocked by store, legal, security, billing, iOS, cloud/account and operational evidence.
 
+### Tonight's RN work vs these gates (2026-06-30 evening)
+
+The RN faithful-port fixes (commits eb6e0a0/3783c9c/a3f81c9) improve the app's pre-device correctness
+but do not satisfy any evidence requirement in the tables below:
+
+- **Clean reset / start-fresh** (Owner Dogfood — "Clean reset and seed repeatability"): More -> "Start
+  fresh" previously called `resetAll`, which **reseeded the demo** ("it all came back"); it now calls
+  `resetToEmpty` behind a one-tap confirm (commit a3f81c9). This makes a clean reset actually clear to
+  empty, but the row's evidence (reset screenshot + canonical counts after reset, **on the phone**) is
+  still pending, so the row stays open.
+- **Sample-data purge** strengthens the same reset story: a cleared app now shows only the user's data
+  (fabricated chart/summary/calendar/reader rows are gone or gated behind `currentBalance.source ===
+  'sample'`). Again: improves dogfood quality, does not produce on-device evidence.
+- Everything else tonight (Melo mood wiring, dark-mode/scroll/import-date fixes, AI cost split) is
+  unrelated to the gate evidence and is documented in `AUDIT.md` §0.
+
+Still open after tonight (owner/QA, not RN bugs): exhaustive per-screen dark-mode + cross-device visual
+pass on an emulator; iOS (needs a Mac/EAS — unbuildable on the Windows dev box); the gateway redeploy +
+an OpenRouter spend cap.
+
 ## Owner Dogfood Blockers
 
 | Blocker                                  | Severity | Status                                   | Why it matters                                                              | Evidence required                                                        | Files/systems affected                                              | Windows? | Android device? | macOS/Xcode? | Legal/business? | Recommended next action                                                |
 | ---------------------------------------- | -------- | ---------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------- | -------- | --------------- | ------------ | --------------- | ---------------------------------------------------------------------- |
 | Physical Android install and launch      | P0       | open                                     | Owner dogfood cannot be trusted until the current APK runs on a real phone. | install log, launch screenshot, first screen screenshot, APK hash        | `apps/mobile/android`, owner device, `ANDROID_INSTALL_FOR_OWNER.md` | yes      | yes             | no           | no              | Install current APK on physical Android and capture launch evidence.   |
-| Clean reset and seed repeatability       | P0       | mostly cleared in repo                   | Owner must be able to reset and repeat scenarios without stale data.        | Dogfood reset screenshot, canonical counts after reset                   | `apps/mobile/src/local/dogfoodMode.ts`, Data Control                | yes      | helpful         | no           | no              | Verify `More -> Dogfood mode -> Reset local data` on phone.            |
+| Clean reset and seed repeatability       | P0       | repo fix landed (reseed bug), device proof pending | Owner must be able to reset and repeat scenarios without stale data.        | Dogfood reset screenshot, canonical counts after reset                   | `apps/mobile/src/local/dogfoodMode.ts`, Data Control, `apps/mobile/src/folio/store.ts` (`resetToEmpty`) | yes      | helpful         | no           | no              | Verify `More -> Dogfood mode -> Reset local data` on phone. (2026-06-30: More -> "Start fresh" reseeded the demo via `resetAll`; fixed to `resetToEmpty` + confirm, commit a3f81c9. Sample data also purged/gated to `currentBalance.source === 'sample'`, commits eb6e0a0/3783c9c. Device counts-after-reset proof still required.) |
 | Redacted diagnostic export               | P0       | implemented, device proof pending        | Bugs need useful evidence without exposing raw financial data.              | exported JSON/Markdown, redaction review, file path proof                | `nativeDogfoodDiagnosticExport.ts`, `dogfoodMode.ts`                | yes      | yes             | no           | no              | Export bundle on phone and inspect for raw source text.                |
 | Local storage and key behavior on device | P0       | repo implemented, physical proof missing | Owner data should not silently fall back or vanish unexpectedly.            | secure-store/key state screenshot, restart persistence, clear-data proof | `nativeLocalSecurity.ts`, `nativeLedgerStore.ts`, SQLCipher         | partly   | yes             | no           | no              | Run save, restart, app-lock and clear-data checks on physical Android. |
 | Crash or blank-screen recovery           | P1       | open                                     | Dogfood must produce useful recovery evidence if the app fails.             | logcat capture, reinstall/clear instructions verified                    | APK, `ANDROID_INSTALL_FOR_OWNER.md`                                 | yes      | yes             | no           | no              | Test failure recovery path with ADB/logcat and phone-only fallback.    |

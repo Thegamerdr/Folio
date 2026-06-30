@@ -1,5 +1,10 @@
 # ENGINES.md — Folio V2 engine-behaviour decisions
 
+> **Updated 2026-06-30 (evening) — commits eb6e0a0/3783c9c/a3f81c9.** Faithful-port engine work
+> landed the route/pressure/calendar contracts D1 and D5 lean on: real route totals + derived Melo
+> pressure replace the hardcoded Today figures, and the demo bill/tax seed is now gated behind the
+> `sample` regime. See the implementation note below and the per-decision impl notes on D1 and D5.
+
 > Status: decision spec, not an implementation patch. It records resolved engine-level product
 > decisions so they stop living as open questions.
 >
@@ -11,6 +16,19 @@
 > open-signoff register) and `tooling/config/release-blockers.json` (native/release gate). The eight
 > decisions below were product-decision blockers, not native blockers, so they are recorded here and
 > in `27_DECISION_LOG`, not in `release-blockers.json`.
+>
+> Implementation note (2026-06-30 evening, commits eb6e0a0/3783c9c/a3f81c9 on the
+> `apps/mobile/src/folio/` faithful-port surface): the faithful-port engines now expose the
+> route/pressure/calendar contracts these decisions rely on. App-wide Melo pressure is derived from
+> the real route via `derivePressure(tightSpare)`
+> (`apps/mobile/src/folio/screens/today/pressure.ts`), so an empty/cleared app stays neutral.
+> `RouteResult.incomingTotal` / `RouteResult.outgoingTotal`
+> (`apps/mobile/src/folio/lib/moneyPath.ts`, populated in `storeRoute.ts`) feed the Today summary
+> trio from real route totals instead of hardcoded figures (D1). And `deriveCalendarEvents(...)`
+> (`apps/mobile/src/folio/lib/calendarEvents.ts`) takes an `includeSampleBills` param that gates the
+> demo `RECURRING_BILLS` and example review/tax rows behind the demo regime
+> (`currentBalance.source==='sample'`) — keeping fabricated outflows out of a cleared/real app, per
+> invariant §2.4 "no hidden authority".
 
 ## 1. Purpose
 
@@ -105,6 +123,14 @@ User-facing source line (approved copy): "Based on what you entered" · "From yo
 - Tests: `firstMinuteFlow.test.ts`, `phase6/shellEvidence.test.ts` keep the `720.00` expectations as
   *sample* assertions; **add** a test that real Today refuses to render a position without a
   `sourceType`, and that a `sample` position never resolves over real user data.
+
+> **Impl note (2026-06-30, `eb6e0a0`):** in the `folio` surface this sample-gate is realized by the
+> route builder exposing real totals — `RouteResult.incomingTotal` / `RouteResult.outgoingTotal`
+> (`apps/mobile/src/folio/lib/storeRoute.ts`) — which Today's summary trio and money-path chart now
+> read instead of hardcoded figures. App-wide pressure is derived from that real route via
+> `derivePressure(tightSpare)` (`apps/mobile/src/folio/screens/today/pressure.ts`), gated on a real
+> money picture so a cleared/empty app stays neutral. Demo data stays gated on
+> `currentBalance.source === 'sample'` (the D1 `sample` authority).
 
 **Status.** decided · impl-pending.
 
@@ -220,6 +246,13 @@ top-up happens.
   labels in `todayPath.tsx` — derive the dip label and timing from the configured cadence, not the
   literal string "Friday". (`apps/mobile/src/local/calendarEvents.ts` already documents that the V1
   static Friday seed was deliberately not ported — keep it that way.)
+
+> **Impl note (2026-06-30, `eb6e0a0`):** in the `folio` surface the recurring-bill seed
+> (`RECURRING_BILLS`: Octopus / Council Tax / Rent / BT) and the generic UK tax deadlines are now
+> gated behind a demo-regime flag — `deriveCalendarEvents(...)` takes an `includeSampleBills` param
+> (`apps/mobile/src/folio/lib/calendarEvents.ts`, default `true`, set from
+> `currentBalance.source === 'sample'` in `storeRoute.ts`) — so a cleared/real app shows only the
+> user's own outflows instead of the seeded cadence.
 - Tests: `surfaces/pressureMap/paydayRitual*.test.ts` — assert label/timing follow cadence; add a
   payday-attached case and a no-income "ask the user" case.
 
@@ -300,7 +333,6 @@ not Open Banking.)*
 exact free/paid mapping stays open in `27_DECISION_LOG` ("precise free/paid entitlement mapping").
 
 **Status.** decided. *(No implementation pending — guardrail only; do not invent prices.)*
-
 ---
 
 ## 7. Affected-code & implementation map
@@ -333,3 +365,13 @@ at the decision level; nothing here is waiting on a founder answer except the ex
 (D8), which were intentionally left open and do not block the port. **Technical blockers remain:**
 D1–D7 carry `impl-pending` code/test work per §7. "RN PORT UNBLOCKED" is true for *decisions*; it is
 not yet true for *implementation* until §7 lands and its acceptance tests pass.
+
+> **Progress (2026-06-30 evening, commits eb6e0a0/3783c9c/a3f81c9):** on the `apps/mobile/src/folio/`
+> faithful-port surface the D1 and D5 *sample/hardcoded-anchor* concerns are now satisfied — Today's
+> money-path chart, summary trio and low-point tile read real route totals (`RouteResult.incomingTotal`
+> / `outgoingTotal`), app-wide Melo pressure is derived from the real route (`derivePressure`), and the
+> demo bill/tax cadence is gated behind the `sample` regime (`includeSampleBills` on
+> `deriveCalendarEvents`). This closes the "no hidden hardcoded balance" / "no hardcoded Friday" part
+> of D1/D5 for the shipping surface. It does **not** complete the full §7 acceptance-test matrix
+> (clamp/weekend cases, layered-undo, real-edit history, export round-trip, sheet import), so the
+> overall `impl-pending` status above still stands.

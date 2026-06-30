@@ -112,15 +112,38 @@ pnpm mobile:apk:android
 
 ## Choosing a model
 
-The default is `google/gemini-2.0-flash-001` — cheap and fast. Other inexpensive Gemini options
-on OpenRouter you can set via `OPENROUTER_MODEL` (or `wrangler secret put OPENROUTER_MODEL`):
+> Update (2026-06-30, commits eb6e0a0/3783c9c/a3f81c9): the app now splits models by cost. **Chat**
+> pins the cheap text model `google/gemini-2.5-flash-lite` (`apps/mobile/src/local/meloAiClient.ts`);
+> **vision** — PDF/photo statement extraction — uses the more capable `google/gemini-2.5-flash`
+> (`apps/mobile/src/local/statementReaderClient.ts`). The gateway enforces a **model allow-list**
+> (`OPENROUTER_ALLOWED_MODELS`, default `google/gemini-2.5-flash-lite,google/gemini-2.5-flash` in
+> `services/ai-gateway/src/index.ts`): any model outside that set is rejected with a 400, so a leaked
+> weak token cannot bill a costlier (frontier) model. The gateway's own `OPENROUTER_MODEL` default
+> (`services/ai-gateway/wrangler.toml`) is now `google/gemini-2.5-flash`. Activating this still needs
+> a `wrangler deploy` plus an OpenRouter spend cap (see step (a) and the security note above).
 
-- `google/gemini-2.0-flash-001` (default — fast, low cost)
-- `google/gemini-2.0-flash-lite-001` (cheapest, lower quality)
-- `google/gemini-flash-1.5` (older, very cheap)
+The gateway default is `google/gemini-2.5-flash` (vision + PDF capable); chat pins the cheaper
+`google/gemini-2.5-flash-lite` from the app (see "Cost split + gateway model allow-list" below).
+Any model you set via `OPENROUTER_MODEL` (or `wrangler secret put OPENROUTER_MODEL`) must also be in
+the gateway allow-list (`OPENROUTER_ALLOWED_MODELS`) or the gateway rejects it. Inexpensive Gemini
+options on OpenRouter:
+
+- `google/gemini-2.5-flash` (gateway default — vision/PDF capable)
+- `google/gemini-2.5-flash-lite` (chat default — cheapest)
 
 Check current pricing at https://openrouter.ai/models before picking. Changing the model is a
 gateway config change only — no app rebuild required (the app sends no model).
+
+### Cost split + gateway model allow-list (2026-06-30, `eb6e0a0`)
+
+The app now splits AI work across two tiers to keep cost down:
+
+- **Chat** pins the cheap `gemini-2.5-flash-lite`.
+- **Vision** (PDF / photo statement extraction) reserves the costlier `gemini-2.5-flash`.
+
+The gateway enforces a **model allow-list** and **rejects models outside it**, so a misconfigured or
+costlier model can't be billed through the key. Take this live with `wrangler deploy`, and keep an
+**OpenRouter spend cap** on the key as the hard cost ceiling (see step (a)).
 
 ## Files involved
 
