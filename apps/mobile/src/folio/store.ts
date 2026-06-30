@@ -741,25 +741,20 @@ export function fastForwardMonth() {
  * Melo's server-side tools return a friendly message; the actual app state
  * change happens here on the client when a tool part finishes streaming.
  * Each tool returns an `undo` closure so the chat can offer a one-tap revert.
- * Keep pot matching loose (case-insensitive substring) so the model doesn't
- * have to know exact pot names.
+ * The Melo tool set is the log_* family (record money as transactions). Pot
+ * moves are NOT a Melo tool — addToPot / borrowFromPot are called directly.
  */
-function findPot(query: string): Pot | undefined {
-  const q = query.trim().toLowerCase();
-  return state.pots.find((p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase() === q);
-}
-
 export type MeloToolName =
-  | 'pause_subscription'
-  | 'move_between_pots'
-  | 'set_tight_point_goal'
-  | 'log_spend';
+  | 'log_spend'
+  | 'log_income'
+  | 'log_refund'
+  | 'log_transfer';
 
 const MELO_TOOL_NAMES: MeloToolName[] = [
-  'pause_subscription',
-  'move_between_pots',
-  'set_tight_point_goal',
   'log_spend',
+  'log_income',
+  'log_refund',
+  'log_transfer',
 ];
 
 export type MeloToolResult =
@@ -805,6 +800,65 @@ export function matchMeloTool(
   return { ok: false, candidates: hits };
 }
 
+/** The Transaction.category union, as a runtime list for validating a
+ *  model-proposed category. Anything off this list falls back to 'other'. */
+const TXN_CATEGORIES: Transaction['category'][] = [
+  'food',
+  'transport',
+  'fun',
+  'bills',
+  'shopping',
+  'income',
+  'other',
+];
+
+/** Coerce a model-proposed category to a valid Transaction['category'], else
+ *  the honest fallback `'other'`. Never invents a category that isn't real. */
+function coerceCategory(raw: unknown): Transaction['category'] {
+  const value = String(raw ?? 'other') as Transaction['category'];
+  return TXN_CATEGORIES.includes(value) ? value : 'other';
+}
+
+/* ---------- Melo log_* tool family — chosen params + behaviour ----------
+ * SPEC NOTE for Lovable / owner to confirm. The exact param shapes for
+ * log_income / log_refund / log_transfer live in Lovable's project-knowledge,
+ * NOT in the design code, so these are a reasonable, documented implementation
+ * built ONLY on the existing Transaction model (no new fields, no new category
+ * values). Every tool is candidate/honest: Melo proposes, the user confirms in
+ * the chat, and each result carries an `undo` closure for the 8s revert.
+ *
+ *   log_spend({ merchant, amount>0, category? })
+ *     → one NEGATIVE transaction (a spend). `category` is best-fit or 'other'.
+ *       Source 'melo'. (Unchanged from the prior design — kept verbatim.)
+ *
+ *   log_income({ merchant/source, amount>0, category? })
+ *     → one POSITIVE transaction (an inflow). The payer name is read from
+ *       `merchant` OR `source` (the model may use either). `category` defaults
+ *       to 'income' but any valid category the model gives is respected.
+ *       Source 'melo'.
+ *
+ *   log_refund({ merchant, amount>0, original?, category? })
+ *     → one POSITIVE transaction tagged as a refund and "linked" to the
+ *       original spend WITHOUT auto-deciding a verdict. There is no free-text
+ *       note field on Transaction, so the link is recorded honestly in the
+ *       `merchant` string as "<merchant> · refund" (and "· re <original>" when
+ *       the model passes the original merchant/txn it relates to). Category
+ *       stays the honest, non-judgemental 'other' unless the model supplies a
+ *       valid one — a refund is NOT income, so it is never silently filed as
+ *       income. Source 'melo'.
+ *
+ *   log_transfer({ from, to, amount>0 })
+ *     → a PAIRED move recorded as TWO neutral transactions on one timestamp:
+ *       a negative "out" leg ("<from> → <to> · transfer") and a positive "in"
+ *       leg ("<to> ← <from> · transfer"), both category 'other'. A transfer is
+ *       money you still own moving between accounts, so the pair nets to £0 and
+ *       never reads as a spend or an inflow. Undo removes BOTH legs. Source
+ *       'melo'. (A single transfer-tagged record was the alternative; the
+ *       paired shape is used so each side is visible where the money lands.)
+ *
+ * Pot moves are NO LONGER a Melo tool — addToPot / borrowFromPot are called
+ * directly by the app, not through applyMeloTool.
+ */
 export function applyMeloTool(name: string, input: Record<string, unknown>): MeloToolResult {
   // Normalise the tool name first (ENGINES §6). An unknown / ambiguous name
   // returns candidates instead of silently no-op'ing on the exact-switch miss.
@@ -815,66 +869,78 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
       : { applied: false, reason: 'unknown tool', candidates: [] };
   }
   switch (matched.name) {
-    case 'pause_subscription': {
-      const sub = String(input.name ?? '').trim();
-      if (!sub) return { applied: false, reason: 'no name' };
-      const wasPaused = !!state.subPaused[sub];
-      togglePaused(sub, true);
-      return {
-        applied: true,
-        summary: `Paused ${sub}`,
-        undo: () => togglePaused(sub, wasPaused),
-      };
-    }
-    case 'move_between_pots': {
-      const from = findPot(String(input.from ?? ''));
-      const to = findPot(String(input.to ?? ''));
-      const amount = Number(input.amount ?? 0);
-      if (!from || !to || !(amount > 0)) return { applied: false, reason: 'bad args' };
-      if (from.saved < amount) return { applied: false, reason: 'insufficient funds' };
-      setPots((prev) =>
-        prev.map((p) => {
-          if (p.id === from.id) return { ...p, saved: Math.max(0, p.saved - amount) };
-          if (p.id === to.id) return { ...p, saved: p.saved + amount };
-          return p;
-        }),
-      );
-      return {
-        applied: true,
-        summary: `Moved £${amount} from ${from.name.split(' ')[0]} → ${to.name.split(' ')[0]}`,
-        undo: () =>
-          setPots((prev) =>
-            prev.map((p) => {
-              if (p.id === from.id) return { ...p, saved: p.saved + amount };
-              if (p.id === to.id) return { ...p, saved: Math.max(0, p.saved - amount) };
-              return p;
-            }),
-          ),
-      };
-    }
-    case 'set_tight_point_goal': {
-      const amount = Number(input.amount ?? 0);
-      if (!(amount >= 0)) return { applied: false, reason: 'bad amount' };
-      const prev = state.tightPointGoal;
-      setTightPointGoal(amount);
-      return {
-        applied: true,
-        summary: `Tight-point floor: £${amount}`,
-        undo: () => setTightPointGoal(prev),
-      };
-    }
     case 'log_spend': {
       const merchant = String(input.merchant ?? '').trim();
       const amount = Number(input.amount ?? 0);
-      const categoryRaw = String(input.category ?? 'other') as Transaction['category'];
-      const valid: Transaction['category'][] = ['food', 'transport', 'fun', 'bills', 'shopping', 'income', 'other'];
-      const category = valid.includes(categoryRaw) ? categoryRaw : 'other';
+      const category = coerceCategory(input.category);
       if (!merchant || !(amount > 0)) return { applied: false, reason: 'bad args' };
       const created = addTransaction({ merchant, amount: -amount, category, source: 'melo' });
       return {
         applied: true,
         summary: `Logged £${amount.toFixed(2)} at ${merchant}`,
         undo: () => removeTransaction(created.id),
+      };
+    }
+    case 'log_income': {
+      // The payer/source name may arrive as `merchant` or `source`.
+      const merchant = String(input.merchant ?? input.source ?? '').trim();
+      const amount = Number(input.amount ?? 0);
+      // Default to the 'income' category; honour any valid category the model gives.
+      const category = input.category === undefined ? 'income' : coerceCategory(input.category);
+      if (!merchant || !(amount > 0)) return { applied: false, reason: 'bad args' };
+      const created = addTransaction({ merchant, amount: amount, category, source: 'melo' });
+      return {
+        applied: true,
+        summary: `Logged £${amount.toFixed(2)} in from ${merchant}`,
+        undo: () => removeTransaction(created.id),
+      };
+    }
+    case 'log_refund': {
+      const merchant = String(input.merchant ?? '').trim();
+      const amount = Number(input.amount ?? 0);
+      if (!merchant || !(amount > 0)) return { applied: false, reason: 'bad args' };
+      // Tag it as a refund and (optionally) "link" it to the original spend in the
+      // merchant string — the only free-text field we have. Honest, not a verdict.
+      const original = String(input.original ?? '').trim();
+      const label = original ? `${merchant} · refund · re ${original}` : `${merchant} · refund`;
+      // A refund is an inflow but NOT income; keep 'other' unless the model gives a real category.
+      const category = input.category === undefined ? 'other' : coerceCategory(input.category);
+      const created = addTransaction({ merchant: label, amount: amount, category, source: 'melo' });
+      return {
+        applied: true,
+        summary: `Logged £${amount.toFixed(2)} refund from ${merchant}`,
+        undo: () => removeTransaction(created.id),
+      };
+    }
+    case 'log_transfer': {
+      const from = String(input.from ?? '').trim();
+      const to = String(input.to ?? '').trim();
+      const amount = Number(input.amount ?? 0);
+      if (!from || !to || !(amount > 0)) return { applied: false, reason: 'bad args' };
+      // A neutral, paired move: one negative "out" leg + one positive "in" leg on a
+      // shared timestamp, so it nets to £0 and never reads as a spend or an inflow.
+      const when = new Date().toISOString();
+      const outLeg = addTransaction({
+        merchant: `${from} → ${to} · transfer`,
+        amount: -amount,
+        category: 'other',
+        source: 'melo',
+        when,
+      });
+      const inLeg = addTransaction({
+        merchant: `${to} ← ${from} · transfer`,
+        amount: amount,
+        category: 'other',
+        source: 'melo',
+        when,
+      });
+      return {
+        applied: true,
+        summary: `Logged £${amount.toFixed(2)} transfer ${from} → ${to}`,
+        undo: () => {
+          removeTransaction(outLeg.id);
+          removeTransaction(inLeg.id);
+        },
       };
     }
     default:

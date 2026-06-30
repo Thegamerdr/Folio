@@ -52,8 +52,29 @@ Documented RN choices left for the owner (several fold into the planned Melo-ent
 3. **Shortfall borrow** is an inline preview→commit instead of routing to Pots.
 4. **Melo "start fresh"** clears without a confirm dialog.
 
-> The `docs/audit/` screenshots predate the money fix, so they show the old £39 lowest-point; the corrected
-> engine renders £136 on seed state (and bill-inclusive figures on real data).
+### Lovable audit round — resolved (2026-06-30)
+Lovable cloned the branch and audited it line-by-line (it confirmed the engine numerics match the research
+docs and the money-path fix is sound). The items it flagged are all resolved — **0 folio typecheck errors,
+279 folio tests**:
+- **Melo tools → the `log_*` set** (owner decision): `log_spend`, `log_income`, `log_refund` (linked),
+  `log_transfer` (paired); pot moves now go through `addToPot`/`borrowFromPot`, not Melo tools.
+  **This intentionally DIVERGES from the design code** (`folio-melo` main still implements
+  `pause_subscription`/`move_between_pots`/`set_tight_point_goal`/`log_spend` in `melo-chat.ts`, `store.ts`,
+  `persona.ts`) — the **design needs updating to match**. Exact param shapes for income/refund/transfer are
+  documented in the `store.ts` + `meloAiClient.ts` headers — confirm them against the project-knowledge spec.
+- **Pots earmarked out of spare** (owner decision): the route + Calendar now start from
+  `currentBalance.amount − Σ pots.saved` plus the future weekly dips (no double-count). **Intentionally
+  DIVERGES from the design code** (which starts from the full `currentBalance.amount`) — the design's Today
+  needs updating to match. Seed lowest point is now −£483.97, clamped to £0 on Today (the honest "tight before
+  payday" signal).
+- **EditTxnSheet wired** to the real `editTransaction` engine via an `openSheet('edit-txn', { id })` payload
+  (was a no-op demo with a hardcoded subject).
+- **Privacy "Start fresh"** now gates `resetAll` behind the tier-3 `canStartFresh` chain (export-ack → typed
+  confirm → final confirm); it previously bypassed the policy.
+
+> The `docs/audit/` screenshots predate these engine fixes, so the lowest-point numbers shown there are stale
+> (the seed figure has moved £39 → £136 → £0-clamped as bills were added then pots earmarked). The current
+> engine is authoritative; re-capture if you need fresh stills.
 
 ---
 

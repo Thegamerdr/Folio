@@ -66,7 +66,7 @@ import { MeloChatSheet } from '@/folio/sheets/MeloChatSheet';
 import { ShareSheet } from '@/folio/sheets/ShareSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { useAppStore } from '@/folio/store';
-import type { MeloIntent, Nav, Pressure, ScreenId, SheetId } from '@/folio/types';
+import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from '@/folio/types';
 
 // The shell's landing pressure. The web showcase let a design tool flip Melo through her five moods
 // (web-only chrome, not ported); the real web app derives pressure from state and defaults to `calm`
@@ -198,6 +198,11 @@ export function FolioShell() {
   const [sheet, setSheet] = useState<SheetId>(null);
   // Carried into the melo-chat sheet when a flow opens Melo with a prefill/seed (web intent.*).
   const [meloIntent, setMeloIntent] = useState<MeloIntent | undefined>(undefined);
+  // Carried into the edit-txn sheet when a flow opens it with a real subject — the posted
+  // transaction id the user chose to correct. Mirrors the meloIntent slot exactly: set when
+  // openSheet('edit-txn', { id }) is called, cleared whenever a sheet closes or a navigation
+  // supersedes it. `undefined` = no target (cold open) → the sheet keeps its safe inert fallback.
+  const [editTxnTarget, setEditTxnTarget] = useState<string | undefined>(undefined);
   const reduceMotion = useReducedMotion();
 
   // Back-history stack — a faithful port of the web shell's `historyRef` (HeroPhone.tsx): `go` pushes
@@ -218,6 +223,7 @@ export function FolioShell() {
     historyRef.current.push(next);
     setSheet(null);
     setMeloIntent(undefined);
+    setEditTxnTarget(undefined);
     setScreen(next);
   }, []);
 
@@ -230,16 +236,23 @@ export function FolioShell() {
     const prev = historyRef.current[historyRef.current.length - 1] ?? 'today';
     setSheet(null);
     setMeloIntent(undefined);
+    setEditTxnTarget(undefined);
     setScreen(prev);
   }, []);
 
-  const openSheet = useCallback((next: SheetId) => {
+  // Open a sheet, carrying the optional payload for sheets that need a real subject. Only 'edit-txn'
+  // reads it today: `payload.id` is the posted transaction the user chose to correct, parked in the
+  // editTxnTarget slot and threaded into <EditTxnSheet target={...}>. Any other sheet ignores the
+  // payload and the target is cleared, so opening a different sheet never carries a stale id.
+  const openSheet = useCallback((next: SheetId, payload?: SheetPayload) => {
+    setEditTxnTarget(next === 'edit-txn' ? payload?.id : undefined);
     setSheet(next);
   }, []);
 
   const closeSheet = useCallback(() => {
     setSheet(null);
     setMeloIntent(undefined);
+    setEditTxnTarget(undefined);
   }, []);
 
   // Open the Melo companion CHAT sheet, carrying any prefill/seed the flow provided (web intent).
@@ -306,7 +319,10 @@ export function FolioShell() {
           (never nested inside the generic one) and is visible only while it is the active sheet. */}
       {sheet === 'onboarding' && <OnboardingSheet visible onClose={closeSheet} />}
       {sheet === 'edit-item' && <EditItemSheet visible onClose={closeSheet} />}
-      {sheet === 'edit-txn' && <EditTxnSheet visible onClose={closeSheet} />}
+      {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
+          (the row the opener chose) so Save corrects THAT transaction via the store; with no target
+          (cold open) the sheet keeps its safe inert fallback and edits nothing. */}
+      {sheet === 'edit-txn' && <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />}
       {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
       {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
       {sheet === 'add-event' && <AddEventSheet visible onClose={closeSheet} />}

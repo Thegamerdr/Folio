@@ -1,10 +1,11 @@
 // @rn-sheet     MeloChatSheet
 // @purpose      Melo conversation surface — a snapshot of app state + a proactive opener, hosting the
-//               full Melo chat (transcript, tone/share settings, the four store-mutating tool calls
+//               full Melo chat (transcript, tone/share settings, the four store-recording tool calls
 //               with an 8s undo window, composer).
 // @reads        Full app snapshot (pots, subs, subPaused, tightPointGoal, onboarding, last-14d txns)
-// @writes       applyMeloTool via tool callbacks (pause sub / move pots / set tight-point floor /
-//               log spend), each with a captured undo closure.
+// @writes       applyMeloTool via tool callbacks — the log_* family (log spend / log income /
+//               log refund / log transfer), each recorded as a Transaction with a captured undo
+//               closure. Pot moves are NOT a Melo tool (they go through addToPot / borrowFromPot).
 // @copy         FROZEN — most assistant lines come from the gateway persona, not this file. The
 //               keyed strings (Melo name, currency) read VERBATIM from '@/folio/copy/copy'. The
 //               web's share-row line "Stays on this device" is a BANNED honest-claim (COPY_DECK
@@ -44,6 +45,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   Animated,
   Easing,
   Pressable,
@@ -520,15 +522,23 @@ function MeloChat({
     setStatus('ready');
   }
 
-  function startFresh() {
-    // window.confirm has no RN equivalent in this design-system layer; clearing is a quiet,
-    // reversible action (the seed re-appears next open), so it clears directly — matching the
-    // "Start fresh" affordance without a blocking dialog.
+  // Clear the transcript. The web design guarded this behind window.confirm("Clear this
+  // conversation?"); the RN equivalent is Alert.alert with a confirm button, so the clear only
+  // happens once the user taps "Clear". This is the low-stakes CONVERSATION clear (the seed
+  // re-appears next open) — NOT the data wipe — so the dialog is light, with a plain Cancel.
+  function performClear() {
     for (const id of Object.keys(undoTimers.current)) clearTimeout(undoTimers.current[id]);
     undoTimers.current = {};
     appliedRef.current = new Set();
     setUndoMap({});
     setMessages([]);
+  }
+
+  function startFresh() {
+    Alert.alert('Clear this conversation?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: performClear },
+    ]);
   }
 
   // --- Stick-to-bottom transcript + scroll-to-bottom affordance. ----------------------------------

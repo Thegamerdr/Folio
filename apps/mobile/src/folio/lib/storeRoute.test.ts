@@ -5,11 +5,15 @@
 // it owns the mapping TodayScreen used to inline. It builds the route from the
 // SAME engine the Calendar uses — `deriveCalendarEvents` over a 35-day window —
 // so the route's curve IS the Calendar's ladder by construction. These tests pin
-// the corrected model faithful to the design's single engine
+// the earmark model
 // (`computeSpareAndTightest(groupByDay(deriveCalendarEvents({windowDays:35,…})),
-// currentBalance.amount)`, design ScreenToday.tsx):
-//   - the path starts from the FULL `currentBalance.amount` (pots are dated
-//     −perWeek dip events, NOT a flat earmark subtracted at the start);
+// currentBalance.amount − Σ pots.saved)`):
+//   - the path starts from `currentBalance.amount − Σ pots.saved` — the
+//     already-saved pot cash is earmarked OUT of visible spare (the "saved amount
+//     lowers Today's spare" rule). The pots' FUTURE −perWeek contributions enter
+//     as DATED dip events ("bends the path") — two DISTINCT effects, no
+//     double-count (Σ saved = past cash already set aside; the dips = future
+//     contributions). `pots: []` is passed to computeRoute (no flat plateau);
 //   - the sampled window is the fixed 35 days (the lowest point may fall before
 //     OR after payday), so `points.length` is the window samples, not
 //     `daysToPayday + 1`, and payday is not necessarily the last/max point;
@@ -78,31 +82,72 @@ describe('routeFromStore — seed state', () => {
     expect(route.tightPoint.amount).toBe(minY);
   });
 
-  it('starts the path from the FULL current balance (pots are dated dips, not a start-of-path earmark)', () => {
+  it('earmarks saved pot cash OUT of the start: path begins at balance − Σ pots.saved', () => {
     const state = seedState();
     const route = routeFromStore(state, NOW);
 
-    // Faithful to the design's single engine: the curve anchors to the full
-    // `currentBalance.amount` (~£720 on seed), NOT balance − Σ pots.saved. Pots
-    // appear only as future dated −perWeek dips in the timeline, so day 0 — which
-    // has no seed money movement — sits exactly at the raw balance.
-    expect(route.points[0]!.y).toBe(state.currentBalance.amount);
-    expect(route.points[0]!.y).toBe(720);
+    // The already-SAVED pot cash is set aside, so it lowers Today's spare: the
+    // curve anchors to `currentBalance.amount − Σ pots.saved`, NOT the full
+    // balance. The pots' FUTURE −perWeek contributions are separate dated dips in
+    // the timeline ("bends the path"), so day 0 — which has no seed money movement
+    // — sits exactly at the earmarked start (£720 balance − £620 saved = £100), a
+    // DISTINCT effect from the dips (no double-count).
+    const sigmaSaved = state.pots.reduce((acc, p) => acc + p.saved, 0);
+    expect(sigmaSaved).toBe(620); // 420 + 140 + 60
+    expect(route.points[0]!.y).toBe(state.currentBalance.amount - sigmaSaved);
+    expect(route.points[0]!.y).toBe(100);
   });
 
-  it('seed tight point is a sensible positive figure (~£136) — the design tightest', () => {
+  it('does NOT double-count pots: earmark is a single flat start offset, the dated dips are separate', () => {
+    const state = seedState();
+    const route = routeFromStore(state, NOW);
+    const sigmaSaved = state.pots.reduce((acc, p) => acc + p.saved, 0);
+
+    // The earmark must be EXACTLY Σ saved once — the whole curve sits Σ saved below
+    // the full-balance model on every day, no more (folding the future −perWeek
+    // dips into the start would push it lower than −Σ saved). Recompute the
+    // full-balance ladder and confirm the gap is precisely Σ saved on the start
+    // point AND on the tight point — i.e. a single flat offset, the dated dips
+    // untouched.
+    const events = deriveCalendarEvents({
+      subs: state.subs,
+      subPaused: state.subPaused,
+      subOverrides: state.subOverrides,
+      onboarding: state.onboarding,
+      manualEvents: state.calendarEvents,
+      pots: state.pots,
+      windowDays: ROUTE_WINDOW_DAYS,
+      now: new Date(`${NOW}T00:00:00.000Z`),
+    });
+    const full = computeSpareAndTightest(groupByDay(events), state.currentBalance.amount);
+
+    // Start: full balance − the SAME Σ saved (no extra dip subtracted at day 0).
+    expect(route.points[0]!.y).toBeCloseTo(state.currentBalance.amount - sigmaSaved, 10);
+    // Tight point: exactly Σ saved below the full-balance tightest, same day —
+    // proving the future weekly dips are still counted once (in the events), not
+    // again at the start.
+    expect(route.tightPoint.date).toBe(full.tightestDate);
+    expect(full.tightestSpare - route.tightPoint.amount).toBeCloseTo(sigmaSaved, 10);
+  });
+
+  it('seed tight point goes negative once pots are earmarked; Today clamps the hero to £0', () => {
     const route = routeFromStore(seedState(), NOW);
 
-    // The lowest point on the seed curve is a real, positive day-of-the-month
-    // squeeze before payday, with the four recurring bills included. Rounds to
-    // £136 — the same number the design's Today headline shows
-    // (Math.max(0, round(tightestSpare))).
-    expect(route.tightPoint.amount).toBeGreaterThan(0);
-    expect(Math.round(route.tightPoint.amount)).toBe(136);
-    expect(Math.max(0, Math.round(route.tightPoint.amount))).toBe(136);
+    // Earmarking £620 of saved pot cash drops the lowest point £620 below the old
+    // full-balance figure (£136.03 → −£483.97), the honest "tight before payday"
+    // signal: this person's spendable money runs out before payday once the pots
+    // are set aside. The raw curve is allowed negative — it is the truth.
+    expect(route.tightPoint.amount).toBeLessThan(0);
+    expect(Math.round(route.tightPoint.amount)).toBe(-484);
 
-    // It lands before payday (the start-of-month bill cluster lands after), so
-    // payday is NOT where the curve bottoms out.
+    // The Today hero applies the existing floor `Math.max(0, round(tightestSpare))`
+    // (TodayScreen.tsx) — so the headline reads £0, not a negative number, while
+    // the underlying route stays honest.
+    expect(Math.max(0, Math.round(route.tightPoint.amount))).toBe(0);
+
+    // It still lands before payday (the start-of-month bill cluster lands after),
+    // so payday is NOT where the curve bottoms out. The earmark is a flat offset,
+    // so the tight DAY is unchanged from the full-balance model.
     expect(route.tightPoint.date < '2026-06-25').toBe(true);
   });
 
@@ -124,9 +169,12 @@ describe('routeFromStore — seed state', () => {
       windowDays: ROUTE_WINDOW_DAYS,
       now: new Date(`${NOW}T00:00:00.000Z`),
     });
+    // Anchor the ladder to the SAME earmarked start the route uses
+    // (`currentBalance.amount − Σ pots.saved`) so the two agree by construction.
+    const sigmaSaved = state.pots.reduce((acc, p) => acc + p.saved, 0);
     const { tightestDate, tightestSpare } = computeSpareAndTightest(
       groupByDay(events),
-      state.currentBalance.amount,
+      state.currentBalance.amount - sigmaSaved,
     );
 
     expect(route.tightPoint.date).toBe(tightestDate);

@@ -79,6 +79,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { getState, resetAll, setPartial } from '@/folio/store';
+import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Privacy is populated-only and offline is
@@ -150,14 +151,31 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  // Start fresh — snapshot the full state for Undo, clear+reseed, jump to Start, then offer Undo. The
-  // web wrapped this in a 6s sonner toast; the RN-native analog (already used in SubscriptionsScreen)
-  // is Alert.alert with an Undo action. @rn-engine export, melo-gateway: there is no export/share
-  // engine wired from the folio import surface yet — Export my data just opens the 'share' sheet, and
-  // resetAll() reseeds sample/demo content (it does NOT leave a truly empty store), so the "clears
-  // everything" / "Delete everything in one tap" claims describe the user's OWN data being wiped, not
-  // the demo seed. Confirm before ship if the seed should be suppressed after a deliberate reset.
-  const handleStartFresh = () => {
+  // Start fresh — Tier-3 "nuke" per undoPolicy.ts (ENGINES.md §6). resetAll() wipes ALL of the user's
+  // data, so it is NEVER one-tap reachable: it fires only once `canStartFresh` clears all three gates —
+  // an explicit "I've exported my data" acknowledgement (exportedAck), a deliberate typed-style confirm
+  // of the destructive intent (typedConfirm), and a final confirm (finalConfirm). The engine
+  // (canStartFresh) and this UI now agree; the earlier bare one-tap resetAll bypassed the gate.
+  //
+  // Realised with the codebase's established RN confirmation convention — Alert.alert button chains
+  // (SubscriptionsScreen / MeloChatSheet / TodayRecentTxns). RN's Alert.prompt is iOS-only and is used
+  // nowhere here, so the typed confirmation is honoured as a deliberate, separately-worded destructive
+  // step rather than a free-text box. Each step is independently cancellable, and the wipe only runs
+  // inside the final branch after the gate returns true.
+  //
+  // Once the gate clears: snapshot the full state for Undo, clear+reseed, jump to Start, then offer
+  // Undo (the web's 6s sonner toast → the RN Alert.alert + Undo analog). @rn-engine export,
+  // melo-gateway: there is no export/share engine wired from the folio import surface yet — Export my
+  // data just opens the 'share' sheet, and resetAll() reseeds sample/demo content (it does NOT leave a
+  // truly empty store), so the "clears everything" / "Delete everything in one tap" claims describe the
+  // user's OWN data being wiped, not the demo seed. Confirm before ship if the seed should be
+  // suppressed after a deliberate reset.
+  const performStartFresh = () => {
+    // The gate is cleared — build the StartFreshState the engine vets and confirm all three are set
+    // before the destructive call. This keeps the engine as the single source of truth for the policy.
+    const gate: StartFreshState = { typedConfirm: true, exportedAck: true, finalConfirm: true };
+    if (!canStartFresh(gate)) return;
+
     const snapshot = { ...getState() };
     resetAll();
     nav.go('start');
@@ -167,6 +185,48 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       [
         { text: 'Undo', onPress: () => setPartial(snapshot) },
         { text: 'OK', style: 'cancel' },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  const handleStartFresh = () => {
+    // Gate 1 — exportedAck: confirm the user has exported before anything is destroyed.
+    Alert.alert(
+      'Start fresh?',
+      "This wipes everything you've added. Export your data first if you want to keep it.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: "I've exported — continue",
+          onPress: () => {
+            // Gate 2 — typedConfirm: a deliberate, separately-worded confirmation of the destructive
+            // intent (the cross-platform stand-in for the typed phrase the policy requires).
+            Alert.alert(
+              'Are you sure?',
+              'This clears all your data and cannot be undone after the next step.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, clear everything',
+                  onPress: () => {
+                    // Gate 3 — finalConfirm: the last destructive confirm; only this branch wipes.
+                    Alert.alert(
+                      'Clear everything now?',
+                      'There is no going back once this is done.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Start fresh', style: 'destructive', onPress: performStartFresh },
+                      ],
+                      { cancelable: true },
+                    );
+                  },
+                },
+              ],
+              { cancelable: true },
+            );
+          },
+        },
       ],
       { cancelable: true },
     );

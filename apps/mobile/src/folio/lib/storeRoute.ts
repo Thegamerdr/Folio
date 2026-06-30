@@ -5,12 +5,15 @@
  * `computeRoute` (./moneyPath) is pure and store-agnostic by contract: it takes
  * `now`/`payday` ISO strings and dated-amount buckets and never reads the store
  * singleton or `Date.now()`. This module owns the mapping that used to live
- * inline in TodayScreen — currentBalance.amount as the starting balance, monthly
+ * inline in TodayScreen — `currentBalance.amount − Σ pots.saved` as the starting
+ * balance (already-saved pot cash is earmarked OUT of visible spare per the
+ * product rule "saved amount lowers Today's spare and bends the path"), monthly
  * income on the resolved next payday, active (non-paused) subs dated
  * `now + nextRenewalDaysAway + override`, transactions as dated spend (sign
- * flipped: stored "negative = spend" → engine outflow magnitude), and pots.saved
- * as the flat earmark — and returns `computeRoute(...)`. Extracting it keeps
- * Today, and any future surface, byte-identical instead of each re-deriving it.
+ * flipped: stored "negative = spend" → engine outflow magnitude), and the future
+ * dated −perWeek pot top-up dips (from `deriveCalendarEvents`) — and returns
+ * `computeRoute(...)`. Extracting it keeps Today, and any future surface,
+ * byte-identical instead of each re-deriving it.
  *
  * `routeFromStore` is pure (state + an injected `now`) so it is unit-testable
  * without React. `useRoute` is the thin reactive wrapper: a `useAppStore`
@@ -84,14 +87,22 @@ function nextYearMonthOf(iso: string): string {
  * (`deriveCalendarEvents`, over the SAME 35-day window) so the route's curve is
  * the Calendar's ladder by construction — recurring bills (Rent / Council Tax /
  * Octopus / BT), sub renewals, payday income, manual events, and pot top-ups are
- * all present once, from one place, never re-listed here. The path starts from
- * the FULL `currentBalance.amount` (the design's single engine,
- * `computeSpareAndTightest(groups, currentBalance.amount)`), and pots enter the
- * curve ONLY as their future DATED `−perWeek` top-up dips (already in `spend` via
- * `deriveCalendarEvents`) — NOT as a flat `Σ pots.saved` earmark subtracted at the
- * start, and never the engine's internal flat `pots` plateau (we pass `pots: []`).
- * Subtracting earmarked pot cash again at the start would double-count pots and
- * drag the tight point ~£Σsaved too low.
+ * all present once, from one place, never re-listed here. Pots produce TWO
+ * DISTINCT effects on the curve, and both apply with NO double-count:
+ *   1. the already-SAVED cash (`Σ pots.saved`) is earmarked OUT of the start, so
+ *      the path begins at `currentBalance.amount − Σ pots.saved`
+ *      (`computeSpareAndTightest(groups, currentBalance.amount − Σ saved)`) — the
+ *      "saved amount lowers Today's spare" half of the product rule; and
+ *   2. the FUTURE weekly contributions enter the curve as their DATED `−perWeek`
+ *      top-up dips (already in `spend` via `deriveCalendarEvents`) — the "bends
+ *      the path" half.
+ * (1) is past cash already set aside; (2) is future cash about to be — different
+ * money, so subtracting Σ saved at the start AND keeping the dated dips is correct,
+ * not a double-count. We still pass `pots: []` to `computeRoute` (NO flat internal
+ * `pots` plateau) and do NOT re-add the dated dips to the start. The double-count
+ * Lovable warned about is folding the dated weekly dips into the start (or stacking
+ * the internal flat plateau on top of those dips) — this mapping avoids it by
+ * keeping the earmark and the dips separate.
  *
  * The previous mapping dropped bills entirely, modelled pots as a flat plateau,
  * and clamped the window at payday — so the tight point disagreed with the
@@ -156,16 +167,20 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
       ? thisMonthPayday
       : resolvePayday({ dayOfMonth: paydayDom }, nextYearMonthOf(todayIso)));
 
-  // Start from the FULL currentBalance.amount — faithful to the design's single engine
-  // (`computeSpareAndTightest(groups, currentBalance.amount)`, design ScreenToday.tsx:64). Pots are
-  // already in `spend` as dated −perWeek top-up dips (via deriveCalendarEvents), so earmarked pot
-  // cash must NOT be subtracted again at the start — doing so double-counts pots and drags the tight
-  // point ~£Σsaved too low. Pots affect the curve ONLY as their future weekly contributions.
+  // Earmark the already-SAVED pot cash OUT of the start: the path begins at
+  // `currentBalance.amount − Σ pots.saved`, not the full balance — the "saved amount lowers Today's
+  // spare" half of the product rule. This is PAST cash already set aside, a one-off start offset.
+  // It does NOT double-count the pots' FUTURE −perWeek top-up dips: those are different money (cash
+  // about to be saved), already present in `spend` via deriveCalendarEvents, and they "bend the path"
+  // as dated dips. So earmark-at-start AND dated-dips both apply, distinctly. We still pass `pots: []`
+  // (NO flat internal plateau on top of the dips). The double-count to avoid is folding those dated
+  // dips into the start; we don't.
+  const sigmaSaved = state.pots.reduce((acc, p) => acc + p.saved, 0);
   return computeRoute({
     now: todayIso,
     payday: paydayIso,
     windowDays: ROUTE_WINDOW_DAYS,
-    balance: state.currentBalance.amount,
+    balance: state.currentBalance.amount - sigmaSaved,
     income,
     bills: [],
     subs: [],

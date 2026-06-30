@@ -81,6 +81,11 @@ import type { Nav } from '@/folio/types';
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
 // reader. `before` is the current balance; `after` is what it becomes if the item (a spend) is added.
 export type ReviewCandidate = {
+  /** The posted transaction id this candidate corresponds to, when it already exists as a row (so the
+   *  edit-txn sheet can correct THAT transaction). The pre-truth SAMPLE has none — a candidate is not
+   *  a posted fact until Accept, so there is no real subject to edit yet, and the edit-txn sheet falls
+   *  back to its safe inert branch rather than editing a random row. */
+  id?: string;
   merchant: string;
   /** Magnitude in £ (always positive — `flow` carries the direction). */
   amount: number;
@@ -185,6 +190,12 @@ export function ReviewScreen({
 
   const [stamped, setStamped] = useState(false);
   const [category, setCategory] = useState<Category>('Groceries');
+
+  // The payload threaded to the edit-txn sheet — the candidate's real subject id when it already
+  // exists as a posted transaction. Under exactOptionalPropertyTypes the `id` key is OMITTED (not set
+  // to undefined) for the pre-truth SAMPLE, so the sheet receives no target and uses its safe inert
+  // fallback rather than editing a random row.
+  const editTargetPayload = candidate.id !== undefined ? { id: candidate.id } : {};
 
   // The "if you add it" balance: before until stamped, after once committed (a spend drops it).
   const signedDelta = candidate.flow === 'out' ? -candidate.amount : candidate.amount;
@@ -305,7 +316,7 @@ export function ReviewScreen({
             accessibilityRole="button"
             accessibilityLabel="More options"
             hitSlop={12}
-            onPress={() => nav.openSheet('edit-txn')}
+            onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
             style={({ pressed: isPressed }) => [styles.pressIcon, isPressed ? styles.pressed : undefined]}
           >
             <MoreDots color={t.muted} />
@@ -415,7 +426,7 @@ export function ReviewScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit"
-            onPress={() => nav.openSheet('edit-txn')}
+            onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
             style={({ pressed: isPressed }) => [
               styles.secondaryCell,
               { backgroundColor: t.surface, borderColor: t.hairline },

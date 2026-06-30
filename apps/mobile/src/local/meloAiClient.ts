@@ -13,8 +13,8 @@
 // The gateway accepts that exact shape, so swapping the upstream model/provider is a gateway
 // config change, not an app change.
 //
-// ADVISORY ONLY. Melo can SUGGEST tool moves (pause a sub, move between pots, set a tight-point
-// goal, log a spend), but this client never executes them. Suggestions come back as structured
+// ADVISORY ONLY. Melo can SUGGEST recording money (log a spend, an income, a refund, or a
+// transfer), but this client never executes them. Suggestions come back as structured
 // `MeloToolSuggestion[]` for the UI to surface as user-confirmed actions. The client has no
 // access to app state and cannot mutate anything.
 
@@ -33,13 +33,10 @@ export type MeloChatMessage = Readonly<{
   text: string;
 }>;
 
-/** The four advisory tools Melo can SUGGEST (verbatim from the web persona). The client never
- *  runs them — it hands them to the UI as user-confirmed proposals via onSuggest. */
-export type MeloToolName =
-  | 'pause_subscription'
-  | 'move_between_pots'
-  | 'set_tight_point_goal'
-  | 'log_spend';
+/** The four advisory tools Melo can SUGGEST — the log_* family (record money as a transaction).
+ *  The client never runs them — it hands them to the UI as user-confirmed proposals via onSuggest.
+ *  Param shapes + behaviour are documented on `applyMeloTool` in folio/store.ts. */
+export type MeloToolName = 'log_spend' | 'log_income' | 'log_refund' | 'log_transfer';
 
 export type MeloToolSuggestion = Readonly<{
   id: string;
@@ -174,12 +171,12 @@ const PERSONA_TONES: Readonly<Record<MeloTone, string>> = {
 // Melo's moves stay ADVISORY: she proposes, the user confirms in the app. The model is told to
 // emit a suggestion (not execute) by appending a single fenced ```melo-suggest JSON block — the
 // client parses it out of the reply and hands it to the UI as a confirm chip.
-const PERSONA_TOOLS = `You can SUGGEST four moves. You never perform them — the user confirms each one in the app, and only then does anything change. To suggest a move, end your reply with ONE fenced code block tagged melo-suggest containing a JSON array of suggestions, each {"name": <tool>, "args": {…}, "summary": <one short line>}:
-- pause_subscription(name, cycles=1): suggest pausing a recurring sub. Use the exact name from the snapshot.
-- move_between_pots(from, to, amount): suggest shifting money between pots. Never suggest more than the source pot's saved balance.
-- set_tight_point_goal(amount): suggest the floor £ to hold at the tightest point of the month. Only after the user has named a specific amount.
-- log_spend(merchant, amount, category): suggest recording a spend the user just told you about. Only for a real, completed spend — never a hypothetical.
-Only suggest a move after the user has clearly agreed to the specific change. If they're vague, ask one short clarifying question first and suggest nothing. Keep the melo-suggest block out of your visible prose — it is parsed, not read aloud.`;
+const PERSONA_TOOLS = `You can SUGGEST recording money the user just told you about. You never perform it — the user confirms each one in the app, and only then is anything recorded. To suggest one, end your reply with ONE fenced code block tagged melo-suggest containing a JSON array of suggestions, each {"name": <tool>, "args": {…}, "summary": <one short line>}:
+- log_spend(merchant, amount, category): a spend that just happened (money out). amount is a positive number of £; category is one of food, transport, fun, bills, shopping, other.
+- log_income(merchant, amount, category): money in — a wage, a payment received, a top-up. merchant is who it came from; amount is a positive number of £; category is optional.
+- log_refund(merchant, amount, original): a refund coming back (money in). merchant is who refunded; amount is a positive number of £; original is optional — the original merchant or purchase it relates to, so the two can be linked. Do not decide whether it cancels out a spend; just record the refund.
+- log_transfer(from, to, amount): the user's own money moving between their accounts/places (not a spend, not income). from and to are the names they used; amount is a positive number of £.
+Only suggest recording something for a real, completed event the user has clearly stated — never a hypothetical or a "what if". If they're vague, ask one short clarifying question first and suggest nothing. Keep the melo-suggest block out of your visible prose — it is parsed, not read aloud.`;
 
 export function buildMeloSystemPrompt(
   tone: MeloTone,
@@ -194,9 +191,9 @@ export function buildMeloSystemPrompt(
         2,
       )}`,
     );
-    // The snapshot carries the user's own subscription + pot names. Tell Melo to reuse them
-    // verbatim in any pause_subscription / move_between_pots suggestion — the app matches a
-    // suggestion's target by name, so an exact echo is what makes the "Do it" chip actually work.
+    // The snapshot carries the user's own subscription + pot names. Surface them so Melo can refer
+    // to the user's real money by name (e.g. naming a pot as a log_transfer endpoint) instead of
+    // inventing one.
     const names = describeSnapshotNames(snapshot);
     if (names !== undefined) {
       parts.push(names);
@@ -209,8 +206,8 @@ export function buildMeloSystemPrompt(
   return parts.join('\n\n');
 }
 
-/** Build a short instruction naming the user's subscriptions + pots so Melo echoes them exactly in
- *  suggestions. Returns undefined when the snapshot carries no names (nothing to reference). */
+/** Build a short instruction naming the user's subscriptions + pots so Melo refers to them by their
+ *  real names. Returns undefined when the snapshot carries no names (nothing to reference). */
 function describeSnapshotNames(snapshot: MeloLocalFinancialSnapshot): string | undefined {
   const subscriptions = (snapshot.subscriptionNames ?? []).filter(
     (name) => name.trim().length > 0,
@@ -220,7 +217,7 @@ function describeSnapshotNames(snapshot: MeloLocalFinancialSnapshot): string | u
     return undefined;
   }
   const lines = [
-    'When you suggest a move, use the user’s exact names from these lists — copy a name verbatim, do not invent or rephrase one.',
+    'When you refer to the user’s subscriptions or pots, use their exact names from these lists — copy a name verbatim, do not invent or rephrase one.',
   ];
   if (subscriptions.length > 0) {
     lines.push(`Their subscriptions: ${subscriptions.join(', ')}.`);
@@ -315,15 +312,14 @@ function extractAssistantText(data: unknown): string | null {
 }
 
 const SUGGEST_BLOCK = /```melo-suggest\s*([\s\S]*?)```/i;
-// All four advisory tools map to a REAL, confirmable action: the store's applyMeloTool handles
-// `set_tight_point_goal` (it writes tightPointGoal via setTightPointGoal, with undo), so suggesting it
-// lets the user tap "Do it" and actually set their tight-point floor — matching the web design's
-// four-tool persona. The set is the full MeloToolName union; nothing is withheld.
+// The four log_* tools each map to a REAL, confirmable action: the store's applyMeloTool records the
+// money as a Transaction (a spend, an inflow, a refund, or a paired transfer), each with undo. The
+// set is the full MeloToolName union; nothing is withheld. Pot moves are NOT a Melo tool here.
 const VALID_TOOL_NAMES: ReadonlySet<string> = new Set<MeloToolName>([
-  'pause_subscription',
-  'move_between_pots',
-  'set_tight_point_goal',
   'log_spend',
+  'log_income',
+  'log_refund',
+  'log_transfer',
 ]);
 
 /** Pull the optional ```melo-suggest JSON block out of the reply, returning the clean prose plus
@@ -379,16 +375,20 @@ function parseSuggestions(jsonText: string): readonly MeloToolSuggestion[] {
 /** A safe default summary if the model omits one. */
 function describeSuggestion(name: MeloToolName, args: Record<string, unknown>): string {
   switch (name) {
-    case 'pause_subscription':
-      return `Pause ${stringArg(args.name) ?? 'a subscription'}`;
-    case 'move_between_pots':
-      return `Move ${stringArg(args.amount) ?? 'money'} from ${
-        stringArg(args.from) ?? 'one pot'
-      } to ${stringArg(args.to) ?? 'another'}`;
-    case 'set_tight_point_goal':
-      return `Set a tight-point goal of ${stringArg(args.amount) ?? 'an amount'}`;
     case 'log_spend':
       return `Log ${stringArg(args.amount) ?? 'a spend'} at ${stringArg(args.merchant) ?? 'a merchant'}`;
+    case 'log_income':
+      return `Log ${stringArg(args.amount) ?? 'money'} in from ${
+        stringArg(args.merchant) ?? stringArg(args.source) ?? 'a source'
+      }`;
+    case 'log_refund':
+      return `Log a ${stringArg(args.amount) ?? ''} refund from ${
+        stringArg(args.merchant) ?? 'a merchant'
+      }`.replace(/\s+/g, ' ');
+    case 'log_transfer':
+      return `Log a ${stringArg(args.amount) ?? ''} transfer from ${
+        stringArg(args.from) ?? 'one place'
+      } to ${stringArg(args.to) ?? 'another'}`.replace(/\s+/g, ' ');
   }
 }
 

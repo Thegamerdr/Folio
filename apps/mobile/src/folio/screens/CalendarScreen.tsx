@@ -309,11 +309,12 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const routeResult = useRoute(today ?? EPOCH);
   const route = today ? routeResult : null;
 
-  // Where the ladder starts — the FULL currentBalance.amount, matching the design's single engine
-  // (`computeSpareAndTightest(groups, currentBalance.amount)`) and `routeFromStore`. Pots lower the
-  // curve ONLY as their dated −perWeek top-up dips (already in the events), never as a start offset —
-  // subtracting Σ saved here too would double-count them.
-  const startingSpare = useAppStore((st) => st.currentBalance.amount);
+  // Where the ladder starts — `currentBalance.amount − Σ pots.saved`, matching `routeFromStore` so
+  // the Calendar ladder and the Route curve stay equal. The already-SAVED pot cash is earmarked OUT
+  // of the start (the "saved amount lowers Today's spare" rule); the pots' FUTURE −perWeek top-up dips
+  // are different money and stay in the dated events ("bends the path") — two distinct effects, no
+  // double-count. We do NOT re-add those dated dips to the start.
+  const startingSpare = useAppStore((st) => st.currentBalance.amount - st.pots.reduce((acc, p) => acc + p.saved, 0));
 
   // Events / groups / spare are memoised ABOVE the view branch so switching views never re-derives
   // the data (STATES: "switching never reloads"). Only the presentational subview swaps.
@@ -1436,11 +1437,12 @@ function SubRenewalActions({ name, s }: { name: string; s: ReturnType<typeof mak
   const [hover, setHover] = useState<number | null>(null);
   const currentDelta = subOverrides[name] ?? 0;
 
-  // The what-if anchor — the SAME full-balance start the screen's ladder + route use (pots are dated
-  // dips in the events, never a start offset), so the previewed "lowest day" lift reads against the
-  // real curve.
+  // The what-if anchor — the SAME `balance − Σ pots.saved` start the screen's ladder + route use, so
+  // the previewed "lowest day" lift reads against the real curve. The already-saved pot cash is
+  // earmarked out of the start; the pots' future −perWeek top-up dips stay in the dated events — two
+  // distinct effects, no double-count.
   const currentBalance = useAppStore((st) => st.currentBalance);
-  const previewStart = currentBalance.amount;
+  const previewStart = currentBalance.amount - pots.reduce((acc, p) => acc + p.saved, 0);
 
   const previewDelta = useMemo(() => {
     if (hover === null) return null;

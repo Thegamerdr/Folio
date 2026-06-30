@@ -140,42 +140,13 @@ describe('resetAll', () => {
 });
 
 // ---------------------------------------------------------------------------
-// applyMeloTool — pot match is case-insensitive substring
-// ---------------------------------------------------------------------------
-describe('applyMeloTool — pot matching', () => {
-  it('matches a pot by case-insensitive substring of its name', () => {
-    // Default pots include "Holiday · September" and "Buffer".
-    const res = applyMeloTool('move_between_pots', { from: 'HOLIDAY', to: 'buff', amount: 20 });
-
-    expect(res.applied).toBe(true);
-    if (res.applied) {
-      // summary uses the first word of each matched pot's name.
-      expect(res.summary).toContain('Holiday');
-      expect(res.summary).toContain('Buffer');
-    }
-  });
-
-  it('move applies the transfer to pot balances', () => {
-    const beforeHoliday = getState().pots.find((p) => p.id === 'holiday')!.saved;
-    const beforeBuffer = getState().pots.find((p) => p.id === 'buffer')!.saved;
-
-    applyMeloTool('move_between_pots', { from: 'holiday', to: 'buffer', amount: 20 });
-
-    const afterHoliday = getState().pots.find((p) => p.id === 'holiday')!.saved;
-    const afterBuffer = getState().pots.find((p) => p.id === 'buffer')!.saved;
-    expect(afterHoliday).toBe(beforeHoliday - 20);
-    expect(afterBuffer).toBe(beforeBuffer + 20);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // applyMeloTool — tool-name matching (ENGINES §6) returns candidates ambiguous
 // ---------------------------------------------------------------------------
 describe('matchMeloTool — normalised name matching', () => {
   it('resolves a punctuation/case-noisy name to the canonical tool', () => {
-    const m = matchMeloTool('  Pause-Subscription!! ');
+    const m = matchMeloTool('  Log-Transfer!! ');
     expect(m.ok).toBe(true);
-    if (m.ok) expect(m.name).toBe('pause_subscription');
+    if (m.ok) expect(m.name).toBe('log_transfer');
   });
 
   it('resolves an unambiguous substring', () => {
@@ -190,6 +161,21 @@ describe('matchMeloTool — normalised name matching', () => {
     if (!m.ok) expect(Array.isArray(m.candidates)).toBe(true);
   });
 
+  it('treats a dropped tool name (pause_subscription) as no longer a Melo tool', () => {
+    // Pause is NO LONGER a Melo tool — the name must not resolve, so applyMeloTool refuses it.
+    const res = applyMeloTool('pause_subscription', { name: 'Notion' });
+    expect(res.applied).toBe(false);
+    // It does not silently pause anything.
+    expect(!!getState().subPaused.Notion).toBe(false);
+  });
+
+  it('treats move_between_pots / set_tight_point_goal as unknown to Melo too', () => {
+    expect(applyMeloTool('move_between_pots', { from: 'holiday', to: 'buffer', amount: 5 }).applied).toBe(
+      false,
+    );
+    expect(applyMeloTool('set_tight_point_goal', { amount: 50 }).applied).toBe(false);
+  });
+
   it('applyMeloTool reports an unknown tool instead of mutating', () => {
     const res = applyMeloTool('frobnicate', {});
     expect(res.applied).toBe(false);
@@ -197,74 +183,134 @@ describe('matchMeloTool — normalised name matching', () => {
 });
 
 // ---------------------------------------------------------------------------
-// applyMeloTool — move_between_pots insufficient-funds guard
+// applyMeloTool — the log_* family: behaviour + bad-arg guards
 // ---------------------------------------------------------------------------
-describe('applyMeloTool — move_between_pots guard', () => {
-  it('refuses a move that exceeds the source balance and leaves state untouched', () => {
-    const beforeHoliday = getState().pots.find((p) => p.id === 'holiday')!.saved;
-    const beforeBuffer = getState().pots.find((p) => p.id === 'buffer')!.saved;
-
-    const res = applyMeloTool('move_between_pots', { from: 'holiday', to: 'buffer', amount: 999_999 });
-
-    expect(res.applied).toBe(false);
-    if (!res.applied) expect(res.reason).toBe('insufficient funds');
-    // No balances moved.
-    expect(getState().pots.find((p) => p.id === 'holiday')!.saved).toBe(beforeHoliday);
-    expect(getState().pots.find((p) => p.id === 'buffer')!.saved).toBe(beforeBuffer);
-  });
-
-  it('rejects bad args (missing pot / non-positive amount)', () => {
-    expect(applyMeloTool('move_between_pots', { from: 'nope', to: 'buffer', amount: 10 }).applied).toBe(false);
-    expect(applyMeloTool('move_between_pots', { from: 'holiday', to: 'buffer', amount: 0 }).applied).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// undo reversibility — all four Melo tools
-// ---------------------------------------------------------------------------
-describe('applyMeloTool — undo reversibility', () => {
-  it('pause_subscription undo restores prior paused state', () => {
-    // Notion starts un-paused.
-    const res = applyMeloTool('pause_subscription', { name: 'Notion' });
-    expect(res.applied).toBe(true);
-    expect(getState().subPaused.Notion).toBe(true);
-
-    if (res.applied) res.undo();
-    expect(!!getState().subPaused.Notion).toBe(false);
-  });
-
-  it('move_between_pots undo restores both pot balances', () => {
-    const beforeHoliday = getState().pots.find((p) => p.id === 'holiday')!.saved;
-    const beforeBuffer = getState().pots.find((p) => p.id === 'buffer')!.saved;
-
-    const res = applyMeloTool('move_between_pots', { from: 'holiday', to: 'buffer', amount: 35 });
-    expect(res.applied).toBe(true);
-    if (res.applied) res.undo();
-
-    expect(getState().pots.find((p) => p.id === 'holiday')!.saved).toBe(beforeHoliday);
-    expect(getState().pots.find((p) => p.id === 'buffer')!.saved).toBe(beforeBuffer);
-  });
-
-  it('set_tight_point_goal undo restores the prior goal', () => {
-    setTightPointGoal(200);
-    const res = applyMeloTool('set_tight_point_goal', { amount: 50 });
-    expect(res.applied).toBe(true);
-    expect(getState().tightPointGoal).toBe(50);
-
-    if (res.applied) res.undo();
-    expect(getState().tightPointGoal).toBe(200);
-  });
-
-  it('log_spend undo removes the logged transaction', () => {
+describe('applyMeloTool — log_spend', () => {
+  it('records a negative, Melo-sourced spend with a valid category', () => {
     const before = getState().transactions.length;
     const res = applyMeloTool('log_spend', { merchant: 'Greggs', amount: 3.5, category: 'food' });
     expect(res.applied).toBe(true);
     expect(getState().transactions.length).toBe(before + 1);
-    // Logged as a negative spend, Melo-sourced.
-    expect(getState().transactions[0]!.merchant).toBe('Greggs');
-    expect(getState().transactions[0]!.amount).toBe(-3.5);
-    expect(getState().transactions[0]!.source).toBe('melo');
+    const top = getState().transactions[0]!;
+    expect(top.merchant).toBe('Greggs');
+    expect(top.amount).toBe(-3.5);
+    expect(top.category).toBe('food');
+    expect(top.source).toBe('melo');
+  });
 
+  it('falls back to the "other" category for an off-list category', () => {
+    applyMeloTool('log_spend', { merchant: 'X', amount: 2, category: 'not-a-category' });
+    expect(getState().transactions[0]!.category).toBe('other');
+  });
+
+  it('rejects bad args (no merchant / non-positive amount)', () => {
+    expect(applyMeloTool('log_spend', { merchant: '', amount: 5 }).applied).toBe(false);
+    expect(applyMeloTool('log_spend', { merchant: 'Greggs', amount: 0 }).applied).toBe(false);
+  });
+});
+
+describe('applyMeloTool — log_income', () => {
+  it('records a POSITIVE inflow, defaulting the category to income', () => {
+    const before = getState().transactions.length;
+    const res = applyMeloTool('log_income', { merchant: 'Employer', amount: 1800 });
+    expect(res.applied).toBe(true);
+    expect(getState().transactions.length).toBe(before + 1);
+    const top = getState().transactions[0]!;
+    expect(top.merchant).toBe('Employer');
+    expect(top.amount).toBe(1800); // positive = inflow
+    expect(top.category).toBe('income'); // default when none given
+    expect(top.source).toBe('melo');
+  });
+
+  it('reads the payer from `source` when `merchant` is absent', () => {
+    const res = applyMeloTool('log_income', { source: 'Refund pool', amount: 12 });
+    expect(res.applied).toBe(true);
+    expect(getState().transactions[0]!.merchant).toBe('Refund pool');
+  });
+
+  it('honours a valid explicit category and rejects bad args', () => {
+    applyMeloTool('log_income', { merchant: 'Side gig', amount: 40, category: 'other' });
+    expect(getState().transactions[0]!.category).toBe('other');
+    expect(applyMeloTool('log_income', { merchant: '', amount: 5 }).applied).toBe(false);
+    expect(applyMeloTool('log_income', { merchant: 'X', amount: -5 }).applied).toBe(false);
+  });
+
+  it('undo removes the logged income', () => {
+    const before = getState().transactions.length;
+    const res = applyMeloTool('log_income', { merchant: 'Employer', amount: 1800 });
+    expect(getState().transactions.length).toBe(before + 1);
+    if (res.applied) res.undo();
+    expect(getState().transactions.length).toBe(before);
+  });
+});
+
+describe('applyMeloTool — log_refund', () => {
+  it('records a POSITIVE refund, tagged in the merchant string, category "other" (no verdict)', () => {
+    const before = getState().transactions.length;
+    const res = applyMeloTool('log_refund', { merchant: 'ASOS', amount: 24.99 });
+    expect(res.applied).toBe(true);
+    expect(getState().transactions.length).toBe(before + 1);
+    const top = getState().transactions[0]!;
+    expect(top.amount).toBe(24.99); // inflow
+    expect(top.merchant).toContain('ASOS');
+    expect(top.merchant.toLowerCase()).toContain('refund'); // honestly tagged as a refund
+    expect(top.category).toBe('other'); // a refund is NOT income — never auto-filed as income
+    expect(top.source).toBe('melo');
+  });
+
+  it('"links" to the original spend by recording it in the merchant string, candidate-only', () => {
+    applyMeloTool('log_refund', { merchant: 'ASOS', amount: 10, original: 'ASOS order #123' });
+    const merchant = getState().transactions[0]!.merchant;
+    expect(merchant).toContain('ASOS order #123'); // the link is recorded, not a decided verdict
+  });
+
+  it('rejects bad args (no merchant / non-positive amount)', () => {
+    expect(applyMeloTool('log_refund', { merchant: '', amount: 5 }).applied).toBe(false);
+    expect(applyMeloTool('log_refund', { merchant: 'ASOS', amount: 0 }).applied).toBe(false);
+  });
+
+  it('undo removes the logged refund', () => {
+    const before = getState().transactions.length;
+    const res = applyMeloTool('log_refund', { merchant: 'ASOS', amount: 24.99 });
+    expect(getState().transactions.length).toBe(before + 1);
+    if (res.applied) res.undo();
+    expect(getState().transactions.length).toBe(before);
+  });
+});
+
+describe('applyMeloTool — log_transfer', () => {
+  it('records a neutral PAIR (out + in) on one timestamp that nets to £0', () => {
+    const before = getState().transactions.length;
+    const res = applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 100 });
+    expect(res.applied).toBe(true);
+    // Two legs added.
+    expect(getState().transactions.length).toBe(before + 2);
+    const [first, second] = getState().transactions;
+    // One negative leg, one positive leg, equal magnitude → nets to zero.
+    expect(first!.amount + second!.amount).toBe(0);
+    expect(Math.abs(first!.amount)).toBe(100);
+    // Both legs are neutral 'other', Melo-sourced, share a timestamp, and name both endpoints.
+    expect(first!.category).toBe('other');
+    expect(second!.category).toBe('other');
+    expect(first!.source).toBe('melo');
+    expect(first!.when).toBe(second!.when);
+    const labels = `${first!.merchant} ${second!.merchant}`;
+    expect(labels).toContain('Current');
+    expect(labels).toContain('Savings');
+    expect(labels.toLowerCase()).toContain('transfer');
+  });
+
+  it('rejects bad args (missing endpoint / non-positive amount)', () => {
+    expect(applyMeloTool('log_transfer', { from: '', to: 'Savings', amount: 50 }).applied).toBe(false);
+    expect(applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 0 }).applied).toBe(
+      false,
+    );
+  });
+
+  it('undo removes BOTH legs', () => {
+    const before = getState().transactions.length;
+    const res = applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 100 });
+    expect(getState().transactions.length).toBe(before + 2);
     if (res.applied) res.undo();
     expect(getState().transactions.length).toBe(before);
   });
