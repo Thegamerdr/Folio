@@ -25,7 +25,9 @@ const dataControlSurfacePath = fileURLToPath(
   new URL('./dataControlSurface.tsx', import.meta.url).href,
 );
 const dataControlSurfaceSource = readFileSync(dataControlSurfacePath, 'utf8');
-const appRoutePath = fileURLToPath(new URL('../../app/index.tsx', import.meta.url).href);
+// The pressure-map app was moved from app/index.tsx to app/home.tsx (reachable at /home) when the
+// live route was flipped to the FolioShell; this guard follows that (unchanged) surface to home.tsx.
+const appRoutePath = fileURLToPath(new URL('../../app/home.tsx', import.meta.url).href);
 const appRouteSource = readFileSync(appRoutePath, 'utf8');
 
 describe('interactive object reality pass', () => {

@@ -125,6 +125,7 @@ RecoveryScreen
 </TitleBlock>
 <ShortfallCard mt-5 surface hairline rounded-2xl p-5 row gap-4>
 <Melo size={56} mood={after>=0?'soft':'alert'} intensity={1.1} />
+
 <Col flex-1>
 <Label 11px uppercase muted>{pickedMove ? 'After this move' : 'Shortfall'}</Label>
 <Money value={`${after>=0?'+':'−'}£${Math.abs(after)}`} size="lg" tone={after>=0?'positive':'negative'} />

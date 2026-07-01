@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const appRoutePath = fileURLToPath(new URL('../../app/index.tsx', import.meta.url).href);
+// The pressure-map app was moved from app/index.tsx to app/home.tsx (reachable at /home) when the
+// live route was flipped to the FolioShell; this guard follows that (unchanged) surface to home.tsx.
+const appRoutePath = fileURLToPath(new URL('../../app/home.tsx', import.meta.url).href);
 const appRouteSource = readFileSync(appRoutePath, 'utf8');
 const mobileShellPath = fileURLToPath(new URL('./mobileShell.tsx', import.meta.url).href);
 const mobileShellSource = readFileSync(mobileShellPath, 'utf8');

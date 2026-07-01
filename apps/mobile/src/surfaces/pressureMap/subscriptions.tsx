@@ -1,17 +1,19 @@
-// Subscriptions — what still earns its place (Quiet Paper Luxury).
+// Subscriptions — everything that recurs (Quiet Paper Luxury).
 //
-// Faithful RN port of the Folio WEB screen (ScreenSubscriptions.tsx). It answers one
-// question: of everything that recurs, what still earns its place? The recurring drain is
-// the hero (a count-up monthly total, with what pauses have already saved beneath it); a
-// single quiet "pause the quiet ones" move appears only when there are quiet, still-active
-// subscriptions; three sort chips reorder the list (worst value first by default); and each
-// row carries a usage pulse dot + a value-score subtitle + per-row actions.
+// RN port of the Folio WEB screen (ScreenSubscriptions.tsx), DE-CLAIMED to payment facts only:
+// Folio can prove a charge RECURS (banking/seed data), but not that a product was used or is good/bad
+// VALUE — so this surface never renders a usage/value/per-use verdict (SUBSCRIPTION_SIGNAL_RESEARCH
+// §5, matching apps/mobile/src/folio/screens/SubscriptionsScreen.tsx). The recurring drain is the hero
+// (a count-up monthly total, with what pauses have already saved beneath it); a single quiet "pause
+// the quiet ones" move appears only when there are quiet, still-active subscriptions; two sort chips
+// reorder the list by PAYMENT FACTS (next charge by default, then cost — no "worst value"); and each
+// row carries a calm neutral marker + a payment-fact subtitle (recurrence / Paused) + per-row actions.
 //
 // Presentation only — it never touches the engine. It takes the LocalSubscriptionsModel the
 // container builds from the canonical engine, plus the engine's handlers as on* callbacks.
 // Money is formatted through formatMinorAmount so there is no formatting drift. Built from RN
-// primitives composing the pressure-map kit; the design is a faithful reproduction of the web
-// (verbatim copy + the same paper tokens), not a reinterpretation.
+// primitives composing the pressure-map kit. The model still carries usage fields (used elsewhere),
+// but this surface deliberately renders none of them as a verdict.
 
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -42,19 +44,18 @@ import {
   type SubscriptionCadence,
 } from '../../local/localLedger';
 import type {
-  LocalSubscriptionPulse,
   LocalSubscriptionRow,
   LocalSubscriptionsModel,
 } from '../../local/localSubscriptionsAdapter';
 
-// The three orderings the web offers. "value" (worst value first) is the default, because the
-// whole screen is built to surface what no longer earns its keep.
-type SortKey = 'value' | 'cost' | 'next';
+// The orderings offered — PAYMENT FACTS only. No "worst value" sort: that ranks by a usage/value
+// judgement banking or seed data cannot honestly make (SUBSCRIPTION_SIGNAL_RESEARCH §5). The honest
+// orderings are by next charge (the default — what's coming first) and by cost.
+type SortKey = 'next' | 'cost';
 
 const SORTS: readonly { key: SortKey; label: string }[] = [
-  { key: 'value', label: 'Worst value' },
-  { key: 'cost', label: 'Cost' },
   { key: 'next', label: 'Next charge' },
+  { key: 'cost', label: 'Cost' },
 ];
 
 // The monthly total counts up to its target via the shared useCountUp (./useCountUp): the
@@ -63,35 +64,25 @@ const SORTS: readonly { key: SortKey; label: string }[] = [
 const COUNT_UP_MS = 600;
 
 // ---------------------------------------------------------------------------
-// Row helpers — pulse colour + label, value-score subtitle, next-charge label.
-// All derived purely from the model row; no engine calls, no new data.
+// Row helpers — calm neutral marker, payment-fact subtitle, next-charge label.
+// All derived purely from the model row; no engine calls, no new data. NONE of these encode a
+// usage/value/per-use verdict (SUBSCRIPTION_SIGNAL_RESEARCH §5) — only payment facts.
 // ---------------------------------------------------------------------------
 
-// Pulse dot. yes = the calm green (regular use), maybe = caution gold DATA mark (the active
-// palette's t.caution, never the text gold), no = a muted ink (gone quiet), unknown = the same
-// muted ink (we have no usage signal yet — neutral, never alarming). Mirrors the web's
-// positive / caution / negative-at-70%-opacity dots.
-function pulseColor(t: Palette, pulse: LocalSubscriptionPulse): string {
-  if (pulse === 'yes') return t.positive;
-  if (pulse === 'maybe') return t.caution;
+// A calm, NON-usage marker dot. Banking/seed data can't prove a product was used, so the dot never
+// encodes a "good/bad value" verdict — every row gets the same neutral calm mark. A paused row dims
+// via row opacity, not the dot colour.
+function markerColor(t: Palette): string {
   return t.muted;
 }
 
-function pulseLabel(pulse: LocalSubscriptionPulse): string {
-  if (pulse === 'yes') return 'Used recently';
-  if (pulse === 'maybe') return 'Not sure';
-  // Never logged a use — say so plainly rather than calling it "quiet", which it has not earned.
-  if (pulse === 'unknown') return 'Not tracked yet';
-  return 'Quiet a while';
-}
-
-// The score subtitle. For a tracked subscription this is the web's "{p}p per use · {uses}/mo", or
-// "no uses this month" when it has fallen silent. For one we have never tracked, we say so honestly
-// and invite the first signal, rather than implying it earns nothing.
-function scoreLine(row: LocalSubscriptionRow): string {
-  if (!row.tracked) return 'tap "used" to start tracking value';
-  if (row.usesPerMonth <= 0 || !Number.isFinite(row.valueScore)) return 'no uses this month';
-  return `${row.valueScoreLabel} · ${row.usesPerMonth}/mo`;
+// The row's subtitle — a PAYMENT FACT only. No usage / value / per-use claim: just that the charge
+// recurs (the safe recurrence claim, SUBSCRIPTION_SIGNAL_RESEARCH §4), or that the user has paused it.
+function metaLine(row: LocalSubscriptionRow): string {
+  if (row.paused) return 'Paused';
+  if (row.cadence === 'weekly') return 'Repeats weekly';
+  if (row.cadence === 'yearly') return 'Repeats yearly';
+  return 'Repeats monthly';
 }
 
 // Per-cadence suffix for the row's own cost ("£10.00 / week"), so a weekly or yearly charge reads
@@ -111,11 +102,9 @@ function nextChargeLabel(days: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Sorting. Worst-value first sorts TRACKED rows by valueScore descending (Infinity = tracked but no
-// uses floats to the top as the worst); cost descending; next-charge ascending. Untracked rows carry
-// no value verdict, so the worst-value sort holds them out of the ranking entirely — they sit below
-// the tracked rows in a neutral block (never posing as "worst value" nor as "best value"), kept in a
-// stable order. Cost and next-charge sorts treat every row equally; usage data is irrelevant there.
+// Sorting — PAYMENT FACTS only. Next-charge ascending (what's coming first) and cost descending.
+// There is no usage/value ordering: banking or seed data cannot make that judgement honestly
+// (SUBSCRIPTION_SIGNAL_RESEARCH §5).
 // ---------------------------------------------------------------------------
 
 function sortRows(
@@ -123,14 +112,6 @@ function sortRows(
   sort: SortKey,
 ): readonly LocalSubscriptionRow[] {
   const next = [...rows];
-  if (sort === 'value') {
-    next.sort((a, b) => {
-      // Untracked rows have no verdict — sink them beneath every tracked row, regardless of score.
-      if (a.tracked !== b.tracked) return a.tracked ? -1 : 1;
-      if (!a.tracked) return 0;
-      return b.valueScore - a.valueScore;
-    });
-  }
   if (sort === 'cost') next.sort((a, b) => b.monthlyMinor - a.monthlyMinor);
   if (sort === 'next') next.sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway);
   return next;
@@ -180,13 +161,13 @@ function SubscriptionRow({
       ]}
     >
       <View style={layout.rowHead}>
-        <View style={[layout.pulseDot, { backgroundColor: pulseColor(t, row.pulse) }]} />
+        <View style={[layout.pulseDot, { backgroundColor: markerColor(t) }]} />
         <View style={layout.rowText}>
           <Text style={s.rowName} numberOfLines={1}>
             {row.name}
           </Text>
           <Text style={s.rowMeta} numberOfLines={1}>
-            {pulseLabel(row.pulse)} · {scoreLine(row)}
+            {metaLine(row)}
           </Text>
         </View>
         <View style={layout.rowAmountCol}>
@@ -301,7 +282,7 @@ export function SubscriptionsScreen({
 }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const [sort, setSort] = useState<SortKey>('value');
+  const [sort, setSort] = useState<SortKey>('next');
   const [creating, setCreating] = useState(false);
 
   const rows = useMemo(() => sortRows(subscriptions.rows, sort), [subscriptions.rows, sort]);

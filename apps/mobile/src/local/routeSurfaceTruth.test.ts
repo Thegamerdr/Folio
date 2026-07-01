@@ -3,7 +3,10 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const appRoutePath = fileURLToPath(new URL('../../app/index.tsx', import.meta.url).href);
+// The pressure-map app was moved from app/index.tsx to app/home.tsx (reachable at /home) when the
+// live route was flipped to the FolioShell; this truth guard follows that (unchanged) pressure-map
+// surface to home.tsx. mobileShell (below) is pressure-map infra and was NOT moved.
+const appRoutePath = fileURLToPath(new URL('../../app/home.tsx', import.meta.url).href);
 const appRouteSource = readFileSync(appRoutePath, 'utf8');
 const mobileShellPath = fileURLToPath(new URL('../surfaces/mobileShell.tsx', import.meta.url).href);
 const mobileShellSource = readFileSync(mobileShellPath, 'utf8');
@@ -111,10 +114,18 @@ describe('mobile product route surface truth guard', () => {
   it('surfaces snapshot-blob corruption instead of silently wiping pots/subscriptions/cycles', () => {
     // FIX 3: the durable containers live ONLY in the JSON snapshot blob, so a corrupt blob is
     // unrecoverable loss. The load must no longer swallow it through a bare catch that returns an
-    // empty set silently — it must distinguish corrupt from empty and warn so the loss is detectable.
+    // empty set silently — it must distinguish corrupt from empty so the loss is surfaced to the
+    // USER (as an empty pots/subscriptions/cycles set), never coerced into looking like real data.
+    // (Corruption is surfaced through the returned empty-default, not developer console logging —
+    // runtime console.* is banned in src/local by the release-foundation gate.)
     expect(nativeLedgerStoreSource).toContain('parseDurableContainersBlob');
     expect(nativeLedgerStoreSource).toMatch(/corrupt:\s*boolean/);
-    expect(nativeLedgerStoreSource).toContain('console.warn');
+    // The loader reads the corrupt distinction and falls back to the empty-default so the loss is
+    // visible to the user rather than swallowed — the parser is the single non-silent seam.
+    expect(nativeLedgerStoreSource).toContain('load.corrupt');
+    expect(nativeLedgerStoreSource).toContain('EMPTY_DURABLE_CONTAINERS');
+    // Runtime console logging must NOT be reintroduced here (release-foundation gate bans it).
+    expect(nativeLedgerStoreSource).not.toMatch(/console\.(?:debug|error|info|log|warn)\s*\(/);
     // The old silent bare catch that just `return empty;` must be gone from the loader.
     expect(nativeLedgerStoreSource).not.toMatch(/}\s*catch\s*\{\s*return empty;\s*}/);
   });

@@ -184,7 +184,7 @@ Visual preview of what Folio found before the user reviews item-by-item. A multi
 
 - DOC-BLOCK vs CODE token drift: @tokens lists only --paper/--accent/--positive/--hairline, but the code also uses --muted-ink, --ink, --inset, --surface, --caution. Port ALL of them.
 - DOC-BLOCK @motion lists 'route-draw' but this component has NO route-draw (no SVG path). Don't add one here — actual entrance is slide-in-r; route-draw lives on today-after.
-- COPY NOT KEYED: every visible string is an inline literal ('June statement', 'Check what Folio found.', 'Nothing is added until you choose.', chips, 'Edit', 'Later', CTA) — none in COPY_DECK.md, yet @copy says FROZEN. COPY_DECK rule: 'if a string isn't here it doesn't ship'. RN port must add keys (or reconcile with add.success._ / add.review._) before shipping. Flag to owner.
+- COPY NOT KEYED: every visible string is an inline literal ('June statement', 'Check what Folio found.', 'Nothing is added until you choose.', chips, 'Edit', 'Later', CTA) — none in COPY*DECK.md, yet @copy says FROZEN. COPY_DECK rule: 'if a string isn't here it doesn't ship'. RN port must add keys (or reconcile with add.success.* / add.review.\_) before shipping. Flag to owner.
 - BANNED-WORD CHECK when keying: copy here is clean. Do NOT introduce import/rows/parser/extract/OCR/source record. 'Visualizer' is an internal ScreenId only — never surface it as user copy.
 - HARDCODED DATA: ITEMS is a static 8-row demo array; real screen must render the statement-reader's candidate output. Don't port the literal array as product data; wire to the reader. RN_PORT forbids replacing the reader with a manual form.
 - DEAD IMPORTS: 14 store symbols imported, zero used. Don't carry them to RN; confirms @reads/@writes are correctly —.

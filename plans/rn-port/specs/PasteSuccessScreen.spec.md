@@ -85,6 +85,7 @@ Confirmation / Review-staging screen shown after the user pastes text in the Add
 {items.map(it =>
 <ItemRow key={it.merchant}> // px-4 py-3.5, flex row, gap-3, center
 <FlowDot color={it.flow==='in' ? --positive : --accent} /> // 6x6 (w-1.5 h-1.5) rounded-full
+
 <Col flex-1 min-w-0>
 <Merchant numberOfLines={1}>{it.merchant}</Merchant> // 14px, font-medium, truncate
 <Meta>{it.date} · money {it.flow}</Meta> // 11.5px muted-ink

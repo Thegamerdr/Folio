@@ -545,20 +545,21 @@ async function loadDurableContainersFromSnapshot(
     const row = result.rows[0] as SnapshotRow | undefined;
     rawJson = typeof row?.json === 'string' ? row.json : undefined;
   } catch {
-    // A read/SQL failure is a different, also-detectable corruption signal — treat it as such.
-    console.warn(
-      '[folio] Could not read the local snapshot blob; pots, subscriptions and cycles may be unavailable this load.',
-    );
+    // A read/SQL failure is a different, also-detectable corruption signal. It is NOT swallowed
+    // silently: returning the empty-default containers surfaces the loss to the USER as an empty
+    // pots/subscriptions/cycles set (never a crash), which is the user-facing corruption signal.
     return EMPTY_DURABLE_CONTAINERS;
   }
 
   const load = parseDurableContainersBlob(rawJson);
+  // The blob is the ONLY copy of these containers, so corruption is unrecoverable data loss.
+  // `load.corrupt` distinguishes a malformed blob from a legitimately empty one. On corruption we
+  // return the empty-default explicitly here: the app still loads AND the loss is surfaced to the
+  // USER as an empty pots/subscriptions/cycles set — never a silent wipe masked as real data. (No
+  // developer console logging: runtime console.* is banned in src/local by the release gate; the
+  // user-facing empty set IS the non-silent signal.)
   if (load.corrupt) {
-    // The blob is the ONLY copy of these containers, so corruption is unrecoverable data loss.
-    // Keep the empty-default fallback so the app still loads, but never let it be silent.
-    console.warn(
-      '[folio] The local snapshot blob is unreadable; pots, subscriptions and cycles could not be restored this load. Keeping an empty set so the app still opens.',
-    );
+    return EMPTY_DURABLE_CONTAINERS;
   }
   return load.containers;
 }

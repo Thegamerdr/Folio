@@ -98,6 +98,7 @@ Melo conversation surface inside a bottom sheet: builds a last-14-days app-state
 <Sheet onClose> {/_ gorhom BottomSheetModal: 40% ink scrim, 28px top radius, paper body, grip, sheet-rise _/}
 <MeloChat snapshot avatar={<Melo size=36 mood="calm"/>} prefill seed>
 <View flex h≈640 maxH 78vh>
+
 <Header row borderBottom hairline>
 {avatar /_ Melo 36 _/}
 <View flex>

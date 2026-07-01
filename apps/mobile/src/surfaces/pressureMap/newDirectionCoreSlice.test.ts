@@ -58,7 +58,10 @@ const review = read('./reviewDecision.tsx');
 const moneyPath = read('./MoneyPath.tsx');
 const today = read('./todayPath.tsx');
 const trust = read('./trustControl.tsx');
-const container = read('../../../app/index.tsx');
+// The pressure-map container app was moved from app/index.tsx to app/home.tsx (reachable at /home)
+// when the live route was flipped to the FolioShell; the core-slice wiring this pins is unchanged,
+// so the guard follows it to home.tsx.
+const container = read('../../../app/home.tsx');
 
 describe('new direction — core slice uses the new surface path', () => {
   it('container renders the core-slice screens from the pressure-map surface', () => {

@@ -46,11 +46,12 @@ export type LocalSubscriptionRow = Readonly<{
   // they have simply never tapped "used" on, is UNtracked: we have no usage signal, so we cannot
   // honestly call it good or bad value. Only tracked subscriptions carry a meaningful value verdict.
   tracked: boolean;
-  // Pence per use this month. Lower is better value. Only meaningful when `tracked` is true. A tracked
-  // subscription that has fallen to zero uses scores the worst possible (Number.POSITIVE_INFINITY) so
-  // the screen can sort it to the top as "worst value". An UNtracked subscription is deliberately given
-  // a neutral score (0) so it never poses as "worst value" purely for lacking data — the screen reads
-  // its `tracked: false` and shows honest "not tracked yet" copy instead of a value verdict.
+  // Pence per use this month — an internal usage ratio, NOT a rendered trust/value verdict (the
+  // shipping subscriptions surface shows payment facts only). Only meaningful when `tracked` is true.
+  // A tracked subscription that has fallen to zero uses takes the worst possible ratio
+  // (Number.POSITIVE_INFINITY); an UNtracked subscription is deliberately given a neutral 0 so it can
+  // never pose as worst value purely for lacking data — the screen reads its `tracked: false` and
+  // shows honest "not tracked yet" copy instead of a value verdict. Retained for the model/tests.
   valueScore: number;
   valueScoreLabel: string;
   pulse: LocalSubscriptionPulse;
@@ -113,10 +114,10 @@ function createSubscriptionRow(subscription: Subscription): LocalSubscriptionRow
   const cadence = cadenceOf(subscription);
   const monthlyMinor = monthlyMinorFor(cadence, costMinor);
   const tracked = isTracked(subscription);
-  // Value-per-use is judged on the monthly cost, so weekly/yearly subs are compared on the same basis.
-  // We only score subscriptions we have usage signal for. An untracked subscription gets a neutral 0,
-  // so it never sorts to the top as "worst value" purely for lacking data; a tracked subscription with
-  // zero uses scores the worst possible, so genuinely abandoned spend surfaces to the top.
+  // The usage ratio is computed on the monthly cost, so weekly/yearly subs are compared on the same
+  // basis. We only compute it for subscriptions we have usage signal for. An untracked subscription
+  // gets a neutral 0, so it never sorts to the top purely for lacking data; a tracked subscription
+  // with zero uses takes the worst possible ratio. This is an internal field, never a rendered verdict.
   const valueScore = !tracked
     ? 0
     : subscription.usesPerMonth <= 0

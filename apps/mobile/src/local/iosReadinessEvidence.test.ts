@@ -10,7 +10,10 @@ const checklistPath = fileURLToPath(
   ).href,
 );
 const checklistSource = readFileSync(checklistPath, 'utf8');
-const appRoutePath = fileURLToPath(new URL('../../app/index.tsx', import.meta.url).href);
+// The pressure-map app was moved from app/index.tsx to app/home.tsx (reachable at /home) when the
+// live route was flipped to the FolioShell; the iOS safe-area/scroll hooks this backs live on the
+// (unchanged) pressure-map route, now at home.tsx.
+const appRoutePath = fileURLToPath(new URL('../../app/home.tsx', import.meta.url).href);
 const appRouteSource = readFileSync(appRoutePath, 'utf8');
 const appConfigPath = fileURLToPath(new URL('../../app.config.ts', import.meta.url).href);
 const appConfigSource = readFileSync(appConfigPath, 'utf8');

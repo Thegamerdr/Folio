@@ -129,6 +129,7 @@ The time view of money — the explanation layer for the Route. Three planner vi
 CalendarScreen(nav):
 // Hydration gate: today===null → skeleton (header + title + empty flex-1 surface-hairline rounded-2xl card), no spare £.
 <ScrollView root style=slide-in-r px-28 pt-16 noScrollbar>
+
 <Header row between>
 <Pressable onPress=nav.back aria-label=Back>←</Pressable>
 <Text eyebrow upper tracking.14>What's coming</Text>

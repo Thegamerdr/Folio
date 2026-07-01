@@ -10,7 +10,9 @@ const deprecatedSerifSplashHash =
   'DA7614F11B6A08D32DD9C1F6918A47F67CD33441F2281722B19FEC50B9160FD3';
 const brandMarkPath = fileURLToPath(new URL('./brandMark.tsx', import.meta.url).href);
 const mobileShellPath = fileURLToPath(new URL('./mobileShell.tsx', import.meta.url).href);
-const appRoutePath = fileURLToPath(new URL('../../app/index.tsx', import.meta.url).href);
+// The pressure-map app was moved from app/index.tsx to app/home.tsx (reachable at /home) when the
+// live route was flipped to the FolioShell; this guard follows that (unchanged) surface to home.tsx.
+const appRoutePath = fileURLToPath(new URL('../../app/home.tsx', import.meta.url).href);
 const firstMinutePath = fileURLToPath(new URL('./firstMinuteSurface.tsx', import.meta.url).href);
 const dataControlPath = fileURLToPath(new URL('./dataControlSurface.tsx', import.meta.url).href);
 const rendererPath = `${root}tooling/scripts/render-mobile-shell-evidence.ts`;

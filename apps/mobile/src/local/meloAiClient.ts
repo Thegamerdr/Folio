@@ -60,7 +60,7 @@ function normalizeName(value: string): string {
 }
 
 /** Resolve a model-proposed name against the user's real targets, tolerantly. The model can be
- *  slightly off ("Net flix" vs the stored "Netflix"), so this matches in order of confidence:
+ *  slightly off ("Net flix" vs the stored "Netflix"), so this matches in ranked order:
  *  exact (normalised) → one side contains the other → returns undefined if nothing is close enough.
  *  Returning undefined (rather than silently doing nothing) is what lets the UI tell the user the
  *  target couldn't be found instead of a chip no-op. */
@@ -130,7 +130,7 @@ function readPublicExtra(key: string): string | undefined {
 /** The deployed gateway this build ships against by default. An env var (EXPO_PUBLIC_*) or
  *  app.config `extra` overrides it — but those are unreliable in the gradle RELEASE bundle (it
  *  inlines neither process.env nor expoConfig.extra dependably), so these source literals are the
- *  guaranteed fallback (a string literal is always in the JS bundle). URL + a WEAK shared token
+ *  always-present fallback (a string literal is always in the JS bundle). URL + a WEAK shared token
  *  only; the real OpenRouter key is a Cloudflare Worker secret and never reaches the app. */
 const DEFAULT_GATEWAY_URL = 'https://folio-ai-gateway.tgdroppin.workers.dev/v1';
 const DEFAULT_GATEWAY_TOKEN = 'folio-local-38cf0d6da78a33a51382b91cafe0a7f2';
@@ -221,7 +221,7 @@ function describeSnapshotNames(snapshot: MeloLocalFinancialSnapshot): string | u
     return undefined;
   }
   const lines = [
-    'When you refer to the user’s subscriptions or pots, use their exact names from these lists — copy a name verbatim, do not invent or rephrase one.',
+    'When you refer to the user’s subscriptions or pots, use the user’s exact names from these lists — copy a name verbatim, do not invent or rephrase one.',
   ];
   if (subscriptions.length > 0) {
     lines.push(`Their subscriptions: ${subscriptions.join(', ')}.`);

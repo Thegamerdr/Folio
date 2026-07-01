@@ -16,7 +16,10 @@ import {
 import { buildLocalRouteSummary } from './localLedger.js';
 
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url).href);
-const appRouteSource = readFileSync(`${repoRoot}apps/mobile/app/index.tsx`, 'utf8');
+// The pressure-map app was moved from app/index.tsx to app/home.tsx (reachable at /home) when the
+// live route was flipped to the FolioShell; the developer-mode/dogfood gating this asserts lives on
+// the (unchanged) pressure-map route, now at home.tsx.
+const appRouteSource = readFileSync(`${repoRoot}apps/mobile/app/home.tsx`, 'utf8');
 const shellSource = readFileSync(`${repoRoot}apps/mobile/src/surfaces/mobileShell.tsx`, 'utf8');
 const dogfoodSource = readFileSync(`${repoRoot}apps/mobile/src/local/dogfoodMode.ts`, 'utf8');
 const nativeDiagnosticSource = readFileSync(

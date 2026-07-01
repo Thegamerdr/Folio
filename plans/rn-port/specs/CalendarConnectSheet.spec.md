@@ -82,6 +82,7 @@ Design-only bottom sheet that pitches a one-way Google Calendar push (Folio writ
 <Headline> // Fraunces, 26px, leading-tight, mt-2
 Your money dates in <Accent>Google.</Accent> // <Accent> = --accent, NON-italic (em not-italic)
 </Headline>
+
 <Body>One way — Folio adds the dates that move your money. Folio doesn't read anything back from Google.</Body> // 13px, --muted-ink, leading-relaxed, mt-2
 <Card surface="--surface" hairline rounded-2xl p-4 mt-5> // "What we'd add"
 <Eyebrow size={10.5}>What we'd add</Eyebrow>
@@ -113,7 +114,7 @@ Your money dates in <Accent>Google.</Accent> // <Accent> = --accent, NON-italic 
 
 ## fidelityRisks
 
-- COPY GAP: doc block says @copy FROZEN but NONE of these strings exist in COPY_DECK.md (no calendar.connect._ keys). RN rule 'if a string isn't in COPY_DECK it doesn't ship' — these strings must be added to COPY_DECK before/while porting, keyed (e.g. calendar.connect._), not hardcoded. Don't silently invent new wording.
+- COPY GAP: doc block says @copy FROZEN but NONE of these strings exist in COPY*DECK.md (no calendar.connect.* keys). RN rule 'if a string isn't in COPY*DECK it doesn't ship' — these strings must be added to COPY_DECK before/while porting, keyed (e.g. calendar.connect.*), not hardcoded. Don't silently invent new wording.
 - BANNED-WORD ADJACENCY: COPY_DECK bans 'sync'. This is a Calendar SYNC/push feature — keep the user-facing copy clear of 'sync' (the current strings already avoid it; preserve that on port).
 - HONEST-CLAIMS rule: 'Folio doesn't read anything back from Google' / 'Folio never reads it' are privacy assertions. Per COPY_DECK these may ship ONLY if literally true of the shipped RN app. The real OAuth scope must be write/one-way before this copy is allowed live — verify scope, or soften copy.
 - PLACEHOLDER BEHAVIOR: handleConnect is a fake (toast + close). RN must replace it with the real OAuth flow; do NOT port the toast as the shipped behavior. Per RN_PORT 'do not pretend it works here'.
