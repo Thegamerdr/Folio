@@ -10,7 +10,9 @@
 //               picture". This is review-before-truth: nothing counts until the user taps Add.
 // @reads        — (nav only; the web @reads is an em-dash. The web file's ~16 store imports are DEAD
 //               in its body and are NOT ported. This screen reads no store state.)
-// @writes       addTransaction (only on Accept — the chosen candidate flows into the money path)
+// @writes       addTransaction (only on Accept / "Keep both"). De-dupe: when the candidate matches an
+//               existing row the card PROPOSES a link (ENGINES §8 / lib/reviewDedupe → lib/dedupe);
+//               "Link them" adds NOTHING (no double count), "Keep both" is the only Add.
 // @opens-sheet  edit-txn (the ⋯ and the Edit button open the edit-txn sheet via nav.openSheet)
 // @copy         FROZEN
 // @tokens       surface · hairline · inset · calm (accent) · calmSoft (accent-soft) · muted · ink ·
@@ -68,7 +70,8 @@ import Animated, {
 
 import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { addTransaction, type Transaction } from '@/folio/store';
+import { addTransaction, useAppStore, type Transaction } from '@/folio/store';
+import { reviewDateToIso, reviewMatch, reviewMatchSubline } from '@/folio/lib/reviewDedupe';
 import type { Nav } from '@/folio/types';
 
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
@@ -193,6 +196,13 @@ export function ReviewScreen({
   const [stamped, setStamped] = useState(false);
   const [category, setCategory] = useState<Category>('Groceries');
 
+  // Existing rows + a mount-gated clock, for the de-dupe proposal (ENGINES §8 / the dedupe engine):
+  // when the candidate looks like a transaction the user ALREADY added, Review PROPOSES a link rather
+  // than silently double-counting. Read reactively so a just-added row is considered.
+  const transactions = useAppStore((st) => st.transactions);
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => setNow(new Date()), []);
+
   // The payload threaded to the edit-txn sheet — the candidate's real subject id when it already
   // exists as a posted transaction. Under exactOptionalPropertyTypes the `id` key is OMITTED (not set
   // to undefined) for the pre-truth SAMPLE, so the sheet receives no target and uses its safe inert
@@ -203,6 +213,25 @@ export function ReviewScreen({
   const signedDelta = candidate.flow === 'out' ? -candidate.amount : candidate.amount;
   const afterBalance = candidate.before + signedDelta;
   const balance = useCountUp(stamped ? afterBalance : candidate.before, COUNT_MS, reduceMotion);
+
+  // The de-dupe proposal for THIS candidate against existing rows, or null (the pure engine decides).
+  // Skipped when there's no real candidate, once sealed, before the clock mounts, or when the
+  // candidate's date can't be read — a candidate we can't compare is never merged on a guess.
+  const dupeProposal = useMemo(() => {
+    if (!hasRealCandidate || stamped || now === null) return null;
+    const dateIso = reviewDateToIso(candidate.date, now.getFullYear());
+    if (dateIso === null) return null;
+    return reviewMatch(
+      {
+        id: candidate.id ?? 'review-candidate',
+        amount: signedDelta,
+        dateIso,
+        merchant: candidate.merchant,
+      },
+      transactions,
+      now.toISOString().slice(0, 10),
+    );
+  }, [hasRealCandidate, stamped, now, candidate, signedDelta, transactions]);
 
   // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -254,6 +283,14 @@ export function ReviewScreen({
       stampScale.value = 1;
     }
     dwellRef.current = setTimeout(() => nav.go('today'), reduceMotion ? 0 : ADD_DWELL_MS);
+  }
+
+  // Link them — the candidate is the same as an existing row, so we DON'T add a duplicate: no double
+  // count, the existing row is untouched. Nothing is created or destroyed here, so the decision is
+  // reversible (the user can re-add from intake). Route to Today, like any completed decision.
+  function onLink() {
+    if (stamped) return;
+    nav.go('today');
   }
 
   // empty — no candidate to review: an explicit empty state, OR a cold open with no candidate passed
@@ -421,52 +458,124 @@ export function ReviewScreen({
         {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
         <View style={styles.spacer} />
 
-        {/* Primary CTA — the dominant "Add to my picture"; reads "Added…" once sealed. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: stamped }}
-          accessibilityLabel={stamped ? 'Added to your picture' : 'Add to my picture'}
-          disabled={stamped}
-          onPress={onAdd}
-          style={({ pressed: isPressed }) => [
-            styles.primary,
-            { backgroundColor: t.calm },
-            stamped ? styles.primaryStamped : undefined,
-            isPressed && !stamped ? styles.pressed : undefined,
-          ]}
-        >
-          <Text style={[styles.primaryLabel, { color: t.inverse }]}>
-            {stamped ? 'Added to your picture' : 'Add to my picture'}
-          </Text>
-        </Pressable>
+        {dupeProposal && !stamped ? (
+          /* De-dupe proposal — "This looks like something you already added." Propose, never
+             auto-merge (ENGINES §8 / the dedupe engine): Link them (adds NOTHING — no double count) ·
+             Keep both (the normal Add) · Edit before linking (opens edit-txn) · Ignore (backs out).
+             Linking removes nothing; the original stays. */
+          <View style={[styles.dupeCard, { backgroundColor: t.calmSoft, borderColor: t.calm }]}>
+            <Text style={[styles.dupeHead, { color: t.ink }]}>
+              This looks like something you already added.
+            </Text>
+            <Text style={[styles.dupeSub, { color: t.muted }]}>
+              {reviewMatchSubline(dupeProposal)}
+            </Text>
+            <View style={styles.dupeRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Link them"
+                onPress={onLink}
+                style={({ pressed: isPressed }) => [
+                  styles.dupePrimary,
+                  { backgroundColor: t.calm },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.dupePrimaryLabel, { color: t.inverse }]}>Link them</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Keep both"
+                onPress={onAdd}
+                style={({ pressed: isPressed }) => [
+                  styles.dupeCell,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.dupeCellLabel, { color: t.ink }]}>Keep both</Text>
+              </Pressable>
+            </View>
+            <View style={styles.dupeRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Edit before linking"
+                onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
+                style={({ pressed: isPressed }) => [
+                  styles.dupeCell,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.dupeCellLabel, { color: t.ink }]}>Edit before linking</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ignore the imported one"
+                onPress={nav.back}
+                style={({ pressed: isPressed }) => [
+                  styles.dupeCell,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.dupeCellLabel, { color: t.ink }]}>Ignore</Text>
+              </Pressable>
+            </View>
+            <Text style={[styles.dupeFoot, { color: t.muted }]}>
+              Linking keeps your original — nothing is removed.
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Primary CTA — the dominant "Add to my picture"; reads "Added…" once sealed. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: stamped }}
+              accessibilityLabel={stamped ? 'Added to your picture' : 'Add to my picture'}
+              disabled={stamped}
+              onPress={onAdd}
+              style={({ pressed: isPressed }) => [
+                styles.primary,
+                { backgroundColor: t.calm },
+                stamped ? styles.primaryStamped : undefined,
+                isPressed && !stamped ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+                {stamped ? 'Added to your picture' : 'Add to my picture'}
+              </Text>
+            </Pressable>
 
-        {/* Secondary row — Edit (opens edit-txn) + Ignore (backs out). */}
-        <View style={styles.secondaryRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Edit"
-            onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
-            style={({ pressed: isPressed }) => [
-              styles.secondaryCell,
-              { backgroundColor: t.surface, borderColor: t.hairline },
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.secondaryLabel, { color: t.ink }]}>Edit</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Ignore"
-            onPress={nav.back}
-            style={({ pressed: isPressed }) => [
-              styles.secondaryCell,
-              { backgroundColor: t.surface, borderColor: t.hairline },
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.secondaryLabel, { color: t.ink }]}>Ignore</Text>
-          </Pressable>
-        </View>
+            {/* Secondary row — Edit (opens edit-txn) + Ignore (backs out). */}
+            <View style={styles.secondaryRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Edit"
+                onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
+                style={({ pressed: isPressed }) => [
+                  styles.secondaryCell,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.secondaryLabel, { color: t.ink }]}>Edit</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ignore"
+                onPress={nav.back}
+                style={({ pressed: isPressed }) => [
+                  styles.secondaryCell,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.secondaryLabel, { color: t.ink }]}>Ignore</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
       </ScrollView>
     </Animated.View>
   );
@@ -722,6 +831,54 @@ const styles = StyleSheet.create({
   },
   secondaryLabel: {
     fontSize: 14,
+  },
+  // De-dupe proposal card — accent-soft surface + the calm ring; the propose-never-merge affordance.
+  dupeCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    marginTop: gap.md,
+    padding: gap.lg,
+  },
+  dupeHead: {
+    fontFamily: serif.display,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  dupeSub: {
+    fontSize: 12.5,
+    marginTop: gap.xs,
+  },
+  dupeRow: {
+    columnGap: gap.md - gap.xxs,
+    flexDirection: 'row',
+    marginTop: gap.md,
+  },
+  dupePrimary: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flex: 1,
+    height: 48,
+    justifyContent: 'center',
+  },
+  dupePrimaryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dupeCell: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    height: 48,
+    justifyContent: 'center',
+  },
+  dupeCellLabel: {
+    fontSize: 14,
+  },
+  dupeFoot: {
+    fontSize: 11,
+    marginTop: gap.md,
+    textAlign: 'center',
   },
   // The kit press feel (web `press` util — scale 0.97 / lowered opacity).
   pressed: {
