@@ -13,12 +13,20 @@
 // HARD CONSTRAINTS:
 //   • The store stays pure: this file does the side effects, the store does the
 //     serialization. No store logic leaks in here.
-//   • Honest: this persists the user's own state to their own device's document
-//     directory. Nothing here claims it is encrypted or synced.
+//   • ENCRYPTED AT REST: the serialized blob is AES-256-GCM encrypted (./cryptoBlob) with a 32-byte
+//     data key held in the OS keystore (./vaultKey → expo-secure-store, device-only) BEFORE it
+//     touches disk — so the document-directory file is ciphertext, not plaintext. A legacy plaintext
+//     blob (written before encryption landed) is migrated on read. This realises the local at-rest +
+//     native-key boundary in DATA_FLOW_AND_TRUST_BOUNDARIES.md; full encrypted-SQLite (SQLCipher via
+//     op-sqlite) stays the longer-term target, but the plaintext-on-disk gap is closed now.
+//   • This persists the user's own state to their own device's document directory. Not synced.
 
+import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { getPersistBlob, hydrateFromBlob, subscribeStore } from '@/folio/store';
+import { GCM_NONCE_BYTES, decryptBlob, encryptBlob, isEncryptedBlob } from '@/folio/lib/cryptoBlob';
+import { getVaultKey } from '@/folio/lib/vaultKey';
 
 /** The on-disk file holding the serialized store state. `v3` tracks the store's
  *  CURRENT_SCHEMA_VERSION so a future schema bump can adopt a new file name
@@ -58,6 +66,14 @@ function stateFileUri(): string | null {
   return `${dir}${STATE_FILENAME}`;
 }
 
+/** The at-rest vault key, fetched from the OS keystore once and cached for the session so a debounced
+ *  write never round-trips the keystore. Cleared only by a full app restart. */
+let cachedVaultKey: Uint8Array | null = null;
+async function vaultKey(): Promise<Uint8Array> {
+  if (cachedVaultKey === null) cachedVaultKey = await getVaultKey();
+  return cachedVaultKey;
+}
+
 /**
  * Read the persisted blob off disk (if any) and hydrate the store from it.
  * A missing file is the normal first-run case — left as a no-op so the store
@@ -74,9 +90,19 @@ export async function loadPersisted(): Promise<void> {
     const raw = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    hydrateFromBlob(raw); // parse → migrate → publish (safe no-op if malformed).
+    if (isEncryptedBlob(raw)) {
+      // Ciphertext — decrypt with the keystore vault key, then hydrate. A decrypt failure (wrong key
+      // on a restored device / a tampered or corrupt file) keeps the seeded defaults, exactly like the
+      // store's tolerant load: the loss surfaces as an empty picture, never garbage and never a crash.
+      const plain = decryptBlob(raw, await vaultKey());
+      if (plain !== null) hydrateFromBlob(plain);
+    } else {
+      // Legacy PLAINTEXT blob written before encryption landed — hydrate it once; the next state
+      // change re-writes it as ciphertext (migrate-on-read). One-time upgrade path.
+      hydrateFromBlob(raw);
+    }
   } catch {
-    /* read/parse failure — keep defaults, never block launch. */
+    /* read/parse/keystore failure — keep defaults, never block launch. */
   }
 }
 
@@ -93,9 +119,21 @@ export function startPersisting(): () => void {
     const uri = stateFileUri();
     if (uri === null) return;
     const blob = getPersistBlob();
-    void FileSystem.writeAsStringAsync(uri, blob, {
-      encoding: FileSystem.EncodingType.UTF8,
-    }).catch(() => undefined); // disk/quota failure — swallow, retry next change.
+    // Encrypt-then-write. Async (the keystore + CSPRNG are async), fire-and-forget exactly like the
+    // prior plain write — a disk / quota / keystore failure is swallowed and retried on the next
+    // change. A fresh random GCM nonce is drawn per write (GCM requires a unique nonce per key).
+    void (async () => {
+      try {
+        const key = await vaultKey();
+        const iv = Uint8Array.from(await Crypto.getRandomBytesAsync(GCM_NONCE_BYTES));
+        const encoded = encryptBlob(blob, key, iv);
+        await FileSystem.writeAsStringAsync(uri, encoded, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+      } catch {
+        /* disk / quota / keystore failure — swallow, retry next change. */
+      }
+    })();
   };
 
   const debounced = makeDebounced(writeNow, WRITE_DEBOUNCE_MS);
