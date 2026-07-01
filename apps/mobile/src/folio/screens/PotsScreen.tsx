@@ -64,14 +64,7 @@
 // smart / provenance / source record / indexed) are absent.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -81,15 +74,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import {
-  elevation,
-  gap,
-  radius,
-  serif,
-  useCountUp,
-  useTheme,
-  type Palette,
-} from '@/folio/theme';
+import { elevation, gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
 import { Sheet } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -240,7 +225,11 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
   const resolvedState: PotsState = state ?? (pots.length === 0 ? 'empty' : 'populated');
 
   // The aggregate count-up — settles to the live total; snaps under reduce-motion.
-  const totalDisplay = useCountUp(resolvedState === 'populated' ? total : total, COUNT_MS, reduceMotion);
+  const totalDisplay = useCountUp(
+    resolvedState === 'populated' ? total : total,
+    COUNT_MS,
+    reduceMotion,
+  );
 
   // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -256,8 +245,8 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  const fromPot = transfer ? pots.find((p) => p.id === transfer.from) ?? null : null;
-  const toPot = transfer ? pots.find((p) => p.id === transfer.to) ?? null : null;
+  const fromPot = transfer ? (pots.find((p) => p.id === transfer.from) ?? null) : null;
+  const toPot = transfer ? (pots.find((p) => p.id === transfer.to) ?? null) : null;
   const maxMove = fromPot ? fromPot.saved : 0;
   const clamped = Math.max(0, Math.min(amount, maxMove));
 
@@ -343,7 +332,9 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
   // Pots are synchronous, so this is defensive only. Melo curious + a line, NEVER a spinner.
   if (resolvedState === 'loading') {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxxl }]}
+      >
         <MeloLine mood="curious" text="One second — lining your pots up." />
       </View>
     );
@@ -411,7 +402,9 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
         <View style={[styles.aggCard, { backgroundColor: t.surface }, elevation.card]}>
           <Text style={[styles.label, { color: t.muted }]}>Across pots</Text>
           <View style={styles.aggFigureRow}>
-            <Text style={[styles.aggFigure, { color: t.ink }]}>{`£${Math.round(totalDisplay)}`}</Text>
+            <Text
+              style={[styles.aggFigure, { color: t.ink }]}
+            >{`£${Math.round(totalDisplay)}`}</Text>
             <Text style={[styles.aggOf, { color: t.muted }]}>{`of £${totalGoal}`}</Text>
           </View>
           <ProgressBar
@@ -558,7 +551,9 @@ function PotCard({
       />
 
       <View style={styles.paceRow}>
-        <Text style={[styles.paceText, { color: t.muted }]}>{`£${pot.perWeek}/wk at this pace`}</Text>
+        <Text
+          style={[styles.paceText, { color: t.muted }]}
+        >{`£${pot.perWeek}/wk at this pace`}</Text>
         <Text style={[styles.paceEta, { color: t.muted }]}>{etaLabel}</Text>
       </View>
 
@@ -590,7 +585,10 @@ function PotCard({
             onPress={onToggleMove}
             style={({ pressed: isPressed }) => [
               styles.moveChip,
-              { borderColor: moveOpen ? t.calm : t.hairline, backgroundColor: moveOpen ? t.calmSoft : t.surface },
+              {
+                borderColor: moveOpen ? t.calm : t.hairline,
+                backgroundColor: moveOpen ? t.calmSoft : t.surface,
+              },
               isPressed ? styles.pressed : undefined,
             ]}
           >
@@ -744,7 +742,9 @@ function ReallocateSheet({
               <Text style={[styles.impactValue, { color: t.ink }]}>
                 {`£${tightPointBase}`}
                 {tightDelta !== 0 ? (
-                  <Text style={[styles.impactDelta, { color: tightDelta > 0 ? t.positive : t.repair }]}>
+                  <Text
+                    style={[styles.impactDelta, { color: tightDelta > 0 ? t.positive : t.repair }]}
+                  >
                     {` ${deltaSign}£${tightDelta}`}
                   </Text>
                 ) : null}

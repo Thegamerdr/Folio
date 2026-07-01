@@ -370,7 +370,13 @@ export function FolioShell() {
           no `.pressure`, so the shell threads it alongside). The shell threads the openMelo intent
           (prefill/seed) so an "Ask Melo" CTA opens the chat with its draft. */}
       {sheet === 'melo-chat' && (
-        <MeloChatSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} intent={meloIntent} />
+        <MeloChatSheet
+          visible
+          onClose={closeSheet}
+          nav={nav}
+          pressure={activePressure}
+          intent={meloIntent}
+        />
       )}
       {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
       {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
@@ -480,10 +486,7 @@ type ScreenErrorBoundaryProps = {
 };
 type ScreenErrorBoundaryState = { error: Error | null; forLabel: ScreenId };
 
-class ScreenErrorBoundary extends Component<
-  ScreenErrorBoundaryProps,
-  ScreenErrorBoundaryState
-> {
+class ScreenErrorBoundary extends Component<ScreenErrorBoundaryProps, ScreenErrorBoundaryState> {
   override state: ScreenErrorBoundaryState = { error: null, forLabel: this.props.screenLabel };
 
   static getDerivedStateFromError(error: Error): Partial<ScreenErrorBoundaryState> {
@@ -519,8 +522,8 @@ class ScreenErrorBoundary extends Component<
           <Muted style={errorStyles.eyebrow}>A small slip</Muted>
           <Headline accent="This screen tripped." style={errorStyles.headline} />
           <Body style={errorStyles.body}>
-            Nothing was lost. The rest of Folio is still here — try the screen again, or head back to
-            Today.
+            Nothing was lost. The rest of Folio is still here — try the screen again, or head back
+            to Today.
           </Body>
           <View style={errorStyles.action}>
             <PrimaryAction label="Try again" onPress={this.handleReset} />

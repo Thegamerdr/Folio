@@ -220,12 +220,7 @@ function CalendarConnectBody({
         <View style={s.meloBranch}>
           <MeloLine text={copy.err.offline} mood="concern" size={28} />
         </View>
-        <CalendarFileButton
-          styles={s}
-          palette={t}
-          reduceMotion={reduceMotion}
-          events={events}
-        />
+        <CalendarFileButton styles={s} palette={t} reduceMotion={reduceMotion} events={events} />
         <SecondaryButton styles={s} reduceMotion={reduceMotion} label="Not now" onPress={onClose} />
       </View>
     );
@@ -259,12 +254,7 @@ function CalendarConnectBody({
             size={28}
           />
         </View>
-        <CalendarFileButton
-          styles={s}
-          palette={t}
-          reduceMotion={reduceMotion}
-          events={events}
-        />
+        <CalendarFileButton styles={s} palette={t} reduceMotion={reduceMotion} events={events} />
         <SecondaryButton styles={s} reduceMotion={reduceMotion} label="Not now" onPress={onClose} />
       </View>
     );
@@ -296,8 +286,8 @@ function CalendarConnectBody({
 
       {/* Subhead — one-way framing. Inline-frozen verbatim. */}
       <Text style={s.subhead}>
-        One way — Folio adds the dates that move your money. Folio doesn&apos;t read anything back from
-        Google.
+        One way — Folio adds the dates that move your money. Folio doesn&apos;t read anything back
+        from Google.
       </Text>
 
       {/* "What we'd add" — raised --surface card WITH a hairline. Four semantic dots. */}

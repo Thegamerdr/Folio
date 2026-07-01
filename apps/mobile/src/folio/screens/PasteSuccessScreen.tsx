@@ -55,14 +55,7 @@
 // row meta / Melo line / CTAs are @copy FROZEN inline literals (the web keeps them inline).
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -252,7 +245,9 @@ export function PasteSuccessScreen({
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
         <MeloLine mood="curious" text="Folio is reading…" />
       </View>
     );
@@ -278,7 +273,10 @@ export function PasteSuccessScreen({
             accessibilityLabel="Go back"
             hitSlop={12}
             onPress={nav.back}
-            style={({ pressed: isPressed }) => [styles.pressIcon, isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [
+              styles.pressIcon,
+              isPressed ? styles.pressed : undefined,
+            ]}
           >
             <BackArrow color={t.muted} />
           </Pressable>
@@ -306,11 +304,12 @@ export function PasteSuccessScreen({
             return (
               <View
                 key={item.merchant}
-                style={[styles.row, index > 0 ? { borderTopColor: t.hairline, ...styles.rowDivider } : undefined]}
+                style={[
+                  styles.row,
+                  index > 0 ? { borderTopColor: t.hairline, ...styles.rowDivider } : undefined,
+                ]}
               >
-                <View
-                  style={[styles.dot, { backgroundColor: isIn ? t.positive : t.calm }]}
-                />
+                <View style={[styles.dot, { backgroundColor: isIn ? t.positive : t.calm }]} />
                 <View style={styles.rowMeta}>
                   <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
                     {item.merchant}
@@ -356,7 +355,10 @@ export function PasteSuccessScreen({
           accessibilityRole="button"
           accessibilityLabel="Leave for later"
           onPress={nav.back}
-          style={({ pressed: isPressed }) => [styles.secondary, isPressed ? styles.pressed : undefined]}
+          style={({ pressed: isPressed }) => [
+            styles.secondary,
+            isPressed ? styles.pressed : undefined,
+          ]}
         >
           <Text style={[styles.secondaryLabel, { color: t.muted }]}>Leave for later</Text>
         </Pressable>

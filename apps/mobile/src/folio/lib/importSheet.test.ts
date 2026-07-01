@@ -24,8 +24,10 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers — find a candidate by merchant, and pull issue codes.
 // ---------------------------------------------------------------------------
-const byMerchant = (cands: readonly CandidateMoneyItem[], m: string): CandidateMoneyItem | undefined =>
-  cands.find((c) => c.merchant === m);
+const byMerchant = (
+  cands: readonly CandidateMoneyItem[],
+  m: string,
+): CandidateMoneyItem | undefined => cands.find((c) => c.merchant === m);
 
 const issueCodes = (issues: readonly ColumnIssue[]): string[] => issues.map((i) => i.code);
 
@@ -151,7 +153,9 @@ describe('parseSheet — amount format', () => {
     // No sign glyph and no type column → the amount is ambiguous in/out, so the
     // engine keeps the magnitude and does NOT silently flip the sign. Review
     // confirms the direction. Here we assert the numbers are read correctly.
-    const csv = ['description,amount,type', 'Rent,"£1,250.00",spend', 'Coffee,£3.50,spend'].join('\n');
+    const csv = ['description,amount,type', 'Rent,"£1,250.00",spend', 'Coffee,£3.50,spend'].join(
+      '\n',
+    );
     const { candidates, issues } = parseSheet(csv);
     expect(issues).toHaveLength(0);
     expect(byMerchant(candidates, 'Rent')?.amount).toBe(-1250);
@@ -174,7 +178,9 @@ describe('parseSheet — amount format', () => {
   });
 
   it('uses an explicit type column to sign an unsigned amount', () => {
-    const csv = ['description,amount,type', 'Tesco,42.00,spend', 'Salary,2180.00,income'].join('\n');
+    const csv = ['description,amount,type', 'Tesco,42.00,spend', 'Salary,2180.00,income'].join(
+      '\n',
+    );
     const { candidates } = parseSheet(csv);
     expect(byMerchant(candidates, 'Tesco')?.amount).toBe(-42);
     expect(byMerchant(candidates, 'Salary')?.amount).toBe(2180);
@@ -256,7 +262,9 @@ describe('parseSheet — columnMapping override', () => {
 // ---------------------------------------------------------------------------
 describe('parseSheet — quoted fields', () => {
   it('keeps commas inside double-quoted fields', () => {
-    const csv = ['description,amount,note', '"Tesco, Bristol",-42.00,"big, weekly shop"'].join('\n');
+    const csv = ['description,amount,note', '"Tesco, Bristol",-42.00,"big, weekly shop"'].join(
+      '\n',
+    );
     const { candidates, issues } = parseSheet(csv);
     expect(issues).toHaveLength(0);
     const tesco = byMerchant(candidates, 'Tesco, Bristol');

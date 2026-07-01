@@ -151,7 +151,16 @@ describe('resetToEmpty', () => {
     setPartial({
       subPaused: { Spotify: true },
       subOverrides: { Netflix: 2 },
-      potLedger: [{ id: 'pl-1', potId: 'holiday', at: '2026-06-01T00:00:00.000Z', kind: 'deposit', amount: 10, source: 'manual' }],
+      potLedger: [
+        {
+          id: 'pl-1',
+          potId: 'holiday',
+          at: '2026-06-01T00:00:00.000Z',
+          kind: 'deposit',
+          amount: 10,
+          source: 'manual',
+        },
+      ],
       calendarEvents: [{ id: 'e1', date: '2026-07-01', kind: 'out', title: 'Rent', amount: -900 }],
       edits: [],
     });
@@ -268,9 +277,9 @@ describe('matchMeloTool — normalised name matching', () => {
   });
 
   it('treats move_between_pots / set_tight_point_goal as unknown to Melo too', () => {
-    expect(applyMeloTool('move_between_pots', { from: 'holiday', to: 'buffer', amount: 5 }).applied).toBe(
-      false,
-    );
+    expect(
+      applyMeloTool('move_between_pots', { from: 'holiday', to: 'buffer', amount: 5 }).applied,
+    ).toBe(false);
     expect(applyMeloTool('set_tight_point_goal', { amount: 50 }).applied).toBe(false);
   });
 
@@ -399,10 +408,12 @@ describe('applyMeloTool — log_transfer', () => {
   });
 
   it('rejects bad args (missing endpoint / non-positive amount)', () => {
-    expect(applyMeloTool('log_transfer', { from: '', to: 'Savings', amount: 50 }).applied).toBe(false);
-    expect(applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 0 }).applied).toBe(
+    expect(applyMeloTool('log_transfer', { from: '', to: 'Savings', amount: 50 }).applied).toBe(
       false,
     );
+    expect(
+      applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 0 }).applied,
+    ).toBe(false);
   });
 
   it('undo removes BOTH legs', () => {
@@ -451,7 +462,16 @@ describe('fastForwardMonth', () => {
     // Use a unique note (not a month label) to identify the original — the
     // synthetic head's label is the *current* month and could otherwise collide.
     setPartial({
-      cycles: [{ closedAt: '2026-06-30', label: 'Original', spare: 1, tightPoint: 1, setAside: 1, note: 'orig-marker' }],
+      cycles: [
+        {
+          closedAt: '2026-06-30',
+          label: 'Original',
+          spare: 1,
+          tightPoint: 1,
+          setAside: 1,
+          note: 'orig-marker',
+        },
+      ],
     });
     fastForwardMonth();
     // The aged original sits behind the new synthetic head.
@@ -483,7 +503,13 @@ describe('editTransaction', () => {
   // Seed a single known manual row to correct, so assertions don't depend on
   // the default seed set.
   const seedOne = (over: Partial<Transaction> = {}): Transaction =>
-    addTransaction({ merchant: 'Tesco', amount: -42.1, category: 'food', source: 'manual', ...over });
+    addTransaction({
+      merchant: 'Tesco',
+      amount: -42.1,
+      category: 'food',
+      source: 'manual',
+      ...over,
+    });
 
   it('replaces the row in place — same id, no duplicate, count unchanged', () => {
     setPartial({ transactions: [], edits: [] });
@@ -574,7 +600,14 @@ describe('seeding', () => {
   it('a user-set transaction list is not overwritten by a seed', () => {
     setPartial({
       transactions: [
-        { id: 'only', when: new Date().toISOString(), merchant: 'Mine', amount: -1, category: 'other', source: 'manual' },
+        {
+          id: 'only',
+          when: new Date().toISOString(),
+          merchant: 'Mine',
+          amount: -1,
+          category: 'other',
+          source: 'manual',
+        },
       ],
     });
     // No re-seed happens on a plain partial write.
@@ -609,7 +642,12 @@ describe('persist blob round-trip', () => {
 
   it('round-trips through schema v3 with the edit history intact', () => {
     setPartial({ transactions: [], edits: [] });
-    const row = addTransaction({ merchant: 'Tesco', amount: -42.1, category: 'food', source: 'manual' });
+    const row = addTransaction({
+      merchant: 'Tesco',
+      amount: -42.1,
+      category: 'food',
+      source: 'manual',
+    });
     editTransaction(row.id, { amount: -50 }, 'user');
 
     const blob = getPersistBlob();
@@ -666,7 +704,10 @@ describe('readerCandidates staging slot', () => {
 
   it('set then clear round-trips the staged candidates', () => {
     const txnsBefore = getState().transactions.length;
-    const items = [candidate({ id: 'r1' }), candidate({ id: 'r2', merchant: 'Caffè Nero', amount: -4.2 })];
+    const items = [
+      candidate({ id: 'r1' }),
+      candidate({ id: 'r2', merchant: 'Caffè Nero', amount: -4.2 }),
+    ];
     setReaderCandidates(items);
 
     const staged = getState().readerCandidates;

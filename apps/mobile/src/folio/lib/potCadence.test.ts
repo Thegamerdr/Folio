@@ -138,18 +138,12 @@ describe('resolveNextTopUp — monthly', () => {
 // ---------------------------------------------------------------------------
 describe('resolveNextTopUp — custom', () => {
   it('returns the user-picked nextDate verbatim', () => {
-    const res = resolveNextTopUp(
-      { kind: 'custom', nextDate: '2026-09-04' },
-      { now: '2026-07-01' },
-    );
+    const res = resolveNextTopUp({ kind: 'custom', nextDate: '2026-09-04' }, { now: '2026-07-01' });
     expect(res).toEqual({ kind: 'date', date: '2026-09-04' });
   });
 
   it('returns a past custom date verbatim (the engine does not second-guess the user)', () => {
-    const res = resolveNextTopUp(
-      { kind: 'custom', nextDate: '2026-06-01' },
-      { now: '2026-07-01' },
-    );
+    const res = resolveNextTopUp({ kind: 'custom', nextDate: '2026-06-01' }, { now: '2026-07-01' });
     expect(res).toEqual({ kind: 'date', date: '2026-06-01' });
   });
 });

@@ -96,7 +96,8 @@ describe('parseCandidatesFromModelJson — well-formed JSON', () => {
 
 describe('parseCandidatesFromModelJson — markdown code fences', () => {
   it('strips a ```json … ``` fence before parsing', () => {
-    const fenced = '```json\n' + JSON.stringify({ items: [{ merchant: 'Uber', amount: -14.3 }] }) + '\n```';
+    const fenced =
+      '```json\n' + JSON.stringify({ items: [{ merchant: 'Uber', amount: -14.3 }] }) + '\n```';
     const candidates = parseCandidatesFromModelJson(fenced, 'photo');
     expect(candidates.length).toBe(1);
     expect(candidates[0]?.merchant).toBe('Uber');
@@ -104,7 +105,8 @@ describe('parseCandidatesFromModelJson — markdown code fences', () => {
   });
 
   it('strips a bare ``` … ``` fence', () => {
-    const fenced = '```\n' + JSON.stringify({ items: [{ merchant: 'Coffee', amount: -3.2 }] }) + '\n```';
+    const fenced =
+      '```\n' + JSON.stringify({ items: [{ merchant: 'Coffee', amount: -3.2 }] }) + '\n```';
     const candidates = parseCandidatesFromModelJson(fenced, 'pdf');
     expect(candidates.length).toBe(1);
     expect(candidates[0]?.merchant).toBe('Coffee');
@@ -127,9 +129,9 @@ describe('parseCandidatesFromModelJson — degenerate input', () => {
   });
 
   it('returns [] for a top-level array (must be the { items } object)', () => {
-    expect(parseCandidatesFromModelJson(JSON.stringify([{ merchant: 'X', amount: -1 }]), 'pdf')).toEqual(
-      [],
-    );
+    expect(
+      parseCandidatesFromModelJson(JSON.stringify([{ merchant: 'X', amount: -1 }]), 'pdf'),
+    ).toEqual([]);
   });
 
   it('drops bad items but keeps the good ones — never fabricates a row', () => {

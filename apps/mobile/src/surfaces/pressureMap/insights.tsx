@@ -27,10 +27,7 @@ import {
   type Palette,
 } from './kit';
 import { Kicker, MeloLine, ScreenHeader, SectionLabel } from './secondaryKit';
-import type {
-  LocalInsightsModel,
-  LocalInsightsTrendPoint,
-} from '../../local/localInsightsAdapter';
+import type { LocalInsightsModel, LocalInsightsTrendPoint } from '../../local/localInsightsAdapter';
 
 // One row in "Notes from past you". The engine's LocalInsightsModel carries only the trend (label +
 // tight point), so the per-cycle spare + reflection note live on this lightweight shape the

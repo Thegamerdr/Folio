@@ -35,25 +35,86 @@ function fullState(): AppState {
   return {
     schemaVersion: 2,
     pots: [
-      { id: 'holiday', name: 'Holiday · September', saved: 420, goal: 1200, perWeek: 35, accent: true },
-      { id: 'buffer', name: 'Buffer', saved: 140, goal: 500, perWeek: 20, accent: false, cadence: { kind: 'after-payday' } },
+      {
+        id: 'holiday',
+        name: 'Holiday · September',
+        saved: 420,
+        goal: 1200,
+        perWeek: 35,
+        accent: true,
+      },
+      {
+        id: 'buffer',
+        name: 'Buffer',
+        saved: 140,
+        goal: 500,
+        perWeek: 20,
+        accent: false,
+        cadence: { kind: 'after-payday' },
+      },
     ],
     subs: [
       { name: 'Spotify', cost: 11.0, nextRenewalDaysAway: 2, lastUsedDaysAgo: 0, usesPerMonth: 28 },
-      { name: 'Disney+', cost: 8.99, nextRenewalDaysAway: 6, lastUsedDaysAgo: 42, usesPerMonth: 0, trialEndsInDays: 6 },
+      {
+        name: 'Disney+',
+        cost: 8.99,
+        nextRenewalDaysAway: 6,
+        lastUsedDaysAgo: 42,
+        usesPerMonth: 0,
+        trialEndsInDays: 6,
+      },
     ],
     subPaused: { 'Disney+': true },
     subOverrides: { Spotify: 3 },
-    cycles: [{ closedAt: '2026-05-25', label: 'May', spare: 142, tightPoint: 38, setAside: 60, note: 'Held the line.' }],
+    cycles: [
+      {
+        closedAt: '2026-05-25',
+        label: 'May',
+        spare: 142,
+        tightPoint: 38,
+        setAside: 60,
+        note: 'Held the line.',
+      },
+    ],
     onboarding: { done: true, name: 'Sam', payday: 25, monthlyIncome: 2180 },
-    currentBalance: { amount: 720, source: 'user-entered', confidence: 'rough', setAt: '2026-06-27T00:00:00.000Z' },
-    potLedger: [{ id: 'pl-1', potId: 'holiday', at: '2026-06-01T00:00:00.000Z', kind: 'deposit', amount: 35, source: 'ritual' }],
+    currentBalance: {
+      amount: 720,
+      source: 'user-entered',
+      confidence: 'rough',
+      setAt: '2026-06-27T00:00:00.000Z',
+    },
+    potLedger: [
+      {
+        id: 'pl-1',
+        potId: 'holiday',
+        at: '2026-06-01T00:00:00.000Z',
+        kind: 'deposit',
+        amount: 35,
+        source: 'ritual',
+      },
+    ],
     nextYouNote: 'Watch the takeaways.',
     tightPointGoal: 100,
     transactions: [
-      { id: 'txn-1', when: '2026-06-20T00:00:00.000Z', merchant: 'Tesco', amount: -42.1, category: 'food', source: 'manual' },
+      {
+        id: 'txn-1',
+        when: '2026-06-20T00:00:00.000Z',
+        merchant: 'Tesco',
+        amount: -42.1,
+        category: 'food',
+        source: 'manual',
+      },
     ],
-    calendarEvents: [{ id: 'evt-1', date: '2026-07-01', kind: 'out', title: 'Rent', amount: -800, note: 'monthly' }],
+    calendarEvents: [
+      {
+        id: 'evt-1',
+        date: '2026-07-01',
+        kind: 'out',
+        title: 'Rent',
+        amount: -800,
+        note: 'monthly',
+      },
+    ],
     calendarFocusDate: null,
     routeFocusDate: null,
     readerCandidates: [],
@@ -70,7 +131,12 @@ function emptyState(): AppState {
     subOverrides: {},
     cycles: [],
     onboarding: { done: false, name: '', payday: 25, monthlyIncome: 0 },
-    currentBalance: { amount: 0, source: 'sample', confidence: 'sample', setAt: '2026-06-27T00:00:00.000Z' },
+    currentBalance: {
+      amount: 0,
+      source: 'sample',
+      confidence: 'sample',
+      setAt: '2026-06-27T00:00:00.000Z',
+    },
     potLedger: [],
     nextYouNote: '',
     tightPointGoal: null,
@@ -308,10 +374,24 @@ describe('buildExport — corrections', () => {
 
   it('emits corrections.csv when edits exist on the state', () => {
     const state = fullState() as AppState & {
-      edits: Array<{ txnId: string; field: string; before: string; after: string; at: string; by: string }>;
+      edits: Array<{
+        txnId: string;
+        field: string;
+        before: string;
+        after: string;
+        at: string;
+        by: string;
+      }>;
     };
     state.edits = [
-      { txnId: 'txn-1', field: 'merchant', before: 'Tesco', after: 'Tesco Metro', at: '2026-06-21T00:00:00.000Z', by: 'user' },
+      {
+        txnId: 'txn-1',
+        field: 'merchant',
+        before: 'Tesco',
+        after: 'Tesco Metro',
+        at: '2026-06-21T00:00:00.000Z',
+        by: 'user',
+      },
     ];
     const { csvs } = buildExport(state);
     expect(csvs).toHaveProperty('corrections.csv');
@@ -337,7 +417,14 @@ describe('buildExport — empty state', () => {
   it('every CSV is still present with a header row in the empty state', () => {
     const { csvs } = buildExport(emptyState());
     // Collection surfaces collapse to a header-only file when empty.
-    const collections = ['transactions.csv', 'subs.csv', 'pots.csv', 'cycles.csv', 'ledger.csv', 'calendarEvents.csv'];
+    const collections = [
+      'transactions.csv',
+      'subs.csv',
+      'pots.csv',
+      'cycles.csv',
+      'ledger.csv',
+      'calendarEvents.csv',
+    ];
     // Singleton surfaces always carry the one row that describes the scalar.
     const singletons = ['onboarding.csv', 'balance.csv', 'settings.csv'];
     for (const file of EXPORT_CSV_FILES) {

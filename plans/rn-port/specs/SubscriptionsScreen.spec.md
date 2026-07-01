@@ -1,4 +1,4 @@
-# SubscriptionsScreen  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenSubscriptions.tsx)
+# SubscriptionsScreen (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenSubscriptions.tsx)
 
 ## file
 
@@ -88,17 +88,18 @@ Subscription pulse — for each recurring charge show a usage pulse (yes/maybe/n
 
 ## docBlock
 
-/**
- * @rn-screen    SubscriptionsScreen
- * @rn-stack     MainTabs > Subs
- * @purpose      Subscription pulse — pause / cancel / used-today / ask-Melo per item.
- * @reads        subs, subPaused
- * @writes       togglePaused, removeSub, markSubUsed
- * @opens-sheet  melo-chat
- * @copy         FROZEN — "still earns its place" voice.
- * @tokens       --surface --hairline --accent --positive --muted-ink
- * @motion       press · slide-in-r · subtle pulse on the "used today" tick
- */
+/\*\*
+
+- @rn-screen SubscriptionsScreen
+- @rn-stack MainTabs > Subs
+- @purpose Subscription pulse — pause / cancel / used-today / ask-Melo per item.
+- @reads subs, subPaused
+- @writes togglePaused, removeSub, markSubUsed
+- @opens-sheet melo-chat
+- @copy FROZEN — "still earns its place" voice.
+- @tokens --surface --hairline --accent --positive --muted-ink
+- @motion press · slide-in-r · subtle pulse on the "used today" tick
+  \*/
 
 ## componentTree
 
@@ -226,4 +227,3 @@ Subscription pulse — for each recurring charge show a usage pulse (yes/maybe/n
 - No hero Melo on the populated screen — only the footer line. Don't add one (MELO_MOODS: 'No mood = no Melo').
 - Reduced motion (AccessibilityInfo.isReduceMotionEnabled): count-up, slide-in-r, breathe collapse to final state, not slowed.
 - Alpha tokens bg-[var(--negative)]/70, bg-caution/15, ring-accent/30 have no RN util — convert to rgba with explicit alpha from the theme color.
-

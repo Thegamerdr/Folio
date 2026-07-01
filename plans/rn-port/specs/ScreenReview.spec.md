@@ -29,7 +29,7 @@ Reproduced byte-for-byte from the top of the web source. The RN screen must carr
  */
 ```
 
-> Discrepancy to fix in RN (do not copy the demo bug): the doc block says `@opens-sheet edit-item`, but the web code actually calls `nav.openSheet("edit-txn")` for both the header `⋯` and the "Edit" button. For RN, the correct sheet to open from Review is the **edit-item / edit-candidate** flow (editing a *candidate* before it becomes truth), not `edit-txn` (which edits an already-posted transaction). See Fidelity risks. The RN doc block's `@reads` should also no longer be `—`: the real screen reads the candidate queue, the ignored-list, and the category map.
+> Discrepancy to fix in RN (do not copy the demo bug): the doc block says `@opens-sheet edit-item`, but the web code actually calls `nav.openSheet("edit-txn")` for both the header `⋯` and the "Edit" button. For RN, the correct sheet to open from Review is the **edit-item / edit-candidate** flow (editing a _candidate_ before it becomes truth), not `edit-txn` (which edits an already-posted transaction). See Fidelity risks. The RN doc block's `@reads` should also no longer be `—`: the real screen reads the candidate queue, the ignored-list, and the category map.
 
 ---
 
@@ -49,13 +49,13 @@ Core invariant (review-before-truth): **nothing is added to the money path until
 
 The web prototype's `@reads` is `—` because the demo is fully hard-coded. The **real RN screen** reads:
 
-| Read | Source | Why |
-|---|---|---|
-| Current candidate item | Review/intake candidate queue (`CandidateMoneyItem[]` from the most recent reader run) | The card content (merchant, amount, date, source, suggested category, confidence, note). |
-| Queue position | length + index of the candidate queue | The "1 of 3" counter. |
-| `currentBalance.amount` (+ source label) | store `currentBalance` | The "from £325" base and the "If you add it, you'll have £…" preview math. Per `ENGINES.md` §6 "Starting balance" — no literal balances; read from store, carry the source label. |
-| Ignored-list fingerprints | store `ignored` entries (merchant + amount + cadence signature) | So already-dismissed charges are never re-asked; also feeds the Hidden list. |
-| Category map | `categoryMap` (friendly label ↔ store enum) | To render the friendly chips and translate the user's pick to the canonical enum on save. |
+| Read                                     | Source                                                                                 | Why                                                                                                                                                                               |
+| ---------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current candidate item                   | Review/intake candidate queue (`CandidateMoneyItem[]` from the most recent reader run) | The card content (merchant, amount, date, source, suggested category, confidence, note).                                                                                          |
+| Queue position                           | length + index of the candidate queue                                                  | The "1 of 3" counter.                                                                                                                                                             |
+| `currentBalance.amount` (+ source label) | store `currentBalance`                                                                 | The "from £325" base and the "If you add it, you'll have £…" preview math. Per `ENGINES.md` §6 "Starting balance" — no literal balances; read from store, carry the source label. |
+| Ignored-list fingerprints                | store `ignored` entries (merchant + amount + cadence signature)                        | So already-dismissed charges are never re-asked; also feeds the Hidden list.                                                                                                      |
+| Category map                             | `categoryMap` (friendly label ↔ store enum)                                            | To render the friendly chips and translate the user's pick to the canonical enum on save.                                                                                         |
 
 > The demo's `balance` (325 → 283) and `£42`/`£325`/`26 June`/`Tesco` are placeholders. RN must derive all of them from the candidate + `currentBalance`.
 
@@ -63,11 +63,11 @@ The web prototype's `@reads` is `—` because the demo is fully hard-coded. The 
 
 ## 4. Store writes
 
-| Write | When | Contract |
-|---|---|---|
-| `addTransaction(...)` | On **Add to my picture** (per accepted item) | `@writes addTransaction (per accept)`. Writes one `Transaction`. Spend is **negative** amount. `category` is the **store enum** mapped from the friendly chip (see §11 category map). `source` reflects the reader origin (in the store's `Transaction.source` model this is `"manual" | "melo" | "seed"`; RN should preserve true intake provenance — see Fidelity risks, as the current store enum can't express `pdf`/`image`/`paste`). After the write, advance the queue (the web demo re-keys via `nav.bumpReview()` and navigates to Today after ~900 ms). |
-| `ignore` / suppress | On **Ignore** | Writes an `ignored` entry keyed by stable fingerprint (merchant + amount + cadence signature). Future intakes skip exact re-matches. Item moves to the Hidden list with a "show again" action. Per `ENGINES.md` §6 "Review — ignored transactions". The web demo's Ignore just calls `nav.back()` — this is a demo lag; RN must persist the suppression. |
-| (via sheet) `removeTransaction` + `addTransaction` replacement, OR candidate edit | On **Edit → Save** | Web `SheetEditTxn` writes `removeTransaction + addTransaction (replacement)`. For Review, the correct flow is editing the **candidate** in place (amount/category/date/merchant/note) before it is ever posted, then Add writes the corrected transaction. See Fidelity risks. |
+| Write                                                                             | When                                         | Contract                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `addTransaction(...)`                                                             | On **Add to my picture** (per accepted item) | `@writes addTransaction (per accept)`. Writes one `Transaction`. Spend is **negative** amount. `category` is the **store enum** mapped from the friendly chip (see §11 category map). `source` reflects the reader origin (in the store's `Transaction.source` model this is `"manual"                                                                   | "melo" | "seed"`; RN should preserve true intake provenance — see Fidelity risks, as the current store enum can't express `pdf`/`image`/`paste`). After the write, advance the queue (the web demo re-keys via `nav.bumpReview()` and navigates to Today after ~900 ms). |
+| `ignore` / suppress                                                               | On **Ignore**                                | Writes an `ignored` entry keyed by stable fingerprint (merchant + amount + cadence signature). Future intakes skip exact re-matches. Item moves to the Hidden list with a "show again" action. Per `ENGINES.md` §6 "Review — ignored transactions". The web demo's Ignore just calls `nav.back()` — this is a demo lag; RN must persist the suppression. |
+| (via sheet) `removeTransaction` + `addTransaction` replacement, OR candidate edit | On **Edit → Save**                           | Web `SheetEditTxn` writes `removeTransaction + addTransaction (replacement)`. For Review, the correct flow is editing the **candidate** in place (amount/category/date/merchant/note) before it is ever posted, then Add writes the corrected transaction. See Fidelity risks.                                                                           |
 
 `addTransaction` signature (from `src/lib/store.ts`):
 
@@ -88,8 +88,8 @@ type Transaction = {
 
 ## 5. Sheets it opens
 
-| Sheet id | Opened from | Notes |
-|---|---|---|
+| Sheet id                                                | Opened from                                         | Notes                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `edit-txn` (web demo) → **should be `edit-item`** in RN | Header `⋯` (More options) **and** the "Edit" button | The web code opens `edit-txn` from both; the doc block says `edit-item`. RN should open the **edit-candidate** sheet (`SheetId: "edit-item"`) so the user corrects a candidate before it becomes truth — `edit-txn` is for already-posted transactions. Use the shared `Sheet` shell (bottom sheet, scrim, grip). |
 
 Sheet shell contract (from `Sheet.tsx` `@rn-port`): native bottom-sheet (`@gorhom/bottom-sheet` BottomSheetModal) — 40% ink scrim, 28px top radius, 4px hairline grip, spring curve `cubic-bezier(.16,1,.3,1)` 480ms (`sheet-rise`), scrim fade 320ms (`scrim-in`). Sheet body sits on `--paper` (not `--surface`).
@@ -100,27 +100,27 @@ Sheet shell contract (from `Sheet.tsx` `@rn-port`): native bottom-sheet (`@gorho
 
 `@copy FROZEN`. Note: `COPY_DECK.md` has **no dedicated Review section** — the Review screen's strings are currently inline literals in the prototype. RN must lift these into `COPY_DECK.md` under a new `Review` block before shipping (handoff checklist item: "All copy lives in COPY_DECK.md"). Exact strings as rendered today:
 
-| Element | Exact string | Notes |
-|---|---|---|
-| Back button | `←` | `aria-label="Back"` |
-| Counter | `1 of 3` | `aria-label="Item 1 of 3"`. RN: parameterize as `{i} of {n}` from queue. |
-| More options | `⋯` | `aria-label="More options"` |
-| Eyebrow | `Review` | Fraunces italic |
-| Headline | `Is this your Tesco payment?` | `Tesco` is the one accent word (terracotta, `not-italic`). RN: `Is this your {merchant} payment?` with `{merchant}` accented. One-accent-word-per-headline rule. |
-| Amount | `£42.00` | From candidate. `Money` size `xl`. |
-| Direction tag | `out` | uppercase, tracked. (For income candidates this would read differently — demo only shows `out`.) |
-| Source line | `26 June · from your statement` | `{date} · from your statement`. The "from your statement" phrasing is the required source-context per `ENGINES.md` §1. |
-| Stamp badge | `Added` | Appears only after accept (uppercase, accent border). |
-| Preview label | `If you add it, you'll have` | `aria-live="polite"` |
-| Preview balance | `£{balance}` | Count-up target; e.g. `£283`. |
-| Preview detail | `from £325 · drops by £42` | `from £{base} · drops by £{amount}`. |
-| Category section label | `What kind of spend?` | uppercase, tracked. |
-| Category chips | `Groceries` · `Transport` · `Bills` · `Eating out` · `Subscription` · `Shopping` · `Other` | Friendly labels, in this order. Source of truth: `CATEGORIES` const + `ENGINES.md` §6 taxonomy. |
-| Melo line | `Take your time. You can change this later.` | mood `soft` (→ `calm` in RN; see §8). |
-| Primary CTA (idle) | `Add to my picture` | |
-| Primary CTA (after accept) | `Added to your picture` | disabled state. |
-| Secondary — Edit | `Edit` | |
-| Secondary — Ignore | `Ignore` | |
+| Element                    | Exact string                                                                               | Notes                                                                                                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Back button                | `←`                                                                                        | `aria-label="Back"`                                                                                                                                              |
+| Counter                    | `1 of 3`                                                                                   | `aria-label="Item 1 of 3"`. RN: parameterize as `{i} of {n}` from queue.                                                                                         |
+| More options               | `⋯`                                                                                        | `aria-label="More options"`                                                                                                                                      |
+| Eyebrow                    | `Review`                                                                                   | Fraunces italic                                                                                                                                                  |
+| Headline                   | `Is this your Tesco payment?`                                                              | `Tesco` is the one accent word (terracotta, `not-italic`). RN: `Is this your {merchant} payment?` with `{merchant}` accented. One-accent-word-per-headline rule. |
+| Amount                     | `£42.00`                                                                                   | From candidate. `Money` size `xl`.                                                                                                                               |
+| Direction tag              | `out`                                                                                      | uppercase, tracked. (For income candidates this would read differently — demo only shows `out`.)                                                                 |
+| Source line                | `26 June · from your statement`                                                            | `{date} · from your statement`. The "from your statement" phrasing is the required source-context per `ENGINES.md` §1.                                           |
+| Stamp badge                | `Added`                                                                                    | Appears only after accept (uppercase, accent border).                                                                                                            |
+| Preview label              | `If you add it, you'll have`                                                               | `aria-live="polite"`                                                                                                                                             |
+| Preview balance            | `£{balance}`                                                                               | Count-up target; e.g. `£283`.                                                                                                                                    |
+| Preview detail             | `from £325 · drops by £42`                                                                 | `from £{base} · drops by £{amount}`.                                                                                                                             |
+| Category section label     | `What kind of spend?`                                                                      | uppercase, tracked.                                                                                                                                              |
+| Category chips             | `Groceries` · `Transport` · `Bills` · `Eating out` · `Subscription` · `Shopping` · `Other` | Friendly labels, in this order. Source of truth: `CATEGORIES` const + `ENGINES.md` §6 taxonomy.                                                                  |
+| Melo line                  | `Take your time. You can change this later.`                                               | mood `soft` (→ `calm` in RN; see §8).                                                                                                                            |
+| Primary CTA (idle)         | `Add to my picture`                                                                        |                                                                                                                                                                  |
+| Primary CTA (after accept) | `Added to your picture`                                                                    | disabled state.                                                                                                                                                  |
+| Secondary — Edit           | `Edit`                                                                                     |                                                                                                                                                                  |
+| Secondary — Ignore         | `Ignore`                                                                                   |                                                                                                                                                                  |
 
 Banned-word check (all clear): none of `import`, `parse`, `extract`, `OCR`, `sync`, `rows`, `100%`, `bank-grade`, `AI-powered`, `smart`, etc. appear. Keep it that way — "from your statement", not "imported from your statement".
 
@@ -132,19 +132,19 @@ Voice notes carried: "Add a statement" / verbs over nouns; "you" address; money 
 
 `@tokens --surface --hairline --accent --positive --negative` (declared). Full set actually referenced in the JSX, all from `src/styles.css` `:root` — map to the RN theme object + `useTheme()`:
 
-| Token | Hex (light) | Used for |
-|---|---|---|
-| `--surface` | `#FFFFFF` | Card background, chip (inactive) bg, Edit/Ignore button bg. |
-| `--hairline` | `#ECE9E0` | Card border (`hairline` util), inner divider line, chip borders, button borders. |
-| `--accent` | `#E0633A` | Accent merchant word, stamp border/text, active chip text, down-arrow glyph, primary CTA bg, CTA glow shadow. |
-| `--accent-soft` | `#F5E4DB` | Down-arrow circle bg, active chip bg. |
-| `--positive` | `#3E8E5A` | Declared in `@tokens`; not visibly used in current demo (reserved for income/positive verdict variants). |
-| `--negative` | `#C5503E` | Declared in `@tokens`; not visibly used in current demo (reserved for over/short variants). |
-| `--muted-ink` | `#6B6760` | Back/counter/⋯ chrome, eyebrow, source line, "out" tag, preview detail, section label, inactive chip text. |
-| `--ink` | `#1A1815` | Default text (headline, preview balance). |
-| `--radius-2xl` (32) / `rounded-2xl` (24) / `rounded-xl` (12) / `rounded-full` | — | Card 2xl, CTA 2xl, Edit/Ignore xl, chips full. RN: theme radius scale. |
-| `--shadow-card` | `0 1px 0 …, 0 12px 28px -16px …` | Card elevation (inline `boxShadow: var(--shadow-card)`). |
-| Custom CTA glow | `0 12px 24px -10px rgba(224,99,58,0.55)` | Primary CTA drop shadow (hard-coded rgba of accent). RN: derive from accent, don't introduce a new token. |
+| Token                                                                         | Hex (light)                              | Used for                                                                                                      |
+| ----------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--surface`                                                                   | `#FFFFFF`                                | Card background, chip (inactive) bg, Edit/Ignore button bg.                                                   |
+| `--hairline`                                                                  | `#ECE9E0`                                | Card border (`hairline` util), inner divider line, chip borders, button borders.                              |
+| `--accent`                                                                    | `#E0633A`                                | Accent merchant word, stamp border/text, active chip text, down-arrow glyph, primary CTA bg, CTA glow shadow. |
+| `--accent-soft`                                                               | `#F5E4DB`                                | Down-arrow circle bg, active chip bg.                                                                         |
+| `--positive`                                                                  | `#3E8E5A`                                | Declared in `@tokens`; not visibly used in current demo (reserved for income/positive verdict variants).      |
+| `--negative`                                                                  | `#C5503E`                                | Declared in `@tokens`; not visibly used in current demo (reserved for over/short variants).                   |
+| `--muted-ink`                                                                 | `#6B6760`                                | Back/counter/⋯ chrome, eyebrow, source line, "out" tag, preview detail, section label, inactive chip text.    |
+| `--ink`                                                                       | `#1A1815`                                | Default text (headline, preview balance).                                                                     |
+| `--radius-2xl` (32) / `rounded-2xl` (24) / `rounded-xl` (12) / `rounded-full` | —                                        | Card 2xl, CTA 2xl, Edit/Ignore xl, chips full. RN: theme radius scale.                                        |
+| `--shadow-card`                                                               | `0 1px 0 …, 0 12px 28px -16px …`         | Card elevation (inline `boxShadow: var(--shadow-card)`).                                                      |
+| Custom CTA glow                                                               | `0 12px 24px -10px rgba(224,99,58,0.55)` | Primary CTA drop shadow (hard-coded rgba of accent). RN: derive from accent, don't introduce a new token.     |
 
 No hardcoded palette colours beyond the accent-derived CTA glow rgba. Fonts: Fraunces (`font-display`) for headline/eyebrow/preview balance/Money; system grotesque (Inter Tight → SF Pro / Roboto in RN) for body. `tabular` (tabular-nums) on all money + the counter.
 
@@ -154,12 +154,12 @@ No hardcoded palette colours beyond the accent-derived CTA glow rgba. Fonts: Fra
 
 From `MOTION.md` + the screen's `@motion stamp · slide-in-r`:
 
-| Motion | Where | Spec | RN implementation |
-|---|---|---|---|
-| `slide-in-r` | Whole screen root (`className="… slide-in-r"`) | 360ms `cubic-bezier(.16,1,.3,1)`, translateX 28→0 + fade. Forward intake navigation. | `withTiming(translateX 24→0, ~240–360ms)` reanimated. |
-| `stamp` (`verdict-stamp` family) | "Added" badge, only when `stamped` | 600ms `cubic-bezier(.34,1.56,.64,1)` back-out; keyframes scale 1.6→0.95→1 with `rotate(-8deg)`, opacity 0→1. | `scale 1.1→1` (here with the −8° rotation preserved) + opacity via `withSpring({ damping: 14 })`. Fire exactly once per accept. |
-| `count-up` | Preview balance (`useCountUp(stamped ? 283 : 325, 700)`) | 700ms cubic-out `1−(1−t)³`. Money values **never slide** — always count-up. | `useDerivedValue` + `interpolate` + `Animated.Text`, 700ms. RN target = derived new balance, base = current balance. |
-| `press` | Back, ⋯, every chip, primary CTA, Edit, Ignore (`className="press"`) | 120ms ease, scale→0.97 on `:active`. | `Pressable` + scale 0.97 + `Haptics.selectionAsync()` (expo-haptics). |
+| Motion                           | Where                                                                | Spec                                                                                                         | RN implementation                                                                                                               |
+| -------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `slide-in-r`                     | Whole screen root (`className="… slide-in-r"`)                       | 360ms `cubic-bezier(.16,1,.3,1)`, translateX 28→0 + fade. Forward intake navigation.                         | `withTiming(translateX 24→0, ~240–360ms)` reanimated.                                                                           |
+| `stamp` (`verdict-stamp` family) | "Added" badge, only when `stamped`                                   | 600ms `cubic-bezier(.34,1.56,.64,1)` back-out; keyframes scale 1.6→0.95→1 with `rotate(-8deg)`, opacity 0→1. | `scale 1.1→1` (here with the −8° rotation preserved) + opacity via `withSpring({ damping: 14 })`. Fire exactly once per accept. |
+| `count-up`                       | Preview balance (`useCountUp(stamped ? 283 : 325, 700)`)             | 700ms cubic-out `1−(1−t)³`. Money values **never slide** — always count-up.                                  | `useDerivedValue` + `interpolate` + `Animated.Text`, 700ms. RN target = derived new balance, base = current balance.            |
+| `press`                          | Back, ⋯, every chip, primary CTA, Edit, Ignore (`className="press"`) | 120ms ease, scale→0.97 on `:active`.                                                                         | `Pressable` + scale 0.97 + `Haptics.selectionAsync()` (expo-haptics).                                                           |
 
 Rules to honour: one motion per element; money never slides (count-up only); reduced motion = final state instantly (`AccessibilityInfo.isReduceMotionEnabled`), not a slower animation — the stamp, slide-in, and count-up all snap to resolved state.
 
@@ -183,18 +183,23 @@ Mood transitions: 600ms cubic-bezier on tilt/fill, 500ms ease on mouth/eyes — 
 `STATES.md` matrix row **Review**: empty `n/a` · loading `n/a` · populated `✅ done` · error `"skip for now"` · offline `✅`. RN must render each branch as a distinct visual, not a spinner. Exact copy per branch:
 
 ### populated (the happy path — the only branch the prototype draws)
+
 The full card described in §12. Real candidate data, category chips, preview, three actions. This is `✅ done`.
 
 ### empty — `n/a`
+
 Review is never reached with zero candidates. The reader only routes to Review when it produced ≥1 `CandidateMoneyItem`. If the queue empties (last item accepted/ignored), **do not render an empty Review** — advance to Today (matches the web's `nav.go("today")` after the final accept). No empty-state copy needed for this screen. (The "nothing to check" surface lives on Today's "things still waiting to be checked" card, not here.)
 
 ### loading — `n/a`
-Review itself does no async. The *reader* shows the loading state on the AddEntry/PdfSuccess surfaces ("Folio is reading…", Melo `curious`, max 4s before fallback) — by the time Review renders, candidates already exist. So Review has no loading branch; never show a spinner here.
+
+Review itself does no async. The _reader_ shows the loading state on the AddEntry/PdfSuccess surfaces ("Folio is reading…", Melo `curious`, max 4s before fallback) — by the time Review renders, candidates already exist. So Review has no loading branch; never show a spinner here.
 
 ### error — `"skip for now"`
+
 If an individual candidate can't be acted on (e.g. the edit/save path fails, or a write errors), the honest recovery is a single **"skip for now"** action that moves past this item to the next candidate (or Today) without losing the rest of the queue. Copy: `skip for now`. One CTA, honest, refusal-friendly. Never "Error 500". (This mirrors `STATES.md` Review→error = "skip for now".) Do not fabricate other error copy; reuse `err.generic` = `Something didn't catch. Try once more?` only if a retry genuinely makes sense, otherwise prefer skip.
 
 ### offline — `✅` (same as populated)
+
 Folio is local-first; Review is fully local (candidates already on device, writes are local). Offline is indistinguishable from populated — render the normal card, all three actions work. **Sync language is banned.** If a global offline banner exists app-wide, the relevant string is `err.offline` = `No connection. Folio works without one — try again when you're back.` — but Review does not need it; the screen functions offline unchanged.
 
 ---
@@ -283,24 +288,24 @@ The candidate `kind` (`income | spend | bill | subscription | debt-payment | tra
 
 Per `RN_PORT.md` component map + the prompt's reuse targets (`@/surfaces/pressureMap/kit` Sheet / type / action primitives). Note: the `pressureMap/kit` path named in the brief does **not exist in this design worktree** — the kit lives at `src/components/folio/kit.tsx` (Melo, MeloLine, Money, EmptyState, useCountUp) and the Sheet at `src/components/folio/sheets/Sheet.tsx`. In the RN repo (`folio-v2-greenfield`), reuse the established RN kit (the `pressureMap/` surface kit per the memory) for the Sheet, type, and action primitives rather than re-implementing.
 
-| Web (this prototype) | React Native |
-|---|---|
-| Root `<div className="h-full flex flex-col …">` | `<View style={{ flex: 1 }}>` (+ `SafeAreaView` top inset for the back bar). |
-| `<button className="press">` | `<Pressable>` with scale-0.97 press style + `Haptics.selectionAsync()`. |
-| Header glyphs `←` `⋯` `↓` `×` | `lucide-react-native` (`ChevronLeft`, `MoreHorizontal`, `ArrowDown`) — same names, drop-in — or keep as accessible text. Provide `accessibilityLabel`. |
-| `<Money value="£42.00" size="xl" />` | RN `Money` from kit: `<Text style={{ fontFamily: 'Fraunces', fontVariant: ['tabular-nums'] }}>`. |
-| `useCountUp(target, 700)` (rAF) | `react-native-reanimated` `useDerivedValue` + `interpolate` + `Animated.Text`, 700ms cubic-out. |
-| `<MeloLine text mood />` | RN `MeloLine` (Melo SVG via `react-native-svg` + reanimated breathe, Fraunces italic copy). mood `calm`. |
-| CSS tokens `var(--surface)` etc. | Theme object + `useTheme()` hook (`kitTheme` / `makeStyles` pattern). |
-| `hairline` util (1px border) | `StyleSheet.hairlineWidth` border. |
-| `boxShadow: var(--shadow-card)` / CTA glow rgba | RN shadow props (iOS `shadow*`, Android `elevation`); approximate the accent glow, don't add a new token. |
-| `rounded-2xl/xl/full` | theme radius scale (24 / 12 / 9999). |
-| `.slide-in-r` / `.stamp` (CSS keyframes) | reanimated shared values + `withTiming` / `withSpring` per §8. |
-| `nav.openSheet("edit-item")` | RN nav → present `@gorhom/bottom-sheet` BottomSheetModal hosting the edit-candidate sheet (reuse kit `Sheet`). |
-| `nav.back()` / `nav.go("today")` / `nav.bumpReview()` | `@react-navigation/native` stack: `goBack()`, `navigate('Today')`, and a screen re-key / queue-advance for `bumpReview`. |
+| Web (this prototype)                                                 | React Native                                                                                                                                                                         |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Root `<div className="h-full flex flex-col …">`                      | `<View style={{ flex: 1 }}>` (+ `SafeAreaView` top inset for the back bar).                                                                                                          |
+| `<button className="press">`                                         | `<Pressable>` with scale-0.97 press style + `Haptics.selectionAsync()`.                                                                                                              |
+| Header glyphs `←` `⋯` `↓` `×`                                        | `lucide-react-native` (`ChevronLeft`, `MoreHorizontal`, `ArrowDown`) — same names, drop-in — or keep as accessible text. Provide `accessibilityLabel`.                               |
+| `<Money value="£42.00" size="xl" />`                                 | RN `Money` from kit: `<Text style={{ fontFamily: 'Fraunces', fontVariant: ['tabular-nums'] }}>`.                                                                                     |
+| `useCountUp(target, 700)` (rAF)                                      | `react-native-reanimated` `useDerivedValue` + `interpolate` + `Animated.Text`, 700ms cubic-out.                                                                                      |
+| `<MeloLine text mood />`                                             | RN `MeloLine` (Melo SVG via `react-native-svg` + reanimated breathe, Fraunces italic copy). mood `calm`.                                                                             |
+| CSS tokens `var(--surface)` etc.                                     | Theme object + `useTheme()` hook (`kitTheme` / `makeStyles` pattern).                                                                                                                |
+| `hairline` util (1px border)                                         | `StyleSheet.hairlineWidth` border.                                                                                                                                                   |
+| `boxShadow: var(--shadow-card)` / CTA glow rgba                      | RN shadow props (iOS `shadow*`, Android `elevation`); approximate the accent glow, don't add a new token.                                                                            |
+| `rounded-2xl/xl/full`                                                | theme radius scale (24 / 12 / 9999).                                                                                                                                                 |
+| `.slide-in-r` / `.stamp` (CSS keyframes)                             | reanimated shared values + `withTiming` / `withSpring` per §8.                                                                                                                       |
+| `nav.openSheet("edit-item")`                                         | RN nav → present `@gorhom/bottom-sheet` BottomSheetModal hosting the edit-candidate sheet (reuse kit `Sheet`).                                                                       |
+| `nav.back()` / `nav.go("today")` / `nav.bumpReview()`                | `@react-navigation/native` stack: `goBack()`, `navigate('Today')`, and a screen re-key / queue-advance for `bumpReview`.                                                             |
 | `aria-label` / `aria-live="polite"` / `aria-pressed` / `aria-hidden` | `accessibilityLabel` / `accessibilityLiveRegion="polite"` / `accessibilityState={{ selected }}` / `accessibilityElementsHidden` / `importantForAccessibility="no-hide-descendants"`. |
-| `disabled` on chips/CTA after stamp | `disabled` prop + `accessibilityState={{ disabled: true }}` + opacity 0.7. |
-| Category `CATEGORIES` const + `useState<Category>` | Same const; `useState`. On save, run through `categoryMap` to the store enum. |
+| `disabled` on chips/CTA after stamp                                  | `disabled` prop + `accessibilityState={{ disabled: true }}` + opacity 0.7.                                                                                                           |
+| Category `CATEGORIES` const + `useState<Category>`                   | Same const; `useState`. On save, run through `categoryMap` to the store enum.                                                                                                        |
 
 ---
 
@@ -312,7 +317,7 @@ Per `RN_PORT.md` component map + the prompt's reuse targets (`@/surfaces/pressur
 
 3. **Category friendly-label ↔ enum mapping.** UI chips are friendly (`Groceries`, `Eating out`, `Subscription`, …); the store keeps `food | transport | fun | bills | shopping | income | other`. Mapping is 1:1 and lives in exactly one module (`categoryMap`). Both `Groceries` and `Eating out` → `food`; `Subscription` → `bills`. Income is never user-picked here (engine sets it from positive amount). Do not let any component hand-code either vocabulary, and make sure `addTransaction` receives the **enum**, not the label. The `categoryMap.ts` module is absent from this worktree — create it in RN.
 
-4. **`edit-item` vs `edit-txn` sheet.** Doc block says `edit-item`; code opens `edit-txn`. Review edits a *candidate* (pre-truth), so RN should wire the edit-candidate sheet, not the posted-transaction editor. Wiring `edit-txn` here would let the user "edit" something that doesn't exist yet as a transaction.
+4. **`edit-item` vs `edit-txn` sheet.** Doc block says `edit-item`; code opens `edit-txn`. Review edits a _candidate_ (pre-truth), so RN should wire the edit-candidate sheet, not the posted-transaction editor. Wiring `edit-txn` here would let the user "edit" something that doesn't exist yet as a transaction.
 
 5. **No literal balances.** The demo hard-codes `325`/`283`/`£42`/`Tesco`/`26 June`. Per `ENGINES.md` §6 "Starting balance", every balance reads from `currentBalance` with a source label; the card values all come from the candidate + store. Carry the source context ("from your statement") honestly.
 

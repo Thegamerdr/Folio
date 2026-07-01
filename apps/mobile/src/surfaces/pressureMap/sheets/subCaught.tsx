@@ -131,79 +131,79 @@ export function SubCaughtSheet({
 // Colour-bearing styles, resolved against the active palette `t` (light or dark) via makeStyles(t).
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-  body: {
-    gap: gap.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: gap.md,
-  },
-  headerText: {
-    flex: 1,
-    gap: gap.xxs,
-  },
-  // The italic serif kicker above the headline (web: font-display italic, muted ink).
-  eyebrow: {
-    fontFamily: serif.displayItalic,
-    fontSize: 13,
-    color: t.muted,
-  },
-  headline: {
-    fontSize: 24,
-    lineHeight: 29,
-  },
-  // The candidate card — a near-white inset well with a hairline edge (web: bg-inset + hairline).
-  card: {
-    backgroundColor: t.inset,
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: t.hairline,
-    paddingHorizontal: gap.lg,
-    paddingVertical: gap.md,
-    marginTop: gap.xs,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  cardName: {
-    fontSize: 15,
-    color: t.ink,
-  },
-  // Amount in the terracotta accent, serif, tabular — money always reads as money.
-  cardAmount: {
-    fontFamily: serif.display,
-    fontSize: 22,
-    color: t.calm,
-    fontVariant: ['tabular-nums'],
-  },
-  cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: gap.sm,
-    marginTop: gap.xs,
-  },
-  metaText: {
-    fontSize: 11.5,
-    color: t.muted,
-  },
-  metaDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 12,
-    backgroundColor: t.hairlineStrong,
-  },
-  lead: {
-    color: t.muted,
-    marginTop: gap.xs,
-  },
-  action: {
-    marginTop: gap.sm,
-  },
-  quiet: {
-    alignItems: 'center',
-    marginTop: gap.xs,
-  },
+    body: {
+      gap: gap.md,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: gap.md,
+    },
+    headerText: {
+      flex: 1,
+      gap: gap.xxs,
+    },
+    // The italic serif kicker above the headline (web: font-display italic, muted ink).
+    eyebrow: {
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      color: t.muted,
+    },
+    headline: {
+      fontSize: 24,
+      lineHeight: 29,
+    },
+    // The candidate card — a near-white inset well with a hairline edge (web: bg-inset + hairline).
+    card: {
+      backgroundColor: t.inset,
+      borderRadius: radius.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      paddingHorizontal: gap.lg,
+      paddingVertical: gap.md,
+      marginTop: gap.xs,
+    },
+    cardTop: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+    },
+    cardName: {
+      fontSize: 15,
+      color: t.ink,
+    },
+    // Amount in the terracotta accent, serif, tabular — money always reads as money.
+    cardAmount: {
+      fontFamily: serif.display,
+      fontSize: 22,
+      color: t.calm,
+      fontVariant: ['tabular-nums'],
+    },
+    cardMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: gap.sm,
+      marginTop: gap.xs,
+    },
+    metaText: {
+      fontSize: 11.5,
+      color: t.muted,
+    },
+    metaDivider: {
+      width: StyleSheet.hairlineWidth,
+      height: 12,
+      backgroundColor: t.hairlineStrong,
+    },
+    lead: {
+      color: t.muted,
+      marginTop: gap.xs,
+    },
+    action: {
+      marginTop: gap.sm,
+    },
+    quiet: {
+      alignItems: 'center',
+      marginTop: gap.xs,
+    },
   });
 }

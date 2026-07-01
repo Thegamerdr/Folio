@@ -184,7 +184,7 @@ export const copy = {
     offline: "No connection. Folio works without one — try again when you're back.",
     generic: "Something didn't catch. Try once more?",
     statement: {
-      unreadable: 'Folio couldn\'t read this one. Saved as a note.',
+      unreadable: "Folio couldn't read this one. Saved as a note.",
     },
   },
 } as const;

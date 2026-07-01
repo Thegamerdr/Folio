@@ -1,4 +1,4 @@
-# PlansScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPlans.tsx)
+# PlansScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPlans.tsx)
 
 ## file
 
@@ -14,15 +14,15 @@ PlansScreen
 
 ## docBlock
 
-@rn-screen    PlansScreen
-@rn-stack     More > Plans
-@purpose      What's coming before payday — bills, renewals, debt drops.
-@reads        subs, subPaused
-@writes       —
-@opens-sheet  route-detail
-@copy         FROZEN
-@tokens       --surface --hairline --accent --muted-ink
-@motion       slide-in-r
+@rn-screen PlansScreen
+@rn-stack More > Plans
+@purpose What's coming before payday — bills, renewals, debt drops.
+@reads subs, subPaused
+@writes —
+@opens-sheet route-detail
+@copy FROZEN
+@tokens --surface --hairline --accent --muted-ink
+@motion slide-in-r
 
 ## reads
 
@@ -42,7 +42,7 @@ PlansScreen
 
 ## copyKeys
 
-- @copy is FROZEN, but ScreenPlans uses INLINE literal strings — NONE are keyed in COPY_DECK.md yet. RN port must add keys (suggest plans.*) for all of these. STATES.md also references the (unkeyed) empty-state string 'No plans yet'.
+- @copy is FROZEN, but ScreenPlans uses INLINE literal strings — NONE are keyed in COPY_DECK.md yet. RN port must add keys (suggest plans.\*) for all of these. STATES.md also references the (unkeyed) empty-state string 'No plans yet'.
 - Header eyebrow: 'Plans' (uppercase, tracking 0.14em)
 - Back glyph: '←'
 - Eyebrow line: 'Before next payday' (Fraunces italic)
@@ -88,17 +88,17 @@ PlansScreen
 
 ## componentTree
 
-<ScreenContainer style={slideInR} scrollable hideScrollbar paddingX=28 paddingTop=16>            // div.h-full.flex.flex-col.px-7.pt-4.overflow-y-auto.no-scrollbar.slide-in-r
-  <Row justify=space-between align=center>                                                          // header
-    <Pressable onPress={nav.back}><Text color=mutedInk size=20>←</Text></Pressable>
-    <Text color=mutedInk size=12 uppercase tracking=0.14em>Plans</Text>
-    <View width=20 />                                                                                // spacer
-  </Row>
+<ScreenContainer style={slideInR} scrollable hideScrollbar paddingX=28 paddingTop=16> // div.h-full.flex.flex-col.px-7.pt-4.overflow-y-auto.no-scrollbar.slide-in-r
+<Row justify=space-between align=center> // header
+<Pressable onPress={nav.back}><Text color=mutedInk size=20>←</Text></Pressable>
+<Text color=mutedInk size=12 uppercase tracking=0.14em>Plans</Text>
+<View width=20 /> // spacer
+</Row>
 
-  <View marginTop=20>                                                                               // title block
-    <Text fontDisplay italic size=13 color=mutedInk>Before next payday</Text>
-    <Text fontDisplay size=28 lineHeight=tight>What's <Text color=accent style={notItalic}>already</Text> spoken for.</Text>
-  </View>
+<View marginTop=20> // title block
+<Text fontDisplay italic size=13 color=mutedInk>Before next payday</Text>
+<Text fontDisplay size=28 lineHeight=tight>What's <Text color=accent style={notItalic}>already</Text> spoken for.</Text>
+</View>
 
   <Card marginTop=20 surface hairline radius=2xl padding=20 row alignItems=baseline justify=space-between>
     <View>
@@ -111,31 +111,31 @@ PlansScreen
     </View>
   </Card>
 
-  <Card marginTop=20 surface hairline radius=2xl dividerColor=hairline>                              // list (divide-y)
-    {upcoming.map((u) => (
-      <Pressable onPress={() => nav.openSheet("route-detail")} row alignItems=center gap=12 paddingX=20 paddingY=14>   // tap = port-added (doc intent)
-        <View width=44 align=center>
-          <Text size=10 uppercase tracking=0.12em color=mutedInk>{month}</Text>                      // 'Jul'
-          <Text fontDisplay size=18 tabular lineHeight=none>{day}</Text>                              // '12'
-        </View>
-        <View width=6 height=32 radius=full bg={u.kind==='debt' ? caution : negative@60%} />          // kind bar
-        <View flex=1 minWidth=0>
-          <Text size=14 weight=medium numberOfLines=1>{u.name}</Text>
-          <Text size=11.5 color=mutedInk numberOfLines=1>{u.note}</Text>
-        </View>
-        <Money value={`−£${u.amount}`} size="sm" />
-      </Pressable>
-    ))}
-  </Card>
+<Card marginTop=20 surface hairline radius=2xl dividerColor=hairline> // list (divide-y)
+{upcoming.map((u) => (
+<Pressable onPress={() => nav.openSheet("route-detail")} row alignItems=center gap=12 paddingX=20 paddingY=14> // tap = port-added (doc intent)
+<View width=44 align=center>
+<Text size=10 uppercase tracking=0.12em color=mutedInk>{month}</Text> // 'Jul'
+<Text fontDisplay size=18 tabular lineHeight=none>{day}</Text> // '12'
+</View>
+<View width=6 height=32 radius=full bg={u.kind==='debt' ? caution : negative@60%} /> // kind bar
+<View flex=1 minWidth=0>
+<Text size=14 weight=medium numberOfLines=1>{u.name}</Text>
+<Text size=11.5 color=mutedInk numberOfLines=1>{u.note}</Text>
+</View>
+<Money value={`−£${u.amount}`} size="sm" />
+</Pressable>
+))}
+</Card>
 
-  <View marginTop=20>                                                                               // CTAs
-    <Pressable onPress={() => nav.go("add-bill")} height=52 radius=2xl bg=accent shadow={accent55} center>
-      <Text color=#FFFFFF weight=medium size=15>+ Add a bill</Text>
-    </Pressable>
-    <Pressable onPress={() => nav.go("add-debt")} height=42 marginTop=8 center>
-      <Text size=13 color=mutedInk>or add a debt</Text>
-    </Pressable>
-  </View>
+<View marginTop=20> // CTAs
+<Pressable onPress={() => nav.go("add-bill")} height=52 radius=2xl bg=accent shadow={accent55} center>
+<Text color=#FFFFFF weight=medium size=15>+ Add a bill</Text>
+</Pressable>
+<Pressable onPress={() => nav.go("add-debt")} height=42 marginTop=8 center>
+<Text size=13 color=mutedInk>or add a debt</Text>
+</Pressable>
+</View>
 
   <View marginTop=20 marginBottom=32>
     <MeloLine text="Move one if the timing doesn't suit you." mood="calm" />                          // 'soft'→calm in RN
@@ -196,4 +196,3 @@ PlansScreen
 - CTA accent shadow: the terracotta drop shadow is part of the look (rgba(224,99,58,0.55)); plain elevation on Android won't tint — accept the platform gap or fake with a colored shadow lib.
 - tabular figures on day numbers AND money: both day column and amounts use tabular nums for vertical rhythm; missing fontVariant breaks alignment in the 44px date column.
 - Banned vocabulary: keep copy as-is ('a bill','a debt','spoken for','set aside') — do not introduce banned words (import/sync/dashboard/etc.) when adding keys.
-

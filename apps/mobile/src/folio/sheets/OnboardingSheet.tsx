@@ -246,9 +246,7 @@ function OnboardingFlow({
   const [picked, setPicked] = useState<Set<string>>(
     () =>
       new Set(
-        existingPots
-          .map((p) => p.id)
-          .filter((id) => POT_TEMPLATES.some((tpl) => tpl.id === id)),
+        existingPots.map((p) => p.id).filter((id) => POT_TEMPLATES.some((tpl) => tpl.id === id)),
       ),
   );
 
@@ -557,8 +555,7 @@ function ProgressPip({
     return () => animation.stop();
   }, [targetWidth, reduceMotion, width]);
 
-  const backgroundColor =
-    kind === 'active' ? t.calm : kind === 'done' ? t.ink : t.hairline;
+  const backgroundColor = kind === 'active' ? t.calm : kind === 'done' ? t.ink : t.hairline;
   // The completed pip reads at ink/60 (web bg-[var(--ink)]/60).
   const opacity = kind === 'done' ? 0.6 : 1;
 

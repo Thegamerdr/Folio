@@ -16,11 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  type Charge,
-  type RecurringSignal,
-  detectRecurring,
-} from './subSignals';
+import { type Charge, type RecurringSignal, detectRecurring } from './subSignals';
 
 // ---------------------------------------------------------------------------
 // Fixture helpers — build a clean, deterministic charge sequence.
@@ -150,7 +146,9 @@ describe('detectRecurring — date tolerance', () => {
     // Weekly DD. One occurrence drifts; with the wider DD band it stays in-series.
     const charges = series('Council Tax', -110, '2026-01-05', 30, 3).map((c, i) =>
       // Push the 2nd charge 4 days later (Fri 6 Feb -> the engine tolerates DD ≤4 wd).
-      i === 1 ? { ...c, paymentType: 'direct-debit' as const, date: plusDays(c.date, 4) } : { ...c, paymentType: 'direct-debit' as const },
+      i === 1
+        ? { ...c, paymentType: 'direct-debit' as const, date: plusDays(c.date, 4) }
+        : { ...c, paymentType: 'direct-debit' as const },
     );
     const sig = findByMerchant(detectRecurring(charges), 'Council Tax');
     expect(sig?.status).toBe('series');
@@ -179,7 +177,10 @@ describe('detectRecurring — variable amount bounds', () => {
   });
 
   it('a fixed-amount sub reports equal lower/upper bounds and variable=false', () => {
-    const sig = findByMerchant(detectRecurring(series('Netflix', -9.99, '2026-01-01', 30, 3)), 'Netflix');
+    const sig = findByMerchant(
+      detectRecurring(series('Netflix', -9.99, '2026-01-01', 30, 3)),
+      'Netflix',
+    );
     expect(sig?.amount.lowerMinor).toBe(999);
     expect(sig?.amount.upperMinor).toBe(999);
     expect(sig?.amount.variable).toBe(false);
@@ -245,7 +246,10 @@ describe('detectRecurring — paymentReturned', () => {
   });
 
   it('does NOT flag paymentReturned for a clean series with no reversals', () => {
-    const sig = findByMerchant(detectRecurring(series('Spotify', -9.99, '2026-01-01', 30, 3)), 'Spotify');
+    const sig = findByMerchant(
+      detectRecurring(series('Spotify', -9.99, '2026-01-01', 30, 3)),
+      'Spotify',
+    );
     expect(sig?.paymentReturned).toBe(false);
   });
 });
@@ -269,7 +273,10 @@ describe('detectRecurring — possibleDuplicate', () => {
   });
 
   it('a single series to a merchant is never a duplicate', () => {
-    const sig = findByMerchant(detectRecurring(series('Spotify', -9.99, '2026-01-01', 30, 3)), 'Spotify');
+    const sig = findByMerchant(
+      detectRecurring(series('Spotify', -9.99, '2026-01-01', 30, 3)),
+      'Spotify',
+    );
     expect(sig?.possibleDuplicate).toBe(false);
   });
 });
@@ -311,7 +318,10 @@ describe('detectRecurring — grouping + purity', () => {
 // ---------------------------------------------------------------------------
 describe('detectRecurring — honesty guarantee (no usage/value/cancel/decay)', () => {
   it('S8: a detected signal carries ONLY payment-derived facts — no banned field', () => {
-    const sig = findByMerchant(detectRecurring(series('Spotify', -9.99, '2026-01-01', 30, 3)), 'Spotify');
+    const sig = findByMerchant(
+      detectRecurring(series('Spotify', -9.99, '2026-01-01', 30, 3)),
+      'Spotify',
+    );
     expect(sig).toBeDefined();
     const keys = Object.keys(sig as object);
 

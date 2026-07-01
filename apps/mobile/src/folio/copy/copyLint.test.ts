@@ -131,7 +131,9 @@ describe('copy-lint gate', () => {
     for (const entry of strings) {
       for (const shape of BANNED_CLAIM_SHAPES) {
         if (shape.test(entry.value)) {
-          hits.push(`${entry.path}: "${entry.value}" matches banned claim shape ${shape.toString()}`);
+          hits.push(
+            `${entry.path}: "${entry.value}" matches banned claim shape ${shape.toString()}`,
+          );
         }
       }
     }

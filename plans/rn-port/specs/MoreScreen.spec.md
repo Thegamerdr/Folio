@@ -1,4 +1,4 @@
-# MoreScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenMore.tsx)
+# MoreScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenMore.tsx)
 
 ## file
 
@@ -157,4 +157,3 @@ The quiet hub: a single scrollable screen of grouped navigation rows linking to 
 - Header carries a 'Folio' wordmark (font-display italic 14px) + a 20px empty balance spacer (w-5) on the right — keep the spacer so the wordmark stays left-aligned; it is not a button.
 - Scroll container hides scrollbars (no-scrollbar) and has 32px bottom margin (mb-8) so the last MeloLine clears the tab bar — preserve with paddingBottom + safe-area inset in RN.
 - State matrix: More is populated-only (empty/loading/error n/a, offline == populated). Do NOT add spinners or empty-state primitives; render the static groups immediately, including offline.
-

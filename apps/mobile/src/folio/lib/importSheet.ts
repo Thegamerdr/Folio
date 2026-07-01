@@ -356,7 +356,11 @@ function signByType(magnitude: number, typeCell: string | undefined): number {
   return -Math.abs(magnitude);
 }
 
-function gradeConfidence(hasDate: boolean, hasExplicitSign: boolean, hasTypeHint: boolean): CandidateConfidence {
+function gradeConfidence(
+  hasDate: boolean,
+  hasExplicitSign: boolean,
+  hasTypeHint: boolean,
+): CandidateConfidence {
   // High = we know what it is and when: a signed amount (or a type hint) AND a date.
   if (hasDate && (hasExplicitSign || hasTypeHint)) return 'high';
   if (hasDate || hasExplicitSign || hasTypeHint) return 'medium';
@@ -382,7 +386,10 @@ function hasExplicitSign(rawAmount: string): boolean {
 // ---------------------------------------------------------------------------
 
 function candidateId(rowIndex: number, merchant: string, amount: number): string {
-  const slug = merchant.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const slug = merchant
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
   return `sheet-${rowIndex}-${slug || 'row'}-${amount}`;
 }
 
@@ -417,7 +424,12 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
   if (lines.length === 0) {
     return {
       candidates: [],
-      issues: [{ code: 'empty-input', message: 'Nothing to read here — paste some rows or pick a file first.' }],
+      issues: [
+        {
+          code: 'empty-input',
+          message: 'Nothing to read here — paste some rows or pick a file first.',
+        },
+      ],
     };
   }
 

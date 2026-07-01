@@ -511,9 +511,7 @@ async function loadNormalizedLedgerState(
   // tight_point_goal_minor is a nullable scalar added after the first releases. Old rows (and the
   // freshly-ALTERed column) read back as null/undefined → default to null (no goal set).
   const tightPointGoalMinor =
-    typeof metadata.tight_point_goal_minor === 'number'
-      ? metadata.tight_point_goal_minor
-      : null;
+    typeof metadata.tight_point_goal_minor === 'number' ? metadata.tight_point_goal_minor : null;
   const state: LocalLedgerState = {
     asOfDate: metadata.as_of_date,
     cashOnHandMinor: metadata.cash_on_hand_minor,
@@ -1084,9 +1082,7 @@ function normalizeLocalLedgerState(state: LocalLedgerState): LocalLedgerState {
     pots: Array.isArray(state.pots) ? state.pots : [],
     subscriptions: Array.isArray(state.subscriptions) ? state.subscriptions : [],
     cycles: Array.isArray(state.cycles) ? state.cycles : [],
-    subOverrides: isPlainRecord(state.subOverrides)
-      ? sanitizeSubOverrides(state.subOverrides)
-      : {},
+    subOverrides: isPlainRecord(state.subOverrides) ? sanitizeSubOverrides(state.subOverrides) : {},
     calendarEvents: Array.isArray(state.calendarEvents) ? state.calendarEvents : [],
   };
 }

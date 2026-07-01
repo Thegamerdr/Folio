@@ -1,4 +1,4 @@
-# RecoveryScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenRecovery.tsx)
+# RecoveryScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenRecovery.tsx)
 
 ## file
 
@@ -14,15 +14,15 @@ RecoveryScreen
 
 ## docBlock
 
-@rn-screen    RecoveryScreen
-@rn-stack     More > Recovery
-@purpose      "Something has to move" — guided triage when projection is overspent.
-@reads        subs, pots, tightPointGoal
-@writes       togglePaused, addToPot (via suggested moves)
-@opens-sheet  melo-chat
-@copy         FROZEN — empathetic, never blaming.
-@tokens       --negative --accent --surface --hairline
-@motion       slide-in-r · press
+@rn-screen RecoveryScreen
+@rn-stack More > Recovery
+@purpose "Something has to move" — guided triage when projection is overspent.
+@reads subs, pots, tightPointGoal
+@writes togglePaused, addToPot (via suggested moves)
+@opens-sheet melo-chat
+@copy FROZEN — empathetic, never blaming.
+@tokens --negative --accent --surface --hairline
+@motion slide-in-r · press
 
 ## reads
 
@@ -114,55 +114,55 @@ RecoveryScreen
 ## componentTree
 
 <RecoveryScreen> (ScrollView, h-full flex col, px-7 pt-4, slide-in-r entrance)
-  <HeaderRow>
-    <BackButton onPress={nav.back}>←</BackButton>   {/* press, --muted-ink, 20px */}
-    <Eyebrow>Recovery</Eyebrow>                      {/* 12px uppercase tracking .14em --muted-ink */}
-    <Spacer w=20 />
-  </HeaderRow>
-  <TitleBlock mt-5>
-    <Text font-display italic 13px muted>It happens. Let's repair calmly.</Text>
-    <Heading font-display 30px lh1.05>Something has <Accent not-italic --accent>move.</Accent></Heading>
-  </TitleBlock>
-  <ShortfallCard mt-5 surface hairline rounded-2xl p-5 row gap-4>
-    <Melo size={56} mood={after>=0?'soft':'alert'} intensity={1.1} />
-    <Col flex-1>
-      <Label 11px uppercase muted>{pickedMove ? 'After this move' : 'Shortfall'}</Label>
-      <Money value={`${after>=0?'+':'−'}£${Math.abs(after)}`} size="lg" tone={after>=0?'positive':'negative'} />
-      <SubLine 11.5px muted font-display italic>{conditional caption}</SubLine>
-    </Col>
-  </ShortfallCard>
-  <SectionLabel mt-5 11px uppercase muted>Pick one thing</SectionLabel>
-  <MoveList mt-2 gap-2.5>
-    {moves.map(m => (
-      <MoveCard key={m.id} onPress={()=>setPicked(active?null:m.id)}
-                style={active ? accent-soft + ring-1 ring-accent/40 : surface} hairline rounded-2xl px-5 py-4 press>
-        <Row baseline justify-between>
-          <Kind 10.5px uppercase muted>{m.kind}</Kind>
-          <Delta 12px tabular color={active?--accent:--positive}>{m.delta}</Delta>
-        </Row>
-        <TitleText 14.5px medium mt-0.5>{m.title}</TitleText>
-        {active && (
-          <ExpandedBody fade-in mt-2 gap-1.5>
-            <Body 12.5px ink/85 leading-relaxed>{m.body}</Body>
-            {m.cost && <Cost 11px muted>{m.cost}</Cost>}
-          </ExpandedBody>
-        )}
-      </MoveCard>
-    ))}
-  </MoveList>
-  <MeloTalkLink mt-3 press 12px muted underline onPress={()=>nav.openMelo({prefill:...})}>
-    Not sure? Talk it through with Melo →
-  </MeloTalkLink>
-  <MeloAside mt-4 row items-start gap-3>
-    <Melo size={28} mood="soft" />
-    <AsideText 13px font-display italic muted flex-1>"{pickedMove?.melo ?? defaultLine}"</AsideText>
-  </MeloAside>
-  <PrimaryCTA mt-5 mb-3 h-54 rounded-2xl text-white 15px medium press
-              disabled={!picked} bg={picked?--accent:--muted-ink/30}
-              onPress={()=>{nav.setPressure('soft'); nav.go('today-after');}}>
-    Rebuild the plan
-  </PrimaryCTA>
-  <SecondaryCTA mb-8 h-44 13px muted press onPress={nav.back}>Not now</SecondaryCTA>
+<HeaderRow>
+<BackButton onPress={nav.back}>←</BackButton> {/_ press, --muted-ink, 20px _/}
+<Eyebrow>Recovery</Eyebrow> {/_ 12px uppercase tracking .14em --muted-ink _/}
+<Spacer w=20 />
+</HeaderRow>
+<TitleBlock mt-5>
+<Text font-display italic 13px muted>It happens. Let's repair calmly.</Text>
+<Heading font-display 30px lh1.05>Something has <Accent not-italic --accent>move.</Accent></Heading>
+</TitleBlock>
+<ShortfallCard mt-5 surface hairline rounded-2xl p-5 row gap-4>
+<Melo size={56} mood={after>=0?'soft':'alert'} intensity={1.1} />
+<Col flex-1>
+<Label 11px uppercase muted>{pickedMove ? 'After this move' : 'Shortfall'}</Label>
+<Money value={`${after>=0?'+':'−'}£${Math.abs(after)}`} size="lg" tone={after>=0?'positive':'negative'} />
+<SubLine 11.5px muted font-display italic>{conditional caption}</SubLine>
+</Col>
+</ShortfallCard>
+<SectionLabel mt-5 11px uppercase muted>Pick one thing</SectionLabel>
+<MoveList mt-2 gap-2.5>
+{moves.map(m => (
+<MoveCard key={m.id} onPress={()=>setPicked(active?null:m.id)}
+style={active ? accent-soft + ring-1 ring-accent/40 : surface} hairline rounded-2xl px-5 py-4 press>
+<Row baseline justify-between>
+<Kind 10.5px uppercase muted>{m.kind}</Kind>
+<Delta 12px tabular color={active?--accent:--positive}>{m.delta}</Delta>
+</Row>
+<TitleText 14.5px medium mt-0.5>{m.title}</TitleText>
+{active && (
+<ExpandedBody fade-in mt-2 gap-1.5>
+<Body 12.5px ink/85 leading-relaxed>{m.body}</Body>
+{m.cost && <Cost 11px muted>{m.cost}</Cost>}
+</ExpandedBody>
+)}
+</MoveCard>
+))}
+</MoveList>
+<MeloTalkLink mt-3 press 12px muted underline onPress={()=>nav.openMelo({prefill:...})}>
+Not sure? Talk it through with Melo →
+</MeloTalkLink>
+<MeloAside mt-4 row items-start gap-3>
+<Melo size={28} mood="soft" />
+<AsideText 13px font-display italic muted flex-1>"{pickedMove?.melo ?? defaultLine}"</AsideText>
+</MeloAside>
+<PrimaryCTA mt-5 mb-3 h-54 rounded-2xl text-white 15px medium press
+disabled={!picked} bg={picked?--accent:--muted-ink/30}
+onPress={()=>{nav.setPressure('soft'); nav.go('today-after');}}>
+Rebuild the plan
+</PrimaryCTA>
+<SecondaryCTA mb-8 h-44 13px muted press onPress={nav.back}>Not now</SecondaryCTA>
 </RecoveryScreen>
 
 ## enginesNeeded
@@ -218,4 +218,3 @@ RecoveryScreen
 - REDUCED MOTION: slide-in-r/fade-in/count-up must collapse to final state instantly under AccessibilityInfo.isReduceMotionEnabled (MOTION rule: reduced motion = final state, not slower).
 - CTA disabled affordance: web only changes bg color; ensure RN also blocks the press and sets accessibility disabled state, otherwise it looks tappable.
 - 'Rebuild the plan' performs TWO side effects in order (setPressure('soft') THEN go('today-after')); today-after expects the 'soft' pressure to drive its route re-draw — preserve ordering.
-

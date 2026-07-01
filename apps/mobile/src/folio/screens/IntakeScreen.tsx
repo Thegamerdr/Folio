@@ -82,14 +82,7 @@
 // '@/folio/copy/copy'; the unkeyed option/subhead/Melo/footer strings are @copy FROZEN literals).
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -144,11 +137,30 @@ type IntakeOption = {
 // both route to 'paste-success', preserved from the source. The two file-shaped options carry a
 // `pick` tag so the row opens the real document / photo picker before routing (see runPick below).
 const OPTIONS: readonly IntakeOption[] = [
-  { title: 'PDF statement', hint: 'from your bank app', icon: '▤', to: 'pdf-success', pick: 'document', fastest: true },
-  { title: 'Screenshot or photo', hint: 'from your phone', icon: '▢', to: 'image-success', pick: 'photo' },
+  {
+    title: 'PDF statement',
+    hint: 'from your bank app',
+    icon: '▤',
+    to: 'pdf-success',
+    pick: 'document',
+    fastest: true,
+  },
+  {
+    title: 'Screenshot or photo',
+    hint: 'from your phone',
+    icon: '▢',
+    to: 'image-success',
+    pick: 'photo',
+  },
   { title: 'Paste transactions', hint: 'copy from anywhere', icon: '❝', to: 'paste-success' },
   { title: 'CSV or TXT file', hint: 'if you have one', icon: '⌗', to: 'paste-success' },
-  { title: 'Add numbers yourself', hint: 'type it in', icon: '✎', to: 'review', sheet: 'log-spend' },
+  {
+    title: 'Add numbers yourself',
+    hint: 'type it in',
+    icon: '✎',
+    to: 'review',
+    sheet: 'log-spend',
+  },
 ] as const;
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
@@ -329,7 +341,13 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     // parser is wrong for a photo, so route the image itself to the LLM reader. Cancelled/denied stop.
     const result = await pickStatementImage();
     if ('source' in result && result.source.uri !== undefined) {
-      await runReader(result.source.uri, result.source.mediaType, 'image', 'image-success', 'image-fallback');
+      await runReader(
+        result.source.uri,
+        result.source.mediaType,
+        'image',
+        'image-success',
+        'image-fallback',
+      );
     } else if (result.kind === 'picked' || result.kind === 'saved') {
       nav.go('image-fallback');
     }
@@ -373,10 +391,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   if (state === 'loading' && !loadingTimedOut) {
     return (
       <View
-        style={[
-          styles.loading,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl },
-        ]}
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
         <MeloLine mood="curious" text="One second — getting your options ready." />
       </View>
@@ -390,10 +405,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   if (reading) {
     return (
       <View
-        style={[
-          styles.loading,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl },
-        ]}
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
         <MeloLine mood="curious" text="Reading what's here…" />
       </View>
@@ -403,13 +415,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // populated / offline (and loading-after-timeout) — the real picker. offline ≡ populated
   // (local-first; nothing on this screen needs the network).
   return (
-    <Animated.View
-      style={[
-        styles.screen,
-        enterStyle,
-        { backgroundColor: t.canvas },
-      ]}
-    >
+    <Animated.View style={[styles.screen, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[

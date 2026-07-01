@@ -55,14 +55,7 @@
 // Melo line is its own frozen literal.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -234,9 +227,12 @@ export function ReviewScreen({
 
   // The dwell timer is cleaned up on unmount so a fast back-out never fires a stray nav.
   const dwellRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (dwellRef.current) clearTimeout(dwellRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (dwellRef.current) clearTimeout(dwellRef.current);
+    },
+    [],
+  );
 
   // Accept — the ONLY money-path mutation on this surface. The candidate becomes one posted
   // Transaction (review-before-truth: the user's deliberate "add"), the stamp seals it, then Today.
@@ -266,7 +262,10 @@ export function ReviewScreen({
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.emptyWrap, { paddingTop: insets.top + gap.xxl }]}>
-          <MeloLine mood="calm" text="Nothing to review yet. Add a statement and I'll show what I find." />
+          <MeloLine
+            mood="calm"
+            text="Nothing to review yet. Add a statement and I'll show what I find."
+          />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Add a statement"
@@ -287,7 +286,9 @@ export function ReviewScreen({
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
         <MeloLine mood="curious" text="One second — getting this ready for you." />
       </View>
     );
@@ -315,7 +316,10 @@ export function ReviewScreen({
             accessibilityLabel="Back"
             hitSlop={12}
             onPress={nav.back}
-            style={({ pressed: isPressed }) => [styles.pressIcon, isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [
+              styles.pressIcon,
+              isPressed ? styles.pressed : undefined,
+            ]}
           >
             <BackArrow color={t.muted} />
           </Pressable>
@@ -327,7 +331,10 @@ export function ReviewScreen({
             accessibilityLabel="More options"
             hitSlop={12}
             onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
-            style={({ pressed: isPressed }) => [styles.pressIcon, isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [
+              styles.pressIcon,
+              isPressed ? styles.pressed : undefined,
+            ]}
           >
             <MoreDots color={t.muted} />
           </Pressable>
@@ -359,7 +366,9 @@ export function ReviewScreen({
             <Text style={[styles.amountValue, { color: t.ink }]}>{moneyStr}</Text>
             <Text style={[styles.outLabel, { color: t.muted }]}>{isOut ? 'out' : 'in'}</Text>
           </View>
-          <Text style={[styles.dateLine, { color: t.muted }]}>{`${candidate.date} · from your statement`}</Text>
+          <Text
+            style={[styles.dateLine, { color: t.muted }]}
+          >{`${candidate.date} · from your statement`}</Text>
 
           <View style={[styles.cardDivider, { backgroundColor: t.hairline }]} />
 

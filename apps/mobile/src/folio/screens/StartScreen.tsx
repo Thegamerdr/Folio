@@ -112,7 +112,8 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
   // single CTA still routes to the guided check-in so the doorway never dead-ends.
   if (state === 'empty' || state === 'error') {
     const headline = state === 'error' ? copy.err.generic : 'Will your money last to payday?';
-    const body = state === 'error' ? undefined : 'Start with a rough number. Nothing counts until you choose.';
+    const body =
+      state === 'error' ? undefined : 'Start with a rough number. Nothing counts until you choose.';
     return (
       <EmptyState
         mood="calm"
@@ -127,7 +128,9 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
   // centred holding moment while the doorway settles.
   if (state === 'loading') {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
         <MeloLine mood="curious" text="One second — getting your doorway ready." />
       </View>
     );
@@ -140,7 +143,11 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
       style={[
         styles.screen,
         enterStyle,
-        { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl, paddingBottom: insets.bottom },
+        {
+          backgroundColor: t.canvas,
+          paddingTop: insets.top + gap.xxl,
+          paddingBottom: insets.bottom,
+        },
       ]}
     >
       {/* The doorway scrolls — on a short viewport or with large OS text the CTA + secondary links
@@ -151,56 +158,56 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
         contentContainerStyle={styles.scrollBody}
         showsVerticalScrollIndicator={false}
       >
-      {/* Header — wordmark + Privacy link. */}
-      <View style={styles.header}>
-        <Text style={[styles.wordmark, { color: t.ink }]}>{copy.global.app.name}</Text>
-        <Pressable
-          accessibilityRole="button"
-          hitSlop={16}
-          onPress={() => nav.go('privacy')}
-          style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
-        >
-          <Text style={[styles.privacy, { color: t.muted }]}>Privacy</Text>
-        </Pressable>
-      </View>
+        {/* Header — wordmark + Privacy link. */}
+        <View style={styles.header}>
+          <Text style={[styles.wordmark, { color: t.ink }]}>{copy.global.app.name}</Text>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={16}
+            onPress={() => nav.go('privacy')}
+            style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
+          >
+            <Text style={[styles.privacy, { color: t.muted }]}>Privacy</Text>
+          </Pressable>
+        </View>
 
-      {/* Hero — the one question. "last" is the single accent word: upright, terracotta. */}
-      <View style={styles.hero}>
-        <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-          {'Will your money '}
-          <Text style={[styles.headlineAccent, { color: t.calm }]}>last</Text>
-          {' to payday?'}
-        </Text>
-        <Text style={[styles.subhead, { color: t.muted }]}>
-          Start with a rough number. Nothing counts until you choose.
-        </Text>
-      </View>
+        {/* Hero — the one question. "last" is the single accent word: upright, terracotta. */}
+        <View style={styles.hero}>
+          <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+            {'Will your money '}
+            <Text style={[styles.headlineAccent, { color: t.calm }]}>last</Text>
+            {' to payday?'}
+          </Text>
+          <Text style={[styles.subhead, { color: t.muted }]}>
+            Start with a rough number. Nothing counts until you choose.
+          </Text>
+        </View>
 
-      {/* Melo line — the quiet companion, calm mood (its breathe + blink are the only continuous
+        {/* Melo line — the quiet companion, calm mood (its breathe + blink are the only continuous
           motion on the resting screen). MeloLine adds the straight quotes; we pass the raw text. */}
-      <View style={styles.meloLine}>
-        <MeloLine text="Start rough. You can correct anything later." />
-      </View>
+        <View style={styles.meloLine}>
+          <MeloLine text="Start rough. You can correct anything later." />
+        </View>
 
-      {/* Spacer pins the CTA + secondary links to the bottom, mirroring the web flex-1 spacer. */}
-      <View style={styles.spacer} />
+        {/* Spacer pins the CTA + secondary links to the bottom, mirroring the web flex-1 spacer. */}
+        <View style={styles.spacer} />
 
-      {/* Primary CTA — the kit's PrimaryAction carries the terracotta fill, the warm raised glow,
+        {/* Primary CTA — the kit's PrimaryAction carries the terracotta fill, the warm raised glow,
           the centred label and the right-pinned arrow (the in-system "→" + pointer-nudge owner). */}
-      <PrimaryAction
-        label="See where you stand"
-        onPress={() => nav.go('guided')}
-        accessibilityHint="Opens the guided check-in"
-      />
+        <PrimaryAction
+          label="See where you stand"
+          onPress={() => nav.go('guided')}
+          accessibilityHint="Opens the guided check-in"
+        />
 
-      {/* Secondary links — inline 3-up row, two 1px hairline rules between, exactly like the web. */}
-      <View style={styles.secondaryRow}>
-        <SecondaryLink label="Add a statement" onPress={() => nav.go('intake')} />
-        <View style={[styles.divider, { backgroundColor: t.hairline }]} />
-        <SecondaryLink label="Try sample data" onPress={() => nav.go('today')} />
-        <View style={[styles.divider, { backgroundColor: t.hairline }]} />
-        <SecondaryLink label="Meet Melo" onPress={() => nav.go('melo')} />
-      </View>
+        {/* Secondary links — inline 3-up row, two 1px hairline rules between, exactly like the web. */}
+        <View style={styles.secondaryRow}>
+          <SecondaryLink label="Add a statement" onPress={() => nav.go('intake')} />
+          <View style={[styles.divider, { backgroundColor: t.hairline }]} />
+          <SecondaryLink label="Try sample data" onPress={() => nav.go('today')} />
+          <View style={[styles.divider, { backgroundColor: t.hairline }]} />
+          <SecondaryLink label="Meet Melo" onPress={() => nav.go('melo')} />
+        </View>
       </ScrollView>
     </Animated.View>
   );

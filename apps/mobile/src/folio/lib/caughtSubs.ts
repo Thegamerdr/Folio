@@ -19,12 +19,7 @@
 import { useMemo } from 'react';
 
 import { useAppStore, type Transaction } from '../store';
-import {
-  detectRecurring,
-  type Cadence,
-  type Charge,
-  type RecurringSignal,
-} from './subSignals';
+import { detectRecurring, type Cadence, type Charge, type RecurringSignal } from './subSignals';
 
 // ---------------------------------------------------------------------------
 // Candidate shape — mirrors SubCaughtSheet's `SubCandidate` exactly so the
@@ -57,8 +52,18 @@ const MINOR = 100;
 // Short month labels for the human `lastDate`. Deterministic + Node-safe (no
 // locale/Intl dependence), so the pure function and its tests never drift.
 const MONTHS_SHORT = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -135,12 +140,14 @@ export function findCaughtSubs(
 
   const known = new Set(knownSubNames.map(normaliseName));
 
-  return signals
-    // Only confirmed series, only the monthly framing this sheet describes.
-    .filter((s) => s.status === 'series' && s.cadence === SHEET_CADENCE)
-    // Drop anything already in the catalog (case/space-insensitive).
-    .filter((s) => !known.has(normaliseName(s.merchant)))
-    .map(toCandidate);
+  return (
+    signals
+      // Only confirmed series, only the monthly framing this sheet describes.
+      .filter((s) => s.status === 'series' && s.cadence === SHEET_CADENCE)
+      // Drop anything already in the catalog (case/space-insensitive).
+      .filter((s) => !known.has(normaliseName(s.merchant)))
+      .map(toCandidate)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +164,11 @@ export function useCaughtSubs(): CaughtSubCandidate[] {
   const subs = useAppStore((state) => state.subs);
 
   return useMemo(
-    () => findCaughtSubs(transactions, subs.map((s) => s.name)),
+    () =>
+      findCaughtSubs(
+        transactions,
+        subs.map((s) => s.name),
+      ),
     [transactions, subs],
   );
 }

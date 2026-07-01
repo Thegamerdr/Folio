@@ -1,4 +1,4 @@
-# EditTxnSheet  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetEditTxn.tsx)
+# EditTxnSheet (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetEditTxn.tsx)
 
 ## file
 
@@ -14,13 +14,14 @@ Bottom sheet to edit an existing transaction. Shows the transaction's identity (
 
 ## docBlock
 
-/**
- * @rn-sheet     EditTxnSheet
- * @purpose      Edit an existing transaction.
- * @writes       removeTransaction + addTransaction (replacement)
- * @copy         FROZEN
- * @tokens       --surface --hairline --accent --negative
- */
+/\*\*
+
+- @rn-sheet EditTxnSheet
+- @purpose Edit an existing transaction.
+- @writes removeTransaction + addTransaction (replacement)
+- @copy FROZEN
+- @tokens --surface --hairline --accent --negative
+  \*/
 
 ## reads
 
@@ -32,8 +33,6 @@ Bottom sheet to edit an existing transaction. Shows the transaction's identity (
 - addTransaction(replacement) — declared in @rn-sheet doc block; edit is modeled as delete-then-insert (replacement), not in-place mutation. NEITHER is wired in the web prototype — Save only calls onClose().
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -75,29 +74,29 @@ Bottom sheet to edit an existing transaction. Shows the transaction's identity (
 
 ## componentTree
 
-<Sheet onClose={onClose} title="Edit transaction">  {/* gorhom BottomSheetModal: 40% ink scrim, 28px top radius, paper body, sheet-rise spring */}
-  <View row spaceBetween>            {/* flex items-center justify-between */}
-    <Text eyebrow>Edit transaction</Text>   {/* 11px, uppercase, tracking 0.14em, --muted-ink */}
-    <Pressable press onPress={onClose}>      {/* × glyph, 18px, --muted-ink */}
-      <Text>×</Text>
-    </Pressable>
-  </View>
-  <Text display title>Tesco · 26 June</Text>  {/* font-display 24px, mt-2, leading-tight; RN: {payee} · {date} */}
+<Sheet onClose={onClose} title="Edit transaction"> {/_ gorhom BottomSheetModal: 40% ink scrim, 28px top radius, paper body, sheet-rise spring _/}
+<View row spaceBetween> {/_ flex items-center justify-between _/}
+<Text eyebrow>Edit transaction</Text> {/_ 11px, uppercase, tracking 0.14em, --muted-ink _/}
+<Pressable press onPress={onClose}> {/_ × glyph, 18px, --muted-ink _/}
+<Text>×</Text>
+</Pressable>
+</View>
+<Text display title>Tesco · 26 June</Text> {/_ font-display 24px, mt-2, leading-tight; RN: {payee} · {date} _/}
 
-  <View mt-5 gap-3>                  {/* space-y-3 */}
-    {fields.map(f =>               {/* [{Amount,£42.00},{Category,Groceries},{Repeat,Once},{Note,Weekly shop}] */}
-      <View row spaceBetween key={f.k}
-            style={surface + hairline + rounded-xl + px-4 py-3}>
-        <Text label>{f.k}</Text>     {/* 12px, uppercase, tracking 0.12em, --muted-ink */}
-        <Text value>{f.v}</Text>     {/* 14px, font-medium; amount uses Money/tabular in RN */}
-      </View>
-    )}
-  </View>
+<View mt-5 gap-3> {/_ space-y-3 _/}
+{fields.map(f => {/_ [{Amount,£42.00},{Category,Groceries},{Repeat,Once},{Note,Weekly shop}] _/}
+<View row spaceBetween key={f.k}
+style={surface + hairline + rounded-xl + px-4 py-3}>
+<Text label>{f.k}</Text> {/_ 12px, uppercase, tracking 0.12em, --muted-ink _/}
+<Text value>{f.v}</Text> {/_ 14px, font-medium; amount uses Money/tabular in RN _/}
+</View>
+)}
+</View>
 
-  <Pressable press onPress={onClose}    {/* RN: onPress = commit edit (remove+add) then close */}
-             style={mt-6 + w-full + h-[54px] + rounded-2xl + bg-accent}>
-    <Text style={white + font-medium + 15px}>Save changes</Text>
-  </Pressable>
+<Pressable press onPress={onClose} {/_ RN: onPress = commit edit (remove+add) then close _/}
+style={mt-6 + w-full + h-[54px] + rounded-2xl + bg-accent}>
+<Text style={white + font-medium + 15px}>Save changes</Text>
+</Pressable>
 </Sheet>
 
 ## enginesNeeded
@@ -145,6 +144,3 @@ Bottom sheet to edit an existing transaction. Shows the transaction's identity (
 - offline — same as populated (local-first; edit persists with no network, no 'sync' language)
 
 ## moods
-
-
-

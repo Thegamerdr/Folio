@@ -24,9 +24,7 @@ describe('resolvePayday — month-overflow clamp', () => {
   it('Feb 31 in a non-leap year clamps to Feb 28 (never Mar 3)', () => {
     // 2026-02 has 28 days. weekendRule 'exact' isolates the clamp from the
     // weekend shift (2026-02-28 is a Saturday).
-    expect(resolvePayday({ dayOfMonth: 31, weekendRule: 'exact' }, '2026-02')).toBe(
-      '2026-02-28',
-    );
+    expect(resolvePayday({ dayOfMonth: 31, weekendRule: 'exact' }, '2026-02')).toBe('2026-02-28');
   });
 
   it('Feb 31 in a leap year clamps to Feb 29 (never Mar 2)', () => {
@@ -36,9 +34,7 @@ describe('resolvePayday — month-overflow clamp', () => {
   });
 
   it('30th in February clamps to the last valid Feb day', () => {
-    expect(resolvePayday({ dayOfMonth: 30, weekendRule: 'exact' }, '2026-02')).toBe(
-      '2026-02-28',
-    );
+    expect(resolvePayday({ dayOfMonth: 30, weekendRule: 'exact' }, '2026-02')).toBe('2026-02-28');
     expect(resolvePayday({ dayOfMonth: 30 }, '2024-02')).toBe('2024-02-29');
   });
 
@@ -49,9 +45,7 @@ describe('resolvePayday — month-overflow clamp', () => {
 
   it('a valid day-of-month is left exactly where it lands (no clamp)', () => {
     // 2026-03-15 is a Sunday; isolate clamp behaviour with 'exact'.
-    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'exact' }, '2026-03')).toBe(
-      '2026-03-15',
-    );
+    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'exact' }, '2026-03')).toBe('2026-03-15');
   });
 });
 
@@ -81,34 +75,24 @@ describe('resolvePayday — weekend shift', () => {
 
   it("'next' shifts a Saturday forward to the following Monday", () => {
     // 2026-08-15 (Sat) -> 2026-08-17 (Mon).
-    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'next' }, '2026-08')).toBe(
-      '2026-08-17',
-    );
+    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'next' }, '2026-08')).toBe('2026-08-17');
   });
 
   it("'next' shifts a Sunday forward to the following Monday", () => {
     // 2026-03-15 (Sun) -> 2026-03-16 (Mon).
-    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'next' }, '2026-03')).toBe(
-      '2026-03-16',
-    );
+    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'next' }, '2026-03')).toBe('2026-03-16');
   });
 
   it("'next' from a month-end Saturday crosses into the next month", () => {
     // 2026-10-31 is a Saturday -> 'next' -> 2026-11-02 (Monday).
-    expect(resolvePayday({ dayOfMonth: 31, weekendRule: 'next' }, '2026-10')).toBe(
-      '2026-11-02',
-    );
+    expect(resolvePayday({ dayOfMonth: 31, weekendRule: 'next' }, '2026-10')).toBe('2026-11-02');
   });
 
   it("'exact' passes a weekend date straight through with no shift", () => {
     // 2026-02-28 (Sat) stays put under 'exact'.
-    expect(resolvePayday({ dayOfMonth: 31, weekendRule: 'exact' }, '2026-02')).toBe(
-      '2026-02-28',
-    );
+    expect(resolvePayday({ dayOfMonth: 31, weekendRule: 'exact' }, '2026-02')).toBe('2026-02-28');
     // 2026-03-15 (Sun) stays put under 'exact'.
-    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'exact' }, '2026-03')).toBe(
-      '2026-03-15',
-    );
+    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'exact' }, '2026-03')).toBe('2026-03-15');
   });
 
   it('a weekday payday is unaffected by any weekend rule', () => {
@@ -116,12 +100,8 @@ describe('resolvePayday — weekend shift', () => {
     expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'previous' }, '2026-06')).toBe(
       '2026-06-15',
     );
-    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'next' }, '2026-06')).toBe(
-      '2026-06-15',
-    );
-    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'exact' }, '2026-06')).toBe(
-      '2026-06-15',
-    );
+    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'next' }, '2026-06')).toBe('2026-06-15');
+    expect(resolvePayday({ dayOfMonth: 15, weekendRule: 'exact' }, '2026-06')).toBe('2026-06-15');
   });
 
   it("clamp then shift compose: 'previous' from a month-end Saturday stays in-month", () => {

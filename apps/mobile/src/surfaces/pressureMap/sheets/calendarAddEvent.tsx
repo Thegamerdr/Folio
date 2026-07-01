@@ -19,10 +19,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import type {
-  AddUserCalendarEventInput,
-  UserCalendarEventKind,
-} from '../../../local/localLedger';
+import type { AddUserCalendarEventInput, UserCalendarEventKind } from '../../../local/localLedger';
 import {
   Body,
   GhostButton,
@@ -112,11 +109,7 @@ export function CalendarAddEventSheet({
     // carry no amount.
     const magnitudeMinor = hasAmount ? Number(digits) * 100 : undefined;
     const amountMinor =
-      magnitudeMinor === undefined
-        ? undefined
-        : kind === 'out'
-          ? -magnitudeMinor
-          : magnitudeMinor;
+      magnitudeMinor === undefined ? undefined : kind === 'out' ? -magnitudeMinor : magnitudeMinor;
 
     const input: AddUserCalendarEventInput = {
       dateIso,
@@ -240,9 +233,7 @@ export function CalendarAddEventSheet({
           </View>
         </View>
 
-        {!canAdd ? (
-          <Body style={s.helper}>Give it a name and a date to add it.</Body>
-        ) : null}
+        {!canAdd ? <Body style={s.helper}>Give it a name and a date to add it.</Body> : null}
 
         <View style={s.action}>
           <PrimaryAction
@@ -253,7 +244,11 @@ export function CalendarAddEventSheet({
           />
         </View>
         <View style={s.cancel}>
-          <GhostButton accessibilityHint="Dismiss without adding" label="Cancel" onPress={onClose} />
+          <GhostButton
+            accessibilityHint="Dismiss without adding"
+            label="Cancel"
+            onPress={onClose}
+          />
         </View>
       </View>
     </Sheet>

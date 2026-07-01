@@ -172,13 +172,7 @@ const EPOCH = new Date(0);
  *  Folio is local-first). Defaults to 'populated'. */
 type ScreenState = 'populated' | 'loading' | 'error' | 'empty' | 'offline';
 
-export function TodayAfterScreen({
-  nav,
-  state = 'populated',
-}: {
-  nav: Nav;
-  state?: ScreenState;
-}) {
+export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state?: ScreenState }) {
   const t = useTheme();
   const reduceMotion = useReduceMotion();
 
@@ -305,10 +299,7 @@ export function TodayAfterScreen({
         </View>
 
         {/* Verdict block */}
-        <View
-          style={styles.verdictBlock}
-          accessibilityLiveRegion="polite"
-        >
+        <View style={styles.verdictBlock} accessibilityLiveRegion="polite">
           <Text style={[styles.positiveLine, { color: makesIt ? t.positive : t.repair }]}>
             {makesIt ? 'You make it to payday.' : "It's tight to payday."}
           </Text>

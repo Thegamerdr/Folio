@@ -346,10 +346,7 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
     }
     return (
       <View
-        style={[
-          styles.loading,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl },
-        ]}
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
         <MeloLine mood="curious" text="One moment — getting this ready for you." />
       </View>
@@ -425,9 +422,7 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
       />
 
       {/* Amount display card — label + the £ amount, tabular figures, terracotta, em-dash when empty. */}
-      <View
-        style={[styles.amountCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
-      >
+      <View style={[styles.amountCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
         <Text style={[styles.fieldLabel, { color: t.muted }]}>Amount</Text>
         <Text
           accessibilityLabel={amount ? `${POUND}${amount}` : 'No amount yet'}

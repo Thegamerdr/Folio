@@ -1,4 +1,4 @@
-# RouteDetailSheet  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetRouteDetail.tsx)
+# RouteDetailSheet (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetRouteDetail.tsx)
 
 ## file
 
@@ -26,8 +26,6 @@ Detail for a point on the money path — what's left after a bill day, what's co
 - No money-data mutations (@writes: —). Only the calendar-focus bridge + navigation.
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -113,14 +111,15 @@ Detail for a point on the money path — what's left after a bill day, what's co
 
 ## docBlock
 
-/**
- * @rn-sheet     RouteDetailSheet
- * @purpose      Detail for a point on the money path — left after, counted, waiting.
- * @reads        nav.pressure (mood line) + the tapped point
- * @writes       —
- * @copy         FROZEN
- * @tokens       --paper --accent --positive --hairline
- */
+/\*\*
+
+- @rn-sheet RouteDetailSheet
+- @purpose Detail for a point on the money path — left after, counted, waiting.
+- @reads nav.pressure (mood line) + the tapped point
+- @writes —
+- @copy FROZEN
+- @tokens --paper --accent --positive --hairline
+  \*/
 
 ## rnPrimitiveMap
 
@@ -141,13 +140,13 @@ Detail for a point on the money path — what's left after a bill day, what's co
 
 ## componentTree
 
-<RouteDetailSheet onClose nav point={tappedPoint}>  // RN: point carries iso + bills + label
-  <Sheet onClose title="What's happening">           // gorhom: --paper bg, 28px top radius, 45% ink scrim, grip
-    <Row justify="space-between" align="center">
-      <Eyebrow>What's happening · {point.dateLabel}</Eyebrow>   // 11px upper, tracking .14em, muted
-      <PressableGlyph onPress={onClose}>×</PressableGlyph>     // muted, 18px, press
-    </Row>
-    <Headline mt={2}>Set aside for bills</Headline>           // font-display 26px leading-tight
+<RouteDetailSheet onClose nav point={tappedPoint}> // RN: point carries iso + bills + label
+<Sheet onClose title="What's happening"> // gorhom: --paper bg, 28px top radius, 45% ink scrim, grip
+<Row justify="space-between" align="center">
+<Eyebrow>What's happening · {point.dateLabel}</Eyebrow> // 11px upper, tracking .14em, muted
+<PressableGlyph onPress={onClose}>×</PressableGlyph> // muted, 18px, press
+</Row>
+<Headline mt={2}>Set aside for bills</Headline> // font-display 26px leading-tight
 
     <Card mt={5} bg="surface" hairline radius="2xl" p={5}>
       <Row align="baseline" justify="space-between">
@@ -208,6 +207,6 @@ Detail for a point on the money path — what's left after a bill day, what's co
     <TextButton mt={2} h={48} radius="2xl" color="muted-ink" onPress={onClose}>
       Close
     </TextButton>
+
   </Sheet>
 </RouteDetailSheet>
-

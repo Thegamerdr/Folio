@@ -1,4 +1,4 @@
-# MeloChatSheet  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetMeloChat.tsx)
+# MeloChatSheet (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetMeloChat.tsx)
 
 ## file
 
@@ -26,8 +26,6 @@ Melo conversation surface inside a bottom sheet: builds a last-14-days app-state
 - streaming chat request to /api/melo-chat (server persona)
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -84,75 +82,76 @@ Melo conversation surface inside a bottom sheet: builds a last-14-days app-state
 
 ## docBlock
 
-/**
- * @rn-sheet     MeloChatSheet
- * @purpose      Melo conversation surface — snapshot of app state + 4 tool calls.
- * @reads        Full app snapshot (pots, subs, subPaused, tightPointGoal, onboarding, last-14d txns)
- * @writes       applyMeloTool via tool callbacks
- * @copy         FROZEN — most lines come from the server persona, not this file.
- * @tokens       --paper --accent --hairline --muted-ink
- * @motion       sheet-in · message fade-in · undo-pill 8s timer
- */
+/\*\*
+
+- @rn-sheet MeloChatSheet
+- @purpose Melo conversation surface — snapshot of app state + 4 tool calls.
+- @reads Full app snapshot (pots, subs, subPaused, tightPointGoal, onboarding, last-14d txns)
+- @writes applyMeloTool via tool callbacks
+- @copy FROZEN — most lines come from the server persona, not this file.
+- @tokens --paper --accent --hairline --muted-ink
+- @motion sheet-in · message fade-in · undo-pill 8s timer
+  \*/
 
 ## componentTree
 
-<Sheet onClose>            {/* gorhom BottomSheetModal: 40% ink scrim, 28px top radius, paper body, grip, sheet-rise */}
-  <MeloChat snapshot avatar={<Melo size=36 mood="calm"/>} prefill seed>
-    <View flex h≈640 maxH 78vh>
-      <Header row borderBottom hairline>
-        {avatar /* Melo 36 */}
-        <View flex>
-          <Text 14 medium>Melo</Text>
-          <Text 11.5 mutedInk truncate>{share?'Knows your money':'Just listening'} · {toneLabel}</Text>
-        </View>
-        <Pressable press>{showSettings?'Done':'Tune'}</Pressable>
-      </Header>
-      {showSettings && (
-        <SettingsPanel borderBottom hairline>
-          <Text 11.5 upper tracked mutedInk>Voice</Text>
-          <Row grid-4 gap>
-            {TONES.map(t => <Pressable press h32 rounded selected?ink/paper:inset/ink>{t.label}</Pressable>)}
-          </Row>
-          <Pressable row label>
-            <View flex><Text 13>Let Melo see my money</Text><Text 11.5 mutedInk>Shares your path, pots, and subs as context. Stays on this device.</Text></View>
-            <Switch checked={share} accentThumb/>  {/* web checkbox accent --accent */}
-          </Pressable>
-          {messages.length>0 && <Pressable press underline mutedInk>Start fresh</Pressable>}
-        </SettingsPanel>
-      )}
-      <Transcript flex>            {/* Conversation = stick-to-bottom scroll + scroll-to-bottom FAB */}
-        <ScrollView stickToBottom>
-          {EMPTY && messages.length===0 && !isLoading && (
-            <View>
-              <Text font-display italic 16>What's on your mind?</Text>
-              {STARTERS.map(s => <Pressable press inset rounded textLeft 13 onPress={send(s)}>{s}</Pressable>)}
-            </View>
-          )}
-          {messages.map(m =>
-            m.role==='user'
-              ? <Bubble alignEnd ink/paper rounded2xl br-md maxW80%>{text}</Bubble>
-              : <Assistant>
-                  {text && <Markdown prose-melo 13.5 ink>{text}</Markdown>}
-                  {toolParts.map(tp =>
-                    <ToolPill inset border hairline rounded>
-                      <Text accent>✓</Text>
-                      <View flex><Text 10.5 upper tracked mutedInk>{name}</Text><Text ink>{done?output.message:'working on it…'}</Text></View>
-                      {canUndo && <Pressable press underline mutedInk onPress={runUndo}>Undo</Pressable>}
-                    </ToolPill>)}
-                </Assistant>)}
-          {status==='submitted' && <Shimmer 13.5>Melo's thinking…</Shimmer>}
-          {error && <Text 12 accent>Couldn't reach Melo just now. {error.message}</Text>}
-        </ScrollView>
-        <ScrollToBottomButton/>
-      </Transcript>
-      <Composer pt>
-        <PromptInput onSubmit={send(input)}>
-          <TextInput ref placeholder="Say anything to Melo…" value={input} onChangeText disabled={isLoading} autoFocus multiline/>
-          <Row justifyEnd><SubmitButton status={isLoading?'streaming':undefined} disabled={!input.trim()&&!isLoading}/></Row>
-        </PromptInput>
-      </Composer>
-    </View>
-  </MeloChat>
+<Sheet onClose> {/_ gorhom BottomSheetModal: 40% ink scrim, 28px top radius, paper body, grip, sheet-rise _/}
+<MeloChat snapshot avatar={<Melo size=36 mood="calm"/>} prefill seed>
+<View flex h≈640 maxH 78vh>
+<Header row borderBottom hairline>
+{avatar /_ Melo 36 _/}
+<View flex>
+<Text 14 medium>Melo</Text>
+<Text 11.5 mutedInk truncate>{share?'Knows your money':'Just listening'} · {toneLabel}</Text>
+</View>
+<Pressable press>{showSettings?'Done':'Tune'}</Pressable>
+</Header>
+{showSettings && (
+<SettingsPanel borderBottom hairline>
+<Text 11.5 upper tracked mutedInk>Voice</Text>
+<Row grid-4 gap>
+{TONES.map(t => <Pressable press h32 rounded selected?ink/paper:inset/ink>{t.label}</Pressable>)}
+</Row>
+<Pressable row label>
+<View flex><Text 13>Let Melo see my money</Text><Text 11.5 mutedInk>Shares your path, pots, and subs as context. Stays on this device.</Text></View>
+<Switch checked={share} accentThumb/> {/_ web checkbox accent --accent _/}
+</Pressable>
+{messages.length>0 && <Pressable press underline mutedInk>Start fresh</Pressable>}
+</SettingsPanel>
+)}
+<Transcript flex> {/_ Conversation = stick-to-bottom scroll + scroll-to-bottom FAB _/}
+<ScrollView stickToBottom>
+{EMPTY && messages.length===0 && !isLoading && (
+<View>
+<Text font-display italic 16>What's on your mind?</Text>
+{STARTERS.map(s => <Pressable press inset rounded textLeft 13 onPress={send(s)}>{s}</Pressable>)}
+</View>
+)}
+{messages.map(m =>
+m.role==='user'
+? <Bubble alignEnd ink/paper rounded2xl br-md maxW80%>{text}</Bubble>
+: <Assistant>
+{text && <Markdown prose-melo 13.5 ink>{text}</Markdown>}
+{toolParts.map(tp =>
+<ToolPill inset border hairline rounded>
+<Text accent>✓</Text>
+<View flex><Text 10.5 upper tracked mutedInk>{name}</Text><Text ink>{done?output.message:'working on it…'}</Text></View>
+{canUndo && <Pressable press underline mutedInk onPress={runUndo}>Undo</Pressable>}
+</ToolPill>)}
+</Assistant>)}
+{status==='submitted' && <Shimmer 13.5>Melo's thinking…</Shimmer>}
+{error && <Text 12 accent>Couldn't reach Melo just now. {error.message}</Text>}
+</ScrollView>
+<ScrollToBottomButton/>
+</Transcript>
+<Composer pt>
+<PromptInput onSubmit={send(input)}>
+<TextInput ref placeholder="Say anything to Melo…" value={input} onChangeText disabled={isLoading} autoFocus multiline/>
+<Row justifyEnd><SubmitButton status={isLoading?'streaming':undefined} disabled={!input.trim()&&!isLoading}/></Row>
+</PromptInput>
+</Composer>
+</View>
+</MeloChat>
 </Sheet>
 
 ## enginesNeeded
@@ -189,7 +188,7 @@ Melo conversation surface inside a bottom sheet: builds a last-14-days app-state
 - CSS tokens (var(--paper) etc.) -> theme object + useTheme() (kitTheme/makeStyles pattern already in the RN app)
 - font-display Fraunces -> embedded Fraunces font; tabular -> fontVariant:['tabular-nums']
 - localStorage folio.melo.chat.v1 -> AsyncStorage/MMKV (encrypted store per Folio local-first promise)
-- useChat/@ai-sdk/react + DefaultChatTransport('/api/melo-chat') -> RN fetch/SSE streaming client to the ai-gateway Worker; replicate the parts[] model (text parts + tool-* parts with state 'output-available' and toolCallId)
+- useChat/@ai-sdk/react + DefaultChatTransport('/api/melo-chat') -> RN fetch/SSE streaming client to the ai-gateway Worker; replicate the parts[] model (text parts + tool-\* parts with state 'output-available' and toolCallId)
 - window.confirm('Clear this conversation?') -> RN Alert.alert confirm dialog
 
 ## fidelityRisks
@@ -206,4 +205,3 @@ Melo conversation surface inside a bottom sheet: builds a last-14-days app-state
 - Persisting raw UIMessages including tool parts to storage — RN must serialize the same parts[] shape so reload re-renders tool pills (without re-applying mutations; appliedRef prevents double-apply only within a session, so on reload guard against re-running applied tools — the web relies on tools only firing live, RN should not replay stored tool parts as new mutations).
 - localStorage is unavailable in RN; the loadPersisted/savePersisted guards on window must be replaced, not just no-op'd, or history/settings silently never persist.
 - Sheet max height (640px / 78vh) + internal scroll: gorhom snap points must leave the composer reachable above the keyboard (KeyboardAvoiding / BottomSheet keyboard handling).
-

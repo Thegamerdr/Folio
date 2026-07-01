@@ -20,7 +20,13 @@ const CONCERN_RANK: Readonly<Record<MeloMood, number>> = {
 };
 
 // SPECTRUM is ordered safest -> tightest.
-const ORDER_SAFEST_FIRST: readonly PressureKey[] = ['safe', 'calm', 'soft', 'pressured', 'overspent'];
+const ORDER_SAFEST_FIRST: readonly PressureKey[] = [
+  'safe',
+  'calm',
+  'soft',
+  'pressured',
+  'overspent',
+];
 
 function routeWithTightest(tightestBalanceMinor: number): LocalRouteSummary {
   // currentPressure only reads tightestBalanceMinor (plus routeHasMeaningfulPath, which is satisfied

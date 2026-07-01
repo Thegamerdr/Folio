@@ -1,4 +1,4 @@
-# TodayScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenToday.tsx)
+# TodayScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenToday.tsx)
 
 ## file
 
@@ -14,21 +14,22 @@ One-screen answer to "will my money last to payday?" — a pressure verdict line
 
 ## docBlock
 
-/**
- * @rn-screen    TodayScreen
- * @rn-stack     MainTabs > Today
- * @purpose      One-screen answer to "will my money last to payday?" — tight-point number,
- *               money-path SVG with scrub preview, proactive nudges, weekly tiles, recent spend.
- * @reads        nav.pressure (mood band), pots/subs/transactions/onboarding/cycles (via child components)
- * @writes      —
- * @opens-sheet  log-spend, melo-chat, onboarding
- * @copy         FROZEN — every visible string ships verbatim
- * @tokens       --paper --surface --inset --ink --accent --positive --negative --hairline · Fraunces headlines · tabular money
- * @motion       route-draw 2.2s · count-up 700ms · pulse-ring 1.8s · callout-in 600ms · press .97/120ms · respects reduce-motion
- * @melo-mood    derived from nav.pressure via pressureMood
- * @notes        Path SVG is the hero — scrub thumb maps pointer x → "if you spend £X today" preview.
- *               Sub-components live in ./today/ — port each as its own RN component.
- */
+/\*\*
+
+- @rn-screen TodayScreen
+- @rn-stack MainTabs > Today
+- @purpose One-screen answer to "will my money last to payday?" — tight-point number,
+-               money-path SVG with scrub preview, proactive nudges, weekly tiles, recent spend.
+- @reads nav.pressure (mood band), pots/subs/transactions/onboarding/cycles (via child components)
+- @writes —
+- @opens-sheet log-spend, melo-chat, onboarding
+- @copy FROZEN — every visible string ships verbatim
+- @tokens --paper --surface --inset --ink --accent --positive --negative --hairline · Fraunces headlines · tabular money
+- @motion route-draw 2.2s · count-up 700ms · pulse-ring 1.8s · callout-in 600ms · press .97/120ms · respects reduce-motion
+- @melo-mood derived from nav.pressure via pressureMood
+- @notes Path SVG is the hero — scrub thumb maps pointer x → "if you spend £X today" preview.
+-               Sub-components live in ./today/ — port each as its own RN component.
+  \*/
 
 --- Child component doc blocks (port each as its own RN component) ---
 
@@ -89,7 +90,7 @@ TodayWeekTiles: @rn-component TodayWeekTiles · @parent TodayScreen · @purpose 
 - SVG focus callout: 'from Calendar · {focusLabel}'
 - aria 'Money path from today to payday — drag to preview a spend'
 - Band buttons: 'This week','Next week','To payday'
-- Scrub hint: 'if you spend £{round(scrub*120)} today' / 'drag the line to preview a spend'
+- Scrub hint: 'if you spend £{round(scrub\*120)} today' / 'drag the line to preview a spend'
 - Friday-dip caption: 'Friday dip · {potFirstWord £perWeek joined with +}' + ' · £{total}/wk to your pots' | '/wk to your pot' + glyph '↘'
 - Summary trio labels: 'Coming in' £2,180 (positive), 'Going out' £1,095 (negative), 'Lowest' formatGBP(tightestSpare) (ink)
 - Melo prompt card: '\"{line}\"' + '2 things still waiting to be checked.' + 'Ask Melo →' (prefill 'Why is my low point £{x} on {date}?' or 'Why is my low point £{x}?')
@@ -121,13 +122,13 @@ TodayWeekTiles: @rn-component TodayWeekTiles · @parent TodayScreen · @purpose 
 ## motions
 
 - route-draw (2200ms ease-out) — the path line, keyed on path `d` so it redraws when the shape changes
-- count-up (useCountUp, 400ms here) — hero 'spare' number ticks to target = tightestSpare − round(scrub*120)
+- count-up (useCountUp, 400ms here) — hero 'spare' number ticks to target = tightestSpare − round(scrub\*120)
 - pulse-ring (1800ms infinite) — lowest-point node halo (point index 4) and the route-focus halo
 - callout-in (600ms ease-out, 1.4s delay) — idle lowest-point callout + Calendar focus callout
 - press (120ms, scale .97) — every tappable: header buttons, chips, band buttons, nudges, tiles, recent rows, Melo prompt
 - slide-in-r (360ms) — screen container entrance (`slide-in-r` class on root)
 - Melo breathe/blink (continuous, mood-driven) inside <Melo> instances
-- scrub interaction: pointer drag updates thumb at x=30+scrub*340 and re-targets count-up (not a named motion; reanimated gesture in RN)
+- scrub interaction: pointer drag updates thumb at x=30+scrub\*340 and re-targets count-up (not a named motion; reanimated gesture in RN)
 - reduce-motion: all the above collapse to final state instantly (web @media; RN AccessibilityInfo.isReduceMotionEnabled)
 
 ## moods
@@ -139,6 +140,7 @@ TodayWeekTiles: @rn-component TodayWeekTiles · @parent TodayScreen · @purpose 
 ## componentTree
 
 <TodayScreen> = ScrollView (slide-in-r, no scrollbar, h-full)
+
   <Header row px-7>
     <View><Text font-display italic>Saturday, 27 June</Text><Pressable onPress=nav.go('ritual')><Text>11 days to payday →</Text></Pressable></View>
     <Pressable onPress=nav.openMelo aria='Open Melo' (round surface+hairline)><Melo size=22 mood={mood}/></Pressable>
@@ -183,10 +185,10 @@ TodayWeekTiles: @rn-component TodayWeekTiles · @parent TodayScreen · @purpose 
 
 ## fidelityRisks
 
-- Pointer scrub → RN Gesture: web reads e.clientX vs SVG getBoundingClientRect for scrub 0..1; RN needs react-native-gesture-handler Pan + onLayout width, mapping translationX→0..1, thumb at x=30+scrub*340, and re-targeting the count-up. Touch must not scroll the page (touch-none) — disable parent scroll during the gesture.
+- Pointer scrub → RN Gesture: web reads e.clientX vs SVG getBoundingClientRect for scrub 0..1; RN needs react-native-gesture-handler Pan + onLayout width, mapping translationX→0..1, thumb at x=30+scrub\*340, and re-targeting the count-up. Touch must not scroll the page (touch-none) — disable parent scroll during the gesture.
 - Hardcoded vs live data: most path nodes, the '27 Jun'/'11 days'/'7 Jul' dates and '£2,180'/'£1,095'/'£1,240' figures are placeholders; only tightestSpare/tightestDate, balance source, pots Friday-dip, and child-component sums are live. Don't present placeholders as real numbers in ship.
 - Melo mood vocabulary mismatch: <Melo> here takes calm|soft|alert (pressureMood) but MELO_MOODS.md spec is calm|curious|cheer|concern|celebrate. Reconcile to the documented set (safe→calm, tight→curious, short→concern) without breaking the kit prop.
-- count-up target can go negative (tightestSpare − scrub*120) and hero floors at Math.round; ensure RN interpolation doesn't show negative/jitter; tightestSpare itself is Math.max(0,...).
+- count-up target can go negative (tightestSpare − scrub\*120) and hero floors at Math.round; ensure RN interpolation doesn't show negative/jitter; tightestSpare itself is Math.max(0,...).
 - SVG gradient routeStroke offset is animated by scrub (`${60-scrub*30}%`); react-native-svg LinearGradient offsets are strings too but verify dynamic offset updates re-render the gradient.
 - route-draw via strokeDasharray:1200/strokeDashoffset — RN needs react-native-svg animated strokeDashoffset (reanimated) keyed on path `d`; pick a dash length >= actual path length or the draw clips.
 - Hydration / mount-gate: web defers `new Date()` to a useEffect (now=null until mount) to avoid SSR drift; RN has no SSR but KEEP the gate so the number doesn't flash a fallback before the engine computes (renders pressureLow fallback until now set).
@@ -225,4 +227,3 @@ TodayWeekTiles: @rn-component TodayWeekTiles · @parent TodayScreen · @purpose 
 - window.confirm → Alert.alert with destructive 'Remove'
 - prefers-reduced-motion → AccessibilityInfo.isReduceMotionEnabled
 - Fraunces headline / hero → embedded Fraunces font; Inter Tight body + SVG text
-

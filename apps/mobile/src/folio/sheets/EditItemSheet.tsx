@@ -169,9 +169,7 @@ function EditItemForm({
     candidate ? Math.abs(candidate.amount).toFixed(2) : SAMPLE.amount,
   );
   const [note, setNote] = useState(candidate?.note ?? '');
-  const [type, setType] = useState<string>(
-    candidate ? chipForType(candidate.type) : SAMPLE.type,
-  );
+  const [type, setType] = useState<string>(candidate ? chipForType(candidate.type) : SAMPLE.type);
 
   // The Date well stays read-only (faithful to the web's static "26 Jun"); it is carried through the
   // correction unchanged. With no candidate, the sample's date renders exactly as before.
@@ -298,7 +296,11 @@ function EditItemForm({
         accessibilityRole="button"
         accessibilityLabel="Save changes"
         onPress={handleSave}
-        style={({ pressed }) => [s.primary, { backgroundColor: t.calm }, pressed ? s.pressed : undefined]}
+        style={({ pressed }) => [
+          s.primary,
+          { backgroundColor: t.calm },
+          pressed ? s.pressed : undefined,
+        ]}
       >
         <Text style={[s.primaryLabel, { color: t.inverse }]}>Save changes</Text>
       </Pressable>

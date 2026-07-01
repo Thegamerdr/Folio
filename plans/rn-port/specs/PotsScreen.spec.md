@@ -1,4 +1,4 @@
-# PotsScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPots.tsx)
+# PotsScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPots.tsx)
 
 ## file
 
@@ -14,17 +14,18 @@ Set-aside pots screen. Shows an "Across pots" aggregate progress card, a list of
 
 ## docBlock
 
-/**
- * @rn-screen    PotsScreen
- * @rn-stack     MainTabs > Pots
- * @purpose      Set-aside pots — drag-reorder, +£5/+£10/+£20 quick-add per pot.
- * @reads        pots
- * @writes       setPots, addToPot
- * @opens-sheet  —
- * @copy         FROZEN
- * @tokens       --surface --hairline --accent --positive
- * @motion       count-up on saved figure · press · slide-in-r
- */
+/\*\*
+
+- @rn-screen PotsScreen
+- @rn-stack MainTabs > Pots
+- @purpose Set-aside pots — drag-reorder, +£5/+£10/+£20 quick-add per pot.
+- @reads pots
+- @writes setPots, addToPot
+- @opens-sheet —
+- @copy FROZEN
+- @tokens --surface --hairline --accent --positive
+- @motion count-up on saved figure · press · slide-in-r
+  \*/
 
 ## reads
 
@@ -224,7 +225,7 @@ Set-aside pots screen. Shows an "Across pots" aggregate progress card, a list of
 
 - Pot engine (RN_PORT: 'Allocations, weekly transfers, goal tracking — pure local logic'). This screen surfaces it: saved/goal/perWeek per pot, weeksLeft = ceil(max(0, goal-saved)/perWeek), aggregate total/totalGoal, and the reallocate transfer (move clamped £ from→to).
 - Store reads/writes only — no network. Pots seeded in store DEFAULTS (holiday/buffer/christmas). addToPot writes a potLedger deposit entry too.
-- Tight-point / money-path preview: the transfer sheet's 'Lowest balance' uses pressureLow[nav.pressure] as a STATIC base and a HEURISTIC tightDelta (= round(clamped*0.6) when moving into 'buffer', negative when moving out of 'buffer', else 0; comment in source: 'Rough preview only'). RN must replace this stub with the real money-path engine's lowest-balance recompute, or keep it explicitly labelled as a rough preview.
+- Tight-point / money-path preview: the transfer sheet's 'Lowest balance' uses pressureLow[nav.pressure] as a STATIC base and a HEURISTIC tightDelta (= round(clamped\*0.6) when moving into 'buffer', negative when moving out of 'buffer', else 0; comment in source: 'Rough preview only'). RN must replace this stub with the real money-path engine's lowest-balance recompute, or keep it explicitly labelled as a rough preview.
 - useCountUp (kit) → RN reanimated useDerivedValue + interpolate for the aggregate figure.
 
 ## fidelityRisks
@@ -237,7 +238,7 @@ Set-aside pots screen. Shows an "Across pots" aggregate progress card, a list of
 - Transfer sheet shows NO Melo, but MELO_MOODS lists 'Pot fund sheet' = curious — if RN adds Melo to reallocate, use curious.
 - Slider: web <input type=range step=5 accent-color>. RN @react-native-community/slider needs step=5 emulation (or quantize onValueChange), accent tint, and the value must be the CLAMPED value (value={clamped}), with onChange writing raw setAmount(parseInt). maxMove can be 0 (empty 'from' pot) — slider max 0 must not crash; Move button already disables when clamped<=0.
 - tabular-nums everywhere: every £ figure must use fontVariant:['tabular-nums'] or money jitters during count-up (banned-by-spec to show '12.3K' style; always full money).
-- Division-by-zero / NaN width: totalGoal could be 0 → (total/totalGoal)*100 = Infinity/NaN; per-pot goal 0 → same. Guard widths (clamp 0..100) in RN.
+- Division-by-zero / NaN width: totalGoal could be 0 → (total/totalGoal)\*100 = Infinity/NaN; per-pot goal 0 → same. Guard widths (clamp 0..100) in RN.
 - name.split(' · ')[0] is used to shorten 'Holiday · September' → 'Holiday' in the transfer sheet title and summary — preserve this exact transform.
 - scrim is ink/40 (web) but MOTION.md scrim-in spec says 'fades to 45% ink' — minor; match design intent (the gorhom backdrop opacity).
 - Reduced motion: per MOTION.md every motion collapses to final state — count-up shows final £ instantly, slide-in/sheet-rise/scrim become immediate. Wire AccessibilityInfo.isReduceMotionEnabled.
@@ -252,7 +253,7 @@ Set-aside pots screen. Shows an "Across pots" aggregate progress card, a list of
 - <em className='not-italic text-accent'> accent word → <Text style={{color: accent}}> inside Fraunces headline (keep one accent word per headline rule)
 - useCountUp(total,700) → reanimated useDerivedValue + withTiming + interpolate, render via Animated.Text / re-derived state
 - progress bars (div track + div fill with inline width% + transition) → <View> track + <Animated.View> fill, width animated with withTiming(700/500ms)
-- drag-and-drop (draggable/onDrag*/dataTransfer) → react-native-gesture-handler Pan/LongPress + reanimated (or draggable-flatlist); NO direct equivalent
+- drag-and-drop (draggable/onDrag\*/dataTransfer) → react-native-gesture-handler Pan/LongPress + reanimated (or draggable-flatlist); NO direct equivalent
 - quick-add chips → <Pressable> pills; onPointerDown/onClick stopPropagation → gesture responder capture / simultaneousHandlers
 - inline overlay (absolute inset-0 z-30 + scrim + bottom sheet) → @gorhom/bottom-sheet BottomSheetModal with custom Backdrop (this becomes a NEW screen-owned sheet; it is NOT in the SheetId union)
 - <input type='range' step=5 accent-accent> → @react-native-community/slider (step emulation + minimumTrackTintColor=accent)
@@ -269,4 +270,3 @@ Set-aside pots screen. Shows an "Across pots" aggregate progress card, a list of
 - loading — n/a for Pots (STATES.md). Pot data is local/synchronous; no spinner.
 - error — STATES.md Pots = 'inline retry'. NOT implemented in this component (no error UI present). RN should add an inline retry branch if pot load can fail (store read is currently synchronous, so low risk).
 - offline — STATES.md Pots = ✅ same as populated. Local-first; renders identically, no network language. No code change needed.
-

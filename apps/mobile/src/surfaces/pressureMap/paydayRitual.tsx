@@ -304,9 +304,7 @@ export function PaydayRitualScreen({
 
       <View style={layout.footer}>
         <PrimaryAction
-          accessibilityHint={
-            isLast ? 'Records the closed cycle and shows it on Today.' : undefined
-          }
+          accessibilityHint={isLast ? 'Records the closed cycle and shows it on Today.' : undefined}
           label={current.cta}
           onPress={advance}
         />
@@ -317,7 +315,11 @@ export function PaydayRitualScreen({
         />
       </View>
 
-      <Sheet onClose={() => setTightSheetOpen(false)} reduceMotion={reduceMotion} visible={tightSheetOpen}>
+      <Sheet
+        onClose={() => setTightSheetOpen(false)}
+        reduceMotion={reduceMotion}
+        visible={tightSheetOpen}
+      >
         <KeypadSheet
           eyebrow="Step three"
           title="Where's the squeeze next month?"
@@ -328,7 +330,11 @@ export function PaydayRitualScreen({
         />
       </Sheet>
 
-      <Sheet onClose={() => setNoteSheetOpen(false)} reduceMotion={reduceMotion} visible={noteSheetOpen}>
+      <Sheet
+        onClose={() => setNoteSheetOpen(false)}
+        reduceMotion={reduceMotion}
+        visible={noteSheetOpen}
+      >
         <NoteSheet value={note} onChange={setNote} onDone={() => setNoteSheetOpen(false)} />
       </Sheet>
     </PressureScreen>
@@ -347,11 +353,7 @@ function ProgressRail({ step, total }: { step: number; total: number }) {
           key={i}
           style={[
             layout.railPill,
-            i === step
-              ? s.railPillActive
-              : i < step
-                ? s.railPillDone
-                : s.railPillUpcoming,
+            i === step ? s.railPillActive : i < step ? s.railPillDone : s.railPillUpcoming,
           ]}
         />
       ))}

@@ -162,7 +162,10 @@ describe('removeTransaction through the canonical boundary', () => {
 
   it('no-ops cleanly for an id that is not present', () => {
     const { after } = withOneSpend();
-    const unchanged = removeTransactionThroughCanonicalRepository(after, 'transaction_does_not_exist');
+    const unchanged = removeTransactionThroughCanonicalRepository(
+      after,
+      'transaction_does_not_exist',
+    );
     expect(unchanged.transactions.length).toBe(after.transactions.length);
   });
 

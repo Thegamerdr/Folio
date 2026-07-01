@@ -1,4 +1,4 @@
-# GuidedCheckInScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenGuided.tsx)
+# GuidedCheckInScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenGuided.tsx)
 
 ## file
 
@@ -23,8 +23,6 @@ Onboarding "rough number" check-in — step two of four. Gathers the user's curr
 - local useState `value` (string, seed "1240") — mutated by the keypad press handler (append digit, append single ".", backspace-to-"0").
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -74,16 +72,16 @@ Onboarding "rough number" check-in — step two of four. Gathers the user's curr
 ## componentTree
 
 <Screen> // SafeAreaView, flex:1, bg --paper, px-7 pt-4, entrance=slide-in-r
-  <TopBar> // row, space-between, align-center
-    <PressableBack onPress={nav.back}>← (muted-ink, 20px, press)</PressableBack>
-    <ProgressTicks> // row gap 1.5; four 24x4 rounded-full bars
-      <Tick filled/>  // bg --accent
-      <Tick filled/>  // bg --accent
-      <Tick/>         // bg --hairline
-      <Tick/>         // bg --hairline
-    </ProgressTicks>
-    <PressableSkip onPress={() => nav.go("today")}>Skip (13px, muted-ink, press)</PressableSkip>
-  </TopBar>
+<TopBar> // row, space-between, align-center
+<PressableBack onPress={nav.back}>← (muted-ink, 20px, press)</PressableBack>
+<ProgressTicks> // row gap 1.5; four 24x4 rounded-full bars
+<Tick filled/> // bg --accent
+<Tick filled/> // bg --accent
+<Tick/> // bg --hairline
+<Tick/> // bg --hairline
+</ProgressTicks>
+<PressableSkip onPress={() => nav.go("today")}>Skip (13px, muted-ink, press)</PressableSkip>
+</TopBar>
 
   <Heading mt-8>
     <Text font-display italic 14 muted-ink>Step two</Text>
@@ -91,17 +89,17 @@ Onboarding "rough number" check-in — step two of four. Gathers the user's curr
     <Text 13.5 muted-ink mt-3 maxW-280>A rough number is fine.</Text>
   </Heading>
 
-  <BalanceCard mt-6 bg --surface hairline rounded-2xl p-6>
-    <Label 11 uppercase tracking-0.14em muted-ink>In your account</Label>
-    <AmountRow mt-2 row align-baseline gap-1>
-      <Text font-display tabular 52 leading-none>£</Text>
-      <Text key={value} font-display tabular 52 leading-none countup>{shown}</Text>
-      <Caret ml-1 w-2px h-9 bg --accent animate-pulse/>
-    </AmountRow>
-    <ChipsRow mt-4 row gap-2>
-      {["current","savings","cash"].map(t => <Chip 11 px-2 py-1 rounded-full bg --inset muted-ink>{t}</Chip>)}
-    </ChipsRow>
-  </BalanceCard>
+<BalanceCard mt-6 bg --surface hairline rounded-2xl p-6>
+<Label 11 uppercase tracking-0.14em muted-ink>In your account</Label>
+<AmountRow mt-2 row align-baseline gap-1>
+<Text font-display tabular 52 leading-none>£</Text>
+<Text key={value} font-display tabular 52 leading-none countup>{shown}</Text>
+<Caret ml-1 w-2px h-9 bg --accent animate-pulse/>
+</AmountRow>
+<ChipsRow mt-4 row gap-2>
+{["current","savings","cash"].map(t => <Chip 11 px-2 py-1 rounded-full bg --inset muted-ink>{t}</Chip>)}
+</ChipsRow>
+</BalanceCard>
 
   <MeloLineRow mt-4>
     <MeloLine text="An estimate is fine — we'll get clearer together." /> // mood calm
@@ -109,18 +107,18 @@ Onboarding "rough number" check-in — step two of four. Gathers the user's curr
 
   <Spacer flex-1/>
 
-  <Keypad grid 3-col gap-2 mb-3> // keys = 1..9 . 0 ←
-    {keys.map(k => <Key onPress={() => press(k)} press h-12 rounded-xl bg --surface hairline font-display tabular 20>{k}</Key>)}
-  </Keypad>
+<Keypad grid 3-col gap-2 mb-3> // keys = 1..9 . 0 ←
+{keys.map(k => <Key onPress={() => press(k)} press h-12 rounded-xl bg --surface hairline font-display tabular 20>{k}</Key>)}
+</Keypad>
 
-  <Continue onPress={() => nav.go("intake")} press w-full h-54 rounded-2xl bg --accent text-white font-medium 15.5>Continue</Continue>
-  <BottomSpacer h-4/>
+<Continue onPress={() => nav.go("intake")} press w-full h-54 rounded-2xl bg --accent text-white font-medium 15.5>Continue</Continue>
+<BottomSpacer h-4/>
 </Screen>
 
 // Keypad handler `press(k)`:
-//   "←" → value.slice(0,-1) || "0"
-//   "." → value.includes(".") ? value : value + "."
-//   else → value === "0" ? k : value + k
+// "←" → value.slice(0,-1) || "0"
+// "." → value.includes(".") ? value : value + "."
+// else → value === "0" ? k : value + k
 // `shown` = Number(value).toLocaleString("en-GB")
 
 ## enginesNeeded
@@ -170,15 +168,15 @@ Onboarding "rough number" check-in — step two of four. Gathers the user's curr
 
 ## docBlock
 
-/**
- * @rn-screen    GuidedCheckInScreen
- * @rn-stack     Onboarding > Guided
- * @purpose      Rough-number check-in — gather payday + income + headline spend without an account.
- * @reads        onboarding
- * @writes       setOnboarding
- * @opens-sheet  —
- * @copy         FROZEN
- * @tokens       --paper --ink --accent --muted-ink
- * @motion       slide-in-r · press .97/120ms
- */
+/\*\*
 
+- @rn-screen GuidedCheckInScreen
+- @rn-stack Onboarding > Guided
+- @purpose Rough-number check-in — gather payday + income + headline spend without an account.
+- @reads onboarding
+- @writes setOnboarding
+- @opens-sheet —
+- @copy FROZEN
+- @tokens --paper --ink --accent --muted-ink
+- @motion slide-in-r · press .97/120ms
+  \*/

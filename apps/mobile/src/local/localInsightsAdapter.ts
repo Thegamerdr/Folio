@@ -85,7 +85,9 @@ export function buildLocalInsightsModel(
   const avgTightPointMinor = hasOnlyCurrentCycle
     ? (currentTightPointMinor as number)
     : averageMinor(cyclesOldestFirst.map((cycle) => cycle.tightPoint.minorUnits));
-  const avgSetAsideMinor = averageMinor(cyclesOldestFirst.map((cycle) => cycle.setAside.minorUnits));
+  const avgSetAsideMinor = averageMinor(
+    cyclesOldestFirst.map((cycle) => cycle.setAside.minorUnits),
+  );
 
   const trend = buildTrend(cyclesOldestFirst, options.currentCycle, currentTightPointMinor);
 

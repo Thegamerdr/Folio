@@ -377,7 +377,12 @@ export function PressureScreen({
   const centeredMinHeight = centered ? { minHeight: Math.round(height * 0.7) } : undefined;
   return (
     <View
-      style={[layout.screen, centered ? layout.screenCentered : undefined, centeredMinHeight, style]}
+      style={[
+        layout.screen,
+        centered ? layout.screenCentered : undefined,
+        centeredMinHeight,
+        style,
+      ]}
     >
       {children}
     </View>
@@ -539,9 +544,7 @@ export function ChipToggle({
         isPressed ? pressed : undefined,
       ]}
     >
-      <Text style={[s.chipLabel, selected ? s.chipLabelSelected : undefined]}>
-        {label}
-      </Text>
+      <Text style={[s.chipLabel, selected ? s.chipLabelSelected : undefined]}>{label}</Text>
     </Pressable>
   );
 }
@@ -874,9 +877,7 @@ export function BottomNav({
             style={({ pressed: isPressed }) => [layout.navItem, isPressed ? pressed : undefined]}
           >
             <NavIcon id={tab.id} active={selected} t={t} />
-            <Text style={[s.navLabel, selected ? s.navLabelActive : undefined]}>
-              {tab.label}
-            </Text>
+            <Text style={[s.navLabel, selected ? s.navLabelActive : undefined]}>{tab.label}</Text>
           </Pressable>
         );
       })}

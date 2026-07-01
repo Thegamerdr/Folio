@@ -484,166 +484,166 @@ function clampInt(n: number, lo: number, hi: number): number {
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-  body: {
-    gap: gap.xl,
-  },
+    body: {
+      gap: gap.xl,
+    },
 
-  // Progress
-  progress: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  progressPill: {
-    height: 4,
-    width: 20, // w-5
-    borderRadius: radius.pill,
-    backgroundColor: t.hairline,
-  },
-  progressActive: {
-    width: 28, // w-7
-    backgroundColor: t.calm,
-  },
-  progressDone: {
-    // A completed-but-quiet step: a dimmed ink that reads on both grounds (the web's ink/60 is a
-    // light-only literal; muted is the palette key that stays legible on the dark canvas too).
-    backgroundColor: t.muted,
-  },
+    // Progress
+    progress: {
+      flexDirection: 'row',
+      gap: 6,
+    },
+    progressPill: {
+      height: 4,
+      width: 20, // w-5
+      borderRadius: radius.pill,
+      backgroundColor: t.hairline,
+    },
+    progressActive: {
+      width: 28, // w-7
+      backgroundColor: t.calm,
+    },
+    progressDone: {
+      // A completed-but-quiet step: a dimmed ink that reads on both grounds (the web's ink/60 is a
+      // light-only literal; muted is the palette key that stays legible on the dark canvas too).
+      backgroundColor: t.muted,
+    },
 
-  // Header
-  header: {
-    gap: 4,
-    marginBottom: gap.lg,
-  },
-  eyebrow: {
-    color: t.muted,
-    fontFamily: serif.displayItalic,
-    fontSize: 12.5,
-    letterSpacing: 0.2,
-  },
-  headline: {
-    color: t.ink,
-    fontFamily: serif.display,
-    fontSize: 26,
-    lineHeight: 31,
-    letterSpacing: -0.3,
-  },
-  headlineAccent: {
-    // Same upright serif as the headline, recoloured terracotta — never italic.
-    color: t.calm,
-    fontFamily: serif.display,
-  },
+    // Header
+    header: {
+      gap: 4,
+      marginBottom: gap.lg,
+    },
+    eyebrow: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 12.5,
+      letterSpacing: 0.2,
+    },
+    headline: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 26,
+      lineHeight: 31,
+      letterSpacing: -0.3,
+    },
+    headlineAccent: {
+      // Same upright serif as the headline, recoloured terracotta — never italic.
+      color: t.calm,
+      fontFamily: serif.display,
+    },
 
-  // Step 1 — name input
-  input: {
-    height: 48,
-    backgroundColor: t.inset,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: t.hairline,
-    borderRadius: radius.md,
-    paddingHorizontal: gap.lg,
-    fontSize: 15,
-    color: t.ink,
-  },
+    // Step 1 — name input
+    input: {
+      height: 48,
+      backgroundColor: t.inset,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      paddingHorizontal: gap.lg,
+      fontSize: 15,
+      color: t.ink,
+    },
 
-  // Steps 2 + 3 — sliders
-  sliderBlock: {
-    gap: gap.md,
-  },
-  numberRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: gap.sm,
-  },
-  bigNumber: {
-    color: t.ink,
-    fontFamily: serif.display,
-    fontSize: 40,
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-  },
-  numberSuffix: {
-    color: t.muted,
-    fontSize: 13,
-  },
-  helper: {
-    color: t.muted,
-    fontSize: 11.5,
-    lineHeight: 17,
-    marginTop: gap.xs,
-  },
+    // Steps 2 + 3 — sliders
+    sliderBlock: {
+      gap: gap.md,
+    },
+    numberRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: gap.sm,
+    },
+    bigNumber: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 40,
+      letterSpacing: -0.5,
+      fontVariant: ['tabular-nums'],
+    },
+    numberSuffix: {
+      color: t.muted,
+      fontSize: 13,
+    },
+    helper: {
+      color: t.muted,
+      fontSize: 11.5,
+      lineHeight: 17,
+      marginTop: gap.xs,
+    },
 
-  sliderHit: {
-    height: THUMB_SIZE,
-    justifyContent: 'center',
-  },
-  sliderTrack: {
-    height: TRACK_HEIGHT,
-    borderRadius: radius.pill,
-    backgroundColor: t.sunken,
-    overflow: 'hidden',
-  },
-  sliderFill: {
-    height: TRACK_HEIGHT,
-    borderRadius: radius.pill,
-    backgroundColor: t.calm,
-  },
-  sliderThumb: {
-    position: 'absolute',
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
-    backgroundColor: t.calm,
-    borderWidth: 3,
-    borderColor: t.surface,
-    ...elevation.card,
-  },
+    sliderHit: {
+      height: THUMB_SIZE,
+      justifyContent: 'center',
+    },
+    sliderTrack: {
+      height: TRACK_HEIGHT,
+      borderRadius: radius.pill,
+      backgroundColor: t.sunken,
+      overflow: 'hidden',
+    },
+    sliderFill: {
+      height: TRACK_HEIGHT,
+      borderRadius: radius.pill,
+      backgroundColor: t.calm,
+    },
+    sliderThumb: {
+      position: 'absolute',
+      width: THUMB_SIZE,
+      height: THUMB_SIZE,
+      borderRadius: THUMB_SIZE / 2,
+      backgroundColor: t.calm,
+      borderWidth: 3,
+      borderColor: t.surface,
+      ...elevation.card,
+    },
 
-  // Step 4 — pots
-  potsHelper: {
-    color: t.muted,
-    fontSize: 12.5,
-    lineHeight: 18,
-    marginBottom: gap.md,
-  },
-  potGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: gap.sm,
-  },
-  potTile: {
-    // Two per row: each tile takes just under half, the gap fills the rest.
-    width: '48%',
-    minHeight: 64,
-    borderRadius: radius.lg,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: t.inset,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: t.hairline,
-  },
-  potTileSelected: {
-    backgroundColor: t.calmSoft,
-    borderWidth: 1,
-    borderColor: t.calm,
-  },
-  potTileInner: {
-    // The Text-as-button carries both lines so the whole tile is one tap target.
-  },
-  potName: {
-    color: t.ink,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  potMeta: {
-    color: t.muted,
-    fontSize: 11,
-    fontVariant: ['tabular-nums'],
-  },
+    // Step 4 — pots
+    potsHelper: {
+      color: t.muted,
+      fontSize: 12.5,
+      lineHeight: 18,
+      marginBottom: gap.md,
+    },
+    potGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: gap.sm,
+    },
+    potTile: {
+      // Two per row: each tile takes just under half, the gap fills the rest.
+      width: '48%',
+      minHeight: 64,
+      borderRadius: radius.lg,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      backgroundColor: t.inset,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+    },
+    potTileSelected: {
+      backgroundColor: t.calmSoft,
+      borderWidth: 1,
+      borderColor: t.calm,
+    },
+    potTileInner: {
+      // The Text-as-button carries both lines so the whole tile is one tap target.
+    },
+    potName: {
+      color: t.ink,
+      fontSize: 13,
+      fontWeight: '500',
+    },
+    potMeta: {
+      color: t.muted,
+      fontSize: 11,
+      fontVariant: ['tabular-nums'],
+    },
 
-  // Actions
-  actions: {
-    gap: gap.sm,
-    marginTop: gap.xs,
-  },
+    // Actions
+    actions: {
+      gap: gap.sm,
+      marginTop: gap.xs,
+    },
   });
 }

@@ -339,7 +339,10 @@ export default function FolioHome() {
   const [meloInput, setMeloInput] = useState('');
   const [meloShowSettings, setMeloShowSettings] = useState(false);
   // share defaults OFF — sending the money snapshot to an external AI provider is opt-in.
-  const [meloSettings, setMeloSettings] = useState<MeloChatSettings>({ tone: 'calm', share: false });
+  const [meloSettings, setMeloSettings] = useState<MeloChatSettings>({
+    tone: 'calm',
+    share: false,
+  });
   const [meloLastStatus, setMeloLastStatus] = useState<
     Exclude<MeloChatResult['status'], 'ok'> | undefined
   >(undefined);
@@ -377,10 +380,7 @@ export default function FolioHome() {
     () => deriveCalendarEvents(localLedger, localLedger.asOfDate),
     [localLedger],
   );
-  const calendarGroups = useMemo(
-    () => groupCalendarEventsByDay(calendarEvents),
-    [calendarEvents],
-  );
+  const calendarGroups = useMemo(() => groupCalendarEventsByDay(calendarEvents), [calendarEvents]);
   const calendarSpare = useMemo(
     () => computeSparePerDay(calendarEvents, localRoute.availableNowMinor),
     [calendarEvents, localRoute.availableNowMinor],
@@ -761,8 +761,7 @@ export default function FolioHome() {
           'Subscription added locally.',
         );
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Could not add that subscription.';
+        const message = error instanceof Error ? error.message : 'Could not add that subscription.';
         setLastReviewAction(message);
         AccessibilityInfo.announceForAccessibility(message);
       }
@@ -787,8 +786,7 @@ export default function FolioHome() {
           'Subscription added locally.',
         );
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Could not add that subscription.';
+        const message = error instanceof Error ? error.message : 'Could not add that subscription.';
         setLastReviewAction(message);
         AccessibilityInfo.announceForAccessibility(message);
       } finally {
@@ -2701,34 +2699,17 @@ function applyMeloSuggestion(
   handlers: Readonly<{
     ledger: LocalLedgerState;
     // Resolve + pause a subscription by (tolerant) name. Returns false when no subscription matched.
+    // RETAINED for the legacy pause path used elsewhere in this surface; pausing is NO LONGER a Melo
+    // tool, so the switch below never calls this.
     pauseByName: (name: string) => boolean;
-    // Resolve + move between pots by (tolerant) name. Returns false when either pot couldn't match.
+    // Resolve + move between pots by (tolerant) name. RETAINED for the same reason; pot moves are NO
+    // LONGER a Melo tool (they go through addToPot / borrowFromPot directly), so the switch never calls it.
     moveBetweenPots: (fromName: string, toName: string, amountMinor: number) => boolean;
     logSpend: (merchant: string, amountMinor: number, category: string) => void;
   }>,
 ): MeloSuggestionOutcome {
   const { args } = suggestion;
   switch (suggestion.name) {
-    case 'pause_subscription': {
-      const name = stringArg(args.name);
-      if (name === undefined) {
-        return { applied: false, notFound: "I couldn't tell which subscription you meant." };
-      }
-      return handlers.pauseByName(name)
-        ? { applied: true }
-        : { applied: false, notFound: `I couldn't find a subscription called “${name}”.` };
-    }
-    case 'move_between_pots': {
-      const from = stringArg(args.from);
-      const to = stringArg(args.to);
-      const amountMinor = poundsArgToMinor(args.amount);
-      if (from === undefined || to === undefined || amountMinor <= 0) {
-        return { applied: false, notFound: "I couldn't read that move — try telling me again." };
-      }
-      return handlers.moveBetweenPots(from, to, amountMinor)
-        ? { applied: true }
-        : { applied: false, notFound: `I couldn't find one of those pots (“${from}”, “${to}”).` };
-    }
     case 'log_spend': {
       const merchant = stringArg(args.merchant) ?? 'Spend';
       const amountMinor = poundsArgToMinor(args.amount);
@@ -2739,9 +2720,16 @@ function applyMeloSuggestion(
       handlers.logSpend(merchant, amountMinor, category);
       return { applied: true };
     }
-    case 'set_tight_point_goal':
-      // A floor goal, not a posted fact — no canonical mutation. Left as a surfaced-only suggestion.
-      return { applied: false, notFound: "I can't change a tight-point goal yet." };
+    // log_income / log_refund / log_transfer are part of the Melo log_* tool set, but only log_spend
+    // has a canonical-ledger mutation on THIS surface today. The other three are recorded through the
+    // store's applyMeloTool in the pressure-map MeloChatSheet (the live Melo chat). This legacy home
+    // surface routes every change through the canonical repository, so rather than reach into the raw
+    // store it surfaces an honest "not wired here yet" line (same pattern the dropped tight-point goal
+    // used) — the chip never silently no-ops, and nothing is recorded inconsistently.
+    case 'log_income':
+    case 'log_refund':
+    case 'log_transfer':
+      return { applied: false, notFound: "I can't record that one from here yet." };
   }
 }
 

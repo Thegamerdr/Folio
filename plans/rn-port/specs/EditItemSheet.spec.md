@@ -1,4 +1,4 @@
-# EditItemSheet  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetEditItem.tsx)
+# EditItemSheet (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetEditItem.tsx)
 
 ## file
 
@@ -25,8 +25,6 @@ Bottom sheet to correct a single found money item (name, amount, date, type, opt
 - RN PORT REQUIREMENT (not in prototype): Save changes -> writes the edited candidate item (name/amount/date/type/note) back through the Review pipeline so the money-path engine recomputes; Ignore this -> drops this candidate from the batch; Cancel -> closes with no change. These store actions must be defined in the RN app (e.g. updateReviewItem / dropReviewItem) — the prototype has none.
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -76,44 +74,44 @@ Bottom sheet to correct a single found money item (name, amount, date, type, opt
 
 ## componentTree
 
-<EditItemSheet onClose>            // wraps <Sheet> (gorhom BottomSheetModal: 40% ink scrim, 28px top radius, 4px hairline grip, paper body)
-  <Sheet onClose title="Check this item">
-    <Row spaceBetween>                // header
-      <Eyebrow>Check this item</Eyebrow>   // 11px uppercase tracking .14em muted-ink
-      <Pressable press onPress={onClose}><Text muted 18px>×</Text></Pressable>
-    </Row>
-    <Headline font-display 24px mt-2 leading-tight>Correct anything before it counts.</Headline>
-    <Stack mt-5 gap-3>                 // space-y-3
-      <Field label="Name">            // surface + hairline + rounded-xl px4 py3 <label>
-        <TextInput value={name} onChangeText={setName} 15px font-medium />
-      </Field>
-      <Grid cols-2 gap-3>
-        <Field label="Amount">
-          <Row baseline gap-1>
-            <Text font-display tabular 18px>£</Text>
-            <TextInput value={amount} onChangeText={setAmount} font-display tabular 18px keyboardType="decimal-pad" />
-          </Row>
-        </Field>
-        <Field label="Date"><Text 15px font-medium mt-1>26 Jun</Text></Field>   // static in prototype; RN: open date picker
-      </Grid>
-      <Field label="Type">            // surface card, chips wrap
-        <ChipRow flexWrap gap-1.5 mt-2>
-          {types.map(t =>
-            <Chip press selected={type===t} onPress={()=>setType(t)}>  // selected: bg accent + white; else: bg inset + muted-ink; rounded-full 12px px3 py1.5
-              {t}
-            </Chip>)}
-        </ChipRow>
-      </Field>
-      <Field label="Note (optional)">
-        <TextInput placeholder="Weekly shop" 14px placeholderColor=muted-ink />
-      </Field>
-    </Stack>
-    <PrimaryButton press onPress={onClose} mt-6 fullWidth h-54 rounded-2xl bg-accent text-white 15px font-medium>Save changes</PrimaryButton>
-    <Grid cols-2 gap-2.5 mt-2>
-      <SecondaryButton press onPress={onClose} h-12 rounded-xl bg-surface hairline 13px text-negative>Ignore this</SecondaryButton>
-      <SecondaryButton press onPress={onClose} h-12 rounded-xl bg-surface hairline 13px>Cancel</SecondaryButton>
-    </Grid>
-  </Sheet>
+<EditItemSheet onClose> // wraps <Sheet> (gorhom BottomSheetModal: 40% ink scrim, 28px top radius, 4px hairline grip, paper body)
+<Sheet onClose title="Check this item">
+<Row spaceBetween> // header
+<Eyebrow>Check this item</Eyebrow> // 11px uppercase tracking .14em muted-ink
+<Pressable press onPress={onClose}><Text muted 18px>×</Text></Pressable>
+</Row>
+<Headline font-display 24px mt-2 leading-tight>Correct anything before it counts.</Headline>
+<Stack mt-5 gap-3> // space-y-3
+<Field label="Name"> // surface + hairline + rounded-xl px4 py3 <label>
+<TextInput value={name} onChangeText={setName} 15px font-medium />
+</Field>
+<Grid cols-2 gap-3>
+<Field label="Amount">
+<Row baseline gap-1>
+<Text font-display tabular 18px>£</Text>
+<TextInput value={amount} onChangeText={setAmount} font-display tabular 18px keyboardType="decimal-pad" />
+</Row>
+</Field>
+<Field label="Date"><Text 15px font-medium mt-1>26 Jun</Text></Field> // static in prototype; RN: open date picker
+</Grid>
+<Field label="Type"> // surface card, chips wrap
+<ChipRow flexWrap gap-1.5 mt-2>
+{types.map(t =>
+<Chip press selected={type===t} onPress={()=>setType(t)}> // selected: bg accent + white; else: bg inset + muted-ink; rounded-full 12px px3 py1.5
+{t}
+</Chip>)}
+</ChipRow>
+</Field>
+<Field label="Note (optional)">
+<TextInput placeholder="Weekly shop" 14px placeholderColor=muted-ink />
+</Field>
+</Stack>
+<PrimaryButton press onPress={onClose} mt-6 fullWidth h-54 rounded-2xl bg-accent text-white 15px font-medium>Save changes</PrimaryButton>
+<Grid cols-2 gap-2.5 mt-2>
+<SecondaryButton press onPress={onClose} h-12 rounded-xl bg-surface hairline 13px text-negative>Ignore this</SecondaryButton>
+<SecondaryButton press onPress={onClose} h-12 rounded-xl bg-surface hairline 13px>Cancel</SecondaryButton>
+</Grid>
+</Sheet>
 </EditItemSheet>
 
 ## enginesNeeded
@@ -143,13 +141,14 @@ Bottom sheet to correct a single found money item (name, amount, date, type, opt
 
 ## docBlock
 
-/**
- * @rn-sheet     EditItemSheet
- * @purpose      Edit a found item (merchant, amount, category) before it's added.
- * @writes       —
- * @copy         FROZEN
- * @tokens       --surface --hairline --accent
- */
+/\*\*
+
+- @rn-sheet EditItemSheet
+- @purpose Edit a found item (merchant, amount, category) before it's added.
+- @writes —
+- @copy FROZEN
+- @tokens --surface --hairline --accent
+  \*/
 
 ## moods
 
@@ -179,4 +178,3 @@ Bottom sheet to correct a single found money item (name, amount, date, type, opt
 - loading: N/A on the sheet itself — reading happens upstream (Add-entry / PdfSuccess shows Melo curious + 'Folio is reading…'); by the time this sheet opens, the candidate is ready.
 - error: not designed in the prototype. RN should handle a bad/unreadable candidate via the upstream Review error copy (err.statement.unreadable 'Folio couldn't read this one. Saved as a note.' / add flow 'skip for now'), not inside this sheet. Honest copy, one recovery, per STATES.md.
 - offline: same as populated — Folio is local-first; editing a candidate needs no network. Save persists locally (RN local store).
-

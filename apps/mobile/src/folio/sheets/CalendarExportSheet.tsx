@@ -257,10 +257,7 @@ function CalendarExportBody({
       const available = await Sharing.isAvailableAsync();
       const dir = FileSystem.documentDirectory;
       if (!available || dir === null) {
-        flash(
-          { kind: 'fail', title: COPY.copyFailTitle, desc: COPY.savedDesc },
-          3500,
-        );
+        flash({ kind: 'fail', title: COPY.copyFailTitle, desc: COPY.savedDesc }, 3500);
         return;
       }
       const uri = `${dir}folio.ics`;

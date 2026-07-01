@@ -1,4 +1,4 @@
-# PasteSuccessScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPasteSuccess.tsx)
+# PasteSuccessScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPasteSuccess.tsx)
 
 ## file
 
@@ -81,33 +81,33 @@ Confirmation / Review-staging screen shown after the user pastes text in the Add
     <Body>Folio found possible money in and money out. Nothing has been added yet.</Body> // 13.5px muted-ink, relaxed
   </Intro>
 
-  <ItemCard mt-6>                      // bg --surface, hairline border, rounded-2xl, divide-y --hairline
-    {items.map(it =>
-      <ItemRow key={it.merchant}>      // px-4 py-3.5, flex row, gap-3, center
-        <FlowDot color={it.flow==='in' ? --positive : --accent} /> // 6x6 (w-1.5 h-1.5) rounded-full
-        <Col flex-1 min-w-0>
-          <Merchant numberOfLines={1}>{it.merchant}</Merchant>     // 14px, font-medium, truncate
-          <Meta>{it.date} · money {it.flow}</Meta>                 // 11.5px muted-ink
-        </Col>
-        <Money value={(it.flow==='in'?'+':'−')+it.amount}
-               size="sm" tone={it.flow==='in'?'positive':'ink'} /> // Fraunces tabular
-      </ItemRow>
-    )}
-  </ItemCard>
+<ItemCard mt-6> // bg --surface, hairline border, rounded-2xl, divide-y --hairline
+{items.map(it =>
+<ItemRow key={it.merchant}> // px-4 py-3.5, flex row, gap-3, center
+<FlowDot color={it.flow==='in' ? --positive : --accent} /> // 6x6 (w-1.5 h-1.5) rounded-full
+<Col flex-1 min-w-0>
+<Merchant numberOfLines={1}>{it.merchant}</Merchant> // 14px, font-medium, truncate
+<Meta>{it.date} · money {it.flow}</Meta> // 11.5px muted-ink
+</Col>
+<Money value={(it.flow==='in'?'+':'−')+it.amount}
+size="sm" tone={it.flow==='in'?'positive':'ink'} /> // Fraunces tabular
+</ItemRow>
+)}
+</ItemCard>
 
   <MeloLineWrap mt-5>
     <MeloLine text="Use what you have. You choose what counts." mood="soft" />
   </MeloLineWrap>
 
-  <Spacer flex-1 />                    // pushes CTAs to bottom
+<Spacer flex-1 /> // pushes CTAs to bottom
 
-  <PrimaryCTA onPress={() => nav.go('visualizer')}> // h-58, rounded-2xl, bg --accent, white, 15.5px medium
-    Check these                        // boxShadow 0 12px 24px -10px rgba(224,99,58,0.55)
-  </PrimaryCTA>
-  <SecondaryCTA onPress={nav.back} mt-2> // h-46, rounded-2xl, 13px muted-ink, transparent
-    Leave for later
-  </SecondaryCTA>
-  <Spacer h={16} />                     // bottom breathing room
+<PrimaryCTA onPress={() => nav.go('visualizer')}> // h-58, rounded-2xl, bg --accent, white, 15.5px medium
+Check these // boxShadow 0 12px 24px -10px rgba(224,99,58,0.55)
+</PrimaryCTA>
+<SecondaryCTA onPress={nav.back} mt-2> // h-46, rounded-2xl, 13px muted-ink, transparent
+Leave for later
+</SecondaryCTA>
+<Spacer h={16} /> // bottom breathing room
 </PasteSuccessScreen>
 
 ## enginesNeeded
@@ -133,17 +133,18 @@ Confirmation / Review-staging screen shown after the user pastes text in the Add
 
 ## docBlock
 
-/**
- * @rn-screen    PasteSuccessScreen
- * @rn-stack     Intake > Things to check
- * @purpose      Show what Folio found in pasted text, ready to check before adding.
- * @reads        —
- * @writes       —
- * @opens-sheet  edit-item
- * @copy         FROZEN
- * @tokens       --surface --hairline --accent
- * @motion       slide-in-r · stamp on accept
- */
+/\*\*
+
+- @rn-screen PasteSuccessScreen
+- @rn-stack Intake > Things to check
+- @purpose Show what Folio found in pasted text, ready to check before adding.
+- @reads —
+- @writes —
+- @opens-sheet edit-item
+- @copy FROZEN
+- @tokens --surface --hairline --accent
+- @motion slide-in-r · stamp on accept
+  \*/
 
 ## moods
 
@@ -175,4 +176,3 @@ Confirmation / Review-staging screen shown after the user pastes text in the Add
 - press class -> Pressable pressed style scale 0.97 (reanimated or style fn)
 - ← text glyph -> lucide-react-native ArrowLeft/ChevronLeft
 - nav.go/nav.back (local Nav prop) -> @react-navigation/native stack (navigation.navigate('Visualizer') / navigation.goBack()); Nav.pressure/openSheet/openMelo from a context, not props, in RN
-

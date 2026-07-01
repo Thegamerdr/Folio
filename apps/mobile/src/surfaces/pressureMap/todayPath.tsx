@@ -127,13 +127,11 @@ export function TodayScreen({
   const potDipText = useMemo(() => {
     if (pots.length === 0) return null;
     const parts = pots
-      .map((p) => `${(p.name.split(' ')[0] ?? p.name)} ${potPounds(p.perWeekMinor)}`)
+      .map((p) => `${p.name.split(' ')[0] ?? p.name} ${potPounds(p.perWeekMinor)}`)
       .join(' + ');
     const weeklyTotalMinor = pots.reduce((sum, p) => sum + p.perWeekMinor, 0);
     const tail =
-      pots.length > 1
-        ? ` · ${potPounds(weeklyTotalMinor)}/wk to your pots`
-        : '/wk to your pot';
+      pots.length > 1 ? ` · ${potPounds(weeklyTotalMinor)}/wk to your pots` : '/wk to your pot';
     return `Friday dip · ${parts}${tail}`;
   }, [pots]);
 

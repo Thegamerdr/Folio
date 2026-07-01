@@ -1,4 +1,4 @@
-# AddEventSheet  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetAddEvent.tsx)
+# AddEventSheet (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetAddEvent.tsx)
 
 ## file
 
@@ -14,16 +14,17 @@ Bottom sheet to add a single one-off manual money event to the calendar (the hum
 
 ## docBlock
 
-/**
- * @rn-sheet     AddEventSheet
- * @purpose      Add a one-off money event to the calendar (the explanation
- *               layer for the Route). Manual entries sit alongside derived
- *               paydays, bills, sub renewals, and deadlines.
- * @reads        —
- * @writes       calendarEvents (via addCalendarEvent)
- * @copy         FROZEN
- * @tokens       --paper --accent --inset --hairline
- */
+/\*\*
+
+- @rn-sheet AddEventSheet
+- @purpose Add a one-off money event to the calendar (the explanation
+-               layer for the Route). Manual entries sit alongside derived
+-               paydays, bills, sub renewals, and deadlines.
+- @reads —
+- @writes calendarEvents (via addCalendarEvent)
+- @copy FROZEN
+- @tokens --paper --accent --inset --hairline
+  \*/
 
 ## reads
 
@@ -38,8 +39,6 @@ Bottom sheet to add a single one-off manual money event to the calendar (the hum
 - onClose() called after a successful add and on cancel/scrim/× tap
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -87,13 +86,13 @@ Bottom sheet to add a single one-off manual money event to the calendar (the hum
 ## componentTree
 
 <BottomSheetModal> (gorhom; 40% ink scrim, 28px top radius, --paper body, hairline grip; a11y label "Add an event")
-  <BottomSheetScrollView contentContainerStyle={{paddingH:24, paddingTop:8, paddingBottom:24}}>
-    <View flexRow justify="space-between" align="center">
-      <Text eyebrow uppercase tracking=0.14em color=muted-ink size=11>Add to calendar</Text>
-      <Pressable press onPress={onClose} a11yLabel="Close"><Text color=muted-ink size=18>×</Text></Pressable>
-    </View>
-    <Text fontDisplay size=26 mt=8 leading-tight>One thing on the <Text color=accent>day.</Text></Text>
-    <Text italic size=12.5 color=muted-ink mt=4>Quietly added to your calendar.</Text>
+<BottomSheetScrollView contentContainerStyle={{paddingH:24, paddingTop:8, paddingBottom:24}}>
+<View flexRow justify="space-between" align="center">
+<Text eyebrow uppercase tracking=0.14em color=muted-ink size=11>Add to calendar</Text>
+<Pressable press onPress={onClose} a11yLabel="Close"><Text color=muted-ink size=18>×</Text></Pressable>
+</View>
+<Text fontDisplay size=26 mt=8 leading-tight>One thing on the <Text color=accent>day.</Text></Text>
+<Text italic size=12.5 color=muted-ink mt=4>Quietly added to your calendar.</Text>
 
     <View mt=20 gap=16>
       {/* Kind */}
@@ -151,6 +150,7 @@ Bottom sheet to add a single one-off manual money event to the calendar (the hum
     <Pressable press mt=8 h=44 radius=16 center onPress={onClose}>
       <Text size=13.5 color=muted-ink>Cancel</Text>
     </Pressable>
+
   </BottomSheetScrollView>
 </BottomSheetModal>
 
@@ -177,7 +177,7 @@ Bottom sheet to add a single one-off manual money event to the calendar (the hum
 - Sheet body sits on --paper (not --surface) per Sheet doc block — 'paper lifting from paper'. Keep grip (9x3px, --hairline), 28px top radius, top-edge highlight, and the 45% ink scrim. max-h 82% on web => snapPoint roughly content-height capped; scrollable body.
 - press utility on web is :active scale 0.97; in RN map to Pressable + expo-haptics Haptics.selectionAsync() on the tappables (× , kind chips, both CTAs) per RN_PORT.
 - Two close paths besides Cancel: the × button and the scrim tap both call onClose; gorhom backdrop press + a × in the header must both wire to onClose.
-- Copy is FROZEN and these strings are NOT yet in COPY_DECK.md — porting should add keys for them (e.g. addEvent.* ) rather than hardcoding, but the visible text must match the literals exactly (banned-words check: none of the strings here use banned vocab; keep it that way).
+- Copy is FROZEN and these strings are NOT yet in COPY_DECK.md — porting should add keys for them (e.g. addEvent.\* ) rather than hardcoding, but the visible text must match the literals exactly (banned-words check: none of the strings here use banned vocab; keep it that way).
 - No Melo, no count-up, no route-draw, no verdict-stamp here — only sheet-rise/scrim-in/press. Don't add decorative motion or a mascot.
 
 ## stateBranches
@@ -207,4 +207,3 @@ Bottom sheet to add a single one-off manual money event to the calendar (the hum
 - aria-pressed -> accessibilityState={{selected}}; aria-label -> accessibilityLabel; role='dialog'/aria-modal handled by bottom-sheet
 - disabled:opacity-40 -> disabled prop + style opacity 0.4
 - nav/close (onClose prop) -> parent dismisses the gorhom modal (ref.dismiss()) / navigation goBack
-

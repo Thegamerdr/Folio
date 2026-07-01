@@ -1,4 +1,4 @@
-# TodayAfterScreen  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenTodayAfter.tsx)
+# TodayAfterScreen (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenTodayAfter.tsx)
 
 ## file
 
@@ -75,14 +75,14 @@ Transient "after a change" celebration screen: shows the path-to-payday re-drawi
 
 ## componentTree
 
-<ScreenContainer slideInR scroll vertical noScrollbar>  // Animated translateX 28→0, ScrollView
-  <HeaderRow paddingX=28 pt=4 pb=2 spaceBetween>
-    <BackButton onPress={nav.go('today')} a11y="Back to Today">←</BackButton>
-    <Eyebrow>One less thing waiting</Eyebrow>               // uppercase, tracking .14em, muted-ink
-    <MeloButton round 40 surface hairline onPress={nav.openMelo} a11y="Open Melo">
-      <Melo size={22} mood="cheer" />
-    </MeloButton>
-  </HeaderRow>
+<ScreenContainer slideInR scroll vertical noScrollbar> // Animated translateX 28→0, ScrollView
+<HeaderRow paddingX=28 pt=4 pb=2 spaceBetween>
+<BackButton onPress={nav.go('today')} a11y="Back to Today">←</BackButton>
+<Eyebrow>One less thing waiting</Eyebrow> // uppercase, tracking .14em, muted-ink
+<MeloButton round 40 surface hairline onPress={nav.openMelo} a11y="Open Melo">
+<Melo size={22} mood="cheer" />
+</MeloButton>
+</HeaderRow>
 
   <VerdictBlock paddingX=28 pt=3 a11y-live="polite">
     <PositiveLine fraunces italic 15 color=positive>You make it to payday.</PositiveLine>
@@ -145,7 +145,7 @@ Transient "after a change" celebration screen: shows the path-to-payday re-drawi
 - useCountUp(283,700) → reanimated useSharedValue + withTiming(cubic-out) driving an Animated <Text> (round + toLocaleString('en-GB'))
 - font-display (Fraunces) / font-sans (Inter Tight) → embedded Fraunces + Inter Tight fonts; SVG <Text fontFamily='Inter Tight'> needs the font registered for react-native-svg
 - boxShadow: var(--shadow-card) inline → RN shadow props (shadowColor/Opacity/Radius/Offset on iOS, elevation on Android) approximating the two-layer card shadow
-- px-7 / mx-4 / pt-* spacing (Tailwind) → StyleSheet numeric padding/margin (px-7≈28, mx-4≈16, gap-2.5≈10)
+- px-7 / mx-4 / pt-\* spacing (Tailwind) → StyleSheet numeric padding/margin (px-7≈28, mx-4≈16, gap-2.5≈10)
 - aria-live='polite' on the verdict block → accessibilityLiveRegion='polite' (Android) / AccessibilityInfo.announceForAccessibility on mount (iOS)
 - grid grid-cols-2 gap-2.5 → flexDirection row with two flex:1 tiles + gap (or marginRight on first)
 
@@ -174,15 +174,15 @@ Transient "after a change" celebration screen: shows the path-to-payday re-drawi
 
 ## docBlock
 
-/**
- * @rn-screen    TodayAfterScreen
- * @rn-stack     Today > After (transient)
- * @purpose      Show the path re-drawing after a meaningful change (review accepted, sub paused).
- * @reads        nav.pressure, transactions
- * @writes       —
- * @opens-sheet  melo-chat
- * @copy         FROZEN
- * @tokens       --paper --accent --positive --hairline
- * @motion       route-draw 2.2s · count-up · slide-in-r
- */
+/\*\*
 
+- @rn-screen TodayAfterScreen
+- @rn-stack Today > After (transient)
+- @purpose Show the path re-drawing after a meaningful change (review accepted, sub paused).
+- @reads nav.pressure, transactions
+- @writes —
+- @opens-sheet melo-chat
+- @copy FROZEN
+- @tokens --paper --accent --positive --hairline
+- @motion route-draw 2.2s · count-up · slide-in-r
+  \*/

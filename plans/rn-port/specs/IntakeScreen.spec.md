@@ -1,4 +1,4 @@
-# IntakeScreen  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenIntake.tsx)
+# IntakeScreen (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenIntake.tsx)
 
 ## file
 
@@ -14,17 +14,17 @@ Onboarding "Add what you have" picker — the user chooses HOW to add a statemen
 
 ## reads
 
-- —  (doc block @reads is empty: screen reads NO store state)
+- — (doc block @reads is empty: screen reads NO store state)
 - nav.pressure is available on the Nav object but NOT consumed by this screen
 
 ## writes
 
-- —  (doc block @writes is empty: screen writes NO store state)
+- — (doc block @writes is empty: screen writes NO store state)
 - Note: many store actions (storeSetPots, setSubs, addTransaction, etc.) are imported at top of file but NONE are used in ScreenIntake — dead imports, do not port
 
 ## opensSheets
 
-- —  (doc block @opens-sheet is empty: opens NO sheets; navigation only via nav.go)
+- — (doc block @opens-sheet is empty: opens NO sheets; navigation only via nav.go)
 
 ## copyKeys
 
@@ -64,51 +64,51 @@ Onboarding "Add what you have" picker — the user chooses HOW to add a statemen
 
 ## componentTree
 
-<Screen entering={slideInRight} reduceMotionAware> {/* SafeArea + vertical scroll, no scrollbar; px-7 pt-4 */}
-  <Row justify="space-between" align="center"> {/* header */}
-    <Pressable onPress={nav.back} hitSlop press><Text color=muted size=20>←</Text></Pressable>
-    <Text color=muted size=12 uppercase tracking=0.14em>Add</Text>
-    <View width=20 /> {/* spacer to balance back glyph */}
-  </Row>
+<Screen entering={slideInRight} reduceMotionAware> {/_ SafeArea + vertical scroll, no scrollbar; px-7 pt-4 _/}
+<Row justify="space-between" align="center"> {/_ header _/}
+<Pressable onPress={nav.back} hitSlop press><Text color=muted size=20>←</Text></Pressable>
+<Text color=muted size=12 uppercase tracking=0.14em>Add</Text>
+<View width=20 /> {/_ spacer to balance back glyph _/}
+</Row>
 
-  <View marginTop=24> {/* title block */}
-    <Text fontFamily=display size=28 lineHeight=tight>
-      Add <Text color=accent>what</Text> you have.
-    </Text>
-    <Text size=13.5 color=muted marginTop=12 lineHeight=relaxed>
-      Folio shows what it finds before anything is added.
-    </Text>
-  </View>
+<View marginTop=24> {/_ title block _/}
+<Text fontFamily=display size=28 lineHeight=tight>
+Add <Text color=accent>what</Text> you have.
+</Text>
+<Text size=13.5 color=muted marginTop=12 lineHeight=relaxed>
+Folio shows what it finds before anything is added.
+</Text>
+</View>
 
-  <View marginTop=24 gap=10> {/* options list — map over 5 options */}
-    {options.map(o => (
-      <Pressable key={o.title} onPress={() => nav.go(o.to)} press
-        style={[surfaceBg, hairlineBorder, radiusMd, px16, py16, rowLayout, gap16]}>
-        <View size=44 radiusSm bg=inset center><Text size=20>{o.icon}</Text></View>
-        <View flex=1>
-          <Row align=center gap=8>
-            <Text size=14.5 weight=medium>{o.title}</Text>
-            {o.fastest && (
-              <View bg=accentSoft radiusFull px=6 py=2>
-                <Text size=9 uppercase tracking=wide color=accent weight=medium>fastest</Text>
-              </View>
-            )}
-          </Row>
-          <Text size=12 color=muted marginTop=2>{o.hint}</Text>
-        </View>
-        <Text color=muted>→</Text>
-      </Pressable>
-    ))}
-  </View>
+<View marginTop=24 gap=10> {/_ options list — map over 5 options _/}
+{options.map(o => (
+<Pressable key={o.title} onPress={() => nav.go(o.to)} press
+style={[surfaceBg, hairlineBorder, radiusMd, px16, py16, rowLayout, gap16]}>
+<View size=44 radiusSm bg=inset center><Text size=20>{o.icon}</Text></View>
+<View flex=1>
+<Row align=center gap=8>
+<Text size=14.5 weight=medium>{o.title}</Text>
+{o.fastest && (
+<View bg=accentSoft radiusFull px=6 py=2>
+<Text size=9 uppercase tracking=wide color=accent weight=medium>fastest</Text>
+</View>
+)}
+</Row>
+<Text size=12 color=muted marginTop=2>{o.hint}</Text>
+</View>
+<Text color=muted>→</Text>
+</Pressable>
+))}
+</View>
 
-  <View marginTop=24 bg=inset radiusMd p=16> {/* Melo reassurance */}
-    <MeloLine mood="calm" text="Use what you have. Nothing is added until you say so." />
-  </View>
+<View marginTop=24 bg=inset radiusMd p=16> {/_ Melo reassurance _/}
+<MeloLine mood="calm" text="Use what you have. Nothing is added until you say so." />
+</View>
 
-  <Spacer flex=1 /> {/* pushes footer down */}
-  <Text align=center size=11 color=muted marginTop=24 marginBottom=24>
-    Nothing is shared unless you choose to export it.
-  </Text>
+<Spacer flex=1 /> {/_ pushes footer down _/}
+<Text align=center size=11 color=muted marginTop=24 marginBottom=24>
+Nothing is shared unless you choose to export it.
+</Text>
 </Screen>
 
 ## enginesNeeded
@@ -135,17 +135,18 @@ Onboarding "Add what you have" picker — the user chooses HOW to add a statemen
 
 ## docBlock
 
-/**
- * @rn-screen    IntakeScreen
- * @rn-stack     Onboarding > Add what you have
- * @purpose      Pick how to add a statement — PDF, photo, paste, or manual.
- * @reads        —
- * @writes       —
- * @opens-sheet  —
- * @copy         FROZEN — no "import" / "OCR" / "parser" wording allowed.
- * @tokens       --surface --hairline --accent --muted-ink
- * @motion       slide-in-r · press .97/120ms
- */
+/\*\*
+
+- @rn-screen IntakeScreen
+- @rn-stack Onboarding > Add what you have
+- @purpose Pick how to add a statement — PDF, photo, paste, or manual.
+- @reads —
+- @writes —
+- @opens-sheet —
+- @copy FROZEN — no "import" / "OCR" / "parser" wording allowed.
+- @tokens --surface --hairline --accent --muted-ink
+- @motion slide-in-r · press .97/120ms
+  \*/
 
 ## moods
 
@@ -155,7 +156,7 @@ Onboarding "Add what you have" picker — the user chooses HOW to add a statemen
 
 - populated — the ONLY branch this screen renders (static 5-option menu). Per STATES.md, Intake is populated-only.
 - empty — n/a (not applicable; no data dependency)
-- loading — n/a (no async; no spinner, no Melo curious here — reading/loading happens on the downstream *-success screens)
+- loading — n/a (no async; no spinner, no Melo curious here — reading/loading happens on the downstream \*-success screens)
 - error — n/a (no failable operation on this screen)
 - offline — n/a / same as populated (local-first; nothing fetched). Offline reading degradation ('saved, will read later') is handled by the downstream AddEntry/PdfSuccess screens, not here.
 
@@ -174,6 +175,5 @@ Onboarding "Add what you have" picker — the user chooses HOW to add a statemen
 - rounded-xl/lg/full → borderRadius 12/8/999 from radius tokens
 - space-y-2.5 → gap:10 on the list View (or marginBottom on rows)
 - flex-1 spacer <div className='flex-1'/> → <View style={{flex:1}} /> to pin footer
-- tracking-[0.14em] → letterSpacing computed from fontSize (RN letterSpacing is absolute px, not em — convert: 12px * 0.14 ≈ 1.68)
+- tracking-[0.14em] → letterSpacing computed from fontSize (RN letterSpacing is absolute px, not em — convert: 12px \* 0.14 ≈ 1.68)
 - uppercase class → textTransform:'uppercase' (eyebrow + fastest badge)
-

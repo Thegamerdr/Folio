@@ -1,4 +1,4 @@
-# ShareSheet  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetShare.tsx)
+# ShareSheet (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetShare.tsx)
 
 ## file
 
@@ -14,13 +14,13 @@ Quiet win card for sharing a closed cycle. A bottom sheet that shows a single "s
 
 ## docBlock
 
-@rn-sheet     ShareSheet
-@purpose      Quiet win card for sharing a closed cycle.
-@reads        cycles (most recent)
-@writes       —
-@copy         FROZEN
-@tokens       --paper --accent --positive --hairline
-@motion       stamp on render · sheet-in
+@rn-sheet ShareSheet
+@purpose Quiet win card for sharing a closed cycle.
+@reads cycles (most recent)
+@writes —
+@copy FROZEN
+@tokens --paper --accent --positive --hairline
+@motion stamp on render · sheet-in
 
 ## reads
 
@@ -39,8 +39,6 @@ Quiet win card for sharing a closed cycle. A bottom sheet that shows a single "s
 - Side effect (not store): navigator.share (Web Share API) OR navigator.clipboard.writeText — RN must substitute the native share sheet / Clipboard
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -175,4 +173,3 @@ Quiet win card for sharing a closed cycle. A bottom sheet that shows a single "s
 - tabular-nums must be applied to the £ amount (and ideally anywhere a money figure renders) so the figure doesn't jitter; Fraunces must ship with tnum support or fall back to a tabular face for the amount.
 - setTimeout(1600) for the 'Copied ✓' revert can fire after unmount when the sheet is dismissed quickly → guard with a ref + cleanup.
 - Dark mode: web has a .dark inverse but RN_PORT says the RN app keeps the warm paper world — do NOT port the dark token set for this sheet unless the RN app already themes it; default to the light paper palette.
-

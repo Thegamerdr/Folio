@@ -1,4 +1,4 @@
-# AddEntryScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenAddEntry.tsx)
+# AddEntryScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenAddEntry.tsx)
 
 ## file
 
@@ -14,15 +14,15 @@ Single-form entry for ONE recurring bill or debt payment. The same screen is reu
 
 ## docBlock
 
-@rn-screen    AddEntryScreen
-@rn-stack     Intake > Add a bill | Add a debt
-@purpose      Single-form entry for one recurring bill or debt payment. Reused for both kinds.
-@reads        —
-@writes       setSubs (for bills) — debts mirror to RN's own engine.
-@opens-sheet  —
-@copy         FROZEN
-@tokens       --surface --hairline --accent
-@motion       slide-in-r · stamp on save
+@rn-screen AddEntryScreen
+@rn-stack Intake > Add a bill | Add a debt
+@purpose Single-form entry for one recurring bill or debt payment. Reused for both kinds.
+@reads —
+@writes setSubs (for bills) — debts mirror to RN's own engine.
+@opens-sheet —
+@copy FROZEN
+@tokens --surface --hairline --accent
+@motion slide-in-r · stamp on save
 
 ## reads
 
@@ -39,8 +39,6 @@ Single-form entry for ONE recurring bill or debt payment. The same screen is reu
 - imported-but-unused store actions (do NOT wire these for this screen): setPots(storeSetPots), togglePaused, pauseMany, addCycle, setOnboarding, resetAll, fastForwardMonth, removeSub, addToPot, markSubUsed, addTransaction, removeTransaction
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -92,70 +90,70 @@ Single-form entry for ONE recurring bill or debt payment. The same screen is reu
 
 ## componentTree
 
-<View style={screen /* flex column, px 28, pt 16, slide-in-r entrance */}>
-  {/* Top bar */}
-  <View style={row spaceBetween center}>
-    <Pressable onPress={nav.back}><Text style={backGlyph /* muted-ink, 20px, press */}>←</Text></Pressable>
-    <Text style={eyebrow /* 12px, muted-ink, uppercase, tracking 0.14em */}>{kind === "bill" ? "Add a bill" : "Add a debt"}</Text>
-    <View style={{ width: 20 }} /* spacer to balance back glyph */ />
-  </View>
+<View style={screen /_ flex column, px 28, pt 16, slide-in-r entrance _/}>
+{/_ Top bar _/}
+<View style={row spaceBetween center}>
+<Pressable onPress={nav.back}><Text style={backGlyph /_ muted-ink, 20px, press _/}>←</Text></Pressable>
+<Text style={eyebrow /_ 12px, muted-ink, uppercase, tracking 0.14em _/}>{kind === "bill" ? "Add a bill" : "Add a debt"}</Text>
+<View style={{ width: 20 }} /_ spacer to balance back glyph _/ />
+</View>
 
-  {/* Heading block */}
-  <View style={{ marginTop: 20 }}>
-    <Text style={kicker /* Fraunces italic, 13px, muted-ink */}>One thing at a time</Text>
-    <Text style={headline /* Fraunces, 26px, leading-tight */}>
-      {kind === "bill"
-        ? <>What goes <Text style={accentWord /* not-italic, --accent */}>out</Text>, and when?</>
-        : <>What's the <Text style={accentWord}>payment</Text>, and how often?</>}
-    </Text>
-  </View>
+{/_ Heading block _/}
+<View style={{ marginTop: 20 }}>
+<Text style={kicker /_ Fraunces italic, 13px, muted-ink _/}>One thing at a time</Text>
+<Text style={headline /_ Fraunces, 26px, leading-tight _/}>
+{kind === "bill"
+? <>What goes <Text style={accentWord /_ not-italic, --accent _/}>out</Text>, and when?</>
+: <>What's the <Text style={accentWord}>payment</Text>, and how often?</>}
+</Text>
+</View>
 
-  {/* Name input */}
-  <TextInput
-    value={name} onChangeText={setName}
-    placeholder={kind === "bill" ? "Name · e.g. Rent" : "Name · e.g. Klarna sofa"}
-    style={input /* mt16, surface bg, hairline, rounded-xl, px16 py12, 14px, focus ring --accent */} />
+{/_ Name input _/}
+<TextInput
+value={name} onChangeText={setName}
+placeholder={kind === "bill" ? "Name · e.g. Rent" : "Name · e.g. Klarna sofa"}
+style={input /_ mt16, surface bg, hairline, rounded-xl, px16 py12, 14px, focus ring --accent _/} />
 
-  {/* Amount display card */}
-  <View style={amountCard /* mt12, surface, hairline, rounded-2xl, px20 py16, row, items-baseline, spaceBetween */}>
-    <Text style={fieldLabel /* 11px uppercase tracking-0.12em muted-ink */}>Amount</Text>
-    <Money value={amount ? `£${amount}` : "£—"} size="xl" tone="accent" /* 44px Fraunces tabular --accent */ />
-  </View>
+{/_ Amount display card _/}
+<View style={amountCard /_ mt12, surface, hairline, rounded-2xl, px20 py16, row, items-baseline, spaceBetween _/}>
+<Text style={fieldLabel /_ 11px uppercase tracking-0.12em muted-ink _/}>Amount</Text>
+<Money value={amount ? `£${amount}` : "£—"} size="xl" tone="accent" /_ 44px Fraunces tabular --accent _/ />
+</View>
 
-  {/* When / How often selects (2-col grid) */}
-  <View style={row2col /* mt12, gap 10 */}>
-    <View style={selectCell /* surface, hairline, rounded-xl, px16 py12 */}>
-      <Text style={fieldLabelSm /* 10px uppercase tracking-0.12em muted-ink */}>When</Text>
-      <Picker selectedValue={when} onValueChange={setWhen} /* options: 1st..Last day; 13.5px medium */ />
-    </View>
-    <View style={selectCell}>
-      <Text style={fieldLabelSm}>How often</Text>
-      <Picker selectedValue={freq} onValueChange={setFreq} /* options = freqOptions (kind-dependent) */ />
-    </View>
-  </View>
+{/_ When / How often selects (2-col grid) _/}
+<View style={row2col /_ mt12, gap 10 _/}>
+<View style={selectCell /_ surface, hairline, rounded-xl, px16 py12 _/}>
+<Text style={fieldLabelSm /_ 10px uppercase tracking-0.12em muted-ink _/}>When</Text>
+<Picker selectedValue={when} onValueChange={setWhen} /_ options: 1st..Last day; 13.5px medium _/ />
+</View>
+<View style={selectCell}>
+<Text style={fieldLabelSm}>How often</Text>
+<Picker selectedValue={freq} onValueChange={setFreq} /_ options = freqOptions (kind-dependent) _/ />
+</View>
+</View>
 
-  {/* Numeric keypad (3-col grid, 12 keys) */}
-  <View style={keypadGrid /* mt16, 3 cols, gap 8 */}>
-    {keys.map(k => (
-      <Pressable key={k} onPress={() => onKey(k)} style={keyButton /* press, h44, rounded-xl, surface, hairline, Fraunces 18px */}>
-        <Text>{k}</Text>
-      </Pressable>
-    ))}
-  </View>
+{/_ Numeric keypad (3-col grid, 12 keys) _/}
+<View style={keypadGrid /_ mt16, 3 cols, gap 8 _/}>
+{keys.map(k => (
+<Pressable key={k} onPress={() => onKey(k)} style={keyButton /_ press, h44, rounded-xl, surface, hairline, Fraunces 18px _/}>
+<Text>{k}</Text>
+</Pressable>
+))}
+</View>
 
-  {/* Melo reassurance line */}
-  <View style={{ marginTop: 16, marginBottom: 8 }}>
-    <MeloLine text="An estimate is fine. You can adjust it later." mood="soft" />
-  </View>
+{/_ Melo reassurance line _/}
+<View style={{ marginTop: 16, marginBottom: 8 }}>
+<MeloLine text="An estimate is fine. You can adjust it later." mood="soft" />
+</View>
 
-  {/* Primary + secondary CTAs */}
-  <Pressable onPress={() => { /* RN: persist via setSubs/debt engine */ nav.go("plans"); }}
-    style={primaryCta /* press, full width, h52, rounded-2xl, --accent bg, white text, 15px medium */}>
-    <Text>Add it to plans</Text>
-  </Pressable>
-  <Pressable onPress={nav.back} style={secondaryCta /* press, full width, h42, 13px, muted-ink */}>
-    <Text>Not yet</Text>
-  </Pressable>
+{/_ Primary + secondary CTAs _/}
+<Pressable onPress={() => { /_ RN: persist via setSubs/debt engine _/ nav.go("plans"); }}
+style={primaryCta /_ press, full width, h52, rounded-2xl, --accent bg, white text, 15px medium _/}>
+<Text>Add it to plans</Text>
+</Pressable>
+<Pressable onPress={nav.back} style={secondaryCta /_ press, full width, h42, 13px, muted-ink _/}>
+<Text>Not yet</Text>
+</Pressable>
 </View>
 
 ## enginesNeeded
@@ -207,4 +205,3 @@ Single-form entry for ONE recurring bill or debt payment. The same screen is reu
 - kind=debt variant: eyebrow 'Add a debt', headline 'What's the [payment], and how often?', placeholder 'Name · e.g. Klarna sofa', freq options 'Weekly · 6 left'/'Monthly · 6 left'/'Monthly · 12 left', default freq 'Monthly · 6 left'.
 - amount empty -> Money shows '£—'; amount filled -> Money shows pound+amount.
 - No empty/loading/error/offline branches for THIS screen per STATES.md (those belong to the reader Success/Fallback/Review surfaces). Do not add a spinner or error view here.
-

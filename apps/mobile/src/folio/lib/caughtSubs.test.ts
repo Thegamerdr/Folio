@@ -106,7 +106,7 @@ describe('findCaughtSubs — only confirmed monthly series surface', () => {
     expect(findCaughtSubs([], ['Spotify'])).toEqual([]);
   });
 
-  it('a non-monthly confirmed series (weekly) is out of this sheet\'s monthly framing', () => {
+  it("a non-monthly confirmed series (weekly) is out of this sheet's monthly framing", () => {
     // 8 weekly charges → a confirmed WEEKLY series, not surfaced here.
     const rows: Transaction[] = [];
     const start = new Date('2026-01-05T00:00:00Z');
@@ -142,8 +142,17 @@ describe('findCaughtSubs — purity + honesty guarantee', () => {
     }
 
     const banned = [
-      'usage', 'usesPerMonth', 'lastUsedDaysAgo', 'value', 'worthIt',
-      'wasted', 'waste', 'cancel', 'shouldCancel', 'decay', 'recommendation',
+      'usage',
+      'usesPerMonth',
+      'lastUsedDaysAgo',
+      'value',
+      'worthIt',
+      'wasted',
+      'waste',
+      'cancel',
+      'shouldCancel',
+      'decay',
+      'recommendation',
     ];
     const flat = JSON.stringify(sig);
     for (const b of banned) {

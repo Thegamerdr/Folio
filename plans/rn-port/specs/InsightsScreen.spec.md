@@ -1,4 +1,4 @@
-# InsightsScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenInsights.tsx)
+# InsightsScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenInsights.tsx)
 
 ## file
 
@@ -14,15 +14,15 @@ The shape of your months — a retrospective screen reached at More > Insights. 
 
 ## docBlock
 
-@rn-screen    InsightsScreen
-@rn-stack     More > Insights
-@purpose      The shape of your months — 6-month tight-point chart, saved-across-cycles delta, past cycle notes.
-@reads        cycles
-@writes       —
-@opens-sheet  —
-@copy         FROZEN — gentle, retrospective, never predictive.
-@tokens       --surface --hairline --accent --positive --muted-ink
-@motion       route-draw on chart · count-up on figures · slide-in-r
+@rn-screen InsightsScreen
+@rn-stack More > Insights
+@purpose The shape of your months — 6-month tight-point chart, saved-across-cycles delta, past cycle notes.
+@reads cycles
+@writes —
+@opens-sheet —
+@copy FROZEN — gentle, retrospective, never predictive.
+@tokens --surface --hairline --accent --positive --muted-ink
+@motion route-draw on chart · count-up on figures · slide-in-r
 
 ## reads
 
@@ -68,7 +68,7 @@ The shape of your months — a retrospective screen reached at More > Insights. 
 - "{c.note}" (note body, Fraunces italic, wrapped in literal quotes; rendered only when c.note present)
 - {n} sub paused — quietly working in your favour. / {n} subs paused — quietly working in your favour. (MeloLine text; singular/plural on pausedCount; rendered only when pausedCount > 0)
 - Share this month (footer CTA label)
-- FIDELITY/COPY DRIFT: COPY_DECK.md insights.* keys (insights.empty.head 'Close one cycle first.', insights.empty.body, insights.empty.cta 'Open the ritual') DO NOT match the strings hardcoded in this component. Per RN_PORT 'every visible string lives in COPY_DECK', this is a conflict to resolve before porting — the screen ships strings not in the deck. Treat the in-file strings as the visual source of truth but reconcile keys with the owner.
+- FIDELITY/COPY DRIFT: COPY_DECK.md insights.\* keys (insights.empty.head 'Close one cycle first.', insights.empty.body, insights.empty.cta 'Open the ritual') DO NOT match the strings hardcoded in this component. Per RN_PORT 'every visible string lives in COPY_DECK', this is a conflict to resolve before porting — the screen ships strings not in the deck. Treat the in-file strings as the visual source of truth but reconcile keys with the owner.
 
 ## tokens
 
@@ -111,25 +111,26 @@ The shape of your months — a retrospective screen reached at More > Insights. 
 
 ## componentTree
 
-<ScreenContainer style={slide-in-r, flex-1, px-7 pt-4}>  // empty branch returns early
+<ScreenContainer style={slide-in-r, flex-1, px-7 pt-4}> // empty branch returns early
+
   <Header row spaceBetween>
     <Pressable onPress={nav.back} hitSlop press><Text muted size20>←</Text></Pressable>
     <Text eyebrow upper tracking0.14>Insights</Text>
     <View w20 />  // spacer
   </Header>
 
-  {/* EMPTY (cycles.length===0): */}
-  <View mt5>
-    <Text fontDisplay italic 13 muted>Nothing wrapped up yet</Text>
-    <Text fontDisplay 28 lh1.05>The <Accent>shape</Accent> of your months.</Text>
-  </View>
-  <EmptyState mt6 mood="curious" headline={<>Finish one <Accent>month</Accent> first.</>} body="At the end of every pay period…" cta={{label:'Start the review', onPress:()=>nav.go('ritual')}} />
+{/_ EMPTY (cycles.length===0): _/}
+<View mt5>
+<Text fontDisplay italic 13 muted>Nothing wrapped up yet</Text>
+<Text fontDisplay 28 lh1.05>The <Accent>shape</Accent> of your months.</Text>
+</View>
+<EmptyState mt6 mood="curious" headline={<>Finish one <Accent>month</Accent> first.</>} body="At the end of every pay period…" cta={{label:'Start the review', onPress:()=>nav.go('ritual')}} />
 
-  {/* POPULATED (ScrollView, no-scrollbar): */}
-  <View mt5>
-    <Text fontDisplay italic 13 muted>{cycles.length} {month|months} done</Text>
-    <Text fontDisplay 28 lh1.05>The <Accent>shape</Accent> of your months.</Text>
-  </View>
+{/_ POPULATED (ScrollView, no-scrollbar): _/}
+<View mt5>
+<Text fontDisplay italic 13 muted>{cycles.length} {month|months} done</Text>
+<Text fontDisplay 28 lh1.05>The <Accent>shape</Accent> of your months.</Text>
+</View>
 
   <Grid cols2 gap3 mt5>
     <StatTile label="Saved across all months"><Money value={formatGBP(totalSpare)} size=lg tone=positive/>{prior && <DeltaLine +/− £abs(spareDelta) vs prior.label color={positive|negative}/>}</StatTile>
@@ -154,17 +155,17 @@ The shape of your months — a retrospective screen reached at More > Insights. 
     <Row mt1 spaceBetween>{trend.map(c=><Text flex1 center truncate 10 muted>{c.label.slice(0,3)}</Text>)}</Row>
   </Card>
 
-  {cycles.length>0 && <View mt5>
-    <Text 11 upper tracking0.16 muted mb2 px1>Notes from past you</Text>
-    <Card divideY-hairline>{cycles.slice(0,4).map(c=>
-      <View px5 py4>
-        <Row baseline spaceBetween><Text 14 medium>{c.label}</Text><Text tabular 12 muted>left over £{c.spare}</Text></Row>
-        {c.note && <Text 12.5 muted mt1 italic>"{c.note}"</Text>}
-      </View>)}
-    </Card>
-  </View>}
+{cycles.length>0 && <View mt5>
+<Text 11 upper tracking0.16 muted mb2 px1>Notes from past you</Text>
+<Card divideY-hairline>{cycles.slice(0,4).map(c=>
+<View px5 py4>
+<Row baseline spaceBetween><Text 14 medium>{c.label}</Text><Text tabular 12 muted>left over £{c.spare}</Text></Row>
+{c.note && <Text 12.5 muted mt1 italic>"{c.note}"</Text>}
+</View>)}
+</Card>
+</View>}
 
-  {pausedCount>0 && <View mt5><MeloLine mood="cheer" text="{n} sub(s) paused — quietly working in your favour."/></View>}
+{pausedCount>0 && <View mt5><MeloLine mood="cheer" text="{n} sub(s) paused — quietly working in your favour."/></View>}
 
   <View mt5 mb8>
     <Pressable onPress={()=>nav.openSheet('share')} press w-full h12 radius2xl bg-ink>
@@ -195,7 +196,7 @@ The shape of your months — a retrospective screen reached at More > Insights. 
 - route-draw on <Path> → animated strokeDasharray/strokeDashoffset via reanimated (mirror 2.2s ease-out), AnimatedPath
 - CSS gradient stop-opacity → <Stop stopColor={accent} stopOpacity={0.18 / 0}>
 - tailwind arbitrary text sizes (text-[10.5px] etc.) → explicit StyleSheet fontSize numbers
-- letter-spacing tracking-[0.14em] → letterSpacing computed as em*fontSize (RN letterSpacing is points, not em)
+- letter-spacing tracking-[0.14em] → letterSpacing computed as em\*fontSize (RN letterSpacing is points, not em)
 - divide-y divide-[var(--hairline)] → render hairline borderBottom (StyleSheet.hairlineWidth) on each row except the last
 - hairline util (1px solid) → borderWidth StyleSheet.hairlineWidth + borderColor theme.hairline
 - rounded-2xl (32px) → borderRadius 32 (theme radius scale)
@@ -205,9 +206,9 @@ The shape of your months — a retrospective screen reached at More > Insights. 
 
 ## fidelityRisks
 
-- COPY DRIFT: in-file empty-state strings ('Nothing wrapped up yet', 'Finish one month first.', 'Start the review', body) do NOT match COPY_DECK insights.empty.* ('Close one cycle first.', 'Open the ritual', different body). RN_PORT requires every visible string to live in COPY_DECK — reconcile keys before porting; do not silently pick one.
+- COPY DRIFT: in-file empty-state strings ('Nothing wrapped up yet', 'Finish one month first.', 'Start the review', body) do NOT match COPY_DECK insights.empty.\* ('Close one cycle first.', 'Open the ritual', different body). RN_PORT requires every visible string to live in COPY_DECK — reconcile keys before porting; do not silently pick one.
 - DOC-BLOCK DRIFT: @reads says only `cycles` but code reads cycles + pots + subPaused; @tokens omits --inset (EmptyState), --negative (delta), --ink/--paper (CTA, dot stroke, SVG text). Wire the real reads/tokens, not the doc block.
-- SVG chart math must port exactly: W=320 H=96 padX=12 padY=14; stepX=(W-2*padX)/(n-1) when n>1 else 0; minT=min(...tightPoint,0); maxT=max(...tightPoint,1); range=max(1,maxT-minT); y=padY+(H-2*padY)*(1-(t-minT)/range); avgY likewise with avgTight; last-point label x=min(W-4,last.x+6), y=max(10,last.y-6), textAnchor='end' when last.x>W-40 else 'start'. Rounding drift visibly distorts the line.
+- SVG chart math must port exactly: W=320 H=96 padX=12 padY=14; stepX=(W-2*padX)/(n-1) when n>1 else 0; minT=min(...tightPoint,0); maxT=max(...tightPoint,1); range=max(1,maxT-minT); y=padY+(H-2*padY)\*(1-(t-minT)/range); avgY likewise with avgTight; last-point label x=min(W-4,last.x+6), y=max(10,last.y-6), textAnchor='end' when last.x>W-40 else 'start'. Rounding drift visibly distorts the line.
 - Single-point case (n<=1): area-fill path AND route-draw line path are both omitted; only dashed avg line + one dot + label render. Easy to wrongly draw a degenerate line.
 - Negative-sign glyph: formatGBP and the delta use U+2212 MINUS '−', not ASCII '-'. Tabular alignment depends on it; keep the exact glyph.
 - tabular-nums must be applied to every money/delta/avg/left-over Text via fontVariant — money 'never reads as 12.3K'; missing it breaks the money-is-money rule.
@@ -218,4 +219,3 @@ The shape of your months — a retrospective screen reached at More > Insights. 
 - Melo presence: populated branch instantiates Melo ONLY via the conditional cheer MeloLine; MELO_MOODS 'Insights populated | calm' refers to room tone, not a rendered calm Melo. Do not add a standalone calm Melo ('No mood = no Melo').
 - Chart card is the only element with a shadow (shadow-card); tiles use hairline only. Don't apply elevation uniformly — preserve the depth hierarchy.
 - Plural handling is inline ('month'/'months', 'sub'/'subs'); per COPY_DECK localization note RN should use ICU MessageFormat keys rather than string concatenation when these strings move into the deck.
-

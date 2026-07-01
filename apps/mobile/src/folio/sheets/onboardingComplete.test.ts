@@ -79,7 +79,9 @@ describe('OnboardingSheet complete → clean app (demo is pre-onboarding only)',
       payday: 28,
       monthlyIncome: 2400,
       balance: 500,
-      pickedPots: [{ id: 'holiday', name: 'Holiday · September', goal: 1200, perWeek: 35, accent: true }],
+      pickedPots: [
+        { id: 'holiday', name: 'Holiday · September', goal: 1200, perWeek: 35, accent: true },
+      ],
     });
     const s = getState();
     // No demo transactions / subs / cycles / pot-ledger / calendar events linger.
@@ -90,7 +92,7 @@ describe('OnboardingSheet complete → clean app (demo is pre-onboarding only)',
     expect(s.calendarEvents).toEqual([]);
   });
 
-  it('writes the user\'s real onboarding identity over the clean state', () => {
+  it("writes the user's real onboarding identity over the clean state", () => {
     completeOnboarding({
       name: 'Ada',
       payday: 28,
@@ -105,7 +107,7 @@ describe('OnboardingSheet complete → clean app (demo is pre-onboarding only)',
     expect(ob.done).toBe(true);
   });
 
-  it('records the entered balance as the user\'s own (never a sample source)', () => {
+  it("records the entered balance as the user's own (never a sample source)", () => {
     completeOnboarding({
       name: 'Ada',
       payday: 25,
@@ -163,7 +165,7 @@ describe('OnboardingSheet complete → clean app (demo is pre-onboarding only)',
     expect(getState().pots).toEqual([]);
   });
 
-  it('the finished app holds ONLY the user\'s real data (chosen pots), nothing demo', () => {
+  it("the finished app holds ONLY the user's real data (chosen pots), nothing demo", () => {
     completeOnboarding({
       name: 'Ada',
       payday: 25,

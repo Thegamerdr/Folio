@@ -34,7 +34,8 @@ import type { CandidateMoneyItem } from '../lib/importSheet';
 function categoryFor(item: { amount: number; type: string }): Transaction['category'] {
   if (item.amount > 0) return 'income';
   const type = item.type.toLowerCase();
-  if (type.includes('bill') || type.includes('debt') || type.includes('subscription')) return 'bills';
+  if (type.includes('bill') || type.includes('debt') || type.includes('subscription'))
+    return 'bills';
   if (type.includes('grocer') || type.includes('eating') || type.includes('food')) return 'food';
   if (type.includes('transport') || type.includes('travel')) return 'transport';
   return 'other';
@@ -45,10 +46,46 @@ function categoryFor(item: { amount: number; type: string }): Transaction['categ
 type StagedRow = CandidateMoneyItem & { type: string };
 
 const staged: StagedRow[] = [
-  { id: 'r1', source: 'csv', kind: 'spend', merchant: 'Tesco', amount: -42.0, confidence: 'low', category: 'Groceries', type: 'Groceries' },
-  { id: 'r2', source: 'csv', kind: 'income', merchant: 'Salary — Whitstone Ltd', amount: 2180.0, confidence: 'low', category: 'Income', type: 'Income' },
-  { id: 'r3', source: 'csv', kind: 'spend', merchant: 'Octopus Energy', amount: -118.4, confidence: 'low', category: 'Bill', type: 'Bill' },
-  { id: 'r4', source: 'csv', kind: 'spend', merchant: 'Spotify', amount: -11.99, confidence: 'low', category: 'Subscription', type: 'Subscription' },
+  {
+    id: 'r1',
+    source: 'csv',
+    kind: 'spend',
+    merchant: 'Tesco',
+    amount: -42.0,
+    confidence: 'low',
+    category: 'Groceries',
+    type: 'Groceries',
+  },
+  {
+    id: 'r2',
+    source: 'csv',
+    kind: 'income',
+    merchant: 'Salary — Whitstone Ltd',
+    amount: 2180.0,
+    confidence: 'low',
+    category: 'Income',
+    type: 'Income',
+  },
+  {
+    id: 'r3',
+    source: 'csv',
+    kind: 'spend',
+    merchant: 'Octopus Energy',
+    amount: -118.4,
+    confidence: 'low',
+    category: 'Bill',
+    type: 'Bill',
+  },
+  {
+    id: 'r4',
+    source: 'csv',
+    kind: 'spend',
+    merchant: 'Spotify',
+    amount: -11.99,
+    confidence: 'low',
+    category: 'Subscription',
+    type: 'Subscription',
+  },
 ];
 
 // The exact post-all-then-clear sequence VisualizerScreen.commit(items) runs for "Add all".

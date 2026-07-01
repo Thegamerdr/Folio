@@ -178,12 +178,7 @@ export function MeloChatSheet(props: MeloChatSheetProps) {
                       pressed ? s.pressedDim : undefined,
                     ]}
                   >
-                    <Text
-                      style={[
-                        s.toneChipLabel,
-                        selected ? s.toneChipLabelSelected : undefined,
-                      ]}
-                    >
+                    <Text style={[s.toneChipLabel, selected ? s.toneChipLabelSelected : undefined]}>
                       {tone.label}
                     </Text>
                   </Pressable>
@@ -382,9 +377,7 @@ function SnapshotCell({
   return (
     <View style={[s.snapshotCell, style]}>
       <Text style={s.snapshotLabel}>{label}</Text>
-      <Text style={[s.snapshotValue, muted ? s.snapshotValueMuted : undefined]}>
-        {value}
-      </Text>
+      <Text style={[s.snapshotValue, muted ? s.snapshotValueMuted : undefined]}>{value}</Text>
     </View>
   );
 }
@@ -415,202 +408,202 @@ function SendGlyph({ color }: { color: string }) {
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-  pressedDim: { opacity: 0.6 },
+    pressedDim: { opacity: 0.6 },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: gap.md,
-    paddingBottom: gap.md,
-  },
-  headerText: { flex: 1, minWidth: 0 },
-  headerName: { color: t.ink, fontSize: 15, fontWeight: '600' },
-  headerStatus: { color: t.muted, fontSize: 12, marginTop: 1 },
-  tuneButton: { paddingVertical: 4, paddingHorizontal: 4 },
-  tuneLabel: {
-    color: t.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-  },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: gap.md,
+      paddingBottom: gap.md,
+    },
+    headerText: { flex: 1, minWidth: 0 },
+    headerName: { color: t.ink, fontSize: 15, fontWeight: '600' },
+    headerStatus: { color: t.muted, fontSize: 12, marginTop: 1 },
+    tuneButton: { paddingVertical: 4, paddingHorizontal: 4 },
+    tuneLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
 
-  snapshot: {
-    flexDirection: 'row',
-    backgroundColor: t.inset,
-    borderRadius: radius.lg,
-    paddingVertical: gap.md,
-    paddingHorizontal: gap.lg,
-    marginTop: gap.md,
-  },
-  snapshotCell: { flex: 1, gap: 2 },
-  snapshotLabel: {
-    color: t.muted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  snapshotValue: {
-    color: t.ink,
-    fontSize: 16,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  snapshotValueMuted: { color: t.muted },
+    snapshot: {
+      flexDirection: 'row',
+      backgroundColor: t.inset,
+      borderRadius: radius.lg,
+      paddingVertical: gap.md,
+      paddingHorizontal: gap.lg,
+      marginTop: gap.md,
+    },
+    snapshotCell: { flex: 1, gap: 2 },
+    snapshotLabel: {
+      color: t.muted,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    snapshotValue: {
+      color: t.ink,
+      fontSize: 16,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+    },
+    snapshotValueMuted: { color: t.muted },
 
-  settings: { gap: gap.md, paddingTop: gap.md },
-  settingsLabel: {
-    color: t.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginBottom: gap.sm,
-  },
-  toneRow: { flexDirection: 'row', gap: gap.sm },
-  toneChip: {
-    flex: 1,
-    height: 34,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: t.inset,
-  },
-  toneChipSelected: { backgroundColor: t.ink },
-  toneChipLabel: { color: t.ink, fontSize: 13, fontWeight: '600' },
-  toneChipLabelSelected: { color: t.inverse },
+    settings: { gap: gap.md, paddingTop: gap.md },
+    settingsLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      marginBottom: gap.sm,
+    },
+    toneRow: { flexDirection: 'row', gap: gap.sm },
+    toneChip: {
+      flex: 1,
+      height: 34,
+      borderRadius: radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.inset,
+    },
+    toneChipSelected: { backgroundColor: t.ink },
+    toneChipLabel: { color: t.ink, fontSize: 13, fontWeight: '600' },
+    toneChipLabelSelected: { color: t.inverse },
 
-  shareRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: gap.md,
-  },
-  shareText: { flex: 1 },
-  shareTitle: { color: t.ink, fontSize: 14, fontWeight: '500' },
-  shareHint: { color: t.muted, fontSize: 12, lineHeight: 17, marginTop: 1 },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: radius.sm,
-    borderWidth: 1.5,
-    borderColor: t.hairlineStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: t.surface,
-  },
-  checkboxOn: { backgroundColor: t.calm, borderColor: t.calm },
-  startFresh: {
-    color: t.muted,
-    fontSize: 13,
-    textDecorationLine: 'underline',
-  },
+    shareRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: gap.md,
+    },
+    shareText: { flex: 1 },
+    shareTitle: { color: t.ink, fontSize: 14, fontWeight: '500' },
+    shareHint: { color: t.muted, fontSize: 12, lineHeight: 17, marginTop: 1 },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: radius.sm,
+      borderWidth: 1.5,
+      borderColor: t.hairlineStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.surface,
+    },
+    checkboxOn: { backgroundColor: t.calm, borderColor: t.calm },
+    startFresh: {
+      color: t.muted,
+      fontSize: 13,
+      textDecorationLine: 'underline',
+    },
 
-  transcript: { paddingTop: gap.md, gap: gap.sm },
+    transcript: { paddingTop: gap.md, gap: gap.sm },
 
-  empty: { paddingVertical: gap.lg, gap: gap.lg },
-  emptyPrompt: {
-    color: t.ink,
-    fontFamily: serif.displayItalic,
-    fontSize: 17,
-    lineHeight: 23,
-  },
-  starters: { gap: gap.sm },
-  starter: {
-    backgroundColor: t.inset,
-    borderRadius: radius.lg,
-    paddingVertical: gap.md,
-    paddingHorizontal: gap.lg,
-  },
-  starterText: { color: t.ink, fontSize: 14, lineHeight: 19 },
+    empty: { paddingVertical: gap.lg, gap: gap.lg },
+    emptyPrompt: {
+      color: t.ink,
+      fontFamily: serif.displayItalic,
+      fontSize: 17,
+      lineHeight: 23,
+    },
+    starters: { gap: gap.sm },
+    starter: {
+      backgroundColor: t.inset,
+      borderRadius: radius.lg,
+      paddingVertical: gap.md,
+      paddingHorizontal: gap.lg,
+    },
+    starterText: { color: t.ink, fontSize: 14, lineHeight: 19 },
 
-  userRow: { alignItems: 'flex-end' },
-  userBubble: {
-    maxWidth: '82%',
-    backgroundColor: t.ink,
-    borderRadius: radius.xl,
-    borderBottomRightRadius: radius.sm,
-    paddingVertical: 10,
-    paddingHorizontal: gap.lg,
-  },
-  userText: { color: t.inverse, fontSize: 15, lineHeight: 21 },
+    userRow: { alignItems: 'flex-end' },
+    userBubble: {
+      maxWidth: '82%',
+      backgroundColor: t.ink,
+      borderRadius: radius.xl,
+      borderBottomRightRadius: radius.sm,
+      paddingVertical: 10,
+      paddingHorizontal: gap.lg,
+    },
+    userText: { color: t.inverse, fontSize: 15, lineHeight: 21 },
 
-  assistantRow: { paddingVertical: 2 },
-  assistantText: { color: t.ink, fontSize: 15, lineHeight: 22 },
+    assistantRow: { paddingVertical: 2 },
+    assistantText: { color: t.ink, fontSize: 15, lineHeight: 22 },
 
-  suggestion: {
-    flexDirection: 'row',
-    gap: gap.sm,
-    backgroundColor: t.inset,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: t.hairline,
-    padding: gap.md,
-  },
-  suggestionMark: { paddingTop: 1 },
-  suggestionBody: { flex: 1, gap: 4 },
-  suggestionKind: {
-    color: t.muted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  suggestionSummary: { color: t.ink, fontSize: 14, lineHeight: 19 },
-  suggestionFeedback: { color: t.warmInk, fontSize: 13, lineHeight: 18, marginTop: 2 },
-  suggestionActions: { flexDirection: 'row', gap: gap.lg, marginTop: 2 },
-  suggestionAccept: { color: t.calmStrong, fontSize: 13, fontWeight: '700' },
-  suggestionDismiss: { color: t.muted, fontSize: 13, fontWeight: '600' },
+    suggestion: {
+      flexDirection: 'row',
+      gap: gap.sm,
+      backgroundColor: t.inset,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      padding: gap.md,
+    },
+    suggestionMark: { paddingTop: 1 },
+    suggestionBody: { flex: 1, gap: 4 },
+    suggestionKind: {
+      color: t.muted,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    suggestionSummary: { color: t.ink, fontSize: 14, lineHeight: 19 },
+    suggestionFeedback: { color: t.warmInk, fontSize: 13, lineHeight: 18, marginTop: 2 },
+    suggestionActions: { flexDirection: 'row', gap: gap.lg, marginTop: 2 },
+    suggestionAccept: { color: t.calmStrong, fontSize: 13, fontWeight: '700' },
+    suggestionDismiss: { color: t.muted, fontSize: 13, fontWeight: '600' },
 
-  thinking: {
-    color: t.muted,
-    fontFamily: serif.displayItalic,
-    fontSize: 15,
-    paddingVertical: gap.sm,
-  },
+    thinking: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 15,
+      paddingVertical: gap.sm,
+    },
 
-  notice: {
-    backgroundColor: t.caution + '22',
-    borderRadius: radius.md,
-    paddingVertical: gap.sm,
-    paddingHorizontal: gap.md,
-  },
-  noticeText: { color: t.warmInk, fontSize: 14 },
+    notice: {
+      backgroundColor: t.caution + '22',
+      borderRadius: radius.md,
+      paddingVertical: gap.sm,
+      paddingHorizontal: gap.md,
+    },
+    noticeText: { color: t.warmInk, fontSize: 14 },
 
-  composer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: gap.sm,
-    marginTop: gap.lg,
-  },
-  input: {
-    flex: 1,
-    minHeight: 46,
-    maxHeight: 120,
-    backgroundColor: t.inset,
-    borderRadius: radius.lg,
-    paddingHorizontal: gap.lg,
-    paddingTop: 12,
-    paddingBottom: 12,
-    color: t.ink,
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  send: {
-    width: 46,
-    height: 46,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: t.calmStrong,
-    ...elevation.cta,
-  },
-  sendDisabled: {
-    backgroundColor: t.sunken,
-    shadowColor: 'transparent',
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-  },
+    composer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: gap.sm,
+      marginTop: gap.lg,
+    },
+    input: {
+      flex: 1,
+      minHeight: 46,
+      maxHeight: 120,
+      backgroundColor: t.inset,
+      borderRadius: radius.lg,
+      paddingHorizontal: gap.lg,
+      paddingTop: 12,
+      paddingBottom: 12,
+      color: t.ink,
+      fontSize: 15,
+      lineHeight: 20,
+    },
+    send: {
+      width: 46,
+      height: 46,
+      borderRadius: radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.calmStrong,
+      ...elevation.cta,
+    },
+    sendDisabled: {
+      backgroundColor: t.sunken,
+      shadowColor: 'transparent',
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
+    },
   });
 }

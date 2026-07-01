@@ -264,114 +264,114 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-      {/* Top bar — back glyph · four progress ticks (2 filled = step two) · Skip. */}
-      <View style={styles.topBar}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={16}
-          onPress={nav.back}
-          style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
-        >
-          <Text style={[styles.back, { color: t.muted }]}>←</Text>
-        </Pressable>
-
-        <View accessibilityLabel="Step 2 of 4" style={styles.ticks}>
-          <View style={[styles.tick, { backgroundColor: t.calm }]} />
-          <View style={[styles.tick, { backgroundColor: t.calm }]} />
-          <View style={[styles.tick, { backgroundColor: t.hairline }]} />
-          <View style={[styles.tick, { backgroundColor: t.hairline }]} />
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Skip"
-          hitSlop={16}
-          onPress={() => nav.go('today')}
-          style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
-        >
-          <Text style={[styles.skip, { color: t.muted }]}>Skip</Text>
-        </Pressable>
-      </View>
-
-      {/* Heading — "Step two" eyebrow (Fraunces italic), the one question with "see" upright +
-          terracotta, and the rough-number reassurance. All @copy FROZEN inline literals. */}
-      <View style={styles.heading}>
-        <Text style={[styles.eyebrow, { color: t.muted }]}>Step two</Text>
-        <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-          {'What money can you '}
-          <Text style={[styles.headlineAccent, { color: t.calm }]}>see</Text>
-          {' today?'}
-        </Text>
-        <Text style={[styles.subhead, { color: t.muted }]}>A rough number is fine.</Text>
-      </View>
-
-      {/* Balance card — the In-your-account label, the big £ + figure with the blinking caret, and the
-          three source chips. The figure count-ups per keystroke; money never slides. */}
-      <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-        <Text style={[styles.cardLabel, { color: t.muted }]}>In your account</Text>
-        <View style={styles.amountRow}>
-          <Text style={[styles.symbol, { color: t.ink }]}>{copy.global.currency.symbol}</Text>
-          <Text
-            accessibilityLabel={`${copy.global.currency.symbol}${grouped}`}
-            style={[styles.amount, { color: t.ink }]}
+        {/* Top bar — back glyph · four progress ticks (2 filled = step two) · Skip. */}
+        <View style={styles.topBar}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={16}
+            onPress={nav.back}
+            style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
           >
-            {countedLabel}
-          </Text>
-          <Animated.View style={[styles.caret, caretStyle, { backgroundColor: t.calm }]} />
+            <Text style={[styles.back, { color: t.muted }]}>←</Text>
+          </Pressable>
+
+          <View accessibilityLabel="Step 2 of 4" style={styles.ticks}>
+            <View style={[styles.tick, { backgroundColor: t.calm }]} />
+            <View style={[styles.tick, { backgroundColor: t.calm }]} />
+            <View style={[styles.tick, { backgroundColor: t.hairline }]} />
+            <View style={[styles.tick, { backgroundColor: t.hairline }]} />
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Skip"
+            hitSlop={16}
+            onPress={() => nav.go('today')}
+            style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
+          >
+            <Text style={[styles.skip, { color: t.muted }]}>Skip</Text>
+          </Pressable>
         </View>
-        <View style={styles.chipsRow}>
-          {SOURCE_CHIPS.map((label) => (
-            <View key={label} style={[styles.chip, { backgroundColor: t.inset }]}>
-              <Text style={[styles.chipLabel, { color: t.muted }]}>{label}</Text>
-            </View>
+
+        {/* Heading — "Step two" eyebrow (Fraunces italic), the one question with "see" upright +
+          terracotta, and the rough-number reassurance. All @copy FROZEN inline literals. */}
+        <View style={styles.heading}>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>Step two</Text>
+          <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+            {'What money can you '}
+            <Text style={[styles.headlineAccent, { color: t.calm }]}>see</Text>
+            {' today?'}
+          </Text>
+          <Text style={[styles.subhead, { color: t.muted }]}>A rough number is fine.</Text>
+        </View>
+
+        {/* Balance card — the In-your-account label, the big £ + figure with the blinking caret, and the
+          three source chips. The figure count-ups per keystroke; money never slides. */}
+        <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text style={[styles.cardLabel, { color: t.muted }]}>In your account</Text>
+          <View style={styles.amountRow}>
+            <Text style={[styles.symbol, { color: t.ink }]}>{copy.global.currency.symbol}</Text>
+            <Text
+              accessibilityLabel={`${copy.global.currency.symbol}${grouped}`}
+              style={[styles.amount, { color: t.ink }]}
+            >
+              {countedLabel}
+            </Text>
+            <Animated.View style={[styles.caret, caretStyle, { backgroundColor: t.calm }]} />
+          </View>
+          <View style={styles.chipsRow}>
+            {SOURCE_CHIPS.map((label) => (
+              <View key={label} style={[styles.chip, { backgroundColor: t.inset }]}>
+                <Text style={[styles.chipLabel, { color: t.muted }]}>{label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Melo reassurance — calm mood (step 1-3 of onboarding map to calm per MELO_MOODS.md). The
+          quote is a @copy FROZEN inline literal; MeloLine adds the straight quotes. */}
+        <View style={styles.meloRow}>
+          <MeloLine mood="calm" text="An estimate is fine — we'll get clearer together." />
+        </View>
+
+        {/* Spacer pins the keypad + Continue to the bottom, mirroring the web flex-1 spacer. */}
+        <View style={styles.spacer} />
+
+        {/* Keypad — the 3-col grid of Pressables (1-9 · . · 0 · ←). Custom, not the OS keyboard. */}
+        <View style={styles.keypad}>
+          {KEYS.map((key) => (
+            <Pressable
+              key={key}
+              accessibilityRole="button"
+              accessibilityLabel={key === '←' ? 'Delete last digit' : `Key ${key}`}
+              onPress={() => handleKey(key)}
+              style={({ pressed: isPressed }) => [
+                styles.keyButton,
+                { backgroundColor: t.surface, borderColor: t.hairline },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.keyLabel, { color: t.ink }]}>{key}</Text>
+            </Pressable>
           ))}
         </View>
-      </View>
 
-      {/* Melo reassurance — calm mood (step 1-3 of onboarding map to calm per MELO_MOODS.md). The
-          quote is a @copy FROZEN inline literal; MeloLine adds the straight quotes. */}
-      <View style={styles.meloRow}>
-        <MeloLine mood="calm" text="An estimate is fine — we'll get clearer together." />
-      </View>
-
-      {/* Spacer pins the keypad + Continue to the bottom, mirroring the web flex-1 spacer. */}
-      <View style={styles.spacer} />
-
-      {/* Keypad — the 3-col grid of Pressables (1-9 · . · 0 · ←). Custom, not the OS keyboard. */}
-      <View style={styles.keypad}>
-        {KEYS.map((key) => (
-          <Pressable
-            key={key}
-            accessibilityRole="button"
-            accessibilityLabel={key === '←' ? 'Delete last digit' : `Key ${key}`}
-            onPress={() => handleKey(key)}
-            style={({ pressed: isPressed }) => [
-              styles.keyButton,
-              { backgroundColor: t.surface, borderColor: t.hairline },
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.keyLabel, { color: t.ink }]}>{key}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* Continue — the kit accent CTA shape rebuilt as a single terracotta button (the web's
+        {/* Continue — the kit accent CTA shape rebuilt as a single terracotta button (the web's
           bg-accent text-white). Persists the rough figure honestly, then advances to intake. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Continue"
-        accessibilityHint="Saves this rough figure and opens the next step"
-        onPress={commitAndGo}
-        style={({ pressed: isPressed }) => [
-          styles.continue,
-          { backgroundColor: t.calm },
-          isPressed ? styles.pressed : undefined,
-        ]}
-      >
-        <Text style={[styles.continueLabel, { color: t.inverse }]}>Continue</Text>
-      </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Continue"
+          accessibilityHint="Saves this rough figure and opens the next step"
+          onPress={commitAndGo}
+          style={({ pressed: isPressed }) => [
+            styles.continue,
+            { backgroundColor: t.calm },
+            isPressed ? styles.pressed : undefined,
+          ]}
+        >
+          <Text style={[styles.continueLabel, { color: t.inverse }]}>Continue</Text>
+        </Pressable>
       </ScrollView>
     </Animated.View>
   );

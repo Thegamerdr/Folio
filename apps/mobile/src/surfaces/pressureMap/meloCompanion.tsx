@@ -60,7 +60,12 @@ export function MeloScreen({
       <View style={layout.title}>
         <Text style={[layout.kicker, s.kicker]}>Companion</Text>
         {/* Faithful to the web title: one terracotta accent word ("quiet"). */}
-        <Headline lead="A " accent="quiet" tail=" presence across the journey." style={layout.titleHeadline} />
+        <Headline
+          lead="A "
+          accent="quiet"
+          tail=" presence across the journey."
+          style={layout.titleHeadline}
+        />
       </View>
 
       <View style={[layout.hero, s.hero]}>
@@ -78,9 +83,7 @@ export function MeloScreen({
               // change it — so these rows carry no onPress and read as plain text to assistive tech.
               accessibilityRole="text"
               accessibilityLabel={
-                isNow
-                  ? `${mood.label}. Where your money sits right now.`
-                  : mood.label
+                isNow ? `${mood.label}. Where your money sits right now.` : mood.label
               }
               style={[layout.moodRow, s.moodRow, isNow ? s.moodRowNow : undefined]}
             >
@@ -96,8 +99,8 @@ export function MeloScreen({
       </View>
 
       <Text style={[layout.footer, s.footer]}>
-        Melo's mood reads where your money sits right now. It eases as things settle and steadies
-        as they tighten — you move the money, Melo just reflects it back.
+        Melo's mood reads where your money sits right now. It eases as things settle and steadies as
+        they tighten — you move the money, Melo just reflects it back.
       </Text>
 
       <View style={layout.actions}>

@@ -821,7 +821,7 @@ export function expandRecurringTransactions(
         // unprotected means each shows as a dated move on the route instead of collapsing into the
         // "set aside for bills" amount pulled to today.
         protected: false,
-        certainty: transaction.amountMinor > 0 ? 'expected' : transaction.certainty ?? 'expected',
+        certainty: transaction.amountMinor > 0 ? 'expected' : (transaction.certainty ?? 'expected'),
       });
     }
   }
@@ -1283,9 +1283,7 @@ export function removeTransaction(
   return prependHistory(
     {
       ...state,
-      transactions: state.transactions.filter(
-        (transaction) => transaction.id !== transactionId,
-      ),
+      transactions: state.transactions.filter((transaction) => transaction.id !== transactionId),
     },
     'manual_added',
     `${target.title} removed. Route rebuilt from what's left.`,
@@ -1356,7 +1354,10 @@ function assertNonNegativeSafeMinor(minorUnits: number, label: string): number {
 export function createPot(state: LocalLedgerState, input: CreatePotInput): LocalLedgerState {
   const name = cleanTitle(input.name, 'Pot');
   const goalMinor = assertNonNegativeSafeMinor(Math.abs(input.goalMinor), 'Pot goal');
-  const perWeekMinor = assertNonNegativeSafeMinor(Math.abs(input.perWeekMinor), 'Pot weekly amount');
+  const perWeekMinor = assertNonNegativeSafeMinor(
+    Math.abs(input.perWeekMinor),
+    'Pot weekly amount',
+  );
   const index = state.pots.length;
   const pot: Pot = {
     id: createPotId(localId('pot', index)),
@@ -1387,9 +1388,7 @@ export function addToPot(
   if (target === undefined) throw new Error('That pot does not exist.');
 
   const nextPots = state.pots.map((pot) =>
-    String(pot.id) === potId
-      ? { ...pot, saved: localGbp(pot.saved.minorUnits + moveMinor) }
-      : pot,
+    String(pot.id) === potId ? { ...pot, saved: localGbp(pot.saved.minorUnits + moveMinor) } : pot,
   );
 
   return prependHistory(
@@ -1436,10 +1435,7 @@ export function reallocateBetweenPots(
 // Subscriptions
 // ---------------------------------------------------------------------------------------------
 
-function findSubscription(
-  state: LocalLedgerState,
-  subscriptionId: string,
-): Subscription {
+function findSubscription(state: LocalLedgerState, subscriptionId: string): Subscription {
   const target = state.subscriptions.find((item) => String(item.id) === subscriptionId);
   if (target === undefined) throw new Error('That subscription does not exist.');
   return target;
@@ -1470,10 +1466,7 @@ export function createSubscription(
   const costMinor = assertNonNegativeSafeMinor(Math.abs(input.costMinor), 'Subscription cost');
   if (costMinor <= 0) throw new Error('A subscription needs a cost of more than zero.');
   const periodDays = CADENCE_PERIOD_DAYS[input.cadence];
-  const nextRenewalDaysAway = Math.max(
-    0,
-    Math.round(input.nextChargeInDays ?? periodDays),
-  );
+  const nextRenewalDaysAway = Math.max(0, Math.round(input.nextChargeInDays ?? periodDays));
   const index = state.subscriptions.length;
   const subscription: Subscription = {
     id: createSubscriptionId(localId('subscription', index)),
@@ -1593,9 +1586,7 @@ export function bulkPauseQuiet(state: LocalLedgerState): LocalLedgerState {
   return prependHistory(
     { ...state, subscriptions: nextSubscriptions },
     'subscription_bulk_paused',
-    `${quietActive.length} quiet subscription${
-      quietActive.length === 1 ? '' : 's'
-    } paused.`,
+    `${quietActive.length} quiet subscription${quietActive.length === 1 ? '' : 's'} paused.`,
   );
 }
 
@@ -1603,20 +1594,18 @@ export function bulkPauseQuiet(state: LocalLedgerState): LocalLedgerState {
 // Cycles (closed-cycle history)
 // ---------------------------------------------------------------------------------------------
 
-export function addCycle(
-  state: LocalLedgerState,
-  input: CreateCycleRecordInput,
-): LocalLedgerState {
+export function addCycle(state: LocalLedgerState, input: CreateCycleRecordInput): LocalLedgerState {
   const label = cleanTitle(input.label, 'Closed cycle');
   const spareMinor = assertNonNegativeSafeMinor(Math.abs(input.spareMinor), 'Cycle spare');
   const tightPointMinor = assertNonNegativeSafeMinor(
     Math.abs(input.tightPointMinor),
     'Cycle tight point',
   );
-  const setAsideMinor = assertNonNegativeSafeMinor(Math.abs(input.setAsideMinor), 'Cycle set aside');
-  const closedAt = createInstantString(
-    input.closedAt ?? `${state.asOfDate}T10:00:00.000Z`,
+  const setAsideMinor = assertNonNegativeSafeMinor(
+    Math.abs(input.setAsideMinor),
+    'Cycle set aside',
   );
+  const closedAt = createInstantString(input.closedAt ?? `${state.asOfDate}T10:00:00.000Z`);
   const index = state.cycles.length;
   const note = input.note?.trim();
   const record: CycleRecord = {
@@ -1771,7 +1760,8 @@ export function updateCalendarEvent(
 
   const nextDateIso =
     patch.dateIso === undefined ? target.dateIso : parseRequiredIsoDateInput(patch.dateIso);
-  const nextTitle = patch.title === undefined ? target.title : cleanTitle(patch.title, target.title);
+  const nextTitle =
+    patch.title === undefined ? target.title : cleanTitle(patch.title, target.title);
   const nextKind = patch.kind ?? target.kind;
 
   let nextAmountMinor: number | undefined;
@@ -2033,7 +2023,9 @@ function buildDraftFromStatementTransaction(
 
   const amountMinor = txn.direction === 'spend' ? -absoluteMinor : absoluteMinor;
   const original = `${merchant} ${formatMinorAmount(amountMinor)}`;
-  const provenanceHash = createLocalTextDigest(`ai:${dateIso}:${amountMinor}:${normalizeTitle(merchant)}`);
+  const provenanceHash = createLocalTextDigest(
+    `ai:${dateIso}:${amountMinor}:${normalizeTitle(merchant)}`,
+  );
   const rowId = localId('ai_statement_row', index);
 
   return {

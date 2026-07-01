@@ -137,7 +137,9 @@ export function DataControlScreen({
         {exported ? (
           <View style={layout.confirm}>
             <CheckGlyph color={t.positiveInk} size={18} />
-            <Muted style={[layout.confirmText, s.confirmText]}>A copy is ready on this device.</Muted>
+            <Muted style={[layout.confirmText, s.confirmText]}>
+              A copy is ready on this device.
+            </Muted>
           </View>
         ) : null}
       </View>
@@ -291,15 +293,19 @@ function SetBalanceSheet({
       <Eyebrow>Money you have now</Eyebrow>
       <Display style={sheet.title}>What do you actually have?</Display>
       <Muted style={sheet.lede}>
-        Set the cash you can see across your everyday accounts right now. Your path redraws from it —
-        nothing you've added is lost.
+        Set the cash you can see across your everyday accounts right now. Your path redraws from it
+        — nothing you've added is lost.
       </Muted>
 
       <Text style={[sheet.readout, s.updateBalanceText]}>{poundsLabel(amount)}</Text>
       <MoneyPad onChange={setAmount} value={amount} />
 
       <View style={sheet.footer}>
-        <QuietLink accessibilityHint="Closes without changing the figure." label="Not now" onPress={onClose} />
+        <QuietLink
+          accessibilityHint="Closes without changing the figure."
+          label="Not now"
+          onPress={onClose}
+        />
         <PrimaryAction
           caption={ready ? `now ${magnitude(amountMinor)}` : undefined}
           disabled={!ready}
@@ -405,7 +411,13 @@ function RevealRow({
       ]}
     >
       <View style={layout.rowText}>
-        <Text style={[layout.rowLabel, s.rowLabel, tone === 'negative' ? s.rowLabelNegative : undefined]}>
+        <Text
+          style={[
+            layout.rowLabel,
+            s.rowLabel,
+            tone === 'negative' ? s.rowLabelNegative : undefined,
+          ]}
+        >
           {label}
         </Text>
         <Text style={[layout.rowHint, s.rowHint]}>{hint}</Text>

@@ -1,4 +1,4 @@
-# TimelineScreen  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenTimeline.tsx)
+# TimelineScreen (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenTimeline.tsx)
 
 ## file
 
@@ -14,15 +14,15 @@ Reverse-chronological log of what the user added, edited, paused, ignored, or le
 
 ## docBlock
 
-@rn-screen    TimelineScreen
-@rn-stack     More > Timeline
-@purpose      Reverse-chronological log of what the user added or left.
-@reads        transactions, cycles
-@writes       removeTransaction
-@opens-sheet  edit-txn
-@copy         FROZEN
-@tokens       --surface --hairline --muted-ink --accent
-@motion       slide-in-r · press
+@rn-screen TimelineScreen
+@rn-stack More > Timeline
+@purpose Reverse-chronological log of what the user added or left.
+@reads transactions, cycles
+@writes removeTransaction
+@opens-sheet edit-txn
+@copy FROZEN
+@tokens --surface --hairline --muted-ink --accent
+@motion slide-in-r · press
 
 ## reads
 
@@ -82,41 +82,41 @@ Reverse-chronological log of what the user added, edited, paused, ignored, or le
 ## componentTree
 
 <TimelineScreen> (ScrollView, flex-1, px-7 pt-4, no scrollbar, entering=slide-in-r)
-  <Row justify-between align-center>            // header
-    <Pressable onPress={nav.back} press>        // back arrow "←", 20px, muted-ink
-    <Text eyebrow uppercase tracking-0.14em>Timeline</Text>
-    <View w-5 />                                 // spacer to center the label
-  </Row>
+<Row justify-between align-center> // header
+<Pressable onPress={nav.back} press> // back arrow "←", 20px, muted-ink
+<Text eyebrow uppercase tracking-0.14em>Timeline</Text>
+<View w-5 /> // spacer to center the label
+</Row>
 
-  <View mt-6>                                    // title block
-    <Text font-display 28px leading-tight>
-      Everything you've <Text accent>added</Text> or skipped.
-    </Text>
-    <Text 13px muted-ink mt-2>Newest first. Nothing is hidden.</Text>
-  </View>
+<View mt-6> // title block
+<Text font-display 28px leading-tight>
+Everything you've <Text accent>added</Text> or skipped.
+</Text>
+<Text 13px muted-ink mt-2>Newest first. Nothing is hidden.</Text>
+</View>
 
-  <View mt-6 relative>                           // timeline list
-    <View absolute left-7px top-2 bottom-2 w-1px bg-hairline />   // vertical rail
-    <View gap-5 (space-y-5)>
-      {entries.map((e,i) =>
-        <View key=i relative pl-7>               // row
-          <View absolute left-3px top-6px w-9px h-9px rounded-full
-                style={{ background: verbTone[e.verb], shadow: 0 0 0 3px --paper }} />  // marker dot + paper halo
-          <Text 10.5px uppercase tracking-0.14em muted-ink>{e.when}</Text>
-          <Text 14px mt-0.5>
-            <Text muted-ink>{e.verb} </Text><Text font-medium>{e.what}</Text>
-          </Text>
-          {e.note && <Text 12px muted-ink mt-0.5>{e.note}</Text>}
-          <Pressable onPress={()=>cycleCat(i)} press
-                     accessibilityLabel={`Category: ${cats[i] ?? "uncategorised"}. Tap to change.`}
-                     row align-center gap-1 px-2 py-0.5 rounded-full hairline bg-surface 10.5px muted-ink mt-1.5>
-            <View w-1.5 h-1.5 rounded-full bg={cats[i] ? accent : hairline} />
-            <Text>{cats[i] ?? "Add a label"}</Text>
-          </Pressable>
-        </View>
-      )}
-    </View>
-  </View>
+<View mt-6 relative> // timeline list
+<View absolute left-7px top-2 bottom-2 w-1px bg-hairline /> // vertical rail
+<View gap-5 (space-y-5)>
+{entries.map((e,i) =>
+<View key=i relative pl-7> // row
+<View absolute left-3px top-6px w-9px h-9px rounded-full
+style={{ background: verbTone[e.verb], shadow: 0 0 0 3px --paper }} /> // marker dot + paper halo
+<Text 10.5px uppercase tracking-0.14em muted-ink>{e.when}</Text>
+<Text 14px mt-0.5>
+<Text muted-ink>{e.verb} </Text><Text font-medium>{e.what}</Text>
+</Text>
+{e.note && <Text 12px muted-ink mt-0.5>{e.note}</Text>}
+<Pressable onPress={()=>cycleCat(i)} press
+accessibilityLabel={`Category: ${cats[i] ?? "uncategorised"}. Tap to change.`}
+row align-center gap-1 px-2 py-0.5 rounded-full hairline bg-surface 10.5px muted-ink mt-1.5>
+<View w-1.5 h-1.5 rounded-full bg={cats[i] ? accent : hairline} />
+<Text>{cats[i] ?? "Add a label"}</Text>
+</Pressable>
+</View>
+)}
+</View>
+</View>
 
   <View mt-6 mb-8>
     <MeloLine text="You can undo any of these. Nothing is locked." mood="soft" />
@@ -171,4 +171,3 @@ Reverse-chronological log of what the user added, edited, paused, ignored, or le
 - slide-in-r entrance -> reanimated entering (translateX 28->0 + fade, 360ms) or Animated on mount
 - rounded-full chip/dots -> borderRadius: 999
 - hairline utility (1px border) -> borderWidth:1, borderColor: theme.hairline (design specifies 1px, not StyleSheet.hairlineWidth)
-

@@ -347,142 +347,142 @@ function EditFoundItemSheet({
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-  flex: { flex: 1 },
-  screen: { gap: gap.lg },
-  head: { gap: gap.xs, paddingTop: gap.xs },
+    flex: { flex: 1 },
+    screen: { gap: gap.lg },
+    head: { gap: gap.xs, paddingTop: gap.xs },
 
-  // Italic "From your statement" kicker — web uses font-display italic, 13px, muted ink.
-  kicker: {
-    color: t.muted,
-    fontFamily: serif.displayItalic,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  title: {
-    color: t.ink,
-    fontFamily: serif.display,
-    fontSize: 27,
-    lineHeight: 33,
-    letterSpacing: -0.3,
-    marginTop: 2,
-  },
-  titleHeadline: { marginTop: 4 },
-  sub: { marginTop: gap.xs },
-  melo: { marginTop: gap.xs },
+    // Italic "From your statement" kicker — web uses font-display italic, 13px, muted ink.
+    kicker: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    title: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 27,
+      lineHeight: 33,
+      letterSpacing: -0.3,
+      marginTop: 2,
+    },
+    titleHeadline: { marginTop: 4 },
+    sub: { marginTop: gap.xs },
+    melo: { marginTop: gap.xs },
 
-  // Summary chips — near-white inset wells. "N found" is ink-medium; "clear" / "to check" are muted.
-  tallies: { flexDirection: 'row', gap: gap.xs, marginTop: gap.md },
-  tallyStrong: {
-    backgroundColor: t.inset,
-    borderRadius: radius.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  tallyStrongText: { color: t.ink, fontSize: 11, fontWeight: '600' },
-  tally: {
-    backgroundColor: t.inset,
-    borderRadius: radius.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  tallyText: { color: t.muted, fontSize: 11, fontWeight: '500' },
+    // Summary chips — near-white inset wells. "N found" is ink-medium; "clear" / "to check" are muted.
+    tallies: { flexDirection: 'row', gap: gap.xs, marginTop: gap.md },
+    tallyStrong: {
+      backgroundColor: t.inset,
+      borderRadius: radius.pill,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+    },
+    tallyStrongText: { color: t.ink, fontSize: 11, fontWeight: '600' },
+    tally: {
+      backgroundColor: t.inset,
+      borderRadius: radius.pill,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+    },
+    tallyText: { color: t.muted, fontSize: 11, fontWeight: '500' },
 
-  // Single surface card, web rounded-2xl (32) with a soft lift; rows hairline-divided inside.
-  list: {
-    backgroundColor: t.surface,
-    borderRadius: radius.xxl,
-    paddingHorizontal: gap.md,
-    ...elevation.card,
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: gap.sm, paddingVertical: 14 },
-  rowDivider: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: t.hairline,
-  },
+    // Single surface card, web rounded-2xl (32) with a soft lift; rows hairline-divided inside.
+    list: {
+      backgroundColor: t.surface,
+      borderRadius: radius.xxl,
+      paddingHorizontal: gap.md,
+      ...elevation.card,
+    },
+    row: { flexDirection: 'row', alignItems: 'center', gap: gap.sm, paddingVertical: 14 },
+    rowDivider: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.hairline,
+    },
 
-  // The web checkbox is a 20px SQUARE: accent fill + white tick when on, ink/40 border when off.
-  // Not a round green tick — square keeps the "tick each line" checklist reading.
-  check: {
-    width: 20,
-    height: 20,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkOn: { backgroundColor: t.calm, borderColor: t.calm },
-  // Web uses an ink/40 border on a transparent ground; `hairlineStrong` is the palette's strong
-  // divider and carries the same "quiet outline" relationship on BOTH grounds (a faint dark line on
-  // cream, a faint light line on warm-black) — so it replaces the light-only ink/40 literal.
-  checkOff: { backgroundColor: 'transparent', borderColor: t.hairlineStrong },
+    // The web checkbox is a 20px SQUARE: accent fill + white tick when on, ink/40 border when off.
+    // Not a round green tick — square keeps the "tick each line" checklist reading.
+    check: {
+      width: 20,
+      height: 20,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkOn: { backgroundColor: t.calm, borderColor: t.calm },
+    // Web uses an ink/40 border on a transparent ground; `hairlineStrong` is the palette's strong
+    // divider and carries the same "quiet outline" relationship on BOTH grounds (a faint dark line on
+    // cream, a faint light line on warm-black) — so it replaces the light-only ink/40 literal.
+    checkOff: { backgroundColor: 'transparent', borderColor: t.hairlineStrong },
 
-  rowBody: { flex: 1, minWidth: 0 },
-  rowName: { color: t.ink, fontSize: 14, fontWeight: '600' },
-  rowMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  rowMeta: { color: t.muted, fontSize: 11.5 },
-  // "to check" reads in caution amber, matching web text-[var(--caution)].
-  rowMetaCheck: { color: t.caution },
-  rowDot: { color: t.muted, fontSize: 11.5 },
+    rowBody: { flex: 1, minWidth: 0 },
+    rowName: { color: t.ink, fontSize: 14, fontWeight: '600' },
+    rowMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+    rowMeta: { color: t.muted, fontSize: 11.5 },
+    // "to check" reads in caution amber, matching web text-[var(--caution)].
+    rowMetaCheck: { color: t.caution },
+    rowDot: { color: t.muted, fontSize: 11.5 },
 
-  amount: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  amountIn: { color: t.positive },
-  amountOut: { color: t.ink },
+    amount: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
+    amountIn: { color: t.positive },
+    amountOut: { color: t.ink },
 
-  editButton: { paddingLeft: 2 },
-  editLabel: { color: t.muted, fontSize: 11.5 },
+    editButton: { paddingLeft: 2 },
+    editLabel: { color: t.muted, fontSize: 11.5 },
 
-  // Sticky footer: the CTA carries its own lift; "Leave for later" is the quiet secondary path.
-  footer: { gap: gap.xs, marginTop: gap.sm, alignItems: 'stretch' },
-  footerCta: { alignSelf: 'stretch' },
+    // Sticky footer: the CTA carries its own lift; "Leave for later" is the quiet secondary path.
+    footer: { gap: gap.xs, marginTop: gap.sm, alignItems: 'stretch' },
+    footerCta: { alignSelf: 'stretch' },
 
-  scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
-  sheet: {
-    backgroundColor: t.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: gap.xl,
-    paddingTop: gap.md,
-    paddingBottom: gap.xxxl,
-    maxHeight: '90%',
-  },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: t.hairline,
-    marginBottom: gap.lg,
-  },
-  sheetTitle: { color: t.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
-  label: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
-  input: {
-    borderBottomWidth: 1.5,
-    borderBottomColor: t.hairlineStrong,
-    paddingVertical: 8,
-    fontSize: 18,
-    color: t.ink,
-  },
-  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.xs, marginTop: gap.sm },
-  typeChip: {
-    borderRadius: radius.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderWidth: 1.5,
-    borderColor: t.hairline,
-    backgroundColor: t.surface,
-  },
-  typeChipOn: { borderColor: t.calm, backgroundColor: t.calmSoft },
-  typeChipText: { color: t.secondary, fontSize: 13.5, fontWeight: '600' },
-  typeChipTextOn: { color: t.calmStrong },
-  editAmount: {
-    color: t.ink,
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
-    textAlign: 'center',
-    paddingVertical: gap.xs,
-  },
-  editFooter: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
+    scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
+    sheet: {
+      backgroundColor: t.surface,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: gap.xl,
+      paddingTop: gap.md,
+      paddingBottom: gap.xxxl,
+      maxHeight: '90%',
+    },
+    sheetHandle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: t.hairline,
+      marginBottom: gap.lg,
+    },
+    sheetTitle: { color: t.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
+    label: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.lg },
+    input: {
+      borderBottomWidth: 1.5,
+      borderBottomColor: t.hairlineStrong,
+      paddingVertical: 8,
+      fontSize: 18,
+      color: t.ink,
+    },
+    typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.xs, marginTop: gap.sm },
+    typeChip: {
+      borderRadius: radius.pill,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderWidth: 1.5,
+      borderColor: t.hairline,
+      backgroundColor: t.surface,
+    },
+    typeChipOn: { borderColor: t.calm, backgroundColor: t.calmSoft },
+    typeChipText: { color: t.secondary, fontSize: 13.5, fontWeight: '600' },
+    typeChipTextOn: { color: t.calmStrong },
+    editAmount: {
+      color: t.ink,
+      fontSize: 34,
+      fontWeight: '800',
+      letterSpacing: -1,
+      fontVariant: ['tabular-nums'],
+      textAlign: 'center',
+      paddingVertical: gap.xs,
+    },
+    editFooter: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
   });
 }

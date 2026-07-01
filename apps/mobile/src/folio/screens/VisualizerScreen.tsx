@@ -78,13 +78,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import {
-  type Palette,
-  gap,
-  radius,
-  serif,
-  useTheme,
-} from '@/folio/theme';
+import { type Palette, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -133,13 +127,13 @@ export type CandidateMoneyItem = {
 // these restate the web's exact displayed labels (no new data) so the render stays byte-identical.
 type RowMeta = { date: string; type: string; status: 'ok' | 'check' };
 const SAMPLE_ROW_META: Readonly<Record<string, RowMeta>> = {
-  'Tesco': { date: '26 Jun', type: 'Groceries', status: 'ok' },
+  Tesco: { date: '26 Jun', type: 'Groceries', status: 'ok' },
   'Salary — Whitstone Ltd': { date: '25 Jun', type: 'Income', status: 'ok' },
   'Octopus Energy': { date: '24 Jun', type: 'Bill', status: 'ok' },
   'Transfer to Sarah': { date: '24 Jun', type: 'Unknown', status: 'check' },
   'Pret a Manger': { date: '23 Jun', type: 'Eating out', status: 'ok' },
-  'Klarna': { date: '22 Jun', type: 'Debt', status: 'check' },
-  'Spotify': { date: '22 Jun', type: 'Subscription', status: 'ok' },
+  Klarna: { date: '22 Jun', type: 'Debt', status: 'check' },
+  Spotify: { date: '22 Jun', type: 'Subscription', status: 'ok' },
   'Refund — ASOS': { date: '21 Jun', type: 'Unknown', status: 'check' },
 };
 
@@ -209,7 +203,8 @@ function inkAlpha(hex: string, alpha: number): string {
 function categoryFor(item: CandidateMoneyItem): Transaction['category'] {
   if (item.amount > 0) return 'income';
   const type = item.type.toLowerCase();
-  if (type.includes('bill') || type.includes('debt') || type.includes('subscription')) return 'bills';
+  if (type.includes('bill') || type.includes('debt') || type.includes('subscription'))
+    return 'bills';
   if (type.includes('grocer') || type.includes('eating') || type.includes('food')) return 'food';
   if (type.includes('transport') || type.includes('travel')) return 'transport';
   return 'other';
@@ -316,10 +311,7 @@ export function VisualizerScreen({
   const [editing, setEditing] = useState<CandidateMoneyItem | null>(null);
   // Local edits to candidates, keyed by the original merchant; applied over the sample for display.
   const [edits, setEdits] = useState<Record<string, CandidateMoneyItem>>({});
-  const items = useMemo(
-    () => candidates.map((c) => edits[c.merchant] ?? c),
-    [candidates, edits],
-  );
+  const items = useMemo(() => candidates.map((c) => edits[c.merchant] ?? c), [candidates, edits]);
 
   const count = Object.values(selected).filter(Boolean).length;
   const clearCount = items.filter((i) => i.status === 'ok').length;
@@ -342,8 +334,7 @@ export function VisualizerScreen({
       // Preserve the statement date the reader captured (whenIso, YYYY-MM-DD) so an imported item lands
       // on the day it ACTUALLY happened in the timeline + money path — not stamped "today". Falls back
       // to now only when the reader gave no usable date.
-      const isoDay =
-        item.whenIso && /^\d{4}-\d{2}-\d{2}$/.test(item.whenIso) ? item.whenIso : null;
+      const isoDay = item.whenIso && /^\d{4}-\d{2}-\d{2}$/.test(item.whenIso) ? item.whenIso : null;
       addTransaction({
         merchant: item.merchant,
         amount: item.amount,
@@ -414,10 +405,7 @@ export function VisualizerScreen({
   if (state === 'loading' && !loadingTimedOut) {
     return (
       <View
-        style={[
-          styles.loading,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl },
-        ]}
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
         <MeloLine mood="curious" text="One second — reading what's here." />
       </View>
@@ -427,11 +415,7 @@ export function VisualizerScreen({
   // populated / offline (and loading-after-timeout) — the real checklist. offline ≡ populated.
   return (
     <Animated.View
-      style={[
-        styles.screen,
-        enterStyle,
-        { backgroundColor: t.canvas, paddingTop: insets.top },
-      ]}
+      style={[styles.screen, enterStyle, { backgroundColor: t.canvas, paddingTop: insets.top }]}
     >
       {/* Header — back · "June statement" eyebrow · balancing spacer. */}
       <View style={styles.headerRow}>
@@ -458,11 +442,7 @@ export function VisualizerScreen({
         <Text style={styles.subhead}>Nothing is added until you choose.</Text>
 
         <View style={styles.summaryRow}>
-          <View
-            accessibilityRole="summary"
-            accessibilityLabel="Summary"
-            style={styles.chipsRow}
-          >
+          <View accessibilityRole="summary" accessibilityLabel="Summary" style={styles.chipsRow}>
             <View style={styles.chip}>
               <Text style={styles.chipStrongText}>{items.length} found</Text>
             </View>
@@ -492,7 +472,10 @@ export function VisualizerScreen({
             ]}
           >
             <Text
-              style={[styles.addAllText, items.length === 0 ? styles.addAllTextDisabled : undefined]}
+              style={[
+                styles.addAllText,
+                items.length === 0 ? styles.addAllTextDisabled : undefined,
+              ]}
             >
               Add all
             </Text>
@@ -633,11 +616,17 @@ function Checkbox({
       fill.value = checked ? 1 : 0;
       return;
     }
-    fill.value = withTiming(checked ? 1 : 0, { duration: CHECK_MS, easing: Easing.out(Easing.ease) });
+    fill.value = withTiming(checked ? 1 : 0, {
+      duration: CHECK_MS,
+      easing: Easing.out(Easing.ease),
+    });
   }, [checked, reduceMotion, fill]);
 
   // off-state border = the web's ink/40 (derived from the live palette), on = accent fill + border.
-  const uncheckedBorder = useMemo(() => inkAlpha(palette.ink, UNCHECKED_BORDER_ALPHA), [palette.ink]);
+  const uncheckedBorder = useMemo(
+    () => inkAlpha(palette.ink, UNCHECKED_BORDER_ALPHA),
+    [palette.ink],
+  );
   const boxStyle = useAnimatedStyle(() => ({
     backgroundColor: fill.value > 0.5 ? palette.calm : 'transparent',
     borderColor: fill.value > 0.5 ? palette.calm : uncheckedBorder,
@@ -729,12 +718,7 @@ function EditCandidateSheet({
   }
 
   return (
-    <Modal
-      animationType="slide"
-      transparent
-      visible={candidate !== null}
-      onRequestClose={onCancel}
-    >
+    <Modal animationType="slide" transparent visible={candidate !== null} onRequestClose={onCancel}>
       <Pressable accessibilityLabel="Cancel" style={styles.scrim} onPress={onCancel} />
       <View style={styles.sheet}>
         <View style={styles.sheetHandle} />

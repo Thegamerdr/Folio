@@ -38,10 +38,7 @@ import {
   useTheme,
 } from './kit';
 import { Kicker, MeloLine, ScreenHeader, type MeloTone } from './secondaryKit';
-import type {
-  DerivedCalendarEvent,
-  DerivedCalendarEventKind,
-} from '../../local/calendarEvents';
+import type { DerivedCalendarEvent, DerivedCalendarEventKind } from '../../local/calendarEvents';
 
 // ---------------------------------------------------------------------------
 // Props — the clean container contract
@@ -135,8 +132,18 @@ function kindColor(t: Palette, kind: DerivedCalendarEventKind): string {
 
 const WEEKDAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ] as const;
 const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
@@ -161,7 +168,15 @@ function shiftIso(iso: string, days: number): string {
   return isoOf(d);
 }
 
-const FULL_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+const FULL_WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const;
 
 /** "MON 14 JUL" style day header. */
 function dayHeader(iso: string): string {
@@ -564,7 +579,10 @@ function WeekView({
               </Text>
               <View style={layout.stripDots}>
                 {evs.slice(0, 4).map((e) => (
-                  <View key={e.id} style={[layout.dotSmall, { backgroundColor: kindColor(t, e.kind) }]} />
+                  <View
+                    key={e.id}
+                    style={[layout.dotSmall, { backgroundColor: kindColor(t, e.kind) }]}
+                  />
                 ))}
               </View>
             </View>
@@ -635,7 +653,8 @@ function MonthView({
     const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
     const arr: (Date | null)[] = [];
     for (let i = 0; i < startDow; i++) arr.push(null);
-    for (let d = 1; d <= daysInMonth; d++) arr.push(new Date(anchor.getFullYear(), anchor.getMonth(), d));
+    for (let d = 1; d <= daysInMonth; d++)
+      arr.push(new Date(anchor.getFullYear(), anchor.getMonth(), d));
     while (arr.length % 7 !== 0) arr.push(null);
     return arr;
   }, [anchor]);
@@ -707,7 +726,11 @@ function MonthView({
                 <Text
                   style={[
                     s.gridDayText,
-                    isSelected ? s.gridDayTextSelected : isTightest ? s.gridDayTextTight : undefined,
+                    isSelected
+                      ? s.gridDayTextSelected
+                      : isTightest
+                        ? s.gridDayTextTight
+                        : undefined,
                   ]}
                 >
                   {d.getDate()}
@@ -799,7 +822,7 @@ function DayPanel({
       <View style={layout.dayPanelHead}>
         <Text style={s.panelHead}>
           {dayHeader(dateIso)}
-          {isPast ? <Text style={s.panelPast}>  past</Text> : null}
+          {isPast ? <Text style={s.panelPast}> past</Text> : null}
         </Text>
         {typeof spareMinor === 'number' ? (
           <Text style={s.panelSpare}>{magnitude(Math.max(0, spareMinor))} left after</Text>
@@ -841,7 +864,7 @@ function EventRow({ event, props }: { event: DerivedCalendarEvent; props: Calend
               {KIND_LABEL[event.kind]}:{' '}
             </Text>
             {event.title}
-            {event.manual ? <Text style={s.youAdded}>  you added this</Text> : null}
+            {event.manual ? <Text style={s.youAdded}> you added this</Text> : null}
           </Text>
           {amt ? (
             <Text style={[s.eventAmount, event.kind === 'in' ? s.eventAmountIn : undefined]}>
@@ -1046,7 +1069,7 @@ function Sparkline({
   const points = values
     .map((v, i) => {
       const x = (i / (values.length - 1)) * 100;
-      const y = (height - 2) - ((v - minV) / span) * (height - 4);
+      const y = height - 2 - ((v - minV) / span) * (height - 4);
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(' ');
@@ -1065,7 +1088,7 @@ function Sparkline({
       {markTightest && tightIdx >= 0 ? (
         <Circle
           cx={(tightIdx / (values.length - 1)) * 100}
-          cy={(height - 2) - ((minV - minV) / span) * (height - 4)}
+          cy={height - 2 - ((minV - minV) / span) * (height - 4)}
           r={1.8}
           fill={color}
         />
@@ -1107,7 +1130,13 @@ const layout = StyleSheet.create({
   intro: { gap: gap.xs },
   body: { gap: gap.md },
 
-  tab: { flex: 1, height: 38, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  tab: {
+    flex: 1,
+    height: 38,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', rowGap: gap.sm },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: gap.xs, width: '50%' },
@@ -1125,7 +1154,13 @@ const layout = StyleSheet.create({
   trendCard: { paddingVertical: gap.md, paddingHorizontal: gap.md, gap: gap.xs },
   trendHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   strip: { flexDirection: 'row', gap: 4 },
-  stripCell: { flex: 1, alignItems: 'center', paddingVertical: gap.xs, borderRadius: radius.md, gap: 2 },
+  stripCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: gap.xs,
+    borderRadius: radius.md,
+    gap: 2,
+  },
   stripDots: { flexDirection: 'row', gap: 2, height: 6, alignItems: 'center' },
   dotSmall: { width: 4, height: 4, borderRadius: 2 },
   weekBlocks: { gap: gap.sm },
@@ -1134,7 +1169,13 @@ const layout = StyleSheet.create({
   monthWrap: { gap: gap.md },
   weekHead: { flexDirection: 'row' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  gridCell: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', padding: 2 },
+  gridCell: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+  },
   gridDay: {
     flex: 1,
     alignSelf: 'stretch',
@@ -1156,12 +1197,28 @@ const layout = StyleSheet.create({
   eventRow: { flexDirection: 'row', gap: gap.sm, alignItems: 'flex-start' },
   eventDot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },
   eventBody: { flex: 1, gap: 2 },
-  eventTitleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: gap.sm },
+  eventTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: gap.sm,
+  },
 
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: gap.sm, marginTop: 4 },
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: gap.sm,
+    marginTop: 4,
+  },
   subActions: { marginTop: 2, gap: 2 },
 
-  seeRoute: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: gap.sm },
+  seeRoute: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: gap.sm,
+  },
 });
 
 function makeStyles(t: Palette) {
@@ -1175,7 +1232,15 @@ function makeStyles(t: Palette) {
       borderRadius: radius.lg,
       backgroundColor: t.inset,
     },
-    tabActive: { backgroundColor: t.surface, ...{ shadowColor: t.ink, shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } } },
+    tabActive: {
+      backgroundColor: t.surface,
+      ...{
+        shadowColor: t.ink,
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 1 },
+      },
+    },
     tabLabel: { color: t.muted, fontSize: 13, fontWeight: '600' },
     tabLabelActive: { color: t.ink },
 
@@ -1193,15 +1258,38 @@ function makeStyles(t: Palette) {
     pillAccent: { color: t.calmStrong, fontWeight: '700' },
     pillJump: { color: t.calmStrong, fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
 
-    emptyHead: { color: t.ink, fontFamily: 'Fraunces_500Medium_Italic', fontSize: 16, textAlign: 'center' },
+    emptyHead: {
+      color: t.ink,
+      fontFamily: 'Fraunces_500Medium_Italic',
+      fontSize: 16,
+      textAlign: 'center',
+    },
     emptyLine: { color: t.muted, fontSize: 13, textAlign: 'center', marginTop: gap.xs },
 
     // Week
-    weekMonth: { color: t.muted, fontSize: 12, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase' },
-    trendLabel: { color: t.muted, fontSize: 10.5, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase' },
+    weekMonth: {
+      color: t.muted,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    trendLabel: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
     trendRange: { color: t.muted, fontSize: 11, fontVariant: ['tabular-nums'] },
     stripCellTight: { backgroundColor: t.calmSoft },
-    stripDow: { color: t.muted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+    stripDow: {
+      color: t.muted,
+      fontSize: 9.5,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+    },
     stripDate: { color: t.ink, fontSize: 14, fontVariant: ['tabular-nums'] },
     stripDateTight: { color: t.calmStrong, fontWeight: '700' },
 
@@ -1235,20 +1323,43 @@ function makeStyles(t: Palette) {
     },
     dayPanelTight: { backgroundColor: t.calmSoft, borderColor: t.calmSoft },
     dayPanelFocused: { borderColor: t.calm },
-    panelHead: { color: t.muted, fontSize: 10.5, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase' },
-    panelPast: { color: t.muted, fontStyle: 'italic', letterSpacing: 0, textTransform: 'none', fontWeight: '400' },
+    panelHead: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    panelPast: {
+      color: t.muted,
+      fontStyle: 'italic',
+      letterSpacing: 0,
+      textTransform: 'none',
+      fontWeight: '400',
+    },
     panelSpare: { color: t.muted, fontSize: 11, fontVariant: ['tabular-nums'] },
     panelEmpty: { color: t.muted, fontSize: 13, fontStyle: 'italic' },
 
     // Event row
     eventTitle: { flex: 1, color: t.ink, fontSize: 13 },
     youAdded: { color: t.muted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' },
-    eventAmount: { color: t.ink, fontSize: 13, fontFamily: 'Fraunces_600SemiBold', fontVariant: ['tabular-nums'] },
+    eventAmount: {
+      color: t.ink,
+      fontSize: 13,
+      fontFamily: 'Fraunces_600SemiBold',
+      fontVariant: ['tabular-nums'],
+    },
     eventAmountIn: { color: t.positiveInk },
     eventNote: { color: t.muted, fontSize: 11 },
     recurring: { color: t.muted, fontSize: 10.5, letterSpacing: 1, textTransform: 'uppercase' },
 
-    actionLabel: { color: t.muted, fontSize: 10.5, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
+    actionLabel: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '600',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
     nudge: {
       paddingHorizontal: 8,
       paddingVertical: 4,
@@ -1257,11 +1368,29 @@ function makeStyles(t: Palette) {
       borderColor: t.hairlineStrong,
     },
     nudgeLabel: { color: t.secondary, fontSize: 11, fontVariant: ['tabular-nums'] },
-    removeLabel: { color: t.repairInk, fontSize: 10.5, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
-    resetLabel: { color: t.calmStrong, fontSize: 10.5, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+    removeLabel: {
+      color: t.repairInk,
+      fontSize: 10.5,
+      fontWeight: '600',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    resetLabel: {
+      color: t.calmStrong,
+      fontSize: 10.5,
+      fontWeight: '700',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
     nudgedCaption: { color: t.calmStrong, fontSize: 10.5, fontStyle: 'italic' },
 
-    seeRouteLabel: { color: t.muted, fontSize: 11, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
+    seeRouteLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '600',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
     seeRouteArrow: { color: t.calmStrong, fontSize: 13, fontWeight: '700' },
 
     step: {
@@ -1284,7 +1413,12 @@ function makeStyles(t: Palette) {
       justifyContent: 'center',
       paddingHorizontal: 4,
     },
-    footerPrimaryLabel: { color: t.inverse, fontSize: 12.5, fontWeight: '700', textAlign: 'center' },
+    footerPrimaryLabel: {
+      color: t.inverse,
+      fontSize: 12.5,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
     footerGhost: {
       flex: 1,
       height: 48,

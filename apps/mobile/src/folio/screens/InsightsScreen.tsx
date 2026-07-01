@@ -56,7 +56,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, LinearGradient, Line, Path, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient,
+  Line,
+  Path,
+  Stop,
+  Text as SvgText,
+} from 'react-native-svg';
 import Animated, {
   Easing,
   useAnimatedProps,
@@ -444,7 +452,9 @@ function TrendChart({
     const y = CHART_PAD_Y + (CHART_H - CHART_PAD_Y * 2) * (1 - (c.tightPoint - minT) / range);
     return { x, y, c };
   });
-  const d = ptsArr.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const d = ptsArr
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(' ');
   const avgY = CHART_PAD_Y + (CHART_H - CHART_PAD_Y * 2) * (1 - (avgTight - minT) / range);
   const last = ptsArr[ptsArr.length - 1];
 

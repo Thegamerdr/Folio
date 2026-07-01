@@ -215,9 +215,7 @@ export function buildMeloSystemPrompt(
 /** Build a short instruction naming the user's subscriptions + pots so Melo refers to them by their
  *  real names. Returns undefined when the snapshot carries no names (nothing to reference). */
 function describeSnapshotNames(snapshot: MeloLocalFinancialSnapshot): string | undefined {
-  const subscriptions = (snapshot.subscriptionNames ?? []).filter(
-    (name) => name.trim().length > 0,
-  );
+  const subscriptions = (snapshot.subscriptionNames ?? []).filter((name) => name.trim().length > 0);
   const pots = (snapshot.potNames ?? []).filter((name) => name.trim().length > 0);
   if (subscriptions.length === 0 && pots.length === 0) {
     return undefined;

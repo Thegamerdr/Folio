@@ -18,12 +18,12 @@ plumbing: inject the key, forward, return the response.
 
 ## Endpoints
 
-| Method | Path                    | Purpose                                                        |
-| ------ | ----------------------- | ------------------------------------------------------------- |
-| `GET`  | `/`                     | Unauthenticated health check → `{ "ok": true, ... }`.         |
-| `POST` | `/v1/chat/completions`  | OpenAI-shaped chat request. Forwarded to OpenRouter.          |
-| `POST` | `/melo`                 | Alias for the chat path (same behaviour).                     |
-| `OPTIONS` | any                  | CORS preflight.                                               |
+| Method    | Path                   | Purpose                                               |
+| --------- | ---------------------- | ----------------------------------------------------- |
+| `GET`     | `/`                    | Unauthenticated health check → `{ "ok": true, ... }`. |
+| `POST`    | `/v1/chat/completions` | OpenAI-shaped chat request. Forwarded to OpenRouter.  |
+| `POST`    | `/melo`                | Alias for the chat path (same behaviour).             |
+| `OPTIONS` | any                    | CORS preflight.                                       |
 
 The RN client points its OpenAI base URL at the Worker, so its existing
 `POST {baseUrl}/chat/completions` call works unchanged.
@@ -40,10 +40,10 @@ default from `OPENROUTER_MODEL` (or `google/gemini-2.5-flash`).
 {
   "messages": [
     { "role": "system", "content": "You are Melo, ..." },
-    { "role": "user", "content": "how am i doing this month?" }
+    { "role": "user", "content": "how am i doing this month?" },
   ],
   "temperature": 0.6,
-  "stream": false
+  "stream": false,
   // "model" optional — injected if absent
 }
 ```
@@ -53,12 +53,12 @@ which the RN client already knows how to parse.
 
 ## Environment variables
 
-| Name                  | Kind            | Default                          | Notes                                                                 |
-| --------------------- | --------------- | -------------------------------- | --------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`  | **secret**      | _(required)_                     | Set with `wrangler secret put`. Never a literal, never logged.        |
-| `OPENROUTER_BASE_URL` | var             | `https://openrouter.ai/api/v1`   | Override to point at another OpenAI-compatible base.                  |
-| `OPENROUTER_MODEL`    | var             | `google/gemini-2.5-flash`    | Default model injected when the request omits `model`.                |
-| `GATEWAY_TOKEN`       | secret (or var) | _(unset)_                        | When set, requests must send a matching `x-folio-gateway-token`.      |
+| Name                  | Kind            | Default                        | Notes                                                            |
+| --------------------- | --------------- | ------------------------------ | ---------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`  | **secret**      | _(required)_                   | Set with `wrangler secret put`. Never a literal, never logged.   |
+| `OPENROUTER_BASE_URL` | var             | `https://openrouter.ai/api/v1` | Override to point at another OpenAI-compatible base.             |
+| `OPENROUTER_MODEL`    | var             | `google/gemini-2.5-flash`      | Default model injected when the request omits `model`.           |
+| `GATEWAY_TOKEN`       | secret (or var) | _(unset)_                      | When set, requests must send a matching `x-folio-gateway-token`. |
 
 The non-secret vars are declared in `wrangler.toml`. The secrets are set with the CLI below.
 

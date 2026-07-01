@@ -4,7 +4,7 @@
 
 **Partially addressed (sample/placeholder-data sub-issue closed; the row's core verdict stands).**
 
-- **Route detail reveal (was FAIL).** This report's FAIL was structural: a state badge repeated ~6× (one per `RouteRow`), "Show why" on every line, and raw engine copy. That structural redesign is **NOT** done. What *was* fixed tonight is a separate placeholder-data defect on the same surface: RouteDetailSheet's hardcoded Octopus/Rent fallback now resolves to an empty point on a cold/cleared app (`a3f81c9`, `eb6e0a0`). The repeated-badge / per-line "Show why" / engine-string FAIL remains open.
+- **Route detail reveal (was FAIL).** This report's FAIL was structural: a state badge repeated ~6× (one per `RouteRow`), "Show why" on every line, and raw engine copy. That structural redesign is **NOT** done. What _was_ fixed tonight is a separate placeholder-data defect on the same surface: RouteDetailSheet's hardcoded Octopus/Rent fallback now resolves to an empty point on a cold/cleared app (`a3f81c9`, `eb6e0a0`). The repeated-badge / per-line "Show why" / engine-string FAIL remains open.
 - **Review queue (was FAIL).** The FAIL here was layout/IA: six instrumentation panels stacking above the first row, and rows carrying no Waiting/Ready badge. That layout fix is **NOT** done. Tonight only purged sample/illustrative fallbacks from the reader path that feeds this queue — the Visualizer/Review/Paste/Image screens and the edit sheets now open as honest empty doorways / blank forms instead of falling back to sample rows or a fake "Tesco · £42 · 26 Jun" (`eb6e0a0`, `3783c9c`). The panel-stacking and per-row-badge FAIL remains open.
 
 **Hardening of rows already marked PASS (no verdict change; recorded for the reviewer's trace).**
@@ -16,7 +16,7 @@
 **New work outside this report's row set (logged so the reviewer sees the full session, not graded here).**
 
 - Melo mood wired from the real route via `derivePressure()`, gated so an empty app stays neutral; the mood picker sets a global override (`nav.setPressure`) propagating to Today/What-if/Melo/chat (`eb6e0a0`).
-- TimelineScreen headline/subhead had no color → black-on-dark and invisible in dark mode; now bound to theme ink/muted (`eb6e0a0`). (A token-contrast audit can't catch a *missing* color — only looking does.)
+- TimelineScreen headline/subhead had no color → black-on-dark and invisible in dark mode; now bound to theme ink/muted (`eb6e0a0`). (A token-contrast audit can't catch a _missing_ color — only looking does.)
 - Imported transactions keep their real statement date instead of being stamped "today" (`eb6e0a0`).
 - AI cost split: chat pins `gemini-2.5-flash-lite`; vision (`gemini-2.5-flash`) reserved for PDF/photo extraction; gateway allow-list rejects costlier models (`eb6e0a0`). Needs `wrangler deploy` + an OpenRouter spend cap to take effect.
 

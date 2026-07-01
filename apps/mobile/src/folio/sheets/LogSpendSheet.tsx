@@ -256,7 +256,12 @@ function CategoryChip({
       onPressIn={() => press(PRESS_SCALE)}
       onPressOut={() => press(1)}
       // Lift the 32px chip's touch target to the 44px minimum without changing its drawn height.
-      hitSlop={{ top: CHIP_TAP_SLOP, bottom: CHIP_TAP_SLOP, left: CHIP_TAP_SLOP, right: CHIP_TAP_SLOP }}
+      hitSlop={{
+        top: CHIP_TAP_SLOP,
+        bottom: CHIP_TAP_SLOP,
+        left: CHIP_TAP_SLOP,
+        right: CHIP_TAP_SLOP,
+      }}
     >
       <Animated.View
         style={[s.chip, selected ? s.chipSelected : s.chipUnselected, { transform: [{ scale }] }]}

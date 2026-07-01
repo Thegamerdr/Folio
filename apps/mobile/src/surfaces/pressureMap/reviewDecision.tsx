@@ -197,11 +197,7 @@ export function ImportReviewScreen({
 
         <View style={styles.emptyActions}>
           {isReading ? (
-            <View
-              accessibilityLiveRegion="polite"
-              accessibilityRole="text"
-              style={styles.reading}
-            >
+            <View accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.reading}>
               <Text style={styles.readingTitle}>Reading your statement…</Text>
               <Text style={styles.readingHint}>
                 One moment — Folio is finding the payments so you can check them.
@@ -215,9 +211,17 @@ export function ImportReviewScreen({
                 onPress={() => setPasteOpen(true)}
               />
               <View style={styles.intakeGrid}>
-                <IntakeTile label="Choose a file" hint="PDF · CSV · text" onPress={onPickDocument} />
+                <IntakeTile
+                  label="Choose a file"
+                  hint="PDF · CSV · text"
+                  onPress={onPickDocument}
+                />
                 {onPickImage ? (
-                  <IntakeTile label="Add an image" hint="screenshot · photo" onPress={onPickImage} />
+                  <IntakeTile
+                    label="Add an image"
+                    hint="screenshot · photo"
+                    onPress={onPickImage}
+                  />
                 ) : null}
                 {onCapturePhoto ? (
                   <IntakeTile
@@ -551,168 +555,168 @@ function EditSheet({
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-  flex: { flex: 1 },
+    flex: { flex: 1 },
 
-  // Editorial page rhythm: generous, uneven air. The decision leads and owns the top of the
-  // page; the action sits quiet below with a clear gap between them. Not a uniform card stack.
-  screen: { gap: gap.xl },
-  melo: { marginTop: gap.xs },
+    // Editorial page rhythm: generous, uneven air. The decision leads and owns the top of the
+    // page; the action sits quiet below with a clear gap between them. Not a uniform card stack.
+    screen: { gap: gap.xl },
+    melo: { marginTop: gap.xs },
 
-  // --- Empty state -------------------------------------------------------------------------
-  calmHeader: { gap: gap.sm, paddingTop: gap.lg },
-  calmBody: { color: t.secondary, marginTop: gap.xxs },
-  shape: {
-    alignItems: 'center',
-    gap: gap.sm,
-    paddingVertical: gap.xl,
-  },
-  shapeLabel: {
-    color: t.muted,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  emptyActions: { gap: gap.md },
-  emptyQuiet: { alignItems: 'center', gap: gap.xxs },
-  intakeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm },
-  intakeTile: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    backgroundColor: t.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: t.hairline,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: gap.md,
-  },
-  intakeTileLabel: { color: t.ink, fontSize: 14.5, fontWeight: '600' },
-  intakeTileHint: { color: t.muted, fontSize: 11.5, marginTop: 2 },
-  reading: {
-    backgroundColor: t.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: t.hairline,
-    borderRadius: 16,
-    paddingVertical: 20,
-    paddingHorizontal: gap.md,
-    gap: gap.xxs,
-  },
-  readingTitle: { color: t.ink, fontSize: 16, fontWeight: '700', fontFamily: serif.medium },
-  readingHint: { color: t.muted, fontSize: 13, lineHeight: 19 },
-  seeAll: { alignSelf: 'flex-start', marginTop: gap.xs },
-  seeAllText: { color: t.calmStrong, fontSize: 13.5, fontWeight: '700' },
+    // --- Empty state -------------------------------------------------------------------------
+    calmHeader: { gap: gap.sm, paddingTop: gap.lg },
+    calmBody: { color: t.secondary, marginTop: gap.xxs },
+    shape: {
+      alignItems: 'center',
+      gap: gap.sm,
+      paddingVertical: gap.xl,
+    },
+    shapeLabel: {
+      color: t.muted,
+      fontSize: 13,
+      fontWeight: '600',
+      letterSpacing: 0.3,
+    },
+    emptyActions: { gap: gap.md },
+    emptyQuiet: { alignItems: 'center', gap: gap.xxs },
+    intakeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm },
+    intakeTile: {
+      flexBasis: '47%',
+      flexGrow: 1,
+      backgroundColor: t.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      borderRadius: 14,
+      paddingVertical: 14,
+      paddingHorizontal: gap.md,
+    },
+    intakeTileLabel: { color: t.ink, fontSize: 14.5, fontWeight: '600' },
+    intakeTileHint: { color: t.muted, fontSize: 11.5, marginTop: 2 },
+    reading: {
+      backgroundColor: t.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      borderRadius: 16,
+      paddingVertical: 20,
+      paddingHorizontal: gap.md,
+      gap: gap.xxs,
+    },
+    readingTitle: { color: t.ink, fontSize: 16, fontWeight: '700', fontFamily: serif.medium },
+    readingHint: { color: t.muted, fontSize: 13, lineHeight: 19 },
+    seeAll: { alignSelf: 'flex-start', marginTop: gap.xs },
+    seeAllText: { color: t.calmStrong, fontSize: 13.5, fontWeight: '700' },
 
-  // --- Active decision ---------------------------------------------------------------------
-  decision: { gap: gap.sm, paddingTop: gap.md },
-  decisionHead: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  counter: { color: t.muted, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
+    // --- Active decision ---------------------------------------------------------------------
+    decision: { gap: gap.sm, paddingTop: gap.md },
+    decisionHead: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+    },
+    counter: { color: t.muted, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
 
-  // The serif question is the editorial hero — it leads the page at headline scale, set in the
-  // italic display face so the whole human question reads as the accent (the interpretation is
-  // the variable part, so the line carries the accent rather than splitting mid-word).
-  question: {
-    color: t.ink,
-    fontFamily: serif.displayItalic,
-    fontSize: 29,
-    lineHeight: 37,
-    letterSpacing: -0.3,
-    marginTop: gap.xs,
-  },
+    // The serif question is the editorial hero — it leads the page at headline scale, set in the
+    // italic display face so the whole human question reads as the accent (the interpretation is
+    // the variable part, so the line carries the accent rather than splitting mid-word).
+    question: {
+      color: t.ink,
+      fontFamily: serif.displayItalic,
+      fontSize: 29,
+      lineHeight: 37,
+      letterSpacing: -0.3,
+      marginTop: gap.xs,
+    },
 
-  // The amount is the figure that matters next to the verdict — large, tabular, given air.
-  amount: {
-    fontSize: 46,
-    lineHeight: 50,
-    fontWeight: '800',
-    letterSpacing: -1.4,
-    fontVariant: ['tabular-nums'],
-    marginTop: gap.md,
-  },
-  amountIn: { color: t.positiveInk }, // money in reads green — "you make it"
-  amountOut: { color: t.ink },
-  amountDirection: {
-    fontSize: 20,
-    lineHeight: 50,
-    fontWeight: '700',
-    letterSpacing: 0,
-    color: t.muted,
-  },
-  meta: { marginTop: gap.xxs },
+    // The amount is the figure that matters next to the verdict — large, tabular, given air.
+    amount: {
+      fontSize: 46,
+      lineHeight: 50,
+      fontWeight: '800',
+      letterSpacing: -1.4,
+      fontVariant: ['tabular-nums'],
+      marginTop: gap.md,
+    },
+    amountIn: { color: t.positiveInk }, // money in reads green — "you make it"
+    amountOut: { color: t.ink },
+    amountDirection: {
+      fontSize: 20,
+      lineHeight: 50,
+      fontWeight: '700',
+      letterSpacing: 0,
+      color: t.muted,
+    },
+    meta: { marginTop: gap.xxs },
 
-  consequence: { color: t.secondary, marginTop: gap.sm },
+    consequence: { color: t.secondary, marginTop: gap.sm },
 
-  flag: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-start',
-    marginTop: gap.xs,
-  },
-  flagDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.warm, marginTop: 7 },
-  flagText: { color: t.warmInk, fontSize: 14, lineHeight: 20, flex: 1 },
+    flag: {
+      flexDirection: 'row',
+      gap: 8,
+      alignItems: 'flex-start',
+      marginTop: gap.xs,
+    },
+    flagDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.warm, marginTop: 7 },
+    flagText: { color: t.warmInk, fontSize: 14, lineHeight: 20, flex: 1 },
 
-  // --- Actions -----------------------------------------------------------------------------
-  actions: { gap: gap.sm },
-  quietRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: gap.xl,
-  },
+    // --- Actions -----------------------------------------------------------------------------
+    actions: { gap: gap.sm },
+    quietRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: gap.xl,
+    },
 
-  moreToggle: { alignSelf: 'center', paddingVertical: 6, marginTop: gap.xxs },
-  moreToggleText: { color: t.muted, fontSize: 14, fontWeight: '600' },
+    moreToggle: { alignSelf: 'center', paddingVertical: 6, marginTop: gap.xxs },
+    moreToggleText: { color: t.muted, fontSize: 14, fontWeight: '600' },
 
-  moreGrid: { marginTop: gap.xs },
-  moreOption: { paddingVertical: 15 },
-  moreOptionText: { color: t.ink, fontSize: 16 },
-  moreCaption: {
-    color: t.muted,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-    paddingTop: gap.sm,
-  },
+    moreGrid: { marginTop: gap.xs },
+    moreOption: { paddingVertical: 15 },
+    moreOptionText: { color: t.ink, fontSize: 16 },
+    moreCaption: {
+      color: t.muted,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+      textTransform: 'uppercase',
+      paddingTop: gap.sm,
+    },
 
-  // --- Edit sheet --------------------------------------------------------------------------
-  scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
-  editSheet: {
-    backgroundColor: t.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: gap.xl,
-    paddingTop: gap.md,
-    paddingBottom: gap.xxxl,
-  },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: t.hairline,
-    marginBottom: gap.lg,
-  },
-  editTitle: { color: t.ink, fontSize: 22, fontWeight: '800', marginBottom: gap.md },
-  editLabel: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.sm },
-  input: {
-    borderBottomWidth: 1.5,
-    borderBottomColor: t.hairlineStrong,
-    paddingVertical: 8,
-    fontSize: 18,
-    color: t.ink,
-    marginBottom: gap.sm,
-  },
-  editAmount: {
-    color: t.ink,
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
-    textAlign: 'center',
-    paddingVertical: gap.xs,
-  },
-  editFooter: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
+    // --- Edit sheet --------------------------------------------------------------------------
+    scrim: { flex: 1, backgroundColor: 'rgba(26, 24, 21, 0.42)' },
+    editSheet: {
+      backgroundColor: t.surface,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: gap.xl,
+      paddingTop: gap.md,
+      paddingBottom: gap.xxxl,
+    },
+    sheetHandle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: t.hairline,
+      marginBottom: gap.lg,
+    },
+    editTitle: { color: t.ink, fontSize: 22, fontWeight: '800', marginBottom: gap.md },
+    editLabel: { color: t.muted, fontSize: 13, fontWeight: '700', marginTop: gap.sm },
+    input: {
+      borderBottomWidth: 1.5,
+      borderBottomColor: t.hairlineStrong,
+      paddingVertical: 8,
+      fontSize: 18,
+      color: t.ink,
+      marginBottom: gap.sm,
+    },
+    editAmount: {
+      color: t.ink,
+      fontSize: 34,
+      fontWeight: '800',
+      letterSpacing: -1,
+      fontVariant: ['tabular-nums'],
+      textAlign: 'center',
+      paddingVertical: gap.xs,
+    },
+    editFooter: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
   });
 }

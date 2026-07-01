@@ -136,7 +136,7 @@ function nextYearMonth(ymd: Ymd): string {
 function nextWeekday(now: Ymd, weekday: number): string {
   const target = ((Math.trunc(weekday) % DAYS_PER_WEEK) + DAYS_PER_WEEK) % DAYS_PER_WEEK;
   const current = weekdayOf(now);
-  const delta = ((target - current) % DAYS_PER_WEEK + DAYS_PER_WEEK) % DAYS_PER_WEEK;
+  const delta = (((target - current) % DAYS_PER_WEEK) + DAYS_PER_WEEK) % DAYS_PER_WEEK;
   return isoFromMillis(utcMillis(now) + delta * MILLIS_PER_DAY);
 }
 

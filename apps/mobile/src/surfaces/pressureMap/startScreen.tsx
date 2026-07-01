@@ -110,55 +110,55 @@ function SecondaryLink({ label, onPress }: { label: string; onPress: () => void 
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-  // Lovable rhythm: the type + Melo cluster at the top, the action + link row pinned to the foot,
-  // with air between (a flex spacer over a tall screen).
-  screen: { justifyContent: 'space-between', minHeight: 560, paddingTop: gap.lg },
-  top: { gap: 0 },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  // Web: font-display italic text-[15px].
-  wordmark: { color: t.ink, fontFamily: serif.displayItalic, fontSize: 15 },
-  // Web: text-[12px] muted, tracking-wide, uppercase.
-  privacy: {
-    color: t.muted,
-    fontSize: 12,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  privacyTap: { paddingVertical: 4, paddingHorizontal: 2 },
-  pressed: { opacity: 0.7 },
+    // Lovable rhythm: the type + Melo cluster at the top, the action + link row pinned to the foot,
+    // with air between (a flex spacer over a tall screen).
+    screen: { justifyContent: 'space-between', minHeight: 560, paddingTop: gap.lg },
+    top: { gap: 0 },
+    brandRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    // Web: font-display italic text-[15px].
+    wordmark: { color: t.ink, fontFamily: serif.displayItalic, fontSize: 15 },
+    // Web: text-[12px] muted, tracking-wide, uppercase.
+    privacy: {
+      color: t.muted,
+      fontSize: 12,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+    },
+    privacyTap: { paddingVertical: 4, paddingHorizontal: 2 },
+    pressed: { opacity: 0.7 },
 
-  // Web: mt-14 (56px) from the header to the hero.
-  hero: { marginTop: 56 },
-  // Web: font-display text-[42px] leading-[1.05] tracking-tight.
-  headline: { fontSize: 42, lineHeight: 44, letterSpacing: -0.8 },
-  // Web: mt-5 (20px), text-[15px] leading-relaxed muted, max-w-[300px].
-  sub: { color: t.muted, fontSize: 15, lineHeight: 24, maxWidth: 300, marginTop: 20 },
+    // Web: mt-14 (56px) from the header to the hero.
+    hero: { marginTop: 56 },
+    // Web: font-display text-[42px] leading-[1.05] tracking-tight.
+    headline: { fontSize: 42, lineHeight: 44, letterSpacing: -0.8 },
+    // Web: mt-5 (20px), text-[15px] leading-relaxed muted, max-w-[300px].
+    sub: { color: t.muted, fontSize: 15, lineHeight: 24, maxWidth: 300, marginTop: 20 },
 
-  // Web: mt-10 (40px) to Melo's line.
-  meloWrap: { marginTop: 40 },
+    // Web: mt-10 (40px) to Melo's line.
+    meloWrap: { marginTop: 40 },
 
-  // Web: <div className="flex-1" /> — the air that pushes the action cluster to the foot.
-  spacer: { flex: 1, minHeight: gap.xl },
+    // Web: <div className="flex-1" /> — the air that pushes the action cluster to the foot.
+    spacer: { flex: 1, minHeight: gap.xl },
 
-  bottom: { gap: 0 },
+    bottom: { gap: 0 },
 
-  // Web: mt-5 (20px) below the CTA, row of three links, justify-between, text-[12.5px] muted.
-  secondaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  linkTap: { paddingVertical: 4 },
-  linkLabel: { color: t.muted, fontSize: 12.5 },
-  // Web: <span className="w-px h-3 bg-[var(--hairline)]" /> — 1px × 12px vertical hairline.
-  linkDivider: { width: 1, height: 12, backgroundColor: t.hairline },
+    // Web: mt-5 (20px) below the CTA, row of three links, justify-between, text-[12.5px] muted.
+    secondaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 20,
+    },
+    linkTap: { paddingVertical: 4 },
+    linkLabel: { color: t.muted, fontSize: 12.5 },
+    // Web: <span className="w-px h-3 bg-[var(--hairline)]" /> — 1px × 12px vertical hairline.
+    linkDivider: { width: 1, height: 12, backgroundColor: t.hairline },
 
-  // Web: <div className="h-6" /> — 24px breathing room at the foot.
-  foot: { height: 24 },
+    // Web: <div className="h-6" /> — 24px breathing room at the foot.
+    foot: { height: 24 },
   });
 }

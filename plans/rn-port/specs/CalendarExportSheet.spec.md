@@ -1,4 +1,4 @@
-# CalendarExportSheet  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetCalendarExport.tsx)
+# CalendarExportSheet (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetCalendarExport.tsx)
 
 ## file
 
@@ -30,8 +30,6 @@ One-way calendar-feed sheet. Pulls the user's derived money dates (paydays, bill
 - setCopied / setTimeout(2000)
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -84,35 +82,35 @@ One-way calendar-feed sheet. Pulls the user's derived money dates (paydays, bill
 
 ## componentTree
 
-<Sheet onClose={onClose} title="Subscribe">  // gorhom BottomSheetModal in RN
-  <Row spaceBetween>
-    <Text eyebrow>Subscribe</Text>            // 11px uppercase tracking .14em, muted-ink
-    <Pressable onPress={onClose} aria-label="Close"><Text>×</Text></Pressable>  // press, 18px muted-ink
-  </Row>
-  <Text display h3>Your money dates, in your <Text accent>calendar.</Text></Text>  // Fraunces 26px leading-tight
-  <Text body muted>One-way — your money moves into your calendar app. Folio doesn't read anything back.</Text>  // 13px
-  <Card surface hairline rounded2xl p4 mt5>     // "What's included"
-    <Text eyebrow>What's included</Text>        // 10.5px uppercase
-    <List mt2 gap1.5 text13>
-      <Item><Dot positive/>Paydays</Item>
-      <Item><Dot negative/>Bills & renewals</Item>
-      <Item><Dot caution/>Deadlines</Item>
-      <Item><Dot accent/>Things to check</Item>
-    </List>
-    <Text mt3 italic tabular 11.5px muted>{events.length} dates in the next 35 days</Text>
-  </Card>
-  <Pressable onPress={handleDownload} accentBtn h54 rounded2xl mt5 press>  // bg accent, white, 15px medium
-    <Text>Download calendar file</Text>
-  </Pressable>
-  <View mt4>                                     // subscribe block
-    <Text eyebrow>Or subscribe</Text>
-    <Row mt2 gap2 alignCenter>
-      <TextInput readOnly value={webcal} inset hairline rounded-xl h11 tabular 12px muted onFocus={selectAll}/>
-      <Pressable onPress={handleCopy} surface hairline rounded-xl h11 px4 press><Text>{copied ? "Copied" : "Copy"}</Text></Pressable>
-    </Row>
-    <Text mt2 italic 11px muted>Live subscribe link ships with the phone app.</Text>
-  </View>
-  <Pressable onPress={onClose} h44 rounded2xl mt5 press><Text 13.5px muted center>Done</Text></Pressable>
+<Sheet onClose={onClose} title="Subscribe"> // gorhom BottomSheetModal in RN
+<Row spaceBetween>
+<Text eyebrow>Subscribe</Text> // 11px uppercase tracking .14em, muted-ink
+<Pressable onPress={onClose} aria-label="Close"><Text>×</Text></Pressable> // press, 18px muted-ink
+</Row>
+<Text display h3>Your money dates, in your <Text accent>calendar.</Text></Text> // Fraunces 26px leading-tight
+<Text body muted>One-way — your money moves into your calendar app. Folio doesn't read anything back.</Text> // 13px
+<Card surface hairline rounded2xl p4 mt5> // "What's included"
+<Text eyebrow>What's included</Text> // 10.5px uppercase
+<List mt2 gap1.5 text13>
+<Item><Dot positive/>Paydays</Item>
+<Item><Dot negative/>Bills & renewals</Item>
+<Item><Dot caution/>Deadlines</Item>
+<Item><Dot accent/>Things to check</Item>
+</List>
+<Text mt3 italic tabular 11.5px muted>{events.length} dates in the next 35 days</Text>
+</Card>
+<Pressable onPress={handleDownload} accentBtn h54 rounded2xl mt5 press> // bg accent, white, 15px medium
+<Text>Download calendar file</Text>
+</Pressable>
+<View mt4> // subscribe block
+<Text eyebrow>Or subscribe</Text>
+<Row mt2 gap2 alignCenter>
+<TextInput readOnly value={webcal} inset hairline rounded-xl h11 tabular 12px muted onFocus={selectAll}/>
+<Pressable onPress={handleCopy} surface hairline rounded-xl h11 px4 press><Text>{copied ? "Copied" : "Copy"}</Text></Pressable>
+</Row>
+<Text mt2 italic 11px muted>Live subscribe link ships with the phone app.</Text>
+</View>
+<Pressable onPress={onClose} h44 rounded2xl mt5 press><Text 13.5px muted center>Done</Text></Pressable>
 </Sheet>
 
 ## enginesNeeded
@@ -146,20 +144,21 @@ One-way calendar-feed sheet. Pulls the user's derived money dates (paydays, bill
 
 ## docBlock
 
-/**
- * @rn-sheet     CalendarExportSheet
- * @purpose      One-way calendar feed — download .ics or copy a webcal URL
- *               so paydays, bills, and deadlines land in the user's
- *               existing calendar app.
- * @reads        derived calendar events (passed in)
- * @writes       —
- * @copy         FROZEN
- * @tokens       --paper --accent --inset --hairline
- *
- * @rn-engine    Hosted webcal feed requires the RN sync engine. The web
- *               prototype ships only the .ics download — copy text is
- *               truthful about that.
- */
+/\*\*
+
+- @rn-sheet CalendarExportSheet
+- @purpose One-way calendar feed — download .ics or copy a webcal URL
+-               so paydays, bills, and deadlines land in the user's
+-               existing calendar app.
+- @reads derived calendar events (passed in)
+- @writes —
+- @copy FROZEN
+- @tokens --paper --accent --inset --hairline
+-
+- @rn-engine Hosted webcal feed requires the RN sync engine. The web
+-               prototype ships only the .ics download — copy text is
+-               truthful about that.
+  \*/
 
 ## moods
 
@@ -189,4 +188,3 @@ One-way calendar-feed sheet. Pulls the user's derived money dates (paydays, bill
 - navigator.clipboard → expo-clipboard setStringAsync (resolves; rework success/fail branch)
 - .sheet-in / .scrim-in keyframes → gorhom animation config + reanimated
 - press:active scale(0.97) → Pressable style fn / reanimated withTiming on press
-

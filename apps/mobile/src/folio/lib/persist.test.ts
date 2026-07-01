@@ -19,10 +19,7 @@ import { getPersistBlob, getState, hydrateFromBlob, resetAll, setPartial } from 
 
 // Mirror of persist.ts `makeDebounced` — kept in lockstep with the original.
 // Pure (global timers only); copied so this test imports no expo.
-function makeDebounced(
-  fn: () => void,
-  ms: number,
-): { run: () => void; cancel: () => void } {
+function makeDebounced(fn: () => void, ms: number): { run: () => void; cancel: () => void } {
   let handle: ReturnType<typeof setTimeout> | null = null;
   const cancel = () => {
     if (handle !== null) {
@@ -71,7 +68,14 @@ describe('persist blob round-trip', () => {
   it('preserves transactions and pots across the round-trip', () => {
     setPartial({
       transactions: [
-        { id: 'rt-1', when: '2026-06-01T00:00:00.000Z', merchant: 'Round Trip', amount: -9.99, category: 'fun', source: 'manual' },
+        {
+          id: 'rt-1',
+          when: '2026-06-01T00:00:00.000Z',
+          merchant: 'Round Trip',
+          amount: -9.99,
+          category: 'fun',
+          source: 'manual',
+        },
       ],
     });
     const blob = getPersistBlob();

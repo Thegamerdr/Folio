@@ -1,4 +1,4 @@
-# PdfFallbackScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPdfFallback.tsx)
+# PdfFallbackScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPdfFallback.tsx)
 
 ## file
 
@@ -14,15 +14,15 @@ Failure-state screen shown when the statement (PDF) reader could not produce rev
 
 ## docBlock
 
-@rn-screen    PdfFallbackScreen
-@rn-stack     Intake > Statement not read
-@purpose      Failure state when the PDF reader cannot produce review candidates.
-@reads        —
-@writes       —
-@opens-sheet  edit-item
-@copy         FROZEN
-@tokens       --surface --hairline --muted-ink
-@motion       slide-in-r · press
+@rn-screen PdfFallbackScreen
+@rn-stack Intake > Statement not read
+@purpose Failure state when the PDF reader cannot produce review candidates.
+@reads —
+@writes —
+@opens-sheet edit-item
+@copy FROZEN
+@tokens --surface --hairline --muted-ink
+@motion slide-in-r · press
 
 ## reads
 
@@ -213,4 +213,3 @@ Failure-state screen shown when the statement (PDF) reader could not produce rev
 - Safe-area: web has no notch handling; RN must wrap top bar in SafeAreaView / useSafeAreaInsets and respect the bottom gesture inset for the footer CTAs (per folio device-iteration gotchas).
 - Dead store imports (~16 actions) are noise; do NOT replicate them in the RN component — RN screen needs only `nav`.
 - Reduced motion: slide-in-r must collapse to final state (AccessibilityInfo.isReduceMotionEnabled), and Melo idle breathe/blink inside MeloLine must also respect it.
-

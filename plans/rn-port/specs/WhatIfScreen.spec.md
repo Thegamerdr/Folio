@@ -1,4 +1,4 @@
-# WhatIfScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenWhatIf.tsx)
+# WhatIfScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenWhatIf.tsx)
 
 ## file
 
@@ -11,17 +11,18 @@ WhatIfScreen
 ## purpose
 
 Spend-preview slider. The user dials a hypothetical "spend £X today" amount with −/+ steppers (default £40, step £5, clamp 0..500); the screen recomputes in real time — with a count-up — what their new lowest point to payday would be, how many days that lowest figure would cover, and whether it breaches their Melo-set floor or would eat into pots. A mini money-path SVG redraws its dip as the amount changes. Strictly read-only "quiet experiment": nothing is ever committed (closing copy "Close — nothing was added"). @rn-stack: More > What if.</purpose>
-<parameter name="docBlock">/**
- * @rn-screen    WhatIfScreen
- * @rn-stack     More > What if
- * @purpose      Spend-preview slider — see the tight point shift as you "spend" hypothetically.
- * @reads        tightPointGoal, pots
- * @writes       —
- * @opens-sheet  melo-chat
- * @copy         FROZEN
- * @tokens       --paper --accent --positive --negative
- * @motion       count-up on tight-point figure · slide-in-r
- */
+<parameter name="docBlock">/\*\*
+
+- @rn-screen WhatIfScreen
+- @rn-stack More > What if
+- @purpose Spend-preview slider — see the tight point shift as you "spend" hypothetically.
+- @reads tightPointGoal, pots
+- @writes —
+- @opens-sheet melo-chat
+- @copy FROZEN
+- @tokens --paper --accent --positive --negative
+- @motion count-up on tight-point figure · slide-in-r
+  \*/
 
 ## reads
 
@@ -95,63 +96,63 @@ Spend-preview slider. The user dials a hypothetical "spend £X today" amount wit
 ## componentTree
 
 <ScrollView contentContainerStyle={px28 pt16} showsVerticalScrollIndicator={false} entering={SlideInRight}>
-  {/* Header */}
-  <View row spaceBetween alignCenter>
-    <Pressable onPress={nav.back} hitSlop><Text muted size20>←</Text></Pressable>
-    <Text eyebrow muted upper tracking>Preview</Text>
-    <View width20 /> {/* balance spacer */}
-  </View>
+{/_ Header _/}
+<View row spaceBetween alignCenter>
+<Pressable onPress={nav.back} hitSlop><Text muted size20>←</Text></Pressable>
+<Text eyebrow muted upper tracking>Preview</Text>
+<View width20 /> {/_ balance spacer _/}
+</View>
 
-  {/* Title */}
-  <View mt20>
-    <Text fontDisplay italic size13 muted>A quiet experiment</Text>
-    <Text fontDisplay size30 lh1.05 mt4>What if I spend <Text accent>£{amount}</Text> today?</Text>
-  </View>
+{/_ Title _/}
+<View mt20>
+<Text fontDisplay italic size13 muted>A quiet experiment</Text>
+<Text fontDisplay size30 lh1.05 mt4>What if I spend <Text accent>£{amount}</Text> today?</Text>
+</View>
 
-  {/* Spend card */}
-  <View card surface hairline rounded2xl p20 mt20>
-    <View row spaceBetween alignCenter>
-      <Pressable onPress={()=>setAmount(v=>max(0,v-5))} inset hairline round44><Text size20>−</Text></Pressable>
-      <View center>
-        <Money value={`£${amount}`} size="xl" tone="accent" />
-        <Text caption upper tracking mt4>today's spend</Text>
-      </View>
-      <Pressable onPress={()=>setAmount(v=>min(500,v+5))} inset hairline round44><Text size20>+</Text></Pressable>
-    </View>
-    {/* mini path — react-native-svg, replay route-draw on amount change */}
-    <Svg viewBox="0 0 390 200" width=100% height140 mt16>
-      <Path d={d} stroke=hairline sw1 dash={[2,4]} />
-      <Path d={d} stroke=accent sw2.4 round animatedDashoffset />
-      <Circle cx372 cy50 r5 fill=accent />
-      <SvgText x350 y40 displayItalic size10 fill=ink>payday</SvgText>
-      <Circle cx300 cy={dipY} r3.5 fill=ink />
-      <SvgText x245 y={dipY+18} displayItalic size10 fill=mutedInk>lowest point</SvgText>
-    </Svg>
-  </View>
+{/_ Spend card _/}
+<View card surface hairline rounded2xl p20 mt20>
+<View row spaceBetween alignCenter>
+<Pressable onPress={()=>setAmount(v=>max(0,v-5))} inset hairline round44><Text size20>−</Text></Pressable>
+<View center>
+<Money value={`£${amount}`} size="xl" tone="accent" />
+<Text caption upper tracking mt4>today's spend</Text>
+</View>
+<Pressable onPress={()=>setAmount(v=>min(500,v+5))} inset hairline round44><Text size20>+</Text></Pressable>
+</View>
+{/_ mini path — react-native-svg, replay route-draw on amount change _/}
+<Svg viewBox="0 0 390 200" width=100% height140 mt16>
+<Path d={d} stroke=hairline sw1 dash={[2,4]} />
+<Path d={d} stroke=accent sw2.4 round animatedDashoffset />
+<Circle cx372 cy50 r5 fill=accent />
+<SvgText x350 y40 displayItalic size10 fill=ink>payday</SvgText>
+<Circle cx300 cy={dipY} r3.5 fill=ink />
+<SvgText x245 y={dipY+18} displayItalic size10 fill=mutedInk>lowest point</SvgText>
+</Svg>
+</View>
 
-  {/* Stat tiles */}
-  <View row gap10 mt16>
-    <View tile surface hairline rounded2xl px16 py16 flex1>
-      <Text caption upper tracking>New lowest</Text>
-      <Money value={formatGBP(round(lowDisplay))} size="md" tone={breachesGoal||newLow<50?"negative":"ink"} />
-      {tightPointGoal!==null && <Text caption tabular mt4 color={breachesGoal?negative:mutedInk}>floor £{tightPointGoal}</Text>}
-    </View>
-    <View tile surface hairline rounded2xl px16 py16 flex1>
-      <Text caption upper tracking>Days this would last</Text>
-      <Money value={`${coverDisplay.toFixed(1)}d`} size="md" tone={daysCover<5?"negative":"ink"} />
-      <Text caption tabular mt4 muted>£{potsTotal} in pots</Text>
-    </View>
-  </View>
+{/_ Stat tiles _/}
+<View row gap10 mt16>
+<View tile surface hairline rounded2xl px16 py16 flex1>
+<Text caption upper tracking>New lowest</Text>
+<Money value={formatGBP(round(lowDisplay))} size="md" tone={breachesGoal||newLow<50?"negative":"ink"} />
+{tightPointGoal!==null && <Text caption tabular mt4 color={breachesGoal?negative:mutedInk}>floor £{tightPointGoal}</Text>}
+</View>
+<View tile surface hairline rounded2xl px16 py16 flex1>
+<Text caption upper tracking>Days this would last</Text>
+<Money value={`${coverDisplay.toFixed(1)}d`} size="md" tone={daysCover<5?"negative":"ink"} />
+<Text caption tabular mt4 muted>£{potsTotal} in pots</Text>
+</View>
+</View>
 
-  {/* Melo line */}
-  <View row alignStart gap12 mt20>
-    <Melo size={28} mood={dynamicMood} />
-    <Text fontDisplay italic size13 flex1 muted>{meloLine}</Text>
-  </View>
+{/_ Melo line _/}
+<View row alignStart gap12 mt20>
+<Melo size={28} mood={dynamicMood} />
+<Text fontDisplay italic size13 flex1 muted>{meloLine}</Text>
+</View>
 
-  {/* CTAs */}
-  <Pressable onPress={()=>nav.go("today")} accent rounded2xl h54 mt20 mb12 center><Text white medium size15>See it on your money path</Text></Pressable>
-  <Pressable onPress={nav.back} h44 mb32 center><Text muted size13>Close — nothing was added</Text></Pressable>
+{/_ CTAs _/}
+<Pressable onPress={()=>nav.go("today")} accent rounded2xl h54 mt20 mb12 center><Text white medium size15>See it on your money path</Text></Pressable>
+<Pressable onPress={nav.back} h44 mb32 center><Text muted size13>Close — nothing was added</Text></Pressable>
 </ScrollView>
 
 ## enginesNeeded
@@ -159,14 +160,14 @@ Spend-preview slider. The user dials a hypothetical "spend £X today" amount wit
 - Money path engine (RN, NEW) — supplies the real lowest-to-payday baseline (faked here via pressureLow[pressure]); newLow = baseLow − amount, and the dip shape derives from it. Replace the pressure constant with the engine's current low figure.
 - Pot engine / store — potsTotal = sum of pots[].saved (read-only).
 - tightPointGoal — set elsewhere (store setTightPointGoal ~line 479); read-only here for breachesGoal.
-- daysCover heuristic: max(0, round((newLow/28)*10)/10) — burn-rate stand-in (28 = days/cycle magic number); RN should source real daily burn from the money-path engine.
+- daysCover heuristic: max(0, round((newLow/28)\*10)/10) — burn-rate stand-in (28 = days/cycle magic number); RN should source real daily burn from the money-path engine.
 - No network, no async, no statement/photo readers — fully synchronous local compute.
 
 ## fidelityRisks
 
 - Mood mapping: web kit takes calm|soft|alert; MELO_MOODS canon is calm|curious|cheer|concern|celebrate and says WhatIf=curious. Map the dynamic severity (alert/soft/calm) to canonical moods AND reconcile with the curious baseline; document. Decorative (copy carries meaning) but don't ship an unmapped 'alert'.
 - count-up here is 380ms (not 700) and route-draw is 900ms (not 2200). Honor the IN-CODE values — they replay on every stepper tap, so the table defaults would feel laggy.
-- SVG path must replay on amount change. Web uses key={amount} on <svg>. In RN, re-trigger animated strokeDashoffset via useEffect keyed on amount (or animate pathLength). dipY = min(190,130+amount*0.55) shifts the lowest-point dot AND label y — keep both bound to amount.
+- SVG path must replay on amount change. Web uses key={amount} on <svg>. In RN, re-trigger animated strokeDashoffset via useEffect keyed on amount (or animate pathLength). dipY = min(190,130+amount\*0.55) shifts the lowest-point dot AND label y — keep both bound to amount.
 - Money values never slide — count-up only. Tiles use useCountUp; the center £{amount} uses Money directly (instant, correct — it's the input). Don't animate the stepper value.
 - Negative-tone thresholds are load-bearing: New lowest negative when breachesGoal||newLow<50; Days negative when daysCover<5; floor caption negative only on breach. Preserve exactly.
 - Clamp/step exact: −5 floored at 0, +5 capped at 500. tightPointGoal===null hides the floor caption (default seed ships null).
@@ -203,4 +204,3 @@ Spend-preview slider. The user dials a hypothetical "spend £X today" amount wit
 - nav.go/back (local) → @react-navigation native stack
 - slide-in-r class → reanimated entering={SlideInRight} (translateX 28→0, 360ms)
 - text-white on accent → theme.primaryForeground (#FFF)
-

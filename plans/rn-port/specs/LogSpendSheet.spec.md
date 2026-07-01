@@ -1,4 +1,4 @@
-# LogSpendSheet  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetLogSpend.tsx)
+# LogSpendSheet (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetLogSpend.tsx)
 
 ## file
 
@@ -111,11 +111,11 @@ Quick manual spend entry — capture merchant, amount, and category, then write 
 
 ## docBlock
 
-/**
- * @rn-sheet     LogSpendSheet
- * @purpose      Quick manual spend entry — merchant, amount, category.
- * @writes       addTransaction
- * @copy         FROZEN
- * @tokens       --surface --hairline --accent
- */
+/\*\*
 
+- @rn-sheet LogSpendSheet
+- @purpose Quick manual spend entry — merchant, amount, category.
+- @writes addTransaction
+- @copy FROZEN
+- @tokens --surface --hairline --accent
+  \*/

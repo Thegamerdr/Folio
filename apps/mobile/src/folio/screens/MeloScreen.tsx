@@ -66,14 +66,7 @@
 // in any visible string. Tokens only; tap targets are >=44px (full-width rows) or carry hitSlop.
 
 import { useEffect, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -188,10 +181,7 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
   if (state === 'loading') {
     return (
       <View
-        style={[
-          styles.loading,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.huge },
-        ]}
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.huge }]}
       >
         <MeloLine mood="curious" text="One moment — Melo's settling in." />
       </View>
@@ -242,12 +232,7 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
         {/* Hero card — surface, hairline, rounded-2xl. Melo at 120 reflecting the active band's mood,
             with her quoted line beneath in Fraunces italic. (Web intensity={1.4} has no RN prop — the
             canonical mood tilt is rendered; see FIDELITY DECISIONS.) */}
-        <View
-          style={[
-            styles.heroCard,
-            { backgroundColor: t.surface, borderColor: t.hairline },
-          ]}
-        >
+        <View style={[styles.heroCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <Melo size={HERO_MELO_SIZE} mood={heroMood} grounded />
           <Text style={[styles.heroLine, { color: t.muted }]}>{`“${heroLine}”`}</Text>
         </View>
@@ -277,13 +262,9 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
                 <Melo size={ROW_MELO_SIZE} mood={pressureMood[p]} grounded />
                 <View style={styles.rowText}>
                   <Text style={[styles.rowLabel, { color: t.ink }]}>{p}</Text>
-                  <Text style={[styles.rowLine, { color: t.muted }]}>
-                    {`“${pressureLine[p]}”`}
-                  </Text>
+                  <Text style={[styles.rowLine, { color: t.muted }]}>{`“${pressureLine[p]}”`}</Text>
                 </View>
-                {isActive ? (
-                  <Text style={[styles.rowDot, { color: t.calm }]}>●</Text>
-                ) : null}
+                {isActive ? <Text style={[styles.rowDot, { color: t.calm }]}>●</Text> : null}
               </Pressable>
             );
           })}

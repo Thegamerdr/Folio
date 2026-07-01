@@ -1,4 +1,4 @@
-# ImageSuccessScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenImageSuccess.tsx)
+# ImageSuccessScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenImageSuccess.tsx)
 
 ## file
 
@@ -71,51 +71,51 @@ Confirmation step after a photo is added to Folio. Shows "Text found" in the pho
 
 ## componentTree
 
-<ScrollView contentContainerStyle={paddingH:28, paddingTop:16} showsVerticalScrollIndicator={false} entering={SlideInRight}>  // .slide-in-r + no-scrollbar
-  <View row spaceBetween alignCenter>            // header
-    <Pressable onPress={nav.back}><Text muted size20>←</Text></Pressable>  // .press
-    <Text muted size12 uppercase tracking0.14em>Image</Text>
-    <View width20 />                              // spacer to balance arrow
-  </View>
-  <View marginTop24>                              // title block (mt-6)
-    <Text fontDisplay italic size13 color=positive>Text found</Text>
-    <Text fontDisplay size30 lineTight marginTop4>Folio <Text accent>read</Text> your image.</Text>
-    <Text size13.5 muted marginTop12 lineRelaxed>Check what you want to add. Nothing counts until you choose.</Text>
-  </View>
-  <View marginTop24 bg=surface hairline radius2xl padding20>   // found card
-    <View row gap12 alignCenter>                  // file row
-      <View w56 h64 radiusLg bg=inset hairline overflowHidden><PaperGrain opacity0.5 absoluteFill /></View>
-      <View flex1 minWidth0>
-        <Text size14 medium numberOfLines={1}>IMG_2643.jpg</Text>
-        <Text size11.5 muted marginTop2>saved in Folio</Text>
-      </View>
-    </View>
-    <View height={StyleSheet.hairlineWidth} bg=hairline marginV20 />   // divider (h-px)
-    <View>
-      <Text size11 uppercase tracking0.14em muted>2 things found</Text>
-      <View marginTop12 gap12>                    // space-y-3
-        {items.map(r => (
-          <View key={r.merchant} row gap12 alignCenter>   // optionally Pressable -> openSheet('edit-item')
-            <View w6 h6 radiusFull bg=accent />  // bullet dot
-            <View flex1 minWidth0>
-              <Text size13.5 medium numberOfLines={1}>{r.merchant}</Text>
-              <Text size11.5 muted italic>{r.hint}</Text>
-            </View>
-            <Money value={r.amount} size="sm" />
-          </View>
-        ))}
-      </View>
-    </View>
-  </View>
-  <View marginTop20><MeloLine text="Add it only if it belongs." mood="soft" /></View>
-  <View flex1 />                                   // pushes CTAs to bottom (flex spacer)
-  <Pressable onPress={() => nav.go('visualizer')} style={{height:58, radius2xl, bg:accent, shadow:'0 12px 24px -10px rgba(224,99,58,0.55)'}}>  // .press
-    <Text white medium size15.5>Check what Folio found</Text>
-  </Pressable>
-  <Pressable onPress={() => nav.go('intake')} style={{marginTop8, height:46, radius2xl}}>  // .press, ghost
-    <Text size13 muted>Use a different image</Text>
-  </Pressable>
-  <View height16 />                                // bottom breathing room
+<ScrollView contentContainerStyle={paddingH:28, paddingTop:16} showsVerticalScrollIndicator={false} entering={SlideInRight}> // .slide-in-r + no-scrollbar
+<View row spaceBetween alignCenter> // header
+<Pressable onPress={nav.back}><Text muted size20>←</Text></Pressable> // .press
+<Text muted size12 uppercase tracking0.14em>Image</Text>
+<View width20 /> // spacer to balance arrow
+</View>
+<View marginTop24> // title block (mt-6)
+<Text fontDisplay italic size13 color=positive>Text found</Text>
+<Text fontDisplay size30 lineTight marginTop4>Folio <Text accent>read</Text> your image.</Text>
+<Text size13.5 muted marginTop12 lineRelaxed>Check what you want to add. Nothing counts until you choose.</Text>
+</View>
+<View marginTop24 bg=surface hairline radius2xl padding20> // found card
+<View row gap12 alignCenter> // file row
+<View w56 h64 radiusLg bg=inset hairline overflowHidden><PaperGrain opacity0.5 absoluteFill /></View>
+<View flex1 minWidth0>
+<Text size14 medium numberOfLines={1}>IMG_2643.jpg</Text>
+<Text size11.5 muted marginTop2>saved in Folio</Text>
+</View>
+</View>
+<View height={StyleSheet.hairlineWidth} bg=hairline marginV20 /> // divider (h-px)
+<View>
+<Text size11 uppercase tracking0.14em muted>2 things found</Text>
+<View marginTop12 gap12> // space-y-3
+{items.map(r => (
+<View key={r.merchant} row gap12 alignCenter> // optionally Pressable -> openSheet('edit-item')
+<View w6 h6 radiusFull bg=accent /> // bullet dot
+<View flex1 minWidth0>
+<Text size13.5 medium numberOfLines={1}>{r.merchant}</Text>
+<Text size11.5 muted italic>{r.hint}</Text>
+</View>
+<Money value={r.amount} size="sm" />
+</View>
+))}
+</View>
+</View>
+</View>
+<View marginTop20><MeloLine text="Add it only if it belongs." mood="soft" /></View>
+<View flex1 /> // pushes CTAs to bottom (flex spacer)
+<Pressable onPress={() => nav.go('visualizer')} style={{height:58, radius2xl, bg:accent, shadow:'0 12px 24px -10px rgba(224,99,58,0.55)'}}> // .press
+<Text white medium size15.5>Check what Folio found</Text>
+</Pressable>
+<Pressable onPress={() => nav.go('intake')} style={{marginTop8, height:46, radius2xl}}> // .press, ghost
+<Text size13 muted>Use a different image</Text>
+</Pressable>
+<View height16 /> // bottom breathing room
 </ScrollView>
 
 ## enginesNeeded
@@ -141,17 +141,18 @@ Confirmation step after a photo is added to Folio. Shows "Text found" in the pho
 
 ## docBlock
 
-/**
- * @rn-screen    ImageSuccessScreen
- * @rn-stack     Intake > Text found
- * @purpose      Show text Folio read from a photo, ready to check before adding.
- * @reads        —
- * @writes       —
- * @opens-sheet  edit-item
- * @copy         FROZEN
- * @tokens       --surface --hairline --positive
- * @motion       slide-in-r · stamp on accept
- */
+/\*\*
+
+- @rn-screen ImageSuccessScreen
+- @rn-stack Intake > Text found
+- @purpose Show text Folio read from a photo, ready to check before adding.
+- @reads —
+- @writes —
+- @opens-sheet edit-item
+- @copy FROZEN
+- @tokens --surface --hairline --positive
+- @motion slide-in-r · stamp on accept
+  \*/
 
 ## moods
 
@@ -181,4 +182,3 @@ Confirmation step after a photo is added to Folio. Shows "Text found" in the pho
 - error — REQUIRED: on read failure route to → ImageFallback screen (image-fallback). Not in prototype — add in RN.
 - offline — REQUIRED: degrade to 'saved, will read later' (local-first). Not in prototype — add in RN.
 - empty — n/a as its own branch here (a success screen presupposes a read result); STATES marks it 'same' as PdfSuccess handling.
-

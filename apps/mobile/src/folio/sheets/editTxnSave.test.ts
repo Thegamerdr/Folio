@@ -71,8 +71,18 @@ describe('EditTxnSheet Save → editTransaction (real target id)', () => {
 
   it('edits the right row when several transactions exist — never a random one', () => {
     setPartial({ transactions: [], edits: [] });
-    const other = addTransaction({ merchant: 'Tesco', amount: -10, category: 'food', source: 'manual' });
-    const chosen = addTransaction({ merchant: 'Greggs', amount: -3.5, category: 'food', source: 'manual' });
+    const other = addTransaction({
+      merchant: 'Tesco',
+      amount: -10,
+      category: 'food',
+      source: 'manual',
+    });
+    const chosen = addTransaction({
+      merchant: 'Greggs',
+      amount: -3.5,
+      category: 'food',
+      source: 'manual',
+    });
 
     // Save against the chosen subject id (what ReviewScreen threads as candidate.id).
     editTransaction(chosen.id, { note: 'breakfast' }, 'user');

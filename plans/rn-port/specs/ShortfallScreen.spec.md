@@ -1,4 +1,4 @@
-# ShortfallScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenShortfall.tsx)
+# ShortfallScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenShortfall.tsx)
 
 ## file
 
@@ -80,21 +80,23 @@ The "you won't make it" moment. Names the payday gap honestly (never alarmist, n
 
 ## docBlock
 
-/**
- * @rn-screen    ShortfallScreen
- * @rn-stack     Today > Shortfall (modal-style)
- * @purpose      The "you won't make it" moment. Names the gap honestly, offers three concrete moves, allows refusal.
- * @reads        pots, subs, onboarding.payday
- * @writes       — (each move opens its own sheet/screen)
- * @opens-sheet  edit-item (pause sub) · route-detail (borrow from pot)
- * @copy         FROZEN — never alarmist, never blaming.
- * @tokens       --paper --coral --accent --hairline --inset
- * @motion       slide-in-r on mount · gap-pulse 1.6s ease-in-out (subtle)
- */
+/\*\*
+
+- @rn-screen ShortfallScreen
+- @rn-stack Today > Shortfall (modal-style)
+- @purpose The "you won't make it" moment. Names the gap honestly, offers three concrete moves, allows refusal.
+- @reads pots, subs, onboarding.payday
+- @writes — (each move opens its own sheet/screen)
+- @opens-sheet edit-item (pause sub) · route-detail (borrow from pot)
+- @copy FROZEN — never alarmist, never blaming.
+- @tokens --paper --coral --accent --hairline --inset
+- @motion slide-in-r on mount · gap-pulse 1.6s ease-in-out (subtle)
+  \*/
 
 ## componentTree
 
 <ShortfallScreen> (root: SafeAreaView/View, flex column, paddingH ~28, paddingTop ~16, slide-in-r entrance, paper bg)
+
   <Header> (Row, space-between, center)
     <Pressable onPress={nav.back} aria-label="Back" press> <Text muted-ink size20>←</Text> </Pressable>
     <Text eyebrow uppercase tracking0.14em size11 muted-ink>A quiet moment</Text>
@@ -162,7 +164,7 @@ The "you won't make it" moment. Names the payday gap honestly (never alarmist, n
 - Money tabular alignment: every figure (gap, daysLeft, +cost, +gap, dailyCap/day) needs fontVariant ['tabular-nums']. formatGBP uses a U+2212 MINUS SIGN (−) for negatives and en-GB grouping, maxFractionDigits 0 — RN must reuse the exact formatGBP, not Intl defaults, or negative/grouped values will drift.
 - gap-pulse is the ONLY infinite animation besides Melo's breathe on this quiet screen (MOTION rule: Melo is normally the only continuously-animating thing). Keep it subtle (opacity 1->0.62, 1.6s) and OFF under reduced motion. Don't add extra looping motion.
 - Melo concern mood must use breathe-slow (6s) per MELO_MOODS, not the default 4.4s; concern is never alarming — no red, no shake. Mood is decorative; copy carries meaning (accessibility).
-- Copy is FROZEN and several visible strings are NOT in COPY_DECK (eyebrows 'A quiet moment'/'Honest answer'/'Pause one sub'/'Spend a little less', the MeloLine text, the longer body/captions). RN_PORT says 'if a string isn't in COPY_DECK it doesn't ship' — these must be added to COPY_DECK as new short.* keys before/at port time, preserving exact wording; do not paraphrase. Body copy also differs from existing short.body — reconcile.
+- Copy is FROZEN and several visible strings are NOT in COPY_DECK (eyebrows 'A quiet moment'/'Honest answer'/'Pause one sub'/'Spend a little less', the MeloLine text, the longer body/captions). RN_PORT says 'if a string isn't in COPY_DECK it doesn't ship' — these must be added to COPY_DECK as new short.\* keys before/at port time, preserving exact wording; do not paraphrase. Body copy also differs from existing short.body — reconcile.
 - Banned-words check passes (no import/parse/sync/etc.) — keep it that way when re-keying.
 - Layout: header uses a width-16 spacer to balance the back button so the eyebrow stays centered; mt-auto pushes the refusal button to the bottom (flex-1 spacer behavior). In RN use flexGrow spacer / justifyContent, and SafeArea for the bottom inset.
 - press scale-0.97 should map to Pressable + Haptics.selectionAsync() per RN_PORT; back + all cards + refusal are pressable.
@@ -184,7 +186,7 @@ The "you won't make it" moment. Names the payday gap honestly (never alarmist, n
 - gap-pulse -> reanimated withRepeat(withTiming(opacity 1<->0.62, 1600ms ease-in-out), -1, true); gate on AccessibilityInfo.isReduceMotionEnabled
 - press 0.97 -> Pressable style fn or reanimated scale on pressIn/out (120ms)
 - nav.go/openSheet/back -> @react-navigation stack + @gorhom/bottom-sheet for edit-item sheet
-- uppercase tracking-[0.14em] -> textTransform:'uppercase', letterSpacing ~1.5 (0.14em * 11px ≈ 1.54)
+- uppercase tracking-[0.14em] -> textTransform:'uppercase', letterSpacing ~1.5 (0.14em \* 11px ≈ 1.54)
 - px-7 (28) / pt-4 (16) / mt-6 etc. -> StyleSheet numeric spacing on one scale (no second spacing system per RN_PORT)
 
 ## stateBranches
@@ -195,4 +197,3 @@ The "you won't make it" moment. Names the payday gap honestly (never alarmist, n
 - loading: n/a — no async on this screen; gap/daysLeft come from the synchronous local engine. No spinner (MOTION/STATES: no spinners).
 - error: n/a per STATES matrix.
 - Practical RN sub-branches to handle gracefully (not in matrix but implied by code): (a) all three cards, (b) WhatIf + one of pause/borrow, (c) WhatIf only — must all read intentionally.
-

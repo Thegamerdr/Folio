@@ -167,10 +167,9 @@ describe('buildDebtSchedule — clears the balance', () => {
 
   it('absorbs the residual into the final payment when it does NOT divide evenly', () => {
     // £100 over 3 payments of £33.33 -> 33.33 + 33.33 + residual 33.34 = 100.00.
-    const s = buildDebtSchedule(
-      klarna({ balance: 100, paymentsLeft: 3, amount: 33.33 }),
-      { now: '2026-07-01' },
-    );
+    const s = buildDebtSchedule(klarna({ balance: 100, paymentsLeft: 3, amount: 33.33 }), {
+      now: '2026-07-01',
+    });
     expect(s.payments.map((p) => p.amount)).toEqual([33.33, 33.33, 33.34]);
     expect(sumPayments(s.payments.map((p) => p.amount))).toBe(100);
     expect(s.payments.at(-1)?.balanceAfter).toBe(0);
@@ -180,10 +179,9 @@ describe('buildDebtSchedule — clears the balance', () => {
   it('clears early when the instalment is larger than the remaining balance', () => {
     // £50 owed but a £90 instalment over a nominal 6 -> the first row clears it,
     // the rest are £0 placeholders, and the balance never goes negative.
-    const s = buildDebtSchedule(
-      klarna({ balance: 50, paymentsLeft: 6, amount: 90 }),
-      { now: '2026-07-01' },
-    );
+    const s = buildDebtSchedule(klarna({ balance: 50, paymentsLeft: 6, amount: 90 }), {
+      now: '2026-07-01',
+    });
     expect(s.payments[0]?.amount).toBe(50);
     expect(s.payments[0]?.balanceAfter).toBe(0);
     expect(s.payments.slice(1).every((p) => p.amount === 0)).toBe(true);
@@ -193,7 +191,9 @@ describe('buildDebtSchedule — clears the balance', () => {
   it('reports the payoffDate as the final payment`s date', () => {
     const s = buildDebtSchedule(klarna({ paymentsLeft: 6 }), { now: '2026-07-01' });
     expect(s.payoffDate).toBe(s.payments.at(-1)?.date);
-    expect(s.payoffDate).toBe(resolvePayday({ dayOfMonth: 12, weekendRule: 'previous' }, '2026-12'));
+    expect(s.payoffDate).toBe(
+      resolvePayday({ dayOfMonth: 12, weekendRule: 'previous' }, '2026-12'),
+    );
   });
 
   it('runs the balanceAfter ladder monotonically down to zero', () => {
@@ -233,20 +233,20 @@ describe('buildDebtSchedule — weekend + clamp match payday.ts', () => {
   });
 
   it('honours an explicit `next` weekendRule, matching payday`s `next`', () => {
-    const s = buildDebtSchedule(
-      klarna({ paymentsLeft: 1, balance: 90 }),
-      { now: '2026-07-01', weekendRule: 'next' },
-    );
+    const s = buildDebtSchedule(klarna({ paymentsLeft: 1, balance: 90 }), {
+      now: '2026-07-01',
+      weekendRule: 'next',
+    });
     expect(s.payments[0]?.date).toBe(
       resolvePayday({ dayOfMonth: 12, weekendRule: 'next' }, '2026-07'),
     );
   });
 
   it('honours an explicit `exact` weekendRule (no shift), matching payday`s `exact`', () => {
-    const s = buildDebtSchedule(
-      klarna({ paymentsLeft: 1, balance: 90 }),
-      { now: '2026-07-01', weekendRule: 'exact' },
-    );
+    const s = buildDebtSchedule(klarna({ paymentsLeft: 1, balance: 90 }), {
+      now: '2026-07-01',
+      weekendRule: 'exact',
+    });
     expect(s.payments[0]?.date).toBe(
       resolvePayday({ dayOfMonth: 12, weekendRule: 'exact' }, '2026-07'),
     );
@@ -270,12 +270,13 @@ describe('buildDebtSchedule — determinism + boundaries', () => {
 
   it('crosses a year boundary correctly for a long monthly plan', () => {
     // 12 monthly payments from Jul 2026 land Jul 2026 .. Jun 2027.
-    const s = buildDebtSchedule(
-      klarna({ paymentsLeft: 12, balance: 1080, amount: 90 }),
-      { now: '2026-07-01' },
-    );
+    const s = buildDebtSchedule(klarna({ paymentsLeft: 12, balance: 1080, amount: 90 }), {
+      now: '2026-07-01',
+    });
     expect(s.payments).toHaveLength(12);
-    expect(s.payoffDate).toBe(resolvePayday({ dayOfMonth: 12, weekendRule: 'previous' }, '2027-06'));
+    expect(s.payoffDate).toBe(
+      resolvePayday({ dayOfMonth: 12, weekendRule: 'previous' }, '2027-06'),
+    );
     expect(s.payments.at(-1)?.balanceAfter).toBe(0);
   });
 });

@@ -58,7 +58,9 @@ export function MeloPresence({
         {/* Melo speaks — the line is Folio's voice, so it is set in the serif italic and wrapped in
             quotes (matching the secondary-surface MeloLine), never a bold app label. */}
         <Text style={[styles.primary, s.primary]}>{`“${copy.primary}”`}</Text>
-        {copy.supporting ? <Text style={[styles.supporting, s.supporting]}>{copy.supporting}</Text> : null}
+        {copy.supporting ? (
+          <Text style={[styles.supporting, s.supporting]}>{copy.supporting}</Text>
+        ) : null}
       </View>
     </View>
   );

@@ -133,12 +133,7 @@ function isoToUtcMs(iso: string): number {
   const y = Number(parts[0]);
   const m = Number(parts[1]);
   const d = Number(parts[2]);
-  if (
-    parts.length !== 3 ||
-    !Number.isFinite(y) ||
-    !Number.isFinite(m) ||
-    !Number.isFinite(d)
-  ) {
+  if (parts.length !== 3 || !Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
     throw new Error(`moneyPath: invalid ISO date "${iso}"`);
   }
   return Date.UTC(y, m - 1, d);
@@ -157,11 +152,7 @@ function dayDiff(aMs: number, bMs: number): number {
 /** Sum a bucket's amounts that land on a given UTC day index (0 = today),
  *  honouring the [0, lastIndex] window. Out-of-window dates are ignored so
  *  back-dated or future items never bend this cycle's curve. */
-function bucketByDayIndex(
-  items: DatedAmount[],
-  todayMs: number,
-  lastIndex: number,
-): number[] {
+function bucketByDayIndex(items: DatedAmount[], todayMs: number, lastIndex: number): number[] {
   // One slot per sampled day; default 0 (noUncheckedIndexedAccess-safe reads
   // are still guarded below since TS widens fixed-fill arrays to T | undefined).
   const perDay: number[] = new Array<number>(lastIndex + 1).fill(0);
@@ -227,7 +218,8 @@ export function computeRoute(input: RouteInput): RouteResult {
 
   for (let i = 0; i <= lastIndex; i++) {
     const inflow = incomeByDay[i] ?? 0;
-    const outflow = (billsByDay[i] ?? 0) + (subsByDay[i] ?? 0) + (spendByDay[i] ?? 0) + (holdsByDay[i] ?? 0);
+    const outflow =
+      (billsByDay[i] ?? 0) + (subsByDay[i] ?? 0) + (spendByDay[i] ?? 0) + (holdsByDay[i] ?? 0);
     running += inflow - outflow;
 
     const date = utcMsToIso(todayMs + i * DAY_MS);

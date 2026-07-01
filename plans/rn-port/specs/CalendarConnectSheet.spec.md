@@ -1,4 +1,4 @@
-# CalendarConnectSheet  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetCalendarConnect.tsx)
+# CalendarConnectSheet (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\SheetCalendarConnect.tsx)
 
 ## file
 
@@ -14,19 +14,13 @@ Design-only bottom sheet that pitches a one-way Google Calendar push (Folio writ
 
 ## reads
 
-
-
 ## writes
-
-
 
 ## opensSheets
 
-
-
 ## copyKeys
 
-- (NO COPY_DECK KEYS — every string is inline-frozen in the component; doc block says @copy FROZEN but there are no calendar.connect.* entries in COPY_DECK.md)
+- (NO COPY_DECK KEYS — every string is inline-frozen in the component; doc block says @copy FROZEN but there are no calendar.connect.\* entries in COPY_DECK.md)
 - Connect (eyebrow label)
 - Close (aria-label on × button)
 - Your money dates in Google. (headline; 'Google.' is the accent word, rendered non-italic em in --accent)
@@ -79,36 +73,36 @@ Design-only bottom sheet that pitches a one-way Google Calendar push (Folio writ
 
 ## componentTree
 
-<BottomSheetModal aria-label="Connect Google Calendar">  // @gorhom/bottom-sheet, 28px top radius, --paper body, grip, scrim 45% --ink
-  <SheetBody>                                    // px-6 pt-2 pb-6, scrollable
-    <Row justify="space-between" align="center"> // header row
-      <Eyebrow>Connect</Eyebrow>                 // 11px, uppercase, tracking 0.14em, --muted-ink
-      <PressableIcon aria-label="Close" onPress={onClose}>×</PressableIcon> // 18px, --muted-ink, press
-    </Row>
-    <Headline>                                    // Fraunces, 26px, leading-tight, mt-2
-      Your money dates in <Accent>Google.</Accent> // <Accent> = --accent, NON-italic (em not-italic)
-    </Headline>
-    <Body>One way — Folio adds the dates that move your money. Folio doesn't read anything back from Google.</Body> // 13px, --muted-ink, leading-relaxed, mt-2
-    <Card surface="--surface" hairline rounded-2xl p-4 mt-5>   // "What we'd add"
-      <Eyebrow size={10.5}>What we'd add</Eyebrow>
-      <List mt-2 gap-1.5 text-13>
-        <Item><Dot color="--positive"/>Paydays</Item>
-        <Item><Dot color="--negative"/>Bills & renewals</Item>
-        <Item><Dot color="--caution"/>Deadlines</Item>
-        <Item><Dot color="--accent"/>Things you added</Item>
-      </List>
-    </Card>
-    <Card surface="--inset" rounded-2xl p-4 mt-4>             // "What stays out" (no hairline)
-      <Eyebrow size={10.5}>What stays out</Eyebrow>
-      <List mt-2 gap-1.5 text-13 color="--muted-ink">        // plain text items, no dots
-        <Item>Spend, amounts on each event, and your spare figure.</Item>
-        <Item>Anything from your Google calendar — Folio never reads it.</Item>
-      </List>
-    </Card>
-    <PrimaryButton onPress={handleConnect} h={54} rounded-2xl bg="--accent" textColor=white weight=medium size={15} press mt-5 fullWidth>Connect Google</PrimaryButton>
-    <SecondaryButton onPress={onClose} h={44} rounded-2xl size={13.5} color="--muted-ink" press mt-2 fullWidth>Not now</SecondaryButton>
-    <Footnote italic center size={10.5} color="--muted-ink" mt-3>The live Google link ships with the phone app.</Footnote>
-  </SheetBody>
+<BottomSheetModal aria-label="Connect Google Calendar"> // @gorhom/bottom-sheet, 28px top radius, --paper body, grip, scrim 45% --ink
+<SheetBody> // px-6 pt-2 pb-6, scrollable
+<Row justify="space-between" align="center"> // header row
+<Eyebrow>Connect</Eyebrow> // 11px, uppercase, tracking 0.14em, --muted-ink
+<PressableIcon aria-label="Close" onPress={onClose}>×</PressableIcon> // 18px, --muted-ink, press
+</Row>
+<Headline> // Fraunces, 26px, leading-tight, mt-2
+Your money dates in <Accent>Google.</Accent> // <Accent> = --accent, NON-italic (em not-italic)
+</Headline>
+<Body>One way — Folio adds the dates that move your money. Folio doesn't read anything back from Google.</Body> // 13px, --muted-ink, leading-relaxed, mt-2
+<Card surface="--surface" hairline rounded-2xl p-4 mt-5> // "What we'd add"
+<Eyebrow size={10.5}>What we'd add</Eyebrow>
+<List mt-2 gap-1.5 text-13>
+<Item><Dot color="--positive"/>Paydays</Item>
+<Item><Dot color="--negative"/>Bills & renewals</Item>
+<Item><Dot color="--caution"/>Deadlines</Item>
+<Item><Dot color="--accent"/>Things you added</Item>
+</List>
+</Card>
+<Card surface="--inset" rounded-2xl p-4 mt-4> // "What stays out" (no hairline)
+<Eyebrow size={10.5}>What stays out</Eyebrow>
+<List mt-2 gap-1.5 text-13 color="--muted-ink"> // plain text items, no dots
+<Item>Spend, amounts on each event, and your spare figure.</Item>
+<Item>Anything from your Google calendar — Folio never reads it.</Item>
+</List>
+</Card>
+<PrimaryButton onPress={handleConnect} h={54} rounded-2xl bg="--accent" textColor=white weight=medium size={15} press mt-5 fullWidth>Connect Google</PrimaryButton>
+<SecondaryButton onPress={onClose} h={44} rounded-2xl size={13.5} color="--muted-ink" press mt-2 fullWidth>Not now</SecondaryButton>
+<Footnote italic center size={10.5} color="--muted-ink" mt-3>The live Google link ships with the phone app.</Footnote>
+</SheetBody>
 </BottomSheetModal>
 
 ## enginesNeeded
@@ -119,7 +113,7 @@ Design-only bottom sheet that pitches a one-way Google Calendar push (Folio writ
 
 ## fidelityRisks
 
-- COPY GAP: doc block says @copy FROZEN but NONE of these strings exist in COPY_DECK.md (no calendar.connect.* keys). RN rule 'if a string isn't in COPY_DECK it doesn't ship' — these strings must be added to COPY_DECK before/while porting, keyed (e.g. calendar.connect.*), not hardcoded. Don't silently invent new wording.
+- COPY GAP: doc block says @copy FROZEN but NONE of these strings exist in COPY_DECK.md (no calendar.connect._ keys). RN rule 'if a string isn't in COPY_DECK it doesn't ship' — these strings must be added to COPY_DECK before/while porting, keyed (e.g. calendar.connect._), not hardcoded. Don't silently invent new wording.
 - BANNED-WORD ADJACENCY: COPY_DECK bans 'sync'. This is a Calendar SYNC/push feature — keep the user-facing copy clear of 'sync' (the current strings already avoid it; preserve that on port).
 - HONEST-CLAIMS rule: 'Folio doesn't read anything back from Google' / 'Folio never reads it' are privacy assertions. Per COPY_DECK these may ship ONLY if literally true of the shipped RN app. The real OAuth scope must be write/one-way before this copy is allowed live — verify scope, or soften copy.
 - PLACEHOLDER BEHAVIOR: handleConnect is a fake (toast + close). RN must replace it with the real OAuth flow; do NOT port the toast as the shipped behavior. Per RN_PORT 'do not pretend it works here'.
@@ -135,18 +129,19 @@ Design-only bottom sheet that pitches a one-way Google Calendar push (Folio writ
 
 ## docBlock
 
-/**
- * @rn-sheet     CalendarConnectSheet
- * @purpose      Design surface for the one-way Google Calendar push.
- *               Explains what gets sent; the actual OAuth + sync ships in RN.
- * @reads        —
- * @writes       —
- * @copy         FROZEN
- * @tokens       --paper --accent --inset --hairline
- *
- * @rn-engine    Google push requires RN OAuth + sync engine. The web
- *               prototype is design-only — the primary button toasts.
- */
+/\*\*
+
+- @rn-sheet CalendarConnectSheet
+- @purpose Design surface for the one-way Google Calendar push.
+-               Explains what gets sent; the actual OAuth + sync ships in RN.
+- @reads —
+- @writes —
+- @copy FROZEN
+- @tokens --paper --accent --inset --hairline
+-
+- @rn-engine Google push requires RN OAuth + sync engine. The web
+-               prototype is design-only — the primary button toasts.
+  \*/
 
 ## rnPrimitiveMap
 
@@ -163,4 +158,3 @@ Design-only bottom sheet that pitches a one-way Google Calendar push (Folio writ
 - aria-label / role='dialog' → accessibilityLabel + accessibilityRole + accessibilityViewIsModal on the sheet; close button accessibilityLabel='Close'
 - em not-italic accent → <Text style={{color: theme.accent}}> inline span (no italic)
 - space-y-1.5 list gap → gap:6 on the list View (or rowGap)
-

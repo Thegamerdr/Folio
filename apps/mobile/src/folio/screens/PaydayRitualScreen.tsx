@@ -83,16 +83,20 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { elevation, gap, pressed, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
+import {
+  elevation,
+  gap,
+  pressed,
+  radius,
+  serif,
+  useCountUp,
+  useTheme,
+  type Palette,
+} from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { type MeloMood } from '@/folio/melo/Melo';
-import {
-  addCycle,
-  setNextYouNote,
-  useAppStore,
-  type AppState,
-} from '@/folio/store';
+import { addCycle, setNextYouNote, useAppStore, type AppState } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
@@ -468,7 +472,9 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // with zero figures for one frame.
   if (state === 'loading' || now === null) {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
         <MeloLine mood="curious" text="One quiet minute. Getting your month ready." />
       </View>
     );
@@ -501,134 +507,142 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Header — back glyph · "{n} of {total}" · animated progress dots · balancing spacer. */}
-        <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            hitSlop={12}
-            onPress={nav.back}
-            style={({ pressed: isPressed }) => [styles.backTap, isPressed ? pressed : undefined]}
-          >
-            <BackArrow color={t.muted} />
-          </Pressable>
-
-          <View style={styles.progress}>
-            <Text
-              accessibilityLabel={`Step ${step + 1} of ${steps.length}`}
-              style={[styles.progressLabel, { color: t.muted }]}
+          {/* Header — back glyph · "{n} of {total}" · animated progress dots · balancing spacer. */}
+          <View style={styles.header}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              hitSlop={12}
+              onPress={nav.back}
+              style={({ pressed: isPressed }) => [styles.backTap, isPressed ? pressed : undefined]}
             >
-              {step + 1} of {steps.length}
-            </Text>
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.dots}>
-              {steps.map((_, i) => (
-                <ProgressDot
-                  key={i}
-                  active={i === step}
-                  done={i < step}
-                  palette={t}
-                  reduceMotion={reduceMotion}
-                />
-              ))}
+              <BackArrow color={t.muted} />
+            </Pressable>
+
+            <View style={styles.progress}>
+              <Text
+                accessibilityLabel={`Step ${step + 1} of ${steps.length}`}
+                style={[styles.progressLabel, { color: t.muted }]}
+              >
+                {step + 1} of {steps.length}
+              </Text>
+              <View
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                style={styles.dots}
+              >
+                {steps.map((_, i) => (
+                  <ProgressDot
+                    key={i}
+                    active={i === step}
+                    done={i < step}
+                    palette={t}
+                    reduceMotion={reduceMotion}
+                  />
+                ))}
+              </View>
             </View>
+
+            {/* Balances the back button so the progress block stays centred (web w-5 spacer). */}
+            <View style={styles.headerSpacer} />
           </View>
 
-          {/* Balances the back button so the progress block stays centred (web w-5 spacer). */}
-          <View style={styles.headerSpacer} />
-        </View>
+          {/* Copy block — eyebrow · headline (with the single upright accent word) · body or textarea. */}
+          <View style={styles.copyBlock}>
+            <Text style={[styles.eyebrow, { color: t.muted }]}>{current.eyebrow}</Text>
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+              {current.headlineLead}
+              <Text style={[styles.headlineAccent, { color: t.calm }]}>
+                {current.headlineAccent}
+              </Text>
+              {current.headlineTrail}
+            </Text>
 
-        {/* Copy block — eyebrow · headline (with the single upright accent word) · body or textarea. */}
-        <View style={styles.copyBlock}>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>{current.eyebrow}</Text>
-          <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {current.headlineLead}
-            <Text style={[styles.headlineAccent, { color: t.calm }]}>{current.headlineAccent}</Text>
-            {current.headlineTrail}
-          </Text>
+            {current.isNote ? (
+              <View style={styles.noteBlock}>
+                <TextInput
+                  accessibilityLabel="One line for next-you"
+                  autoFocus
+                  value={note}
+                  onChangeText={onNoteChange}
+                  placeholder="One honest line — what to hold, what to watch."
+                  placeholderTextColor={t.muted}
+                  maxLength={NOTE_MAX}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  style={[
+                    styles.noteInput,
+                    { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink },
+                  ]}
+                />
+                <Text
+                  style={[styles.noteCount, { color: t.muted }]}
+                >{`${note.length}/${NOTE_MAX}`}</Text>
+              </View>
+            ) : (
+              <Text style={[styles.body, { color: t.muted }]}>{current.body}</Text>
+            )}
+          </View>
 
-          {current.isNote ? (
-            <View style={styles.noteBlock}>
-              <TextInput
-                accessibilityLabel="One line for next-you"
-                autoFocus
-                value={note}
-                onChangeText={onNoteChange}
-                placeholder="One honest line — what to hold, what to watch."
-                placeholderTextColor={t.muted}
-                maxLength={NOTE_MAX}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                style={[
-                  styles.noteInput,
-                  { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink },
-                ]}
-              />
-              <Text style={[styles.noteCount, { color: t.muted }]}>{`${note.length}/${NOTE_MAX}`}</Text>
-            </View>
-          ) : (
-            <Text style={[styles.body, { color: t.muted }]}>{current.body}</Text>
-          )}
-        </View>
+          {/* Stat card — surface, hairline, soft card lift; the label + the count-up money figure. */}
+          <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+            {/* The ceremonial seal — only after finish. */}
+            {sealed ? (
+              <Animated.View
+                style={[styles.seal, sealStyle, { borderColor: t.calm }]}
+                pointerEvents="none"
+              >
+                <Text style={[styles.sealLabel, { color: t.calm }]}>Sealed</Text>
+              </Animated.View>
+            ) : null}
 
-        {/* Stat card — surface, hairline, soft card lift; the label + the count-up money figure. */}
-        <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          {/* The ceremonial seal — only after finish. */}
-          {sealed ? (
-            <Animated.View
-              style={[styles.seal, sealStyle, { borderColor: t.calm }]}
-              pointerEvents="none"
-            >
-              <Text style={[styles.sealLabel, { color: t.calm }]}>Sealed</Text>
-            </Animated.View>
-          ) : null}
+            <Text style={[styles.statLabel, { color: t.muted }]}>{current.stat.label}</Text>
+            <StatMoney
+              label={current.stat.label}
+              value={current.stat.value}
+              tone={current.stat.tone}
+              isNote={current.isNote === true}
+              noted={noted}
+              palette={t}
+              reduceMotion={reduceMotion}
+            />
+          </View>
 
-          <Text style={[styles.statLabel, { color: t.muted }]}>{current.stat.label}</Text>
-          <StatMoney
-            label={current.stat.label}
-            value={current.stat.value}
-            tone={current.stat.tone}
-            isNote={current.isNote === true}
-            noted={noted}
-            palette={t}
-            reduceMotion={reduceMotion}
-          />
-        </View>
+          {/* Melo line — the quiet companion; mood changes step-to-step. MeloLine adds the quotes. */}
+          <View style={styles.meloBlock}>
+            <MeloLine text={current.melo} mood={current.meloMood} />
+          </View>
 
-        {/* Melo line — the quiet companion; mood changes step-to-step. MeloLine adds the quotes. */}
-        <View style={styles.meloBlock}>
-          <MeloLine text={current.melo} mood={current.meloMood} />
-        </View>
+          {/* Spacer pins the CTAs to the bottom (web flex-1). */}
+          <View style={styles.spacer} />
 
-        {/* Spacer pins the CTAs to the bottom (web flex-1). */}
-        <View style={styles.spacer} />
+          {/* Primary CTA — advance, or finish on the last step. Coral lift via the cta elevation. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: sealed }}
+            accessibilityLabel={current.cta}
+            disabled={sealed}
+            onPress={onAdvance}
+            style={({ pressed: isPressed }) => [
+              styles.primary,
+              { backgroundColor: t.calm },
+              sealed ? styles.primaryStamped : undefined,
+              isPressed && !sealed ? pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.primaryLabel, { color: t.inverse }]}>{current.cta}</Text>
+          </Pressable>
 
-        {/* Primary CTA — advance, or finish on the last step. Coral lift via the cta elevation. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: sealed }}
-          accessibilityLabel={current.cta}
-          disabled={sealed}
-          onPress={onAdvance}
-          style={({ pressed: isPressed }) => [
-            styles.primary,
-            { backgroundColor: t.calm },
-            sealed ? styles.primaryStamped : undefined,
-            isPressed && !sealed ? pressed : undefined,
-          ]}
-        >
-          <Text style={[styles.primaryLabel, { color: t.inverse }]}>{current.cta}</Text>
-        </Pressable>
-
-        {/* Secondary — "Save and finish later" exits WITHOUT recording a cycle. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Save and finish later"
-          onPress={nav.back}
-          style={({ pressed: isPressed }) => [styles.secondary, isPressed ? pressed : undefined]}
-        >
-          <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
-        </Pressable>
+          {/* Secondary — "Save and finish later" exits WITHOUT recording a cycle. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Save and finish later"
+            onPress={nav.back}
+            style={({ pressed: isPressed }) => [styles.secondary, isPressed ? pressed : undefined]}
+          >
+            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
+          </Pressable>
         </ScrollView>
       </Animated.View>
     </KeyboardAvoidingView>
@@ -660,12 +674,16 @@ function StatMoney({
   reduceMotion: boolean;
 }) {
   const counted = useCountUp(value, COUNT_MS, reduceMotion);
-  const color = tone === 'positive' ? palette.positive : tone === 'accent' ? palette.calm : palette.ink;
+  const color =
+    tone === 'positive' ? palette.positive : tone === 'accent' ? palette.calm : palette.ink;
 
   if (isNote) {
     const glyph = noted ? '✓' : '—';
     return (
-      <Text accessibilityLabel={`${label}: ${noted ? 'noted' : 'none'}`} style={[styles.statValue, { color }]}>
+      <Text
+        accessibilityLabel={`${label}: ${noted ? 'noted' : 'none'}`}
+        style={[styles.statValue, { color }]}
+      >
         {glyph}
       </Text>
     );

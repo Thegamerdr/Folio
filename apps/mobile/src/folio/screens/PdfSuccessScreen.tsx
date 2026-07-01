@@ -314,7 +314,9 @@ export function PdfSuccessScreen({
   // while the read settles; in practice the read happens upstream and this success screen mounts after.
   if (state === 'loading') {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
         <MeloLine mood="curious" text="Folio is reading…" />
       </View>
     );

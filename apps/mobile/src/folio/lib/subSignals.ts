@@ -489,10 +489,7 @@ function computeWentQuiet(
  * magnitude matches an out-charge and lands within RETURN_WINDOW_DAYS after it
  * — the Moneyhub "returned payment, likely insufficient funds" signal.
  */
-function computePaymentReturned(
-  byDate: readonly Charge[],
-  credits: readonly Charge[],
-): boolean {
+function computePaymentReturned(byDate: readonly Charge[], credits: readonly Charge[]): boolean {
   if (credits.length === 0) return false;
   for (const credit of credits) {
     const creditMinor = Math.round(Math.abs(credit.amount) * MINOR);

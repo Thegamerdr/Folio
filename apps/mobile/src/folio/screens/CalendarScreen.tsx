@@ -314,7 +314,9 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // of the start (the "saved amount lowers Today's spare" rule); the pots' FUTURE −perWeek top-up dips
   // are different money and stay in the dated events ("bends the path") — two distinct effects, no
   // double-count. We do NOT re-add those dated dips to the start.
-  const startingSpare = useAppStore((st) => st.currentBalance.amount - st.pots.reduce((acc, p) => acc + p.saved, 0));
+  const startingSpare = useAppStore(
+    (st) => st.currentBalance.amount - st.pots.reduce((acc, p) => acc + p.saved, 0),
+  );
   // Demo example bills (RECURRING_BILLS) only while the seed is untouched; a cleared/real user's
   // calendar shows only their own bills (added as subs), never phantom ones.
   const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');

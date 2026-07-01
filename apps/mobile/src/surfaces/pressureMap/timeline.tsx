@@ -16,7 +16,16 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Body, gap, Headline, type Palette, PressureScreen, QuietLink, Surface, useTheme } from './kit';
+import {
+  Body,
+  gap,
+  Headline,
+  type Palette,
+  PressureScreen,
+  QuietLink,
+  Surface,
+  useTheme,
+} from './kit';
 import { Kicker, MeloLine, ScreenHeader } from './secondaryKit';
 import { cleanTimelineNote, presentableTimelineEvents } from './timelinePresentation';
 import type { LocalTimelineModel, LocalTimelineTone } from '../../local/localTimelineAdapter';

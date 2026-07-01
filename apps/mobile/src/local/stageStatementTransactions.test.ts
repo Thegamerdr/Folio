@@ -25,7 +25,11 @@ const aiTransactions: readonly StagedStatementTransaction[] = [
 describe('stageStatementTransactions — AI-read transactions → review drafts', () => {
   it('builds one ready-to-confirm draft per transaction, keeping the exact pence and sign', () => {
     const empty = createEmptyLocalLedgerState('2026-06-26');
-    const { state, addedDraftCount } = stageStatementTransactions(empty, aiTransactions, imageSource);
+    const { state, addedDraftCount } = stageStatementTransactions(
+      empty,
+      aiTransactions,
+      imageSource,
+    );
 
     expect(addedDraftCount).toBe(2);
     expect(state.importDrafts).toHaveLength(2);

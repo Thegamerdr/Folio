@@ -46,14 +46,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 import Animated, {
@@ -346,10 +339,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   if (state === 'loading') {
     return (
       <View
-        style={[
-          styles.loading,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl },
-        ]}
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
         <MeloLine mood="curious" text="One second — working out where this lands." />
       </View>
@@ -446,13 +436,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
                 />
                 {/* Payday end-cap + label. */}
                 <Circle cx={372} cy={50} r={5} fill={t.calm} />
-                <SvgText
-                  x={350}
-                  y={40}
-                  fontFamily={serif.displayItalic}
-                  fontSize={10}
-                  fill={t.ink}
-                >
+                <SvgText x={350} y={40} fontFamily={serif.displayItalic} fontSize={10} fill={t.ink}>
                   payday
                 </SvgText>
                 {/* Lowest-point dot + label — both bound to `amount` via dipY. */}
@@ -475,7 +459,9 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
           <View style={styles.tilesRow}>
             <View style={styles.tile}>
               <Text style={styles.tileLabel}>New lowest</Text>
-              <Text style={[styles.tileValue, lowIsNegative ? styles.tileValueNegative : undefined]}>
+              <Text
+                style={[styles.tileValue, lowIsNegative ? styles.tileValueNegative : undefined]}
+              >
                 {formatGBP(Math.round(lowDisplay))}
               </Text>
               {tightPointGoal !== null ? (
@@ -493,7 +479,9 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
 
             <View style={styles.tile}>
               <Text style={styles.tileLabel}>Days this would last</Text>
-              <Text style={[styles.tileValue, daysIsNegative ? styles.tileValueNegative : undefined]}>
+              <Text
+                style={[styles.tileValue, daysIsNegative ? styles.tileValueNegative : undefined]}
+              >
                 {coverDisplay.toFixed(1)}d
               </Text>
               <Text style={[styles.tileCaption, styles.tabular]}>£{potsTotal} in pots</Text>
@@ -525,7 +513,10 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
             accessibilityHint="Closes this experiment. Nothing here is saved."
             hitSlop={12}
             onPress={nav.back}
-            style={({ pressed: isPressed }) => [styles.close, isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [
+              styles.close,
+              isPressed ? styles.pressed : undefined,
+            ]}
           >
             <Text style={styles.closeLabel}>Close — nothing was added</Text>
           </Pressable>

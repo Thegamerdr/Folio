@@ -41,7 +41,15 @@
 // defined — no colour, font, spacing token, or dependency. Tap targets are >=44px; tap-only.
 
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { gap, magnitude, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
@@ -121,8 +129,7 @@ export function SubCaughtSheet({ visible, onClose, candidate }: SubCaughtSheetPr
   //   • otherwise the FIRST real caught candidate from the detector;
   //   • otherwise NULL → the empty doorway. We NEVER fall back to a synthetic "Sound+ Studio · 12 Jun"
   //     sample — a real/cleared app with nothing to catch shows the honest empty state, not fake data.
-  const resolved: SubCandidate | null =
-    candidate === undefined ? (caught[0] ?? null) : candidate;
+  const resolved: SubCandidate | null = candidate === undefined ? (caught[0] ?? null) : candidate;
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
@@ -250,9 +257,7 @@ function SubCaughtBody({
       </View>
 
       {/* Candidate card — inset well, hairline, gentle scale-in. */}
-      <Animated.View
-        style={[s.card, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]}
-      >
+      <Animated.View style={[s.card, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]}>
         <View style={s.cardTopRow}>
           <Text style={s.cardName}>{candidate.name}</Text>
           <Text style={s.cardAmount}>{candidateAmountLabel(candidate.amount)}</Text>

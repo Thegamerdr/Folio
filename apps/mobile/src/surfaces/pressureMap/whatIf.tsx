@@ -187,9 +187,7 @@ export function WhatIfScreen({
           value={money(Math.round(lowDisplayMinor))}
           tone={lowTone}
           footnote={
-            tightPointGoalMinor !== null
-              ? `floor ${magnitude(tightPointGoalMinor)}`
-              : undefined
+            tightPointGoalMinor !== null ? `floor ${magnitude(tightPointGoalMinor)}` : undefined
           }
           footnoteTone={breachesGoal ? 'repair' : undefined}
           s={s}
@@ -239,19 +237,27 @@ function MiniPath({ pounds, t }: { pounds: number; t: Palette }) {
       width="100%"
     >
       <Path d={d} stroke={t.hairlineStrong} strokeWidth={1} strokeDasharray="2 4" fill="none" />
-      <Path
-        d={d}
-        stroke={t.calm}
-        strokeWidth={2.4}
-        strokeLinecap="round"
-        fill="none"
-      />
+      <Path d={d} stroke={t.calm} strokeWidth={2.4} strokeLinecap="round" fill="none" />
       <Circle cx={372} cy={50} r={5} fill={t.payday} />
-      <SvgText x={350} y={40} fontFamily={serif.displayItalic} fontSize={10} fill={t.ink} textAnchor="end">
+      <SvgText
+        x={350}
+        y={40}
+        fontFamily={serif.displayItalic}
+        fontSize={10}
+        fill={t.ink}
+        textAnchor="end"
+      >
         payday
       </SvgText>
       <Circle cx={300} cy={dipY} r={3.5} fill={t.ink} />
-      <SvgText x={300} y={dipY + 18} fontFamily={serif.displayItalic} fontSize={10} fill={t.muted} textAnchor="middle">
+      <SvgText
+        x={300}
+        y={dipY + 18}
+        fontFamily={serif.displayItalic}
+        fontSize={10}
+        fill={t.muted}
+        textAnchor="middle"
+      >
         lowest point
       </SvgText>
     </Svg>
@@ -281,11 +287,7 @@ function StatCell({
     <Surface style={layout.statCell}>
       <Text style={[layout.statLabel, s.statLabel]}>{label}</Text>
       <Text
-        style={[
-          layout.statValue,
-          s.statValue,
-          tone === 'repair' ? s.statValueRepair : undefined,
-        ]}
+        style={[layout.statValue, s.statValue, tone === 'repair' ? s.statValueRepair : undefined]}
       >
         {value}
       </Text>

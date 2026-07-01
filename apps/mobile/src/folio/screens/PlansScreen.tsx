@@ -72,14 +72,7 @@
 // mirrored from PotsScreen / ReviewScreen.
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -175,7 +168,20 @@ const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 // that frame. Module-level so its identity never churns the hook's memo. Mirrors TodayScreen.
 const EPOCH = new Date(0);
 
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 // Parse a derived event's ISO day ("YYYY-MM-DD") into its split date parts ("12" / "Jul"). The
 // engine works in ISO/UTC; we read the calendar parts straight off the string so the displayed day
@@ -292,7 +298,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   // once the route has computed (the mount-gate is open and a real curve exists). Drives the marker
   // and bounds the upcoming list, so the list, the total, and the marker stay tied to Today's curve.
   const paydayIso = useMemo(
-    () => (route ? events.find((e) => e.source === 'payday')?.date ?? null : null),
+    () => (route ? (events.find((e) => e.source === 'payday')?.date ?? null) : null),
     [route, events],
   );
 
@@ -411,9 +417,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
         </View>
 
         {/* Set aside / Next payday card — the total (lg, negative tone) + the dated payday marker. */}
-        <View
-          style={[styles.summaryCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
-        >
+        <View style={[styles.summaryCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <View>
             <Text style={[styles.smallLabel, { color: t.muted }]}>Set aside</Text>
             <Money value={formatGBP(total)} size="lg" tone="negative" t={t} />

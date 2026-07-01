@@ -161,7 +161,10 @@ function manualEvent(event: UserCalendarEvent): DerivedCalendarEvent {
   };
 }
 
-function deadlineEvents(asOfDateIso: string, windowEndIso: string): readonly DerivedCalendarEvent[] {
+function deadlineEvents(
+  asOfDateIso: string,
+  windowEndIso: string,
+): readonly DerivedCalendarEvent[] {
   const out: DerivedCalendarEvent[] = [];
   const startYear = Number(asOfDateIso.slice(0, 4));
   for (const deadline of PERSONAL_DEADLINES) {
@@ -304,7 +307,9 @@ export function computeSparePerDay(
 }> {
   const groups = groupCalendarEventsByDay(events)
     .slice()
-    .sort((left, right) => (left.dateIso < right.dateIso ? -1 : left.dateIso > right.dateIso ? 1 : 0));
+    .sort((left, right) =>
+      left.dateIso < right.dateIso ? -1 : left.dateIso > right.dateIso ? 1 : 0,
+    );
   const spareByDay: SparePerDay[] = [];
   let running = openingBalanceMinor;
   let tightestDateIso: string | null = null;

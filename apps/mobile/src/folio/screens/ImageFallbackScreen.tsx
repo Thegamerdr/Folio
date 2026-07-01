@@ -51,14 +51,7 @@
 // note / Melo line / CTAs are @copy FROZEN inline literals (the web keeps them inline).
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -170,7 +163,9 @@ export function ImageFallbackScreen({
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}>
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
         <MeloLine mood="curious" text="Folio is reading…" />
       </View>
     );
@@ -193,7 +188,10 @@ export function ImageFallbackScreen({
             accessibilityLabel="Go back"
             hitSlop={12}
             onPress={nav.back}
-            style={({ pressed: isPressed }) => [styles.pressIcon, isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [
+              styles.pressIcon,
+              isPressed ? styles.pressed : undefined,
+            ]}
           >
             <BackArrow color={t.muted} />
           </Pressable>

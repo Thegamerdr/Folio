@@ -1,4 +1,4 @@
-# ImageFallbackScreen  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenImageFallback.tsx)
+# ImageFallbackScreen (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenImageFallback.tsx)
 
 ## file
 
@@ -14,11 +14,7 @@ Failure state shown when the photo reader cannot produce review candidates from 
 
 ## reads
 
-
-
 ## writes
-
-
 
 ## opensSheets
 
@@ -199,7 +195,6 @@ Failure state shown when the photo reader cannot produce review candidates from 
 - paper-grain (turbulence SVG + mix-blend-multiply) -> static low-opacity noise PNG/ImageBackground (no RN blend-mode); react-native-svg feTurbulence unsupported
 - truncate -> numberOfLines={1} ellipsizeMode='tail'
 - underline underline-offset-2 -> textDecorationLine: 'underline'
-- uppercase tracking-[0.14em] -> textTransform:'uppercase', letterSpacing ~1.7 (0.14em * ~12px)
+- uppercase tracking-[0.14em] -> textTransform:'uppercase', letterSpacing ~1.7 (0.14em \* ~12px)
 - grid grid-cols-2 gap-2.5 -> <View style={{flexDirection:'row', gap:10}}> with two flex:1 children
 - nav.go(...) local nav -> @react-navigation/native stack navigation
-

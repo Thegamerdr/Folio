@@ -17,7 +17,15 @@
 //     quotes doubled, embedded commas/newlines survive inside the quotes.
 //   • Free, never paywalled. There is no gate in this module by design.
 
-import type { AppState, CalendarEvent, CycleRecord, Pot, PotLedgerEntry, Sub, Transaction } from '../store';
+import type {
+  AppState,
+  CalendarEvent,
+  CycleRecord,
+  Pot,
+  PotLedgerEntry,
+  Sub,
+  Transaction,
+} from '../store';
 
 /**
  * A transaction correction record, per ENGINES §6 "Editing existing
@@ -151,9 +159,22 @@ function transactionsCsv(transactions: readonly Transaction[]): string {
 /** Subs CSV folds in paused (subPaused) + nudge (subOverrides) state so the
  *  "incl paused/cancelled history" requirement is met from the data that
  *  exists in the store today. */
-function subsCsv(subs: readonly Sub[], subPaused: Record<string, boolean>, subOverrides: Record<string, number>): string {
+function subsCsv(
+  subs: readonly Sub[],
+  subPaused: Record<string, boolean>,
+  subOverrides: Record<string, number>,
+): string {
   return toCsv(
-    ['name', 'cost', 'nextRenewalDaysAway', 'lastUsedDaysAgo', 'usesPerMonth', 'trialEndsInDays', 'paused', 'nudgeDays'],
+    [
+      'name',
+      'cost',
+      'nextRenewalDaysAway',
+      'lastUsedDaysAgo',
+      'usesPerMonth',
+      'trialEndsInDays',
+      'paused',
+      'nudgeDays',
+    ],
     subs.map((s) => [
       s.name,
       s.cost,
@@ -201,13 +222,19 @@ function calendarEventsCsv(calendarEvents: readonly CalendarEvent[]): string {
 /** Onboarding / payday rule — a single-row CSV. */
 function onboardingCsv(state: AppState): string {
   const o = state.onboarding;
-  return toCsv(['done', 'name', 'payday', 'monthlyIncome'], [[o.done, o.name, o.payday, o.monthlyIncome]]);
+  return toCsv(
+    ['done', 'name', 'payday', 'monthlyIncome'],
+    [[o.done, o.name, o.payday, o.monthlyIncome]],
+  );
 }
 
 /** currentBalance source + confidence — a single-row CSV (route assumption). */
 function balanceCsv(state: AppState): string {
   const b = state.currentBalance;
-  return toCsv(['amount', 'source', 'confidence', 'setAt'], [[b.amount, b.source, b.confidence, b.setAt]]);
+  return toCsv(
+    ['amount', 'source', 'confidence', 'setAt'],
+    [[b.amount, b.source, b.confidence, b.setAt]],
+  );
 }
 
 /** Remaining scalar settings — a single-row CSV so every category is also in a
@@ -215,7 +242,15 @@ function balanceCsv(state: AppState): string {
 function settingsCsv(state: AppState): string {
   return toCsv(
     ['schemaVersion', 'tightPointGoal', 'nextYouNote', 'calendarFocusDate', 'routeFocusDate'],
-    [[state.schemaVersion, state.tightPointGoal ?? '', state.nextYouNote, state.calendarFocusDate ?? '', state.routeFocusDate ?? '']],
+    [
+      [
+        state.schemaVersion,
+        state.tightPointGoal ?? '',
+        state.nextYouNote,
+        state.calendarFocusDate ?? '',
+        state.routeFocusDate ?? '',
+      ],
+    ],
   );
 }
 

@@ -93,9 +93,9 @@ describe('data-engine pot mutations through the canonical boundary', () => {
     const aId = String(withPots.pots.find((pot) => pot.name === 'A')?.id);
     const bId = String(withPots.pots.find((pot) => pot.name === 'B')?.id);
 
-    expect(() => reallocateBetweenPotsThroughCanonicalRepository(withPots, aId, bId, 5_000)).toThrow(
-      /only holds/i,
-    );
+    expect(() =>
+      reallocateBetweenPotsThroughCanonicalRepository(withPots, aId, bId, 5_000),
+    ).toThrow(/only holds/i);
   });
 });
 
@@ -187,7 +187,9 @@ describe('data-engine subscription mutations through the canonical boundary', ()
 
     const used = recordSubscriptionUseThroughCanonicalRepository(base, 'subscription_quiet_0001');
     expect(used.subscriptions.find((item) => item.name === 'Old streaming')?.usesPerMonth).toBe(1);
-    expect(used.subscriptions.find((item) => item.name === 'Old streaming')?.lastUsedDaysAgo).toBe(0);
+    expect(used.subscriptions.find((item) => item.name === 'Old streaming')?.lastUsedDaysAgo).toBe(
+      0,
+    );
 
     const cancelled = cancelSubscriptionThroughCanonicalRepository(
       base,
@@ -386,6 +388,13 @@ describe('data-engine cycle mutations and insights read-adapter', () => {
     const insights = buildLocalInsightsModel(state);
     expect(insights.trend).toHaveLength(6);
     // Oldest two (C0,C1) dropped; newest (C7) last.
-    expect(insights.trend.map((point) => point.label)).toEqual(['C2', 'C3', 'C4', 'C5', 'C6', 'C7']);
+    expect(insights.trend.map((point) => point.label)).toEqual([
+      'C2',
+      'C3',
+      'C4',
+      'C5',
+      'C6',
+      'C7',
+    ]);
   });
 });

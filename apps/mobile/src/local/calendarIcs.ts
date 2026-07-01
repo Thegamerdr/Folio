@@ -61,7 +61,7 @@ export function buildIcs(events: readonly DerivedCalendarEvent[], now: Date = ne
     'PRODID:-//Folio//Money Path//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'X-WR-CALNAME:Folio · what\'s coming',
+    "X-WR-CALNAME:Folio · what's coming",
     'X-WR-CALDESC:The dates that move your money. From Folio.',
   ];
   for (const event of events) {

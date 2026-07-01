@@ -1,4 +1,4 @@
-# PdfSuccessScreen  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenPdfSuccess.tsx)
+# PdfSuccessScreen (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenPdfSuccess.tsx)
 
 ## file
 
@@ -66,7 +66,8 @@ Show what Folio found in a PDF statement before the user accepts. A confirmation
 
 ## componentTree
 
-<PdfSuccessScreen nav>  (ScrollView, flex col, px28 pt16, slide-in-r, hide scrollbar)
+<PdfSuccessScreen nav> (ScrollView, flex col, px28 pt16, slide-in-r, hide scrollbar)
+
   <Header row spaceBetween>
     <Pressable onPress={nav.back} press> ← </Pressable>   // 20px, --muted-ink
     <Text uppercase tracking>PDF</Text>                   // 12px, --muted-ink
@@ -79,46 +80,46 @@ Show what Folio found in a PDF statement before the user accepts. A confirmation
     <Text 13.5px mt12 color=mutedInk leadingRelaxed>Check what you want to add. Nothing counts until you choose.</Text>
   </Intro>
 
-  <Card mt24 bg=surface hairline rounded2xl p20>          // 24px radius, 20px pad
-    <FileRow row gap12 itemsCenter>
-      <IconChip 44x44 rounded-lg bg=accentSoft center>▤</IconChip>   // glyph --accent 18px
-      <View flex1 minW0>
-        <Text 14px medium numberOfLines=1>Statement_June_2025.pdf</Text>  // REAL filename
-        <Text 11.5px mt2 color=mutedInk>8 pages</Text>                     // REAL count
-      </View>
-    </FileRow>
-    <Divider mt20 height=1 bg=hairline />
-    <FoundSection mt20>
-      <Text 11px uppercase tracking color=mutedInk>3 things found</Text>   // REAL count
-      <List mt12 gap12>
-        {items.map(r => (
-          <Row key={r.merchant} row gap12 itemsCenter>
-            <Dot 6x6 rounded-full bg=accent />
-            <View flex1 minW0>
-              <Text 13.5px medium numberOfLines=1>{r.merchant}</Text>
-              <Text 11.5px italic color=mutedInk>{r.hint}</Text>
-            </View>
-            <Money value={r.amount} size="sm" />        // tone defaults to ink (NO sign coloring)
-          </Row>
-        ))}
-      </List>
-    </FoundSection>
-  </Card>
+<Card mt24 bg=surface hairline rounded2xl p20> // 24px radius, 20px pad
+<FileRow row gap12 itemsCenter>
+<IconChip 44x44 rounded-lg bg=accentSoft center>▤</IconChip> // glyph --accent 18px
+<View flex1 minW0>
+<Text 14px medium numberOfLines=1>Statement_June_2025.pdf</Text> // REAL filename
+<Text 11.5px mt2 color=mutedInk>8 pages</Text> // REAL count
+</View>
+</FileRow>
+<Divider mt20 height=1 bg=hairline />
+<FoundSection mt20>
+<Text 11px uppercase tracking color=mutedInk>3 things found</Text> // REAL count
+<List mt12 gap12>
+{items.map(r => (
+<Row key={r.merchant} row gap12 itemsCenter>
+<Dot 6x6 rounded-full bg=accent />
+<View flex1 minW0>
+<Text 13.5px medium numberOfLines=1>{r.merchant}</Text>
+<Text 11.5px italic color=mutedInk>{r.hint}</Text>
+</View>
+<Money value={r.amount} size="sm" /> // tone defaults to ink (NO sign coloring)
+</Row>
+))}
+</List>
+</FoundSection>
+</Card>
 
   <MeloBlock mt20>
     <MeloLine text="This is waiting. Add it only if it belongs." mood="soft" />
   </MeloBlock>
 
-  <Spacer flex1 />                                        // pushes CTAs to bottom
+<Spacer flex1 /> // pushes CTAs to bottom
 
-  <Pressable onPress={() => nav.go('visualizer')} press   // primary CTA
-     h=58 rounded2xl bg=accent shadow={accent55}>
-    <Text white medium 15.5px>Check what Folio found</Text>
-  </Pressable>
-  <Pressable onPress={() => nav.go('intake')} press mt8 h=46 rounded2xl> // secondary
-    <Text 13px color=mutedInk>Use a different file</Text>
-  </Pressable>
-  <Spacer height=16 />
+<Pressable onPress={() => nav.go('visualizer')} press // primary CTA
+h=58 rounded2xl bg=accent shadow={accent55}>
+<Text white medium 15.5px>Check what Folio found</Text>
+</Pressable>
+<Pressable onPress={() => nav.go('intake')} press mt8 h=46 rounded2xl> // secondary
+<Text 13px color=mutedInk>Use a different file</Text>
+</Pressable>
+<Spacer height=16 />
 </PdfSuccessScreen>
 
 ## enginesNeeded
@@ -145,17 +146,18 @@ Show what Folio found in a PDF statement before the user accepts. A confirmation
 
 ## docBlock
 
-/**
- * @rn-screen    PdfSuccessScreen
- * @rn-stack     Intake > Statement found
- * @purpose      Show what Folio found in a PDF statement before the user accepts.
- * @reads        —
- * @writes       —
- * @opens-sheet  edit-item
- * @copy         FROZEN
- * @tokens       --surface --hairline --positive --accent
- * @motion       stamp on accept · slide-in-r
- */
+/\*\*
+
+- @rn-screen PdfSuccessScreen
+- @rn-stack Intake > Statement found
+- @purpose Show what Folio found in a PDF statement before the user accepts.
+- @reads —
+- @writes —
+- @opens-sheet edit-item
+- @copy FROZEN
+- @tokens --surface --hairline --positive --accent
+- @motion stamp on accept · slide-in-r
+  \*/
 
 ## moods
 
@@ -186,4 +188,3 @@ Show what Folio found in a PDF statement before the user accepts. A confirmation
 - px-7 / mt-6 / gap-3 etc. → StyleSheet spacing (28 / 24 / 12 px); trailing h-4 → bottom safe-area inset
 - CTA boxShadow rgba(224,99,58,0.55) → shadowColor=theme.accent (iOS shadow + Android elevation), colored not gray
 - nav.go/nav.back (local Nav prop) → @react-navigation/native stack (navigation.navigate / goBack); keep the Nav prop shape from types.ts (go, back, openSheet, openMelo, pressure...) so the screen stays drop-in
-

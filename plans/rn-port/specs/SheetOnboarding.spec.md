@@ -1,4 +1,4 @@
-# SheetOnboarding  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetOnboarding.tsx)
+# SheetOnboarding (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetOnboarding.tsx)
 
 ## file
 
@@ -10,16 +10,16 @@ SheetOnboarding
 
 ## purpose
 
-Multi-step first-run onboarding bottom-sheet. Collects the anchors that flip Folio off sample data (name, payday day-of-month, rough monthly income, current account balance) plus a 2-col pot picker, then writes real values to the store with an honest "user-entered / rough" balance label (ENGINES.md sec 6) and seeds pots from templates. Primary button advances steps ("Next") then finishes ("Begin quietly"); "Skip for now" closes WITHOUT marking onboarding done, so sample numbers + the nudge stay. FIDELITY NOTE: the doc block + COPY_DECK describe FOUR steps, but the live source renders FIVE (name, payday, income, balance, pots) with different inline copy than the COPY_DECK onb.* keys — port the code's five steps and exact strings.
+Multi-step first-run onboarding bottom-sheet. Collects the anchors that flip Folio off sample data (name, payday day-of-month, rough monthly income, current account balance) plus a 2-col pot picker, then writes real values to the store with an honest "user-entered / rough" balance label (ENGINES.md sec 6) and seeds pots from templates. Primary button advances steps ("Next") then finishes ("Begin quietly"); "Skip for now" closes WITHOUT marking onboarding done, so sample numbers + the nudge stay. FIDELITY NOTE: the doc block + COPY_DECK describe FOUR steps, but the live source renders FIVE (name, payday, income, balance, pots) with different inline copy than the COPY_DECK onb.\* keys — port the code's five steps and exact strings.
 
 ## docBlock
 
-@rn-sheet     OnboardingSheet
-@purpose      Four-step onboarding — name, payday, income, pot picker.
-@writes       setOnboarding, setPots
-@copy         FROZEN
-@tokens       --paper --accent --surface --hairline
-@motion       slide between steps · stamp on completion
+@rn-sheet OnboardingSheet
+@purpose Four-step onboarding — name, payday, income, pot picker.
+@writes setOnboarding, setPots
+@copy FROZEN
+@tokens --paper --accent --surface --hairline
+@motion slide between steps · stamp on completion
 
 ## reads
 
@@ -35,8 +35,6 @@ Multi-step first-run onboarding bottom-sheet. Collects the anchors that flip Fol
 - onClose() — always at end of done(); also the ONLY action of 'Skip for now' (which deliberately leaves onboarding.done=false)
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -79,13 +77,13 @@ Multi-step first-run onboarding bottom-sheet. Collects the anchors that flip Fol
 
 ## componentTree
 
-<Sheet onClose={onClose}>                        {/* gorhom BottomSheetModal, paper bg, 28px top radius, grip, 40-45% ink scrim */}
-  <View px2 pb2>
-    <View row gap1.5 mb4>                          {/* progress pips */}
-      {steps.map(i => <View pip active={i===step} done={i<step} />)}  {/* active: w7 accent; done: w5 ink/60; future: w5 hairline */}
-    </View>
-    <Text eyebrow font-display italic 12.5 muted>{s.eyebrow}</Text>
-    <Text head font-display 26 leading-tight mt1>{s.head /* with accent <em> word */}</Text>
+<Sheet onClose={onClose}> {/_ gorhom BottomSheetModal, paper bg, 28px top radius, grip, 40-45% ink scrim _/}
+<View px2 pb2>
+<View row gap1.5 mb4> {/_ progress pips _/}
+{steps.map(i => <View pip active={i===step} done={i<step} />)} {/_ active: w7 accent; done: w5 ink/60; future: w5 hairline _/}
+</View>
+<Text eyebrow font-display italic 12.5 muted>{s.eyebrow}</Text>
+<Text head font-display 26 leading-tight mt1>{s.head /_ with accent <em> word _/}</Text>
 
     {/* s.body — one of five branches */}
     {/* step 0 name */}   <TextInput autoFocus value={name} placeholder="A name, a nickname" mt5 h12 inset hairline rounded-xl px4 15 focusRing accent/30 />
@@ -104,6 +102,7 @@ Multi-step first-run onboarding bottom-sheet. Collects the anchors that flip Fol
     </Pressable>
     <Pressable press mt2 h10 onPress={onClose}><Text 12.5 muted center>Skip for now</Text></Pressable>
     <Text mt1 px2 10.5 muted center leading-relaxed opacity-80>Skipping keeps sample numbers on Today. Folio works honestly once these are yours.</Text>
+
   </View>
 </Sheet>
 
@@ -117,7 +116,7 @@ Multi-step first-run onboarding bottom-sheet. Collects the anchors that flip Fol
 ## fidelityRisks
 
 - STEP COUNT MISMATCH: doc block + COPY_DECK say 4 steps; source renders 5 (adds the balance/'Today' step). Port the 5 from code.
-- COPY DIVERGENCE: inline strings differ from COPY_DECK onb.* keys (e.g. code 'What lands, roughly?' vs deck onb.3.head 'Roughly, what comes in?'; code help text differs from onb.3.help/onb.4.help). Decide which is canonical before shipping; code is the rendered truth today.
+- COPY DIVERGENCE: inline strings differ from COPY_DECK onb.\* keys (e.g. code 'What lands, roughly?' vs deck onb.3.head 'Roughly, what comes in?'; code help text differs from onb.3.help/onb.4.help). Decide which is canonical before shipping; code is the rendered truth today.
 - NO MELO: MELO_MOODS.md says onboarding steps 1-3 = calm, step 4 (pots) = curious, complete = cheer, but this source renders NO Melo at all. Port matches code (no Melo) unless design wants the mood added — flag to design.
 - NO completion screen: COPY_DECK onb.done.head/body ('Ready.' / 'Folio will get quieter as it learns you.') and the doc-block 'stamp on completion' are NOT in this source — done() closes the sheet immediately. Either add the seal moment or accept the silent close.
 - SLIDER FIDELITY: web uses native <input type=range> with accent-color; RN needs @react-native-community/slider styled to --accent thumb/track, min/max/step exact (payday 1-31 step1; income 500-8000 step20; balance 0-5000 step10).
@@ -161,4 +160,3 @@ Multi-step first-run onboarding bottom-sheet. Collects the anchors that flip Fol
 - pots sub-states — each tile is on/off via picked.has(t.id) (selected = accent-soft + accent/40 ring; unselected = inset + hairline). 'Skip with none' is valid: picked.size===0 → setPots NOT called.
 - balance seed branch — currentBalance.source==='sample' → start 0; else → start currentBalance.amount.
 - STATES.md: Onboarding has no row of its own; Today's 'empty' = onboarding gate, and this sheet is that gate's fill flow. No empty/loading/error/offline visuals required here.
-

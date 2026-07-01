@@ -18,7 +18,8 @@ import {
 const ASOF = '2026-06-21';
 
 function transaction(
-  overrides: Partial<LocalLedgerTransaction> & Pick<LocalLedgerTransaction, 'id' | 'title' | 'amountMinor' | 'date'>,
+  overrides: Partial<LocalLedgerTransaction> &
+    Pick<LocalLedgerTransaction, 'id' | 'title' | 'amountMinor' | 'date'>,
 ): LocalLedgerTransaction {
   return {
     source: 'manual',
@@ -99,7 +100,10 @@ function realisticLedger(): LocalLedgerState {
   return state;
 }
 
-function find(events: readonly DerivedCalendarEvent[], predicate: (e: DerivedCalendarEvent) => boolean) {
+function find(
+  events: readonly DerivedCalendarEvent[],
+  predicate: (e: DerivedCalendarEvent) => boolean,
+) {
   return events.find(predicate);
 }
 

@@ -1,4 +1,4 @@
-# SubCaughtSheet  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetSubCaught.tsx)
+# SubCaughtSheet (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetSubCaught.tsx)
 
 ## file
 
@@ -10,16 +10,17 @@ SubCaughtSheet
 
 ## purpose
 
-Bottom sheet that appears when the subscription detector flags a likely recurring charge. It shows the candidate (name, amount, how many cycles seen, last-seen date) in deliberately hedged language ("Looks like...", never "is") and lets the user confirm to add it as a subscription or dismiss this one. Surfaces the subs.caught.* copy family and pairs with the nudge.sub.caught local notification.</parameter>
-<parameter name="docBlock">/**
- * @rn-sheet     SubCaughtSheet
- * @purpose      Folio spotted a likely recurring charge. Confirm to add as a subscription, or dismiss.
- * @reads        — (synthetic candidate in prototype; RN engine supplies the candidate)
- * @writes       — (RN app: setSubs with a new sub)
- * @copy         FROZEN — never claims certainty. "Looks like" not "is".
- * @tokens       --surface --hairline --accent --inset
- * @motion       sheet-rise · gentle scale-in on the candidate card
- */
+Bottom sheet that appears when the subscription detector flags a likely recurring charge. It shows the candidate (name, amount, how many cycles seen, last-seen date) in deliberately hedged language ("Looks like...", never "is") and lets the user confirm to add it as a subscription or dismiss this one. Surfaces the subs.caught.\* copy family and pairs with the nudge.sub.caught local notification.</parameter>
+<parameter name="docBlock">/\*\*
+
+- @rn-sheet SubCaughtSheet
+- @purpose Folio spotted a likely recurring charge. Confirm to add as a subscription, or dismiss.
+- @reads — (synthetic candidate in prototype; RN engine supplies the candidate)
+- @writes — (RN app: setSubs with a new sub)
+- @copy FROZEN — never claims certainty. "Looks like" not "is".
+- @tokens --surface --hairline --accent --inset
+- @motion sheet-rise · gentle scale-in on the candidate card
+  \*/
 
 ## reads
 
@@ -168,4 +169,3 @@ Bottom sheet that appears when the subscription detector flags a likely recurrin
 - setTimeout(onClose, 320) confirm shim → real async addSub then close (await write, handle error)
 - italic 'I noticed' → Fraunces italic Text (fontStyle:'italic', fontFamily display)
 - disabled:opacity-50 → disabled prop + conditional opacity style on the Pressable
-

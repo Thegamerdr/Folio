@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  addCycle,
-  createEmptyLocalLedgerState,
-  formatMinorAmount,
-} from './localLedger.js';
+import { addCycle, createEmptyLocalLedgerState, formatMinorAmount } from './localLedger.js';
 import { buildLocalInsightsModel } from './localInsightsAdapter.js';
 
 // The fix: Insights must show REAL current-cycle data on session one, before any payday ritual has

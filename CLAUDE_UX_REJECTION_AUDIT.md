@@ -9,7 +9,7 @@
 >
 > **A scope note for the reviewer:** this 2026-06-24 audit was written against the legacy shell
 > (`apps/mobile/src/surfaces/mobileShell.tsx`). Tonight's product runs the rebuilt route/pressure
-> surface, and the changes below are the ones that map directly onto the *substance* of what this
+> surface, and the changes below are the ones that map directly onto the _substance_ of what this
 > audit rejected — chiefly the "fabricated line / sample data when there's nothing real" failure
 > mode it flagged repeatedly. Several scorecard rows here (the ten-button Review sheet, Start's four
 > equal cards, the Review-row rebuild, the internal-tooling leak) were already closed in the
@@ -38,7 +38,7 @@
 >    generic UK tax deadlines, and `RECURRING_BILLS` (Octopus/Council Tax/Rent/BT) are gated behind
 >    the demo regime. (`eb6e0a0`, `3783c9c`)
 > 4. **Melo was decorative / a no-op (the audit called the "Melo noticed" blocks redundant meta-
->    chrome in the Today row).** App-wide pressure is now actually *derived* from the real route via
+>    chrome in the Today row).** App-wide pressure is now actually _derived_ from the real route via
 >    `derivePressure()`, gated on a real money picture so an empty/cleared app stays neutral-calm,
 >    and the Melo mood picker sets a global override (`nav.setPressure`) that propagates to
 >    Today / What-if / Melo / chat. Melo now does work instead of narrating. (`eb6e0a0`)

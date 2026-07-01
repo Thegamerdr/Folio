@@ -14,15 +14,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MeloPresence } from './melo';
-import {
-  ChevronRight,
-  elevation,
-  gap,
-  pressed,
-  radius,
-  useTheme,
-  type Palette,
-} from './kit';
+import { ChevronRight, elevation, gap, pressed, radius, useTheme, type Palette } from './kit';
 
 export type TodayNudgeTone = 'accent' | 'melo' | 'ink';
 
@@ -55,9 +47,7 @@ export function TodayNudges({ nudges }: { nudges: readonly TodayNudge[] }) {
           {nudge.tone === 'melo' ? (
             <MeloPresence size="sm" state="melo_idle" style={layout.meloMark} withCopy={false} />
           ) : (
-            <View
-              style={[layout.dot, nudge.tone === 'accent' ? s.dotAccent : s.dotMuted]}
-            />
+            <View style={[layout.dot, nudge.tone === 'accent' ? s.dotAccent : s.dotMuted]} />
           )}
           <Text numberOfLines={2} style={s.label}>
             {nudge.label}
@@ -77,11 +67,7 @@ export function TodayNudges({ nudges }: { nudges: readonly TodayNudge[] }) {
             </Text>
             <ChevronRight
               color={
-                nudge.tone === 'accent'
-                  ? t.calmStrong
-                  : nudge.tone === 'melo'
-                    ? t.ink
-                    : t.muted
+                nudge.tone === 'accent' ? t.calmStrong : nudge.tone === 'melo' ? t.ink : t.muted
               }
             />
           </View>

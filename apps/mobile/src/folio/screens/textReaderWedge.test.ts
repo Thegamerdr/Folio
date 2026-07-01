@@ -12,14 +12,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  parseSheet,
-  type CandidateMoneyItem,
-  type ColumnIssue,
-} from '../lib/importSheet';
+import { parseSheet, type CandidateMoneyItem, type ColumnIssue } from '../lib/importSheet';
 
-const byMerchant = (cands: readonly CandidateMoneyItem[], m: string): CandidateMoneyItem | undefined =>
-  cands.find((c) => c.merchant === m);
+const byMerchant = (
+  cands: readonly CandidateMoneyItem[],
+  m: string,
+): CandidateMoneyItem | undefined => cands.find((c) => c.merchant === m);
 
 const issueCodes = (issues: readonly ColumnIssue[]): string[] => issues.map((i) => i.code);
 
@@ -62,7 +60,8 @@ describe('PasteSuccessScreen sample text → engine candidates', () => {
 
   it('reproduces the exact money-in / money-out flow the row renders', () => {
     const { candidates } = parseSheet(PASTE_TEXT, { source: 'paste' });
-    const flow = (m: string): 'in' | 'out' => ((byMerchant(candidates, m)?.amount ?? 0) >= 0 ? 'in' : 'out');
+    const flow = (m: string): 'in' | 'out' =>
+      (byMerchant(candidates, m)?.amount ?? 0) >= 0 ? 'in' : 'out';
     expect(flow('Tesco')).toBe('out');
     expect(flow('Salary')).toBe('in');
     expect(flow('Rent')).toBe('out');
@@ -161,7 +160,9 @@ describe('text-reader wedge — honest hard-issue routing', () => {
 
   it('a single bad-amount row is NOT hard — the good rows still come through', () => {
     const { candidates, issues } = parseSheet(
-      ['date,merchant,amount', '2026-06-26,Tesco,-42.00', '2026-06-25,Mystery,not-a-number'].join('\n'),
+      ['date,merchant,amount', '2026-06-26,Tesco,-42.00', '2026-06-25,Mystery,not-a-number'].join(
+        '\n',
+      ),
       { source: 'csv' },
     );
     expect(byMerchant(candidates, 'Tesco')?.amount).toBe(-42);

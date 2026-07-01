@@ -1,4 +1,4 @@
-# MeloScreen  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenMelo.tsx)
+# MeloScreen (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\screens\ScreenMelo.tsx)
 
 ## file
 
@@ -28,8 +28,6 @@ Standalone Melo companion/persona surface: a hero Melo card that reflects the cu
 - DOC-BLOCK CLAIMS NOT honored by rendered JSX: @writes applyMeloTool (via tools); @opens-sheet melo-chat. The component imports ~20 store actions (setPots, setSubs, togglePaused, pauseMany, addCycle, setOnboarding, resetAll, fastForwardMonth, removeSub, addToPot, markSubUsed, addTransaction, removeTransaction) and assets (meloHero, waxSeal) but NONE are used in the JSX — dead imports.
 
 ## opensSheets
-
-
 
 ## copyKeys
 
@@ -73,7 +71,8 @@ Standalone Melo companion/persona surface: a hero Melo card that reflects the cu
 
 ## componentTree
 
-<MeloScreen>  // ScrollView, h-full flex-col px-7 pt-4, entrance: slide-in-r
+<MeloScreen> // ScrollView, h-full flex-col px-7 pt-4, entrance: slide-in-r
+
   <Header row justify-between>
     <Pressable onPress={nav.back} class="press"> ← (20px, --muted-ink) </Pressable>
     <Text eyebrow 12px uppercase tracking-[0.14em] --muted-ink> Melo </Text>
@@ -94,24 +93,24 @@ Standalone Melo companion/persona surface: a hero Melo card that reflects the cu
     </Text>
   </HeroCard>
 
-  <PressurePicker mt-5 gap-2 (space-y-2)>
-    {["safe","calm","soft","pressured","overspent"].map(p =>
-      <Pressable key={p} onPress={() => nav.setPressure(p)}
-                 class="press" w-full rounded-xl px-4 py-3 flex-row items-center gap-3 hairline
-                 bg={nav.pressure===p ? --accent-soft : --surface}>
-        <Melo size={28} mood={pressureMood[p]} />
-        <View flex-1>
-          <Text 13px font-medium capitalize>{p}</Text>
-          <Text 11.5px --muted-ink font-display italic>"{pressureLine[p]}"</Text>
-        </View>
-        {nav.pressure===p && <Text --accent 12px>●</Text>}
-      </Pressable>
-    )}
-  </PressurePicker>
+<PressurePicker mt-5 gap-2 (space-y-2)>
+{["safe","calm","soft","pressured","overspent"].map(p =>
+<Pressable key={p} onPress={() => nav.setPressure(p)}
+class="press" w-full rounded-xl px-4 py-3 flex-row items-center gap-3 hairline
+bg={nav.pressure===p ? --accent-soft : --surface}>
+<Melo size={28} mood={pressureMood[p]} />
+<View flex-1>
+<Text 13px font-medium capitalize>{p}</Text>
+<Text 11.5px --muted-ink font-display italic>"{pressureLine[p]}"</Text>
+</View>
+{nav.pressure===p && <Text --accent 12px>●</Text>}
+</Pressable>
+)}
+</PressurePicker>
 
-  <FooterHint mt-5 mb-8 center 11px --muted-ink>
-    Try each mood — Melo changes, and your money path shifts with her.
-  </FooterHint>
+<FooterHint mt-5 mb-8 center 11px --muted-ink>
+Try each mood — Melo changes, and your money path shifts with her.
+</FooterHint>
 </MeloScreen>
 
 ## enginesNeeded
@@ -137,17 +136,18 @@ Standalone Melo companion/persona surface: a hero Melo card that reflects the cu
 
 ## docBlock
 
-/**
- * @rn-screen    MeloScreen
- * @rn-stack     MainTabs > Melo
- * @purpose      Standalone Melo surface — full chat, snapshot, persona.
- * @reads        Full app snapshot via SheetMeloChat
- * @writes       applyMeloTool (via tools)
- * @opens-sheet  melo-chat
- * @copy         FROZEN — Melo's lines come from the server persona, not this file.
- * @tokens       --paper --accent --hairline --muted-ink
- * @motion       breathe · blink · slide-in-r
- */
+/\*\*
+
+- @rn-screen MeloScreen
+- @rn-stack MainTabs > Melo
+- @purpose Standalone Melo surface — full chat, snapshot, persona.
+- @reads Full app snapshot via SheetMeloChat
+- @writes applyMeloTool (via tools)
+- @opens-sheet melo-chat
+- @copy FROZEN — Melo's lines come from the server persona, not this file.
+- @tokens --paper --accent --hairline --muted-ink
+- @motion breathe · blink · slide-in-r
+  \*/
 
 ## stateBranches
 
@@ -170,4 +170,3 @@ Standalone Melo companion/persona surface: a hero Melo card that reflects the cu
 - tracking-[0.14em] -> letterSpacing on uppercase label
 - nav.back / nav.setPressure -> @react-navigation goBack() + pressure setter in app store (Zustand) or nav context
 - ● and ← glyphs -> Text glyphs or lucide-react-native (ArrowLeft) for the back chevron
-

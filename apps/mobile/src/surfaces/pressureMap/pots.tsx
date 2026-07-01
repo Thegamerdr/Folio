@@ -127,7 +127,10 @@ export function PotsScreen({
         onPress={() => setCreating(true)}
       />
 
-      <MeloLine tone="soft" text="Pots are money you set aside on purpose — they sit beside the path, they don't change it." />
+      <MeloLine
+        tone="soft"
+        text="Pots are money you set aside on purpose — they sit beside the path, they don't change it."
+      />
 
       {/* Pick a destination for the pot being moved from. */}
       <DestinationPickerSheet
@@ -444,9 +447,7 @@ function StepButton({
         pressed && !disabled ? layout.stepPressed : undefined,
       ]}
     >
-      <Text style={[s.stepLabel, disabled ? s.stepLabelDisabled : undefined]}>
-        {label}
-      </Text>
+      <Text style={[s.stepLabel, disabled ? s.stepLabelDisabled : undefined]}>{label}</Text>
     </Pressable>
   );
 }
@@ -586,9 +587,7 @@ function AmountTile({
       ]}
     >
       <Text style={s.amountTileLabel}>{label}</Text>
-      <Text style={[s.amountTileValue, active ? s.amountTileValueActive : undefined]}>
-        {value}
-      </Text>
+      <Text style={[s.amountTileValue, active ? s.amountTileValueActive : undefined]}>{value}</Text>
     </Pressable>
   );
 }

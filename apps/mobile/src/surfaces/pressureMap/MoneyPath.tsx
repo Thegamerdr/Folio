@@ -598,10 +598,10 @@ function focusDayLabel(iso: string): string {
   const parts = iso.split('-').map(Number);
   const d = new Date(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1);
   const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] ?? '';
-  const mon = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ][d.getMonth()] ?? '';
+  const mon =
+    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
+      d.getMonth()
+    ] ?? '';
   return `${wd} ${d.getDate()} ${mon}`;
 }
 

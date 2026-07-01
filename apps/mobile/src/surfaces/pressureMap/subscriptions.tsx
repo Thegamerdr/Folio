@@ -173,7 +173,11 @@ function SubscriptionRow({
 
   return (
     <View
-      style={[s.row, first ? layout.rowFirst : undefined, row.paused ? layout.rowPaused : undefined]}
+      style={[
+        s.row,
+        first ? layout.rowFirst : undefined,
+        row.paused ? layout.rowPaused : undefined,
+      ]}
     >
       <View style={layout.rowHead}>
         <View style={[layout.pulseDot, { backgroundColor: pulseColor(t, row.pulse) }]} />
@@ -522,9 +526,7 @@ function CreateSubscriptionSheet({
       <View style={layout.amountTiles}>
         <View style={[s.amountTile, s.amountTileActive]}>
           <Text style={s.amountTileLabel}>Amount</Text>
-          <Text style={[s.amountTileValue, s.amountTileValueActive]}>
-            {poundsLabel(cost)}
-          </Text>
+          <Text style={[s.amountTileValue, s.amountTileValueActive]}>{poundsLabel(cost)}</Text>
         </View>
       </View>
 

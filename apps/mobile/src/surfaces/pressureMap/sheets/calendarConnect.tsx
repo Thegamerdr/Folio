@@ -49,13 +49,16 @@ import {
 } from '../kit';
 import { Sheet } from '../Sheet';
 
-const WOULD_ADD: readonly { id: string; label: string; tone: 'in' | 'out' | 'deadline' | 'manual' }[] =
-  [
-    { id: 'in', label: 'Paydays', tone: 'in' },
-    { id: 'out', label: 'Bills & renewals', tone: 'out' },
-    { id: 'deadline', label: 'Deadlines', tone: 'deadline' },
-    { id: 'manual', label: 'Things you added', tone: 'manual' },
-  ] as const;
+const WOULD_ADD: readonly {
+  id: string;
+  label: string;
+  tone: 'in' | 'out' | 'deadline' | 'manual';
+}[] = [
+  { id: 'in', label: 'Paydays', tone: 'in' },
+  { id: 'out', label: 'Bills & renewals', tone: 'out' },
+  { id: 'deadline', label: 'Deadlines', tone: 'deadline' },
+  { id: 'manual', label: 'Things you added', tone: 'manual' },
+] as const;
 
 function dotColor(t: Palette, tone: 'in' | 'out' | 'deadline' | 'manual'): string {
   if (tone === 'in') return t.positive;
@@ -132,7 +135,7 @@ export function CalendarConnectSheet({
     <Sheet onClose={onClose} reduceMotion={reduceMotion} visible={visible}>
       <View style={s.body}>
         <Text style={s.eyebrow}>Connect</Text>
-        <Headline accent="calendar." lead="Your money dates in your phone&apos;s " style={s.headline} />
+        <Headline accent="calendar." lead="Your money dates in your phone's " style={s.headline} />
         <Body style={s.lead}>
           One-way — Folio adds the dates that move your money. Folio doesn&apos;t read anything back
           from your calendar.
@@ -153,7 +156,9 @@ export function CalendarConnectSheet({
         <View style={[s.card, s.cardOut]}>
           <Text style={s.cardLabel}>What stays out</Text>
           <View style={s.outList}>
-            <Text style={s.outText}>Your spend, the amount on each date, and your spare figure.</Text>
+            <Text style={s.outText}>
+              Your spend, the amount on each date, and your spare figure.
+            </Text>
             <Text style={s.outText}>Anything from your calendar — Folio never reads it.</Text>
           </View>
         </View>
@@ -169,7 +174,8 @@ export function CalendarConnectSheet({
           />
         </View>
         <Text style={s.footnote}>
-          This hands the dates to your phone&apos;s calendar. A live two-way Google link ships later.
+          This hands the dates to your phone&apos;s calendar. A live two-way Google link ships
+          later.
         </Text>
 
         <View style={s.notNow}>

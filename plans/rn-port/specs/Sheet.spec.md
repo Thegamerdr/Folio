@@ -1,4 +1,4 @@
-# Sheet  (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\Sheet.tsx)
+# Sheet (C:\dev\folio-melo\.claude\worktrees\design-main\src\components\folio\sheets\Sheet.tsx)
 
 ## file
 
@@ -48,20 +48,20 @@ Bottom-sheet shell primitive — scrim, grip, paper sheet body, spring-up. The w
 
 ## componentTree
 
-<BottomSheetModal /* @gorhom */ snapPoints={['82%']} maxDynamicContentSize handleComponent={Grip} backdropComponent={Scrim} backgroundStyle={{bg:'--paper', borderTopRadius:28, shadow:'--shadow-sheet'}} accessibilityRole="dialog" accessibilityLabel={title} accessibilityViewIsModal>
-  {/* Scrim (backdropComponent) */}
-  <Pressable accessibilityRole="button" accessibilityLabel="Close sheet" onPress={onClose} style={{flex:1, bg:'--ink'@45%}} /* scrim-in fade */ />
-  {/* Sheet body — on --paper, 28px top radius, max 82% height, clip overflow */}
-  <View>
-    {/* Top edge highlight — 1px white-ish gradient, aria-hidden */}
-    <LinearGradient colors={[transparent, rgba(255,255,255,0.7), transparent]} start={left} end={right} style={{height:StyleSheet.hairlineWidth, position:absolute, top:0}} accessibilityElementsHidden importantForAccessibility="no" />
-    {/* Grip (handleComponent) — centered pill: w36 h3 radius-full bg --hairline, pt12 pb4 */}
-    <View style={{pt:12, pb:4, alignItems:'center'}}><View style={{w:36, h:3, radius:999, bg:'--hairline'}} /></View>
-    {/* Scrollable content area — px24 pt8 pb24, hidden scrollbar */}
-    <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{px:24, pt:8, pb:24}}>
-      {children}
-    </BottomSheetScrollView>
-  </View>
+<BottomSheetModal /_ @gorhom _/ snapPoints={['82%']} maxDynamicContentSize handleComponent={Grip} backdropComponent={Scrim} backgroundStyle={{bg:'--paper', borderTopRadius:28, shadow:'--shadow-sheet'}} accessibilityRole="dialog" accessibilityLabel={title} accessibilityViewIsModal>
+{/_ Scrim (backdropComponent) _/}
+<Pressable accessibilityRole="button" accessibilityLabel="Close sheet" onPress={onClose} style={{flex:1, bg:'--ink'@45%}} /_ scrim-in fade _/ />
+{/_ Sheet body — on --paper, 28px top radius, max 82% height, clip overflow _/}
+<View>
+{/_ Top edge highlight — 1px white-ish gradient, aria-hidden _/}
+<LinearGradient colors={[transparent, rgba(255,255,255,0.7), transparent]} start={left} end={right} style={{height:StyleSheet.hairlineWidth, position:absolute, top:0}} accessibilityElementsHidden importantForAccessibility="no" />
+{/_ Grip (handleComponent) — centered pill: w36 h3 radius-full bg --hairline, pt12 pb4 _/}
+<View style={{pt:12, pb:4, alignItems:'center'}}><View style={{w:36, h:3, radius:999, bg:'--hairline'}} /></View>
+{/_ Scrollable content area — px24 pt8 pb24, hidden scrollbar _/}
+<BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{px:24, pt:8, pb:24}}>
+{children}
+</BottomSheetScrollView>
+</View>
 </BottomSheetModal>
 
 ## enginesNeeded
@@ -86,18 +86,19 @@ Bottom-sheet shell primitive — scrim, grip, paper sheet body, spring-up. The w
 
 ## docBlock
 
-/**
- * @rn-component Sheet
- * @purpose      Bottom-sheet shell — scrim, grip, paper sheet body, spring-up.
- * @copy         —
- * @tokens       --paper --hairline --ink · shadow-sheet
- * @motion       sheet-rise 480ms cubic-bezier(.16,1,.3,1)
- *               scrim-in   320ms ease-out
- * @rn-port      Use a native bottom-sheet (e.g. @gorhom/bottom-sheet) with a
- *               40% ink scrim, 28px top radius, 4px hairline grip, and the
- *               same spring curve. Sheet body sits on --paper, NOT --surface,
- *               so it feels like paper lifting from paper.
- */
+/\*\*
+
+- @rn-component Sheet
+- @purpose Bottom-sheet shell — scrim, grip, paper sheet body, spring-up.
+- @copy —
+- @tokens --paper --hairline --ink · shadow-sheet
+- @motion sheet-rise 480ms cubic-bezier(.16,1,.3,1)
+-               scrim-in   320ms ease-out
+- @rn-port Use a native bottom-sheet (e.g. @gorhom/bottom-sheet) with a
+-               40% ink scrim, 28px top radius, 4px hairline grip, and the
+-               same spring curve. Sheet body sits on --paper, NOT --surface,
+-               so it feels like paper lifting from paper.
+  \*/
 
 ## moods
 
@@ -113,7 +114,7 @@ Bottom-sheet shell primitive — scrim, grip, paper sheet body, spring-up. The w
 - CSS tokens (--paper/--ink/--hairline/--shadow-sheet) → theme object + useTheme() hook
 - .sheet-in / .scrim-in → react-native-reanimated withTiming (gorhom animationConfigs) — 480ms rise / 320ms scrim, easing cubic-bezier(.16,1,.3,1) / ease-out
 - rounded-t-[28px] → borderTopLeftRadius/borderTopRightRadius: 28 on backgroundStyle
-- boxShadow var(--shadow-sheet) → iOS shadow* (negative height offset) / Android elevation approximation
+- boxShadow var(--shadow-sheet) → iOS shadow\* (negative height offset) / Android elevation approximation
 - role=dialog/aria-modal/aria-label → accessibilityViewIsModal + accessibilityLabel={title}
 - press utility → Pressable + Haptics.selectionAsync() (expo-haptics) where tappable
 
@@ -122,4 +123,3 @@ Bottom-sheet shell primitive — scrim, grip, paper sheet body, spring-up. The w
 - populated — the only branch: render scrim + paper body + grip + {children}. The Sheet has no empty/loading/error states of its own; those belong to whatever is rendered as children. STATES.md has no Sheet-specific branches.
 - presence/absence — the host controls mount: Sheet is mounted only when a sheet is active (web renders it inside the phone frame with z-30). In RN this is present()/dismiss() on the BottomSheetModal ref, driven by host store sheet state.
 - reduced-motion variant — render fully-resolved (no rise/fade) instead of animating.
-

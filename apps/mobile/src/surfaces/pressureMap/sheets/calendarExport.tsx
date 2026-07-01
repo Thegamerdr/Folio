@@ -42,13 +42,16 @@ import { Sheet } from '../Sheet';
 
 // The legend rows — what lands in the feed, with the calm dot colours from the web. Each dot's
 // colour follows the active palette, so the legend stays right in dark mode too.
-const INCLUDED: readonly { id: string; label: string; tone: 'in' | 'out' | 'deadline' | 'review' }[] =
-  [
-    { id: 'in', label: 'Paydays', tone: 'in' },
-    { id: 'out', label: 'Bills & renewals', tone: 'out' },
-    { id: 'deadline', label: 'Deadlines', tone: 'deadline' },
-    { id: 'review', label: 'Things to check', tone: 'review' },
-  ] as const;
+const INCLUDED: readonly {
+  id: string;
+  label: string;
+  tone: 'in' | 'out' | 'deadline' | 'review';
+}[] = [
+  { id: 'in', label: 'Paydays', tone: 'in' },
+  { id: 'out', label: 'Bills & renewals', tone: 'out' },
+  { id: 'deadline', label: 'Deadlines', tone: 'deadline' },
+  { id: 'review', label: 'Things to check', tone: 'review' },
+] as const;
 
 function dotColor(t: Palette, tone: 'in' | 'out' | 'deadline' | 'review'): string {
   if (tone === 'in') return t.positive;

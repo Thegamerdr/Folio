@@ -34,10 +34,7 @@ const WRITE_DEBOUNCE_MS = 400;
  *  since the last call, plus a `cancel()` to drop a pending call. No React,
  *  no expo: safe to unit-test in Node. `setTimeout`/`clearTimeout` are global
  *  in both RN (Hermes) and Node, so this needs no platform shim. */
-export function makeDebounced(
-  fn: () => void,
-  ms: number,
-): { run: () => void; cancel: () => void } {
+export function makeDebounced(fn: () => void, ms: number): { run: () => void; cancel: () => void } {
   let handle: ReturnType<typeof setTimeout> | null = null;
   const cancel = () => {
     if (handle !== null) {

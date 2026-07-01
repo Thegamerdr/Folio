@@ -293,9 +293,7 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
 
       {/* The share / win card — accent-soft→surface wash (drawn as an SVG background), hairline
           border, soft card lift, stamping in on render. */}
-      <Animated.View
-        style={[s.card, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]}
-      >
+      <Animated.View style={[s.card, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]}>
         {/* Gradient ground — to-br (top-left → bottom-right): accent-soft start → surface end. */}
         <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
           <Defs>
@@ -304,7 +302,15 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
               <Stop offset="1" stopColor={t.surface} />
             </LinearGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" rx={radius.xl} ry={radius.xl} fill="url(#shareCardFill)" />
+          <Rect
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            rx={radius.xl}
+            ry={radius.xl}
+            fill="url(#shareCardFill)"
+          />
         </Svg>
 
         {/* Brand chip row — accent dot + 'Folio' (app.name from the deck). */}

@@ -67,10 +67,7 @@ export default {
     }
 
     if (url.pathname !== CHAT_PATH && url.pathname !== MELO_ALIAS_PATH) {
-      return json(
-        { error: `Unknown path. POST to ${CHAT_PATH} or ${MELO_ALIAS_PATH}.` },
-        404,
-      );
+      return json({ error: `Unknown path. POST to ${CHAT_PATH} or ${MELO_ALIAS_PATH}.` }, 404);
     }
 
     // Abuse guard: when GATEWAY_TOKEN is configured, require a matching header. When it is unset
@@ -138,10 +135,7 @@ export default {
         body: JSON.stringify(body),
       });
     } catch (error: unknown) {
-      return json(
-        { error: `Could not reach the upstream provider. ${errorMessage(error)}` },
-        502,
-      );
+      return json({ error: `Could not reach the upstream provider. ${errorMessage(error)}` }, 502);
     }
 
     // Return OpenRouter's response (status + body) to the caller, adding CORS. We pass the body

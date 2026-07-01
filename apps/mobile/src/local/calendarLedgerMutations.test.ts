@@ -40,8 +40,12 @@ describe('nudgeSub', () => {
   });
 
   it('clamps to ±MAX_SUB_OVERRIDE_DAYS', () => {
-    expect(nudgeSub(ledgerWithSub(), 'Netflix', 99).subOverrides.Netflix).toBe(MAX_SUB_OVERRIDE_DAYS);
-    expect(nudgeSub(ledgerWithSub(), 'Netflix', -99).subOverrides.Netflix).toBe(-MAX_SUB_OVERRIDE_DAYS);
+    expect(nudgeSub(ledgerWithSub(), 'Netflix', 99).subOverrides.Netflix).toBe(
+      MAX_SUB_OVERRIDE_DAYS,
+    );
+    expect(nudgeSub(ledgerWithSub(), 'Netflix', -99).subOverrides.Netflix).toBe(
+      -MAX_SUB_OVERRIDE_DAYS,
+    );
   });
 
   it('removes the override when the delta clamps/rounds to zero', () => {

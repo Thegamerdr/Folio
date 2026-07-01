@@ -309,40 +309,40 @@ function Progress({ step }: { step: number }) {
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-  screen: { gap: gap.lg },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 24,
-  },
-  backText: { color: t.secondary, fontSize: 15, fontWeight: '600' },
-  progress: { flexDirection: 'row', gap: 6 },
-  progressDot: { width: 22, height: 4, borderRadius: 2, backgroundColor: t.hairline },
-  progressDotOn: { backgroundColor: t.calm },
+    screen: { gap: gap.lg },
+    head: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      minHeight: 24,
+    },
+    backText: { color: t.secondary, fontSize: 15, fontWeight: '600' },
+    progress: { flexDirection: 'row', gap: 6 },
+    progressDot: { width: 22, height: 4, borderRadius: 2, backgroundColor: t.hairline },
+    progressDotOn: { backgroundColor: t.calm },
 
-  stepBody: { gap: gap.lg },
-  melo: { marginTop: -gap.xs },
-  stepIntro: { gap: gap.sm },
-  question: { fontSize: 28, lineHeight: 33 },
-  helper: { fontSize: 14, maxWidth: 330 },
+    stepBody: { gap: gap.lg },
+    melo: { marginTop: -gap.xs },
+    stepIntro: { gap: gap.sm },
+    question: { fontSize: 28, lineHeight: 33 },
+    helper: { fontSize: 14, maxWidth: 330 },
 
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm },
 
-  amount: {
-    color: t.ink,
-    fontSize: 46,
-    fontWeight: '800',
-    letterSpacing: -1.4,
-    fontVariant: ['tabular-nums'],
-    textAlign: 'center',
-    paddingVertical: gap.xs,
-  },
+    amount: {
+      color: t.ink,
+      fontSize: 46,
+      fontWeight: '800',
+      letterSpacing: -1.4,
+      fontVariant: ['tabular-nums'],
+      textAlign: 'center',
+      paddingVertical: gap.xs,
+    },
 
-  footer: { gap: gap.xs, marginTop: gap.xs },
+    footer: { gap: gap.xs, marginTop: gap.xs },
 
-  summaryHeadline: { fontSize: 30, lineHeight: 36, marginTop: gap.xs },
-  summaryDetail: { color: t.secondary, fontSize: 17, lineHeight: 25, marginTop: gap.xs },
-  summaryNote: { marginTop: gap.sm },
+    summaryHeadline: { fontSize: 30, lineHeight: 36, marginTop: gap.xs },
+    summaryDetail: { color: t.secondary, fontSize: 17, lineHeight: 25, marginTop: gap.xs },
+    summaryNote: { marginTop: gap.sm },
   });
 }

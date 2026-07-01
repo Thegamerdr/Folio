@@ -1,4 +1,4 @@
-# PaydayRitualScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPaydayRitual.tsx)
+# PaydayRitualScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPaydayRitual.tsx)
 
 ## file
 
@@ -37,7 +37,7 @@ Multi-step (4-step) "close the cycle" ceremony. Computes retrospective actuals f
 
 ## copyKeys
 
-- STRINGS ARE INLINE, NOT COPY_DECK KEYS — must be migrated into COPY_DECK on port (existing ritual.* keys describe a DIFFERENT/older ritual and do NOT match)
+- STRINGS ARE INLINE, NOT COPY_DECK KEYS — must be migrated into COPY_DECK on port (existing ritual.\* keys describe a DIFFERENT/older ritual and do NOT match)
 - Header progress: '{step+1} of {steps.length}' e.g. '1 of 4'
 - Back glyph: '←' (aria-label 'Back')
 - Step 1 eyebrow: 'Step one'
@@ -106,6 +106,7 @@ Multi-step (4-step) "close the cycle" ceremony. Computes retrospective actuals f
 ## componentTree
 
 <PaydayRitualScreen> (full-height flex column, px-7 pt-4, slide-in-r)
+
   <Header row: space-between>
     <BackButton onPress={nav.back} aria-label="Back"> ← </BackButton>
     <View row gap-3>
@@ -131,12 +132,12 @@ Multi-step (4-step) "close the cycle" ceremony. Computes retrospective actuals f
     <MeloLine text={s.melo} mood={s.meloMood} />   // Melo size 28 + Fraunces italic quote
   </MeloRow>
 
-  <Spacer flex-1 />   // pushes CTAs to bottom
+<Spacer flex-1 /> // pushes CTAs to bottom
 
-  <PrimaryCTA onPress={advance-or-finish} h-58 rounded-2xl bg-accent white 16px medium, coral drop-shadow>
-    {s.cta}
-  </PrimaryCTA>
-  <SecondaryButton onPress={nav.back} mt-2 mb-5 h-42 13px muted> Save and finish later </SecondaryButton>
+<PrimaryCTA onPress={advance-or-finish} h-58 rounded-2xl bg-accent white 16px medium, coral drop-shadow>
+{s.cta}
+</PrimaryCTA>
+<SecondaryButton onPress={nav.back} mt-2 mb-5 h-42 13px muted> Save and finish later </SecondaryButton>
 </PaydayRitualScreen>
 
 // Step-4 body override = <View mt-3><TextInput multiline autoFocus value={note} onChangeText maxLength=140 numberOfLines=3 placeholder bg-inset hairline rounded-xl px-3 py-2.5 14px, focus ring accent/30, no resize/grow> + <CounterText 10.5px muted tabular>{note.length}/140</CounterText></View>
@@ -166,15 +167,15 @@ Multi-step (4-step) "close the cycle" ceremony. Computes retrospective actuals f
 
 ## docBlock
 
-@rn-screen    PaydayRitualScreen
-@rn-stack     MainTabs > Today > Ritual
-@purpose      Multi-step close-the-cycle ritual. Calls addCycle on completion.
-@reads        pots, subs, transactions
-@writes       addCycle
-@opens-sheet  —
-@copy         FROZEN — ceremonial, slow, never rushed.
-@tokens       --paper --accent --positive --hairline
-@motion       stamp on completion · slide-in-r per step
+@rn-screen PaydayRitualScreen
+@rn-stack MainTabs > Today > Ritual
+@purpose Multi-step close-the-cycle ritual. Calls addCycle on completion.
+@reads pots, subs, transactions
+@writes addCycle
+@opens-sheet —
+@copy FROZEN — ceremonial, slow, never rushed.
+@tokens --paper --accent --positive --hairline
+@motion stamp on completion · slide-in-r per step
 (plus inline @rn-engine ritual-actuals on the actuals useMemo)
 
 ## rnPrimitiveMap
@@ -204,4 +205,3 @@ Multi-step (4-step) "close the cycle" ceremony. Computes retrospective actuals f
 - loading — n/a (addCycle is local + synchronous; no spinner; STATES marks loading n/a for PaydayRitual)
 - error — n/a (STATES)
 - offline — same as populated (local-first; STATES)
-

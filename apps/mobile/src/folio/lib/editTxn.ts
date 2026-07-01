@@ -109,11 +109,20 @@ export type EditTxnContext = {
 
 /** The editable fields, in a stable order so multi-field edits emit records
  *  deterministically. */
-const EDITABLE_FIELDS: readonly EditableField[] = ['merchant', 'amount', 'when', 'category', 'note'];
+const EDITABLE_FIELDS: readonly EditableField[] = [
+  'merchant',
+  'amount',
+  'when',
+  'category',
+  'note',
+];
 
 /** Read a field off either the txn or the patch without index-signature access
  *  (keeps noUncheckedIndexedAccess happy and avoids `any`). */
-function readField(src: EditableTransaction | TxnEditPatch, field: EditableField): string | number | undefined {
+function readField(
+  src: EditableTransaction | TxnEditPatch,
+  field: EditableField,
+): string | number | undefined {
   switch (field) {
     case 'merchant':
       return src.merchant;

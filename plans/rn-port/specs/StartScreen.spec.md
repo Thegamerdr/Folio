@@ -1,4 +1,4 @@
-# StartScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenStart.tsx)
+# StartScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenStart.tsx)
 
 ## file
 
@@ -14,16 +14,16 @@ First-run doorway. Frames the single question Folio answers ("Will your money la
 
 ## docBlock
 
-@rn-screen    StartScreen
-@rn-stack     Onboarding > Start
-@purpose      First-run doorway — frames the one question Folio answers, offers three paths in.
-@reads        —
-@writes       —
-@opens-sheet  —
-@copy         FROZEN
-@tokens       --paper --accent --muted-ink --hairline · Fraunces hero
-@motion       slide-in-r · pointer-nudge on CTA arrow · press .97/120ms
-@notes        "Try sample data" path skips intake and jumps to Today with seeds.
+@rn-screen StartScreen
+@rn-stack Onboarding > Start
+@purpose First-run doorway — frames the one question Folio answers, offers three paths in.
+@reads —
+@writes —
+@opens-sheet —
+@copy FROZEN
+@tokens --paper --accent --muted-ink --hairline · Fraunces hero
+@motion slide-in-r · pointer-nudge on CTA arrow · press .97/120ms
+@notes "Try sample data" path skips intake and jumps to Today with seeds.
 
 ## reads
 
@@ -81,12 +81,12 @@ First-run doorway. Frames the single question Folio answers ("Will your money la
 ## componentTree
 
 <Screen style={paper, flex:1, px:28, pt:40} entering={SlideInRight 360ms}>
-  <Row justify="space-between" align="center">
-    <Text fontDisplay italic size={15}>Folio</Text>
-    <Pressable press onPress={()=>nav.go('privacy')}>
-      <Text size={12} color={mutedInk} uppercase tracking>Privacy</Text>
-    </Pressable>
-  </Row>
+<Row justify="space-between" align="center">
+<Text fontDisplay italic size={15}>Folio</Text>
+<Pressable press onPress={()=>nav.go('privacy')}>
+<Text size={12} color={mutedInk} uppercase tracking>Privacy</Text>
+</Pressable>
+</Row>
 
   <View mt={56}>
     <Text fontDisplay size={42} lineHeight={1.05} tracking="tight">
@@ -101,25 +101,25 @@ First-run doorway. Frames the single question Folio answers ("Will your money la
     <MeloLine text="Start rough. You can correct anything later." /* mood=calm size=28 */ />
   </View>
 
-  <View flex={1} /> {/* spacer pushes CTA to bottom */}
+<View flex={1} /> {/_ spacer pushes CTA to bottom _/}
 
-  <Pressable press onPress={()=>nav.go('guided')}
-    style={{ w:'100%', h:60, radius:24, bg:accent, shadow:ctaShadow,
+<Pressable press onPress={()=>nav.go('guided')}
+style={{ w:'100%', h:60, radius:24, bg:accent, shadow:ctaShadow,
              flexDirection:'row', align:'center', justify:'center', gap:8 }}>
-    <Text color="#FFFFFF" weight="medium" size={16} tracking={-0.01}>See where you stand</Text>
-    <Animated.Text style={pointerNudge} size={18}>→</Animated.Text>
-  </Pressable>
+<Text color="#FFFFFF" weight="medium" size={16} tracking={-0.01}>See where you stand</Text>
+<Animated.Text style={pointerNudge} size={18}>→</Animated.Text>
+</Pressable>
 
-  <Row mt={20} justify="space-between" align="center" gap={12}
-       style={{ fontSize:12.5, color:mutedInk }}>
-    <Pressable press onPress={()=>nav.go('intake')}><Text>Add a statement</Text></Pressable>
-    <View w={1} h={12} bg={hairline} />
-    <Pressable press onPress={()=>nav.go('today')}><Text>Try sample data</Text></Pressable>
-    <View w={1} h={12} bg={hairline} />
-    <Pressable press onPress={()=>nav.go('melo')}><Text>Meet Melo</Text></Pressable>
-  </Row>
+<Row mt={20} justify="space-between" align="center" gap={12}
+style={{ fontSize:12.5, color:mutedInk }}>
+<Pressable press onPress={()=>nav.go('intake')}><Text>Add a statement</Text></Pressable>
+<View w={1} h={12} bg={hairline} />
+<Pressable press onPress={()=>nav.go('today')}><Text>Try sample data</Text></Pressable>
+<View w={1} h={12} bg={hairline} />
+<Pressable press onPress={()=>nav.go('melo')}><Text>Meet Melo</Text></Pressable>
+</Row>
 
-  <View h={24} /> {/* bottom safe-area breathing room */}
+<View h={24} /> {/_ bottom safe-area breathing room _/}
 </Screen>
 
 ## enginesNeeded
@@ -160,4 +160,3 @@ First-run doorway. Frames the single question Folio answers ("Will your money la
 - pointer-nudge keyframe → reanimated withRepeat(withTiming(translateX 6, 1600ms), -1, true) on the arrow Text
 - MeloLine (web kit) → RN MeloLine (Melo react-native-svg + Fraunces italic Text)
 - nav.go(ScreenId) (local prop) → navigation.navigate(routeName) via @react-navigation/native stack
-

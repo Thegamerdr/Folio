@@ -87,8 +87,7 @@ export function MoreScreen({
         <View style={layout.introBody}>
           <Kicker>The quiet hub</Kicker>
           <Display style={layout.headline}>
-            Everything else,{' '}
-            <Text style={[layout.accentWord, s.accentWord]}>calmly</Text>.
+            Everything else, <Text style={[layout.accentWord, s.accentWord]}>calmly</Text>.
           </Display>
         </View>
       </View>

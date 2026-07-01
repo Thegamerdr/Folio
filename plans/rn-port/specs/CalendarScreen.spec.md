@@ -1,4 +1,4 @@
-# CalendarScreen  (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenCalendar.tsx)
+# CalendarScreen (C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenCalendar.tsx)
 
 ## file
 
@@ -45,7 +45,7 @@ The time view of money — the explanation layer for the Route. Three planner vi
 
 ## copyKeys
 
-- DOC BLOCK @copy = FROZEN. COPY_DECK.md has NO Calendar section — every string is frozen INLINE. Per RN_PORT.md ('if a string isn't here, it doesn't ship') add a calendar.* namespace before RN ship. Verbatim strings:
+- DOC BLOCK @copy = FROZEN. COPY_DECK.md has NO Calendar section — every string is frozen INLINE. Per RN_PORT.md ('if a string isn't here, it doesn't ship') add a calendar.\* namespace before RN ship. Verbatim strings:
 - What's coming
 - Calendar
 - Your week, with what's coming and going. (accent word = coming and going.)
@@ -55,7 +55,7 @@ The time view of money — the explanation layer for the Route. Three planner vi
 - £{n} left (tightest pill, after formatDayProse(date) · )
 - Go there →
 - Money in / Money out / Review / Deadline (legend = KIND_LABEL minus manual)
-- + Add an event
+- - Add an event
 - Add to your calendar app
 - Connect Google
 - £{n} left after (agenda spare)
@@ -127,39 +127,39 @@ The time view of money — the explanation layer for the Route. Three planner vi
 ## componentTree
 
 CalendarScreen(nav):
-  // Hydration gate: today===null → skeleton (header + title + empty flex-1 surface-hairline rounded-2xl card), no spare £.
-  <ScrollView root style=slide-in-r px-28 pt-16 noScrollbar>
-    <Header row between>
-      <Pressable onPress=nav.back aria-label=Back>←</Pressable>
-      <Text eyebrow upper tracking.14>What's coming</Text>
-      <Spacer w-5/>
-    </Header>
-    <TitleBlock mt-5>
-      <Text display italic 13 muted>Calendar</Text>
-      <Text display 28>Your week, with what's <Em accent notItalic>coming and going.</Em></Text>
-      <Text 12.5 muted mt-1>Each day, what lands and what leaves.</Text>
-    </TitleBlock>
-    <ViewSwitcher role=tablist mt-5 grid3 gap-1 p-1 rounded2xl bg=inset hairline>
-      {["month","week","agenda"].map(v => <Tab role=tab aria-selected={view===v} h-9 rounded-xl 12.5 capitalize
-          selected:{bg=paper text=ink shadow} else:{text=muted} onPress=setView(v)>{v}</Tab>)}
-    </ViewSwitcher>
-    {tightestDate && !isEmpty &&
-      <Pressable TightestPill onPress=jumpToTightest mt-4 w-full bg=accent-soft hairline rounded2xl px-4 py-3 style=scale-in row baseline between>
-        <Text 12.5 ink><Text accent medium>Lowest point:</Text> {formatDayProse(tightestDate)} · £{max(0,round(tightestSpare))} left</Text>
-        <Text muted 12 upper tracking.12 shrink-0>Go there →</Text>
-      </Pressable>}
-    <Body mt-5 flex-1>
-      {isEmpty ? <EmptyState missingPayday missingBills missingPots/>
-        : view==="agenda" ? <AgendaView/> : view==="week" ? <WeekView/> : <MonthView/>}
-    </Body>
-    <Legend mt-5 grid2 gap-2 11>  // 4 rows: dot(positive/negative/accent/caution)+label
-    <FooterActions mt-5 grid3 gap-2>
-      <Pressable h-48 rounded2xl bg=accent textWhite medium onPress=openSheet('add-event')>+ Add an event</Pressable>
-      <Pressable h-48 rounded2xl bg=surface hairline onPress=openSheet('calendar-export')>Add to your calendar app</Pressable>
-      <Pressable h-48 rounded2xl bg=surface hairline onPress=openSheet('calendar-connect')>Connect Google</Pressable>
-    </FooterActions>
-    <MeloLine mt-5 mb-8 text=meloCalendarLine(tightestSpare,isEmpty) mood=meloCalendarMood(...)/>
-  </ScrollView>
+// Hydration gate: today===null → skeleton (header + title + empty flex-1 surface-hairline rounded-2xl card), no spare £.
+<ScrollView root style=slide-in-r px-28 pt-16 noScrollbar>
+<Header row between>
+<Pressable onPress=nav.back aria-label=Back>←</Pressable>
+<Text eyebrow upper tracking.14>What's coming</Text>
+<Spacer w-5/>
+</Header>
+<TitleBlock mt-5>
+<Text display italic 13 muted>Calendar</Text>
+<Text display 28>Your week, with what's <Em accent notItalic>coming and going.</Em></Text>
+<Text 12.5 muted mt-1>Each day, what lands and what leaves.</Text>
+</TitleBlock>
+<ViewSwitcher role=tablist mt-5 grid3 gap-1 p-1 rounded2xl bg=inset hairline>
+{["month","week","agenda"].map(v => <Tab role=tab aria-selected={view===v} h-9 rounded-xl 12.5 capitalize
+selected:{bg=paper text=ink shadow} else:{text=muted} onPress=setView(v)>{v}</Tab>)}
+</ViewSwitcher>
+{tightestDate && !isEmpty &&
+<Pressable TightestPill onPress=jumpToTightest mt-4 w-full bg=accent-soft hairline rounded2xl px-4 py-3 style=scale-in row baseline between>
+<Text 12.5 ink><Text accent medium>Lowest point:</Text> {formatDayProse(tightestDate)} · £{max(0,round(tightestSpare))} left</Text>
+<Text muted 12 upper tracking.12 shrink-0>Go there →</Text>
+</Pressable>}
+<Body mt-5 flex-1>
+{isEmpty ? <EmptyState missingPayday missingBills missingPots/>
+: view==="agenda" ? <AgendaView/> : view==="week" ? <WeekView/> : <MonthView/>}
+</Body>
+<Legend mt-5 grid2 gap-2 11> // 4 rows: dot(positive/negative/accent/caution)+label
+<FooterActions mt-5 grid3 gap-2>
+<Pressable h-48 rounded2xl bg=accent textWhite medium onPress=openSheet('add-event')>+ Add an event</Pressable>
+<Pressable h-48 rounded2xl bg=surface hairline onPress=openSheet('calendar-export')>Add to your calendar app</Pressable>
+<Pressable h-48 rounded2xl bg=surface hairline onPress=openSheet('calendar-connect')>Connect Google</Pressable>
+</FooterActions>
+<MeloLine mt-5 mb-8 text=meloCalendarLine(tightestSpare,isEmpty) mood=meloCalendarMood(...)/>
+</ScrollView>
 
 AgendaView: stack gap-4; per group: View(ref) rounded2xl p-4 hairline, bg=accent-soft if tightest else surface, opacity.55 if past; header row(formatDayHeader + 'past' italic if past | '£n left after' if spare); EventRow[] gap-2; SeeOnRoute if !past. useEffect scrollTo measured y on jumpPulse → jumpDate??tightestDate.
 
@@ -173,7 +173,7 @@ SubRenewalActions(name): row wrap — Pause this(togglePaused(name,true)); Move;
 
 SeeOnRoute(date): Pressable mt-3 w-full 11 upper muted, aria 'See {formatDayProse(date)} on your money path' → setRouteFocusDate(date); nav.go('today'). Row: 'See this day on your money path' + accent '→'.
 
-EmptyState(missing*): surface hairline rounded2xl p-6 center; display italic 15 quoted head; 12 muted line. head/line = first missing of payday>bills>pots else default.
+EmptyState(missing\*): surface hairline rounded2xl p-6 center; display italic 15 quoted head; 12 muted line. head/line = first missing of payday>bills>pots else default.
 
 ## enginesNeeded
 
@@ -190,7 +190,7 @@ EmptyState(missing*): surface hairline rounded2xl p-6 center; display italic 15 
 - Hover-driven nudge preview (onMouseEnter/onFocus/onBlur) has no touch analog — redesign as onPressIn/onPressOut or long-press, else preview never shows on device
 - scrollIntoView smooth block:center → RN measureLayout/onLayout + ScrollView.scrollTo(y, animated); agenda jump and focus-date bridge break silently if unwired
 - today===null skeleton is an SSR artifact — porting literally adds a needless flash; drop it (no SSR) or keep purely as empty-frame aesthetic; never reproduce the SSR/UTC comment as a real RN constraint
-- Strings inline + NOT in COPY_DECK.md — high drift/banned-word risk; add calendar.* block first; keep parameterization (no concat); preserve '−' (U+2212) in amountStr & nudge labels, not ASCII '-'
+- Strings inline + NOT in COPY_DECK.md — high drift/banned-word risk; add calendar.\* block first; keep parameterization (no concat); preserve '−' (U+2212) in amountStr & nudge labels, not ASCII '-'
 - amountStr uses '−'(U+2212) for negatives, '+' for positives, '£' + toFixed(0|2); EventRow 'in' amount positive-coloured, else ink; preserve sign glyph + tabular-nums
 - Mood mapping: meloCalendarMood calm|soft|alert ≠ Melo calm|curious|cheer|concern|celebrate — map soft→curious, alert→concern deliberately; Calendar not in MELO_MOODS, document choice
 - Monday-start week math: (getDay()+6)%7 for weekStart and month leading blanks — keep Monday-start, not locale Sunday
@@ -203,21 +203,22 @@ EmptyState(missing*): surface hairline rounded2xl p-6 center; display italic 15 
 
 ## docBlock
 
-/**
- * @rn-screen    CalendarScreen
- * @rn-stack     More > Calendar
- * @purpose      The time view of your money — the explanation layer for the Route.
- *               Three planner views (Month · Week · Agenda) over the same data.
- * @reads        subs, subPaused, onboarding, calendarEvents
- * @writes       calendarEvents (via SheetAddEvent / inline remove)
- * @opens-sheet  route-detail · add-event · calendar-export · calendar-connect
- * @copy         FROZEN
- * @tokens       --paper --accent --positive --negative --caution --hairline --accent-soft
- * @motion       slide-in-r · scale-in for tightest-day banner · soft view crossfade
- *
- * @rn-future    Business calendar lives alongside Personal — invoices, VAT,
- *               reconciliation, client commitments. Built in RN.
- */
+/\*\*
+
+- @rn-screen CalendarScreen
+- @rn-stack More > Calendar
+- @purpose The time view of your money — the explanation layer for the Route.
+-               Three planner views (Month · Week · Agenda) over the same data.
+- @reads subs, subPaused, onboarding, calendarEvents
+- @writes calendarEvents (via SheetAddEvent / inline remove)
+- @opens-sheet route-detail · add-event · calendar-export · calendar-connect
+- @copy FROZEN
+- @tokens --paper --accent --positive --negative --caution --hairline --accent-soft
+- @motion slide-in-r · scale-in for tightest-day banner · soft view crossfade
+-
+- @rn-future Business calendar lives alongside Personal — invoices, VAT,
+-               reconciliation, client commitments. Built in RN.
+  \*/
 
 ## rnPrimitiveMap
 
@@ -248,4 +249,3 @@ EmptyState(missing*): surface hairline rounded2xl p-6 center; display italic 15 
 - error: n/a — STATES.md marks Calendar error not-applicable (derived locally, nothing to fail)
 - offline: same as populated — local-first, no network, no sync language; no separate branch
 - within-view empties: Week/Month skip day-blocks for days w/o events; Month selected-day shows 'Nothing moves your money on this day.'; past days dimmed, no SeeOnRoute
-
