@@ -7,10 +7,20 @@ coverage/
 .DS_Store
 *.log
 *.tsbuildinfo
-android/
-ios/
+# Expo prebuild regenerates the app's native dirs — ignore ONLY the top-level app android/ios
+# (anchored), NEVER local Expo module native code under modules/*/{android,ios} (expo-doctor requires
+# local-module native code to be tracked). Native BUILD output anywhere is still ignored below.
+/apps/mobile/android/
+/apps/mobile/ios/
 !apps/mobile/android/.gitkeep
 !apps/mobile/ios/.gitkeep
+
+# Gradle / Xcode BUILD output anywhere (incl. inside local modules — the module SOURCE is tracked,
+# only the generated build/ output is ignored).
+**/android/build/
+**/android/.cxx/
+**/ios/build/
+**/*.xcuserdata/
 
 # Wrangler local secrets (OpenRouter key for local gateway dev) — never commit
 .dev.vars

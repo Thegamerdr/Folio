@@ -37,7 +37,8 @@
     "store:guard": "node tooling/scripts/check-store-declarations.mjs --require-ready",
     "store:status": "node tooling/scripts/check-store-declarations.mjs",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc -b tsconfig.packages.json --pretty false",
+    "typecheck": "tsc -b tsconfig.packages.json --pretty false && pnpm typecheck:gateway",
+    "typecheck:gateway": "pnpm --filter @folio/ai-gateway typecheck",
     "validate:contracts": "cd docs/source-package && python testing/validate_package.py && python testing/validate_fixture_consistency.py"
   },
   "op-sqlite": {

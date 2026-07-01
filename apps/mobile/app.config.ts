@@ -52,10 +52,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-image-picker',
       {
+        // Honest permission copy: reading a statement image SENDS it to Folio's reader service (the
+        // Melo gateway vision model, services/ai-gateway) — it does not stay on device. Review-before-
+        // truth: nothing is added to the user's money until they confirm it. (Was "Images stay on this
+        // device", which contradicted the Intake reader flow — IntakeScreen.runReader → gateway.)
         photosPermission:
-          'Folio uses your photos only to read a statement you choose. Images stay on this device.',
+          'Folio uses a photo only to read a statement you pick. Reading it sends the image to Folio’s reader service; nothing is added to your money until you review it.',
         cameraPermission:
-          'Folio uses the camera only to capture a statement you choose. Photos stay on this device.',
+          'Folio uses the camera only to capture a statement you choose. Reading it sends the image to Folio’s reader service; nothing is added until you review it.',
       },
     ],
     'expo-sharing',
