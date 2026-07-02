@@ -12,6 +12,7 @@ const workspaceEntryPoints = {
   '@folio/domain': path.join(workspaceRoot, 'packages/domain/src/index.ts'),
   '@folio/first-minute': path.join(workspaceRoot, 'packages/first-minute/src/index.ts'),
   '@folio/import-engine': path.join(workspaceRoot, 'packages/import-engine/src/index.ts'),
+  '@folio/melo-engine': path.join(workspaceRoot, 'packages/melo-engine/src/index.ts'),
   '@folio/melo-policy': path.join(workspaceRoot, 'packages/melo-policy/src/index.ts'),
   '@folio/open-banking': path.join(workspaceRoot, 'packages/open-banking/src/index.ts'),
   '@folio/plan-engine': path.join(workspaceRoot, 'packages/plan-engine/src/index.ts'),

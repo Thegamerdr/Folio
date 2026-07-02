@@ -9,6 +9,7 @@
  */
 
 import { daysBetween, type ISODate, type Pence } from './core.js';
+import type { CopyKey } from './copy.js';
 
 export type LadderState =
   | 'winning'
@@ -88,7 +89,7 @@ export interface StateView {
   readonly overlays: readonly Overlay[];
   readonly weather: Weather;
   readonly mascot: MascotEmotion;
-  readonly copyKey: string;
+  readonly copyKey: CopyKey;
   readonly monetizationAllowed: boolean;
 }
 
@@ -247,7 +248,7 @@ function computeCopyKey(
   overlays: readonly Overlay[],
   journey: JourneyState,
   ladder: LadderState,
-): string {
+): CopyKey {
   if (data === 'fog') return 'fog';
   if (overlays.includes('payday')) return 'payday';
   if (ladder === 'overspent' && journey === 'none') return 'overspent';

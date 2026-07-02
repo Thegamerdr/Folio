@@ -17,6 +17,7 @@
       "@folio/finance-engine": ["../../packages/finance-engine/src/index.ts"],
       "@folio/first-minute": ["../../packages/first-minute/src/index.ts"],
       "@folio/import-engine": ["../../packages/import-engine/src/index.ts"],
+      "@folio/melo-engine": ["../../packages/melo-engine/src/index.ts"],
       "@folio/melo-policy": ["../../packages/melo-policy/src/index.ts"],
       "@folio/open-banking": ["../../packages/open-banking/src/index.ts"],
       "@folio/plan-engine": ["../../packages/plan-engine/src/index.ts"],
@@ -61,6 +62,9 @@
     },
     {
       "path": "../../packages/import-engine"
+    },
+    {
+      "path": "../../packages/melo-engine"
     },
     {
       "path": "../../packages/melo-policy"
