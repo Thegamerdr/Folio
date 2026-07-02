@@ -23,7 +23,7 @@ import { RunwayStrip } from '../components/RunwayStrip';
 import { WeatherSky } from '../components/WeatherSky';
 import { deriveLive } from '../state/derive';
 import type { MeloBill, MeloSetup } from '../state/meloStore';
-import { BILL_PRESETS, billId, parsePoundsText } from '../state/presets';
+import { BILL_PRESETS, billId, parsePoundsText, parseSignedPoundsText } from '../state/presets';
 import { MELO_COLORWAYS, type MeloColorway } from '../theme/weather';
 
 type Beat = 'cold' | 'pick' | 'payday' | 'income' | 'balance' | 'bills' | 'reveal';
@@ -42,10 +42,14 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
   const [paydayDay, setPaydayDay] = useState(28);
   const [incomeText, setIncomeText] = useState('');
   const [balanceText, setBalanceText] = useState('');
+  const [overdrawn, setOverdrawn] = useState(false);
   const [bills, setBills] = useState<readonly MeloBill[]>([]);
 
   const incomePence = parsePoundsText(incomeText);
-  const balancePence = parsePoundsText(balanceText);
+  // Overdrafts are a real Tuesday (§13 risk 10): the toggle signs the balance, since numeric
+  // keyboards rarely offer a minus key.
+  const balanceMagnitude = Math.abs(parseSignedPoundsText(balanceText) ?? 0);
+  const balancePence = overdrawn ? -balanceMagnitude : balanceMagnitude;
 
   const draft: Omit<MeloSetup, 'onboarded'> = useMemo(
     () => ({
@@ -84,7 +88,7 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
           <MeloMascot emotion="calm" colorway={colorway} size={120} glow={0.85} breathe />
           <Display style={s.coldTitle}>I’m Melo.</Display>
           <Body style={s.coldSub}>
-            Two questions and I’ll tell you what’s actually safe to spend.
+            A few quick questions and I’ll tell you what’s actually safe to spend.
           </Body>
           <View style={s.coldCta}>
             <PrimaryAction label="Let’s do it" onPress={() => setBeat('pick')} />
@@ -99,6 +103,7 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
           sub="They all worry about you equally."
           cta="This one"
           onNext={() => setBeat('payday')}
+          onBack={() => setBeat('cold')}
         >
           <View style={s.pickRow}>
             {(Object.keys(MELO_COLORWAYS) as MeloColorway[]).map((cw) => (
@@ -126,6 +131,7 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
           sub="Everything counts back from that day."
           cta="That’s my payday"
           onNext={() => setBeat('income')}
+          onBack={() => setBeat('pick')}
         >
           <View style={s.chipsWrap}>
             {PAYDAY_PRESETS.map((day) => (
@@ -155,6 +161,7 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
           cta="Next"
           disabled={incomePence <= 0}
           onNext={() => setBeat('balance')}
+          onBack={() => setBeat('payday')}
         >
           <AmountInput value={incomeText} onChange={setIncomeText} placeholder="1450" />
         </Step>
@@ -163,12 +170,36 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
       {beat === 'balance' ? (
         <Step
           question="And what’s in the account right now?"
-          sub="Today’s rough balance — this is where the maths starts."
+          sub="Today’s rough balance — this is where the math starts."
           cta="Next"
           disabled={balanceText.length === 0}
           onNext={() => setBeat('bills')}
+          onBack={() => setBeat('income')}
         >
           <AmountInput value={balanceText} onChange={setBalanceText} placeholder="1240" />
+          <View style={s.signRow}>
+            {(['in credit', 'overdrawn'] as const).map((label, idx) => {
+              const isOverdrawn = idx === 1;
+              const selected = overdrawn === isOverdrawn;
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => setOverdrawn(isOverdrawn)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={[
+                    s.chip,
+                    {
+                      borderColor: selected ? t.calm : t.hairline,
+                      backgroundColor: selected ? t.calmSoft : t.inset,
+                    },
+                  ]}
+                >
+                  <Text style={[s.chipLabel, { color: t.ink }]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </Step>
       ) : null}
 
@@ -178,6 +209,7 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
           sub="These get protected first — before anything else gets spent."
           cta="Shield these"
           onNext={() => setBeat('reveal')}
+          onBack={() => setBeat('balance')}
           secondary={{ label: 'add the rest later', onPress: () => setBeat('reveal') }}
         >
           <View style={s.chipsWrap}>
@@ -217,7 +249,7 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
                 </View>
               ))}
               <View style={[s.amountTotal, { borderTopColor: t.hairline }]}>
-                <Text style={[s.amountName, { color: t.ink, fontWeight: '600' }]}>Protected</Text>
+                <Text style={[s.amountName, { color: t.ink, fontWeight: '600' }]}>Shielded</Text>
                 <Text style={[s.amountName, { color: t.ink, fontWeight: '600' }]}>
                   {formatPounds(billsTotal)}
                 </Text>
@@ -288,6 +320,7 @@ function Step({
   sub,
   cta,
   onNext,
+  onBack,
   disabled,
   secondary,
   children,
@@ -296,12 +329,18 @@ function Step({
   sub: string;
   cta: string;
   onNext: () => void;
+  onBack?: () => void;
   disabled?: boolean;
   secondary?: { label: string; onPress: () => void };
   children: ReactNode;
 }) {
   return (
     <View style={s.step}>
+      {onBack ? (
+        <View style={s.backRow}>
+          <QuietLink label="← back" onPress={onBack} />
+        </View>
+      ) : null}
       <Display style={s.question}>{question}</Display>
       <Muted style={s.questionSub}>{sub}</Muted>
       <View style={s.stepBody}>{children}</View>
@@ -352,7 +391,9 @@ const s = StyleSheet.create({
   coldTitle: { marginTop: 16 },
   coldSub: { textAlign: 'center', marginTop: 4, lineHeight: 22 },
   coldCta: { alignSelf: 'stretch', marginTop: 22 },
-  step: { paddingHorizontal: 26, paddingTop: 64, flexGrow: 1 },
+  step: { paddingHorizontal: 26, paddingTop: 40, flexGrow: 1 },
+  backRow: { marginBottom: 8, alignSelf: 'flex-start' },
+  signRow: { flexDirection: 'row', gap: 9, marginTop: 16 },
   question: {},
   questionSub: { marginTop: 6, lineHeight: 20 },
   stepBody: { marginTop: 24 },

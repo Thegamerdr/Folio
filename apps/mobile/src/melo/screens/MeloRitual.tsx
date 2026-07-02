@@ -128,10 +128,14 @@ export function MeloRitual({
       {beat === 4 ? (
         <View style={s.step}>
           <Muted style={s.tag}>THE RITUAL — 3 OF 4</Muted>
-          <Display>Your month, made safe.</Display>
+          {/* Never declare a negative month "made safe" — the honest variant leads with the
+              shield and the plan instead (audit). */}
+          <Display>{safeZonePence > 0 ? 'Your month, made safe.' : 'The honest month.'}</Display>
           <RevealNumber safeZonePence={safeZonePence} />
           <Muted style={s.revealSub}>
-            {formatPounds(perDayPence)}/day for {daysToPayday} days · until {paydayLabel}
+            {safeZonePence > 0
+              ? `${formatPounds(perDayPence)}/day for ${daysToPayday} days · until ${paydayLabel}`
+              : `tight to ${paydayLabel} — bills first, then we steer`}
           </Muted>
           <View style={s.cta}>
             <PrimaryAction label="One last thing" onPress={() => setBeat(5)} />

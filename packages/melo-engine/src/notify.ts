@@ -46,6 +46,8 @@ export interface NotifyInputs {
   readonly sentToday: number; // notifications already delivered today
   readonly dangerSentToday: number;
   readonly recoveryCheckinDue: boolean; // surface computes: in recovery, chosen hour reached, not yet sent
+  /** §16.5 #19 gates "You made it." on a cycle that was actually hard. */
+  readonly hardCycle: boolean;
 }
 
 const QUIET_START = 21;
@@ -115,6 +117,7 @@ export function planNotification(i: NotifyInputs, ctx: NotifyContext): PlannedNo
   }
 
   if (
+    i.hardCycle &&
     next.overlays.includes('paydayEve') &&
     (prev === null || !prev.overlays.includes('paydayEve'))
   ) {

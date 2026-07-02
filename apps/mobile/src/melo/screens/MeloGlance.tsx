@@ -5,7 +5,7 @@
 // Either way the engine drives everything on screen: sky, mascot, copy, action, verdicts.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import {
   COPY,
@@ -83,7 +83,7 @@ const LIVE_L2: Partial<Record<CopyKey, string>> = {
   billWeek: 'All shielded before anything else gets spent.',
 };
 
-export function MeloGlance() {
+export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } = {}) {
   const t = useTheme();
   const store = useMeloStore();
   const isLive = store.state.setup.onboarded;
@@ -102,12 +102,24 @@ export function MeloGlance() {
   const [spendEdit, setSpendEdit] = useState(false);
   const [spendText, setSpendText] = useState('');
   const [lastWinLine, setLastWinLine] = useState<string | null>(null);
+  const [recoveryDeclinedToday, setRecoveryDeclinedToday] = useState(false);
+
+  // The derivation clock: re-derive on app foreground so "today" is never yesterday (audit:
+  // the memo was keyed only on store state, freezing the date at the last write).
+  const [clockTick, setClockTick] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') setClockTick((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
 
   // ---- live derivation (engine + persisted record) ----
   const liveDerived = useMemo(
     () =>
       isLive ? deriveLive(store.state.setup, store.state.journey, store.state.spendLog) : null,
-    [isLive, store.state.setup, store.state.journey, store.state.spendLog],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clockTick forces re-derivation on foreground
+    [isLive, store.state.setup, store.state.journey, store.state.spendLog, clockTick],
   );
   const liveResolved = useMemo(
     () =>
@@ -156,15 +168,18 @@ export function MeloGlance() {
   const model: GlanceModel = useMemo(() => {
     if (mode === 'live' && liveDerived && liveResolved) {
       const view = liveResolved.view;
+      const billsCovered = liveDerived.billsCovered;
       const visual = WEATHER_VISUALS[view.weather];
       const chipSuffix =
         view.data === 'fog'
           ? ' — numbers stale'
-          : view.ladder === 'danger' || view.ladder === 'overspent'
+          : (view.ladder === 'danger' || view.ladder === 'overspent') && billsCovered
             ? ' — bills are safe'
             : '';
       const ritualDue =
         view.overlays.includes('payday') && store.state.lastRitualISO !== liveDerived.today;
+      const inRecovery = view.journey === 'recovery';
+      const moveDoneToday = store.state.journey.moveDoneISO === liveDerived.today;
       const action: GlanceAction | null = ritualDue
         ? {
             title: 'Payday',
@@ -179,40 +194,59 @@ export function MeloGlance() {
               cta: 'Update balance (30s)',
               kind: 'balance',
             }
-          : view.ladder === 'overspent' || view.ladder === 'danger'
-            ? view.journey === 'recovery'
-              ? {
-                  title: 'Today’s move',
-                  body: `Shift ${formatPounds(liveDerived.recoveryMove)} to bills. Then we’re done for today — no second ask.`,
-                  cta: 'Do today’s move',
-                  kind: 'recovery',
-                }
-              : {
-                  title: 'The way back',
-                  body: 'Three steps. The first one takes a minute. No lecture in any of them.',
-                  cta: 'Start the way back',
-                  kind: 'recovery',
-                }
-            : view.ladder === 'warning'
-              ? {
-                  title: 'Keep it dry',
-                  body: `${liveDerived.ctx.keepDryPerDay}/day until ${liveDerived.ctx.paydayLabel} keeps the storm off.`,
-                  cta: 'Show the math',
-                  kind: 'info',
-                }
-              : null;
+          : inRecovery && moveDoneToday
+            ? {
+                title: 'Done for today',
+                body: 'That was the whole ask. See you tomorrow — I’ll bring the numbers.',
+                cta: '',
+                kind: 'info',
+              }
+            : view.ladder === 'overspent' || view.ladder === 'danger'
+              ? inRecovery
+                ? {
+                    title: 'Today’s move',
+                    body: `Shift ${formatPounds(liveDerived.recoveryMove)} to bills. Then we’re done for today — no second ask.`,
+                    cta: 'Do today’s move',
+                    kind: 'recovery',
+                  }
+                : recoveryDeclinedToday
+                  ? null
+                  : {
+                      title: 'The way back',
+                      body: 'Three steps. The first one takes a minute. No lecture in any of them.',
+                      cta: 'Start the way back',
+                      kind: 'recovery',
+                    }
+              : view.ladder === 'warning'
+                ? {
+                    title: 'Keep it dry',
+                    body: `${liveDerived.ctx.keepDryPerDay}/day until ${liveDerived.ctx.paydayLabel} keeps the storm off.`,
+                    cta: 'Show the math',
+                    kind: 'info',
+                  }
+                : null;
 
+      // Fog never asserts a confident forecast on stale data (audit): the sub says what we
+      // actually know. And "bills are safe" is only spoken when it is checked-true.
       const sub =
-        view.ladder === 'tight'
-          ? `${liveDerived.ctx.perDay}/day to ${liveDerived.ctx.paydayLabel}`
-          : `safe until ${liveDerived.ctx.paydayLabel}`;
+        view.data === 'fog'
+          ? `last good numbers from ${liveDerived.ctx.staleLabel}`
+          : view.ladder === 'tight'
+            ? `${liveDerived.ctx.perDay}/day to ${liveDerived.ctx.paydayLabel}`
+            : `safe until ${liveDerived.ctx.paydayLabel}`;
+
+      const l2Base = LIVE_L2[view.copyKey] ?? '';
+      const l2 =
+        (view.copyKey === 'danger' || view.copyKey === 'overspent') && !billsCovered
+          ? 'Small and daily — the plan is ready.'
+          : l2Base;
 
       return {
         view,
         ctx: liveDerived.ctx,
         szPence: liveDerived.safeZone.safeZonePence,
         sub,
-        l2: LIVE_L2[view.copyKey] ?? '',
+        l2,
         chipWord: visual.word + chipSuffix,
         daysToPayday: liveDerived.safeZone.daysToPayday,
         bills: liveDerived.runwayBills,
@@ -225,9 +259,9 @@ export function MeloGlance() {
               : row.key === 'bills'
                 ? 'Shielded bills'
                 : row.key === 'essentials'
-                  ? 'Essentials to payday'
+                  ? 'Essentials · estimated'
                   : row.key === 'savings'
-                    ? 'Savings, as planned'
+                    ? 'Savings · edit in settings'
                     : 'Buffer — early warning',
           valuePence: row.amountPence,
         })),
@@ -268,11 +302,23 @@ export function MeloGlance() {
         { label: 'Buffer — early warning', valuePence: -b.buffer },
       ],
     };
-  }, [mode, liveDerived, liveResolved]);
+  }, [
+    mode,
+    liveDerived,
+    liveResolved,
+    store.state.lastRitualISO,
+    store.state.journey.moveDoneISO,
+    recoveryDeclinedToday,
+  ]);
 
   const visual = WEATHER_VISUALS[model.view.weather];
   const breathe = breatheFor(model.view);
-  const line1 = COPY[model.view.copyKey](model.ctx);
+  // "Bills are safe" is engine copy — but only spoken when the balance actually covers the
+  // shielded bills; otherwise the uncovered variant carries the same honesty without the claim.
+  const line1 =
+    mode === 'live' && liveDerived && model.view.copyKey === 'danger' && !liveDerived.billsCovered
+      ? COPY.dangerUncovered(model.ctx)
+      : COPY[model.view.copyKey](model.ctx);
   const isFog = model.view.data === 'fog';
   const checks = mode === 'live' ? store.state.checksThisWeek : demoChecks;
 
@@ -311,7 +357,7 @@ export function MeloGlance() {
       fog: false,
       shelved: false,
     });
-    if (mode === 'live') store.incrementChecks();
+    if (mode === 'live' && liveDerived) store.incrementChecks(liveDerived.today);
     else setDemoChecks((n) => n + 1);
   };
 
@@ -334,6 +380,7 @@ export function MeloGlance() {
       else switchMode('recovery');
       return;
     }
+    if (model.action.kind === 'info' && !model.action.cta) return;
     if (model.action.kind === 'balance') {
       setBalanceEdit(true);
       return;
@@ -351,6 +398,18 @@ export function MeloGlance() {
         ];
 
   const finishRitual = () => {
+    if (mode === 'live' && liveDerived) {
+      store.markRitualDone(liveDerived.today);
+      // Payday's money should be IN the numbers: completing the ritual flows straight into
+      // confirming today's balance, so income lands the moment it's celebrated.
+      setBalanceEdit(true);
+    }
+    setRitualOpen(false);
+  };
+
+  const skipRitual = () => {
+    // A decline is respected: skipping suppresses the ask for the rest of today (re-offered
+    // next payday), it is never re-presented immediately.
     if (mode === 'live' && liveDerived) store.markRitualDone(liveDerived.today);
     setRitualOpen(false);
   };
@@ -393,21 +452,28 @@ export function MeloGlance() {
         }
         daysToPayday={model.daysToPayday}
         paydayLabel={model.ctx.paydayLabel}
-        smartMove={{
-          title: 'Energy rose £14',
-          body: 'Came in above usual this cycle. Worth a look — it’s a 3-minute fix.',
-        }}
+        smartMove={
+          mode === 'live'
+            ? null // never assert a fabricated fact about the user's money (audit)
+            : {
+                title: 'Energy rose £14',
+                body: 'Came in above usual this cycle. Worth a look — it’s a 3-minute fix.',
+              }
+        }
         onDone={finishRitual}
-        onSkip={() => setRitualOpen(false)}
+        onSkip={skipRitual}
       />
     );
   }
 
   if (recoveryOpen && mode === 'live' && liveDerived) {
+    const alreadyOnPath = liveResolved?.view.journey === 'recovery';
     return (
       <RecoveryWalkthrough
         colorway={store.state.setup.colorway}
-        overByPence={Math.min(model.szPence, 0)}
+        szPence={model.szPence}
+        entered={model.szPence < 0 ? 'overspent' : 'danger'}
+        billNames={store.state.setup.bills.map((b) => b.name)}
         perDayPence={Math.max(
           model.szPence > 0 ? Math.floor(model.szPence / Math.max(model.daysToPayday, 1)) : 400,
           100,
@@ -416,8 +482,13 @@ export function MeloGlance() {
         paydayLabel={model.ctx.paydayLabel}
         dayOnPath={model.ctx.dayOnPath}
         movePence={liveDerived.recoveryMove}
+        startAtMove={alreadyOnPath}
         onCommit={acceptRecoveryAndClose}
-        onExit={() => setRecoveryOpen(false)}
+        onExit={() => {
+          // "not today" is a decline, and declines are respected: the card stays away today.
+          if (!alreadyOnPath) setRecoveryDeclinedToday(true);
+          setRecoveryOpen(false);
+        }}
       />
     );
   }
@@ -472,8 +543,8 @@ export function MeloGlance() {
           <View style={s.subRow}>
             <Muted>{model.sub}</Muted>
             {isFog ? (
-              <View style={[s.staleBadge, { backgroundColor: '#E7E3EC' }]}>
-                <Text style={s.staleText}>stale</Text>
+              <View style={[s.staleBadge, { backgroundColor: t.inset }]}>
+                <Text style={[s.staleText, { color: t.muted }]}>stale</Text>
               </View>
             ) : null}
           </View>
@@ -501,7 +572,15 @@ export function MeloGlance() {
             <MathRow label="Safe Zone" value={formatPounds(model.szPence)} total />
             <View style={s.mathButtons}>
               <GhostButton flex label="Looks right" onPress={() => setShowMath(false)} />
-              <GhostButton flex label="Something’s off" onPress={() => setShowMath(false)} />
+              <GhostButton
+                flex
+                label="Something’s off"
+                onPress={() => {
+                  // The correction path the copy promises: straight into the editor.
+                  setShowMath(false);
+                  if (mode === 'live') setSettingsOpen(true);
+                }}
+              />
             </View>
           </Surface>
         ) : null}
@@ -522,7 +601,9 @@ export function MeloGlance() {
             <Eyebrow tone="muted">{model.action.title}</Eyebrow>
             <Body style={s.actionBody}>{model.action.body}</Body>
             <View style={s.actionCta}>
-              <PrimaryAction label={model.action.cta} tone="ink" onPress={handleAction} />
+              {model.action.cta ? (
+                <PrimaryAction label={model.action.cta} tone="ink" onPress={handleAction} />
+              ) : null}
             </View>
           </Surface>
         ) : null}
@@ -572,8 +653,29 @@ export function MeloGlance() {
           </Pressable>
         </View>
 
+        {/* the shelf, kept: yesterday's parked want gets its promised re-verdict */}
+        {mode === 'live' &&
+        liveDerived &&
+        store.state.shelf &&
+        store.state.shelf.atISO !== liveDerived.today ? (
+          <ShelfReverdict
+            amountPence={store.state.shelf.amountPence}
+            szPence={model.szPence}
+            onClear={() => store.setShelf(null)}
+          />
+        ) : null}
+
         {ask ? (
-          <AskVerdict ask={ask} ctx={model.ctx} onShelf={() => setAsk({ ...ask, shelved: true })} />
+          <AskVerdict
+            ask={ask}
+            ctx={model.ctx}
+            onShelf={() => {
+              if (mode === 'live' && liveDerived) {
+                store.setShelf({ amountPence: ask.amountPence, atISO: liveDerived.today });
+              }
+              setAsk({ ...ask, shelved: true });
+            }}
+          />
         ) : null}
 
         {/* log a spend (live) — the entry that makes the forecast move */}
@@ -605,6 +707,13 @@ export function MeloGlance() {
               ? `✦ ${lastWinLine}`
               : `✦ ${checks} checks-before-buying this week`}
         </Muted>
+        {!isLive && onSetUp ? (
+          <View style={s.linkRow}>
+            <Pressable onPress={onSetUp}>
+              <Muted style={s.updateLinkText}>set up my own numbers</Muted>
+            </Pressable>
+          </View>
+        ) : null}
         {mode === 'live' ? (
           <View style={s.linkRow}>
             {!balanceEdit ? (
@@ -624,50 +733,78 @@ export function MeloGlance() {
         ) : null}
       </ScrollView>
 
-      {/* dev state chip */}
-      <View style={s.devWrap}>
-        {devOpen ? (
-          <View style={[s.devMenu, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-            {isLive ? (
-              <Pressable
-                onPress={() => switchMode('live')}
-                style={[s.devItem, mode === 'live' ? { backgroundColor: t.calmSoft } : null]}
-              >
-                <Text style={[s.devItemLabel, { color: mode === 'live' ? t.ink : t.secondary }]}>
-                  Live
-                </Text>
-              </Pressable>
-            ) : null}
-            {DEMO_ORDER.map((key) => (
-              <Pressable
-                key={key}
-                onPress={() => switchMode(key)}
-                style={[s.devItem, key === mode ? { backgroundColor: t.calmSoft } : null]}
-              >
-                <Text style={[s.devItemLabel, { color: key === mode ? t.ink : t.secondary }]}>
-                  {DEMOS[key].label}
-                </Text>
-              </Pressable>
-            ))}
-            <View style={[s.devDivider, { backgroundColor: t.hairline }]} />
-            <Text style={[s.devDebug, { color: t.muted }]}>
-              {model.view.ladder} · {model.view.weather} · {model.view.copyKey} · sell{' '}
-              {model.view.monetizationAllowed ? 'on' : 'off'}
+      {/* dev state chip — development builds only; internal vocabulary never ships (audit) */}
+      {__DEV__ ? (
+        <View style={s.devWrap}>
+          {devOpen ? (
+            <View style={[s.devMenu, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+              {isLive ? (
+                <Pressable
+                  onPress={() => switchMode('live')}
+                  style={[s.devItem, mode === 'live' ? { backgroundColor: t.calmSoft } : null]}
+                >
+                  <Text style={[s.devItemLabel, { color: mode === 'live' ? t.ink : t.secondary }]}>
+                    Live
+                  </Text>
+                </Pressable>
+              ) : null}
+              {DEMO_ORDER.map((key) => (
+                <Pressable
+                  key={key}
+                  onPress={() => switchMode(key)}
+                  style={[s.devItem, key === mode ? { backgroundColor: t.calmSoft } : null]}
+                >
+                  <Text style={[s.devItemLabel, { color: key === mode ? t.ink : t.secondary }]}>
+                    {DEMOS[key].label}
+                  </Text>
+                </Pressable>
+              ))}
+              <View style={[s.devDivider, { backgroundColor: t.hairline }]} />
+              <Text style={[s.devDebug, { color: t.muted }]}>
+                {model.view.ladder} · {model.view.weather} · {model.view.copyKey} · sell{' '}
+                {model.view.monetizationAllowed ? 'on' : 'off'}
+              </Text>
+            </View>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="Prototype states"
+            onPress={() => setDevOpen((v) => !v)}
+            style={[s.devToggle, { backgroundColor: t.inset, borderColor: t.hairline }]}
+          >
+            <Text style={[s.devToggleLabel, { color: t.muted }]}>
+              {mode === 'live' ? '⚙ state' : '⚙ demo'}
             </Text>
-          </View>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityHint="Prototype states"
-          onPress={() => setDevOpen((v) => !v)}
-          style={[s.devToggle, { backgroundColor: t.inset, borderColor: t.hairline }]}
-        >
-          <Text style={[s.devToggleLabel, { color: t.muted }]}>
-            {mode === 'live' ? '⚙ state' : '⚙ demo'}
-          </Text>
-        </Pressable>
-      </View>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+function ShelfReverdict({
+  amountPence,
+  szPence,
+  onClear,
+}: {
+  amountPence: number;
+  szPence: number;
+  onClear: () => void;
+}) {
+  const result = checkAfford(szPence, amountPence);
+  const stillSafe = result.verdict !== 'notNow';
+  return (
+    <Surface style={s.card} tone="sunken">
+      <Eyebrow tone="muted">From the shelf</Eyebrow>
+      <Body style={s.verdictLine}>
+        {stillSafe
+          ? `The shelf says: still safe. ${formatPounds(amountPence)} survives a day of thinking (${formatPounds(result.leftAfterPence)} after).`
+          : `The shelf says: not now. ${formatPounds(amountPence)} would go past the line today.`}
+      </Body>
+      <View style={s.shelfRow}>
+        <GhostButton label={stillSafe ? 'Still want it — done' : 'Let it go'} onPress={onClear} />
+      </View>
+    </Surface>
   );
 }
 

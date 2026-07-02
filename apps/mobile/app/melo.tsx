@@ -38,7 +38,7 @@ function MeloRoute() {
           onSkipToDemo={() => setPeeking(true)}
         />
       ) : (
-        <MeloGlance />
+        <MeloGlance onSetUp={peeking ? () => setPeeking(false) : undefined} />
       )}
     </SafeAreaView>
   );

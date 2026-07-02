@@ -32,6 +32,9 @@ export function observedRunRatePence(
     return age >= 0 && age < windowDays;
   });
   if (inWindow.length === 0) return null;
+  // One day of data is a data point, not a rate — a single weekly shop must not flip the sky
+  // to storm. Stay on the plan until spending spans at least two distinct days.
+  if (new Set(inWindow.map((e) => e.atISO)).size < 2) return null;
   for (const e of inWindow) assertPence(e.amountPence, `spend ${e.id} amountPence`);
 
   const oldestAge = Math.max(...inWindow.map((e) => daysBetween(e.atISO, today)));

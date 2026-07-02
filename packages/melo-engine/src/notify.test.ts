@@ -48,6 +48,7 @@ const base: NotifyInputs = {
   sentToday: 0,
   dangerSentToday: 0,
   recoveryCheckinDue: false,
+  hardCycle: true,
 };
 
 describe('quiet hours', () => {
@@ -144,10 +145,16 @@ describe('celebration pings', () => {
     expect(n?.key).toBe('payday');
   });
 
-  it('payday eve asks for nothing', () => {
+  it('payday eve asks for nothing — and only after a hard cycle', () => {
     const n = planNotification({ ...base, next: view({ paydayTomorrow: true }) }, ctx);
     expect(n?.key).toBe('paydayEve');
     expect(n?.body).toBe('You made it.');
+
+    const easyCycle = planNotification(
+      { ...base, hardCycle: false, next: view({ paydayTomorrow: true }) },
+      ctx,
+    );
+    expect(easyCycle).toBeNull();
   });
 });
 

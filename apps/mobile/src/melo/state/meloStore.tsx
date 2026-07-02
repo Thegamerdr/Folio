@@ -53,13 +53,20 @@ export interface MeloJourney {
   readonly moveDoneISO: string | null;
 }
 
+export interface MeloShelfItem {
+  readonly amountPence: number;
+  readonly atISO: string;
+}
+
 export interface MeloState {
   readonly setup: MeloSetup;
   readonly journey: MeloJourney;
   readonly checksThisWeek: number;
+  readonly checksWeekStartISO: string | null;
   readonly lastRitualISO: string | null;
   readonly spendLog: readonly SpendEntry[];
   readonly wins: readonly string[];
+  readonly shelf: MeloShelfItem | null;
 }
 
 const DEFAULT_SETUP: MeloSetup = {
@@ -79,9 +86,11 @@ const DEFAULT_STATE: MeloState = {
   setup: DEFAULT_SETUP,
   journey: { record: null, recoveryStartISO: null, moveDoneISO: null },
   checksThisWeek: 0,
+  checksWeekStartISO: null,
   lastRitualISO: null,
   spendLog: [],
   wins: [],
+  shelf: null,
 };
 
 export interface MeloStoreApi {
@@ -93,7 +102,8 @@ export interface MeloStoreApi {
   readonly setStateRecord: (record: MeloStateRecord) => void;
   readonly markMoveDone: (todayISO: string) => void;
   readonly markRitualDone: (todayISO: string) => void;
-  readonly incrementChecks: () => void;
+  readonly incrementChecks: (todayISO: string) => void;
+  readonly setShelf: (item: MeloShelfItem | null) => void;
   /** Log a spend: appended to the log AND deducted from the balance — logging IS fresh data. */
   readonly addSpend: (amountPence: number, atISO: string, note?: string) => void;
   readonly recordWins: (ids: readonly string[]) => void;
@@ -102,6 +112,12 @@ export interface MeloStoreApi {
 }
 
 const MeloStoreContext = createContext<MeloStoreApi | null>(null);
+
+function weeksApart(fromISO: string, toISO: string): boolean {
+  const from = new Date(`${fromISO}T00:00:00`).getTime();
+  const to = new Date(`${toISO}T00:00:00`).getTime();
+  return to - from >= 7 * 86_400_000;
+}
 
 function stateFileUri(): string {
   const dir = FileSystem.documentDirectory;
@@ -164,16 +180,16 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
     }, WRITE_DEBOUNCE_MS);
   }, []);
 
-  const update = useCallback(
-    (fn: (prev: MeloState) => MeloState) => {
-      setState((prev) => {
-        const next = fn(prev);
-        scheduleWrite(next);
-        return next;
-      });
-    },
-    [scheduleWrite],
-  );
+  // Persist via an effect, not inside the setState updater — updaters must stay pure (they can
+  // be re-invoked), and this way the LAST state always wins the debounce.
+  const update = useCallback((fn: (prev: MeloState) => MeloState) => {
+    setState(fn);
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    scheduleWrite(state);
+  }, [ready, state, scheduleWrite]);
 
   const api = useMemo<MeloStoreApi>(
     () => ({
@@ -192,8 +208,16 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
       markMoveDone: (todayISO) =>
         update((prev) => ({ ...prev, journey: { ...prev.journey, moveDoneISO: todayISO } })),
       markRitualDone: (todayISO) => update((prev) => ({ ...prev, lastRitualISO: todayISO })),
-      incrementChecks: () =>
-        update((prev) => ({ ...prev, checksThisWeek: prev.checksThisWeek + 1 })),
+      incrementChecks: (todayISO) =>
+        update((prev) => {
+          // "this week" means this week: the counter resets after seven days (audit: the
+          // all-time counter made the ticker lie within a fortnight).
+          const stale = !prev.checksWeekStartISO || weeksApart(prev.checksWeekStartISO, todayISO);
+          return stale
+            ? { ...prev, checksThisWeek: 1, checksWeekStartISO: todayISO }
+            : { ...prev, checksThisWeek: prev.checksThisWeek + 1 };
+        }),
+      setShelf: (item) => update((prev) => ({ ...prev, shelf: item })),
       addSpend: (amountPence, atISO, note) =>
         update((prev) => ({
           ...prev,

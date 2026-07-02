@@ -19,8 +19,16 @@ describe('observedRunRatePence', () => {
     expect(observedRunRatePence([], '2026-07-02')).toBeNull();
   });
 
-  it('a single same-day spend reads as that day’s rate', () => {
-    expect(observedRunRatePence([e('a', 1_200, '2026-07-02')], '2026-07-02')).toBe(1_200);
+  it('one day of data is a data point, not a rate — stays null until two distinct days', () => {
+    expect(observedRunRatePence([e('a', 1_200, '2026-07-02')], '2026-07-02')).toBeNull();
+    expect(
+      observedRunRatePence([e('a', 9_500, '2026-07-02'), e('b', 400, '2026-07-02')], '2026-07-02'),
+    ).toBeNull();
+  });
+
+  it('two distinct days make a rate', () => {
+    const entries = [e('a', 1_000, '2026-07-01'), e('b', 1_000, '2026-07-02')];
+    expect(observedRunRatePence(entries, '2026-07-02')).toBe(1_000);
   });
 
   it('averages over the observed span, not the full window', () => {
@@ -37,20 +45,21 @@ describe('observedRunRatePence', () => {
     const entries = [
       e('old', 99_900, '2026-06-20'),
       e('future', 99_900, '2026-07-05'),
-      e('now', 700, '2026-07-02'),
+      e('a', 700, '2026-07-01'),
+      e('b', 700, '2026-07-02'),
     ];
     expect(observedRunRatePence(entries, '2026-07-02')).toBe(700);
   });
 
   it('rounds the rate UP — conservative against the user’s favourite optimism', () => {
-    // £10 over 3 days = 333.33… → 334.
-    expect(observedRunRatePence([e('a', 1_000, '2026-06-30')], '2026-07-02')).toBe(334);
+    // £10 over 3 observed days = 333.33… → 334.
+    const entries = [e('a', 500, '2026-06-30'), e('b', 500, '2026-07-02')];
+    expect(observedRunRatePence(entries, '2026-07-02')).toBe(334);
   });
 
   it('rejects fractional pence', () => {
-    expect(() => observedRunRatePence([e('a', 10.5, '2026-07-02')], '2026-07-02')).toThrow(
-      /integer pence/,
-    );
+    const entries = [e('a', 10.5, '2026-07-01'), e('b', 500, '2026-07-02')];
+    expect(() => observedRunRatePence(entries, '2026-07-02')).toThrow(/integer pence/);
   });
 });
 

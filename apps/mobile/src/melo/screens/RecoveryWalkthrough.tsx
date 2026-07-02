@@ -23,30 +23,41 @@ type StepId = 1 | 2 | 3 | 'checkin';
 
 type Props = {
   colorway: MeloColorway;
-  overByPence: number;
+  /** The CURRENT Safe Zone, signed — negative means genuinely over the line. */
+  szPence: number;
+  /** How this was entered: only 'overspent' may say "it went over" (audit: never claim an
+   *  overspend to a user in Danger who hasn't overspent). */
+  entered: 'overspent' | 'danger';
+  /** The user's REAL shielded bill names — never a fabricated list. */
+  billNames: readonly string[];
   perDayPence: number;
   daysToPayday: number;
   paydayLabel: string;
   dayOnPath: number;
   /** The derived "one move today" (recoveryMovePence) — never a hardcoded number. */
   movePence: number;
+  /** Already on the path (day 2+): open at today's move, never replay the confrontation. */
+  startAtMove?: boolean;
   onCommit: () => void;
   onExit: () => void;
 };
 
 export function RecoveryWalkthrough({
   colorway,
-  overByPence,
+  szPence,
+  entered,
+  billNames,
   perDayPence,
   daysToPayday,
   paydayLabel,
   dayOnPath,
   movePence,
+  startAtMove,
   onCommit,
   onExit,
 }: Props) {
   const t = useTheme();
-  const [step, setStep] = useState<StepId>(1);
+  const [step, setStep] = useState<StepId>(startAtMove ? 3 : 1);
 
   return (
     <View style={[s.root, { backgroundColor: t.canvas }]}>
@@ -58,9 +69,17 @@ export function RecoveryWalkthrough({
 
       {step === 1 ? (
         <View style={s.body}>
-          <Display>It went over — {formatPounds(Math.abs(overByPence))} past the line.</Display>
+          {entered === 'overspent' ? (
+            <Display>
+              It went over — {formatPounds(Math.abs(Math.min(szPence, 0)))} past the line.
+            </Display>
+          ) : (
+            <Display>Close to the line — {formatPounds(Math.max(szPence, 0))} left.</Display>
+          )}
           <Body style={s.sub}>
-            No lecture. Here’s the way back: three steps, the first one takes a minute.
+            {entered === 'overspent'
+              ? 'No lecture. Here’s the way back: three steps, the first one takes a minute.'
+              : 'Caught early. Three steps keep it from going over — the first takes a minute.'}
           </Body>
           <View style={s.mascot}>
             <MeloMascot emotion="hope" colorway={colorway} size={84} glow={0.5} />
@@ -79,14 +98,16 @@ export function RecoveryWalkthrough({
             Bills stay protected. Spending resets to {formatPounds(perDayPence)}/day for the{' '}
             {daysToPayday} days to {paydayLabel}.
           </Body>
-          <Surface style={s.list} tone="sunken">
-            {['Rent', 'Energy', 'Phone'].map((name) => (
-              <View key={name} style={s.listRow}>
-                <Text style={[s.listName, { color: t.ink }]}>{name}</Text>
-                <Text style={[s.listOk, { color: t.positiveInk }]}>protected ✓</Text>
-              </View>
-            ))}
-          </Surface>
+          {billNames.length > 0 ? (
+            <Surface style={s.list} tone="sunken">
+              {billNames.map((name) => (
+                <View key={name} style={s.listRow}>
+                  <Text style={[s.listName, { color: t.ink }]}>{name}</Text>
+                  <Text style={[s.listOk, { color: t.positiveInk }]}>shielded ✓</Text>
+                </View>
+              ))}
+            </Surface>
+          ) : null}
           <View style={s.cta}>
             <PrimaryAction label="That works" onPress={() => setStep(3)} />
           </View>

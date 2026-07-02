@@ -22,13 +22,17 @@ export interface CopyContext {
 export const COPY = {
   calm: (c) => `${c.safeZone} safe until ${c.paydayLabel}. Nothing needs you today.`,
   protected: () => `Bills covered, buffer intact. This is a good place.`,
-  winning: (c) => `Another green month. The buffer's real now — ${c.safeZone}.`,
+  winning: (c) => `Another green month. ${c.safeZone} spare, and growing.`,
   tight: (c) =>
     `${c.safeZone} to ${c.paydayLabel} — ${c.perDay}/day. Doable, needs a little steering.`,
   warning: (c) =>
     `Heads up — around ${c.dangerDay}, money runs out before payday. ${c.keepDryPerDay}/day keeps it dry.`,
   danger: (c) =>
     `Honest numbers: ${c.safeZone} to ${c.dangerDay}. Bills are safe — this is about getting to ${c.paydayLabel}. Plan's ready.`,
+  // Used INSTEAD of `danger` when the balance does not actually cover the shielded bills —
+  // "bills are safe" is never asserted unchecked (§13 risk 3: fabricated reassurance).
+  dangerUncovered: (c) =>
+    `Honest numbers: ${c.safeZone} to ${c.dangerDay}. Tight all the way to ${c.paydayLabel} — plan's ready.`,
   overspent: () =>
     `It went over. No lecture — here's the way back: three steps, the first one takes a minute.`,
   recovery: (c) =>
@@ -38,7 +42,8 @@ export const COPY = {
     `I can't see clearly right now — last good numbers are from ${c.staleLabel}. 30 seconds fixes it.`,
   payday: () => `Payday. Before it starts disappearing — two minutes to make it safe?`,
   paydayEve: () => `Tomorrow's payday. You made it.`,
-  billWeek: (c) => `Big week for bills — all shielded. Spending money this week: ${c.safeZone}.`,
+  billWeek: (c) =>
+    `Big week for bills — all shielded. Safe to spend: ${c.safeZone} to ${c.paydayLabel}.`,
   affordSafe: (c) => `Safe — ${c.safeZone} left after, and ${c.dangerDay} stays on plan.`,
   affordTight: (c) => `Tight. It'd leave ${c.safeZone} until ${c.paydayLabel} — doable, not comfy.`,
   affordNotNow: (c) => `Not this side of payday. On ${c.paydayLabel} it's a yes.`,

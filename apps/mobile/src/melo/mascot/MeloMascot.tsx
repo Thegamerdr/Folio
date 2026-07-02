@@ -14,6 +14,17 @@ import { MELO_COLORWAYS, type MeloColorway } from '../theme/weather';
 const INK = '#3A342C';
 const UMBRELLA = '#5A646E';
 
+/** Screen readers hear a human mood, never an internal emotion-family name (audit). */
+const A11Y_MOOD: Record<MascotFamily, string> = {
+  calm: 'calm',
+  joy: 'happy',
+  concern: 'a little worried',
+  stress: 'keeping watch',
+  sadness: 'sad',
+  hope: 'hopeful',
+  squint: 'unable to see clearly',
+};
+
 type Props = {
   emotion: MascotFamily;
   colorway?: MeloColorway;
@@ -84,7 +95,12 @@ export function MeloMascot({
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Svg width={size} height={size} viewBox="0 0 120 120" accessibilityLabel={`Melo, ${emotion}`}>
+      <Svg
+        width={size}
+        height={size}
+        viewBox="0 0 120 120"
+        accessibilityLabel={`Melo, ${A11Y_MOOD[emotion]}`}
+      >
         <Defs>
           <RadialGradient id={glowId} cx="50%" cy="50%" r="50%">
             <Stop offset="0" stopColor={c.glow} stopOpacity="1" />

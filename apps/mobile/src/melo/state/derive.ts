@@ -89,6 +89,9 @@ export interface LiveDerived {
   readonly recoveryMove: number;
   /** Whether the forecast runs on observed spending or the essentials plan. */
   readonly runRateSource: 'observed' | 'planned';
+  /** True only when the balance actually covers the shielded bills — "bills are safe" is
+   *  never asserted unchecked (§13 risk 3). */
+  readonly billsCovered: boolean;
 }
 
 /** Weekend paydays pay the Friday before (UK convention). If the shift lands the payday in the
@@ -142,12 +145,21 @@ export function deriveLive(
 
   const balanceAgeHours = Math.max(0, (now.getTime() - setup.balanceUpdatedAtMs) / 3_600_000);
 
+  // Only THIS cycle's bills count toward bill-week/danger heuristics — next-cycle bills landing
+  // just after payday must not manufacture a false storm in the days before it.
   const dueSoon = engineBills.filter(
-    (b) => daysBetween(today, b.dueDate) >= 0 && daysBetween(today, b.dueDate) < 7,
+    (b) =>
+      daysBetween(today, b.dueDate) >= 0 &&
+      daysBetween(today, b.dueDate) < 7 &&
+      daysBetween(b.dueDate, payday) > 0,
   );
 
+  // Green days are EARNED, not elapsed: the streak only counts while the zone is back above
+  // the line — no rainbow while still overdrawn (audit: calendar-graduation was a lie).
   const greenDaysStreak =
-    journey.record?.journey === 'recovery' && journey.recoveryStartISO
+    journey.record?.journey === 'recovery' &&
+    journey.recoveryStartISO &&
+    safeZone.safeZonePence >= 0
       ? Math.max(0, daysBetween(journey.recoveryStartISO, today))
       : 0;
 
@@ -160,7 +172,10 @@ export function deriveLive(
     dangerDaysAway: danger ? danger.daysAway : null,
     overdraft: setup.balancePence < 0,
     dataAgeHours: balanceAgeHours,
-    paydayToday: today === payday,
+    // Payday is detected from the RAW day-of-month (nextPaydayISO rolls the cycle on payday
+    // itself, so `today === nextPayday` alone can never be true on a weekday payday — the
+    // audit's critical finding) — plus the shifted-Friday case where today IS the payout day.
+    paydayToday: Number(today.split('-')[2]) === setup.paydayDay || today === payday,
     paydayTomorrow: daysBetween(today, payday) === 1,
     billsDueNext7: dueSoon.length,
     billsTotalCycle: engineBills.length,
@@ -175,7 +190,8 @@ export function deriveLive(
     returnedAfterAbsence: false,
   };
 
-  const dangerLabel = danger ? weekdayWord(danger.date) : 'Thursday';
+  // No danger date → no fabricated "Thursday": copy falls back to a neutral horizon.
+  const dangerLabel = danger ? weekdayWord(danger.date) : 'the week';
   const paydayLabel = dayLabel(payday);
   const dayOnPath = journey.recoveryStartISO
     ? Math.max(1, daysBetween(journey.recoveryStartISO, today) + 1)
@@ -209,6 +225,7 @@ export function deriveLive(
     dangerDayOffset: danger ? danger.daysAway : null,
     recoveryMove: movePence,
     runRateSource,
+    billsCovered: setup.balancePence >= safeZone.shieldedBillsPence,
   };
 }
 

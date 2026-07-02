@@ -151,7 +151,7 @@ export const DEMOS: Record<DemoKey, DemoScenario> = {
     chipWord: 'Rain likely Thursday',
     szPence: 3_800,
     sub: '£9/day keeps Thursday dry',
-    l2: '£9/day keeps it dry.',
+    l2: 'Caught early — that’s the whole trick.',
     ctx: mkCtx({ safeZone: '£38' }),
     inputs: mkInputs({ safeZonePence: 3_800, dangerDaysAway: 5, runwayDays: 5 }),
     prev: null,

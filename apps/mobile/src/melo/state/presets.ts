@@ -22,3 +22,10 @@ export function parsePoundsText(text: string): number {
   const digits = Number.parseInt(text.replace(/[^0-9]/g, ''), 10);
   return Number.isFinite(digits) && digits > 0 ? digits * 100 : 0;
 }
+
+/** Balance fields accept overdrafts: "-230" is a real Tuesday for a lot of people (§13 risk 10). */
+export function parseSignedPoundsText(text: string): number | null {
+  const cleaned = text.replace(/[^0-9-]/g, '');
+  const value = Number.parseInt(cleaned, 10);
+  return Number.isFinite(value) ? value * 100 : null;
+}
