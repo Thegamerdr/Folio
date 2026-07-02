@@ -29,6 +29,22 @@ config.resolver.nodeModulesPaths = [
   path.join(workspaceRoot, 'node_modules'),
 ];
 
+// Worktree support: in a git worktree, node_modules is a junction to the main checkout's
+// install (one pnpm install serves every worktree). Metro indexes files by REALPATH, so the
+// junction target must be a watch folder and a node_modules root too — otherwise every module
+// "does not exist". In a normal checkout realpath === path and this is a no-op.
+for (const nm of config.resolver.nodeModulesPaths.slice()) {
+  try {
+    const real = fs.realpathSync(nm);
+    if (real !== nm) {
+      config.watchFolders = Array.from(new Set([...config.watchFolders, path.dirname(real)]));
+      config.resolver.nodeModulesPaths.push(real);
+    }
+  } catch {
+    // path may not exist (e.g. per-package node_modules in hoisted mode) — fine.
+  }
+}
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const workspaceEntryPoint = workspaceEntryPoints[moduleName];
 
