@@ -47,6 +47,9 @@ export interface MeloSetup {
   readonly bufferPence: number;
   /** Quiet Mode (§14 item 16): ambient only — no prompts except a danger entry. */
   readonly quietMode: boolean;
+  /** WardrobeId from mascot/wardrobe (kept as a plain string here so the store stays
+   *  decoupled from the rig); null = nothing worn. */
+  readonly wardrobe: string | null;
 }
 
 export interface MeloJourney {
@@ -72,6 +75,14 @@ export interface MeloState {
    *  old blobs without this field load as [] (their win dates are honestly unknown). */
   readonly winLog: readonly { readonly id: string; readonly atISO: string }[];
   readonly shelf: MeloShelfItem | null;
+  /** §14 metrics, kept honest and LOCAL: plain on-device counters (never uploaded).
+   *  Keys are event names ('check', 'ritualDone', 'importApplied', …). */
+  readonly usage: Readonly<Record<string, number>>;
+  /** Manual payday trigger (§14: "user taps 'I got paid'") — offers the ritual today
+   *  without touching the cycle math. */
+  readonly manualPaydayISO: string | null;
+  /** Last day the weekly review was opened — drives the once-a-week nudge card. */
+  readonly lastReviewISO: string | null;
 }
 
 const DEFAULT_SETUP: MeloSetup = {
@@ -86,6 +97,7 @@ const DEFAULT_SETUP: MeloSetup = {
   savingsPence: 4_000,
   bufferPence: 2_000,
   quietMode: false,
+  wardrobe: null,
 };
 
 const DEFAULT_STATE: MeloState = {
@@ -98,6 +110,9 @@ const DEFAULT_STATE: MeloState = {
   wins: [],
   winLog: [],
   shelf: null,
+  usage: {},
+  manualPaydayISO: null,
+  lastReviewISO: null,
 };
 
 /** Everything a statement import can apply, committed as ONE state update (one persist,
@@ -125,6 +140,10 @@ export interface MeloStoreApi {
   /** Apply a parsed statement atomically: balance + new bills + seeded spend log. */
   readonly applyImport: (apply: StatementApply, atISO: string) => void;
   readonly updateSetup: (partial: Partial<Omit<MeloSetup, 'onboarded'>>) => void;
+  /** Count a local usage event (§14 metrics — on-device only, never uploaded). */
+  readonly bump: (event: string) => void;
+  readonly markPaidToday: (todayISO: string) => void;
+  readonly markReviewSeen: (todayISO: string) => void;
   readonly resetAll: () => void;
 }
 
@@ -291,6 +310,13 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
         }),
       updateSetup: (partial) =>
         update((prev) => ({ ...prev, setup: { ...prev.setup, ...partial } })),
+      bump: (event) =>
+        update((prev) => ({
+          ...prev,
+          usage: { ...prev.usage, [event]: (prev.usage[event] ?? 0) + 1 },
+        })),
+      markPaidToday: (todayISO) => update((prev) => ({ ...prev, manualPaydayISO: todayISO })),
+      markReviewSeen: (todayISO) => update((prev) => ({ ...prev, lastReviewISO: todayISO })),
       resetAll: () => update(() => DEFAULT_STATE),
     }),
     [ready, state, update],

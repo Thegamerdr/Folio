@@ -5,6 +5,8 @@
 
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import {
   formatPounds,
@@ -31,6 +33,30 @@ type Props = {
   onClose: () => void;
 };
 
+// Files bigger than this are almost never a plain-text statement export.
+const MAX_STATEMENT_BYTES = 1_000_000;
+
+const WRONG_TYPE_MESSAGE = 'That file type can’t be read here — CSV or TXT works.';
+const TOO_BIG_MESSAGE =
+  'That file is bigger than this reader can take — a one or two month export is plenty.';
+const READ_FAILED_MESSAGE =
+  'The file couldn’t be opened. Pasting the statement works just as well.';
+
+// A statement export is plain text — CSV, TSV, or TXT. Anything else (PDF, image, spreadsheet
+// binary) can't be read by the paste-path parser, so it's turned away calmly instead of read.
+function looksLikeTextStatement(name: string | undefined, mimeType: string | undefined): boolean {
+  const n = (name ?? '').toLowerCase();
+  const m = (mimeType ?? '').toLowerCase();
+  return (
+    n.endsWith('.csv') ||
+    n.endsWith('.tsv') ||
+    n.endsWith('.txt') ||
+    m.includes('csv') ||
+    m.includes('tab-separated') ||
+    m.startsWith('text/')
+  );
+}
+
 export function MeloImport({ existingBillNames, onApply, onClose }: Props) {
   const t = useTheme();
   const [pasted, setPasted] = useState('');
@@ -38,11 +64,14 @@ export function MeloImport({ existingBillNames, onApply, onClose }: Props) {
   const [useBalance, setUseBalance] = useState(true);
   const [pickedBills, setPickedBills] = useState<ReadonlySet<string>>(new Set());
   const [useSpend, setUseSpend] = useState(true);
+  const [pickMessage, setPickMessage] = useState<string | null>(null);
 
   const known = new Set(existingBillNames.map((n) => n.toLowerCase()));
 
-  const readIt = () => {
-    const result = parseStatementCSV(pasted);
+  // One reading path for both doors: pasted text and a picked file land here identically.
+  const readText = (text: string) => {
+    setPickMessage(null);
+    const result = parseStatementCSV(text);
     setParsed(result);
     // Pre-tick only genuinely new bills — known ones stay off so re-imports feel like no-ops.
     setPickedBills(
@@ -50,6 +79,33 @@ export function MeloImport({ existingBillNames, onApply, onClose }: Props) {
         result.detectedBills.filter((b) => !known.has(b.name.toLowerCase())).map((b) => b.name),
       ),
     );
+  };
+
+  const readIt = () => readText(pasted);
+
+  const pickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (asset === undefined) return;
+      if (!looksLikeTextStatement(asset.name, asset.mimeType)) {
+        setPickMessage(WRONG_TYPE_MESSAGE);
+        return;
+      }
+      if (typeof asset.size === 'number' && asset.size > MAX_STATEMENT_BYTES) {
+        setPickMessage(TOO_BIG_MESSAGE);
+        return;
+      }
+      const text = await FileSystem.readAsStringAsync(asset.uri);
+      setPasted(text);
+      readText(text);
+    } catch {
+      setPickMessage(READ_FAILED_MESSAGE);
+    }
   };
 
   const toggleBill = (name: string) => {
@@ -112,8 +168,10 @@ export function MeloImport({ existingBillNames, onApply, onClose }: Props) {
                   </Muted>
                 ))
               : null}
+            {pickMessage !== null ? <Muted style={s.warning}>{pickMessage}</Muted> : null}
             <View style={s.cta}>
               <PrimaryAction label="Read it" onPress={readIt} disabled={pasted.trim() === ''} />
+              <GhostButton label="pick the CSV file instead" onPress={pickFile} />
               <GhostButton label="back" onPress={onClose} />
             </View>
           </>

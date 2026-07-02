@@ -10,6 +10,7 @@ import Svg, { Circle, Defs, Ellipse, G, Path, RadialGradient, Rect, Stop } from 
 import type { MascotFamily } from '@folio/melo-engine';
 
 import { MELO_COLORWAYS, type MeloColorway } from '../theme/weather';
+import { WARDROBE, WardrobeLayer, type WardrobeId } from './wardrobe';
 
 const INK = '#3A342C';
 const UMBRELLA = '#5A646E';
@@ -33,7 +34,14 @@ type Props = {
   glow?: number;
   breathe?: boolean;
   breatheDurationMs?: number;
+  /** Wardrobe item id from the store (plain string there) — unknown ids render nothing. */
+  wardrobe?: string | null;
 };
+
+function asWardrobeId(id: string | null | undefined): WardrobeId | null {
+  if (!id) return null;
+  return WARDROBE.some((item) => item.id === id) ? (id as WardrobeId) : null;
+}
 
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
@@ -58,8 +66,10 @@ export function MeloMascot({
   glow = 0.8,
   breathe = false,
   breatheDurationMs = 6_500,
+  wardrobe = null,
 }: Props) {
   const c = MELO_COLORWAYS[colorway];
+  const worn = asWardrobeId(wardrobe);
   const reduceMotion = useReduceMotion();
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -126,6 +136,7 @@ export function MeloMascot({
         <Ellipse cx={60} cy={81} rx={16} ry={12} fill={`url(#${glowId})`} opacity={glow} />
 
         <Face emotion={emotion} bodyFill={c.body} />
+        {worn ? <WardrobeLayer id={worn} /> : null}
       </Svg>
     </Animated.View>
   );

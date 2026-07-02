@@ -91,3 +91,5 @@ export {
   type WeekReviewInputs,
   type WeekReview,
 } from './review.js';
+
+export { pickSmartMove, type SmartMove, type SmartMoveInputs } from './smartMoves.js';

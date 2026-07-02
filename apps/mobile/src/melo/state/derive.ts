@@ -107,6 +107,8 @@ export interface LiveDerived {
   readonly recoveryMove: number;
   /** Whether the forecast runs on observed spending or the essentials plan. */
   readonly runRateSource: 'observed' | 'planned';
+  /** The observed run-rate itself; null until the log has enough distinct days. */
+  readonly observedRunRatePence: number | null;
   /** True only when the balance actually covers the shielded bills — "bills are safe" is
    *  never asserted unchecked (§13 risk 3). */
   readonly billsCovered: boolean;
@@ -128,6 +130,8 @@ export function deriveLive(
   journey: MeloJourney,
   spendLog: readonly SpendEntry[],
   now: Date = new Date(),
+  /** "I got paid today" manual trigger (§14): offers the ritual without moving cycle math. */
+  manualPaydayISO: string | null = null,
 ): LiveDerived {
   const today = todayISO(now);
   const payday = nextShiftedPayday(setup.paydayDay, today);
@@ -194,7 +198,10 @@ export function deriveLive(
     // Payday is detected from the RAW day-of-month (nextPaydayISO rolls the cycle on payday
     // itself, so `today === nextPayday` alone can never be true on a weekday payday — the
     // audit's critical finding) — plus the shifted-Friday case where today IS the payout day.
-    paydayToday: Number(today.split('-')[2]) === setup.paydayDay || today === payday,
+    paydayToday:
+      Number(today.split('-')[2]) === setup.paydayDay ||
+      today === payday ||
+      manualPaydayISO === today,
     paydayTomorrow: daysBetween(today, payday) === 1,
     billsDueNext7: dueSoon.length,
     billsTotalCycle: engineBills.length,
@@ -245,6 +252,7 @@ export function deriveLive(
     dangerDayOffset: danger ? danger.daysAway : null,
     recoveryMove: movePence,
     runRateSource,
+    observedRunRatePence: observed,
     billsCovered: setup.balancePence >= safeZone.shieldedBillsPence,
     shield,
   };

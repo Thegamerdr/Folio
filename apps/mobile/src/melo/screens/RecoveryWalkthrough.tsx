@@ -23,6 +23,7 @@ type StepId = 1 | 2 | 3 | 'checkin';
 
 type Props = {
   colorway: MeloColorway;
+  wardrobe?: string | null;
   /** The CURRENT Safe Zone, signed — negative means genuinely over the line. */
   szPence: number;
   /** How this was entered: only 'overspent' may say "it went over" (audit: never claim an
@@ -44,6 +45,7 @@ type Props = {
 
 export function RecoveryWalkthrough({
   colorway,
+  wardrobe = null,
   szPence,
   entered,
   billNames,
@@ -82,7 +84,13 @@ export function RecoveryWalkthrough({
               : 'Caught early. Three steps keep it from going over — the first takes a minute.'}
           </Body>
           <View style={s.mascot}>
-            <MeloMascot emotion="hope" colorway={colorway} size={84} glow={0.5} />
+            <MeloMascot
+              emotion="hope"
+              colorway={colorway}
+              wardrobe={wardrobe}
+              size={84}
+              glow={0.5}
+            />
           </View>
           <View style={s.cta}>
             <PrimaryAction label="Show me" onPress={() => setStep(2)} />
@@ -121,7 +129,13 @@ export function RecoveryWalkthrough({
             Shift {formatPounds(movePence)} to bills. That’s the whole ask — nothing else today.
           </Body>
           <View style={s.mascot}>
-            <MeloMascot emotion="hope" colorway={colorway} size={84} glow={0.5} />
+            <MeloMascot
+              emotion="hope"
+              colorway={colorway}
+              wardrobe={wardrobe}
+              size={84}
+              glow={0.5}
+            />
           </View>
           <View style={s.cta}>
             <PrimaryAction label="Done — that’s today" onPress={() => setStep('checkin')} />
@@ -131,7 +145,13 @@ export function RecoveryWalkthrough({
 
       {step === 'checkin' ? (
         <View style={[s.body, s.checkin]}>
-          <MeloMascot emotion="hope" colorway={colorway} size={96} glow={0.55} />
+          <MeloMascot
+            emotion="hope"
+            colorway={colorway}
+            wardrobe={wardrobe}
+            size={96}
+            glow={0.55}
+          />
           <Display style={s.day}>Day {dayOnPath}</Display>
           <Muted>on the path</Muted>
           <Body style={s.sub}>See you tomorrow. I’ll bring the numbers.</Body>

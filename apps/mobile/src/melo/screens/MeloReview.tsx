@@ -34,11 +34,15 @@ export function MeloReview({ review, onClose }: Props) {
             value={formatPounds(review.spentPence)}
             detail={`plan was ${formatPounds(review.plannedPence)}`}
           />
-          <StatRow
-            label={underPlan ? 'Under plan' : 'Past the plan'}
-            value={formatPounds(Math.abs(review.deltaPence))}
-            valueColor={underPlan ? t.positive : t.calmStrong}
-          />
+          {/* No green medal for an empty log — with nothing recorded, "under plan" is fog,
+              not victory. The headline already tells that story honestly. */}
+          {review.loggedDays > 0 ? (
+            <StatRow
+              label={underPlan ? 'Under plan' : 'Past the plan'}
+              value={formatPounds(Math.abs(review.deltaPence))}
+              valueColor={underPlan ? t.positive : t.calmStrong}
+            />
+          ) : null}
           {review.biggestDay ? (
             <StatRow
               label="Biggest day"

@@ -11,8 +11,10 @@ import {
   COPY,
   buildWeekReview,
   checkAfford,
+  daysBetween,
   detectWins,
   formatPounds,
+  pickSmartMove,
   resolveState,
   type AffordResult,
   type CopyContext,
@@ -57,7 +59,7 @@ type GlanceAction = {
   title: string;
   body: string;
   cta: string;
-  kind: 'recovery' | 'balance' | 'info' | 'ritual';
+  kind: 'recovery' | 'balance' | 'info' | 'ritual' | 'review';
 };
 
 interface GlanceModel {
@@ -124,9 +126,24 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
   // ---- live derivation (engine + persisted record) ----
   const liveDerived = useMemo(
     () =>
-      isLive ? deriveLive(store.state.setup, store.state.journey, store.state.spendLog) : null,
+      isLive
+        ? deriveLive(
+            store.state.setup,
+            store.state.journey,
+            store.state.spendLog,
+            new Date(),
+            store.state.manualPaydayISO,
+          )
+        : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- clockTick forces re-derivation on foreground
-    [isLive, store.state.setup, store.state.journey, store.state.spendLog, clockTick],
+    [
+      isLive,
+      store.state.setup,
+      store.state.journey,
+      store.state.spendLog,
+      store.state.manualPaydayISO,
+      clockTick,
+    ],
   );
   const liveResolved = useMemo(
     () =>
@@ -188,6 +205,12 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
             : '';
       const ritualDue =
         view.overlays.includes('payday') && store.state.lastRitualISO !== liveDerived.today;
+      // The weekly-review nudge earns its slot once a week, and only when there is actually a
+      // week to show (a check or a logged spend) — never a card pointing at an empty room.
+      const reviewDue =
+        (store.state.lastReviewISO === null ||
+          daysBetween(store.state.lastReviewISO, liveDerived.today) >= 7) &&
+        (store.state.checksThisWeek > 0 || store.state.spendLog.length > 0);
       const inRecovery = view.journey === 'recovery';
       const moveDoneToday = store.state.journey.moveDoneISO === liveDerived.today;
       const action: GlanceAction | null = ritualDue
@@ -234,12 +257,23 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
                     cta: 'Show the math',
                     kind: 'info',
                   }
-                : null;
+                : reviewDue
+                  ? {
+                      title: 'The week, in 30 seconds',
+                      body: 'What moved, what stayed quiet, what lands next week — one honest look.',
+                      cta: 'See the week',
+                      kind: 'review',
+                    }
+                  : null;
 
       // Quiet Mode (§14 item 16): optional nudges go quiet; the functional cards — payday
       // ritual, fog's balance ask, danger/recovery — keep speaking. Quiet is calm, not blind.
       const quietAction =
-        store.state.setup.quietMode && action?.kind === 'info' && !inRecovery ? null : action;
+        store.state.setup.quietMode &&
+        (action?.kind === 'info' || action?.kind === 'review') &&
+        !inRecovery
+          ? null
+          : action;
 
       // Fog never asserts a confident forecast on stale data (audit): the sub says what we
       // actually know. And "bills are safe" is only spoken when it is checked-true.
@@ -322,6 +356,8 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
     liveDerived,
     liveResolved,
     store.state.lastRitualISO,
+    store.state.lastReviewISO,
+    store.state.checksThisWeek,
     store.state.journey.moveDoneISO,
     recoveryDeclinedToday,
   ]);
@@ -357,6 +393,7 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
     const pounds = Number.parseInt(spendText.replace(/[^0-9]/g, ''), 10);
     if (!Number.isFinite(pounds) || pounds <= 0) return;
     store.addSpend(pounds * 100, liveDerived.today);
+    store.bump('spendLogged');
     setSpendEdit(false);
     setSpendText('');
   };
@@ -375,22 +412,37 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
       fog: false,
       shelved: false,
     });
-    if (mode === 'live' && liveDerived) store.incrementChecks(liveDerived.today);
-    else setDemoChecks((n) => n + 1);
+    if (mode === 'live' && liveDerived) {
+      store.incrementChecks(liveDerived.today);
+      store.bump('check');
+    } else setDemoChecks((n) => n + 1);
   };
 
   const saveBalance = () => {
     const pounds = Number.parseInt(balanceText.replace(/[^0-9-]/g, ''), 10);
     if (!Number.isFinite(pounds)) return;
     store.updateBalance(pounds * 100);
+    store.bump('balanceUpdated');
     setBalanceEdit(false);
     setBalanceText('');
+  };
+
+  const openReview = () => {
+    if (mode === 'live' && liveDerived) {
+      store.markReviewSeen(liveDerived.today);
+      store.bump('reviewOpened');
+    }
+    setReviewOpen(true);
   };
 
   const handleAction = () => {
     if (!model.action) return;
     if (model.action.kind === 'ritual') {
       setRitualOpen(true);
+      return;
+    }
+    if (model.action.kind === 'review') {
+      openReview();
       return;
     }
     if (model.action.kind === 'recovery') {
@@ -418,6 +470,7 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
   const finishRitual = () => {
     if (mode === 'live' && liveDerived) {
       store.markRitualDone(liveDerived.today);
+      store.bump('ritualDone');
       // Payday's money should be IN the numbers: completing the ritual flows straight into
       // confirming today's balance, so income lands the moment it's celebrated.
       setBalanceEdit(true);
@@ -442,6 +495,7 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
         recoveryStartISO: store.state.journey.recoveryStartISO ?? liveDerived.today,
         moveDoneISO: liveDerived.today,
       });
+      store.bump('recoveryCommitted');
     }
     setRecoveryOpen(false);
   };
@@ -452,6 +506,14 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
         setup={store.state.setup}
         onSave={store.updateSetup}
         onClose={() => setSettingsOpen(false)}
+        onPaidToday={
+          liveDerived
+            ? () => {
+                store.markPaidToday(liveDerived.today);
+                store.bump('manualPayday');
+              }
+            : undefined
+        }
       />
     );
   }
@@ -488,16 +550,41 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
     return (
       <MeloImport
         existingBillNames={store.state.setup.bills.map((b) => b.name)}
-        onApply={(apply) => store.applyImport(apply, liveDerived.today)}
+        onApply={(apply) => {
+          store.applyImport(apply, liveDerived.today);
+          store.bump('importApplied');
+        }}
         onClose={() => setImportOpen(false)}
       />
     );
   }
 
   if (ritualOpen) {
+    // The "one smart move" (§14: curated rule table, never ML, never fabricated) — every
+    // suggestion is arithmetic on the user's own numbers; null is a common, honest answer.
+    const liveSmartMove =
+      mode === 'live' && liveDerived
+        ? pickSmartMove({
+            todayISO: liveDerived.today,
+            safeZonePence: liveDerived.safeZone.safeZonePence,
+            perDayPence: Math.max(0, liveDerived.safeZone.perDayPence),
+            daysToPayday: liveDerived.safeZone.daysToPayday,
+            bufferPence: store.state.setup.bufferPence,
+            savingsPence: store.state.setup.savingsPence,
+            bills: liveDerived.shield.bills.map((b) => ({
+              name: b.name,
+              amountPence: b.amountPence,
+              dueDate: b.dueDate,
+            })),
+            dangerDaysAway: liveDerived.dangerDayOffset,
+            runRatePence: liveDerived.observedRunRatePence,
+            essentialsPerDayPence: store.state.setup.essentialsPerDayPence,
+          })
+        : null;
     return (
       <MeloRitual
         colorway={mode === 'live' ? store.state.setup.colorway : 'ember'}
+        wardrobe={mode === 'live' ? store.state.setup.wardrobe : null}
         bills={ritualBills}
         savingsPence={mode === 'live' ? store.state.setup.savingsPence : 4_000}
         safeZonePence={model.szPence}
@@ -510,7 +597,7 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
         paydayLabel={model.ctx.paydayLabel}
         smartMove={
           mode === 'live'
-            ? null // never assert a fabricated fact about the user's money (audit)
+            ? liveSmartMove // rule-table arithmetic on real numbers — or honestly nothing
             : {
                 title: 'Energy rose £14',
                 body: 'Came in above usual this cycle. Worth a look — it’s a 3-minute fix.',
@@ -527,6 +614,7 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
     return (
       <RecoveryWalkthrough
         colorway={store.state.setup.colorway}
+        wardrobe={store.state.setup.wardrobe}
         szPence={model.szPence}
         entered={model.szPence < 0 ? 'overspent' : 'danger'}
         billNames={store.state.setup.bills.map((b) => b.name)}
@@ -579,6 +667,7 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
             glow={glowFor(model.view)}
             breathe={breathe.enabled}
             breatheDurationMs={breathe.durationMs}
+            wardrobe={mode === 'live' ? store.state.setup.wardrobe : null}
           />
           <View style={s.say}>
             <Body style={s.sayLine}>{line1}</Body>
@@ -646,7 +735,14 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
           style={s.runway}
           accessibilityRole={mode === 'live' ? 'button' : undefined}
           accessibilityHint={mode === 'live' ? 'Opens the Bills Shield' : undefined}
-          onPress={mode === 'live' ? () => setShieldOpen(true) : undefined}
+          onPress={
+            mode === 'live'
+              ? () => {
+                  store.bump('shieldOpened');
+                  setShieldOpen(true);
+                }
+              : undefined
+          }
         >
           <RunwayStrip
             daysToPayday={model.daysToPayday}
@@ -797,7 +893,7 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
                 <Muted style={s.updateLinkText}>log a spend</Muted>
               </Pressable>
             ) : null}
-            <Pressable onPress={() => setReviewOpen(true)}>
+            <Pressable onPress={openReview}>
               <Muted style={s.updateLinkText}>this week</Muted>
             </Pressable>
             <Pressable onPress={() => setSettingsOpen(true)}>

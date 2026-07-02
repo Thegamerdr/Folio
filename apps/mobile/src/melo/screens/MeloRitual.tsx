@@ -32,6 +32,7 @@ export interface RitualBillRow {
 
 type Props = {
   colorway: MeloColorway;
+  wardrobe?: string | null;
   bills: readonly RitualBillRow[];
   savingsPence: number;
   safeZonePence: number;
@@ -45,6 +46,7 @@ type Props = {
 
 export function MeloRitual({
   colorway,
+  wardrobe = null,
   bills,
   savingsPence,
   safeZonePence,
@@ -66,7 +68,7 @@ export function MeloRitual({
           <View style={s.sky}>
             <WeatherSky weather="sunny" height={170} />
           </View>
-          <MeloMascot emotion="joy" colorway={colorway} size={112} glow={0.9} />
+          <MeloMascot emotion="joy" colorway={colorway} wardrobe={wardrobe} size={112} glow={0.9} />
           <Display style={s.title}>Payday.</Display>
           <Body style={s.sub}>
             Before it starts disappearing — two minutes to make the month safe?
@@ -113,7 +115,13 @@ export function MeloRitual({
             {formatPounds(savingsPence)} to savings — one storm smaller, every month.
           </Body>
           <View style={s.mascotSide}>
-            <MeloMascot emotion="calm" colorway={colorway} size={84} glow={0.85} />
+            <MeloMascot
+              emotion="calm"
+              colorway={colorway}
+              wardrobe={wardrobe}
+              size={84}
+              glow={0.85}
+            />
           </View>
           <View style={s.cta}>
             <PrimaryAction
@@ -158,7 +166,13 @@ export function MeloRitual({
             </Body>
           )}
           <View style={s.mascotSide}>
-            <MeloMascot emotion="joy" colorway={colorway} size={84} glow={0.9} />
+            <MeloMascot
+              emotion="joy"
+              colorway={colorway}
+              wardrobe={wardrobe}
+              size={84}
+              glow={0.9}
+            />
           </View>
           <View style={s.cta}>
             <PrimaryAction label="Done — show me the month" onPress={onDone} />

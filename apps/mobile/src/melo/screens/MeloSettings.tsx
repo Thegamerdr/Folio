@@ -17,6 +17,7 @@ import {
   useTheme,
 } from '@/surfaces/pressureMap/kit';
 
+import { WARDROBE } from '../mascot/wardrobe';
 import type { MeloBill, MeloSetup } from '../state/meloStore';
 import { BILL_PRESETS, billId, parsePoundsText } from '../state/presets';
 
@@ -26,9 +27,12 @@ type Props = {
   setup: MeloSetup;
   onSave: (partial: Partial<Omit<MeloSetup, 'onboarded'>>) => void;
   onClose: () => void;
+  /** §14 manual payday trigger — "I got paid today" offers the ritual without waiting
+   *  for the calendar. Optional so demo/preview callers can omit it. */
+  onPaidToday?: (() => void) | undefined;
 };
 
-export function MeloSettings({ setup, onSave, onClose }: Props) {
+export function MeloSettings({ setup, onSave, onClose, onPaidToday }: Props) {
   const t = useTheme();
   const [paydayDay, setPaydayDay] = useState(setup.paydayDay);
   const [incomeText, setIncomeText] = useState(String(Math.round(setup.incomePence / 100)));
@@ -39,6 +43,7 @@ export function MeloSettings({ setup, onSave, onClose }: Props) {
   const [bufferText, setBufferText] = useState(String(Math.round(setup.bufferPence / 100)));
   const [bills, setBills] = useState<readonly MeloBill[]>(setup.bills);
   const [quietMode, setQuietMode] = useState(setup.quietMode);
+  const [wardrobe, setWardrobe] = useState<string | null>(setup.wardrobe);
 
   const toggleBill = (preset: Omit<MeloBill, 'id'>) => {
     setBills((prev) => {
@@ -62,6 +67,7 @@ export function MeloSettings({ setup, onSave, onClose }: Props) {
       bufferPence: parsePoundsText(bufferText),
       bills,
       quietMode,
+      wardrobe,
     });
     onClose();
   };
@@ -149,6 +155,60 @@ export function MeloSettings({ setup, onSave, onClose }: Props) {
               </Body>
             </View>
           </Surface>
+        ) : null}
+
+        <Muted style={s.sectionTag}>MELO’S WARDROBE — ALL FREE</Muted>
+        <View style={s.chipsWrap}>
+          <Pressable
+            onPress={() => setWardrobe(null)}
+            style={[
+              s.chip,
+              {
+                borderColor: wardrobe === null ? t.calm : t.hairline,
+                backgroundColor: wardrobe === null ? t.calmSoft : t.inset,
+              },
+            ]}
+          >
+            <Text style={[s.chipLabel, { color: t.ink }]}>nothing on</Text>
+          </Pressable>
+          {WARDROBE.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() => setWardrobe(item.id)}
+              style={[
+                s.chip,
+                {
+                  borderColor: wardrobe === item.id ? t.calm : t.hairline,
+                  backgroundColor: wardrobe === item.id ? t.calmSoft : t.inset,
+                },
+              ]}
+            >
+              <Text style={[s.chipLabel, { color: t.ink }]}>{item.name}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {onPaidToday ? (
+          <>
+            <Muted style={s.sectionTag}>THE RITUAL</Muted>
+            <Surface style={s.list} tone="sunken">
+              <View style={s.quietRow}>
+                <View style={s.quietBody}>
+                  <Body style={s.quietTitle}>Paid on a different day?</Body>
+                  <Text style={[s.quietDetail, { color: t.muted }]}>
+                    Tell Melo and the two-minute ritual is ready on the home screen.
+                  </Text>
+                </View>
+                <GhostButton
+                  label="I got paid"
+                  onPress={() => {
+                    onPaidToday();
+                    onClose();
+                  }}
+                />
+              </View>
+            </Surface>
+          </>
         ) : null}
 
         <Muted style={s.sectionTag}>QUIET MODE</Muted>
