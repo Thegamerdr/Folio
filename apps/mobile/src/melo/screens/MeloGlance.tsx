@@ -131,25 +131,9 @@ export function MeloGlance({
 
   // ---- live derivation (engine + persisted record) ----
   const liveDerived = useMemo(
-    () =>
-      isLive
-        ? deriveLive(
-            store.state.setup,
-            store.state.journey,
-            store.state.spendLog,
-            new Date(),
-            store.state.manualPaydayISO,
-          )
-        : null,
+    () => (isLive ? deriveLive(store.state, new Date()) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- clockTick forces re-derivation on foreground
-    [
-      isLive,
-      store.state.setup,
-      store.state.journey,
-      store.state.spendLog,
-      store.state.manualPaydayISO,
-      clockTick,
-    ],
+    [isLive, store.state, clockTick],
   );
   const liveResolved = useMemo(
     () =>
@@ -196,6 +180,48 @@ export function MeloGlance({
       setLastWinLine(events[events.length - 1]?.line ?? null);
     }
   }, [mode, liveResolved, liveDerived, store]);
+
+  // ---- lifecycle bookkeeping: the data that feeds the resurrected states ----
+  // Absence tracking + the once-a-day end-of-day snapshot (tomorrow's honest "yesterday").
+  useEffect(() => {
+    if (mode !== 'live' || !liveDerived) return;
+    store.markOpened(liveDerived.today, liveDerived.safeZone.safeZonePence);
+  }, [mode, liveDerived, store]);
+
+  // Cycle rollover: first open of a new cycle closes the previous one, using the LAST
+  // pre-rollover snapshot (post-payday balances would bias every closed cycle positive).
+  useEffect(() => {
+    if (mode !== 'live' || !liveDerived) return;
+    const { cycleStart } = liveDerived;
+    const seen = store.state.lastSeen;
+    if (store.state.lastCycleClosedISO === cycleStart) return;
+    if (!seen || seen.atISO >= cycleStart) return; // nothing honest to close with yet
+    store.closeCycle({
+      endedISO: cycleStart,
+      endedPositive: seen.szPence >= 0,
+      closingSafeZonePence: seen.szPence,
+    });
+  }, [mode, liveDerived, store]);
+
+  // Recovery graduation timestamp — feeds daysSinceRecoveryEnd / rebuilding copy.
+  const prevJourneyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (mode !== 'live' || !liveResolved || !liveDerived) return;
+    const j = liveResolved.view.journey;
+    if (prevJourneyRef.current === 'recovery' && j !== 'recovery') {
+      store.setRecoveryEnded(liveDerived.today);
+    }
+    prevJourneyRef.current = j;
+  }, [mode, liveResolved, liveDerived, store]);
+
+  // Milestones: celebrate once, record forever (the ladder never re-fires).
+  useEffect(() => {
+    if (mode !== 'live' || !liveDerived) return;
+    if (liveDerived.newMilestoneIds.length === 0) return;
+    store.recordMilestones(liveDerived.newMilestoneIds);
+    const line = liveDerived.milestoneLines[liveDerived.milestoneLines.length - 1];
+    if (line) setLastWinLine(line);
+  }, [mode, liveDerived, store]);
 
   // ---- model ----
   const model: GlanceModel = useMemo(() => {
@@ -601,6 +627,11 @@ export function MeloGlance({
         }
         daysToPayday={model.daysToPayday}
         paydayLabel={model.ctx.paydayLabel}
+        onSavingsChoice={
+          mode === 'live' && liveDerived
+            ? (skipped) => store.setSavingsSkipped(skipped ? liveDerived.payday : null)
+            : undefined
+        }
         smartMove={
           mode === 'live'
             ? liveSmartMove // rule-table arithmetic on real numbers — or honestly nothing
@@ -664,22 +695,25 @@ export function MeloGlance({
           ) : null}
         </View>
 
-        {/* mascot + its one line */}
-        <View style={s.mascotRow}>
-          <MeloMascot
-            emotion={model.view.mascot.family}
-            colorway={mode === 'live' ? store.state.setup.colorway : 'ember'}
-            size={104}
-            glow={glowFor(model.view)}
-            breathe={breathe.enabled}
-            breatheDurationMs={breathe.durationMs}
-            wardrobe={mode === 'live' ? store.state.setup.wardrobe : null}
-          />
-          <View style={s.say}>
-            <Body style={s.sayLine}>{line1}</Body>
-            {model.l2 ? <Muted style={s.saySub}>{model.l2}</Muted> : null}
+        {/* mascot + its one line — true Quiet Mode (§14 item 16) de-mascots the app: the
+            character and its voice step back entirely; numbers, weather and actions stay. */}
+        {mode === 'live' && store.state.setup.quietMode ? null : (
+          <View style={s.mascotRow}>
+            <MeloMascot
+              emotion={model.view.mascot.family}
+              colorway={mode === 'live' ? store.state.setup.colorway : 'ember'}
+              size={104}
+              glow={glowFor(model.view)}
+              breathe={breathe.enabled}
+              breatheDurationMs={breathe.durationMs}
+              wardrobe={mode === 'live' ? store.state.setup.wardrobe : null}
+            />
+            <View style={s.say}>
+              <Body style={s.sayLine}>{line1}</Body>
+              {model.l2 ? <Muted style={s.saySub}>{model.l2}</Muted> : null}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* the number */}
         <Pressable
@@ -722,12 +756,20 @@ export function MeloGlance({
             ))}
             <MathRow label="Safe Zone" value={formatPounds(model.szPence)} total />
             <View style={s.mathButtons}>
-              <GhostButton flex label="Looks right" onPress={() => setShowMath(false)} />
+              <GhostButton
+                flex
+                label="Looks right"
+                onPress={() => {
+                  if (mode === 'live') store.bump('mathLooksRight');
+                  setShowMath(false);
+                }}
+              />
               <GhostButton
                 flex
                 label="Something’s off"
                 onPress={() => {
                   // The correction path the copy promises: straight into the editor.
+                  if (mode === 'live') store.bump('mathSomethingOff');
                   setShowMath(false);
                   if (mode === 'live') setSettingsOpen(true);
                 }}
@@ -753,7 +795,9 @@ export function MeloGlance({
           <RunwayStrip
             daysToPayday={model.daysToPayday}
             bills={model.bills}
-            dangerDay={model.dangerDay}
+            // Fog suspends the forecast everywhere, not just in copy (drift audit): a
+            // danger cell computed from stale data is a forecast the app said not to trust.
+            dangerDay={isFog ? null : model.dangerDay}
             paydayLabel={model.ctx.paydayLabel}
           />
         </Pressable>

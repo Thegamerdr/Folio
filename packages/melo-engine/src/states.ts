@@ -251,6 +251,11 @@ function computeCopyKey(
 ): CopyKey {
   if (data === 'fog') return 'fog';
   if (overlays.includes('payday')) return 'payday';
+  // The welcome-back beat outranks everything but fog/payday: someone who stayed away
+  // gets greeted, never scolded — and never dropped straight into storm copy (§4).
+  // (Drift audit: COPY.return existed but this branch was missing — dead copy.)
+  if (overlays.includes('neglectedReturn') && ladder !== 'overspent' && ladder !== 'danger')
+    return 'return';
   if (ladder === 'overspent' && journey === 'none') return 'overspent';
   if (journey === 'recovery') return 'recovery';
   if (journey === 'rebuilding') return 'rebuilding';

@@ -38,6 +38,9 @@ export interface MeloSetup {
   readonly onboarded: boolean;
   readonly colorway: MeloColorway;
   readonly paydayDay: number; // 1..28
+  /** Paid the last working day of the month (drift audit §13 risk 16: the fixed-chip
+   *  approximation misfires the ritual for exactly these users). */
+  readonly paydayLastWorkingDay: boolean;
   readonly incomePence: number;
   readonly balancePence: number;
   readonly balanceUpdatedAtMs: number;
@@ -50,6 +53,14 @@ export interface MeloSetup {
   /** WardrobeId from mascot/wardrobe (kept as a plain string here so the store stays
    *  decoupled from the rig); null = nothing worn. */
   readonly wardrobe: string | null;
+  /** Melo's chosen FORM (body) — one entity, choosable look. Plain string id from
+   *  mascot/forms; null = the original creature. */
+  readonly form: string | null;
+  /** The Tight threshold, per user (drift audit: £8/day was silently universal). */
+  readonly comfortablePerDayPence: number;
+  /** Irregular income (§13 risk 8): when true, incomePence is the LOW month the user
+   *  plans on — honest floor, not an average. */
+  readonly incomeVaries: boolean;
 }
 
 export interface MeloJourney {
@@ -83,12 +94,35 @@ export interface MeloState {
   readonly manualPaydayISO: string | null;
   /** Last day the weekly review was opened — drives the once-a-week nudge card. */
   readonly lastReviewISO: string | null;
+  /** Cycle history (melo-engine cycles.ts contract) — feeds Winning/streaks. */
+  readonly cycleHistory: readonly {
+    readonly endedISO: string;
+    readonly endedPositive: boolean;
+    readonly closingSafeZonePence: number;
+  }[];
+  /** Rollover bookkeeping: the payday whose cycle-close has been recorded. */
+  readonly lastCycleClosedISO: string | null;
+  /** Yesterday's picture, snapshotted at most once per day — the honest end-of-cycle
+   *  reading (post-payday balances would bias every closed cycle positive). */
+  readonly lastSeen: { readonly szPence: number; readonly atISO: string } | null;
+  /** Last day the app was opened — absence detection for the welcome-back state. */
+  readonly lastOpenedISO: string | null;
+  /** Day recovery ended (journey left 'recovery') — feeds rebuilding copy. */
+  readonly recoveryEndISO: string | null;
+  /** Days the balance crossed into overdraft — feeds the monetization embargo. */
+  readonly overdraftEventISOs: readonly string[];
+  /** Milestone ladder ids already celebrated (never re-fired). */
+  readonly reachedMilestoneIds: readonly string[];
+  /** Cycle (payday ISO) whose ritual savings beat was declined — that cycle's Safe
+   *  Zone must NOT subtract savings (the beat was theater before; now it decides). */
+  readonly savingsSkippedCycleISO: string | null;
 }
 
 const DEFAULT_SETUP: MeloSetup = {
   onboarded: false,
   colorway: 'ember',
   paydayDay: 28,
+  paydayLastWorkingDay: false,
   incomePence: 0,
   balancePence: 0,
   balanceUpdatedAtMs: 0,
@@ -98,6 +132,9 @@ const DEFAULT_SETUP: MeloSetup = {
   bufferPence: 2_000,
   quietMode: false,
   wardrobe: null,
+  form: null,
+  comfortablePerDayPence: 800,
+  incomeVaries: false,
 };
 
 const DEFAULT_STATE: MeloState = {
@@ -113,6 +150,14 @@ const DEFAULT_STATE: MeloState = {
   usage: {},
   manualPaydayISO: null,
   lastReviewISO: null,
+  cycleHistory: [],
+  lastCycleClosedISO: null,
+  lastSeen: null,
+  lastOpenedISO: null,
+  recoveryEndISO: null,
+  overdraftEventISOs: [],
+  reachedMilestoneIds: [],
+  savingsSkippedCycleISO: null,
 };
 
 /** Everything a statement import can apply, committed as ONE state update (one persist,
@@ -144,10 +189,36 @@ export interface MeloStoreApi {
   readonly bump: (event: string) => void;
   readonly markPaidToday: (todayISO: string) => void;
   readonly markReviewSeen: (todayISO: string) => void;
+  /** Once per app-open: absence tracking + daily end-of-day picture snapshot. */
+  readonly markOpened: (todayISO: string, szPence: number) => void;
+  /** Record a closed payday cycle (rollover detected by the surface). */
+  readonly closeCycle: (record: {
+    endedISO: string;
+    endedPositive: boolean;
+    closingSafeZonePence: number;
+  }) => void;
+  readonly setRecoveryEnded: (todayISO: string) => void;
+  readonly noteOverdraftEvent: (todayISO: string) => void;
+  readonly recordMilestones: (ids: readonly string[]) => void;
+  /** Ritual savings beat, made real: skipping excludes savings from THIS cycle. */
+  readonly setSavingsSkipped: (cyclePaydayISO: string | null) => void;
   readonly resetAll: () => void;
 }
 
 const MeloStoreContext = createContext<MeloStoreApi | null>(null);
+
+/** Crossing INTO overdraft is an event (feeds the sell-nothing embargo, §8.4). Pure —
+ *  called inside updaters wherever the balance changes. */
+function withOverdraftEvent(prev: MeloState, next: MeloState, atISO: string): MeloState {
+  const crossed = prev.setup.balancePence >= 0 && next.setup.balancePence < 0;
+  if (!crossed || next.overdraftEventISOs.includes(atISO)) return next;
+  return { ...next, overdraftEventISOs: [...next.overdraftEventISOs, atISO].slice(-12) };
+}
+
+function isoToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 function weeksApart(fromISO: string, toISO: string): boolean {
   const from = new Date(`${fromISO}T00:00:00`).getTime();
@@ -234,10 +305,13 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
       completeOnboarding: (setup) =>
         update((prev) => ({ ...prev, setup: { ...setup, onboarded: true } })),
       updateBalance: (balancePence) =>
-        update((prev) => ({
-          ...prev,
-          setup: { ...prev.setup, balancePence, balanceUpdatedAtMs: Date.now() },
-        })),
+        update((prev) =>
+          withOverdraftEvent(
+            prev,
+            { ...prev, setup: { ...prev.setup, balancePence, balanceUpdatedAtMs: Date.now() } },
+            isoToday(),
+          ),
+        ),
       setJourney: (journey) => update((prev) => ({ ...prev, journey })),
       setStateRecord: (record) =>
         update((prev) => ({ ...prev, journey: { ...prev.journey, record } })),
@@ -255,23 +329,29 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
         }),
       setShelf: (item) => update((prev) => ({ ...prev, shelf: item })),
       addSpend: (amountPence, atISO, note) =>
-        update((prev) => ({
-          ...prev,
-          spendLog: [
-            ...prev.spendLog,
+        update((prev) =>
+          withOverdraftEvent(
+            prev,
             {
-              id: `${atISO}-${prev.spendLog.length}`,
-              amountPence,
-              atISO,
-              ...(note ? { note } : {}),
+              ...prev,
+              spendLog: [
+                ...prev.spendLog,
+                {
+                  id: `${atISO}-${prev.spendLog.length}`,
+                  amountPence,
+                  atISO,
+                  ...(note ? { note } : {}),
+                },
+              ],
+              setup: {
+                ...prev.setup,
+                balancePence: prev.setup.balancePence - amountPence,
+                balanceUpdatedAtMs: Date.now(),
+              },
             },
-          ],
-          setup: {
-            ...prev.setup,
-            balancePence: prev.setup.balancePence - amountPence,
-            balanceUpdatedAtMs: Date.now(),
-          },
-        })),
+            atISO,
+          ),
+        ),
       recordWins: (ids, atISO) =>
         update((prev) => {
           const fresh = ids.filter((id) => !prev.wins.includes(id));
@@ -296,17 +376,21 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
               amountPence: s.amountPence,
               atISO: s.atISO,
             }));
-          return {
-            ...prev,
-            setup: {
-              ...prev.setup,
-              bills: [...prev.setup.bills, ...bills],
-              ...(apply.balancePence !== null
-                ? { balancePence: apply.balancePence, balanceUpdatedAtMs: Date.now() }
-                : {}),
+          return withOverdraftEvent(
+            prev,
+            {
+              ...prev,
+              setup: {
+                ...prev.setup,
+                bills: [...prev.setup.bills, ...bills],
+                ...(apply.balancePence !== null
+                  ? { balancePence: apply.balancePence, balanceUpdatedAtMs: Date.now() }
+                  : {}),
+              },
+              spendLog: [...prev.spendLog, ...spends],
             },
-            spendLog: [...prev.spendLog, ...spends],
-          };
+            atISO,
+          );
         }),
       updateSetup: (partial) =>
         update((prev) => ({ ...prev, setup: { ...prev.setup, ...partial } })),
@@ -317,6 +401,48 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
         })),
       markPaidToday: (todayISO) => update((prev) => ({ ...prev, manualPaydayISO: todayISO })),
       markReviewSeen: (todayISO) => update((prev) => ({ ...prev, lastReviewISO: todayISO })),
+      markOpened: (todayISO, szPence) =>
+        update((prev) => {
+          const openedChanged = prev.lastOpenedISO !== todayISO;
+          const seenStale = prev.lastSeen?.atISO !== todayISO;
+          if (!openedChanged && !seenStale) return prev;
+          return {
+            ...prev,
+            lastOpenedISO: todayISO,
+            // Snapshot once per day: tomorrow this becomes "yesterday's honest picture".
+            lastSeen: seenStale ? { szPence, atISO: todayISO } : prev.lastSeen,
+          };
+        }),
+      closeCycle: (record) =>
+        update((prev) => {
+          if (prev.lastCycleClosedISO === record.endedISO) return prev;
+          const history = [
+            ...prev.cycleHistory.filter((c) => c.endedISO !== record.endedISO),
+            record,
+          ].slice(-24);
+          return {
+            ...prev,
+            cycleHistory: history,
+            lastCycleClosedISO: record.endedISO,
+            // A new cycle voids last cycle's savings decision.
+            savingsSkippedCycleISO: null,
+          };
+        }),
+      setRecoveryEnded: (todayISO) => update((prev) => ({ ...prev, recoveryEndISO: todayISO })),
+      noteOverdraftEvent: (todayISO) =>
+        update((prev) =>
+          prev.overdraftEventISOs.includes(todayISO)
+            ? prev
+            : { ...prev, overdraftEventISOs: [...prev.overdraftEventISOs, todayISO].slice(-12) },
+        ),
+      recordMilestones: (ids) =>
+        update((prev) => {
+          const fresh = ids.filter((id) => !prev.reachedMilestoneIds.includes(id));
+          if (fresh.length === 0) return prev;
+          return { ...prev, reachedMilestoneIds: [...prev.reachedMilestoneIds, ...fresh] };
+        }),
+      setSavingsSkipped: (cyclePaydayISO) =>
+        update((prev) => ({ ...prev, savingsSkippedCycleISO: cyclePaydayISO })),
       resetAll: () => update(() => DEFAULT_STATE),
     }),
     [ready, state, update],

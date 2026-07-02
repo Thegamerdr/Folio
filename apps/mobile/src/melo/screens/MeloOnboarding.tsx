@@ -26,7 +26,7 @@ import type { MeloBill, MeloSetup } from '../state/meloStore';
 import { BILL_PRESETS, billId, parsePoundsText, parseSignedPoundsText } from '../state/presets';
 import { MELO_COLORWAYS, type MeloColorway } from '../theme/weather';
 
-type Beat = 'cold' | 'pick' | 'payday' | 'income' | 'balance' | 'bills' | 'reveal';
+type Beat = 'cold' | 'pick' | 'payday' | 'income' | 'balance' | 'bills' | 'essentials' | 'reveal';
 
 const PAYDAY_PRESETS = [1, 5, 10, 15, 20, 25, 28] as const;
 
@@ -40,10 +40,17 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
   const [beat, setBeat] = useState<Beat>('cold');
   const [colorway, setColorway] = useState<MeloColorway>('ember');
   const [paydayDay, setPaydayDay] = useState(28);
+  const [lastWorkingDay, setLastWorkingDay] = useState(false);
   const [incomeText, setIncomeText] = useState('');
+  const [incomeVaries, setIncomeVaries] = useState(false);
   const [balanceText, setBalanceText] = useState('');
   const [overdrawn, setOverdrawn] = useState(false);
   const [bills, setBills] = useState<readonly MeloBill[]>([]);
+  // The last inputs before the reveal (drift audit: these were invented constants the
+  // user first met inside their own math sheet — now they're asked, prefilled).
+  const [essentialsText, setEssentialsText] = useState('14');
+  const [savingsText, setSavingsText] = useState('40');
+  const [bufferText, setBufferText] = useState('20');
 
   const incomePence = parsePoundsText(incomeText);
   // Overdrafts are a real Tuesday (§13 risk 10): the toggle signs the balance, since numeric
@@ -55,17 +62,32 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
     () => ({
       colorway,
       paydayDay,
+      paydayLastWorkingDay: lastWorkingDay,
       incomePence,
       balancePence,
       balanceUpdatedAtMs: Date.now(),
       bills,
-      essentialsPerDayPence: 1_400,
-      savingsPence: 4_000,
-      bufferPence: 2_000,
+      essentialsPerDayPence: parsePoundsText(essentialsText) || 1_400,
+      savingsPence: parsePoundsText(savingsText),
+      bufferPence: parsePoundsText(bufferText),
       quietMode: false,
       wardrobe: null,
+      form: null,
+      comfortablePerDayPence: 800,
+      incomeVaries,
     }),
-    [colorway, paydayDay, incomePence, balancePence, bills],
+    [
+      colorway,
+      paydayDay,
+      lastWorkingDay,
+      incomePence,
+      balancePence,
+      bills,
+      essentialsText,
+      savingsText,
+      bufferText,
+      incomeVaries,
+    ],
   );
 
   const toggleBill = (preset: Omit<MeloBill, 'id'>) => {
@@ -152,20 +174,70 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
               </Pressable>
             ))}
           </View>
-          <Muted style={s.stepNote}>Paid the last working day? Pick the 28th for now.</Muted>
+          <Pressable
+            onPress={() => setLastWorkingDay((v) => !v)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: lastWorkingDay }}
+            style={[
+              s.chip,
+              s.lwdChip,
+              {
+                borderColor: lastWorkingDay ? t.calm : t.hairline,
+                backgroundColor: lastWorkingDay ? t.calmSoft : t.inset,
+              },
+            ]}
+          >
+            <Text style={[s.chipLabel, { color: t.ink }]}>the last working day</Text>
+          </Pressable>
+          {lastWorkingDay ? (
+            <Muted style={s.stepNote}>
+              Month-end it is — weekend month-ends pay the Friday before.
+            </Muted>
+          ) : null}
         </Step>
       ) : null}
 
       {beat === 'income' ? (
         <Step
           question="Roughly what lands?"
-          sub="Rough is fine — I round down on your behalf."
+          sub={
+            incomeVaries
+              ? 'It varies — so plan on a LOW month. Good months become breathing room, not promises.'
+              : 'Rough is fine — I round down on your behalf.'
+          }
           cta="Next"
           disabled={incomePence <= 0}
           onNext={() => setBeat('balance')}
           onBack={() => setBeat('payday')}
         >
-          <AmountInput value={incomeText} onChange={setIncomeText} placeholder="1450" />
+          <AmountInput
+            value={incomeText}
+            onChange={setIncomeText}
+            placeholder={incomeVaries ? '1100' : '1450'}
+          />
+          <View style={s.signRow}>
+            {(['steady', 'it varies'] as const).map((label, idx) => {
+              const varies = idx === 1;
+              const selected = incomeVaries === varies;
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => setIncomeVaries(varies)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={[
+                    s.chip,
+                    {
+                      borderColor: selected ? t.calm : t.hairline,
+                      backgroundColor: selected ? t.calmSoft : t.inset,
+                    },
+                  ]}
+                >
+                  <Text style={[s.chipLabel, { color: t.ink }]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </Step>
       ) : null}
 
@@ -210,9 +282,9 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
           question="Which of these are yours?"
           sub="These get protected first — before anything else gets spent."
           cta="Shield these"
-          onNext={() => setBeat('reveal')}
+          onNext={() => setBeat('essentials')}
           onBack={() => setBeat('balance')}
-          secondary={{ label: 'add the rest later', onPress: () => setBeat('reveal') }}
+          secondary={{ label: 'add the rest later', onPress: () => setBeat('essentials') }}
         >
           <View style={s.chipsWrap}>
             {BILL_PRESETS.map((preset) => {
@@ -261,6 +333,23 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
         </Step>
       ) : null}
 
+      {beat === 'essentials' ? (
+        <Step
+          question="Last two numbers, then the reveal."
+          sub="Prefilled with sane starts — nudge them to your life. Everything stays editable."
+          cta="Show me my number"
+          onNext={() => setBeat('reveal')}
+          onBack={() => setBeat('bills')}
+        >
+          <Muted style={s.fieldTag}>ESSENTIALS PER DAY — food, transport, the basics</Muted>
+          <AmountInput value={essentialsText} onChange={setEssentialsText} placeholder="14" />
+          <Muted style={s.fieldTag}>SAVINGS EACH CYCLE — 0 is honest too</Muted>
+          <AmountInput value={savingsText} onChange={setSavingsText} placeholder="40" />
+          <Muted style={s.fieldTag}>BUFFER — the early-warning cushion</Muted>
+          <AmountInput value={bufferText} onChange={setBufferText} placeholder="20" />
+        </Step>
+      ) : null}
+
       {beat === 'reveal' ? <Reveal draft={draft} onDone={() => onComplete(draft)} /> : null}
     </ScrollView>
   );
@@ -269,11 +358,28 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
 function Reveal({ draft, onDone }: { draft: Omit<MeloSetup, 'onboarded'>; onDone: () => void }) {
   const derived = useMemo(
     () =>
-      deriveLive(
-        { ...draft, onboarded: true },
-        { record: null, recoveryStartISO: null, moveDoneISO: null },
-        [],
-      ),
+      deriveLive({
+        setup: { ...draft, onboarded: true },
+        journey: { record: null, recoveryStartISO: null, moveDoneISO: null },
+        checksThisWeek: 0,
+        checksWeekStartISO: null,
+        lastRitualISO: null,
+        spendLog: [],
+        wins: [],
+        winLog: [],
+        shelf: null,
+        usage: {},
+        manualPaydayISO: null,
+        lastReviewISO: null,
+        cycleHistory: [],
+        lastCycleClosedISO: null,
+        lastSeen: null,
+        lastOpenedISO: null,
+        recoveryEndISO: null,
+        overdraftEventISOs: [],
+        reachedMilestoneIds: [],
+        savingsSkippedCycleISO: null,
+      }),
     [draft],
   );
   const sz = derived.safeZone.safeZonePence;
@@ -400,6 +506,8 @@ const s = StyleSheet.create({
   questionSub: { marginTop: 6, lineHeight: 20 },
   stepBody: { marginTop: 24 },
   stepNote: { marginTop: 12, fontSize: 12.5 },
+  lwdChip: { marginTop: 12, alignSelf: 'flex-start' },
+  fieldTag: { marginTop: 14, marginBottom: 4, fontSize: 11, letterSpacing: 0.8 },
   stepCta: { marginTop: 28, gap: 8 },
   pickRow: { flexDirection: 'row', gap: 12 },
   pickCard: {

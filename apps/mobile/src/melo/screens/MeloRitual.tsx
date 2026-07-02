@@ -40,6 +40,9 @@ type Props = {
   daysToPayday: number;
   paydayLabel: string;
   smartMove: { title: string; body: string } | null;
+  /** Beat 3 is a REAL decision now (drift audit: both buttons used to do the same thing
+   *  while savings were withheld regardless — theater). */
+  onSavingsChoice?: ((skipped: boolean) => void) | undefined;
   onDone: () => void;
   onSkip: () => void;
 };
@@ -54,6 +57,7 @@ export function MeloRitual({
   daysToPayday,
   paydayLabel,
   smartMove,
+  onSavingsChoice,
   onDone,
   onSkip,
 }: Props) {
@@ -126,9 +130,18 @@ export function MeloRitual({
           <View style={s.cta}>
             <PrimaryAction
               label={`Set aside ${formatPounds(savingsPence)}`}
-              onPress={() => setBeat(4)}
+              onPress={() => {
+                onSavingsChoice?.(false);
+                setBeat(4);
+              }}
             />
-            <GhostButton label="not this month" onPress={() => setBeat(4)} />
+            <GhostButton
+              label="not this month"
+              onPress={() => {
+                onSavingsChoice?.(true);
+                setBeat(4);
+              }}
+            />
           </View>
         </View>
       ) : null}

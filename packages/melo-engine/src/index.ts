@@ -93,3 +93,17 @@ export {
 } from './review.js';
 
 export { pickSmartMove, type SmartMove, type SmartMoveInputs } from './smartMoves.js';
+
+export {
+  deriveCycleState,
+  closeCycle,
+  type CycleRecord,
+  type CycleInputs,
+  type CycleDerived,
+} from './cycles.js';
+
+export { assessUnsafe, type UnsafeInputs, type UnsafeOption, type UnsafeState } from './unsafe.js';
+
+export { buildChatContext, type ChatContextInputs } from './chatContext.js';
+
+export { assessAffordImpact, type AffordImpact, type AffordImpactInputs } from './affordImpact.js';

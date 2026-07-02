@@ -7,6 +7,7 @@ import {
   addDays,
   computeSafeZone,
   daysBetween,
+  deriveCycleState,
   formatPounds,
   observedRunRatePence,
   projectDangerDate,
@@ -17,12 +18,11 @@ import {
   type CopyContext,
   type ISODate,
   type SafeZoneResult,
-  type SpendEntry,
   type StateInputs,
 } from '@folio/melo-engine';
 
 import type { RunwayBill } from '../components/RunwayStrip';
-import type { MeloJourney, MeloSetup } from './meloStore';
+import type { MeloSetup, MeloState } from './meloStore';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
@@ -113,6 +113,13 @@ export interface LiveDerived {
    *  never asserted unchecked (§13 risk 3). */
   readonly billsCovered: boolean;
   readonly shield: ShieldView;
+  /** Current cycle's start (the payday occurrence on/before today) — rollover anchor. */
+  readonly cycleStart: ISODate;
+  /** Fresh milestone celebrations (ids + linted lines) — surface fires once, then records. */
+  readonly newMilestoneIds: readonly string[];
+  readonly milestoneLines: readonly string[];
+  /** Savings actually committed THIS cycle (0 when the ritual beat declined it). */
+  readonly savingsThisCyclePence: number;
 }
 
 /** Weekend paydays pay the Friday before (UK convention). If the shift lands the payday in the
@@ -125,16 +132,52 @@ function nextShiftedPayday(paydayDay: number, today: ISODate): ISODate {
   return shiftWeekendToFriday(following);
 }
 
-export function deriveLive(
-  setup: MeloSetup,
-  journey: MeloJourney,
-  spendLog: readonly SpendEntry[],
-  now: Date = new Date(),
-  /** "I got paid today" manual trigger (§14): offers the ritual without moving cycle math. */
-  manualPaydayISO: string | null = null,
-): LiveDerived {
+/** Last working day of the month containing `anchor` (weekend month-ends pay the Friday). */
+function lastWorkingDayISO(year: number, monthIndex: number): ISODate {
+  const lastDay = new Date(year, monthIndex + 1, 0); // day 0 of next month = last of this
+  return shiftWeekendToFriday(todayISO(lastDay));
+}
+
+/** Payday resolution honoring the last-working-day pattern (§13 risk 16). */
+function resolvePaydays(setup: MeloSetup, today: ISODate): { next: ISODate; cycleStart: ISODate } {
+  if (!setup.paydayLastWorkingDay) {
+    return {
+      next: nextShiftedPayday(setup.paydayDay, today),
+      cycleStart: prevOccurrenceISO(setup.paydayDay, today),
+    };
+  }
+  const [y, m] = today.split('-').map(Number) as [number, number];
+  const thisLWD = lastWorkingDayISO(y, m - 1);
+  if (daysBetween(today, thisLWD) > 0) {
+    // This month's payday is still ahead → the cycle started on LAST month's LWD.
+    return { next: thisLWD, cycleStart: lastWorkingDayISO(y, m - 2) };
+  }
+  // On or past this month's LWD → the cycle rolled; next payday is next month's.
+  return { next: lastWorkingDayISO(y, m), cycleStart: thisLWD };
+}
+
+export function deriveLive(state: MeloState, now: Date = new Date()): LiveDerived {
+  const { setup, journey, spendLog, manualPaydayISO } = state;
   const today = todayISO(now);
-  const payday = nextShiftedPayday(setup.paydayDay, today);
+  const { next: payday, cycleStart } = resolvePaydays(setup, today);
+
+  // The engine's positive half, fed for real (drift audit: these were hardwired false/0,
+  // making Winning/Milestone/welcome-back unreachable for every user forever).
+  const cycleDerived = deriveCycleState({
+    todayISO: today,
+    history: state.cycleHistory,
+    lastOpenedISO: state.lastOpenedISO,
+    recoveryEndISO: state.recoveryEndISO,
+    bufferPence: Math.max(0, setup.bufferPence),
+    savingsPence: Math.max(0, setup.savingsPence),
+    reachedMilestoneIds: state.reachedMilestoneIds,
+  });
+
+  // The ritual's savings beat is a real decision now: declining excludes savings from
+  // THIS cycle's Safe Zone (it used to subtract regardless — theater, per the audit).
+  const savingsThisCycle = state.savingsSkippedCycleISO === payday ? 0 : setup.savingsPence;
+
+  const latestOverdraft = state.overdraftEventISOs[state.overdraftEventISOs.length - 1];
 
   const engineBills: Bill[] = setup.bills.map((b) => ({
     id: b.id,
@@ -150,7 +193,7 @@ export function deriveLive(
     payday,
     bills: engineBills,
     essentialsPerDayPence: setup.essentialsPerDayPence,
-    savingsCommittedPence: setup.savingsPence,
+    savingsCommittedPence: savingsThisCycle,
     bufferPence: setup.bufferPence,
   });
 
@@ -186,10 +229,12 @@ export function deriveLive(
       ? Math.max(0, daysBetween(journey.recoveryStartISO, today))
       : 0;
 
+  const billsCovered = setup.balancePence >= safeZone.shieldedBillsPence;
+
   const inputs: StateInputs = {
     safeZonePence: safeZone.safeZonePence,
     perDayPence: safeZone.perDayPence,
-    comfortablePerDayPence: 800,
+    comfortablePerDayPence: Math.max(100, setup.comfortablePerDayPence),
     daysToPayday: safeZone.daysToPayday,
     runwayDays: runwayDays(safeZone.safeZonePence, runRate),
     dangerDaysAway: danger ? danger.daysAway : null,
@@ -199,21 +244,24 @@ export function deriveLive(
     // itself, so `today === nextPayday` alone can never be true on a weekday payday — the
     // audit's critical finding) — plus the shifted-Friday case where today IS the payout day.
     paydayToday:
-      Number(today.split('-')[2]) === setup.paydayDay ||
+      (!setup.paydayLastWorkingDay && Number(today.split('-')[2]) === setup.paydayDay) ||
       today === payday ||
+      today === cycleStart ||
       manualPaydayISO === today,
     paydayTomorrow: daysBetween(today, payday) === 1,
     billsDueNext7: dueSoon.length,
     billsTotalCycle: engineBills.length,
-    allBillsShielded: engineBills.length > 0,
-    bufferIntact: safeZone.safeZonePence >= 0,
-    cyclesEndedPositive: 0,
-    savingsGrowing: setup.savingsPence > 0,
-    daysSinceRecoveryEnd: null,
+    // "Protected" is VERIFIED protection (audit: one bill + £1 of zone used to read as
+    // 'Bills covered, buffer intact' — fabricated reassurance).
+    allBillsShielded: engineBills.length > 0 && billsCovered,
+    bufferIntact: safeZone.safeZonePence >= 0 && billsCovered,
+    cyclesEndedPositive: cycleDerived.cyclesEndedPositive,
+    savingsGrowing: savingsThisCycle > 0,
+    daysSinceRecoveryEnd: cycleDerived.daysSinceRecoveryEnd,
     greenDaysStreak,
-    daysSinceOverdraftEvent: null,
-    milestoneReached: false,
-    returnedAfterAbsence: false,
+    daysSinceOverdraftEvent: latestOverdraft ? daysBetween(latestOverdraft, today) : null,
+    milestoneReached: cycleDerived.newMilestoneIds.length > 0,
+    returnedAfterAbsence: cycleDerived.returnedAfterAbsence,
   };
 
   // No danger date → no fabricated "Thursday": copy falls back to a neutral horizon.
@@ -239,7 +287,7 @@ export function deriveLive(
   };
 
   const runwayBills: RunwayBill[] = dueSoonToRunway(engineBills, today);
-  const shield = buildShieldView(setup, today, payday, safeZone.shieldedBillsPence);
+  const shield = buildShieldView(setup, today, payday, safeZone.shieldedBillsPence, cycleStart);
 
   return {
     today,
@@ -253,8 +301,12 @@ export function deriveLive(
     recoveryMove: movePence,
     runRateSource,
     observedRunRatePence: observed,
-    billsCovered: setup.balancePence >= safeZone.shieldedBillsPence,
+    billsCovered,
     shield,
+    cycleStart,
+    newMilestoneIds: cycleDerived.newMilestoneIds,
+    milestoneLines: cycleDerived.milestoneLines,
+    savingsThisCyclePence: savingsThisCycle,
   };
 }
 
@@ -273,8 +325,8 @@ function buildShieldView(
   today: ISODate,
   payday: ISODate,
   shieldedPence: number,
+  cycleStart: ISODate,
 ): ShieldView {
-  const cycleStart = prevOccurrenceISO(setup.paydayDay, today);
   const bills: ShieldBillView[] = setup.bills.map((b) => {
     const prevDue = prevOccurrenceISO(b.dueDay, today);
     if (prevDue === today) {
