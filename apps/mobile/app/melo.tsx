@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { router } from 'expo-router';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/surfaces/pressureMap/kit';
@@ -38,7 +39,15 @@ function MeloRoute() {
           onSkipToDemo={() => setPeeking(true)}
         />
       ) : (
-        <MeloGlance onSetUp={peeking ? () => setPeeking(false) : undefined} />
+        <MeloGlance
+          onSetUp={peeking ? () => setPeeking(false) : undefined}
+          // Melo must never be a room without a door (owner: it read as a takeover). Folio
+          // stays the front door until the cutover is decided — this is the way back to it.
+          onExitToFolio={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace('/');
+          }}
+        />
       )}
     </SafeAreaView>
   );

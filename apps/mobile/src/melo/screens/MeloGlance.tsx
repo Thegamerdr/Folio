@@ -89,7 +89,13 @@ const LIVE_L2: Partial<Record<CopyKey, string>> = {
   billWeek: 'All shielded before anything else gets spent.',
 };
 
-export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } = {}) {
+export function MeloGlance({
+  onSetUp,
+  onExitToFolio,
+}: {
+  onSetUp?: (() => void) | undefined;
+  onExitToFolio?: (() => void) | undefined;
+} = {}) {
   const t = useTheme();
   const store = useMeloStore();
   const isLive = store.state.setup.onboarded;
@@ -879,6 +885,11 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
             <Pressable onPress={onSetUp}>
               <Muted style={s.updateLinkText}>set up my own numbers</Muted>
             </Pressable>
+            {onExitToFolio ? (
+              <Pressable onPress={onExitToFolio}>
+                <Muted style={s.updateLinkText}>back to Folio</Muted>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
         {mode === 'live' ? (
@@ -899,6 +910,11 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
             <Pressable onPress={() => setSettingsOpen(true)}>
               <Muted style={s.updateLinkText}>settings</Muted>
             </Pressable>
+            {onExitToFolio ? (
+              <Pressable onPress={onExitToFolio}>
+                <Muted style={s.updateLinkText}>back to Folio</Muted>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </ScrollView>
