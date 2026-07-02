@@ -75,3 +75,19 @@ export {
 } from './spend.js';
 
 export { detectWins, WIN_LINES, type WinId, type WinEvent, type WinSnapshot } from './wins.js';
+
+export {
+  parseStatementCSV,
+  type StatementRow,
+  type DetectedBill,
+  type RecentSpend,
+  type StatementParse,
+} from './statement.js';
+
+export {
+  buildWeekReview,
+  type ReviewBill,
+  type WeekWin,
+  type WeekReviewInputs,
+  type WeekReview,
+} from './review.js';

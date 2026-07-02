@@ -38,6 +38,7 @@ export function MeloSettings({ setup, onSave, onClose }: Props) {
   const [savingsText, setSavingsText] = useState(String(Math.round(setup.savingsPence / 100)));
   const [bufferText, setBufferText] = useState(String(Math.round(setup.bufferPence / 100)));
   const [bills, setBills] = useState<readonly MeloBill[]>(setup.bills);
+  const [quietMode, setQuietMode] = useState(setup.quietMode);
 
   const toggleBill = (preset: Omit<MeloBill, 'id'>) => {
     setBills((prev) => {
@@ -60,6 +61,7 @@ export function MeloSettings({ setup, onSave, onClose }: Props) {
       savingsPence: parsePoundsText(savingsText),
       bufferPence: parsePoundsText(bufferText),
       bills,
+      quietMode,
     });
     onClose();
   };
@@ -149,6 +151,39 @@ export function MeloSettings({ setup, onSave, onClose }: Props) {
           </Surface>
         ) : null}
 
+        <Muted style={s.sectionTag}>QUIET MODE</Muted>
+        <Surface style={s.list} tone="sunken">
+          <Pressable
+            onPress={() => setQuietMode((v) => !v)}
+            style={s.quietRow}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: quietMode }}
+          >
+            <View style={s.quietBody}>
+              <Body style={s.quietTitle}>Ambient only</Body>
+              <Text style={[s.quietDetail, { color: t.muted }]}>
+                No nudges, no prompts — Melo only speaks up for a real danger warning.
+              </Text>
+            </View>
+            <View
+              style={[
+                s.switchTrack,
+                { backgroundColor: quietMode ? t.calm : t.inset, borderColor: t.hairline },
+              ]}
+            >
+              <View
+                style={[
+                  s.switchThumb,
+                  {
+                    backgroundColor: t.canvas,
+                    alignSelf: quietMode ? 'flex-end' : 'flex-start',
+                  },
+                ]}
+              />
+            </View>
+          </Pressable>
+        </Surface>
+
         <View style={s.cta}>
           <PrimaryAction label="Save" onPress={save} />
           <GhostButton label="cancel" onPress={onClose} />
@@ -211,5 +246,11 @@ const s = StyleSheet.create({
     paddingTop: 10,
   },
   totalLabel: { fontWeight: '600' },
+  quietRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  quietBody: { flex: 1, gap: 3 },
+  quietTitle: { fontWeight: '600' },
+  quietDetail: { fontSize: 12.5, lineHeight: 17 },
+  switchTrack: { width: 46, height: 26, borderRadius: 999, borderWidth: 1, padding: 3 },
+  switchThumb: { width: 18, height: 18, borderRadius: 999 },
   cta: { marginTop: 28, gap: 8 },
 });

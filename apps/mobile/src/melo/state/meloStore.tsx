@@ -45,6 +45,8 @@ export interface MeloSetup {
   readonly essentialsPerDayPence: number;
   readonly savingsPence: number;
   readonly bufferPence: number;
+  /** Quiet Mode (§14 item 16): ambient only — no prompts except a danger entry. */
+  readonly quietMode: boolean;
 }
 
 export interface MeloJourney {
@@ -66,6 +68,9 @@ export interface MeloState {
   readonly lastRitualISO: string | null;
   readonly spendLog: readonly SpendEntry[];
   readonly wins: readonly string[];
+  /** Dated win history for the weekly review. `wins` stays the one-shot dedupe set —
+   *  old blobs without this field load as [] (their win dates are honestly unknown). */
+  readonly winLog: readonly { readonly id: string; readonly atISO: string }[];
   readonly shelf: MeloShelfItem | null;
 }
 
@@ -80,6 +85,7 @@ const DEFAULT_SETUP: MeloSetup = {
   essentialsPerDayPence: 1_400,
   savingsPence: 4_000,
   bufferPence: 2_000,
+  quietMode: false,
 };
 
 const DEFAULT_STATE: MeloState = {
@@ -90,8 +96,17 @@ const DEFAULT_STATE: MeloState = {
   lastRitualISO: null,
   spendLog: [],
   wins: [],
+  winLog: [],
   shelf: null,
 };
+
+/** Everything a statement import can apply, committed as ONE state update (one persist,
+ *  no half-applied import if the app dies between steps). */
+export interface StatementApply {
+  readonly balancePence: number | null;
+  readonly newBills: readonly MeloBill[];
+  readonly spendEntries: readonly { readonly amountPence: number; readonly atISO: string }[];
+}
 
 export interface MeloStoreApi {
   readonly ready: boolean;
@@ -106,7 +121,9 @@ export interface MeloStoreApi {
   readonly setShelf: (item: MeloShelfItem | null) => void;
   /** Log a spend: appended to the log AND deducted from the balance — logging IS fresh data. */
   readonly addSpend: (amountPence: number, atISO: string, note?: string) => void;
-  readonly recordWins: (ids: readonly string[]) => void;
+  readonly recordWins: (ids: readonly string[], atISO: string) => void;
+  /** Apply a parsed statement atomically: balance + new bills + seeded spend log. */
+  readonly applyImport: (apply: StatementApply, atISO: string) => void;
   readonly updateSetup: (partial: Partial<Omit<MeloSetup, 'onboarded'>>) => void;
   readonly resetAll: () => void;
 }
@@ -236,11 +253,42 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
             balanceUpdatedAtMs: Date.now(),
           },
         })),
-      recordWins: (ids) =>
-        update((prev) => ({
-          ...prev,
-          wins: [...prev.wins, ...ids.filter((id) => !prev.wins.includes(id))],
-        })),
+      recordWins: (ids, atISO) =>
+        update((prev) => {
+          const fresh = ids.filter((id) => !prev.wins.includes(id));
+          if (fresh.length === 0) return prev;
+          return {
+            ...prev,
+            wins: [...prev.wins, ...fresh],
+            winLog: [...prev.winLog, ...fresh.map((id) => ({ id, atISO }))],
+          };
+        }),
+      applyImport: (apply, atISO) =>
+        update((prev) => {
+          // Dedupe against what's already there: bills by case-insensitive name, spends by
+          // (day, amount) — re-importing the same statement must be a no-op, not a double-count.
+          const known = new Set(prev.setup.bills.map((b) => b.name.toLowerCase()));
+          const bills = apply.newBills.filter((b) => !known.has(b.name.toLowerCase()));
+          const seen = new Set(prev.spendLog.map((s) => `${s.atISO}:${s.amountPence}`));
+          const spends = apply.spendEntries
+            .filter((s) => !seen.has(`${s.atISO}:${s.amountPence}`))
+            .map((s, i) => ({
+              id: `import-${atISO}-${i}`,
+              amountPence: s.amountPence,
+              atISO: s.atISO,
+            }));
+          return {
+            ...prev,
+            setup: {
+              ...prev.setup,
+              bills: [...prev.setup.bills, ...bills],
+              ...(apply.balancePence !== null
+                ? { balancePence: apply.balancePence, balanceUpdatedAtMs: Date.now() }
+                : {}),
+            },
+            spendLog: [...prev.spendLog, ...spends],
+          };
+        }),
       updateSetup: (partial) =>
         update((prev) => ({ ...prev, setup: { ...prev.setup, ...partial } })),
       resetAll: () => update(() => DEFAULT_STATE),

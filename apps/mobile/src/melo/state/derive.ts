@@ -76,6 +76,24 @@ function ordinal(n: number): string {
   return `${n}th`;
 }
 
+/** One bill's place in the current cycle, for the Bills Shield surface (§2 P9). */
+export interface ShieldBillView {
+  readonly name: string;
+  readonly amountPence: number;
+  readonly dueDate: ISODate;
+  readonly dueLabel: string;
+  readonly status: 'landed' | 'dueToday' | 'shielded';
+}
+
+export interface ShieldView {
+  readonly bills: readonly ShieldBillView[];
+  /** Still-to-land bills this cycle (what the shield is currently holding). */
+  readonly shieldedPence: number;
+  /** How much of that the balance actually covers. */
+  readonly coveredPence: number;
+  readonly covered: boolean;
+}
+
 export interface LiveDerived {
   readonly today: ISODate;
   readonly payday: ISODate;
@@ -92,6 +110,7 @@ export interface LiveDerived {
   /** True only when the balance actually covers the shielded bills — "bills are safe" is
    *  never asserted unchecked (§13 risk 3). */
   readonly billsCovered: boolean;
+  readonly shield: ShieldView;
 }
 
 /** Weekend paydays pay the Friday before (UK convention). If the shift lands the payday in the
@@ -213,6 +232,7 @@ export function deriveLive(
   };
 
   const runwayBills: RunwayBill[] = dueSoonToRunway(engineBills, today);
+  const shield = buildShieldView(setup, today, payday, safeZone.shieldedBillsPence);
 
   return {
     today,
@@ -226,6 +246,74 @@ export function deriveLive(
     recoveryMove: movePence,
     runRateSource,
     billsCovered: setup.balancePence >= safeZone.shieldedBillsPence,
+    shield,
+  };
+}
+
+/** Most recent occurrence of a day-of-month (1..28) ON or BEFORE today. */
+function prevOccurrenceISO(day: number, today: ISODate): ISODate {
+  const [y, m, d] = today.split('-').map(Number) as [number, number, number];
+  if (d >= day) return isoFor(y, m - 1, day); // this month
+  return isoFor(y, m - 2, day); // last month (Date normalizes month underflow)
+}
+
+/** The Bills Shield: where every bill stands in the current payday cycle. A monthly bill either
+ *  already LANDED this cycle (its day passed since the last payday), is DUE TODAY, or is still
+ *  ahead and SHIELDED. Coverage compares the balance to what is still to land. */
+function buildShieldView(
+  setup: MeloSetup,
+  today: ISODate,
+  payday: ISODate,
+  shieldedPence: number,
+): ShieldView {
+  const cycleStart = prevOccurrenceISO(setup.paydayDay, today);
+  const bills: ShieldBillView[] = setup.bills.map((b) => {
+    const prevDue = prevOccurrenceISO(b.dueDay, today);
+    if (prevDue === today) {
+      return {
+        name: b.name,
+        amountPence: b.amountPence,
+        dueDate: today,
+        dueLabel: 'due today',
+        status: 'dueToday' as const,
+      };
+    }
+    // Landed = its most recent occurrence fell inside the current cycle (after the last payday).
+    if (daysBetween(cycleStart, prevDue) >= 0) {
+      return {
+        name: b.name,
+        amountPence: b.amountPence,
+        dueDate: prevDue,
+        dueLabel: `landed ${dayLabel(prevDue)}`,
+        status: 'landed' as const,
+      };
+    }
+    const nextDue = nextDueISO(b.dueDay, today);
+    return {
+      name: b.name,
+      amountPence: b.amountPence,
+      dueDate: nextDue,
+      dueLabel: dayLabel(nextDue),
+      status: 'shielded' as const,
+    };
+  });
+
+  // Upcoming first (soonest at the top), landed after (most recent first).
+  const order = { dueToday: 0, shielded: 1, landed: 2 } as const;
+  const sorted = [...bills].sort((a, b) =>
+    order[a.status] !== order[b.status]
+      ? order[a.status] - order[b.status]
+      : a.status === 'landed'
+        ? daysBetween(a.dueDate, b.dueDate)
+        : daysBetween(b.dueDate, a.dueDate),
+  );
+
+  const coveredPence = Math.max(0, Math.min(setup.balancePence, shieldedPence));
+  return {
+    bills: sorted,
+    shieldedPence,
+    coveredPence,
+    covered: setup.balancePence >= shieldedPence,
   };
 }
 

@@ -62,6 +62,7 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
       essentialsPerDayPence: 1_400,
       savingsPence: 4_000,
       bufferPence: 2_000,
+      quietMode: false,
     }),
     [colorway, paydayDay, incomePence, balancePence, bills],
   );

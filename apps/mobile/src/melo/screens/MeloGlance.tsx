@@ -9,6 +9,7 @@ import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 
 import {
   COPY,
+  buildWeekReview,
   checkAfford,
   detectWins,
   formatPounds,
@@ -42,6 +43,9 @@ import { DEMOS, DEMO_ORDER, DEMO_TODAY, demoBreakdown, type DemoKey } from '../s
 import { RecoveryWalkthrough } from './RecoveryWalkthrough';
 import { MeloRitual, type RitualBillRow } from './MeloRitual';
 import { MeloSettings } from './MeloSettings';
+import { BillsShield } from './BillsShield';
+import { MeloReview } from './MeloReview';
+import { MeloImport } from './MeloImport';
 
 const SKY_HEIGHT = 200;
 
@@ -97,6 +101,9 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [ritualOpen, setRitualOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shieldOpen, setShieldOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [balanceEdit, setBalanceEdit] = useState(false);
   const [balanceText, setBalanceText] = useState('');
   const [spendEdit, setSpendEdit] = useState(false);
@@ -159,7 +166,10 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
       : null;
     const events = detectWins(prevSnap, nextSnap, store.state.wins);
     if (events.length > 0) {
-      store.recordWins(events.map((e) => e.id));
+      store.recordWins(
+        events.map((e) => e.id),
+        liveDerived.today,
+      );
       setLastWinLine(events[events.length - 1]?.line ?? null);
     }
   }, [mode, liveResolved, liveDerived, store]);
@@ -226,6 +236,11 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
                   }
                 : null;
 
+      // Quiet Mode (§14 item 16): optional nudges go quiet; the functional cards — payday
+      // ritual, fog's balance ask, danger/recovery — keep speaking. Quiet is calm, not blind.
+      const quietAction =
+        store.state.setup.quietMode && action?.kind === 'info' && !inRecovery ? null : action;
+
       // Fog never asserts a confident forecast on stale data (audit): the sub says what we
       // actually know. And "bills are safe" is only spoken when it is checked-true.
       const sub =
@@ -251,7 +266,7 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
         daysToPayday: liveDerived.safeZone.daysToPayday,
         bills: liveDerived.runwayBills,
         dangerDay: liveDerived.dangerDayOffset,
-        action,
+        action: quietAction,
         mathRows: liveDerived.safeZone.breakdown.map((row) => ({
           label:
             row.key === 'balance'
@@ -332,6 +347,9 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
     setSpendEdit(false);
     setSettingsOpen(false);
     setRitualOpen(false);
+    setShieldOpen(false);
+    setReviewOpen(false);
+    setImportOpen(false);
   };
 
   const saveSpend = () => {
@@ -434,6 +452,44 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
         setup={store.state.setup}
         onSave={store.updateSetup}
         onClose={() => setSettingsOpen(false)}
+      />
+    );
+  }
+
+  if (shieldOpen && mode === 'live' && liveDerived) {
+    return (
+      <BillsShield
+        shield={liveDerived.shield}
+        paydayLabel={liveDerived.paydayLabel}
+        onClose={() => setShieldOpen(false)}
+      />
+    );
+  }
+
+  if (reviewOpen && mode === 'live' && liveDerived) {
+    const review = buildWeekReview({
+      todayISO: liveDerived.today,
+      spendLog: store.state.spendLog,
+      perDayPence: Math.max(0, liveDerived.safeZone.perDayPence),
+      checksThisWeek: store.state.checksThisWeek,
+      wins: store.state.winLog,
+      billsAhead: liveDerived.shield.bills.map((b) => ({
+        name: b.name,
+        amountPence: b.amountPence,
+        dueDate: b.dueDate,
+      })),
+      safeZonePence: liveDerived.safeZone.safeZonePence,
+      daysToPayday: liveDerived.safeZone.daysToPayday,
+    });
+    return <MeloReview review={review} onClose={() => setReviewOpen(false)} />;
+  }
+
+  if (importOpen && mode === 'live' && liveDerived) {
+    return (
+      <MeloImport
+        existingBillNames={store.state.setup.bills.map((b) => b.name)}
+        onApply={(apply) => store.applyImport(apply, liveDerived.today)}
+        onClose={() => setImportOpen(false)}
       />
     );
   }
@@ -585,15 +641,20 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
           </Surface>
         ) : null}
 
-        {/* runway */}
-        <View style={s.runway}>
+        {/* runway — tapping it opens the Bills Shield (the strip IS the bills, made touchable) */}
+        <Pressable
+          style={s.runway}
+          accessibilityRole={mode === 'live' ? 'button' : undefined}
+          accessibilityHint={mode === 'live' ? 'Opens the Bills Shield' : undefined}
+          onPress={mode === 'live' ? () => setShieldOpen(true) : undefined}
+        >
           <RunwayStrip
             daysToPayday={model.daysToPayday}
             bills={model.bills}
             dangerDay={model.dangerDay}
             paydayLabel={model.ctx.paydayLabel}
           />
-        </View>
+        </Pressable>
 
         {/* the ONE action card */}
         {model.action ? (
@@ -626,6 +687,16 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
               />
               <GhostButton label="Save" onPress={saveBalance} />
             </View>
+            {mode === 'live' ? (
+              <Pressable
+                onPress={() => {
+                  setBalanceEdit(false);
+                  setImportOpen(true);
+                }}
+              >
+                <Muted style={s.importLink}>or paste a bank statement — it reads the balance</Muted>
+              </Pressable>
+            ) : null}
           </Surface>
         ) : null}
 
@@ -726,6 +797,9 @@ export function MeloGlance({ onSetUp }: { onSetUp?: (() => void) | undefined } =
                 <Muted style={s.updateLinkText}>log a spend</Muted>
               </Pressable>
             ) : null}
+            <Pressable onPress={() => setReviewOpen(true)}>
+              <Muted style={s.updateLinkText}>this week</Muted>
+            </Pressable>
             <Pressable onPress={() => setSettingsOpen(true)}>
               <Muted style={s.updateLinkText}>settings</Muted>
             </Pressable>
@@ -954,8 +1028,9 @@ const s = StyleSheet.create({
   verdictLine: { marginTop: 5, lineHeight: 20 },
   shelfRow: { marginTop: 10, alignSelf: 'flex-start' },
   ticker: { marginHorizontal: 26, marginTop: 16, fontSize: 12.5 },
-  linkRow: { flexDirection: 'row', gap: 18, marginHorizontal: 26, marginTop: 8 },
+  linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginHorizontal: 26, marginTop: 8 },
   updateLinkText: { fontSize: 12, textDecorationLine: 'underline' },
+  importLink: { fontSize: 12, textDecorationLine: 'underline', marginTop: 10 },
   devWrap: { position: 'absolute', right: 14, bottom: 14, alignItems: 'flex-end', gap: 8 },
   devMenu: {
     borderRadius: 14,
