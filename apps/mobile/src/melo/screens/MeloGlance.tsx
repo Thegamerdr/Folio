@@ -48,6 +48,7 @@ import { MeloSettings } from './MeloSettings';
 import { BillsShield } from './BillsShield';
 import { MeloReview } from './MeloReview';
 import { MeloImport } from './MeloImport';
+import { MeloChat } from './MeloChat';
 
 const SKY_HEIGHT = 200;
 
@@ -112,6 +113,7 @@ export function MeloGlance({
   const [shieldOpen, setShieldOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [balanceEdit, setBalanceEdit] = useState(false);
   const [balanceText, setBalanceText] = useState('');
   const [spendEdit, setSpendEdit] = useState(false);
@@ -546,6 +548,24 @@ export function MeloGlance({
               }
             : undefined
         }
+        onResetAll={() => {
+          // Reset drops onboarded=false → the route lands back on onboarding.
+          store.resetAll();
+          setSettingsOpen(false);
+        }}
+      />
+    );
+  }
+
+  if (chatOpen && mode === 'live' && liveDerived && liveResolved) {
+    return (
+      <MeloChat
+        derived={liveDerived}
+        view={liveResolved.view}
+        colorway={store.state.setup.colorway}
+        wardrobe={store.state.setup.wardrobe}
+        checksThisWeek={store.state.checksThisWeek}
+        onClose={() => setChatOpen(false)}
       />
     );
   }
@@ -699,15 +719,30 @@ export function MeloGlance({
             character and its voice step back entirely; numbers, weather and actions stay. */}
         {mode === 'live' && store.state.setup.quietMode ? null : (
           <View style={s.mascotRow}>
-            <MeloMascot
-              emotion={model.view.mascot.family}
-              colorway={mode === 'live' ? store.state.setup.colorway : 'ember'}
-              size={104}
-              glow={glowFor(model.view)}
-              breathe={breathe.enabled}
-              breatheDurationMs={breathe.durationMs}
-              wardrobe={mode === 'live' ? store.state.setup.wardrobe : null}
-            />
+            {/* The one-entity moment: tap Melo, talk to Melo — same body, same mood. */}
+            <Pressable
+              accessibilityRole={mode === 'live' ? 'button' : undefined}
+              accessibilityHint={mode === 'live' ? 'Talk to Melo' : undefined}
+              onPress={
+                mode === 'live'
+                  ? () => {
+                      store.bump('chatOpened');
+                      setChatOpen(true);
+                    }
+                  : undefined
+              }
+            >
+              <MeloMascot
+                emotion={model.view.mascot.family}
+                colorway={mode === 'live' ? store.state.setup.colorway : 'ember'}
+                size={104}
+                glow={glowFor(model.view)}
+                breathe={breathe.enabled}
+                breatheDurationMs={breathe.durationMs}
+                wardrobe={mode === 'live' ? store.state.setup.wardrobe : null}
+                form={mode === 'live' ? store.state.setup.form : null}
+              />
+            </Pressable>
             <View style={s.say}>
               <Body style={s.sayLine}>{line1}</Body>
               {model.l2 ? <Muted style={s.saySub}>{model.l2}</Muted> : null}

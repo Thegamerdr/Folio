@@ -4,7 +4,7 @@
 // recomputes on the next render. No dead ends: cancel always available.
 
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatPounds } from '@folio/melo-engine';
 import {
@@ -17,6 +17,8 @@ import {
   useTheme,
 } from '@/surfaces/pressureMap/kit';
 
+import { MeloMascot } from '../mascot/MeloMascot';
+import { FORMS } from '../mascot/forms';
 import { WARDROBE } from '../mascot/wardrobe';
 import type { MeloBill, MeloSetup } from '../state/meloStore';
 import { BILL_PRESETS, billId, parsePoundsText } from '../state/presets';
@@ -30,20 +32,30 @@ type Props = {
   /** §14 manual payday trigger — "I got paid today" offers the ritual without waiting
    *  for the calendar. Optional so demo/preview callers can omit it. */
   onPaidToday?: (() => void) | undefined;
+  /** Trust infrastructure: wipe everything on this phone. Two-tap confirmed inline —
+   *  the row arms on the first tap, fires on the second. Optional for demo callers. */
+  onResetAll?: (() => void) | undefined;
 };
 
-export function MeloSettings({ setup, onSave, onClose, onPaidToday }: Props) {
+export function MeloSettings({ setup, onSave, onClose, onPaidToday, onResetAll }: Props) {
   const t = useTheme();
   const [paydayDay, setPaydayDay] = useState(setup.paydayDay);
+  const [lastWorkingDay, setLastWorkingDay] = useState(setup.paydayLastWorkingDay);
   const [incomeText, setIncomeText] = useState(String(Math.round(setup.incomePence / 100)));
+  const [incomeVaries, setIncomeVaries] = useState(setup.incomeVaries);
   const [essentialsText, setEssentialsText] = useState(
     String(Math.round(setup.essentialsPerDayPence / 100)),
   );
   const [savingsText, setSavingsText] = useState(String(Math.round(setup.savingsPence / 100)));
   const [bufferText, setBufferText] = useState(String(Math.round(setup.bufferPence / 100)));
+  const [comfortableText, setComfortableText] = useState(
+    String(Math.round(setup.comfortablePerDayPence / 100)),
+  );
   const [bills, setBills] = useState<readonly MeloBill[]>(setup.bills);
   const [quietMode, setQuietMode] = useState(setup.quietMode);
   const [wardrobe, setWardrobe] = useState<string | null>(setup.wardrobe);
+  const [form, setForm] = useState<string | null>(setup.form);
+  const [resetArmed, setResetArmed] = useState(false);
 
   const toggleBill = (preset: Omit<MeloBill, 'id'>) => {
     setBills((prev) => {
@@ -61,15 +73,30 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday }: Props) {
   const save = () => {
     onSave({
       paydayDay,
+      paydayLastWorkingDay: lastWorkingDay,
       incomePence: parsePoundsText(incomeText) || setup.incomePence,
+      incomeVaries,
       essentialsPerDayPence: parsePoundsText(essentialsText) || setup.essentialsPerDayPence,
       savingsPence: parsePoundsText(savingsText),
       bufferPence: parsePoundsText(bufferText),
+      comfortablePerDayPence: parsePoundsText(comfortableText) || setup.comfortablePerDayPence,
       bills,
       quietMode,
       wardrobe,
+      form,
     });
     onClose();
+  };
+
+  // Export = trust made tangible: the full setup as plain JSON, shared straight off the
+  // phone. Nothing leaves unless the user sends it somewhere.
+  const exportData = () => {
+    void Share.share({
+      title: 'My Melo data',
+      message: JSON.stringify(setup, null, 2),
+    }).catch(() => {
+      // The share sheet was dismissed or unavailable — nothing to clean up.
+    });
   };
 
   return (
@@ -96,6 +123,24 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday }: Props) {
             </Pressable>
           ))}
         </View>
+        <Pressable
+          onPress={() => setLastWorkingDay((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: lastWorkingDay }}
+          style={[
+            s.chip,
+            s.lwdChip,
+            {
+              borderColor: lastWorkingDay ? t.calm : t.hairline,
+              backgroundColor: lastWorkingDay ? t.calmSoft : t.inset,
+            },
+          ]}
+        >
+          <Text style={[s.chipLabel, { color: t.ink }]}>the last working day</Text>
+        </Pressable>
+        {lastWorkingDay ? (
+          <Muted style={s.sectionNote}>Month-end — weekend month-ends pay the Friday before.</Muted>
+        ) : null}
 
         <Muted style={s.sectionTag}>THE NUMBERS</Muted>
         <Surface style={s.list} tone="sunken">
@@ -107,7 +152,42 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday }: Props) {
           />
           <FieldRow label="Savings each cycle" value={savingsText} onChange={setSavingsText} />
           <FieldRow label="Buffer — early warning" value={bufferText} onChange={setBufferText} />
+          <FieldRow
+            label="Comfortable per day — your tight line"
+            value={comfortableText}
+            onChange={setComfortableText}
+          />
         </Surface>
+
+        <Muted style={s.sectionTag}>INCOME</Muted>
+        <View style={s.chipsWrap}>
+          {(['steady', 'it varies'] as const).map((label, idx) => {
+            const varies = idx === 1;
+            const selected = incomeVaries === varies;
+            return (
+              <Pressable
+                key={label}
+                onPress={() => setIncomeVaries(varies)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                style={[
+                  s.chip,
+                  {
+                    borderColor: selected ? t.calm : t.hairline,
+                    backgroundColor: selected ? t.calmSoft : t.inset,
+                  },
+                ]}
+              >
+                <Text style={[s.chipLabel, { color: t.ink }]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {incomeVaries ? (
+          <Muted style={s.sectionNote}>
+            Plan on a low month — good months become breathing room.
+          </Muted>
+        ) : null}
 
         <Muted style={s.sectionTag}>BILLS — SHIELDED FIRST</Muted>
         <View style={s.chipsWrap}>
@@ -156,6 +236,32 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday }: Props) {
             </View>
           </Surface>
         ) : null}
+
+        <Muted style={s.sectionTag}>MELO’S FORM — ONE MELO, FIVE LOOKS</Muted>
+        <View style={s.chipsWrap}>
+          {FORMS.map((f) => {
+            const selected = form === f.id;
+            return (
+              <Pressable
+                key={f.id ?? 'original'}
+                onPress={() => setForm(f.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                style={[
+                  s.chip,
+                  s.formChip,
+                  {
+                    borderColor: selected ? t.calm : t.hairline,
+                    backgroundColor: selected ? t.calmSoft : t.inset,
+                  },
+                ]}
+              >
+                <MeloMascot emotion="calm" colorway={setup.colorway} size={40} form={f.id} />
+                <Text style={[s.chipLabel, { color: t.ink }]}>{f.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <Muted style={s.sectionTag}>MELO’S WARDROBE — ALL FREE</Muted>
         <View style={s.chipsWrap}>
@@ -244,6 +350,45 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday }: Props) {
           </Pressable>
         </Surface>
 
+        <Muted style={s.sectionTag}>DATA</Muted>
+        <Surface style={s.list} tone="sunken">
+          <Pressable onPress={exportData} style={s.quietRow} accessibilityRole="button">
+            <View style={s.quietBody}>
+              <Body style={s.quietTitle}>Export my data</Body>
+              <Text style={[s.quietDetail, { color: t.muted }]}>
+                Your data, plain JSON, straight off this phone — nowhere else has a copy.
+              </Text>
+            </View>
+          </Pressable>
+          {onResetAll ? (
+            <Pressable
+              onPress={() => {
+                if (resetArmed) {
+                  onResetAll();
+                } else {
+                  setResetArmed(true);
+                }
+              }}
+              style={s.quietRow}
+              accessibilityRole="button"
+              accessibilityState={{ selected: resetArmed }}
+            >
+              <View style={s.quietBody}>
+                <Body style={s.quietTitle}>Start over</Body>
+                {resetArmed ? (
+                  <Text style={[s.quietDetail, { color: t.calmStrong }]}>
+                    Tap once more — this wipes Melo’s memory on this phone.
+                  </Text>
+                ) : (
+                  <Text style={[s.quietDetail, { color: t.muted }]}>
+                    Wipe everything and begin fresh. Two taps, so a stray thumb can’t do it.
+                  </Text>
+                )}
+              </View>
+            </Pressable>
+          ) : null}
+        </Surface>
+
         <View style={s.cta}>
           <PrimaryAction label="Save" onPress={save} />
           <GhostButton label="cancel" onPress={onClose} />
@@ -284,9 +429,12 @@ const s = StyleSheet.create({
   scroll: { paddingHorizontal: 26, paddingTop: 30, paddingBottom: 40 },
   sub: { marginTop: 6, lineHeight: 20 },
   sectionTag: { marginTop: 22, marginBottom: 10, fontSize: 11.5, letterSpacing: 0.8 },
+  sectionNote: { marginTop: 10, fontSize: 12.5, lineHeight: 17 },
+  lwdChip: { marginTop: 10, alignSelf: 'flex-start' },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   chip: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   chipLabel: { fontSize: 13.5, fontWeight: '500' },
+  formChip: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 6 },
   list: { gap: 10 },
   billRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   billName: { fontSize: 14, flexShrink: 1 },
