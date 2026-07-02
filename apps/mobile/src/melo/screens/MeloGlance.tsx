@@ -1,9 +1,10 @@
-// The Glance Stack (MELO_BLUEPRINT.md §6.1) — Melo's home. Sky → mascot + one line → the Safe
-// Zone number → runway → ONE action card → the afford-check → tiny-wins ticker. The ⚙ chip
-// cycles the six demo states; everything on screen reacts through the real engine
-// (resolveState + COPY), so this screen is Gate 1 of MELO_PHASE2_PLAN.md: the glance, native.
+// The Glance Stack (MELO_BLUEPRINT.md §6.1) — Melo's home, in two modes:
+//   LIVE — the user's own setup: deriveLive() → resolveState() with the PERSISTED state record
+//   (hysteresis and the recovery journey survive restarts), balance updates feed the loop.
+//   DEMO — the six ⚙-chip scenarios, for dogfooding every state without faking your finances.
+// Either way the engine drives everything on screen: sky, mascot, copy, action, verdicts.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import {
@@ -12,6 +13,9 @@ import {
   formatPounds,
   resolveState,
   type AffordResult,
+  type CopyContext,
+  type CopyKey,
+  type StateView,
 } from '@folio/melo-engine';
 import {
   Body,
@@ -22,48 +26,214 @@ import {
   PrimaryAction,
   Surface,
   Verdict,
-  money,
   useTheme,
   type VerdictTone,
 } from '@/surfaces/pressureMap/kit';
 
 import { MeloMascot } from '../mascot/MeloMascot';
-import { RunwayStrip } from '../components/RunwayStrip';
+import { RunwayStrip, type RunwayBill } from '../components/RunwayStrip';
 import { WeatherSky } from '../components/WeatherSky';
 import { breatheFor, glowFor, WEATHER_VISUALS } from '../theme/weather';
+import { deriveLive } from '../state/derive';
+import { useMeloStore } from '../state/meloStore';
 import { DEMOS, DEMO_ORDER, DEMO_TODAY, demoBreakdown, type DemoKey } from '../state/demoStates';
+import { RecoveryWalkthrough } from './RecoveryWalkthrough';
 
 const SKY_HEIGHT = 200;
 
+type Mode = 'live' | DemoKey;
+
 type Ask = { amountPence: number; result: AffordResult | null; fog: boolean; shelved: boolean };
+
+type GlanceAction = {
+  title: string;
+  body: string;
+  cta: string;
+  kind: 'recovery' | 'balance' | 'info';
+};
+
+interface GlanceModel {
+  view: StateView;
+  ctx: CopyContext;
+  szPence: number;
+  sub: string;
+  l2: string;
+  chipWord: string;
+  daysToPayday: number;
+  bills: readonly RunwayBill[];
+  dangerDay: number | null;
+  action: GlanceAction | null;
+  mathRows: readonly { label: string; valuePence: number }[];
+}
+
+const LIVE_L2: Partial<Record<CopyKey, string>> = {
+  calm: 'I’ll speak up if that changes.',
+  protected: 'The important things are safe.',
+  tight: 'Doable, needs a little steering.',
+  warning: 'The way out is small and daily.',
+  danger: 'Bills are safe — this is about getting to payday.',
+  overspent: 'No lecture in any of it.',
+  recovery: 'Bills stay protected while we rebuild.',
+  rebuilding: 'The storm’s over. Small steps now.',
+  fog: '30 seconds fixes it.',
+  billWeek: 'All shielded before anything else gets spent.',
+};
 
 export function MeloGlance() {
   const t = useTheme();
-  const [demoKey, setDemoKey] = useState<DemoKey>('calm');
+  const store = useMeloStore();
+  const isLive = store.state.setup.onboarded;
+
+  const [mode, setMode] = useState<Mode>(isLive ? 'live' : 'calm');
   const [devOpen, setDevOpen] = useState(false);
   const [showMath, setShowMath] = useState(false);
   const [askText, setAskText] = useState('');
   const [ask, setAsk] = useState<Ask | null>(null);
-  const [checks, setChecks] = useState(3);
-  const [recoveryDone, setRecoveryDone] = useState(false);
+  const [demoChecks, setDemoChecks] = useState(3);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [balanceEdit, setBalanceEdit] = useState(false);
+  const [balanceText, setBalanceText] = useState('');
 
-  const demo = DEMOS[demoKey];
-  const { view } = useMemo(
-    () => resolveState(demo.prev, demo.inputs, DEMO_TODAY),
-    [demo.prev, demo.inputs],
+  // ---- live derivation (engine + persisted record) ----
+  const liveDerived = useMemo(
+    () => (isLive ? deriveLive(store.state.setup, store.state.journey) : null),
+    [isLive, store.state.setup, store.state.journey],
   );
-  const visual = WEATHER_VISUALS[view.weather];
-  const breathe = breatheFor(view);
-  const line1 = COPY[view.copyKey](demo.ctx);
-  const isFog = view.data === 'fog';
+  const liveResolved = useMemo(
+    () =>
+      liveDerived
+        ? resolveState(store.state.journey.record, liveDerived.inputs, liveDerived.today)
+        : null,
+    [liveDerived, store.state.journey.record],
+  );
 
-  const switchDemo = (key: DemoKey) => {
-    setDemoKey(key);
+  // Persist the engine's sticky record whenever it moves (dwell + journey survive restarts).
+  const lastRecordJson = useRef<string>('');
+  useEffect(() => {
+    if (mode !== 'live' || !liveResolved) return;
+    const json = JSON.stringify(liveResolved.record);
+    if (json !== lastRecordJson.current && json !== JSON.stringify(store.state.journey.record)) {
+      lastRecordJson.current = json;
+      store.setStateRecord(liveResolved.record);
+    }
+  }, [mode, liveResolved, store]);
+
+  // ---- model ----
+  const model: GlanceModel = useMemo(() => {
+    if (mode === 'live' && liveDerived && liveResolved) {
+      const view = liveResolved.view;
+      const visual = WEATHER_VISUALS[view.weather];
+      const chipSuffix =
+        view.data === 'fog'
+          ? ' — numbers stale'
+          : view.ladder === 'danger' || view.ladder === 'overspent'
+            ? ' — bills are safe'
+            : '';
+      const action: GlanceAction | null =
+        view.data === 'fog'
+          ? {
+              title: 'Refresh my picture',
+              body: 'Tell me today’s balance and everything sharpens back up.',
+              cta: 'Update balance (30s)',
+              kind: 'balance',
+            }
+          : view.ladder === 'overspent' || view.ladder === 'danger'
+            ? view.journey === 'recovery'
+              ? {
+                  title: 'Today’s move',
+                  body: 'Shift £8 to bills. Then we’re done for today — no second ask.',
+                  cta: 'Do today’s move',
+                  kind: 'recovery',
+                }
+              : {
+                  title: 'The way back',
+                  body: 'Three steps. The first one takes a minute. No lecture in any of them.',
+                  cta: 'Start the way back',
+                  kind: 'recovery',
+                }
+            : view.ladder === 'warning'
+              ? {
+                  title: 'Keep it dry',
+                  body: `${liveDerived.ctx.keepDryPerDay}/day until ${liveDerived.ctx.paydayLabel} keeps the storm off.`,
+                  cta: 'Show the math',
+                  kind: 'info',
+                }
+              : null;
+
+      const sub =
+        view.ladder === 'tight'
+          ? `${liveDerived.ctx.perDay}/day to ${liveDerived.ctx.paydayLabel}`
+          : `safe until ${liveDerived.ctx.paydayLabel}`;
+
+      return {
+        view,
+        ctx: liveDerived.ctx,
+        szPence: liveDerived.safeZone.safeZonePence,
+        sub,
+        l2: LIVE_L2[view.copyKey] ?? '',
+        chipWord: visual.word + chipSuffix,
+        daysToPayday: liveDerived.safeZone.daysToPayday,
+        bills: liveDerived.runwayBills,
+        dangerDay: liveDerived.dangerDayOffset,
+        action,
+        mathRows: liveDerived.safeZone.breakdown.map((row) => ({
+          label:
+            row.key === 'balance'
+              ? 'Balance'
+              : row.key === 'bills'
+                ? 'Shielded bills'
+                : row.key === 'essentials'
+                  ? 'Essentials to payday'
+                  : row.key === 'savings'
+                    ? 'Savings, as planned'
+                    : 'Buffer — early warning',
+          valuePence: row.amountPence,
+        })),
+      };
+    }
+
+    const demo = DEMOS[mode === 'live' ? 'calm' : mode];
+    const { view } = resolveState(demo.prev, demo.inputs, DEMO_TODAY);
+    const b = demoBreakdown(demo.szPence);
+    return {
+      view,
+      ctx: demo.ctx,
+      szPence: demo.szPence,
+      sub: demo.sub,
+      l2: demo.l2,
+      chipWord: demo.chipWord,
+      daysToPayday: demo.daysToPayday,
+      bills: demo.bills,
+      dangerDay: demo.dangerDay,
+      action: {
+        title: demo.action.title,
+        body: demo.action.body,
+        cta: demo.action.cta,
+        kind: demo.key === 'storm' ? 'recovery' : demo.key === 'fog' ? 'balance' : 'info',
+      },
+      mathRows: [
+        { label: 'Balance', valuePence: b.balance },
+        { label: 'Shielded bills', valuePence: -b.bills },
+        { label: 'Essentials to payday', valuePence: -b.essentials },
+        { label: 'Savings, as planned', valuePence: -b.savings },
+        { label: 'Buffer — early warning', valuePence: -b.buffer },
+      ],
+    };
+  }, [mode, liveDerived, liveResolved]);
+
+  const visual = WEATHER_VISUALS[model.view.weather];
+  const breathe = breatheFor(model.view);
+  const line1 = COPY[model.view.copyKey](model.ctx);
+  const isFog = model.view.data === 'fog';
+  const checks = mode === 'live' ? store.state.checksThisWeek : demoChecks;
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
     setDevOpen(false);
     setShowMath(false);
     setAsk(null);
     setAskText('');
-    setRecoveryDone(false);
+    setBalanceEdit(false);
   };
 
   const runAsk = () => {
@@ -76,47 +246,102 @@ export function MeloGlance() {
     }
     setAsk({
       amountPence,
-      result: checkAfford(demo.szPence, amountPence),
+      result: checkAfford(model.szPence, amountPence),
       fog: false,
       shelved: false,
     });
-    setChecks((n) => n + 1);
+    if (mode === 'live') store.incrementChecks();
+    else setDemoChecks((n) => n + 1);
+  };
+
+  const saveBalance = () => {
+    const pounds = Number.parseInt(balanceText.replace(/[^0-9-]/g, ''), 10);
+    if (!Number.isFinite(pounds)) return;
+    store.updateBalance(pounds * 100);
+    setBalanceEdit(false);
+    setBalanceText('');
   };
 
   const handleAction = () => {
-    if (demoKey === 'storm') {
-      switchDemo('recovery');
+    if (!model.action) return;
+    if (model.action.kind === 'recovery') {
+      if (mode === 'live') setRecoveryOpen(true);
+      else switchMode('recovery');
       return;
     }
-    if (demoKey === 'recovery') setRecoveryDone(true);
+    if (model.action.kind === 'balance') {
+      setBalanceEdit(true);
+      return;
+    }
+    setShowMath(true);
   };
 
-  const breakdown = demoBreakdown(demo.szPence);
+  const acceptRecoveryAndClose = () => {
+    if (mode === 'live' && liveDerived) {
+      const res = resolveState(store.state.journey.record, liveDerived.inputs, liveDerived.today, {
+        acceptRecovery: true,
+      });
+      store.setJourney({
+        record: res.record,
+        recoveryStartISO: store.state.journey.recoveryStartISO ?? liveDerived.today,
+        moveDoneISO: liveDerived.today,
+      });
+    }
+    setRecoveryOpen(false);
+  };
+
+  if (recoveryOpen && mode === 'live' && liveDerived) {
+    return (
+      <RecoveryWalkthrough
+        colorway={store.state.setup.colorway}
+        overByPence={Math.min(model.szPence, 0)}
+        perDayPence={Math.max(
+          model.szPence > 0 ? Math.floor(model.szPence / Math.max(model.daysToPayday, 1)) : 400,
+          100,
+        )}
+        daysToPayday={model.daysToPayday}
+        paydayLabel={model.ctx.paydayLabel}
+        dayOnPath={model.ctx.dayOnPath}
+        onCommit={acceptRecoveryAndClose}
+        onExit={() => setRecoveryOpen(false)}
+      />
+    );
+  }
 
   return (
     <View style={s.root}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* ambient sky + weather chip */}
         <View style={{ height: SKY_HEIGHT }}>
-          <WeatherSky weather={view.weather} height={SKY_HEIGHT} />
+          <WeatherSky weather={model.view.weather} height={SKY_HEIGHT} />
           <View style={[s.chip, { backgroundColor: t.inset, borderColor: t.hairline }]}>
             <View style={[s.chipDot, { backgroundColor: visual.dot }]} />
-            <Text style={[s.chipWord, { color: t.secondary }]}>{demo.chipWord}</Text>
+            <Text style={[s.chipWord, { color: t.secondary }]}>{model.chipWord}</Text>
           </View>
+          {mode !== 'live' && isLive ? (
+            <View style={[s.demoBanner, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}>
+              <Text style={[s.demoBannerText, { color: t.calmStrong }]}>demo preview</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* mascot + its one line */}
         <View style={s.mascotRow}>
           <MeloMascot
-            emotion={view.mascot.family}
+            emotion={model.view.mascot.family}
+            colorway={mode === 'live' ? store.state.setup.colorway : 'ember'}
             size={104}
-            glow={glowFor(view)}
+            glow={glowFor(model.view)}
             breathe={breathe.enabled}
             breatheDurationMs={breathe.durationMs}
           />
           <View style={s.say}>
             <Body style={s.sayLine}>{line1}</Body>
-            <Muted style={s.saySub}>{demo.l2}</Muted>
+            {model.l2 ? <Muted style={s.saySub}>{model.l2}</Muted> : null}
           </View>
         </View>
 
@@ -127,14 +352,14 @@ export function MeloGlance() {
           onPress={() => setShowMath((v) => !v)}
           style={s.numberBlock}
         >
-          <HeroMoney accessibilityLabel={`Safe Zone ${formatPounds(demo.szPence)}`}>
-            {formatPounds(demo.szPence)}
+          <HeroMoney accessibilityLabel={`Safe Zone ${formatPounds(model.szPence)}`}>
+            {formatPounds(model.szPence)}
           </HeroMoney>
           <View style={s.subRow}>
-            <Muted>{demo.sub}</Muted>
+            <Muted>{model.sub}</Muted>
             {isFog ? (
               <View style={[s.staleBadge, { backgroundColor: '#E7E3EC' }]}>
-                <Text style={s.staleText}>as of Tue</Text>
+                <Text style={s.staleText}>stale</Text>
               </View>
             ) : null}
           </View>
@@ -148,12 +373,18 @@ export function MeloGlance() {
               Every pound accounted for. Tap anything that looks wrong — I’d rather be corrected
               than confidently wrong.
             </Muted>
-            <MathRow label="Balance" value={money(breakdown.balance)} />
-            <MathRow label="Shielded bills" value={`−${money(breakdown.bills)}`} />
-            <MathRow label="Essentials to payday" value={`−${money(breakdown.essentials)}`} />
-            <MathRow label="Savings, as planned" value={`−${money(breakdown.savings)}`} />
-            <MathRow label="Buffer — early warning" value={`−${money(breakdown.buffer)}`} />
-            <MathRow label="Safe Zone" value={formatPounds(demo.szPence)} total />
+            {model.mathRows.map((row) => (
+              <MathRow
+                key={row.label}
+                label={row.label}
+                value={
+                  row.valuePence < 0
+                    ? `−${formatPounds(Math.abs(row.valuePence))}`
+                    : formatPounds(row.valuePence)
+                }
+              />
+            ))}
+            <MathRow label="Safe Zone" value={formatPounds(model.szPence)} total />
             <View style={s.mathButtons}>
               <GhostButton flex label="Looks right" onPress={() => setShowMath(false)} />
               <GhostButton flex label="Something’s off" onPress={() => setShowMath(false)} />
@@ -164,29 +395,44 @@ export function MeloGlance() {
         {/* runway */}
         <View style={s.runway}>
           <RunwayStrip
-            daysToPayday={demo.daysToPayday}
-            bills={demo.bills}
-            dangerDay={demo.dangerDay}
-            paydayLabel={demo.ctx.paydayLabel}
+            daysToPayday={model.daysToPayday}
+            bills={model.bills}
+            dangerDay={model.dangerDay}
+            paydayLabel={model.ctx.paydayLabel}
           />
         </View>
 
         {/* the ONE action card */}
-        <Surface style={s.card}>
-          <Eyebrow tone="muted">
-            {recoveryDone && demoKey === 'recovery' ? 'Done' : demo.action.title}
-          </Eyebrow>
-          <Body style={s.actionBody}>
-            {recoveryDone && demoKey === 'recovery'
-              ? 'That’s the whole ask. See you tomorrow — I’ll bring the numbers.'
-              : demo.action.body}
-          </Body>
-          {recoveryDone && demoKey === 'recovery' ? null : (
+        {model.action ? (
+          <Surface style={s.card}>
+            <Eyebrow tone="muted">{model.action.title}</Eyebrow>
+            <Body style={s.actionBody}>{model.action.body}</Body>
             <View style={s.actionCta}>
-              <PrimaryAction label={demo.action.cta} tone="ink" onPress={handleAction} />
+              <PrimaryAction label={model.action.cta} tone="ink" onPress={handleAction} />
             </View>
-          )}
-        </Surface>
+          </Surface>
+        ) : null}
+
+        {/* balance update (live) */}
+        {balanceEdit ? (
+          <Surface style={s.card} tone="sunken">
+            <Eyebrow tone="muted">Today’s balance</Eyebrow>
+            <View style={s.balanceRow}>
+              <Text style={[s.balancePound, { color: t.muted }]}>£</Text>
+              <TextInput
+                value={balanceText}
+                onChangeText={setBalanceText}
+                keyboardType="number-pad"
+                autoFocus
+                placeholder={String(Math.round(store.state.setup.balancePence / 100))}
+                placeholderTextColor={t.muted}
+                style={[s.balanceField, { color: t.ink }]}
+                onSubmitEditing={saveBalance}
+              />
+              <GhostButton label="Save" onPress={saveBalance} />
+            </View>
+          </Surface>
+        ) : null}
 
         {/* can I afford…? */}
         <View style={s.askRow}>
@@ -213,38 +459,49 @@ export function MeloGlance() {
         </View>
 
         {ask ? (
-          <AskVerdict
-            ask={ask}
-            demoKey={demoKey}
-            onShelf={() => setAsk({ ...ask, shelved: true })}
-          />
+          <AskVerdict ask={ask} ctx={model.ctx} onShelf={() => setAsk({ ...ask, shelved: true })} />
         ) : null}
 
-        {/* tiny wins ticker */}
+        {/* ticker + balance quiet link */}
         <Muted style={s.ticker}>
           {ask?.shelved ? `✦ ${COPY.shelf()}` : `✦ ${checks} checks-before-buying this week`}
         </Muted>
+        {mode === 'live' && !balanceEdit ? (
+          <Pressable onPress={() => setBalanceEdit(true)} style={s.updateLink}>
+            <Muted style={s.updateLinkText}>update balance</Muted>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       {/* dev state chip */}
       <View style={s.devWrap}>
         {devOpen ? (
           <View style={[s.devMenu, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+            {isLive ? (
+              <Pressable
+                onPress={() => switchMode('live')}
+                style={[s.devItem, mode === 'live' ? { backgroundColor: t.calmSoft } : null]}
+              >
+                <Text style={[s.devItemLabel, { color: mode === 'live' ? t.ink : t.secondary }]}>
+                  Live
+                </Text>
+              </Pressable>
+            ) : null}
             {DEMO_ORDER.map((key) => (
               <Pressable
                 key={key}
-                onPress={() => switchDemo(key)}
-                style={[s.devItem, key === demoKey ? { backgroundColor: t.calmSoft } : null]}
+                onPress={() => switchMode(key)}
+                style={[s.devItem, key === mode ? { backgroundColor: t.calmSoft } : null]}
               >
-                <Text style={[s.devItemLabel, { color: key === demoKey ? t.ink : t.secondary }]}>
+                <Text style={[s.devItemLabel, { color: key === mode ? t.ink : t.secondary }]}>
                   {DEMOS[key].label}
                 </Text>
               </Pressable>
             ))}
             <View style={[s.devDivider, { backgroundColor: t.hairline }]} />
             <Text style={[s.devDebug, { color: t.muted }]}>
-              {view.ladder} · {view.weather} · {view.copyKey} · sell{' '}
-              {view.monetizationAllowed ? 'on' : 'off'}
+              {model.view.ladder} · {model.view.weather} · {model.view.copyKey} · sell{' '}
+              {model.view.monetizationAllowed ? 'on' : 'off'}
             </Text>
           </View>
         ) : null}
@@ -254,28 +511,21 @@ export function MeloGlance() {
           onPress={() => setDevOpen((v) => !v)}
           style={[s.devToggle, { backgroundColor: t.inset, borderColor: t.hairline }]}
         >
-          <Text style={[s.devToggleLabel, { color: t.muted }]}>⚙ state</Text>
+          <Text style={[s.devToggleLabel, { color: t.muted }]}>
+            {mode === 'live' ? '⚙ state' : '⚙ demo'}
+          </Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-function AskVerdict({
-  ask,
-  demoKey,
-  onShelf,
-}: {
-  ask: Ask;
-  demoKey: DemoKey;
-  onShelf: () => void;
-}) {
-  const demo = DEMOS[demoKey];
+function AskVerdict({ ask, ctx, onShelf }: { ask: Ask; ctx: CopyContext; onShelf: () => void }) {
   if (ask.fog) {
     return (
       <Surface style={s.card} tone="sunken">
         <Verdict>Can’t call it</Verdict>
-        <Body style={s.verdictLine}>{COPY.affordFog(demo.ctx)}</Body>
+        <Body style={s.verdictLine}>{COPY.affordFog(ctx)}</Body>
       </Surface>
     );
   }
@@ -292,10 +542,10 @@ function AskVerdict({
         : undefined;
   const line =
     ask.result.verdict === 'safe'
-      ? COPY.affordSafe({ ...demo.ctx, safeZone: left })
+      ? COPY.affordSafe({ ...ctx, safeZone: left })
       : ask.result.verdict === 'tight'
-        ? COPY.affordTight({ ...demo.ctx, safeZone: left })
-        : COPY.affordNotNow(demo.ctx);
+        ? COPY.affordTight({ ...ctx, safeZone: left })
+        : COPY.affordNotNow(ctx);
 
   return (
     <Surface style={s.card} tone="sunken">
@@ -352,6 +602,16 @@ const s = StyleSheet.create({
   },
   chipDot: { width: 8, height: 8, borderRadius: 4 },
   chipWord: { fontSize: 12.5, fontWeight: '600' },
+  demoBanner: {
+    position: 'absolute',
+    top: 16,
+    right: 20,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  demoBannerText: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
   mascotRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -382,6 +642,15 @@ const s = StyleSheet.create({
   runway: { paddingHorizontal: 26, paddingTop: 18 },
   actionBody: { marginTop: 4, lineHeight: 20 },
   actionCta: { marginTop: 12 },
+  balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  balancePound: { fontSize: 22 },
+  balanceField: {
+    flex: 1,
+    fontSize: 26,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    paddingVertical: 4,
+  },
   askRow: { flexDirection: 'row', gap: 8, marginHorizontal: 26, marginTop: 16 },
   askInput: {
     flex: 1,
@@ -392,15 +661,13 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontVariant: ['tabular-nums'],
   },
-  askButton: {
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    justifyContent: 'center',
-  },
+  askButton: { borderRadius: 12, paddingHorizontal: 18, justifyContent: 'center' },
   askButtonLabel: { fontSize: 14.5, fontWeight: '600' },
   verdictLine: { marginTop: 5, lineHeight: 20 },
   shelfRow: { marginTop: 10, alignSelf: 'flex-start' },
   ticker: { marginHorizontal: 26, marginTop: 16, fontSize: 12.5 },
+  updateLink: { marginHorizontal: 26, marginTop: 6, alignSelf: 'flex-start' },
+  updateLinkText: { fontSize: 12, textDecorationLine: 'underline' },
   devWrap: { position: 'absolute', right: 14, bottom: 14, alignItems: 'flex-end', gap: 8 },
   devMenu: {
     borderRadius: 14,
@@ -413,11 +680,6 @@ const s = StyleSheet.create({
   devItemLabel: { fontSize: 13, textAlign: 'right', fontWeight: '500' },
   devDivider: { height: StyleSheet.hairlineWidth, marginVertical: 5, marginHorizontal: 4 },
   devDebug: { fontSize: 10, textAlign: 'right', paddingHorizontal: 10, paddingBottom: 4 },
-  devToggle: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
+  devToggle: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7 },
   devToggleLabel: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.3 },
 });
