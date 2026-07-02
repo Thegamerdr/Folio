@@ -137,10 +137,21 @@ export function MeloGlance({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- clockTick forces re-derivation on foreground
     [isLive, store.state, clockTick],
   );
+  // Welcome-back must survive the session: markOpened rewrites lastOpenedISO on the same
+  // open that detected the absence, which would extinguish the overlay after one frame
+  // (audit catch) — the ref pins it for the rest of the session.
+  const wasAwayRef = useRef(false);
+  if (liveDerived?.inputs.returnedAfterAbsence) wasAwayRef.current = true;
   const liveResolved = useMemo(
     () =>
       liveDerived
-        ? resolveState(store.state.journey.record, liveDerived.inputs, liveDerived.today)
+        ? resolveState(
+            store.state.journey.record,
+            wasAwayRef.current
+              ? { ...liveDerived.inputs, returnedAfterAbsence: true }
+              : liveDerived.inputs,
+            liveDerived.today,
+          )
         : null,
     [liveDerived, store.state.journey.record],
   );
@@ -278,12 +289,23 @@ export function MeloGlance({
                   }
                 : recoveryDeclinedToday
                   ? null
-                  : {
-                      title: 'The way back',
-                      body: 'Three steps. The first one takes a minute. No lecture in any of them.',
-                      cta: 'Start the way back',
-                      kind: 'recovery',
-                    }
+                  : liveDerived.unsafe.structural
+                    ? {
+                        // Structural shortfall is NOT overspending (audit): the cycle
+                        // doesn't fit — say that, and lead with a real option.
+                        title: 'This cycle doesn’t fit',
+                        body:
+                          liveDerived.unsafe.options[0]?.body ??
+                          `The maths is short ${formatPounds(liveDerived.unsafe.gapPence)} — that’s the numbers, not your choices.`,
+                        cta: 'See the way through',
+                        kind: 'recovery',
+                      }
+                    : {
+                        title: 'The way back',
+                        body: 'Three steps. The first one takes a minute. No lecture in any of them.',
+                        cta: 'Start the way back',
+                        kind: 'recovery',
+                      }
               : view.ladder === 'warning'
                 ? {
                     title: 'Keep it dry',
@@ -565,6 +587,7 @@ export function MeloGlance({
         colorway={store.state.setup.colorway}
         wardrobe={store.state.setup.wardrobe}
         checksThisWeek={store.state.checksThisWeek}
+        form={store.state.setup.form}
         onClose={() => setChatOpen(false)}
       />
     );
@@ -850,6 +873,16 @@ export function MeloGlance({
           </Surface>
         ) : null}
 
+        {/* Free debt-help signposting (§13 risk 12: the ethical floor) — appears only when
+            the shortfall has been structural for 2+ cycles. Never monetized, never gated. */}
+        {mode === 'live' && liveDerived?.unsafe.signpost
+          ? liveDerived.unsafe.signpostLines.map((line) => (
+              <Muted key={line} style={s.signpostLine}>
+                {line}
+              </Muted>
+            ))
+          : null}
+
         {/* balance update (live) */}
         {balanceEdit ? (
           <Surface style={s.card} tone="sunken">
@@ -986,6 +1019,18 @@ export function MeloGlance({
             <Pressable onPress={openReview}>
               <Muted style={s.updateLinkText}>this week</Muted>
             </Pressable>
+            {store.state.setup.quietMode ? (
+              // Quiet Mode hides the mascot (the usual chat door) — the link keeps the
+              // companion reachable when the USER initiates (audit catch).
+              <Pressable
+                onPress={() => {
+                  store.bump('chatOpened');
+                  setChatOpen(true);
+                }}
+              >
+                <Muted style={s.updateLinkText}>talk to Melo</Muted>
+              </Pressable>
+            ) : null}
             <Pressable onPress={() => setSettingsOpen(true)}>
               <Muted style={s.updateLinkText}>settings</Muted>
             </Pressable>
@@ -1222,6 +1267,7 @@ const s = StyleSheet.create({
   linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginHorizontal: 26, marginTop: 8 },
   updateLinkText: { fontSize: 12, textDecorationLine: 'underline' },
   importLink: { fontSize: 12, textDecorationLine: 'underline', marginTop: 10 },
+  signpostLine: { marginHorizontal: 26, marginTop: 8, fontSize: 12.5, lineHeight: 18 },
   devWrap: { position: 'absolute', right: 14, bottom: 14, alignItems: 'flex-end', gap: 8 },
   devMenu: {
     borderRadius: 14,

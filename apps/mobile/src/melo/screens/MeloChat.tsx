@@ -55,11 +55,20 @@ type Props = {
   view: StateView;
   colorway: MeloColorway;
   wardrobe: string | null;
+  form: string | null;
   checksThisWeek: number;
   onClose: () => void;
 };
 
-export function MeloChat({ derived, view, colorway, wardrobe, checksThisWeek, onClose }: Props) {
+export function MeloChat({
+  derived,
+  view,
+  colorway,
+  wardrobe,
+  form,
+  checksThisWeek,
+  onClose,
+}: Props) {
   const t = useTheme();
   const [thread, setThread] = useState<readonly ThreadItem[]>([]);
   const [input, setInput] = useState('');
@@ -195,6 +204,7 @@ export function MeloChat({ derived, view, colorway, wardrobe, checksThisWeek, on
           emotion={view.mascot.family}
           colorway={colorway}
           wardrobe={wardrobe}
+          form={form}
           size={72}
           breathe
         />
@@ -269,7 +279,7 @@ export function MeloChat({ derived, view, colorway, wardrobe, checksThisWeek, on
           ),
         )}
 
-        {sending ? <ThinkingRow colorway={colorway} wardrobe={wardrobe} /> : null}
+        {sending ? <ThinkingRow colorway={colorway} wardrobe={wardrobe} form={form} /> : null}
 
         {errorLine !== null ? (
           <View style={s.errorRow}>
@@ -336,7 +346,15 @@ export function MeloChat({ derived, view, colorway, wardrobe, checksThisWeek, on
 
 /** While Melo thinks: the mini mascot with a slow pulsing glow behind it — the same being,
  *  quietly working. Deliberately not a three-dot typing indicator. */
-function ThinkingRow({ colorway, wardrobe }: { colorway: MeloColorway; wardrobe: string | null }) {
+function ThinkingRow({
+  colorway,
+  wardrobe,
+  form,
+}: {
+  colorway: MeloColorway;
+  wardrobe: string | null;
+  form: string | null;
+}) {
   const t = useTheme();
   const pulse = useRef(new Animated.Value(0.35)).current;
 
@@ -365,7 +383,7 @@ function ThinkingRow({ colorway, wardrobe }: { colorway: MeloColorway; wardrobe:
     <View style={s.thinkingRow} accessibilityLabel="Melo is thinking">
       <View style={s.thinkingMascot}>
         <Animated.View style={[s.thinkingGlow, { backgroundColor: t.calmSoft, opacity: pulse }]} />
-        <MeloMascot emotion="calm" colorway={colorway} wardrobe={wardrobe} size={34} />
+        <MeloMascot emotion="calm" colorway={colorway} wardrobe={wardrobe} form={form} size={34} />
       </View>
       <Muted style={s.thinkingLine}>thinking</Muted>
     </View>

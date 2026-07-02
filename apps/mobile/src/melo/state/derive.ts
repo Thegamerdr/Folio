@@ -5,6 +5,7 @@
 
 import {
   addDays,
+  assessUnsafe,
   computeSafeZone,
   daysBetween,
   deriveCycleState,
@@ -19,6 +20,7 @@ import {
   type ISODate,
   type SafeZoneResult,
   type StateInputs,
+  type UnsafeState,
 } from '@folio/melo-engine';
 
 import type { RunwayBill } from '../components/RunwayStrip';
@@ -120,6 +122,9 @@ export interface LiveDerived {
   readonly milestoneLines: readonly string[];
   /** Savings actually committed THIS cycle (0 when the ritual beat declined it). */
   readonly savingsThisCyclePence: number;
+  /** Structural-shortfall assessment (audit: the engine existed but nothing called it —
+   *  the honest "this cycle doesn't fit" flow and free debt signposting were dead code). */
+  readonly unsafe: UnsafeState;
 }
 
 /** Weekend paydays pay the Friday before (UK convention). If the shift lands the payday in the
@@ -307,7 +312,34 @@ export function deriveLive(state: MeloState, now: Date = new Date()): LiveDerive
     newMilestoneIds: cycleDerived.newMilestoneIds,
     milestoneLines: cycleDerived.milestoneLines,
     savingsThisCyclePence: savingsThisCycle,
+    unsafe: assessUnsafe({
+      todayISO: today,
+      payday,
+      incomePence: Math.max(0, setup.incomePence),
+      balancePence: setup.balancePence,
+      shieldedBillsPence: safeZone.shieldedBillsPence,
+      essentialsPerDayPence: setup.essentialsPerDayPence,
+      daysToPayday: safeZone.daysToPayday,
+      bills: engineBills.map((b) => ({
+        name: b.name,
+        amountPence: b.amountPence,
+        dueDate: b.dueDate,
+      })),
+      // Prior structural cycles ≈ the trailing run of negative closes in the history.
+      structuralCycleCount: trailingNegativeCycles(state.cycleHistory),
+    }),
   };
+}
+
+function trailingNegativeCycles(
+  history: readonly { readonly closingSafeZonePence: number }[],
+): number {
+  let n = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i]!.closingSafeZonePence < 0) n++;
+    else break;
+  }
+  return n;
 }
 
 /** Most recent occurrence of a day-of-month (1..28) ON or BEFORE today. */
