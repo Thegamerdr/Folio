@@ -4,15 +4,20 @@
 // §13 risk 16) — dates land on the literal day-of-month for now.
 
 import {
+  addDays,
   computeSafeZone,
   daysBetween,
   formatPounds,
+  observedRunRatePence,
   projectDangerDate,
+  recoveryMovePence,
   runwayDays,
+  shiftWeekendToFriday,
   type Bill,
   type CopyContext,
   type ISODate,
   type SafeZoneResult,
+  type SpendEntry,
   type StateInputs,
 } from '@folio/melo-engine';
 
@@ -80,15 +85,30 @@ export interface LiveDerived {
   readonly ctx: CopyContext;
   readonly runwayBills: readonly RunwayBill[];
   readonly dangerDayOffset: number | null;
+  /** The recovery "one move today", derived from the actual overshoot (never hardcoded). */
+  readonly recoveryMove: number;
+  /** Whether the forecast runs on observed spending or the essentials plan. */
+  readonly runRateSource: 'observed' | 'planned';
+}
+
+/** Weekend paydays pay the Friday before (UK convention). If the shift lands the payday in the
+ *  past (it's Saturday and payday was "tomorrow, Sunday" → paid yesterday), the cycle has
+ *  already rolled — use next month's occurrence, shifted the same way. */
+function nextShiftedPayday(paydayDay: number, today: ISODate): ISODate {
+  const candidate = shiftWeekendToFriday(nextPaydayISO(paydayDay, today));
+  if (daysBetween(today, candidate) >= 0) return candidate;
+  const following = nextPaydayISO(paydayDay, addDays(nextPaydayISO(paydayDay, today), 1));
+  return shiftWeekendToFriday(following);
 }
 
 export function deriveLive(
   setup: MeloSetup,
   journey: MeloJourney,
+  spendLog: readonly SpendEntry[],
   now: Date = new Date(),
 ): LiveDerived {
   const today = todayISO(now);
-  const payday = nextPaydayISO(setup.paydayDay, today);
+  const payday = nextShiftedPayday(setup.paydayDay, today);
 
   const engineBills: Bill[] = setup.bills.map((b) => ({
     id: b.id,
@@ -108,9 +128,11 @@ export function deriveLive(
     bufferPence: setup.bufferPence,
   });
 
-  // v1 run-rate: the essentials plan. Spend tracking sharpens this later — the honest
-  // consequence is that danger appears through balance updates, not silent projection drift.
-  const runRate = setup.essentialsPerDayPence;
+  // Run-rate: observed spending when the user logs it (the forecast that MOVES), the essentials
+  // plan until then — and the UI says which one is speaking.
+  const observed = observedRunRatePence(spendLog, today);
+  const runRate = observed ?? setup.essentialsPerDayPence;
+  const runRateSource: 'observed' | 'planned' = observed !== null ? 'observed' : 'planned';
   const danger = projectDangerDate({
     safeZonePence: safeZone.safeZonePence,
     runRatePence: runRate,
@@ -159,6 +181,8 @@ export function deriveLive(
     ? Math.max(1, daysBetween(journey.recoveryStartISO, today) + 1)
     : 1;
 
+  const movePence = recoveryMovePence(safeZone.safeZonePence, safeZone.daysToPayday);
+
   const ctx: CopyContext = {
     safeZone: formatPounds(safeZone.safeZonePence),
     perDay: formatPounds(safeZone.perDayPence),
@@ -167,7 +191,7 @@ export function deriveLive(
     paydayLabel,
     daysToPayday: safeZone.daysToPayday,
     dayOnPath,
-    todaysMove: 'shift £8',
+    todaysMove: `shift ${formatPounds(movePence)}`,
     staleLabel:
       dayLabel(todayISO(new Date(setup.balanceUpdatedAtMs))).split(' the ')[0] ?? 'a while ago',
   };
@@ -183,6 +207,8 @@ export function deriveLive(
     ctx,
     runwayBills,
     dangerDayOffset: danger ? danger.daysAway : null,
+    recoveryMove: movePence,
+    runRateSource,
   };
 }
 

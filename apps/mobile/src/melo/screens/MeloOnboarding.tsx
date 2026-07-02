@@ -23,23 +23,12 @@ import { RunwayStrip } from '../components/RunwayStrip';
 import { WeatherSky } from '../components/WeatherSky';
 import { deriveLive } from '../state/derive';
 import type { MeloBill, MeloSetup } from '../state/meloStore';
+import { BILL_PRESETS, billId, parsePoundsText } from '../state/presets';
 import { MELO_COLORWAYS, type MeloColorway } from '../theme/weather';
 
 type Beat = 'cold' | 'pick' | 'payday' | 'income' | 'balance' | 'bills' | 'reveal';
 
 const PAYDAY_PRESETS = [1, 5, 10, 15, 20, 25, 28] as const;
-
-const BILL_PRESETS: readonly Omit<MeloBill, 'id'>[] = [
-  { name: 'Rent', amountPence: 85_000, dueDay: 1, kind: 'bill' },
-  { name: 'Council tax', amountPence: 14_200, dueDay: 1, kind: 'bill' },
-  { name: 'Energy', amountPence: 9_500, dueDay: 15, kind: 'bill' },
-  { name: 'Water', amountPence: 3_800, dueDay: 8, kind: 'bill' },
-  { name: 'Phone', amountPence: 2_400, dueDay: 20, kind: 'bill' },
-  { name: 'Broadband', amountPence: 3_000, dueDay: 12, kind: 'bill' },
-  { name: 'Subscriptions', amountPence: 2_700, dueDay: 15, kind: 'bill' },
-  { name: 'Car', amountPence: 12_000, dueDay: 25, kind: 'bill' },
-  { name: 'Debt payment', amountPence: 6_000, dueDay: 28, kind: 'debt' },
-];
 
 type Props = {
   onComplete: (setup: Omit<MeloSetup, 'onboarded'>) => void;
@@ -55,8 +44,8 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
   const [balanceText, setBalanceText] = useState('');
   const [bills, setBills] = useState<readonly MeloBill[]>([]);
 
-  const incomePence = parsePounds(incomeText);
-  const balancePence = parsePounds(balanceText);
+  const incomePence = parsePoundsText(incomeText);
+  const balancePence = parsePoundsText(balanceText);
 
   const draft: Omit<MeloSetup, 'onboarded'> = useMemo(
     () => ({
@@ -77,12 +66,12 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
     setBills((prev) => {
       const existing = prev.find((b) => b.name === preset.name);
       if (existing) return prev.filter((b) => b.name !== preset.name);
-      return [...prev, { ...preset, id: preset.name.toLowerCase().replace(/\s+/g, '-') }];
+      return [...prev, { ...preset, id: billId(preset.name) }];
     });
   };
 
   const setBillAmount = (id: string, text: string) => {
-    const amountPence = parsePounds(text);
+    const amountPence = parsePoundsText(text);
     setBills((prev) => prev.map((b) => (b.id === id ? { ...b, amountPence } : b)));
   };
 
@@ -249,6 +238,7 @@ function Reveal({ draft, onDone }: { draft: Omit<MeloSetup, 'onboarded'>; onDone
       deriveLive(
         { ...draft, onboarded: true },
         { record: null, recoveryStartISO: null, moveDoneISO: null },
+        [],
       ),
     [draft],
   );
@@ -347,11 +337,6 @@ function AmountInput({
       />
     </View>
   );
-}
-
-function parsePounds(text: string): number {
-  const digits = Number.parseInt(text.replace(/[^0-9]/g, ''), 10);
-  return Number.isFinite(digits) && digits > 0 ? digits * 100 : 0;
 }
 
 const s = StyleSheet.create({

@@ -65,3 +65,13 @@ export {
   type NotifyContext,
   type NotifyInputs,
 } from './notify.js';
+
+export {
+  observedRunRatePence,
+  shiftWeekendToFriday,
+  dayOfWeek,
+  recoveryMovePence,
+  type SpendEntry,
+} from './spend.js';
+
+export { detectWins, WIN_LINES, type WinId, type WinEvent, type WinSnapshot } from './wins.js';

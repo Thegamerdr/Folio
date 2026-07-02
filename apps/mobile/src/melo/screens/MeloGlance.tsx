@@ -10,12 +10,14 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import {
   COPY,
   checkAfford,
+  detectWins,
   formatPounds,
   resolveState,
   type AffordResult,
   type CopyContext,
   type CopyKey,
   type StateView,
+  type WinSnapshot,
 } from '@folio/melo-engine';
 import {
   Body,
@@ -39,6 +41,7 @@ import { useMeloStore } from '../state/meloStore';
 import { DEMOS, DEMO_ORDER, DEMO_TODAY, demoBreakdown, type DemoKey } from '../state/demoStates';
 import { RecoveryWalkthrough } from './RecoveryWalkthrough';
 import { MeloRitual, type RitualBillRow } from './MeloRitual';
+import { MeloSettings } from './MeloSettings';
 
 const SKY_HEIGHT = 200;
 
@@ -93,13 +96,18 @@ export function MeloGlance() {
   const [demoChecks, setDemoChecks] = useState(3);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [ritualOpen, setRitualOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [balanceEdit, setBalanceEdit] = useState(false);
   const [balanceText, setBalanceText] = useState('');
+  const [spendEdit, setSpendEdit] = useState(false);
+  const [spendText, setSpendText] = useState('');
+  const [lastWinLine, setLastWinLine] = useState<string | null>(null);
 
   // ---- live derivation (engine + persisted record) ----
   const liveDerived = useMemo(
-    () => (isLive ? deriveLive(store.state.setup, store.state.journey) : null),
-    [isLive, store.state.setup, store.state.journey],
+    () =>
+      isLive ? deriveLive(store.state.setup, store.state.journey, store.state.spendLog) : null,
+    [isLive, store.state.setup, store.state.journey, store.state.spendLog],
   );
   const liveResolved = useMemo(
     () =>
@@ -119,6 +127,30 @@ export function MeloGlance() {
       store.setStateRecord(liveResolved.record);
     }
   }, [mode, liveResolved, store]);
+
+  // Tiny wins (§2 P10): noticed, never claimed. The persisted record is the "prev" side of the
+  // diff, so ladder/journey transitions (storm passed, recovery completed) fire exactly once.
+  useEffect(() => {
+    if (mode !== 'live' || !liveResolved || !liveDerived) return;
+    const prevRecord = store.state.journey.record;
+    const nextSnap: WinSnapshot = {
+      onboarded: store.state.setup.onboarded,
+      checksThisWeek: store.state.checksThisWeek,
+      ritualDone: store.state.lastRitualISO !== null,
+      spendCount: store.state.spendLog.length,
+      ladder: liveResolved.view.ladder,
+      journey: liveResolved.view.journey,
+      safeZonePence: liveDerived.safeZone.safeZonePence,
+    };
+    const prevSnap: WinSnapshot | null = prevRecord
+      ? { ...nextSnap, ladder: prevRecord.ladder, journey: prevRecord.journey }
+      : null;
+    const events = detectWins(prevSnap, nextSnap, store.state.wins);
+    if (events.length > 0) {
+      store.recordWins(events.map((e) => e.id));
+      setLastWinLine(events[events.length - 1]?.line ?? null);
+    }
+  }, [mode, liveResolved, liveDerived, store]);
 
   // ---- model ----
   const model: GlanceModel = useMemo(() => {
@@ -151,7 +183,7 @@ export function MeloGlance() {
             ? view.journey === 'recovery'
               ? {
                   title: 'Today’s move',
-                  body: 'Shift £8 to bills. Then we’re done for today — no second ask.',
+                  body: `Shift ${formatPounds(liveDerived.recoveryMove)} to bills. Then we’re done for today — no second ask.`,
                   cta: 'Do today’s move',
                   kind: 'recovery',
                 }
@@ -251,7 +283,18 @@ export function MeloGlance() {
     setAsk(null);
     setAskText('');
     setBalanceEdit(false);
+    setSpendEdit(false);
+    setSettingsOpen(false);
     setRitualOpen(false);
+  };
+
+  const saveSpend = () => {
+    if (!liveDerived) return;
+    const pounds = Number.parseInt(spendText.replace(/[^0-9]/g, ''), 10);
+    if (!Number.isFinite(pounds) || pounds <= 0) return;
+    store.addSpend(pounds * 100, liveDerived.today);
+    setSpendEdit(false);
+    setSpendText('');
   };
 
   const runAsk = () => {
@@ -326,6 +369,16 @@ export function MeloGlance() {
     setRecoveryOpen(false);
   };
 
+  if (settingsOpen && mode === 'live') {
+    return (
+      <MeloSettings
+        setup={store.state.setup}
+        onSave={store.updateSetup}
+        onClose={() => setSettingsOpen(false)}
+      />
+    );
+  }
+
   if (ritualOpen) {
     return (
       <MeloRitual
@@ -362,6 +415,7 @@ export function MeloGlance() {
         daysToPayday={model.daysToPayday}
         paydayLabel={model.ctx.paydayLabel}
         dayOnPath={model.ctx.dayOnPath}
+        movePence={liveDerived.recoveryMove}
         onCommit={acceptRecoveryAndClose}
         onExit={() => setRecoveryOpen(false)}
       />
@@ -522,14 +576,51 @@ export function MeloGlance() {
           <AskVerdict ask={ask} ctx={model.ctx} onShelf={() => setAsk({ ...ask, shelved: true })} />
         ) : null}
 
-        {/* ticker + balance quiet link */}
+        {/* log a spend (live) — the entry that makes the forecast move */}
+        {spendEdit ? (
+          <Surface style={s.card} tone="sunken">
+            <Eyebrow tone="muted">Log a spend</Eyebrow>
+            <View style={s.balanceRow}>
+              <Text style={[s.balancePound, { color: t.muted }]}>£</Text>
+              <TextInput
+                value={spendText}
+                onChangeText={setSpendText}
+                keyboardType="number-pad"
+                autoFocus
+                placeholder="12"
+                placeholderTextColor={t.muted}
+                style={[s.balanceField, { color: t.ink }]}
+                onSubmitEditing={saveSpend}
+              />
+              <GhostButton label="Log it" onPress={saveSpend} />
+            </View>
+          </Surface>
+        ) : null}
+
+        {/* ticker + quiet links */}
         <Muted style={s.ticker}>
-          {ask?.shelved ? `✦ ${COPY.shelf()}` : `✦ ${checks} checks-before-buying this week`}
+          {ask?.shelved
+            ? `✦ ${COPY.shelf()}`
+            : lastWinLine
+              ? `✦ ${lastWinLine}`
+              : `✦ ${checks} checks-before-buying this week`}
         </Muted>
-        {mode === 'live' && !balanceEdit ? (
-          <Pressable onPress={() => setBalanceEdit(true)} style={s.updateLink}>
-            <Muted style={s.updateLinkText}>update balance</Muted>
-          </Pressable>
+        {mode === 'live' ? (
+          <View style={s.linkRow}>
+            {!balanceEdit ? (
+              <Pressable onPress={() => setBalanceEdit(true)}>
+                <Muted style={s.updateLinkText}>update balance</Muted>
+              </Pressable>
+            ) : null}
+            {!spendEdit ? (
+              <Pressable onPress={() => setSpendEdit(true)}>
+                <Muted style={s.updateLinkText}>log a spend</Muted>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={() => setSettingsOpen(true)}>
+              <Muted style={s.updateLinkText}>settings</Muted>
+            </Pressable>
+          </View>
         ) : null}
       </ScrollView>
 
@@ -726,7 +817,7 @@ const s = StyleSheet.create({
   verdictLine: { marginTop: 5, lineHeight: 20 },
   shelfRow: { marginTop: 10, alignSelf: 'flex-start' },
   ticker: { marginHorizontal: 26, marginTop: 16, fontSize: 12.5 },
-  updateLink: { marginHorizontal: 26, marginTop: 6, alignSelf: 'flex-start' },
+  linkRow: { flexDirection: 'row', gap: 18, marginHorizontal: 26, marginTop: 8 },
   updateLinkText: { fontSize: 12, textDecorationLine: 'underline' },
   devWrap: { position: 'absolute', right: 14, bottom: 14, alignItems: 'flex-end', gap: 8 },
   devMenu: {

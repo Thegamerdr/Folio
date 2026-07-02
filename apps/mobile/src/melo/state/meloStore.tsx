@@ -17,7 +17,7 @@ import {
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 
-import type { BillKind, MeloStateRecord } from '@folio/melo-engine';
+import type { BillKind, MeloStateRecord, SpendEntry } from '@folio/melo-engine';
 import { GCM_NONCE_BYTES, decryptBlob, encryptBlob, isEncryptedBlob } from '@/folio/lib/cryptoBlob';
 import { getVaultKey } from '@/folio/lib/vaultKey';
 
@@ -58,6 +58,8 @@ export interface MeloState {
   readonly journey: MeloJourney;
   readonly checksThisWeek: number;
   readonly lastRitualISO: string | null;
+  readonly spendLog: readonly SpendEntry[];
+  readonly wins: readonly string[];
 }
 
 const DEFAULT_SETUP: MeloSetup = {
@@ -78,6 +80,8 @@ const DEFAULT_STATE: MeloState = {
   journey: { record: null, recoveryStartISO: null, moveDoneISO: null },
   checksThisWeek: 0,
   lastRitualISO: null,
+  spendLog: [],
+  wins: [],
 };
 
 export interface MeloStoreApi {
@@ -90,6 +94,10 @@ export interface MeloStoreApi {
   readonly markMoveDone: (todayISO: string) => void;
   readonly markRitualDone: (todayISO: string) => void;
   readonly incrementChecks: () => void;
+  /** Log a spend: appended to the log AND deducted from the balance — logging IS fresh data. */
+  readonly addSpend: (amountPence: number, atISO: string, note?: string) => void;
+  readonly recordWins: (ids: readonly string[]) => void;
+  readonly updateSetup: (partial: Partial<Omit<MeloSetup, 'onboarded'>>) => void;
   readonly resetAll: () => void;
 }
 
@@ -186,6 +194,31 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
       markRitualDone: (todayISO) => update((prev) => ({ ...prev, lastRitualISO: todayISO })),
       incrementChecks: () =>
         update((prev) => ({ ...prev, checksThisWeek: prev.checksThisWeek + 1 })),
+      addSpend: (amountPence, atISO, note) =>
+        update((prev) => ({
+          ...prev,
+          spendLog: [
+            ...prev.spendLog,
+            {
+              id: `${atISO}-${prev.spendLog.length}`,
+              amountPence,
+              atISO,
+              ...(note ? { note } : {}),
+            },
+          ],
+          setup: {
+            ...prev.setup,
+            balancePence: prev.setup.balancePence - amountPence,
+            balanceUpdatedAtMs: Date.now(),
+          },
+        })),
+      recordWins: (ids) =>
+        update((prev) => ({
+          ...prev,
+          wins: [...prev.wins, ...ids.filter((id) => !prev.wins.includes(id))],
+        })),
+      updateSetup: (partial) =>
+        update((prev) => ({ ...prev, setup: { ...prev.setup, ...partial } })),
       resetAll: () => update(() => DEFAULT_STATE),
     }),
     [ready, state, update],

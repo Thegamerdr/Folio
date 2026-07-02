@@ -28,6 +28,8 @@ type Props = {
   daysToPayday: number;
   paydayLabel: string;
   dayOnPath: number;
+  /** The derived "one move today" (recoveryMovePence) — never a hardcoded number. */
+  movePence: number;
   onCommit: () => void;
   onExit: () => void;
 };
@@ -39,6 +41,7 @@ export function RecoveryWalkthrough({
   daysToPayday,
   paydayLabel,
   dayOnPath,
+  movePence,
   onCommit,
   onExit,
 }: Props) {
@@ -93,7 +96,9 @@ export function RecoveryWalkthrough({
       {step === 3 ? (
         <View style={s.body}>
           <Display>One move today.</Display>
-          <Body style={s.sub}>Shift £8 to bills. That’s the whole ask — nothing else today.</Body>
+          <Body style={s.sub}>
+            Shift {formatPounds(movePence)} to bills. That’s the whole ask — nothing else today.
+          </Body>
           <View style={s.mascot}>
             <MeloMascot emotion="hope" colorway={colorway} size={84} glow={0.5} />
           </View>
