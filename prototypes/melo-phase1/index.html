@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Melo — Phase 1 Prototype</title>
+<!--
+  Melo Phase 1 clickable prototype (see C:\dev\folio-v2-greenfield\MELO_BLUEPRINT.md §14–§15).
+  Validates: (1) Safe Zone reveal comprehension, (2) mascot reads adult, (3) home answers "am I okay?" in <3s.
+  Self-contained: no build, no deps. Flows: onboarding → reveal → home (6 states via the state chip) → recovery.
+-->
+<style>
+  :root{
+    --paper:#F7F2EA; --paper-dim:#F1E7DC; --ink:#22201B; --ink2:#6F675A; --ink3:#9A9184;
+    --terra:#C4623A; --terra-soft:#D9825C; --hair:#E5DECF; --good:#5F7D54; --slate:#46505A;
+    --shadow:0 24px 70px rgba(34,32,27,.16);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:#E9E2D3; min-height:100vh; display:grid; place-items:center;
+    font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    color:var(--ink); padding:28px 0;
+  }
+  .stage{display:flex; flex-direction:column; align-items:center; gap:14px}
+  .stage-note{font-size:12.5px; color:#8A8172; margin:0; letter-spacing:.2px}
+  .phone{
+    width:390px; height:800px; background:var(--paper); border-radius:30px; box-shadow:var(--shadow);
+    overflow:clip; position:relative; border:1px solid rgba(34,32,27,.06);
+  }
+  @media (max-width:430px){
+    body{padding:0} .phone{width:100vw; height:100dvh; border-radius:0} .stage-note{display:none}
+  }
+
+  /* ---------- screens ---------- */
+  .screen{position:absolute; inset:0; display:none; flex-direction:column; background:var(--paper)}
+  .screen.on{display:flex}
+  .pad{padding:0 26px}
+  .grow{flex:1}
+
+  /* onboarding shared */
+  .ob-top{display:flex; align-items:center; justify-content:space-between; padding:20px 22px 6px}
+  .back{border:none; background:none; color:var(--ink3); font-size:20px; padding:6px 10px; cursor:pointer; border-radius:10px}
+  .dots{display:flex; gap:6px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:var(--hair)}
+  .dots i.on{background:var(--terra)}
+  .q{font-size:23px; font-weight:650; letter-spacing:-.2px; line-height:1.25; margin:26px 0 8px}
+  .q-sub{font-size:14.5px; color:var(--ink2); line-height:1.5; margin:0 0 22px}
+  .btn{
+    display:block; width:calc(100% - 52px); margin:10px 26px; padding:15px; border:none; border-radius:14px;
+    background:var(--terra); color:#FFF8F2; font-size:16px; font-weight:650; cursor:pointer;
+    transition:transform .15s ease, background .2s ease;
+  }
+  .btn:active{transform:scale(.985)}
+  .btn[disabled]{background:var(--hair); color:var(--ink3); cursor:default}
+  .link{background:none;border:none;color:var(--ink3);font-size:13.5px;cursor:pointer;padding:10px;text-align:center;width:100%}
+  .link:hover{color:var(--ink2)}
+  .ob-melo{position:absolute; bottom:96px; left:26px; opacity:.95; pointer-events:none}
+
+  /* cold open */
+  #scr-cold{justify-content:center; align-items:center; text-align:center; gap:6px}
+  #scr-cold h1{font-size:30px; font-weight:700; letter-spacing:-.4px; margin:18px 0 6px}
+  #scr-cold p{font-size:15.5px; color:var(--ink2); line-height:1.55; margin:0 34px 26px; max-width:300px}
+
+  /* pick */
+  .pick-row{display:flex; gap:12px; padding:6px 26px}
+  .pick-card{
+    flex:1; border:1.5px solid var(--hair); border-radius:16px; background:#FBF7F0; padding:14px 6px 12px;
+    display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; transition:border-color .2s, transform .15s;
+  }
+  .pick-card.sel{border-color:var(--terra); transform:translateY(-2px)}
+  .pick-card b{font-size:13.5px; font-weight:650}
+  .pick-card span{font-size:11.5px; color:var(--ink3)}
+
+  /* option rows (payday) */
+  .opt{
+    display:flex; align-items:center; justify-content:space-between; width:calc(100% - 52px); margin:5px 26px;
+    padding:15px 16px; border:1.5px solid var(--hair); border-radius:14px; background:#FBF7F0;
+    font-size:15px; font-weight:550; color:var(--ink); cursor:pointer; transition:border-color .2s;
+  }
+  .opt small{color:var(--ink3); font-weight:450}
+  .opt.sel{border-color:var(--terra)}
+  .opt.sel::after{content:"✓"; color:var(--terra); font-weight:700}
+
+  /* income */
+  .amt-wrap{display:flex; align-items:baseline; gap:6px; margin:8px 26px 4px; border-bottom:2px solid var(--hair); padding:6px 4px}
+  .amt-wrap b{font-size:26px; color:var(--ink2)}
+  .amt{border:none; background:none; outline:none; font-size:40px; font-weight:650; width:100%;
+       font-variant-numeric:tabular-nums; color:var(--ink); letter-spacing:-.5px}
+  .chips{display:flex; flex-wrap:wrap; gap:9px; padding:14px 26px}
+  .chip{
+    border:1.5px solid var(--hair); background:#FBF7F0; color:var(--ink); border-radius:999px;
+    padding:9px 14px; font-size:13.5px; font-weight:550; cursor:pointer; transition:all .18s;
+    font-variant-numeric:tabular-nums;
+  }
+  .chip.sel{border-color:var(--terra); background:#F6E4D8}
+  .varies-note{display:none; margin:2px 26px; font-size:13px; color:var(--ink2); line-height:1.5}
+  .varies-note.on{display:block}
+
+  /* bills chest */
+  .chest-row{display:flex; align-items:center; gap:10px; margin:8px 26px; padding:12px 14px;
+    background:#F2EADC; border-radius:14px; font-size:14px; font-weight:600}
+  .chest-row .sum{margin-left:auto; font-variant-numeric:tabular-nums}
+  .chest-row.bump{animation:bump .35s ease}
+  @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.035)}100%{transform:scale(1)}}
+
+  /* reveal */
+  #scr-reveal{background:var(--paper)}
+  .reveal-sky{
+    position:absolute; inset:0 0 auto 0; height:300px; opacity:0; transition:opacity 1.6s ease;
+    background:linear-gradient(180deg,#F3E2BE 0%, #F6ECD6 55%, var(--paper) 100%);
+  }
+  .reveal-sky.cloud{background:linear-gradient(180deg,#DCDFDA 0%, #ECE9DF 55%, var(--paper) 100%)}
+  .reveal-sky.on{opacity:1}
+  .reveal-body{position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; text-align:center; padding-top:96px; flex:1}
+  .sz-big{font-size:64px; font-weight:700; letter-spacing:-1.5px; font-variant-numeric:tabular-nums; margin:14px 0 2px}
+  .sz-cap{font-size:14px; color:var(--ink2); letter-spacing:.2px}
+  .reveal-line{font-size:15px; color:var(--ink2); line-height:1.55; margin:18px 34px 0; max-width:300px}
+
+  /* ---------- home ---------- */
+  #scr-home{background:var(--paper)}
+  .sky{
+    height:210px; position:relative; flex-shrink:0; transition:background 1s ease; overflow:hidden;
+    background:linear-gradient(180deg,#F3E2BE 0%, #F6ECD6 60%, var(--paper) 100%);
+  }
+  .sun{position:absolute; top:26px; right:34px; width:74px; height:74px; border-radius:50%;
+    background:radial-gradient(circle,#F7D48A 0%, rgba(247,212,138,0) 70%); transition:opacity 1s}
+  .cloudband{position:absolute; top:34px; left:-20px; right:-20px; height:64px; opacity:0; transition:opacity 1s;
+    background:radial-gradient(60px 26px at 25% 60%, rgba(255,255,255,.55), transparent 70%),
+               radial-gradient(80px 30px at 55% 40%, rgba(255,255,255,.45), transparent 70%),
+               radial-gradient(70px 26px at 85% 65%, rgba(255,255,255,.4), transparent 70%)}
+  .rain{position:absolute; inset:0; opacity:0; transition:opacity 1s}
+  .rain i{position:absolute; top:-16px; width:1.5px; height:13px; background:rgba(90,110,125,.35); border-radius:2px;
+    animation:fall 2.1s linear infinite}
+  @keyframes fall{to{transform:translateY(240px)}}
+  .fogband{position:absolute; inset:auto 0 0 0; height:150px; opacity:0; transition:opacity 1s;
+    background:linear-gradient(180deg, rgba(196,190,205,0) 0%, rgba(196,190,205,.5) 45%, rgba(196,190,205,0) 100%);
+    filter:blur(6px)}
+  .rainbow{position:absolute; top:40px; left:50%; transform:translateX(-50%); width:190px; height:95px; opacity:0; transition:opacity 1.4s;
+    border-radius:190px 190px 0 0; border:9px solid transparent; border-bottom:none;
+    border-image:linear-gradient(90deg,#D9A05B,#C9B36A,#9FB07E,#8FA3B0) 1}
+  .weather-chip{
+    position:absolute; top:18px; left:20px; display:flex; align-items:center; gap:7px;
+    background:rgba(251,247,240,.82); border:1px solid rgba(34,32,27,.05); border-radius:999px;
+    padding:6.5px 12px; font-size:12.5px; font-weight:600; color:var(--ink2); backdrop-filter:blur(3px);
+  }
+  .weather-chip .dot{width:8px; height:8px; border-radius:50%; background:#E0B45C; transition:background .8s}
+  .stale-badge{display:none; font-size:10.5px; font-weight:650; color:#7A7286; background:#E7E3EC;
+    border-radius:6px; padding:2px 6px; letter-spacing:.2px; vertical-align:middle}
+  [data-state="fog"] .stale-badge{display:inline-block}
+
+  .mascot-row{display:flex; align-items:flex-end; gap:14px; padding:0 24px; margin-top:-64px; position:relative; z-index:2}
+  .melo-holder{flex-shrink:0; transition:transform .4s ease; transform-origin:50% 90%}
+  .melo-holder.breathe{animation:breathe 10s ease-in-out infinite}
+  .melo-holder.idle{animation:breathe 6.5s ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.025)}}
+  .say{padding-bottom:14px}
+  .say .l1{font-size:15px; font-weight:600; line-height:1.4}
+  .say .l2{font-size:13px; color:var(--ink2); line-height:1.45; margin-top:3px}
+
+  .sz-block{padding:10px 26px 4px; cursor:pointer}
+  .sz-num{font-size:56px; font-weight:700; letter-spacing:-1.5px; font-variant-numeric:tabular-nums; line-height:1.05;
+    transition:color .6s}
+  .sz-sub{font-size:13.5px; color:var(--ink2); margin-top:3px}
+  .sz-sub b{color:var(--ink); font-weight:650}
+  .sz-hint{font-size:11px; color:var(--ink3); margin-top:4px; letter-spacing:.2px}
+
+  .runway{padding:16px 26px 4px}
+  .runway-track{display:flex; align-items:center; gap:0}
+  .rw-day{flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative}
+  .rw-dot{width:7px; height:7px; border-radius:50%; background:var(--hair); transition:background .4s}
+  .rw-day.past .rw-dot{background:#D8CFBC}
+  .rw-day.today .rw-dot{background:var(--terra); width:9px; height:9px}
+  .rw-day.bill .rw-dot{background:#B4A98F; border-radius:2.5px}
+  .rw-day.storm .rw-dot{background:var(--slate); width:16px; height:10px; border-radius:5px}
+  .rw-day.pay .rw-dot{background:var(--good); width:9px; height:9px}
+  .rw-lab{font-size:9px; color:var(--ink3); white-space:nowrap; height:11px}
+  .rw-cap{display:flex; justify-content:space-between; font-size:11px; color:var(--ink3); margin-top:7px}
+
+  .action-card{
+    margin:16px 26px 0; background:#FBF7F0; border:1px solid var(--hair); border-radius:16px; padding:15px 16px;
+    transition:background .6s;
+  }
+  .action-card h4{margin:0 0 4px; font-size:12px; font-weight:650; color:var(--ink3); text-transform:uppercase; letter-spacing:.6px}
+  .action-card p{margin:0 0 10px; font-size:14px; line-height:1.5}
+  .action-card button{
+    border:none; background:var(--ink); color:#FCF8F1; border-radius:10px; padding:9px 14px;
+    font-size:13.5px; font-weight:600; cursor:pointer;
+  }
+
+  .ask{margin:14px 26px 0; display:flex; gap:8px}
+  .ask input{
+    flex:1; border:1.5px solid var(--hair); background:#FBF7F0; border-radius:12px; padding:12px 14px;
+    font-size:14.5px; outline:none; color:var(--ink); font-variant-numeric:tabular-nums;
+  }
+  .ask input:focus{border-color:var(--terra-soft)}
+  .ask button{border:none; background:var(--terra); color:#FFF8F2; border-radius:12px; padding:0 16px; font-size:14px; font-weight:650; cursor:pointer}
+  .verdict{margin:10px 26px 0; background:#F4EEE2; border-radius:14px; padding:13px 15px; display:none}
+  .verdict.on{display:block}
+  .verdict .v{font-size:15px; font-weight:700; letter-spacing:.1px}
+  .verdict .v.good{color:var(--good)} .verdict .v.tight{color:#A8722F} .verdict .v.no{color:var(--ink)}
+  .verdict p{margin:5px 0 0; font-size:13.5px; color:var(--ink2); line-height:1.5}
+  .verdict .shelf{margin-top:10px; border:1.5px solid var(--hair); background:none; border-radius:10px;
+    padding:8px 12px; font-size:13px; font-weight:600; color:var(--ink2); cursor:pointer}
+
+  .ticker{margin-top:auto; padding:14px 26px 20px; font-size:12.5px; color:var(--ink3)}
+  .ticker b{color:var(--terra); font-weight:650}
+
+  /* state chip / dev bar */
+  .devbar{position:absolute; bottom:14px; right:14px; z-index:6; display:flex; flex-direction:column; align-items:flex-end; gap:8px}
+  .dev-toggle{border:1px solid var(--hair); background:rgba(251,247,240,.9); color:var(--ink3);
+    border-radius:999px; padding:7px 12px; font-size:11.5px; font-weight:650; cursor:pointer; letter-spacing:.3px}
+  .dev-menu{display:none; flex-direction:column; gap:5px; background:rgba(251,247,240,.97); border:1px solid var(--hair);
+    border-radius:14px; padding:8px}
+  .dev-menu.on{display:flex}
+  .dev-menu button{border:none; background:none; text-align:right; font-size:12.5px; padding:6px 10px; border-radius:8px;
+    color:var(--ink2); cursor:pointer; font-weight:550}
+  .dev-menu button.sel{background:#F0E5D4; color:var(--ink); font-weight:650}
+  .dev-menu .sep{height:1px; background:var(--hair); margin:3px 4px}
+
+  /* math sheet */
+  .sheet-veil{position:absolute; inset:0; background:rgba(34,32,27,.28); opacity:0; pointer-events:none; transition:opacity .3s; z-index:8}
+  .sheet-veil.on{opacity:1; pointer-events:auto}
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0; background:var(--paper); border-radius:22px 22px 0 0;
+    padding:20px 26px 26px; transform:translateY(120%); visibility:hidden; z-index:9;
+    transition:transform .34s cubic-bezier(.2,.8,.25,1), visibility 0s .34s;
+    box-shadow:0 -12px 40px rgba(34,32,27,.14);
+  }
+  .sheet.on{transform:translateY(0); visibility:visible; transition:transform .34s cubic-bezier(.2,.8,.25,1), visibility 0s 0s}
+  .sheet h3{margin:0 0 2px; font-size:16.5px; font-weight:650}
+  .sheet .note{font-size:12px; color:var(--ink3); margin:0 0 14px}
+  .m-row{display:flex; justify-content:space-between; padding:10.5px 2px; border-bottom:1px solid var(--hair); font-size:14px}
+  .m-row span{color:var(--ink2)} .m-row b{font-variant-numeric:tabular-nums; font-weight:600}
+  .m-row.total{border-bottom:none; padding-top:14px}
+  .m-row.total span{color:var(--ink); font-weight:650} .m-row.total b{color:var(--terra); font-size:17px; font-weight:700}
+  .sheet .fb{display:flex; gap:8px; margin-top:16px}
+  .sheet .fb button{flex:1; border:1.5px solid var(--hair); background:#FBF7F0; border-radius:11px; padding:10px;
+    font-size:13px; font-weight:600; color:var(--ink2); cursor:pointer}
+
+  /* recovery */
+  .rec{background:linear-gradient(180deg,#EFE3D6 0%, var(--paper) 30%)}
+  .rec-tag{font-size:11.5px; font-weight:650; letter-spacing:.8px; text-transform:uppercase; color:var(--ink3); padding:26px 26px 0}
+  .rec .q{margin-top:14px}
+  .rec-list{margin:6px 26px; display:flex; flex-direction:column; gap:8px}
+  .rec-item{display:flex; align-items:center; gap:10px; background:#FBF7F0; border:1px solid var(--hair);
+    border-radius:12px; padding:12px 14px; font-size:14px}
+  .rec-item .ok{margin-left:auto; color:var(--good); font-weight:700; font-size:13px}
+  .day-path{font-size:48px; font-weight:700; letter-spacing:-1px; text-align:center; margin:10px 0 2px}
+  .day-cap{text-align:center; font-size:13.5px; color:var(--ink2)}
+
+  /* state-driven theming */
+  [data-state="tight"] .sky{background:linear-gradient(180deg,#DEE1DA 0%, #ECEADF 60%, var(--paper) 100%)}
+  [data-state="tight"] .sun{opacity:.25}
+  [data-state="tight"] .cloudband{opacity:1}
+  [data-state="warning"] .sky{background:linear-gradient(180deg,#C7D0D6 0%, #E4E4DA 60%, var(--paper) 100%)}
+  [data-state="warning"] .sun{opacity:0}
+  [data-state="warning"] .cloudband{opacity:.9}
+  [data-state="warning"] .rain{opacity:1}
+  [data-state="storm"] .sky{background:linear-gradient(180deg,#46505A 0%, #77776C 55%, var(--paper) 100%)}
+  [data-state="storm"] .sun{opacity:0}
+  [data-state="storm"] .cloudband{opacity:.35}
+  [data-state="storm"] .weather-chip{background:rgba(251,247,240,.7)}
+  [data-state="recovery"] .sky{background:linear-gradient(180deg,#B7A493 0%, #E8DCCB 60%, var(--paper) 100%)}
+  [data-state="recovery"] .sun{opacity:.18}
+  [data-state="recovery"] .rainbow{opacity:.5}
+  [data-state="fog"] .sky{background:linear-gradient(180deg,#B9B3C2 0%, #E2DEDA 65%, var(--paper) 100%)}
+  [data-state="fog"] .sun{opacity:0}
+  [data-state="fog"] .fogband{opacity:1}
+  [data-state="fog"] .sz-num,[data-state="fog"] .say .l1{color:var(--ink2)}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none!important; transition:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="phone" id="phone" data-state="calm">
+
+    <!-- 0 · cold open -->
+    <section id="scr-cold" class="screen on">
+      <div data-melo data-emotion="calm" data-size="120"></div>
+      <h1>I'm Melo.</h1>
+      <p>Two questions and I'll tell you what's <em>actually</em> safe to spend.</p>
+      <button class="btn" style="width:250px" onclick="go('pick')">Let's do it</button>
+      <button class="link" onclick="skipToHome()">look around first →</button>
+    </section>
+
+    <!-- 1 · pick your melo -->
+    <section id="scr-pick" class="screen">
+      <div class="ob-top"><button class="back" onclick="go('cold')">←</button><div class="dots" data-dots="1"></div></div>
+      <div class="pad"><h2 class="q">Pick your Melo.</h2>
+      <p class="q-sub">They all worry about you equally.</p></div>
+      <div class="pick-row">
+        <div class="pick-card sel" data-cw="ember" onclick="pickCW('ember',this)"><span data-melo data-emotion="calm" data-size="84" data-cw="ember"></span><b>Ember</b><span>warm</span></div>
+        <div class="pick-card" data-cw="moss" onclick="pickCW('moss',this)"><span data-melo data-emotion="calm" data-size="84" data-cw="moss"></span><b>Moss</b><span>steady</span></div>
+        <div class="pick-card" data-cw="tide" onclick="pickCW('tide',this)"><span data-melo data-emotion="calm" data-size="84" data-cw="tide"></span><b>Tide</b><span>quiet</span></div>
+      </div>
+      <div class="grow"></div>
+      <button class="btn" onclick="go('payday')">This one</button>
+    </section>
+
+    <!-- 2 · payday -->
+    <section id="scr-payday" class="screen">
+      <div class="ob-top"><button class="back" onclick="go('pick')">←</button><div class="dots" data-dots="2"></div></div>
+      <div class="pad"><h2 class="q">When does money arrive?</h2>
+      <p class="q-sub">Everything counts back from that day.</p></div>
+      <div class="opt sel" onclick="pickOpt(this)">Last working day of the month</div>
+      <div class="opt" onclick="pickOpt(this)">A set date each month <small>the 12th</small></div>
+      <div class="opt" onclick="pickOpt(this)">Every two weeks</div>
+      <div class="opt" onclick="pickOpt(this)">It varies</div>
+      <div class="grow"></div>
+      <div class="ob-melo" data-melo data-emotion="calm" data-size="72"></div>
+      <button class="btn" onclick="go('income')">That's my payday</button>
+    </section>
+
+    <!-- 3 · income -->
+    <section id="scr-income" class="screen">
+      <div class="ob-top"><button class="back" onclick="go('payday')">←</button><div class="dots" data-dots="3"></div></div>
+      <div class="pad"><h2 class="q">Roughly what lands?</h2>
+      <p class="q-sub">Rough is fine — I round <em>down</em> on your behalf.</p></div>
+      <div class="amt-wrap"><b>£</b><input class="amt" id="income" type="number" inputmode="numeric" value="1450"></div>
+      <button class="link" style="text-align:left;width:auto;margin-left:16px" onclick="varies()">it varies month to month</button>
+      <p class="varies-note" id="variesNote">Got it — I'll plan on your low months and treat the good ones as wins.</p>
+      <div class="grow"></div>
+      <div class="ob-melo" data-melo data-emotion="calm" data-size="72"></div>
+      <button class="btn" onclick="go('bills')">Next</button>
+    </section>
+
+    <!-- 4 · bills -->
+    <section id="scr-bills" class="screen">
+      <div class="ob-top"><button class="back" onclick="go('income')">←</button><div class="dots" data-dots="4"></div></div>
+      <div class="pad"><h2 class="q">Which of these are yours?</h2>
+      <p class="q-sub">These get protected first — before anything else gets spent.</p></div>
+      <div class="chips" id="billChips"></div>
+      <div class="chest-row" id="chestRow">
+        <svg width="22" height="18" viewBox="0 0 22 18"><path d="M1 8 q0-6 10-6 q10 0 10 6 v8 q0 1.5-1.5 1.5 h-17 q-1.5 0-1.5-1.5 Z" fill="#B98A4F"/><rect x="1" y="8" width="20" height="1.6" fill="#8F6535"/><rect x="9.4" y="7" width="3.2" height="4.6" rx="1" fill="#F3E4C3"/></svg>
+        <span>Protected</span><span class="sum" id="chestSum">£0</span>
+      </div>
+      <div class="grow"></div>
+      <button class="btn" onclick="reveal()">Shield these</button>
+      <button class="link" onclick="reveal()">add the rest later</button>
+    </section>
+
+    <!-- 5 · the reveal -->
+    <section id="scr-reveal" class="screen">
+      <div class="reveal-sky" id="revealSky"></div>
+      <div class="reveal-body">
+        <div data-melo data-emotion="calm" data-size="104" id="revealMelo"></div>
+        <div class="sz-big" id="revealNum">£0</div>
+        <div class="sz-cap" id="revealCap">safe until the 12th</div>
+        <p class="reveal-line" id="revealLine">That's your real number — balance minus everything that's spoken for.</p>
+        <div class="runway" style="width:100%" id="revealRunway"></div>
+      </div>
+      <button class="btn" id="revealBtn" style="opacity:0; transition:opacity .8s" onclick="enterHome()">Take me home</button>
+      <div style="height:10px"></div>
+    </section>
+
+    <!-- HOME -->
+    <section id="scr-home" class="screen">
+      <div class="sky">
+        <div class="sun"></div><div class="cloudband"></div>
+        <div class="rain" id="rain"></div>
+        <div class="fogband"></div><div class="rainbow"></div>
+        <div class="weather-chip"><span class="dot" id="wxDot"></span><span id="wxWord">Sunny to Friday</span></div>
+      </div>
+      <div class="mascot-row">
+        <div class="melo-holder idle" id="homeMeloHold"><span data-melo data-emotion="calm" data-size="104" id="homeMelo"></span></div>
+        <div class="say"><div class="l1" id="sayL1"></div><div class="l2" id="sayL2"></div></div>
+      </div>
+      <div class="sz-block" onclick="openSheet()">
+        <div class="sz-num" id="szNum">£184</div>
+        <div class="sz-sub" id="szSub">safe until <b>Fri the 12th</b> <span class="stale-badge">as of Tue</span></div>
+        <div class="sz-hint">tap for the math</div>
+      </div>
+      <div class="runway" id="homeRunway"></div>
+      <div class="action-card" id="actionCard">
+        <h4 id="acTitle"></h4><p id="acBody"></p><button id="acBtn" onclick="actionGo()"></button>
+      </div>
+      <div class="ask">
+        <input id="askAmt" type="number" inputmode="numeric" placeholder="Can I afford… £">
+        <button onclick="ask()">Ask</button>
+      </div>
+      <div class="verdict" id="verdict"></div>
+      <div class="ticker" id="ticker"></div>
+      <div class="devbar">
+        <div class="dev-menu" id="devMenu"></div>
+        <button class="dev-toggle" onclick="toggleDev()">⚙ state</button>
+      </div>
+    </section>
+
+    <!-- RECOVERY -->
+    <section id="scr-r1" class="screen rec">
+      <div class="rec-tag">The way back — step 1 of 3</div>
+      <div class="pad"><h2 class="q">It went over — £23 past the line.</h2>
+      <p class="q-sub">No lecture. Here's the way back: three steps, the first one takes a minute.</p></div>
+      <div class="grow"></div>
+      <div class="ob-melo" data-melo data-emotion="hope" data-size="80"></div>
+      <button class="btn" onclick="go('r2')">Show me</button>
+      <button class="link" onclick="go('home')">not today</button>
+    </section>
+    <section id="scr-r2" class="screen rec">
+      <div class="rec-tag">The way back — step 2 of 3</div>
+      <div class="pad"><h2 class="q">The plan, adjusted.</h2>
+      <p class="q-sub">Bills stay protected. Spending resets to <b>£4/day</b> for the 5 days to Friday.</p></div>
+      <div class="rec-list">
+        <div class="rec-item">Rent <span class="ok">protected ✓</span></div>
+        <div class="rec-item">Energy <span class="ok">protected ✓</span></div>
+        <div class="rec-item">Phone <span class="ok">protected ✓</span></div>
+      </div>
+      <div class="grow"></div>
+      <button class="btn" onclick="go('r3')">That works</button>
+    </section>
+    <section id="scr-r3" class="screen rec">
+      <div class="rec-tag">The way back — step 3 of 3</div>
+      <div class="pad"><h2 class="q">One move today.</h2>
+      <p class="q-sub">Shift £8 to bills. That's the whole ask — nothing else today.</p></div>
+      <div class="grow"></div>
+      <div class="ob-melo" data-melo data-emotion="hope" data-size="80"></div>
+      <button class="btn" onclick="go('checkin')">Done — that's today</button>
+    </section>
+    <section id="scr-checkin" class="screen rec">
+      <div class="rec-tag">The way back</div>
+      <div class="grow" style="display:flex;flex-direction:column;justify-content:center;align-items:center">
+        <div data-melo data-emotion="hope" data-size="96"></div>
+        <div class="day-path">Day 2</div>
+        <div class="day-cap">on the path</div>
+        <p class="q-sub" style="text-align:center;margin-top:14px">See you tomorrow. I'll bring the numbers.</p>
+      </div>
+      <button class="btn" onclick="enterRecoveryHome()">Back home</button>
+    </section>
+
+    <!-- math sheet -->
+    <div class="sheet-veil" id="sheetVeil" onclick="closeSheet()"></div>
+    <div class="sheet" id="sheet">
+      <h3>The math</h3>
+      <p class="note">Every pound accounted for. Tap anything that looks wrong — I'd rather be corrected than confidently wrong.</p>
+      <div id="mathRows"></div>
+      <div class="fb"><button onclick="closeSheet()">Looks right</button><button onclick="closeSheet()">Something's off</button></div>
+    </div>
+
+  </div>
+  <p class="stage-note">Melo — Phase 1 prototype · Warm Paper · switch states with the ⚙ chip on Home</p>
+</div>
+
+<script>
+/* ---------------- mascot ---------------- */
+const CW = {
+  ember:{body:'#C97E55', shade:'#B06A45', crest:'#9E5C3B', glow:'#FFC98A', belly:'#EBBD96'},
+  moss: {body:'#94A483', shade:'#7F8F6F', crest:'#6E7F5E', glow:'#E6EFC6', belly:'#CBD8B2'},
+  tide: {body:'#8AA3B5', shade:'#7690A2', crest:'#647E90', glow:'#CFE7F2', belly:'#B6CEDC'}
+};
+let uid=0;
+function meloSVG(emotion, cw, size, glow){
+  const c = CW[cw]||CW.ember; const id='g'+(++uid); glow=(glow==null?0.8:glow);
+  const ink='#3A342C';
+  let eyes='', brows='', mouth='', extra='', crestDy=0, faceWrap=['',''];
+  if(emotion==='calm'){
+    eyes=`<ellipse cx="46" cy="56" rx="4" ry="4.6" fill="${ink}"/><ellipse cx="74" cy="56" rx="4" ry="4.6" fill="${ink}"/>
+          <rect x="40.5" y="48.6" width="11" height="5" rx="2.5" fill="${c.body}"/><rect x="68.5" y="48.6" width="11" height="5" rx="2.5" fill="${c.body}"/>`;
+    mouth=`<path d="M55 72 q5 3.5 10 0" stroke="${ink}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+  } else if(emotion==='joy'){
+    eyes=`<path d="M40 57 q6 -7 12 0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+          <path d="M68 57 q6 -7 12 0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+    mouth=`<path d="M53 70 q7 8 14 0" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+    extra=`<ellipse cx="39" cy="65" rx="4" ry="2.4" fill="#C4623A" opacity=".22"/><ellipse cx="81" cy="65" rx="4" ry="2.4" fill="#C4623A" opacity=".22"/>`;
+  } else if(emotion==='concern'){
+    eyes=`<ellipse cx="46" cy="56" rx="4.2" ry="5" fill="${ink}"/><ellipse cx="74" cy="56" rx="4.2" ry="5" fill="${ink}"/>`;
+    brows=`<path d="M39 46.5 l13 -3" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/><path d="M81 46.5 l-13 -3" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/>`;
+    mouth=`<path d="M55 73 h10" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/>`; crestDy=2.5;
+  } else if(emotion==='stress'){
+    eyes=`<ellipse cx="46" cy="56" rx="3.8" ry="4.2" fill="${ink}"/><ellipse cx="74" cy="56" rx="3.8" ry="4.2" fill="${ink}"/>`;
+    brows=`<path d="M40 46 h12" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/><path d="M68 46 h12" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/>`;
+    mouth=`<path d="M56 73 h8" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/>`; crestDy=3;
+    extra=`<g><path d="M66 24 A21 21 0 0 1 108 24 L108 25 Q87 16 66 25 Z" fill="#5A646E"/>
+           <path d="M87 24 V50 q0 6 6 6" stroke="${ink}" stroke-width="2.2" fill="none" stroke-linecap="round"/></g>`;
+  } else if(emotion==='hope'){
+    eyes=`<ellipse cx="46" cy="55" rx="4" ry="4.6" fill="${ink}"/><ellipse cx="74" cy="55" rx="4" ry="4.6" fill="${ink}"/>
+          <circle cx="47.6" cy="53.4" r="1.3" fill="#FFF6EA" opacity=".9"/><circle cx="75.6" cy="53.4" r="1.3" fill="#FFF6EA" opacity=".9"/>`;
+    mouth=`<path d="M55 72 q6 2.5 11 -1" stroke="${ink}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+    faceWrap=[`<g transform="rotate(-3 60 60)">`,`</g>`];
+  } else if(emotion==='squint'){
+    eyes=`<path d="M40 56 h12" stroke="${ink}" stroke-width="2.6" stroke-linecap="round"/><path d="M68 56 h12" stroke="${ink}" stroke-width="2.6" stroke-linecap="round"/>`;
+    brows=`<path d="M38 47 Q60 40 82 47" stroke="${ink}" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/>`;
+    mouth=`<path d="M56 72 h8" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 120 120" aria-label="Melo, ${emotion}">
+    <defs><filter id="${id}" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter></defs>
+    <path d="M86 94 q16 8 24 -2 q-9 -1 -15 -9" fill="${c.shade}"/>
+    <path d="M60 20 C42 20 28 38 28 66 C28 94 42 106 60 106 C78 106 92 94 92 66 C92 38 78 20 60 20 Z" fill="${c.body}"/>
+    <g transform="translate(0 ${crestDy})">
+      <circle cx="46" cy="24" r="5" fill="${c.crest}"/><circle cx="60" cy="18.5" r="6" fill="${c.crest}"/><circle cx="74" cy="24" r="5" fill="${c.crest}"/>
+    </g>
+    <ellipse cx="60" cy="81" rx="20" ry="15.5" fill="${c.belly}" opacity=".95"/>
+    <ellipse cx="60" cy="81" rx="13" ry="10" fill="${c.glow}" filter="url(#${id})" opacity="${glow}"/>
+    ${faceWrap[0]}${brows}${eyes}${mouth}${extra}${faceWrap[1]}
+  </svg>`;
+}
+
+/* ---------------- app state ---------------- */
+let colorway='ember', appState='calm', ticker=3, shelfNote=false;
+let ob={income:1450, bills:new Map()};
+let homeSZ=184, cameFromOnboarding=false;
+
+const BILLS=[['Rent',850],['Council tax',142],['Energy',95],['Water',38],['Phone',24],['Broadband',30],['Subscriptions',27],['Car',120],['Debt payment',60]];
+const DAYS_TO_PAYDAY=12, ESS=168, SAV=40, BUF=20;
+
+const STATES = {
+  calm:    {emo:'calm',   glow:.85, dot:'#E0B45C', wx:'Sunny to Friday',
+            l1:()=>'Nothing needs you today.', l2:'I’ll speak up if that changes.',
+            sz:()=>homeSZ, sub:'safe until <b>Fri the 12th</b>',
+            ac:['One thing, if you want','Energy came in £14 above usual. Worth a look — it’s a 3-minute fix.','Have a look']},
+  tight:   {emo:'concern',glow:.55, dot:'#AEB4A9', wx:'Cloudy — steady it',
+            l1:()=>'£41 to Friday — £6/day.', l2:'Doable, needs a little steering.',
+            sz:()=>41, sub:'<b>£6/day</b> to Fri the 12th',
+            ac:['This week, steered','£6/day keeps Friday calm. Thursday’s cinema — want it on the Shelf?','See the week']},
+  warning: {emo:'concern',glow:.4,  dot:'#7E96A5', wx:'Rain likely Thursday',
+            l1:()=>'Heads up — around Thursday, money runs out before Friday’s payday.', l2:'£9/day keeps it dry.',
+            sz:()=>38, sub:'<b>£9/day</b> keeps Thursday dry', storm:true,
+            ac:['Keep Thursday dry','£9/day until Friday keeps the storm off. Want the day-by-day plan?','Replan my week']},
+  storm:   {emo:'stress', glow:.22, dot:'#46505A', wx:'Storm — bills are safe',
+            l1:()=>'Honest numbers: £12 to Wednesday.', l2:'Bills are safe — this is about getting to Friday. Plan’s ready.',
+            sz:()=>12, sub:'bills protected · <b>Wednesday</b> is the day to plan for', storm:true, breathe:true,
+            ac:['The way back','Three steps. The first one takes a minute. No lecture in any of them.','Start the way back']},
+  recovery:{emo:'hope',   glow:.5,  dot:'#B98F5E', wx:'Clearing — day 2 on the path',
+            l1:()=>'Day 2 of the way back.', l2:'Today’s move: shift £8. That’s the whole ask.',
+            sz:()=>12, sub:'rebuilding · <b>£4/day</b> to Friday',
+            ac:['Today’s move','Shift £8 to bills. Then we’re done for today — no second ask.','Do today’s move']},
+  fog:     {emo:'squint', glow:.35, dot:'#A79FB4', wx:'Fog — numbers from Tue',
+            l1:()=>'I can’t see clearly right now.', l2:'Last good numbers are from Tuesday. 30 seconds fixes it.',
+            sz:()=>184, sub:'safe until <b>Fri the 12th</b>', stale:true,
+            ac:['Refresh my picture','Tell me today’s balance and everything sharpens back up.','Update balance (30s)']}
+};
+
+/* ---------------- helpers ---------------- */
+const $=s=>document.getElementById(s);
+function go(scr){ document.querySelectorAll('.screen').forEach(x=>x.classList.remove('on')); $('scr-'+scr).classList.add('on');
+  const ph=$('phone'); ph.scrollTop=0; ph.scrollLeft=0; renderMascots(); }
+function pickOpt(el){ el.parentNode.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel')); el.classList.add('sel'); }
+function pickCW(cw,card){ colorway=cw; document.querySelectorAll('.pick-card').forEach(c=>c.classList.remove('sel')); card.classList.add('sel'); renderMascots(); }
+function varies(){ $('variesNote').classList.add('on'); }
+function renderMascots(){
+  document.querySelectorAll('[data-melo]').forEach(el=>{
+    const emo=el.getAttribute('data-emotion')||'calm';
+    const size=el.getAttribute('data-size')||96;
+    const cw=el.getAttribute('data-cw')||colorway;
+    const glow=el.getAttribute('data-glow');
+    el.innerHTML=meloSVG(emo,cw,size,glow?parseFloat(glow):undefined);
+  });
+}
+
+/* dots */
+document.querySelectorAll('.dots').forEach(d=>{
+  const n=+d.getAttribute('data-dots');
+  d.innerHTML=[1,2,3,4,5].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('');
+});
+
+/* bills */
+function initBills(){
+  $('billChips').innerHTML=BILLS.map(([n,a],i)=>
+    `<button class="chip" data-i="${i}" onclick="toggleBill(${i},this)">${n} · £${a}</button>`).join('');
+}
+function toggleBill(i,el){
+  const [n,a]=BILLS[i];
+  if(ob.bills.has(n)){ob.bills.delete(n); el.classList.remove('sel');}
+  else {ob.bills.set(n,a); el.classList.add('sel');}
+  const sum=[...ob.bills.values()].reduce((x,y)=>x+y,0);
+  $('chestSum').textContent='£'+sum.toLocaleString();
+  const cr=$('chestRow'); cr.classList.remove('bump'); void cr.offsetWidth; cr.classList.add('bump');
+}
+
+/* runway */
+function runwayHTML(withStorm){
+  const bills={2:'energy',5:'phone',8:'subs'};
+  let cells='';
+  for(let d=0;d<DAYS_TO_PAYDAY;d++){
+    let cls='rw-day', lab='';
+    if(d===0){cls+=' today'; lab='today';}
+    else if(withStorm && d===3){cls+=' storm'; lab='Thu';}
+    else if(bills[d]!==undefined){cls+=' bill'; lab=bills[d];}
+    if(d===DAYS_TO_PAYDAY-1){cls+=' pay'; lab='payday';}
+    cells+=`<div class="${cls}"><div class="rw-dot"></div><div class="rw-lab">${lab}</div></div>`;
+  }
+  return `<div class="runway-track">${cells}</div><div class="rw-cap"><span>12 days</span><span>Fri the 12th ⚑</span></div>`;
+}
+
+/* reveal */
+function reveal(){
+  const income=Math.max(0, Math.floor(+$('income').value||1450));
+  const billsSum=[...ob.bills.values()].reduce((x,y)=>x+y,0);
+  let sz=Math.floor(income-billsSum-ESS-SAV-BUF);
+  cameFromOnboarding=true;
+  go('reveal');
+  const honest=sz<=0; if(honest) sz=Math.max(sz,0);
+  homeSZ=honest?31:sz; /* honest variant lands home in tight-ish truth */
+  const sky=$('revealSky'); sky.classList.toggle('cloud',honest);
+  $('revealRunway').innerHTML=runwayHTML(false);
+  $('revealCap').textContent= honest?'spare this cycle':'safe until the 12th';
+  $('revealLine').textContent= honest
+    ? 'Tight month already — good timing, that’s exactly what I’m for. Bills first, then we steer the rest.'
+    : 'That’s your real number — balance minus everything that’s spoken for.';
+  setTimeout(()=>sky.classList.add('on'),150);
+  const t0=performance.now(), dur=1400, target=sz;
+  function tick(t){
+    const p=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-p,3);
+    $('revealNum').textContent='£'+Math.floor(target*e).toLocaleString();
+    if(p<1) requestAnimationFrame(tick);
+    else{
+      $('revealMelo').setAttribute('data-emotion', honest?'calm':'joy');
+      renderMascots(); $('revealBtn').style.opacity=1;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+function skipToHome(){ cameFromOnboarding=false; homeSZ=184; enterHome(); }
+function enterHome(){ if(homeSZ<=41 && cameFromOnboarding){ setState('tight'); } else { setState('calm'); } go('home'); }
+function enterRecoveryHome(){ setState('recovery'); go('home'); }
+
+/* home state machine */
+function setState(s){
+  appState=s; const st=STATES[s];
+  $('phone').setAttribute('data-state',s);
+  $('wxWord').textContent=st.wx; $('wxDot').style.background=st.dot;
+  $('sayL1').textContent=st.l1(); $('sayL2').textContent=st.l2;
+  $('szNum').textContent='£'+st.sz().toLocaleString();
+  $('szSub').innerHTML=st.sub+' <span class="stale-badge">as of Tue</span>';
+  $('homeRunway').innerHTML=runwayHTML(!!st.storm);
+  $('acTitle').textContent=st.ac[0]; $('acBody').textContent=st.ac[1]; $('acBtn').textContent=st.ac[2];
+  const hm=$('homeMelo'); hm.setAttribute('data-emotion',st.emo); hm.setAttribute('data-glow',st.glow);
+  const hold=$('homeMeloHold');
+  hold.classList.toggle('breathe',!!st.breathe);
+  hold.classList.toggle('idle',!st.breathe && (s==='calm'||s==='recovery'));
+  $('verdict').classList.remove('on');
+  updateTicker(); renderDev(); renderMascots();
+}
+function updateTicker(){
+  $('ticker').innerHTML = shelfNote
+    ? `<b>✦</b> On the shelf — I’ll re-run the numbers tomorrow.`
+    : `<b>✦</b> ${ticker} checks-before-buying this week`;
+}
+function actionGo(){ if(appState==='storm'){ go('r1'); } }
+
+/* afford check */
+function ask(){
+  const amt=Math.floor(+$('askAmt').value||0); if(!amt) return;
+  const st=STATES[appState], sz=st.sz(); const v=$('verdict'); shelfNote=false;
+  let html='';
+  if(appState==='fog'){
+    html=`<div class="v no">Can’t call it</div><p>My numbers are from Tuesday — update today’s balance (30 seconds) and I’ll give you a straight answer.</p>`;
+  } else if(amt<=sz*0.45){
+    const left=sz-amt;
+    html=`<div class="v good">Safe</div><p>£${left.toLocaleString()} left after, and Thursday stays ${appState==='calm'?'sunny':'on plan'}.</p>`;
+    ticker++;
+  } else if(amt<=sz){
+    const left=sz-amt;
+    html=`<div class="v tight">Tight</div><p>It’d leave £${left.toLocaleString()} until Friday — doable, not comfy. The 12th-version-of-you buys this easily.</p>
+          <button class="shelf" onclick="shelf()">Put it on the Shelf (24h)</button>`;
+    ticker++;
+  } else {
+    html=`<div class="v no">Not now</div><p>Not this side of payday. On the 12th it’s a yes.</p>
+          <button class="shelf" onclick="shelf()">Put it on the Shelf (24h)</button>`;
+    ticker++;
+  }
+  v.innerHTML=html; v.classList.add('on'); updateTicker();
+}
+function shelf(){
+  shelfNote=true;
+  $('verdict').innerHTML=`<div class="v good">On the shelf</div><p>I’ll re-run the numbers tomorrow. If it’s still safe, it’s still there.</p>`;
+  updateTicker();
+}
+$('askAmt') && $('askAmt').addEventListener('keydown',e=>{ if(e.key==='Enter') ask(); });
+
+/* math sheet */
+function openSheet(){
+  const sz=STATES[appState].sz();
+  const bills=1240-ESS-SAV-BUF-sz>0 ? 1240-ESS-SAV-BUF-sz : 912;
+  const bal=bills+ESS+SAV+BUF+sz;
+  $('mathRows').innerHTML=
+    `<div class="m-row"><span>Balance</span><b>£${bal.toLocaleString()}</b></div>
+     <div class="m-row"><span>Shielded bills</span><b>−£${bills.toLocaleString()}</b></div>
+     <div class="m-row"><span>Essentials to payday</span><b>−£${ESS}</b></div>
+     <div class="m-row"><span>Savings, as planned</span><b>−£${SAV}</b></div>
+     <div class="m-row"><span>Buffer — your early-warning margin</span><b>−£${BUF}</b></div>
+     <div class="m-row total"><span>Safe Zone</span><b>£${sz.toLocaleString()}</b></div>`;
+  $('sheet').classList.add('on'); $('sheetVeil').classList.add('on');
+}
+function closeSheet(){ $('sheet').classList.remove('on'); $('sheetVeil').classList.remove('on'); }
+
+/* dev bar */
+function toggleDev(){ $('devMenu').classList.toggle('on'); }
+function renderDev(){
+  const names={calm:'Calm',tight:'Tight',warning:'Warning',storm:'Storm',recovery:'Recovery',fog:'Fog'};
+  $('devMenu').innerHTML = Object.keys(names).map(k=>
+    `<button class="${k===appState?'sel':''}" onclick="setState('${k}');toggleDev()">${names[k]}</button>`).join('')
+    + `<div class="sep"></div><button onclick="restart()">↺ onboarding</button>`;
+}
+function restart(){ ob.bills.clear(); $('chestSum').textContent='£0';
+  document.querySelectorAll('#billChips .chip').forEach(c=>c.classList.remove('sel'));
+  $('devMenu').classList.remove('on'); go('cold'); }
+
+/* rain drops */
+(function(){ let s=''; for(let i=0;i<7;i++){ s+=`<i style="left:${8+i*14}%; animation-delay:${(i*0.33).toFixed(2)}s"></i>`; } $('rain').innerHTML=s; })();
+
+/* boot */
+initBills(); setState('calm'); renderMascots();
+</script>
+</body>
+</html>
