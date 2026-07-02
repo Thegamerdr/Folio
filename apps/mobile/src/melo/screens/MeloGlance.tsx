@@ -38,6 +38,7 @@ import { deriveLive } from '../state/derive';
 import { useMeloStore } from '../state/meloStore';
 import { DEMOS, DEMO_ORDER, DEMO_TODAY, demoBreakdown, type DemoKey } from '../state/demoStates';
 import { RecoveryWalkthrough } from './RecoveryWalkthrough';
+import { MeloRitual, type RitualBillRow } from './MeloRitual';
 
 const SKY_HEIGHT = 200;
 
@@ -49,7 +50,7 @@ type GlanceAction = {
   title: string;
   body: string;
   cta: string;
-  kind: 'recovery' | 'balance' | 'info';
+  kind: 'recovery' | 'balance' | 'info' | 'ritual';
 };
 
 interface GlanceModel {
@@ -91,6 +92,7 @@ export function MeloGlance() {
   const [ask, setAsk] = useState<Ask | null>(null);
   const [demoChecks, setDemoChecks] = useState(3);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [ritualOpen, setRitualOpen] = useState(false);
   const [balanceEdit, setBalanceEdit] = useState(false);
   const [balanceText, setBalanceText] = useState('');
 
@@ -129,8 +131,16 @@ export function MeloGlance() {
           : view.ladder === 'danger' || view.ladder === 'overspent'
             ? ' — bills are safe'
             : '';
-      const action: GlanceAction | null =
-        view.data === 'fog'
+      const ritualDue =
+        view.overlays.includes('payday') && store.state.lastRitualISO !== liveDerived.today;
+      const action: GlanceAction | null = ritualDue
+        ? {
+            title: 'Payday',
+            body: 'Two minutes with Melo makes the month safe.',
+            cta: 'Start the ritual',
+            kind: 'ritual',
+          }
+        : view.data === 'fog'
           ? {
               title: 'Refresh my picture',
               body: 'Tell me today’s balance and everything sharpens back up.',
@@ -209,7 +219,14 @@ export function MeloGlance() {
         title: demo.action.title,
         body: demo.action.body,
         cta: demo.action.cta,
-        kind: demo.key === 'storm' ? 'recovery' : demo.key === 'fog' ? 'balance' : 'info',
+        kind:
+          demo.key === 'storm'
+            ? 'recovery'
+            : demo.key === 'fog'
+              ? 'balance'
+              : demo.key === 'payday'
+                ? 'ritual'
+                : 'info',
       },
       mathRows: [
         { label: 'Balance', valuePence: b.balance },
@@ -234,6 +251,7 @@ export function MeloGlance() {
     setAsk(null);
     setAskText('');
     setBalanceEdit(false);
+    setRitualOpen(false);
   };
 
   const runAsk = () => {
@@ -264,6 +282,10 @@ export function MeloGlance() {
 
   const handleAction = () => {
     if (!model.action) return;
+    if (model.action.kind === 'ritual') {
+      setRitualOpen(true);
+      return;
+    }
     if (model.action.kind === 'recovery') {
       if (mode === 'live') setRecoveryOpen(true);
       else switchMode('recovery');
@@ -274,6 +296,20 @@ export function MeloGlance() {
       return;
     }
     setShowMath(true);
+  };
+
+  const ritualBills: readonly RitualBillRow[] =
+    mode === 'live'
+      ? store.state.setup.bills.map((b) => ({ name: b.name, amountPence: b.amountPence }))
+      : [
+          { name: 'Rent', amountPence: 85_000 },
+          { name: 'Energy', amountPence: 9_500 },
+          { name: 'Phone', amountPence: 2_400 },
+        ];
+
+  const finishRitual = () => {
+    if (mode === 'live' && liveDerived) store.markRitualDone(liveDerived.today);
+    setRitualOpen(false);
   };
 
   const acceptRecoveryAndClose = () => {
@@ -289,6 +325,30 @@ export function MeloGlance() {
     }
     setRecoveryOpen(false);
   };
+
+  if (ritualOpen) {
+    return (
+      <MeloRitual
+        colorway={mode === 'live' ? store.state.setup.colorway : 'ember'}
+        bills={ritualBills}
+        savingsPence={mode === 'live' ? store.state.setup.savingsPence : 4_000}
+        safeZonePence={model.szPence}
+        perDayPence={
+          model.daysToPayday > 0 && model.szPence > 0
+            ? Math.floor(model.szPence / model.daysToPayday)
+            : 0
+        }
+        daysToPayday={model.daysToPayday}
+        paydayLabel={model.ctx.paydayLabel}
+        smartMove={{
+          title: 'Energy rose £14',
+          body: 'Came in above usual this cycle. Worth a look — it’s a 3-minute fix.',
+        }}
+        onDone={finishRitual}
+        onSkip={() => setRitualOpen(false)}
+      />
+    );
+  }
 
   if (recoveryOpen && mode === 'live' && liveDerived) {
     return (

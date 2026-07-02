@@ -56,3 +56,12 @@ export {
   type CopyKey,
   type BannedPattern,
 } from './copy.js';
+
+export {
+  planNotification,
+  inQuietHours,
+  type NotificationKey,
+  type PlannedNotification,
+  type NotifyContext,
+  type NotifyInputs,
+} from './notify.js';

@@ -9,10 +9,11 @@ import type { RunwayBill } from '../components/RunwayStrip';
 
 export const DEMO_TODAY = '2026-07-01';
 
-export type DemoKey = 'calm' | 'tight' | 'warning' | 'storm' | 'recovery' | 'fog';
+export type DemoKey = 'calm' | 'payday' | 'tight' | 'warning' | 'storm' | 'recovery' | 'fog';
 
 export const DEMO_ORDER: readonly DemoKey[] = [
   'calm',
+  'payday',
   'tight',
   'warning',
   'storm',
@@ -104,6 +105,25 @@ export const DEMOS: Record<DemoKey, DemoScenario> = {
       title: 'One thing, if you want',
       body: 'Energy came in £14 above usual. Worth a look — it’s a 3-minute fix.',
       cta: 'Have a look',
+    },
+  },
+  payday: {
+    key: 'payday',
+    label: 'Payday',
+    chipWord: 'Payday — new cycle',
+    szPence: 41_200,
+    sub: 'the new cycle, protected',
+    l2: 'Two minutes makes it safe.',
+    ctx: mkCtx({ safeZone: '£412', perDay: '£14' }),
+    inputs: mkInputs({ safeZonePence: 41_200, perDayPence: 1_471, paydayToday: true }),
+    prev: null,
+    daysToPayday: 28,
+    bills: STANDARD_BILLS,
+    dangerDay: null,
+    action: {
+      title: 'Payday',
+      body: 'Two minutes with Melo makes the month safe.',
+      cta: 'Start the ritual',
     },
   },
   tight: {

@@ -14,7 +14,7 @@ import Svg, {
 } from 'react-native-svg';
 
 import type { Weather } from '@folio/melo-engine';
-import { useTheme } from '@/surfaces/pressureMap/kit';
+import { useIsDark, useTheme } from '@/surfaces/pressureMap/kit';
 
 import { WEATHER_VISUALS } from '../theme/weather';
 
@@ -27,7 +27,12 @@ type Props = {
 
 export function WeatherSky({ weather, height = 200 }: Props) {
   const t = useTheme();
+  const isDark = useIsDark();
   const v = WEATHER_VISUALS[weather];
+  // On the dark ground the light tints become a translucent wash instead of a hard cream band —
+  // the sky stays legible as weather without fighting the night palette.
+  const topOpacity = isDark ? 0.5 : 1;
+  const midOpacity = isDark ? 0.26 : 1;
 
   return (
     <Svg
@@ -39,8 +44,8 @@ export function WeatherSky({ weather, height = 200 }: Props) {
     >
       <Defs>
         <LinearGradient id="melo-sky" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={v.top} />
-          <Stop offset="0.55" stopColor={v.mid} />
+          <Stop offset="0" stopColor={v.top} stopOpacity={topOpacity} />
+          <Stop offset="0.55" stopColor={v.mid} stopOpacity={midOpacity} />
           <Stop offset="1" stopColor={t.canvas} />
         </LinearGradient>
         <RadialGradient id="melo-sun" cx="50%" cy="50%" r="50%">

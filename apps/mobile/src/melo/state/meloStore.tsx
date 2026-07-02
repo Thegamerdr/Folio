@@ -57,6 +57,7 @@ export interface MeloState {
   readonly setup: MeloSetup;
   readonly journey: MeloJourney;
   readonly checksThisWeek: number;
+  readonly lastRitualISO: string | null;
 }
 
 const DEFAULT_SETUP: MeloSetup = {
@@ -76,6 +77,7 @@ const DEFAULT_STATE: MeloState = {
   setup: DEFAULT_SETUP,
   journey: { record: null, recoveryStartISO: null, moveDoneISO: null },
   checksThisWeek: 0,
+  lastRitualISO: null,
 };
 
 export interface MeloStoreApi {
@@ -86,6 +88,7 @@ export interface MeloStoreApi {
   readonly setJourney: (journey: MeloJourney) => void;
   readonly setStateRecord: (record: MeloStateRecord) => void;
   readonly markMoveDone: (todayISO: string) => void;
+  readonly markRitualDone: (todayISO: string) => void;
   readonly incrementChecks: () => void;
   readonly resetAll: () => void;
 }
@@ -180,6 +183,7 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
         update((prev) => ({ ...prev, journey: { ...prev.journey, record } })),
       markMoveDone: (todayISO) =>
         update((prev) => ({ ...prev, journey: { ...prev.journey, moveDoneISO: todayISO } })),
+      markRitualDone: (todayISO) => update((prev) => ({ ...prev, lastRitualISO: todayISO })),
       incrementChecks: () =>
         update((prev) => ({ ...prev, checksThisWeek: prev.checksThisWeek + 1 })),
       resetAll: () => update(() => DEFAULT_STATE),

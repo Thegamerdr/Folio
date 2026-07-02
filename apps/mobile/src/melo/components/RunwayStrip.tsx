@@ -21,32 +21,44 @@ type Props = {
 export function RunwayStrip({ daysToPayday, bills, dangerDay, paydayLabel }: Props) {
   const t = useTheme();
   const count = Math.max(2, Math.min(daysToPayday, MAX_CELLS));
-  const billByDay = new Map(bills.map((b) => [b.day, b.label]));
+  // Long cycles compress: day offsets map proportionally onto the available cells, so a bill on
+  // day 18 of a 26-day cycle still shows (instead of falling off the 14-cell strip).
+  const scale = (day: number) =>
+    daysToPayday <= count ? day : Math.round((day * (count - 1)) / daysToPayday);
+  const billByCell = new Map<number, string>();
+  for (const b of bills) {
+    const cell = scale(b.day);
+    if (cell > 0 && cell < count - 1 && !billByCell.has(cell)) billByCell.set(cell, b.label);
+  }
+  const stormCell = dangerDay !== null ? Math.min(Math.max(scale(dangerDay), 1), count - 2) : null;
+  // At high densities the per-cell words turn to confetti ("tod…") — the caption row below
+  // already carries today/payday, so cells go quiet except the storm, which must stay named.
+  const showWordLabels = count <= 10;
 
-  const cells = Array.from({ length: count }, (_, day) => {
-    const isToday = day === 0;
-    const isPayday = day === count - 1;
-    const isStorm = dangerDay !== null && day === dangerDay && !isToday && !isPayday;
-    const billLabel = billByDay.get(day);
+  const cells = Array.from({ length: count }, (_, cell) => {
+    const isToday = cell === 0;
+    const isPayday = cell === count - 1;
+    const isStorm = stormCell !== null && cell === stormCell;
+    const billLabel = billByCell.get(cell);
 
     let dotStyle = [s.dot, { backgroundColor: t.hairlineStrong }];
     let label = '';
     if (isToday) {
       dotStyle = [s.dotToday, { backgroundColor: t.calm }];
-      label = 'today';
+      label = showWordLabels ? 'today' : '';
     } else if (isPayday) {
       dotStyle = [s.dotToday, { backgroundColor: t.payday }];
-      label = 'payday';
+      label = showWordLabels ? 'payday' : '';
     } else if (isStorm) {
       dotStyle = [s.dotStorm, { backgroundColor: SLATE }];
       label = 'storm';
     } else if (billLabel !== undefined) {
       dotStyle = [s.dotBill, { backgroundColor: t.muted }];
-      label = billLabel;
+      label = showWordLabels ? billLabel : '';
     }
 
     return (
-      <View key={day} style={s.cell}>
+      <View key={cell} style={s.cell}>
         <View style={dotStyle} />
         <Text numberOfLines={1} style={[s.label, { color: t.muted }]}>
           {label}
