@@ -1,0 +1,15 @@
+# FIRST-RUN FLOW — DESTRUCTIVE: clearState WIPES ALL APP DATA on the target device.
+# Never run against a device holding real numbers. Kept for emulator/CI use only.
+appId: com.folio.v2.greenfield
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: "What should Melo call you?"
+    timeout: 20000
+- tapOn: "Skip for now"
+- extendedWaitUntil:
+    visible: "spare"
+    timeout: 10000
+- assertVisible: "Sample numbers"
