@@ -78,6 +78,7 @@ import { elevation, gap, radius, serif, useCountUp, useTheme, type Palette } fro
 import { Sheet } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { MeloReaction } from '@/folio/ui/MeloReaction';
 import { copy } from '@/folio/copy/copy';
 import {
   addToPot,
@@ -706,6 +707,14 @@ function PotCard({
           </View>
         </View>
       ) : null}
+
+      {/* MELO_EMOTIONAL_ENGINE.md § 3 — inline reaction (RN port of the web ScreenPots). */}
+      <MeloReaction
+        channel="pots-inline"
+        anchor="under-row"
+        matchKey={pot.id}
+        style={styles.reaction}
+      />
     </View>
   );
 }
@@ -1235,6 +1244,11 @@ const styles = StyleSheet.create({
   destChipLabel: {
     fontSize: 12.5,
     fontWeight: '500',
+  },
+
+  // The inline Melo reaction — web mt-2.
+  reaction: {
+    marginTop: gap.sm,
   },
 
   // Progress bars — rounded-full track + fill (width animated).

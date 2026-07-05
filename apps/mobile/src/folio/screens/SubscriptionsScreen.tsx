@@ -64,6 +64,7 @@ import { elevation, gap, type Palette, radius, serif, useCountUp, useTheme } fro
 import { routeFromStore, useRoute } from '@/folio/lib/storeRoute';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { MeloReaction } from '@/folio/ui/MeloReaction';
 import { useUndo } from '@/folio/ui/useUndo';
 import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
@@ -559,6 +560,14 @@ function SubscriptionRow({
           accessibilityHint={`Cancels ${sub.name}.`}
         />
       </View>
+
+      {/* MELO_EMOTIONAL_ENGINE.md § 3 — inline reaction (RN port of the web ScreenSubscriptions). */}
+      <MeloReaction
+        channel="subs-inline"
+        anchor="under-row"
+        matchKey={sub.name}
+        style={layout.reaction}
+      />
     </View>
   );
 }
@@ -634,6 +643,8 @@ const layout = StyleSheet.create({
 
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   actionsSpacer: { flex: 1 },
+  // The inline Melo reaction — web mt-2.
+  reaction: { marginTop: 8 },
   actionLink: { paddingVertical: 11, justifyContent: 'center' },
   actionLinkText: { fontSize: 12, fontWeight: '600' },
 

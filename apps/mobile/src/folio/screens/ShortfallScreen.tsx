@@ -20,9 +20,9 @@
 //               copy is FROZEN.
 // @reads        pots · subs · subPaused (via useAppStore) · the route (gap · daysLeft · spendable) via
 //               the shared useRoute bridge, which reads balance/subs/income/pots/onboarding itself.
-// @writes       addToPot (borrow → a negative pot deposit, source "shortfall-borrow") — only on an
-//               explicit preview→commit, never silently. The Pause move opens edit-item (the sheet
-//               writes). The borrow draw lifts the route, which narrows the gap on the next render.
+// @writes       borrowFromPot (source "shortfall-borrow") — only on an explicit preview→commit, never
+//               silently. The Pause move opens edit-item (the sheet writes). The borrow draw lifts the
+//               route, which narrows the gap on the next render.
 // @opens-sheet  edit-item (the web's "Pause one sub" → nav.openSheet("edit-item"))
 // @copy         FROZEN — never alarmist, never blaming. short.* keys come VERBATIM from
 //               '@/folio/copy/copy'; the eyebrows / kicker / captions / Melo line the deck does not
@@ -50,11 +50,12 @@
 //   • PREVIEW → COMMIT, NEVER SILENT. The web "Pause one sub" opened edit-item (the sheet does the
 //     write) and "Borrow" did nav.go('pots'). Per the port brief, borrow is a screen-owned PREVIEW +
 //     a single "Rebuild the plan"-style commit: tapping the card reveals the move's effect, and only
-//     "Move £n in" commits (addToPot of −gap from the pot, source "shortfall-borrow"). That draw lowers
-//     the pot's earmarked cash, which LIFTS the route — so on the next render the recomputed tight
-//     point has risen and the live gap (max(0, −tightPoint)) has narrowed. The borrow card AUTO-CLOSES
-//     the moment that recomputed gap reaches 0. Pause still opens edit-item (faithful to the web); the
-//     daily-cap move routes to WhatIf (nav.go('whatif')).
+//     "Move £n in" commits (borrowFromPot of gapNow from the pot, source "shortfall-borrow" — the
+//     dedicated borrow write; NOT addToPot with a negative amount, which addToPot's `amount > 0` guard
+//     silently no-ops). That draw lowers the pot's earmarked cash, which LIFTS the route — so on the
+//     next render the recomputed tight point has risen and the live gap (max(0, −tightPoint)) has
+//     narrowed. The borrow card AUTO-CLOSES the moment that recomputed gap reaches 0. Pause still opens
+//     edit-item (faithful to the web); the daily-cap move routes to WhatIf (nav.go('whatif')).
 //   • MELO MOOD = concern, on both the size-36 header accent and the closing MeloLine — never alarming
 //     (eyes close gently, a small worry-bead, breathe-slow 6s; no red, no shake; copy carries meaning).
 //   • formatGBP is the web kit's exact formatter (U+2212 minus, en-GB grouping, maximumFractionDigits
@@ -86,7 +87,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { addToPot, useAppStore } from '@/folio/store';
+import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { getShortfallCopy } from '@/folio/lib/modes/action';
 import type { Nav } from '@/folio/types';
@@ -246,9 +247,10 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     if (!lendingPot || gapNow <= 0) return;
     const draw = Math.min(gapNow, lendingPot.saved);
     if (draw <= 0) return;
-    // A borrow is money leaving the pot to cover today — recorded as a negative deposit so the pot's
-    // saved figure falls and the ledger keeps an honest "shortfall-borrow" row.
-    addToPot(lendingPot.id, -draw, 'shortfall-borrow');
+    // A borrow is money leaving the pot to cover today — `borrowFromPot` lowers the pot's saved
+    // figure and writes an honest "shortfall-borrow" ledger row (unlike addToPot, whose `amount > 0`
+    // guard would silently no-op on a negative draw).
+    borrowFromPot(lendingPot.id, draw, 'shortfall-borrow');
     setBorrowPreviewOpen(false);
   }
 

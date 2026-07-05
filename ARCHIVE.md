@@ -92,3 +92,6 @@ direct vector coupling, so it was left as-is.
 Verified: `grep -rn "phoenix-hero" apps/mobile/src/folio` hits inside the new `Melo.tsx`;
 `./node_modules/.bin/tsc -b apps/mobile --pretty false` → zero errors outside `src/local`
 (pre-existing, out of scope); `Melo.tsx` reformatted with `./node_modules/.bin/prettier --write`.
+
+## 07-05 addendum: archived evidence tests
+12 test files pinning the deleted legacy /home route + pre-port app shape (dogfoodMode, iosReadinessEvidence, routeSurfaceTruth, 9 surfaces/* UX-evidence suites) removed with the surface they tested; recoverable from git history. Stale apps/mobile/dist build output dropped.

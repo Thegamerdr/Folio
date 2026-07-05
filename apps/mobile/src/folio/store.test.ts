@@ -17,8 +17,10 @@ import {
   type Pot,
   type Transaction,
   addCycle,
+  addToPot,
   addTransaction,
   applyMeloTool,
+  borrowFromPot,
   clearReaderCandidates,
   editTransaction,
   fastForwardMonth,
@@ -31,12 +33,14 @@ import {
   resetAll,
   resetToEmpty,
   setPartial,
+  setPotAllowNegative,
   setPots,
   setReaderCandidates,
   setTightPointGoal,
   togglePaused,
 } from './store';
 import type { CandidateMoneyItem } from './lib/importSheet';
+import { subscribeMeloReaction, type MeloReactionPayload } from './lib/melo/reactionBus';
 
 beforeEach(() => {
   // Clean, known seed before every test (defaults + seeded transactions).
@@ -116,6 +120,168 @@ describe('pauseMany / togglePaused', () => {
     expect(getState().subPaused.iCloud).toBe(true);
     togglePaused('iCloud', true); // idempotent at the same value
     expect(getState().subPaused.iCloud).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Melo reaction emission — addToPot (goal-crossing thresholds) and
+// togglePaused (pause/resume whisper). RN port of the web's reactionBus emits
+// (folio-melo lib/store.ts). The store emits via a dynamic `import(...)`, so
+// each assertion awaits a microtask flush before checking the captured payload.
+// ---------------------------------------------------------------------------
+describe('Melo reaction emission', () => {
+  // The store emits reactions via a dynamic `import('./lib/melo/reactionBus')`, which resolves on a
+  // later microtask than a plain `Promise.resolve()` chain. Rather than guess the exact tick count,
+  // subscribe for the lifetime of the test and let each `it` block use its own channel/key scoping
+  // (or a fresh `resetAll()` beforeEach) to avoid cross-test bleed.
+  function captureOnce(channel: string): { payload: MeloReactionPayload | null } {
+    const box: { payload: MeloReactionPayload | null } = { payload: null };
+    subscribeMeloReaction(channel, (p) => {
+      box.payload = p;
+    });
+    return box;
+  }
+
+  // Flushes the dynamic `import(...)` microtask queue the store's emit helpers schedule.
+  async function flushReactionImport(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  it('addToPot emits a "full" cheer reaction the moment a deposit tips a pot over its goal', async () => {
+    // Holiday pot seeds at 420/1200 (35% — below both thresholds).
+    setPots((ps) => ps.map((p) => (p.id === 'holiday' ? { ...p, saved: 1190, goal: 1200 } : p)));
+    const box = captureOnce('pots-inline');
+
+    addToPot('holiday', 20); // 1190 -> 1210, crosses the 100% line
+    await flushReactionImport();
+
+    expect(box.payload?.mood).toBe('cheer');
+    expect(box.payload?.pose).toBe('safe');
+    expect(box.payload?.key).toBe('holiday');
+    expect(box.payload?.line).toBe('Holiday is full. Small yes.');
+  });
+
+  it('addToPot emits a "halfway" curious reaction the moment a deposit crosses 50%', async () => {
+    setPots((ps) => ps.map((p) => (p.id === 'christmas' ? { ...p, saved: 140, goal: 300 } : p)));
+    const box = captureOnce('pots-inline');
+
+    addToPot('christmas', 20); // 140 -> 160, crosses the 50% line (150)
+    await flushReactionImport();
+
+    expect(box.payload?.mood).toBe('curious');
+    expect(box.payload?.pose).toBe('none');
+    expect(box.payload?.key).toBe('christmas');
+    expect(box.payload?.line).toBe('Halfway. Quietly working.');
+  });
+
+  it('addToPot emits nothing when the deposit does not cross a threshold', async () => {
+    setPots((ps) => ps.map((p) => (p.id === 'buffer' ? { ...p, saved: 10, goal: 500 } : p)));
+    const box = captureOnce('pots-inline');
+
+    addToPot('buffer', 5); // 10 -> 15, nowhere near 50% or 100%
+    await flushReactionImport();
+
+    expect(box.payload).toBe(null);
+  });
+
+  it('togglePaused pausing a sub emits a calm "paused" whisper on subs-inline', async () => {
+    const box = captureOnce('subs-inline');
+
+    togglePaused('Spotify', true);
+    await flushReactionImport();
+
+    expect(box.payload?.mood).toBe('calm');
+    expect(box.payload?.pose).toBe('safe');
+    expect(box.payload?.key).toBe('Spotify');
+    expect(box.payload?.line).toBe("Spotify paused for one cycle. I'll resume it after.");
+  });
+
+  it('togglePaused resuming a sub emits a curious "back on" whisper on subs-inline', async () => {
+    togglePaused('Spotify', true);
+    await flushReactionImport(); // let the setup call's own emit resolve before we start watching
+    const box = captureOnce('subs-inline');
+
+    togglePaused('Spotify', false);
+    await flushReactionImport();
+
+    expect(box.payload?.mood).toBe('curious');
+    expect(box.payload?.pose).toBe('check');
+    expect(box.payload?.line).toBe("Spotify back on. I'll watch the timing.");
+  });
+
+  it('togglePaused emits nothing when the value does not actually change', async () => {
+    togglePaused('Spotify', true);
+    await flushReactionImport(); // let the setup call's own emit resolve before we start watching
+    const box = captureOnce('subs-inline');
+
+    togglePaused('Spotify', true); // idempotent — no flip
+    await flushReactionImport();
+
+    expect(box.payload).toBe(null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// borrowFromPot — ENGINES.md § 4/6. Pulls money OUT of a pot for a Shortfall
+// draw; refuses to go negative unless the pot opted in via allowNegative.
+// ---------------------------------------------------------------------------
+describe('borrowFromPot', () => {
+  it('lowers the pot balance and writes a borrow ledger entry', () => {
+    const before = getState().pots.find((p) => p.id === 'holiday')!.saved;
+
+    const applied = borrowFromPot('holiday', 50, 'shortfall-borrow');
+
+    expect(applied).toBe(true);
+    expect(getState().pots.find((p) => p.id === 'holiday')!.saved).toBe(before - 50);
+    const entry = getState().potLedger[0]!;
+    expect(entry.kind).toBe('borrow');
+    expect(entry.potId).toBe('holiday');
+    expect(entry.amount).toBe(50);
+    expect(entry.source).toBe('shortfall-borrow');
+  });
+
+  it('is a no-op on a non-positive amount', () => {
+    const before = getState().pots.find((p) => p.id === 'holiday')!.saved;
+    expect(borrowFromPot('holiday', 0)).toBe(false);
+    expect(borrowFromPot('holiday', -10)).toBe(false);
+    expect(getState().pots.find((p) => p.id === 'holiday')!.saved).toBe(before);
+  });
+
+  it('is a no-op for an unknown pot id', () => {
+    expect(borrowFromPot('does-not-exist', 10)).toBe(false);
+  });
+
+  it('refuses to push a hard-capped pot below zero', () => {
+    // Christmas pot seeds at 60 saved — asking for more than that must fail.
+    const before = getState().pots.find((p) => p.id === 'christmas')!.saved;
+    expect(before).toBeLessThan(100);
+
+    const applied = borrowFromPot('christmas', 100);
+
+    expect(applied).toBe(false);
+    expect(getState().pots.find((p) => p.id === 'christmas')!.saved).toBe(before);
+  });
+
+  it('allows dipping below zero once the pot opts in via allowNegative', () => {
+    setPotAllowNegative('christmas', true);
+    const before = getState().pots.find((p) => p.id === 'christmas')!.saved;
+
+    const applied = borrowFromPot('christmas', before + 40);
+
+    expect(applied).toBe(true);
+    expect(getState().pots.find((p) => p.id === 'christmas')!.saved).toBe(-40);
+  });
+
+  it('never silently no-ops the way a negative addToPot call would', () => {
+    // Regression guard for the ShortfallScreen bug: addToPot's `amount > 0` guard makes a
+    // negative-amount call a silent no-op, so borrowFromPot must be the write path instead.
+    const before = getState().pots.find((p) => p.id === 'holiday')!.saved;
+    addToPot('holiday', -30, 'shortfall-borrow'); // the old, broken call shape
+    expect(getState().pots.find((p) => p.id === 'holiday')!.saved).toBe(before); // unchanged (no-op)
+
+    const applied = borrowFromPot('holiday', 30, 'shortfall-borrow'); // the correct call shape
+    expect(applied).toBe(true);
+    expect(getState().pots.find((p) => p.id === 'holiday')!.saved).toBe(before - 30);
   });
 });
 
@@ -579,9 +745,9 @@ describe('editTransaction', () => {
 // schema migration — v2 → v3 defaults the `edits` correction history
 // ---------------------------------------------------------------------------
 describe('schema migration v3', () => {
-  it('defaults DEFAULTS/state to schemaVersion 3 with an empty edit history', () => {
+  it('defaults DEFAULTS/state to the current schema version with an empty edit history', () => {
     resetAll();
-    expect(getState().schemaVersion).toBe(3);
+    expect(getState().schemaVersion).toBe(5);
     expect(getState().edits).toEqual([]);
   });
 });
@@ -640,7 +806,7 @@ describe('persist blob round-trip', () => {
     expect(s.onboarding.monthlyIncome).toBe(2600);
   });
 
-  it('round-trips through schema v3 with the edit history intact', () => {
+  it('round-trips through the current schema version with the edit history intact', () => {
     setPartial({ transactions: [], edits: [] });
     const row = addTransaction({
       merchant: 'Tesco',
@@ -655,7 +821,7 @@ describe('persist blob round-trip', () => {
     hydrateFromBlob(blob);
 
     const s = getState();
-    expect(s.schemaVersion).toBe(3);
+    expect(s.schemaVersion).toBe(5);
     expect((s.edits ?? []).length).toBe(1);
     expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
   });

@@ -847,6 +847,7 @@ export function removeSub(name: string) {
 
 export function addToPot(id: string, amount: number, source: string = 'manual') {
   if (!(amount > 0)) return;
+  const before = state.pots.find((p) => p.id === id);
   const entry: PotLedgerEntry = {
     id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     potId: id,
@@ -855,10 +856,83 @@ export function addToPot(id: string, amount: number, source: string = 'manual') 
     amount,
     source,
   };
+  const nextPots = state.pots.map((p) => (p.id === id ? { ...p, saved: p.saved + amount } : p));
   setPartial({
-    pots: state.pots.map((p) => (p.id === id ? { ...p, saved: p.saved + amount } : p)),
+    pots: nextPots,
     potLedger: [entry, ...state.potLedger].slice(0, 500),
   });
+
+  // Emit a Melo reaction if this deposit tips the pot over the goal line (or over the halfway
+  // threshold on the way up). RN port of folio-melo lib/store.ts `addToPot` (byte-faithful
+  // thresholds/copy/durations). Reactions are the visual language of MELO_EMOTIONAL_ENGINE.md § 3 —
+  // no cooldown/dedupe/queue here; that is the separate `meloReactions` engine (ENGINES.md § 9.4).
+  if (before && before.goal > 0) {
+    const after = nextPots.find((p) => p.id === id);
+    if (after) {
+      const beforeRatio = before.saved / before.goal;
+      const afterRatio = after.saved / after.goal;
+      void import('./lib/melo/reactionBus').then(({ emitMeloReaction }) => {
+        if (beforeRatio < 1 && afterRatio >= 1) {
+          emitMeloReaction('pots-inline', {
+            mood: 'cheer',
+            pose: 'safe',
+            line: `${after.name.split(' · ')[0] ?? after.name} is full. Small yes.`,
+            durationMs: 4200,
+            key: id,
+          });
+        } else if (beforeRatio < 0.5 && afterRatio >= 0.5) {
+          emitMeloReaction('pots-inline', {
+            mood: 'curious',
+            pose: 'none',
+            line: 'Halfway. Quietly working.',
+            durationMs: 3400,
+            key: id,
+          });
+        }
+      });
+    }
+  }
+}
+
+/** ENGINES.md § 4 "Pot rules — borrow/repay ledger" + § 6 "Shortfall can borrow from a pot to lift
+ *  the path back up" (RN port of folio-melo lib/store.ts `borrowFromPot`, byte-faithful). Reduces the
+ *  pot's `saved` amount and writes a `borrow` ledger entry. Refuses to go negative unless the pot has
+ *  explicitly opted in via `allowNegative`. Returns true if the borrow was applied, false on a no-op
+ *  (non-positive amount, unknown pot, or a hard-capped pot that can't cover the draw). This is the
+ *  correct write for "pull money OUT of a pot" — unlike `addToPot`, whose `amount > 0` guard makes a
+ *  negative-amount call silently no-op. */
+export function borrowFromPot(
+  id: string,
+  amount: number,
+  source: string = 'shortfall-borrow',
+): boolean {
+  if (!(amount > 0)) return false;
+  const pot = state.pots.find((p) => p.id === id);
+  if (!pot) return false;
+  if (!pot.allowNegative && pot.saved < amount) return false;
+  const entry: PotLedgerEntry = {
+    id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    potId: id,
+    at: new Date().toISOString(),
+    kind: 'borrow',
+    amount,
+    source,
+  };
+  setPartial({
+    pots: state.pots.map((p) => (p.id === id ? { ...p, saved: p.saved - amount } : p)),
+    potLedger: [entry, ...state.potLedger].slice(0, 500),
+  });
+  // Whisper on Today so the borrow feels acknowledged, not silent.
+  void import('./lib/melo/reactionBus').then(({ emitMeloReaction }) => {
+    emitMeloReaction('today-header', {
+      mood: 'calm',
+      pose: 'safe',
+      line: `Borrowed £${amount} from ${pot.name.split(' · ')[0] ?? pot.name}. Ritual will remind you to repay.`,
+      durationMs: 4200,
+      key: `borrow-${id}`,
+    });
+  });
+  return true;
 }
 
 /** ENGINES.md § 4 "Pot rules — borrow/repay ledger". Records a `repay` entry against a pot the user
@@ -911,7 +985,25 @@ export function markSubUsed(name: string) {
 
 export function togglePaused(name: string, value?: boolean) {
   const current = !!state.subPaused[name];
-  setPartial({ subPaused: { ...state.subPaused, [name]: value ?? !current } });
+  const next = value ?? !current;
+  setPartial({ subPaused: { ...state.subPaused, [name]: next } });
+
+  // Sub toggled → whisper on the subs surface. RN port of folio-melo lib/store.ts `togglePaused`
+  // (byte-faithful mood/pose/copy/durations). MELO_EMOTIONAL_ENGINE.md § 3 "sub paused" / "sub
+  // resumed" reactions — cooldown/dedupe is the separate `meloReactions` engine (ENGINES.md § 9.4).
+  if (current !== next) {
+    void import('./lib/melo/reactionBus').then(({ emitMeloReaction }) => {
+      emitMeloReaction('subs-inline', {
+        mood: next ? 'calm' : 'curious',
+        pose: next ? 'safe' : 'check',
+        line: next
+          ? `${name} paused for one cycle. I'll resume it after.`
+          : `${name} back on. I'll watch the timing.`,
+        durationMs: 4000,
+        key: name,
+      });
+    });
+  }
 }
 
 export function pauseMany(names: string[], value: boolean) {
