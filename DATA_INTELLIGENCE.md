@@ -678,3 +678,4 @@ compounding). Decision recorded: live folio spine is the only work target;
 `store.ts` Onboarding type, `payday.ts`, `calendarEvents.ts`,
 `storeRoute.ts`, `lens.ts`, `OnboardingSheet.tsx`.
 - 07-05/06: PHASE 1 SHIPPED + OTA'd (income cadence model, 1057 tests). Discovery hardening: weekend shift for week-based paydays, ritual once/calendar-month, trial 21-day floor. Discovery lesson: run discovery AFTER verify (raced the build lanes, one stale false positive). Phase 2 (salary inference) launched.
+- 07-06: PHASE 2 SHIPPED + OTA'd (salary inference, 1094 tests). Discovery: CRITICAL double-count fixed pre-ship (same-income update-not-append); drift re-check folded into phase 6 scope; benefits-as-income = correct behavior, copy nuance noted. Machine restart mid-phase: workflow journal resume worked (cached lanes replayed, 92s). Phase 3 (merchant memory) launched.
