@@ -177,6 +177,13 @@ function EditTxnForm({
   // correction fixes the figure without silently flipping a spend into income. (Date editing needs a
   // platform date-picker and is a follow-up; Repeat is not a Transaction field, so it stays a display
   // row.)
+  // PARITY_GAPS Group 2 fix: the web's Merchant field is a separate editable text input (not folded
+  // into the read-only title) — restored here so a user can correct the merchant name, matching
+  // SheetEditTxn.tsx exactly. The header title stays live-bound to the field's current value (web
+  // behaviour: the title itself is a separate, static "{merchant} · {date}" line that does NOT
+  // re-render from the input — kept as the original merchant so the header reads as "which
+  // transaction", while the editable Merchant field is the correction surface below it).
+  const [merchant, setMerchant] = useState(txn.merchant);
   const [amountText, setAmountText] = useState(Math.abs(txn.amount).toFixed(2));
   const [category, setCategory] = useState<Transaction['category']>(txn.category);
   const [note, setNote] = useState(txn.note ?? '');
@@ -206,12 +213,25 @@ function EditTxnForm({
   // them together. A no-op save (nothing changed) raises no undo window, matching editTransaction's
   // own no-op contract (an unchanged patch writes nothing, so there is nothing to undo).
   function handleSave() {
+    const nextMerchant = merchant.trim();
     const nextAmount = resolvedAmount();
     const nextNote = note.trim();
     const changed =
-      nextAmount !== txn.amount || category !== txn.category || nextNote !== (txn.note ?? '');
-    const snapshot = { amount: txn.amount, category: txn.category, note: txn.note ?? '' };
-    editTransaction(txn.id, { amount: nextAmount, category, note: nextNote }, 'user');
+      nextMerchant !== txn.merchant ||
+      nextAmount !== txn.amount ||
+      category !== txn.category ||
+      nextNote !== (txn.note ?? '');
+    const snapshot = {
+      merchant: txn.merchant,
+      amount: txn.amount,
+      category: txn.category,
+      note: txn.note ?? '',
+    };
+    editTransaction(
+      txn.id,
+      { merchant: nextMerchant || txn.merchant, amount: nextAmount, category, note: nextNote },
+      'user',
+    );
     onClose();
     if (changed) {
       showUndo(`Updated ${txn.merchant}`, () => {
@@ -241,6 +261,20 @@ function EditTxnForm({
 
       {/* Editable field rows — bound to the real transaction; Save routes a correction per change. */}
       <View style={s.fields}>
+        {/* Merchant — free-text correction (web SheetEditTxn.tsx's separate editable Merchant field,
+            restored here; previously this name only appeared in the read-only header title). */}
+        <View style={s.fieldRow}>
+          <Text style={s.fieldLabel}>Merchant</Text>
+          <TextInput
+            accessibilityLabel="Merchant"
+            onChangeText={setMerchant}
+            placeholder={txn.merchant}
+            placeholderTextColor={t.muted}
+            style={s.fieldValueInput}
+            value={merchant}
+          />
+        </View>
+
         {/* Amount — unsigned magnitude input; the original direction is preserved on save. */}
         <View style={s.fieldRow}>
           <Text style={s.fieldLabel}>Amount</Text>
@@ -305,19 +339,34 @@ function EditTxnForm({
         </View>
       </View>
 
-      {/* Primary — Save changes (one non-destructive correction per changed field, then close). */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Save changes"
-        onPress={handleSave}
-        style={({ pressed }) => [
-          s.primary,
-          { backgroundColor: t.calm },
-          pressed ? s.pressed : undefined,
-        ]}
-      >
-        <Text style={[s.primaryLabel, { color: t.inverse }]}>Save changes</Text>
-      </Pressable>
+      {/* Footer — Cancel (inset fill) + Save changes (accent fill), side by side (web `flex gap-2`).
+          Cancel just closes without applying any of the pending edits. */}
+      <View style={s.footerRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          onPress={onClose}
+          style={({ pressed }) => [
+            s.footerButton,
+            { backgroundColor: t.inset },
+            pressed ? s.pressed : undefined,
+          ]}
+        >
+          <Text style={[s.footerButtonLabel, { color: t.ink }]}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Save changes"
+          onPress={handleSave}
+          style={({ pressed }) => [
+            s.footerButton,
+            { backgroundColor: t.calm },
+            pressed ? s.pressed : undefined,
+          ]}
+        >
+          <Text style={[s.footerButtonLabel, { color: t.inverse }]}>Save changes</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -516,6 +565,23 @@ function makeStyles(t: Palette) {
       marginTop: gap.xl,
     },
     primaryLabel: {
+      fontSize: 15,
+      fontWeight: '500',
+    },
+    // Footer row — Cancel + Save changes, side by side (web `flex gap-2`, mt-6).
+    footerRow: {
+      flexDirection: 'row',
+      gap: gap.sm,
+      marginTop: gap.xl,
+    },
+    footerButton: {
+      alignItems: 'center',
+      borderRadius: radius.xl,
+      flex: 1,
+      height: 54,
+      justifyContent: 'center',
+    },
+    footerButtonLabel: {
       fontSize: 15,
       fontWeight: '500',
     },

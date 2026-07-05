@@ -4,51 +4,41 @@
 // @rn-screen    PaywallScreen
 // @rn-stack     More > Paywall
 // @purpose      The real pricing surface. Three tiers (Free / Melo Plus / Melo Pro), a monthly/yearly
-//               cadence toggle, a compare-at-a-glance matrix, and an honest "coming soon" state for
-//               every paid action — see FIDELITY DECISIONS for why no purchase is actually offered
-//               yet.
-// @reads        currentBalance, pots (for a Safe Zone approximation — see FIDELITY DECISIONS)
-// @writes       — none. No trial start, no purchase, no store mutation of any kind.
-// @copy         FROZEN — ported verbatim from the web literals (no COPY_DECK entry exists yet for
-//               this screen; the web JSX strings are the frozen source, same convention
-//               MeloScreen/AccountScreen use for their own inline literals).
+//               cadence toggle, a compare-at-a-glance matrix, a ten-lens rail, and a REAL one-cycle
+//               trial CTA for Plus/Pro — wired to the app's actual lens/entitlement engine
+//               (`@/folio/lib/lens`, `@/folio/store` LensState), not a static "coming soon" stub.
+// @reads        moneyMode, lens.plusUnlocked, lens.proUnlocked, lens.trialCycleId, currentBalance,
+//               pots, subs, subPaused, onboarding, melo.quietMode — via useLens()/useAppStore().
+// @writes       startTrial() (via useLens()) on the Plus/Pro trial CTA.
+// @copy         FROZEN — ported verbatim from the web literals (the web JSX strings are the frozen
+//               source, same convention every folio screen uses for its own inline literals).
 // @tokens       canvas · surface · inset · ink · calm (accent) · calmSoft · positive · caution ·
 //               hairline · muted — all from the kit. Fraunces headlines · tabular money.
 //
-// FIDELITY DECISIONS — this screen is, per GAP_MAP.md's own note, "a real build not just a port":
-//   • Lens/billing engine absent: the web reads `useLens()` (plusUnlocked/proUnlocked/trialCycleId/
-//     startTrial/tierFor), `moneyMode`, and `melo.quietMode` from engines that do not exist anywhere
-//     in this RN store (confirmed: no `lens`, `moneyMode`, or `melo` field in
-//     apps/mobile/src/folio/store.ts). RN_PORT.md's loop discipline forbids inventing a new engine
-//     silently ("must be added to ENGINES.md first"). This port therefore does NOT fabricate a lens
-//     store, a trial mechanism, or a MoneyMode union — every tier/lens concept below is presentation
-//     only, driven by LOCAL component state, never persisted, never mutating the real store.
-//   // @rn-engine lens-tier (needs @/folio/lib/lens equivalent: plusUnlocked/proUnlocked/
-//   // trialCycleId/startTrial + the ten-lens MoneyMode union + real billing — not wired here)
-//   • Ten-lens rail: the web's `FREE_LENSES`/`PLUS_LENSES`/`PRO_LENSES` + `MODE_LABEL` come from the
-//     unbuilt Money Mode/lens engine (GAP_MAP batch 2 — TodayMode/TodayStability/SheetLensPicker are
-//     also still missing). This screen ports the STATIC tier-copy/matrix (which needs no live lens
-//     state) but drops the live "ten lenses, N free/plus/pro, active now" rail, since it would have
-//     to either read an engine that doesn't exist or fabricate one. Reported as a wiringNeeds
-//     dependency rather than silently faked.
-//   • canShowUpsell: the web guard (`@/lib/lens/paywall`) reads `weather` (from `deriveMeloState`,
-//     also unbuilt in RN), `recoveryActive` (moneyMode === 'reset', unbuilt), and `melo.quietMode`
-//     (unbuilt). None of those signals exist yet. The ONE real signal this port CAN read honestly is
-//     the live Safe Zone approximation (`currentBalance.amount - sum(pot.saved)`), so `canSell` here
-//     is a minimal, honestly-scoped port of just the "safe-zone-negative" branch of the real guard —
-//     upsells are suppressed when the approximate Safe Zone is negative, and shown otherwise. This is
-//     LESS conservative than the real five-signal guard (no weather/recovery/quiet-mode suppression),
-//     which is why it's flagged here and in wiringNeeds rather than presented as the finished guard.
-//   • Trial CTA: since there is no `startTrial()`/`lens.trialCycleId`, the Plus/Pro primary actions
-//     never claim to grant access — both render an honest "coming soon" state (mirrors the web Pro
-//     column's own "coming with the mobile app" pattern, extended to Plus too, since neither can
-//     really unlock anything yet). No fake "Trial started" confirmation is ever shown.
-//   • Restore: same honest-stub pattern as the web's restore handler, via Alert.alert (RN's
-//     established toast-replacement convention — SubscriptionsScreen / MeloChatSheet / PrivacyScreen)
-//     instead of sonner.
-//   • "Notify me when Pro ships": the web persisted this via `localStorage`. RN has no such API; this
-//     port keeps it as in-memory local state only (resets on remount) rather than inventing a
-//     persistence seam for a placeholder feature.
+// FIDELITY DECISIONS (superseding the prior build's "no lens engine exists" note — it does now):
+//   • Lens/trial engine: `@/folio/lib/lens`'s `useLens()` is REAL (plusUnlocked / proUnlocked /
+//     trialCycleId / trialDaysLeft / startTrial / tierFor / canAccess), confirmed against
+//     `@/folio/store`'s `LensState` + `startLensTrial`/`setLensPlusUnlocked`/`setLensProUnlocked`
+//     mutators. This port wires it directly — the Plus CTA calls the real `startTrial()`, and the
+//     current-tier strip / CTA / lens rail all read the real entitlement state instead of a static
+//     "Free" placeholder.
+//   • canShowUpsell: `@/folio/lib/lensPaywall`'s `canShowUpsell`/`upsellSuppressionReason` are REAL
+//     ports of the web's five-signal guard (weather, recovery, safe-zone, quiet-mode). Weather comes
+//     from `deriveModeState(moneyMode, inputs).weather` (the same mode engine every other screen
+//     uses); `recoveryActive` = `moneyMode === 'reset'` (mirrors the web's own derivation);
+//     `quietMode` reads the real `melo.quietMode` slice (added to the store alongside this round —
+//     see MeloScreen.tsx / store.ts). All five suppression reasons + their distinct copy are ported.
+//   • Ten-lens rail: `FREE_LENSES` / `PLUS_LENSES` / `PRO_LENSES` / `MODE_LABEL` / `tierFor` /
+//     `canAccess` all come from the real `@/folio/lib/lens` + `@/folio/lib/modes` modules — the rail
+//     is wired live (Active / Free / locked-with-tier-badge / unlocked states), not dropped.
+//   • Tier bullet "live" flags: corrected to match the web's frozen `TIER_COPY` exactly — Plus's
+//     "Growth, Reset, Optimizer, Planning lenses" and Pro's "Irregular income · Debt / BNPL" /
+//     "Low-visibility lens" are `live: true` (the underlying mode strategies are real and shipped in
+//     this app's `@/folio/lib/modes/strategies/*` — confirmed all ten exist), matching the compare
+//     matrix's corresponding rows.
+//   • Restore: kept as an honest `Alert.alert` stub (RN's established toast-replacement convention),
+//     but now branches on the REAL `proUnlocked`/`plusUnlocked` state (mirrors the web's `handleRestore`
+//     three-way branch) instead of always claiming "no purchase found".
 //   • Accent word "your": web `<em class="not-italic text-accent">your</em>`. RN has no inline `<em>`,
 //     so the headline is three Text runs and the accent run is a nested UPRIGHT terracotta span (the
 //     StartScreen / MeloScreen / AccountScreen pattern).
@@ -57,7 +47,8 @@
 //   • STATES: populated-only per the SPEC convention (offline = populated; no async dependency). All
 //     five branches are rendered for completeness.
 //
-// HONEST CLAIMS: no privacy/security assertion is made. No purchase is ever claimed to succeed. No
+// HONEST CLAIMS: no privacy/security assertion is made. Every CTA does exactly what it claims — the
+// trial CTA really starts a trial, the guard really suppresses selling on a bad money moment. No
 // banned product vocabulary appears in any visible string. Every row/button is a >=44px tap target.
 
 import { useEffect, useMemo, useState } from 'react';
@@ -76,6 +67,10 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
+import { useLens, FREE_LENSES, PLUS_LENSES, PRO_LENSES } from '@/folio/lib/lens';
+import { canShowUpsell, upsellSuppressionReason } from '@/folio/lib/lensPaywall';
+import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
+import { useRoute } from '@/folio/lib/storeRoute';
 import type { Nav } from '@/folio/types';
 
 export type PaywallScreenState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
@@ -88,12 +83,29 @@ export type PaywallScreenProps = {
 type TierKey = 'free' | 'plus' | 'pro';
 type Cadence = 'monthly' | 'yearly';
 
-// Prototype prices — real billing ships once the lens/billing engine lands (see FIDELITY DECISIONS).
+// Prototype prices — real billing is a future engine; the lens/trial state itself is real.
 const PLUS_MONTHLY = 4.99;
 const PLUS_YEARLY = 39.99;
 const PRO_MONTHLY = 8.99;
 const PRO_YEARLY = 69.99;
 
+// Frozen lens one-liners — verbatim from the web's `LENS_ONE_LINER`.
+const LENS_ONE_LINER: Record<MoneyMode, string> = {
+  survival: 'Make it to payday.',
+  stability: 'Bills covered — hold the line.',
+  growth: 'Push the buffer, keep momentum.',
+  debt: 'Chip away without slipping.',
+  irregular: 'Even out the peaks and dips.',
+  household: 'Share the shape, not the stress.',
+  planning: 'Line it up without breaking today.',
+  optimizer: 'Trim the quiet leaks.',
+  reset: 'Soft landing, then rebuild.',
+  lowVis: 'Not enough to say yet.',
+};
+
+// Tier copy — corrected to match the web's frozen TIER_COPY `live` flags exactly (see FIDELITY
+// DECISIONS above: Plus's four lenses + Pro's Irregular/Debt/Low-vis lenses are all shipped
+// strategies in this app, so they are `live`, not `soon`).
 const TIER_COPY: Record<
   TierKey,
   { name: string; tagline: string; bullets: { label: string; live: boolean }[] }
@@ -113,7 +125,7 @@ const TIER_COPY: Record<
     tagline: 'Full daily clarity.',
     bullets: [
       { label: 'Everything in Free', live: true },
-      { label: 'Growth, Reset, Optimizer, Planning lenses', live: false },
+      { label: 'Growth, Reset, Optimizer, Planning lenses', live: true },
       { label: 'Unlimited spend checks', live: false },
       { label: 'Bill shield · Calendar · What changed', live: true },
       { label: 'Widgets · Leak detection', live: false },
@@ -125,8 +137,8 @@ const TIER_COPY: Record<
     tagline: 'Advanced forecasting + shared money.',
     bullets: [
       { label: 'Everything in Plus', live: true },
-      { label: 'Irregular income · Debt / BNPL', live: false },
-      { label: 'Low-visibility lens', live: false },
+      { label: 'Irregular income · Debt / BNPL', live: true },
+      { label: 'Low-visibility lens', live: true },
       { label: 'Household (shared setup)', live: false },
       { label: 'Money Time Machine', live: false },
       { label: 'Custom rules · Exports', live: false },
@@ -138,13 +150,13 @@ type MatrixCell = 'live' | 'soon' | 'no';
 const MATRIX: readonly { label: string; free: MatrixCell; plus: MatrixCell; pro: MatrixCell }[] = [
   { label: 'Will my money last to payday?', free: 'live', plus: 'live', pro: 'live' },
   { label: 'Safe Zone · Recovery · Reset', free: 'live', plus: 'live', pro: 'live' },
-  { label: 'Growth · Optimizer · Planning', free: 'no', plus: 'soon', pro: 'soon' },
+  { label: 'Growth · Optimizer · Planning', free: 'no', plus: 'live', pro: 'live' },
   { label: 'Bill shield · Calendar', free: 'no', plus: 'live', pro: 'live' },
   { label: 'Premium Fenice looks', free: 'no', plus: 'live', pro: 'live' },
   { label: 'Widgets · Leak detection', free: 'no', plus: 'soon', pro: 'soon' },
-  { label: 'Low visibility lens', free: 'no', plus: 'no', pro: 'soon' },
-  { label: 'Irregular income · runway', free: 'no', plus: 'no', pro: 'soon' },
-  { label: 'Debt / BNPL payoff', free: 'no', plus: 'no', pro: 'soon' },
+  { label: 'Low visibility lens', free: 'no', plus: 'no', pro: 'live' },
+  { label: 'Irregular income · runway', free: 'no', plus: 'no', pro: 'live' },
+  { label: 'Debt / BNPL payoff', free: 'no', plus: 'no', pro: 'live' },
   { label: 'Household (shared money)', free: 'no', plus: 'no', pro: 'soon' },
   { label: 'Money Time Machine', free: 'no', plus: 'no', pro: 'soon' },
 ];
@@ -174,22 +186,63 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
+  const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival') as MoneyMode;
   const currentBalance = useAppStore((s) => s.currentBalance);
   const pots = useAppStore((s) => s.pots);
+  const subs = useAppStore((s) => s.subs);
+  const subPaused = useAppStore((s) => s.subPaused);
+  const onboarding = useAppStore((s) => s.onboarding);
+  const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
+
+  const { plusUnlocked, proUnlocked, trialCycleId, trialDaysLeft, startTrial, tierFor } = useLens();
 
   const [cadence, setCadence] = useState<Cadence>('yearly');
   const [selected, setSelected] = useState<TierKey>('plus');
-  const [proNotifyOn, setProNotifyOn] = useState(false);
 
-  // Honest Safe Zone approximation — the one real signal available without the unbuilt lens/melo
-  // engines (see FIDELITY DECISIONS canShowUpsell note).
+  const route = useRoute(new Date());
+
   const safeZoneTotal = useMemo(
     () => currentBalance.amount - pots.reduce((sum, p) => sum + Math.max(0, p.saved), 0),
     [currentBalance, pots],
   );
-  // Minimal, honestly-scoped guard: suppress only on a negative Safe Zone. The real five-signal guard
-  // (weather/recovery/quiet-mode) cannot be ported until those engines exist.
-  const canSell = safeZoneTotal >= 0;
+
+  const modeState = useMemo(
+    () =>
+      deriveModeState(moneyMode, {
+        currentBalance,
+        onboarding,
+        pots,
+        subs,
+        subPaused,
+        tightestSpare: route.tightPoint.amount,
+        tightestDate: route.tightPoint.date,
+        ritualCompletedRecently: false,
+      }),
+    [moneyMode, currentBalance, onboarding, pots, subs, subPaused, route],
+  );
+
+  // Reset lens is the app's recovery surface — treat it as recoveryActive so the paywall goes
+  // silent while the user is mid-triage (mirrors the web's own derivation).
+  const recoveryActive = moneyMode === 'reset';
+
+  const guardInputs = {
+    weather: modeState.weather,
+    recoveryActive,
+    safeZoneTotal,
+    quietMode,
+  };
+  const canSell = canShowUpsell(guardInputs);
+  const reason = upsellSuppressionReason(guardInputs);
+
+  // Trial end label — the real trialDaysLeft from useLens(), rendered as a plain day count (the
+  // web computed an explicit calendar date; RN's useLens() already exposes the day-count form,
+  // which reads just as honestly and avoids duplicating payday date math here).
+  const trialEndLabel =
+    trialDaysLeft !== null
+      ? trialDaysLeft <= 1
+        ? 'tomorrow'
+        : `in ${trialDaysLeft} days`
+      : 'at payday';
 
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
@@ -216,28 +269,38 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       : { price: m, per: 'month' };
   };
 
-  const handleComingSoon = (tierName: string) =>
+  const handleStartTrial = () => {
+    if (!canSell) return;
+    startTrial();
     Alert.alert(
-      `${tierName} — coming soon`,
-      'Real billing ships once the plan engine lands. Nothing will be charged today.',
+      'Trial started · one cycle',
+      `Every paid lens unlocked ${trialEndLabel === 'at payday' ? 'until payday' : trialEndLabel}. Auto-locks at payday.`,
       [{ text: 'OK', style: 'cancel' }],
-      { cancelable: true },
     );
-
-  const handleProNotify = () => {
-    setProNotifyOn(true);
-    Alert.alert('On the list', "We'll let you know the moment Melo Pro ships.", [
-      { text: 'OK', style: 'cancel' },
-    ]);
+    nav.back();
   };
 
-  const handleRestore = () =>
+  const handleRestore = () => {
+    if (proUnlocked) {
+      Alert.alert('Melo Pro is active on this device', undefined, [
+        { text: 'OK', style: 'cancel' },
+      ]);
+      return;
+    }
+    if (plusUnlocked) {
+      Alert.alert('Melo Plus is active on this device', undefined, [
+        { text: 'OK', style: 'cancel' },
+      ]);
+      return;
+    }
     Alert.alert(
       'No purchase found on this device',
-      'This is the current build — real restore ships with the plan engine.',
+      'This is the current build — real restore ships with a future update.',
       [{ text: 'OK', style: 'cancel' }],
-      { cancelable: true },
     );
+  };
+
+  const currentTier: TierKey = proUnlocked ? 'pro' : plusUnlocked ? 'plus' : 'free';
 
   // empty / error — the calm EmptyState doorway (n/a in practice; rendered for completeness).
   if (state === 'empty' || state === 'error') {
@@ -297,12 +360,25 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           </Pressable>
         </View>
 
-        {/* Current-tier strip — always Free (see FIDELITY DECISIONS lens-tier note). */}
+        {/* Current-tier strip — real trial-aware read. */}
         <View style={styles.tierStrip}>
-          <View style={[styles.tierDot, { backgroundColor: t.positive }]} />
+          <View
+            style={[
+              styles.tierDot,
+              {
+                backgroundColor:
+                  currentTier === 'pro' ? t.calm : currentTier === 'plus' ? t.calmSoft : t.positive,
+              },
+            ]}
+          />
           <Text style={[styles.tierStripText, { color: t.muted }]}>
             {"You're on "}
-            <Text style={[styles.tierStripCurrent, { color: t.ink }]}>Free</Text>
+            <Text style={[styles.tierStripCurrent, { color: t.ink }]}>
+              {currentTier === 'pro' ? 'Melo Pro' : currentTier === 'plus' ? 'Melo Plus' : 'Free'}
+            </Text>
+            {trialCycleId && !plusUnlocked && !proUnlocked ? (
+              <Text style={styles.tierStripTrial}>{` · trial · ends ${trialEndLabel}`}</Text>
+            ) : null}
           </Text>
         </View>
 
@@ -320,14 +396,22 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           </Text>
         </View>
 
-        {/* Honest paywall guard — never sell when the Safe Zone is negative. */}
+        {/* Honest paywall guard — the real five-signal canShowUpsell. */}
         {!canSell ? (
           <Surface
             style={[styles.guardCard, { backgroundColor: t.inset, borderColor: t.hairline }]}
           >
             <Text style={[styles.guardEyebrow, { color: t.muted }]}>Not the right moment</Text>
             <Text style={[styles.guardBody, { color: t.ink }]}>
-              Your spare is under zero. Don&apos;t subscribe this week.
+              {reason === 'safe-zone-negative'
+                ? "Your spare is under zero. Don't subscribe this week."
+                : reason === 'recovery-active'
+                  ? "You're mid-recovery. Stay focused on that first."
+                  : reason === 'quiet-mode'
+                    ? 'Quiet mode is on. Turn it off if you want to see this.'
+                    : reason === 'weather-fog'
+                      ? 'Not enough to say yet — add a statement first.'
+                      : "Storm outside. Let's talk about this when it clears."}
             </Text>
           </Surface>
         ) : null}
@@ -379,7 +463,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
             const tc = TIER_COPY[tier];
             const p = priceFor(tier);
             const isSelected = selected === tier;
-            const isCurrent = tier === 'free';
+            const isCurrent = currentTier === tier;
             const isRecommended = tier === 'plus';
             return (
               <Pressable
@@ -464,9 +548,14 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         <Surface style={[styles.matrixCard, { borderColor: t.hairline }]}>
           <View style={[styles.matrixHeaderRow, { backgroundColor: t.inset }]}>
             <Text style={[styles.matrixHeaderLabel, { color: t.muted }]}>Compare</Text>
-            <Text style={[styles.matrixHeaderCol, { color: t.muted }]}>Free</Text>
-            <Text style={[styles.matrixHeaderCol, { color: t.muted }]}>Plus</Text>
-            <Text style={[styles.matrixHeaderCol, { color: t.muted }]}>Pro</Text>
+            {(['free', 'plus', 'pro'] as TierKey[]).map((tk) => (
+              <Text
+                key={tk}
+                style={[styles.matrixHeaderCol, { color: currentTier === tk ? t.calm : t.muted }]}
+              >
+                {tk === 'free' ? 'Free' : tk === 'plus' ? 'Plus' : 'Pro'}
+              </Text>
+            ))}
           </View>
           {MATRIX.map((row, i) => (
             <View
@@ -500,7 +589,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           </Surface>
         ) : null}
 
-        {/* Primary CTA. */}
+        {/* Primary CTA — real tier/trial state, mirrors the web's branch order exactly. */}
         <View style={styles.ctaBlock}>
           {selected === 'free' ? (
             <Surface
@@ -510,11 +599,39 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 Free is always yours. Nothing to buy.
               </Text>
             </Surface>
-          ) : canSell ? (
+          ) : selected === 'plus' && plusUnlocked ? (
+            <Surface
+              style={[styles.ctaNote, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
+            >
+              <Text style={[styles.ctaStateEyebrow, { color: t.positive }]}>Plus is on</Text>
+              <Text style={[styles.ctaStateBody, { color: t.muted }]}>
+                Every Plus lens is unlocked.
+              </Text>
+            </Surface>
+          ) : selected === 'pro' && proUnlocked ? (
+            <Surface
+              style={[styles.ctaNote, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
+            >
+              <Text style={[styles.ctaStateEyebrow, { color: t.positive }]}>Pro is on</Text>
+              <Text style={[styles.ctaStateBody, { color: t.muted }]}>Every lens is unlocked.</Text>
+            </Surface>
+          ) : trialCycleId && (selected === 'plus' || selected === 'pro') ? (
+            <Surface
+              style={[styles.ctaNote, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
+            >
+              <Text style={[styles.ctaStateEyebrow, { color: t.calm }]}>Trial · this cycle</Text>
+              <Text style={[styles.ctaStateBody, { color: t.muted }]}>
+                {`Every lens unlocked ${trialEndLabel === 'at payday' ? 'until payday' : trialEndLabel}.`}
+              </Text>
+              <Text style={[styles.ctaFootnote, { color: t.muted }]}>
+                No auto-renew — we&apos;ll ask again at payday.
+              </Text>
+            </Surface>
+          ) : canSell && selected === 'plus' ? (
             <>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => handleComingSoon(TIER_COPY[selected].name)}
+                onPress={handleStartTrial}
                 style={({ pressed: isPressed }) => [
                   styles.ctaButton,
                   { backgroundColor: t.calm },
@@ -522,32 +639,88 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 ]}
               >
                 <Text style={[styles.ctaButtonLabel, { color: t.inverse }]}>
-                  {`${TIER_COPY[selected].name} — coming soon`}
+                  {`Try Plus free — ends ${trialEndLabel}`}
                 </Text>
               </Pressable>
-              {selected === 'pro' ? (
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={proNotifyOn}
-                  onPress={handleProNotify}
-                  style={({ pressed: isPressed }) => [
-                    styles.ctaSecondary,
-                    { borderColor: t.hairline },
-                    isPressed && !proNotifyOn ? styles.pressed : undefined,
-                  ]}
-                >
-                  <Text
-                    style={[styles.ctaSecondaryLabel, { color: proNotifyOn ? t.muted : t.ink }]}
-                  >
-                    {proNotifyOn ? 'On the list ✓' : 'Notify me when Pro ships'}
-                  </Text>
-                </Pressable>
-              ) : null}
               <Text style={[styles.ctaFootnote, { color: t.muted }]}>
-                Real billing ships once the plan engine lands. Nothing is charged today.
+                One cycle · no card · we don&apos;t charge when it ends.
+              </Text>
+            </>
+          ) : canSell && selected === 'pro' ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleStartTrial}
+                style={({ pressed: isPressed }) => [
+                  styles.ctaButton,
+                  { backgroundColor: t.calm },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.ctaButtonLabel, { color: t.inverse }]}>
+                  {`Try Pro free — ends ${trialEndLabel}`}
+                </Text>
+              </Pressable>
+              <Text style={[styles.ctaFootnote, { color: t.muted }]}>
+                One cycle · no card · we don&apos;t charge when it ends.
               </Text>
             </>
           ) : null}
+        </View>
+
+        {/* Lens rail — the ten in one glance, by tier, wired to the real lens engine. */}
+        <View style={styles.lensRailBlock}>
+          <Text style={[styles.lensRailEyebrow, { color: t.muted }]}>
+            {`Ten lenses · ${FREE_LENSES.length} free · ${PLUS_LENSES.length} plus · ${PRO_LENSES.length} pro`}
+          </Text>
+          <Surface style={[styles.lensRailCard, { borderColor: t.hairline }]}>
+            {[...FREE_LENSES, ...PLUS_LENSES, ...PRO_LENSES].map((m, index) => {
+              const tier = tierFor(m);
+              const unlocked =
+                tier === 'free' ||
+                (tier === 'plus' && (plusUnlocked || proUnlocked || !!trialCycleId)) ||
+                (tier === 'pro' && (proUnlocked || !!trialCycleId));
+              return (
+                <View key={m}>
+                  {index > 0 ? (
+                    <View style={[styles.lensRailDivider, { backgroundColor: t.hairline }]} />
+                  ) : null}
+                  <View style={styles.lensRailRow}>
+                    <View
+                      style={[
+                        styles.lensRailDot,
+                        {
+                          backgroundColor:
+                            tier === 'free' ? t.positive : unlocked ? t.calm : t.muted,
+                          opacity: tier === 'free' || unlocked ? 1 : 0.4,
+                        },
+                      ]}
+                    />
+                    <View style={styles.lensRailText}>
+                      <Text style={[styles.lensRailLabel, { color: t.ink }]}>{MODE_LABEL[m]}</Text>
+                      <Text
+                        style={[styles.lensRailLine, { color: t.muted }]}
+                        numberOfLines={1}
+                      >{`"${LENS_ONE_LINER[m]}"`}</Text>
+                    </View>
+                    {moneyMode === m ? (
+                      <Text style={[styles.lensRailState, { color: t.calm }]}>Active</Text>
+                    ) : tier === 'free' ? (
+                      <Text style={[styles.lensRailState, { color: t.muted }]}>Free</Text>
+                    ) : !unlocked ? (
+                      <Text style={[styles.lensRailState, { color: t.muted }]}>
+                        {`🔒 ${tier === 'pro' ? 'Pro' : 'Plus'}`}
+                      </Text>
+                    ) : (
+                      <Text style={[styles.lensRailState, { color: t.calm }]}>
+                        {tier === 'pro' ? 'Pro' : 'Plus'}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </Surface>
         </View>
 
         {/* Our promise. */}
@@ -563,10 +736,10 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               · Bills Shield, Before You Spend, 24-Hour Shelf, Recovery — never behind a tier.
             </Text>
             <Text style={[styles.promiseLine, { color: t.ink }]}>
-              · No upsell when your spare is under zero.
+              · No upsell during a storm, in Recovery, or when your spare is under zero.
             </Text>
             <Text style={[styles.promiseLine, { color: t.ink }]}>
-              · No auto-charge, ever, without you choosing it.
+              · No auto-charge after a trial. We ask again at payday.
             </Text>
           </View>
         </Surface>
@@ -647,6 +820,9 @@ const styles = StyleSheet.create({
   },
   tierStripCurrent: {
     fontWeight: '500',
+  },
+  tierStripTrial: {
+    fontStyle: 'italic',
   },
   titleBlock: {
     marginTop: gap.md,
@@ -889,6 +1065,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
+  ctaStateEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  ctaStateBody: {
+    fontSize: 13,
+    marginTop: gap.xs,
+  },
   ctaButton: {
     alignItems: 'center',
     borderRadius: radius.xl,
@@ -899,22 +1084,58 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
-  ctaSecondary: {
-    alignItems: 'center',
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 44,
-    justifyContent: 'center',
-    marginTop: gap.sm,
-  },
-  ctaSecondaryLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
   ctaFootnote: {
     fontSize: 10.5,
     marginTop: gap.sm,
     textAlign: 'center',
+  },
+  lensRailBlock: {
+    marginBottom: gap.md,
+    marginTop: gap.xl,
+  },
+  lensRailEyebrow: {
+    fontSize: 10.5,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  lensRailCard: {
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.sm,
+    overflow: 'hidden',
+  },
+  lensRailDivider: {
+    height: StyleSheet.hairlineWidth,
+  },
+  lensRailRow: {
+    alignItems: 'center',
+    columnGap: gap.md,
+    flexDirection: 'row',
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.md,
+  },
+  lensRailDot: {
+    borderRadius: 999,
+    height: 6,
+    width: 6,
+  },
+  lensRailText: {
+    flex: 1,
+  },
+  lensRailLabel: {
+    fontSize: 13.5,
+    fontWeight: '500',
+  },
+  lensRailLine: {
+    fontFamily: serif.displayItalic,
+    fontSize: 11.5,
+    fontStyle: 'italic',
+    marginTop: gap.xxs,
+  },
+  lensRailState: {
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   promiseCard: {
     borderRadius: radius.xl,

@@ -3,13 +3,15 @@
 //
 // @rn-screen    MoreScreen
 // @rn-stack     MainTabs > More
-// @purpose      The quiet hub — grouped links to every secondary surface (the picture, tending,
-//               trying a move, your data), plus two dev/demo actions and an appearance toggle.
-// @reads        appearance (light|dark) — RN reads the resolved theme via useIsDark(); used only to
-//               drive the Appearance row hint. The web @reads is empty; the group data is static.
+// @purpose      The quiet hub — ONE flat scannable list of links to every secondary surface, in the
+//               web's exact order, plus two dev/demo actions kept last and visually quiet.
+// @reads        appearance (light|dark) via useIsDark() — drives the Appearance row hint. chartStyle
+//               via useChartStyle() — drives the "Chart style" row hint. ignoredReviewSigs.length via
+//               the store — drives the "Hidden from Review" row hint.
 // @writes       fastForwardMonth() (demo) · setMode (appearance toggle). Start fresh ROUTES to Data &
 //               privacy (the gated D3 reset); it no longer wipes from here (one-confirm bypass removed).
-// @opens-sheet  share (from "Share a cycle") · onboarding (from "Payday & income")
+// @opens-sheet  share (from "Share a cycle") · onboarding (from "Payday & income") · chart-style
+//               (from "Chart style") · hidden-review (from "Hidden from Review")
 // @copy         FROZEN
 // @tokens       calm (accent) · surface · hairline · muted · repairInk (negative) · canvas (paper) ·
 //               ink · caution — all from the kit, no new token defined here.
@@ -21,6 +23,15 @@
 //               the negative label tone). No buttons, no badges, no elevation on them.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store source):
+//   • Flat list, not grouped: the prior build reorganised the web's ONE 19-row flat list into four
+//     titled groups, which changed the scan order and dropped two rows entirely ("Chart style",
+//     "Hidden from Review" — both real, already-wired sheets on this app, simply unreachable from the
+//     hub). This port restores the web's flat single-list structure and exact row order, and adds
+//     both missing rows back in, in their frozen positions (see PARITY_GAPS.md Group 3).
+//   • "Chart style" row: reads `useChartStyle()` (`@/folio/lib/chartStyle`) for the live style +
+//     hint, opens the already-wired `chart-style` sheet (confirmed hosted in FolioShell.tsx). "Hidden
+//     from Review" reads `ignoredReviewSigs.length` from the store and opens the already-wired
+//     `hidden-review` sheet — both sheets existed and were fully wired; only the hub row was missing.
 //   • Theme mechanism: the web useTheme() is web-coupled (document.documentElement.classList,
 //     localStorage('folio-theme'), meta[name=theme-color]). NONE exist in RN. Per the spec's
 //     fidelityRisks, this is re-implemented as the kit's theme store: useIsDark() reads the live
@@ -33,10 +44,11 @@
 //   • Press-handler precedence is onPress > sheet > to (exactly the web's onClick > sheet > to). This
 //     keeps "Payday & income" opening the onboarding SHEET (not a screen) and "Share a cycle" opening
 //     the share sheet.
-//   • Melo mood: the web header uses <Melo size={30} mood="soft">. RN's MeloMood union has no 'soft'
-//     ('calm' | 'curious' | 'cheer' | 'concern' | 'celebrate'); 'soft' was a web-only accent-soft
-//     expression. The established RN precedent (AddEntryScreen) maps the web 'soft' to the closest
-//     existing quiet mood, 'calm'. Kept calm, sized 30, as the rare quiet header companion.
+//   • Melo mood: the web header uses <MeloAvatar size={30} mood="soft">. RN's MeloMood union has no
+//     'soft' ('calm' | 'curious' | 'cheer' | 'concern' | 'celebrate') — 'soft' was a web-only
+//     accent-soft expression. Mapped to the closest existing quiet mood, 'calm'. Kept sized 30, as the
+//     rare quiet header companion. Flagged in PARITY_GAPS.md as a visible-but-reasonable mood
+//     substitution, not a bug.
 //   • Group card: the web is `divide-y divide-[hairline]` inside a `hairline rounded-2xl` surface. RN
 //     has no divide-y, so rows render with a 1px Hairline rule between them (not after the last) and
 //     the Surface carries a 1px hairline border + rounded-2xl (radius.xl) with overflow hidden so the
@@ -62,8 +74,8 @@
 // Banned vocabulary is absent from every visible string.
 //
 // Tokens only — no new colour, font, spacing, or radius. Every row is a >=44px tap target (px-5 py-4
-// rows clear it). Copy is VERBATIM from the web source (the row labels/hints + group titles are
-// @copy FROZEN inline literals exactly as the web keeps them; only app.name is keyed in COPY_DECK).
+// rows clear it). Copy is VERBATIM from the web source (the row labels/hints are @copy FROZEN inline
+// literals exactly as the web keeps them; only app.name is keyed in COPY_DECK).
 
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -89,7 +101,8 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { fastForwardMonth } from '@/folio/store';
+import { fastForwardMonth, useAppStore } from '@/folio/store';
+import { useChartStyle, CHART_STYLE_LABEL, CHART_STYLE_HINT } from '@/folio/lib/chartStyle';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
 // Routing: the web "Data & privacy" row navigates to the Privacy screen (web `to: "privacy"`), where
@@ -117,11 +130,6 @@ type MoreRow = {
   sheet?: SheetId;
   onPress?: () => void;
   tone?: 'negative';
-};
-
-type MoreGroup = {
-  title: string;
-  rows: MoreRow[];
 };
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
@@ -164,6 +172,11 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const { setMode } = useThemeMode();
   const toggleAppearance = () => setMode(isDark ? 'light' : 'dark');
 
+  // Chart style + hidden-review count — real, live reads backing the two rows the prior build
+  // dropped (see FIDELITY DECISIONS).
+  const { style: chartStyle } = useChartStyle();
+  const hiddenCount = useAppStore((s) => s.ignoredReviewSigs?.length ?? 0);
+
   // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
   // we resolve straight to the final state instead of animating.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -180,66 +193,62 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  // The grouped link lists — byte-faithful to the web `groups` array (order, labels, hints, targets).
-  const groups: MoreGroup[] = [
+  // ONE flat scannable list — byte-faithful to the web `rows` array (order, labels, hints, targets).
+  // Order is intent: see the picture first, adjust it, try a move, then admin. Dev/demo actions stay
+  // last so they read as escape hatches (see FIDELITY DECISIONS — this replaces the prior four-group
+  // reorganisation, which dropped "Chart style" and "Hidden from Review" entirely).
+  const rows: MoreRow[] = [
+    { label: 'Account & plan', hint: 'tier, sources, sign in', to: 'account' },
+    { label: 'Melo', hint: 'companion, plumage, quiet mode', to: 'melo' },
+    { label: 'Timeline', hint: 'what you added, what you left', to: 'timeline' },
+    { label: 'Calendar', hint: 'the dates that matter', to: 'calendar' },
+    { label: 'Plans', hint: "what's coming before payday", to: 'plans' },
+    { label: 'Insights', hint: 'the shape of your months', to: 'insights' },
+    { label: 'Subscriptions', hint: 'what still earns its place', to: 'subs' },
+    { label: 'Pots', hint: 'set aside, calmly', to: 'pots' },
+    { label: 'Payday & income', hint: 'change when money lands', sheet: 'onboarding' },
+    { label: 'Payday review', hint: 'wrap up the month in four steps', to: 'ritual' },
+    { label: 'What if I spend', hint: 'preview before you decide', to: 'whatif' },
+    { label: 'Recovery', hint: 'something has to move', to: 'recovery' },
+    { label: 'Share a cycle', hint: 'a quiet win card', sheet: 'share' },
+    { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
     {
-      title: 'The picture',
-      rows: [
-        { label: 'Timeline', hint: 'what you added, what you left', to: 'timeline' },
-        { label: 'Calendar', hint: 'the dates that matter', to: 'calendar' },
-        { label: 'Plans', hint: "what's coming before payday", to: 'plans' },
-        { label: 'Insights', hint: 'the shape of your months', to: 'insights' },
-      ],
+      label: 'Appearance',
+      hint: isDark ? 'dark · tap for light' : 'light · tap for dark',
+      onPress: toggleAppearance,
     },
     {
-      title: 'Tend the picture',
-      rows: [
-        { label: 'Subscriptions', hint: 'everything that repeats', to: 'subs' },
-        { label: 'Pots', hint: 'set aside, calmly', to: 'pots' },
-        { label: 'Payday & income', hint: 'change when money lands', sheet: 'onboarding' },
-        { label: 'Payday review', hint: 'wrap up the month in four steps', to: 'ritual' },
-      ],
+      label: 'Chart style',
+      hint: `${CHART_STYLE_LABEL[chartStyle]} · ${CHART_STYLE_HINT[chartStyle]}`,
+      sheet: 'chart-style',
     },
     {
-      title: 'Try a move',
-      rows: [
-        { label: 'What if I spend', hint: 'preview before you decide', to: 'whatif' },
-        { label: 'Recovery', hint: 'something has to move', to: 'recovery' },
-        { label: 'Share a cycle', hint: 'a quiet win card', sheet: 'share' },
-      ],
+      label: 'Hidden from Review',
+      hint:
+        hiddenCount === 0
+          ? 'nothing hidden'
+          : `${hiddenCount} ${hiddenCount === 1 ? 'row' : 'rows'} · tap to un-hide`,
+      sheet: 'hidden-review',
+    },
+    { label: 'App lock', hint: 'Face ID · off', to: 'privacy' },
+    {
+      label: 'Fast-forward 1 month',
+      hint: 'demo: age dates, close a cycle',
+      onPress: () => {
+        fastForwardMonth();
+        nav.go('insights');
+      },
     },
     {
-      title: 'Your data',
-      rows: [
-        { label: 'Account', hint: 'your plan, your sources, your footprint', to: 'account' },
-        { label: 'Folio plans', hint: 'Free · Melo Plus · Melo Pro', to: 'paywall' },
-        { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
-        {
-          label: 'Appearance',
-          hint: isDark ? 'dark · tap for light' : 'light · tap for dark',
-          onPress: toggleAppearance,
-        },
-        { label: 'App lock', hint: 'Face ID · off', to: 'more' },
-        {
-          label: 'Fast-forward 1 month',
-          hint: 'demo: age dates, close a cycle',
-          onPress: () => {
-            fastForwardMonth();
-            nav.go('insights');
-          },
-        },
-        {
-          label: 'Start fresh',
-          hint: 'review your data, then clear it',
-          // D3 (layered undo) forbids a one-tap / single-confirm wipe. The old wiring here was a
-          // single-confirm resetToEmpty(), which BYPASSED the tier-3 "start fresh" policy (double
-          // confirmation + an export warning). Start fresh now ROUTES to Data & privacy, where the
-          // gated "Clear to empty" reset lives (exportedAck → typedConfirm → finalConfirm), so the
-          // destructive wipe only ever runs behind that gate. No destructive call is made from here.
-          to: 'privacy',
-          tone: 'negative',
-        },
-      ],
+      label: 'Start fresh',
+      hint: 'clears everything',
+      // D3 (layered undo) forbids a one-tap / single-confirm wipe. The old wiring here was a
+      // single-confirm resetToEmpty(), which BYPASSED the tier-3 "start fresh" policy (double
+      // confirmation + an export warning). Start fresh now ROUTES to Data & privacy, where the
+      // gated "Clear to empty" reset lives (exportedAck → typedConfirm → finalConfirm), so the
+      // destructive wipe only ever runs behind that gate. No destructive call is made from here.
+      to: 'privacy',
+      tone: 'negative',
     },
   ];
 
@@ -284,13 +293,15 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           },
         ]}
       >
-        {/* Header — wordmark (font-display italic 14px) + a 20px balance spacer (not a button). */}
+        {/* Header — "Folio" wordmark (font-display italic 14px) + a 20px balance spacer (web
+            `<span className="font-display italic text-[14px]">Folio</span>`; not a button). */}
         <View style={styles.header}>
-          <Text style={[styles.wordmark, { color: t.ink }]}>{copy.global.app.name}</Text>
+          <Text style={[styles.wordmark, { color: t.ink }]}>Folio</Text>
           <View style={styles.balanceSpacer} />
         </View>
 
-        {/* Hero / intro — Melo (calm, size 30) + the eyebrow + the upright accented heading. */}
+        {/* Hero / intro — Melo avatar (web mood "soft", mapped to "calm" — see FIDELITY DECISIONS)
+            + the eyebrow + the upright accented heading. */}
         <View style={styles.hero}>
           <Melo size={30} mood="calm" />
           <View style={styles.heroText}>
@@ -303,27 +314,19 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           </View>
         </View>
 
-        {/* Grouped link lists — space-y-6 between groups. */}
-        <View style={styles.groups}>
-          {groups.map((group) => (
-            <View key={group.title}>
-              <Text style={[styles.groupTitle, { color: t.muted }]}>{group.title}</Text>
-              <Surface style={[styles.card, { borderColor: t.hairline }]}>
-                {group.rows.map((row, index) => (
-                  <View key={row.label}>
-                    {index > 0 ? <Hairline /> : null}
-                    <MoreRowView nav={nav} row={row} />
-                  </View>
-                ))}
-              </Surface>
+        {/* ONE flat scannable list — byte-faithful to the web's single `rows` array + order. */}
+        <Surface style={[styles.card, { borderColor: t.hairline }]}>
+          {rows.map((row, index) => (
+            <View key={row.label}>
+              {index > 0 ? <Hairline /> : null}
+              <MoreRowView nav={nav} row={row} />
             </View>
           ))}
-        </View>
+        </Surface>
 
-        {/* Closing reassurance — the verbatim web line. MeloLine adds the straight quotes; we pass
-            the raw text. No mood prop → MeloLine's default (calm), faithful to the web. */}
+        {/* Closing reassurance — the verbatim web line. */}
         <View style={styles.closing}>
-          <MeloLine text="Tap export any time. Start fresh whenever you're ready." />
+          <MeloLine text="Tap export any time. Tap start fresh and it's gone." />
         </View>
       </ScrollView>
     </Animated.View>

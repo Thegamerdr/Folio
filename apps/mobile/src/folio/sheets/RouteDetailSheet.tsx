@@ -77,6 +77,71 @@ import { Melo, type MeloMood } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import type { MoneyMode } from '@/folio/lib/modes/types';
+
+// ---------------------------------------------------------------------------
+// Mode-tinted framing for the low-point moment (web `ROUTE_DETAIL_COPY`,
+// lib/modes/action.ts sibling table inlined in the web sheet itself). Same
+// numbers, different meaning per mode — Growth reads the dip as "pace
+// continues", Debt as "repayment day", Optimizer as "the leak day", etc.
+// Kept verbatim; only the synthetic "1 Jul" date literal is replaced with the
+// REAL tapped point's dateLabel (RN already derives that from the route).
+// ---------------------------------------------------------------------------
+
+type RouteDetailCopy = { eyebrowLabel: string; title: string; melo: string };
+
+const ROUTE_DETAIL_COPY: Record<MoneyMode, RouteDetailCopy> = {
+  survival: {
+    eyebrowLabel: "What's happening",
+    title: 'Set aside for bills',
+    melo: 'The lowest balance comes just after the bills go out.',
+  },
+  stability: {
+    eyebrowLabel: 'Bill day',
+    title: 'The dip · buffer holds',
+    melo: 'The shape dips here, then recovers. Nothing to steer.',
+  },
+  growth: {
+    eyebrowLabel: 'Bill day',
+    title: 'Pace continues past this',
+    melo: 'The bills clear and the save resumes on Friday.',
+  },
+  debt: {
+    eyebrowLabel: 'Repayment day',
+    title: "The plan's payment lands",
+    melo: 'This is the payment that keeps the run alive.',
+  },
+  optimizer: {
+    eyebrowLabel: 'Leak day',
+    title: 'Where the subs go out',
+    melo: 'Two of these you rarely open. Worth a trim next cycle.',
+  },
+  reset: {
+    eyebrowLabel: 'The tight day',
+    title: 'One thing to hold',
+    melo: 'Just this day to get through. Then we breathe.',
+  },
+  irregular: {
+    eyebrowLabel: 'Bill day',
+    title: 'The runway dips here',
+    melo: 'This week of runway is the one to protect.',
+  },
+  household: {
+    eyebrowLabel: 'Shared bills',
+    title: 'Your share of the day',
+    melo: 'Your half lands here. The household stays square.',
+  },
+  planning: {
+    eyebrowLabel: 'Bill day',
+    title: 'The goal date holds',
+    melo: "Even after this, the goal date doesn't move.",
+  },
+  lowVis: {
+    eyebrowLabel: 'Around this day',
+    title: "Something's going out",
+    melo: "There's a dip near here. The picture will sharpen next cycle.",
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Pressure tables — verbatim from the web source (components/folio/types.ts).
@@ -400,6 +465,11 @@ function RouteDetailBody({
   const pots = useAppStore((store) => store.pots);
   const activePots = useMemo(() => pots.filter((p) => p.perWeek > 0), [pots]);
 
+  // Mode-tinted framing (BREAKS-PARITY fix) — same low-point moment, different meaning per Money
+  // Mode. Falls back to survival's copy for an unrecognised mode (matches the web's `?? ROUTE_DETAIL_COPY.survival`).
+  const moneyMode = useAppStore((store) => store.moneyMode ?? 'survival');
+  const modeCopy = ROUTE_DETAIL_COPY[moneyMode] ?? ROUTE_DETAIL_COPY.survival;
+
   // The full state — read once so the per-day bills derive from the SAME slices the route consumes.
   const state = useAppStore((store) => store);
 
@@ -483,6 +553,7 @@ function RouteDetailBody({
       leftAfter={resolved.leftAfter}
       pressure={resolved.band}
       activePots={activePots}
+      modeCopy={modeCopy}
     />
   );
 }
@@ -500,6 +571,7 @@ function PopulatedDetail({
   leftAfter,
   pressure,
   activePots,
+  modeCopy,
 }: {
   styles: ReturnType<typeof makeStyles>;
   palette: Palette;
@@ -511,6 +583,8 @@ function PopulatedDetail({
   /** The band DERIVED from `leftAfter` (drives the Melo mood). */
   pressure: Pressure;
   activePots: Pot[];
+  /** Mode-tinted eyebrow/title/Melo line for this low-point moment (BREAKS-PARITY fix). */
+  modeCopy: RouteDetailCopy;
 }) {
   const billsTotal = point.bills.reduce((sum, b) => sum + b.amount, 0);
   const potsTotal = activePots.reduce((sum, p) => sum + p.perWeek, 0);
@@ -527,9 +601,10 @@ function PopulatedDetail({
 
   return (
     <View>
-      {/* Header — eyebrow + close glyph, space-between. */}
+      {/* Header — eyebrow + close glyph, space-between. Eyebrow label is mode-tinted
+          (BREAKS-PARITY fix); the date suffix stays the real tapped-point label. */}
       <View style={s.headerRow}>
-        <Text style={s.eyebrow}>{`What's happening · ${point.dateLabel}`}</Text>
+        <Text style={s.eyebrow}>{`${modeCopy.eyebrowLabel} · ${point.dateLabel}`}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close"
@@ -541,9 +616,10 @@ function PopulatedDetail({
         </Pressable>
       </View>
 
-      {/* Headline — NO accent word here (unlike most Folio headlines). Reproduced as-is. */}
+      {/* Headline — NO accent word here (unlike most Folio headlines). Mode-tinted title
+          (BREAKS-PARITY fix) — same low-point moment, different meaning per Money Mode. */}
       <Text accessibilityRole="header" style={s.headline}>
-        Set aside for bills
+        {modeCopy.title}
       </Text>
 
       {/* Detail card — sits on --surface inside the paper sheet (paper-on-paper, intentional). */}
@@ -615,9 +691,10 @@ function PopulatedDetail({
         ) : null}
       </View>
 
-      {/* Melo line — the companion beside one quoted thought (Fraunces italic). */}
+      {/* Melo line — the companion beside one quoted thought (Fraunces italic). Mode-tinted
+          (BREAKS-PARITY fix). */}
       <View style={s.meloRow}>
-        <MeloLine text={MELO_LINE} mood={mood} size={28} />
+        <MeloLine text={modeCopy.melo} mood={mood} size={28} />
       </View>
 
       {/* Primary CTA — bridge to the Calendar. Terracotta, h-54, 2xl radius. */}

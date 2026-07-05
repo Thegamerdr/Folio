@@ -71,11 +71,13 @@ import { MeloChatSheet } from '@/folio/sheets/MeloChatSheet';
 import { ShareSheet } from '@/folio/sheets/ShareSheet';
 import { AffordCheckSheet } from '@/folio/sheets/AffordCheckSheet';
 import { ShelfSheet } from '@/folio/sheets/ShelfSheet';
+import { ChartStyleSheet } from '@/folio/sheets/ChartStyleSheet';
 import { HiddenReviewSheet } from '@/folio/sheets/HiddenReviewSheet';
 import { LogInvoiceSheet } from '@/folio/sheets/LogInvoiceSheet';
 import { LensPickerSheet } from '@/folio/sheets/LensPickerSheet';
 import { SafeZoneSheet } from '@/folio/sheets/SafeZoneSheet';
 import { AddPlanSheet } from '@/folio/sheets/AddPlanSheet';
+import { AddDebtSheet } from '@/folio/sheets/AddDebtSheet';
 import { LogPaymentSheet } from '@/folio/sheets/LogPaymentSheet';
 import { HouseholdSetupSheet } from '@/folio/sheets/HouseholdSetupSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
@@ -235,6 +237,11 @@ export function FolioShell() {
   // openSheet('day-detail', { date }) is called, cleared whenever a sheet closes or a navigation
   // supersedes it.
   const [dayDetailDate, setDayDetailDate] = useState<string | undefined>(undefined);
+  // Carried into the add-event sheet when a flow opens it with a deep-link prefill (web
+  // intent.addEventKind / intent.addEventTitle) — e.g. a lens CTA like "Add a bill". Mirrors the
+  // editTxnTarget/dayDetailDate slots exactly: set when openSheet('add-event', { addEventKind,
+  // addEventTitle }) is called, cleared whenever a sheet closes or a navigation supersedes it.
+  const [addEventIntent, setAddEventIntent] = useState<SheetPayload | undefined>(undefined);
   const reduceMotion = useReducedMotion();
 
   // Back-history stack — a faithful port of the web shell's `historyRef` (HeroPhone.tsx): `go` pushes
@@ -280,6 +287,7 @@ export function FolioShell() {
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
+    setAddEventIntent(undefined);
     setScreen(next);
   }, []);
 
@@ -294,6 +302,7 @@ export function FolioShell() {
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
+    setAddEventIntent(undefined);
     setScreen(prev);
   }, []);
 
@@ -306,6 +315,7 @@ export function FolioShell() {
   const openSheet = useCallback((next: SheetId, payload?: SheetPayload) => {
     setEditTxnTarget(next === 'edit-txn' ? payload?.id : undefined);
     setDayDetailDate(next === 'day-detail' ? payload?.date : undefined);
+    setAddEventIntent(next === 'add-event' ? payload : undefined);
     setSheet(next);
   }, []);
 
@@ -314,6 +324,7 @@ export function FolioShell() {
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
+    setAddEventIntent(undefined);
   }, []);
 
   // Open the Melo companion CHAT sheet, carrying any prefill/seed the flow provided (web intent).
@@ -387,14 +398,21 @@ export function FolioShell() {
       {sheet === 'edit-txn' && <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />}
       {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
       {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
-      {sheet === 'add-event' && <AddEventSheet visible onClose={closeSheet} />}
+      {sheet === 'add-event' && (
+        <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
+      )}
       {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
       {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
       {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
       {sheet === 'afford-check' && <AffordCheckSheet visible onClose={closeSheet} />}
       {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
+      {sheet === 'chart-style' && <ChartStyleSheet visible onClose={closeSheet} />}
       {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
       {sheet === 'add-plan' && <AddPlanSheet visible onClose={closeSheet} />}
+      {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
+          web's SheetAddDebt. Distinct from the ScreenId 'add-debt' (AddEntryScreen's unrelated
+          recurring bill/debt-payment quick-add) — see the SheetId union's doc-comment in types.ts. */}
+      {sheet === 'declare-debt' && <AddDebtSheet visible onClose={closeSheet} />}
       {sheet === 'log-payment' && <LogPaymentSheet visible onClose={closeSheet} />}
       {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
       {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
@@ -469,10 +487,12 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'shelf',
   'hidden-review',
   'add-plan',
+  'declare-debt',
   'log-payment',
   'household-setup',
   'lens-picker',
   'safe-zone',
+  'chart-style',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -659,6 +679,7 @@ const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {
   'log-invoice': 'Log an invoice',
   'log-payment': 'Log a payment',
   'add-plan': 'Add a plan',
+  'declare-debt': 'Add a debt',
   'household-setup': 'Household',
   'sub-caught': 'A recurring charge',
   'add-event': 'Add to your calendar',

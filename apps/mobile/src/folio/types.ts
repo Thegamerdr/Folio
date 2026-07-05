@@ -44,6 +44,9 @@ export type ScreenId =
   | 'whatif'
   | 'recovery'
   | 'add-bill'
+  // NOTE: this is the recurring bill/debt-PAYMENT quick-add (AddEntryScreen kind="debt") — an
+  // unrelated feature from the SheetId 'declare-debt' below (the real Debt-lens record with
+  // APR/min-payment/due-day, ported from the web's SheetAddDebt). Do not conflate the two.
   | 'add-debt'
   | 'subs'
   | 'pots'
@@ -65,6 +68,7 @@ export type SheetId =
   | 'log-invoice'
   | 'log-payment'
   | 'add-plan'
+  | 'declare-debt'
   | 'household-setup'
   | 'sub-caught'
   | 'add-event'
@@ -88,7 +92,15 @@ export type MeloIntent = { prefill?: string; seed?: string };
 // `undefined` = no target (cold open) → the sheet keeps its safe inert fallback.
 // `date` is the day-detail sheet's subject — the ISO day (YYYY-MM-DD) a Month cell / "+N" chip /
 // Week day header tap resolved, so day-detail opens showing THAT day instead of a hardcoded one.
-export type SheetPayload = { id?: string; date?: string };
+// `addEventKind` / `addEventTitle` are the add-event sheet's deep-link prefill (mirrors the web
+// SheetIntent) — a CTA like a low-visibility lens's "Add a bill" can open AddEventSheet pre-filled
+// with kind="out"/title="Rent" instead of always starting cold.
+export type SheetPayload = {
+  id?: string;
+  date?: string;
+  addEventKind?: 'in' | 'out' | 'review' | 'deadline';
+  addEventTitle?: string;
+};
 
 // The route pressure mood — the emotional weather of the money. Mirrors the web Pressure union.
 export type Pressure = 'safe' | 'calm' | 'soft' | 'pressured' | 'overspent';

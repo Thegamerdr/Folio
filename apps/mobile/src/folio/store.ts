@@ -23,6 +23,7 @@
 
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
 import type { CandidateMoneyItem } from './lib/importSheet';
+import { makeWin, hasWin, type TinyWin, type TinyWinKind } from './lib/wins';
 
 /** The element type of the persisted `AppState.edits` slot. It is the engine's
  *  full `TxnEdit` with `id` relaxed to optional: every record this store writes
@@ -51,6 +52,9 @@ export type Pot = {
   /** Optional — unmigrated pots fall through to the legacy Friday cadence
    *  in `deriveCalendarEvents`. RN must default new pots to `after-payday`. */
   cadence?: PotCadence;
+  /** ENGINES.md § 4 "Pot borrow hard-capped by default" — per-pot opt-in so a soft-landing buffer can
+   *  go briefly negative when borrowed from. Undefined/false = hard-capped (the default). */
+  allowNegative?: boolean;
 };
 
 export type Sub = {
@@ -342,6 +346,21 @@ export type AppState = {
   /** Lens / Plus-Pro entitlement state (`lib/lens.ts`). See `LensState`.
    *  Optional for shape back-compat; `DEFAULTS`/`load()` always populate it. */
   lens?: LensState;
+  /** Melo companion settings — quiet mode + equipped wardrobe touches. Ports
+   *  the Lovable design's `melo` slice 1:1 (folio-melo `src/lib/store.ts`).
+   *  Optional for shape back-compat; `DEFAULTS`/`load()` always populate it. */
+  melo?: MeloState;
+  /** Earned, quiet celebrations (`lib/wins.ts`). Newest first, capped at 40. Surfaced by Insights'
+   *  "Tiny wins" section when non-empty. Optional for shape back-compat; `DEFAULTS`/`load()` always
+   *  populate it ([]). */
+  tinyWins?: TinyWin[];
+};
+
+/** Melo companion settings (`MeloScreen`). `quietMode` hides the character
+ *  (numbers stay); `wardrobe` is up to 3 equipped companion-touch ids. */
+export type MeloState = {
+  quietMode: boolean;
+  wardrobe: string[];
 };
 /** Persistence key prefix, used only for the parked-future-blob slot name
  *  below (`${KEY}.future.${v}`) — mirrors the web original's localStorage
@@ -350,7 +369,7 @@ export type AppState = {
 const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 /** Non-optional fallback for `AppState.moneyMode` — same widening issue as
  *  `DEFAULT_LENS` below (the field is optional on `AppState` for shape
@@ -385,6 +404,11 @@ const DEFAULT_LENS: LensState = {
 /** Non-optional fallback for `AppState.household` — see `DEFAULT_LENS` for
  *  why `DEFAULTS.household` can't be used directly here. */
 const DEFAULT_HOUSEHOLD: Household = { partnerName: '', defaultShare: 0.5, subShareOverrides: {} };
+
+/** Non-optional fallback for `AppState.melo` — see `DEFAULT_LENS` for why
+ *  `DEFAULTS.melo` can't be used directly here (the field is optional on
+ *  `AppState` for shape back-compat). */
+const DEFAULT_MELO: MeloState = { quietMode: false, wardrobe: [] };
 
 const SAMPLE_BALANCE: CurrentBalance = {
   amount: 720,
@@ -502,6 +526,8 @@ const DEFAULTS: AppState = {
     trialEndedCycleId: null,
     trialEndAcknowledged: true,
   },
+  melo: { quietMode: false, wardrobe: [] },
+  tinyWins: [],
 };
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
@@ -607,6 +633,18 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
       lens: prior.lens ?? DEFAULT_LENS,
     };
   },
+  // v4 → v5: introduce the Melo companion settings slot (quietMode, wardrobe)
+  // ported from the Lovable design's `melo` slice. Pre-v5 installs default to
+  // quiet mode off and an empty wardrobe — byte-identical behaviour until the
+  // user opens MeloScreen and changes something.
+  5: (prev) => {
+    const prior = prev as Partial<AppState>;
+    return {
+      ...prev,
+      schemaVersion: 5,
+      melo: prior.melo ?? DEFAULT_MELO,
+    };
+  },
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -681,6 +719,8 @@ function load(): AppState {
       household: migrated.household ?? DEFAULT_HOUSEHOLD,
       plans: migrated.plans ?? DEFAULT_PLANS,
       lens: migrated.lens ?? DEFAULT_LENS,
+      melo: migrated.melo ?? DEFAULT_MELO,
+      tinyWins: migrated.tinyWins ?? [],
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
@@ -821,6 +861,44 @@ export function addToPot(id: string, amount: number, source: string = 'manual') 
   });
 }
 
+/** ENGINES.md § 4 "Pot rules — borrow/repay ledger". Records a `repay` entry against a pot the user
+ *  previously borrowed from — the ONLY write the Payday Ritual's repay-a-pot step makes (RN port of
+ *  folio-melo lib/store.ts `repayToPot`). A repay is a ledger record, not a balance change: it does
+ *  not touch `saved` (the money already sits in the pot; repaying just clears the owed marker so
+ *  `owedByPot` derivations stop flagging it). No-op on a non-positive amount. */
+export function repayToPot(id: string, amount: number, source: string = 'manual') {
+  if (!(amount > 0)) return;
+  const entry: PotLedgerEntry = {
+    id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    potId: id,
+    at: new Date().toISOString(),
+    kind: 'repay',
+    amount,
+    source,
+  };
+  setPartial({ potLedger: [entry, ...state.potLedger].slice(0, 500) });
+}
+
+/** ENGINES.md § 4 "Pot borrow hard-capped by default" (RN port of folio-melo lib/store.ts
+ *  `setPotAllowNegative`). Toggles the per-pot opt-in that lets a buffer pot go briefly negative when
+ *  borrowed from, instead of the default hard cap at £0. */
+export function setPotAllowNegative(id: string, value: boolean) {
+  setPartial({
+    pots: state.pots.map((p) => (p.id === id ? { ...p, allowNegative: value } : p)),
+  });
+}
+
+/** Awards a Tiny Win the first (and only) time this kind fires (RN port of folio-melo lib/store.ts
+ *  `awardTinyWin`, per `lib/wins.ts`'s one-shot-per-kind contract). No-op if already awarded. Newest
+ *  first, capped at 40. Returns the new win, or null if this kind was already awarded. */
+export function awardTinyWin(kind: TinyWinKind): TinyWin | null {
+  const existing = state.tinyWins ?? [];
+  if (hasWin(existing, kind)) return null;
+  const win = makeWin(kind);
+  setPartial({ tinyWins: [win, ...existing].slice(0, 40) });
+  return win;
+}
+
 /** Mark a sub as "just used" — resets lastUsedDaysAgo to 0 and nudges
  *  the monthly count up by one, so the Subs screen pulse turns green. */
 export function markSubUsed(name: string) {
@@ -927,6 +1005,15 @@ export function acknowledgeTrialEnd() {
   setPartial({ lens: { ...lens, trialEndAcknowledged: true } });
 }
 
+/* ---------- Melo companion settings (`MeloScreen`) ---------- */
+
+/** Patch the Melo companion settings (quiet mode / wardrobe). Immutable —
+ *  merges onto the current `melo` slice (or the default if absent). */
+export function setMelo(patch: Partial<MeloState>) {
+  const melo: MeloState = state.melo ?? DEFAULT_MELO;
+  setPartial({ melo: { ...melo, ...patch } });
+}
+
 /* ---------- Debts (Debt lens) ---------- */
 
 export function addDebt(d: Omit<Debt, 'id' | 'addedAt'> & { id?: string; addedAt?: string }): Debt {
@@ -954,6 +1041,18 @@ export function logDebtPayment(id: string, amount: number) {
   setPartial({
     debts: (state.debts ?? []).map((d) =>
       d.id === id ? { ...d, balance: Math.max(0, d.balance - amount) } : d,
+    ),
+  });
+}
+
+/** Reverses a logged payment — increments the balance back by `amount`. Used by LogPaymentSheet's
+ *  Tier-1 undo window (useUndo/showUndo) so tapping Undo restores exactly what was paid, mirroring
+ *  the pattern EditTxnSheet uses for its own undo snapshot-restore. */
+export function undoDebtPayment(id: string, amount: number) {
+  if (!(amount > 0)) return;
+  setPartial({
+    debts: (state.debts ?? []).map((d) =>
+      d.id === id ? { ...d, balance: d.balance + amount } : d,
     ),
   });
 }
@@ -1200,6 +1299,8 @@ export function resetToEmpty() {
       trialEndedCycleId: null,
       trialEndAcknowledged: true,
     },
+    melo: { quietMode: false, wardrobe: [] },
+    tinyWins: [],
   };
   state = empty;
   persist();

@@ -63,7 +63,15 @@
 // smart / provenance / source record / indexed) are absent from every visible string.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -87,6 +95,132 @@ import {
 import { routeFromStore } from '@/folio/lib/storeRoute';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import type { Nav } from '@/folio/types';
+import type { MoneyMode } from '@/folio/lib/modes/types';
+
+// ---------------------------------------------------------------------------
+// Mode-tinted copy (BREAKS-PARITY fix) — web `getRecoveryCopy(mode)`
+// (folio-melo lib/modes/action.ts, table `R`), ported verbatim. Every mode
+// gets its own eyebrow, intro, headline lead/accent, shortfall/after labels,
+// Melo default line and CTA — same layout, different voice per Money Mode.
+// ---------------------------------------------------------------------------
+
+type RecoveryCopy = {
+  eyebrow: string;
+  intro: string;
+  headlineLead: string;
+  headlineAccent: string;
+  shortfallLabel: string;
+  afterLabel: string;
+  meloDefault: string;
+  cta: string;
+};
+
+const RECOVERY_COPY: Record<MoneyMode, RecoveryCopy> = {
+  survival: {
+    eyebrow: 'Recovery',
+    intro: "It happens. Let's repair calmly.",
+    headlineLead: 'Something has to',
+    headlineAccent: 'move.',
+    shortfallLabel: 'Shortfall',
+    afterLabel: 'After this move',
+    meloDefault: 'No shame here. One small move can rebuild the week.',
+    cta: 'Rebuild the plan',
+  },
+  stability: {
+    eyebrow: 'Rebalance',
+    intro: "The rhythm wobbled. Let's re-set it.",
+    headlineLead: 'Rhythm needs a',
+    headlineAccent: 'nudge.',
+    shortfallLabel: 'Off-rhythm',
+    afterLabel: 'After the nudge',
+    meloDefault: 'A small nudge is enough. The shape returns on its own.',
+    cta: 'Rebalance',
+  },
+  growth: {
+    eyebrow: 'Reset the pace',
+    intro: "The pace pinched. That's fine.",
+    headlineLead: 'The pace needs a',
+    headlineAccent: 'breath.',
+    shortfallLabel: 'Behind pace',
+    afterLabel: 'After the breath',
+    meloDefault: "One skipped feed doesn't unmake the pace.",
+    cta: 'Reset the pace',
+  },
+  debt: {
+    eyebrow: 'Protect the chip',
+    intro: 'The chip stands. This just clears space.',
+    headlineLead: 'One thing has to',
+    headlineAccent: 'give.',
+    shortfallLabel: 'Blocking chip',
+    afterLabel: 'After the give',
+    meloDefault: "The chip goes through. That's what matters this cycle.",
+    cta: 'Protect the chip',
+  },
+  irregular: {
+    eyebrow: 'Extend runway',
+    intro: "Runway dipped. Let's stretch it back.",
+    headlineLead: 'The runway needs a',
+    headlineAccent: 'stretch.',
+    shortfallLabel: 'Runway gap',
+    afterLabel: 'After the stretch',
+    meloDefault: 'One held cost buys real days.',
+    cta: 'Stretch it back',
+  },
+  household: {
+    eyebrow: 'Your side',
+    intro: 'Only your half. The other stays neutral.',
+    headlineLead: 'Your side needs a',
+    headlineAccent: 'move.',
+    shortfallLabel: 'Your gap',
+    afterLabel: 'After your move',
+    meloDefault: 'This is yours to handle. One small move is enough.',
+    cta: 'Move your side',
+  },
+  planning: {
+    eyebrow: 'Protect the date',
+    intro: "The date drifted. Let's pull it back.",
+    headlineLead: 'One thing has to',
+    headlineAccent: 'shift.',
+    shortfallLabel: 'Off-date',
+    afterLabel: 'After the shift',
+    meloDefault: 'A held goal is worth a small trade.',
+    cta: 'Pull the date back',
+  },
+  optimizer: {
+    eyebrow: 'Close a leak',
+    intro: 'Something crept back in. Close it.',
+    headlineLead: 'Close one',
+    headlineAccent: 'leak.',
+    shortfallLabel: 'Leaking',
+    afterLabel: 'After the cut',
+    meloDefault: 'One clean cut usually does it.',
+    cta: 'Close it',
+  },
+  reset: {
+    eyebrow: 'One thing',
+    intro: "Just one thing. That's enough today.",
+    headlineLead: 'Move one',
+    headlineAccent: 'thing.',
+    shortfallLabel: 'Short',
+    afterLabel: 'After the one',
+    meloDefault: 'One move. That’s the whole task.',
+    cta: 'Do the one thing',
+  },
+  lowVis: {
+    eyebrow: 'Rough recovery',
+    intro: 'Rough picture. Try one gentle move.',
+    headlineLead: 'Maybe move',
+    headlineAccent: 'one.',
+    shortfallLabel: 'Maybe short',
+    afterLabel: 'Rough after',
+    meloDefault: 'This is a guess. A statement would sharpen it.',
+    cta: 'Try one gentle move',
+  },
+};
+
+function getRecoveryCopy(mode: MoneyMode): RecoveryCopy {
+  return RECOVERY_COPY[mode] ?? RECOVERY_COPY.survival;
+}
 
 // One corrective move the user can pick. `deltaValue` is the £ lift this move gives the route's tight
 // point — the REAL money-path delta (candidate route − base route at the tight point, see the
@@ -177,9 +311,6 @@ const COUNT_MS = 420;
 // The prefill the talk-through link seeds Melo with — frozen, verbatim from the web source.
 const MELO_PREFILL = "I'm short to payday. Help me think this through.";
 
-// The default Melo aside when no move is picked — frozen, verbatim from the web source.
-const DEFAULT_MELO_LINE = 'No shame here. One small move can rebuild the week.';
-
 // Local reduce-motion read, mirroring Melo.tsx / ReviewScreen.tsx exactly: read once, then subscribe.
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
@@ -252,6 +383,39 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // selects, so we can re-route HYPOTHETICAL copies for the per-move deltas without touching the live
   // store. The doc-block @reads (subs, subPaused, tightPointGoal) are all carried within it.
   const appState = useAppStore((st) => st);
+
+  // Mode-tinted copy (BREAKS-PARITY fix) — each of the 10 Money Modes gets its own eyebrow, intro,
+  // headline, shortfall/after labels, Melo default line and CTA (web `getRecoveryCopy(mode)`).
+  const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const modeCopy = getRecoveryCopy(moneyMode);
+
+  // Structural-fit signpost (BREAKS-PARITY fix) — see docs/SIGNATURE_MOMENTS.md. When bills alone
+  // outrun income, or the user has closed 2+ hard cycles in a row, this isn't a spending problem to
+  // solve inside the app. Real help is signposted honestly (UK charities, no affiliate links).
+  // The RN store has no persisted `hardCyclesInARow` counter (the web bumps it at cycle-close time);
+  // derived here instead, honestly, from the real `cycles` ledger — a streak of closed cycles whose
+  // `tightPoint < 0` ("closed in the red"), counted from the most recent cycle backwards. Same
+  // definition the web uses to decide "wasRed" (store.ts `recordCycleHardness`), just computed from
+  // history rather than carried as separate state.
+  const onboarding = useAppStore((st) => st.onboarding);
+  const cycles = useAppStore((st) => st.cycles);
+  const hardCyclesInARow = useMemo(() => {
+    let streak = 0;
+    for (const cycle of cycles) {
+      if (cycle.tightPoint < 0) streak += 1;
+      else break;
+    }
+    return streak;
+  }, [cycles]);
+  const monthlyBills = useMemo(
+    () =>
+      appState.subs
+        .filter((sub) => !appState.subPaused[sub.name])
+        .reduce((sum, sub) => sum + sub.cost, 0),
+    [appState.subs, appState.subPaused],
+  );
+  const doesntFit = onboarding.monthlyIncome > 0 && monthlyBills > onboarding.monthlyIncome;
+  const signpostReal = doesntFit || hardCyclesInARow >= 2;
 
   // Mount-gate (same as TodayScreen): defer `new Date()` so nothing reads the clock during render and
   // the route has an honest "today" before it draws. Until the gate opens we route against EPOCH and
@@ -433,8 +597,9 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   }
 
   // populated / offline / error — the real triage surface. offline ≡ populated (local-first); a
-  // direct error mount still shows the surface so the user can act on the moves in hand.
-  const eyebrow = 'Recovery';
+  // direct error mount still shows the surface so the user can act on the moves in hand. Eyebrow /
+  // caption labels are mode-tinted (BREAKS-PARITY fix).
+  const eyebrow = modeCopy.eyebrow;
   const caption = pickedMove
     ? reachesRoom
       ? 'you reach payday with room'
@@ -470,23 +635,57 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           <View style={styles.headerSpacer} />
         </View>
 
-        {/* Title block — italic reassurance + the headline with "move." as the single accent word. */}
+        {/* Structural-fit signpost (BREAKS-PARITY fix) — bills alone outrun income, or 2+ hard
+            cycles in a row: an empathetic, safety-relevant referral to free UK debt charities. */}
+        {signpostReal ? (
+          <View
+            style={[styles.signpostCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          >
+            <Text style={[styles.signpostLabel, { color: t.muted }]}>
+              {doesntFit ? "This cycle doesn't fit" : 'A few hard cycles in a row'}
+            </Text>
+            <Text style={[styles.signpostBody, { color: t.ink }]}>
+              {doesntFit
+                ? "Bills alone come to more than income. That's a shape problem, not a spending one. Free UK services can help you look at it together."
+                : 'Two tough cycles back-to-back can mean the shape needs help, not just tighter moves. These UK services are free.'}
+            </Text>
+            <View style={styles.signpostLinks}>
+              <SignpostLink label="StepChange" url="https://www.stepchange.org" t={t} />
+              <SignpostLink
+                label="Citizens Advice"
+                url="https://www.citizensadvice.org.uk/debt-and-money/"
+                t={t}
+              />
+              <SignpostLink
+                label="National Debtline"
+                url="https://www.nationaldebtline.org"
+                t={t}
+              />
+            </View>
+          </View>
+        ) : null}
+
+        {/* Title block — italic reassurance + the headline with the mode-tinted accent word
+            (BREAKS-PARITY fix — was fixed to survival's "Something has to move."). */}
         <View style={styles.titleBlock}>
-          <Text style={[styles.kicker, { color: t.muted }]}>It happens. Let's repair calmly.</Text>
+          <Text style={[styles.kicker, { color: t.muted }]}>{modeCopy.intro}</Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {'Something has to '}
-            <Text style={[styles.headlineAccent, { color: t.calm }]}>move.</Text>
+            {`${modeCopy.headlineLead} `}
+            <Text style={[styles.headlineAccent, { color: t.calm }]}>
+              {modeCopy.headlineAccent}
+            </Text>
           </Text>
         </View>
 
-        {/* Shortfall card — Melo (mood softens when the move closes the gap) + the live after figure. */}
+        {/* Shortfall card — Melo (mood softens when the move closes the gap) + the live after figure.
+            Label is mode-tinted (BREAKS-PARITY fix). */}
         <View
           style={[styles.shortfallCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
         >
           <Melo size={56} mood={reachesRoom ? 'calm' : 'concern'} grounded={false} />
           <View style={styles.shortfallBody} accessibilityLiveRegion="polite">
             <Text style={[styles.cardLabel, { color: t.muted }]}>
-              {pickedMove ? 'After this move' : 'Shortfall'}
+              {pickedMove ? modeCopy.afterLabel : modeCopy.shortfallLabel}
             </Text>
             <Text
               accessibilityLabel={`${afterValue} ${caption}`}
@@ -531,15 +730,17 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           </Text>
         </Pressable>
 
-        {/* Melo aside — the picked move's frozen line, or the default. MeloLine adds the quotes. */}
+        {/* Melo aside — the picked move's frozen line, or the mode-tinted default (BREAKS-PARITY fix).
+            MeloLine adds the quotes. */}
         <View style={styles.meloAside}>
-          <MeloLine mood="calm" size={28} text={pickedMove?.melo ?? DEFAULT_MELO_LINE} />
+          <MeloLine mood="calm" size={28} text={pickedMove?.melo ?? modeCopy.meloDefault} />
         </View>
 
-        {/* Primary CTA — disabled until a move is picked; commits the move, routes to today-after. */}
+        {/* Primary CTA — disabled until a move is picked; commits the move, routes to today-after.
+            Label is mode-tinted (BREAKS-PARITY fix). */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Rebuild the plan"
+          accessibilityLabel={modeCopy.cta}
           accessibilityState={{ disabled: !pickedMove }}
           disabled={!pickedMove}
           onPress={onRebuild}
@@ -550,7 +751,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           ]}
         >
           <Text style={[styles.primaryLabel, { color: pickedMove ? t.inverse : t.muted }]}>
-            Rebuild the plan
+            {modeCopy.cta}
           </Text>
         </Pressable>
 
@@ -640,6 +841,40 @@ function MoveCard({
   );
 }
 
+// The structural-fit signpost's outbound pill — a free UK debt-help service, opened in the system
+// browser. No affiliate links, no in-app webview (a plain external hand-off, matching the web's
+// `target="_blank" rel="noreferrer noopener"` anchor).
+function SignpostLink({ label, url, t }: { label: string; url: string; t: Palette }) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      onPress={() => {
+        void Linking.openURL(url);
+      }}
+      style={({ pressed: isPressed }) => [
+        signpostLinkStyles.pill,
+        { backgroundColor: t.inset, borderColor: t.hairline },
+        isPressed ? { opacity: 0.6 } : undefined,
+      ]}
+    >
+      <Text style={[signpostLinkStyles.label, { color: t.ink }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const signpostLinkStyles = StyleSheet.create({
+  label: {
+    fontSize: 12,
+  },
+  pill: {
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.md,
+    paddingVertical: 6,
+  },
+});
+
 // Back arrow — the web '←' glyph, drawn inline (matches ReviewScreen). 20×20 user space.
 function BackArrow({ color }: { color: string }) {
   return (
@@ -693,6 +928,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 1.7,
     textTransform: 'uppercase',
+  },
+  // Structural-fit signpost card (BREAKS-PARITY fix) — surface, hairline, 2xl radius, p-4, mt-4.
+  signpostCard: {
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.lg,
+    padding: gap.lg,
+  },
+  // 11px uppercase tracked muted (web tracking-[0.12em]).
+  signpostLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  // 13px body, relaxed, mt-1.5.
+  signpostBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: gap.xs + gap.xxs,
+  },
+  // The charity-link pill row — mt-2, wraps, gap-2.
+  signpostLinks: {
+    columnGap: gap.sm,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: gap.sm,
+    rowGap: gap.sm,
   },
   // Title block — mt-5.
   titleBlock: {

@@ -10,15 +10,26 @@
 //
 // Faithful 1:1 RN port of the web design source
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetAddPlan.tsx).
-// The web shows a toast on save; RN has no toast primitive wired to this sheet, so it simply closes
-// (the plan appears live on Today's Planning lens / the Plans screen) rather than fabricating a
-// toast system.
+//
+// PARITY_GAPS Group 2 fixes:
+//   - The web's "By when" field is a native <input type="date"> — a guaranteed-valid date. RN has no
+//     equivalent without a new dependency, so it stays a free-text ISO field, but `canAdd` now
+//     requires the input to actually MATCH the YYYY-MM-DD shape (not just be non-empty) — a malformed
+//     date can no longer silently reach `plans[]`/the Planning-lens engine's date math.
+//   - The web shows a confirmation toast on save ("Plan added · {name} · £{target} by {byDate} —
+//     £{perWeek}/wk."). RN reuses the existing undo/toast lib (useUndo/showUndo) as the confirmation
+//     surface — Undo here removes the just-added plan, a faithful (if stronger) analogue.
 
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { addPlan } from '@/folio/store';
+import { addPlan, removePlan } from '@/folio/store';
+import { useUndo } from '@/folio/ui/useUndo';
+
+// Strict YYYY-MM-DD shape check — the web's native date input guarantees this; RN's free-text field
+// must validate it explicitly so a malformed string never reaches the Planning-lens date math.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type AddPlanSheetProps = {
   visible: boolean;
@@ -36,6 +47,7 @@ function defaultByDate(): string {
 export function AddPlanSheet({ visible, onClose }: AddPlanSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
+  const { showUndo } = useUndo();
 
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
@@ -46,12 +58,16 @@ export function AddPlanSheet({ visible, onClose }: AddPlanSheetProps) {
   const tgt = Number(target) || 0;
   const wk = Number(perWeek) || 0;
   const already = Number(saved) || 0;
-  const canAdd = name.trim().length > 0 && tgt > 0 && byDate.length > 0;
+  const validByDate = ISO_DATE_RE.test(byDate);
+  const canAdd = name.trim().length > 0 && tgt > 0 && validByDate;
 
   function handleAdd() {
     if (!canAdd) return;
-    addPlan({ name, target: tgt, saved: already, byDate, perWeek: wk });
+    const p = addPlan({ name, target: tgt, saved: already, byDate, perWeek: wk });
     onClose();
+    showUndo(`Plan added · ${p.name}`, () => {
+      removePlan(p.id);
+    });
   }
 
   return (
@@ -98,9 +114,20 @@ export function AddPlanSheet({ visible, onClose }: AddPlanSheetProps) {
               onChangeText={setByDate}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={t.muted}
-              style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
+              style={[
+                s.input,
+                {
+                  backgroundColor: t.inset,
+                  borderColor: byDate.length > 0 && !validByDate ? t.repair : t.hairline,
+                  color: t.ink,
+                },
+              ]}
               accessibilityLabel="By when"
+              accessibilityHint="Format: YYYY-MM-DD"
             />
+            {byDate.length > 0 && !validByDate ? (
+              <Text style={[s.dateHint, { color: t.repair }]}>Use YYYY-MM-DD</Text>
+            ) : null}
           </View>
         </View>
 
@@ -179,6 +206,7 @@ function makeStyles(t: Palette) {
     },
     row: { marginTop: gap.md, flexDirection: 'row', gap: gap.sm },
     rowField: { flex: 1 },
+    dateHint: { fontSize: 10.5, marginTop: gap.xxs },
     moneyRow: {
       marginTop: gap.xs,
       height: 44,

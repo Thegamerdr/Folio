@@ -74,6 +74,11 @@ import { copy } from '@/folio/copy/copy';
 import { useAppStore, setRouteFocusDate, sweepSubOverrides } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { resolveNextTopUp } from '@/folio/lib/potCadence';
+import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
+import { useLens } from '@/folio/lib/lens';
+import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
+import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
+import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
 import type { Nav, Pressure } from '@/folio/types';
 
 import { pressureLine, pressureLow, pressureMood } from './today/pressure';
@@ -129,6 +134,14 @@ export function TodayScreen({
   const pots = useAppStore((st) => st.pots);
   const routeFocusDate = useAppStore((st) => st.routeFocusDate);
   const currentBalance = useAppStore((st) => st.currentBalance);
+  // Lens (Money Mode) + weather chip + trial/paywall-lock pill — mirrors TodayModeScreen /
+  // TodayStabilityScreen (PARITY_GAPS.md Group 1: the primary Survival Today was missing all of
+  // these, unlike its two siblings).
+  const subs = useAppStore((st) => st.subs);
+  const subPaused = useAppStore((st) => st.subPaused);
+  const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
+  const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const lens = useLens();
 
   // Mount-gate (kept from the web to avoid a flash of the fallback before the engine computes; on
   // RN it also defers `new Date()` so the date-derived bits don't render on the first frame). When
@@ -169,6 +182,26 @@ export function TodayScreen({
   // Days to payday — the live count from the route engine (whole calendar days, today → payday),
   // falling back to the sample literal until the mount-gate opens.
   const daysToPayday = route ? route.daysToPayday : 11;
+
+  // Weather for the lens+weather chip — the survival strategy's own derivation, mirroring
+  // TodayModeScreen / TodayStabilityScreen (both already call deriveModeState for their pill).
+  const modeState = useMemo(
+    () =>
+      deriveModeState('survival', {
+        currentBalance,
+        onboarding,
+        pots,
+        subs,
+        subPaused,
+        tightestSpare: tight.tightestSpare,
+        tightestDate: tight.tightestDate,
+        bufferAmount,
+      }),
+    [currentBalance, onboarding, pots, subs, subPaused, tight, bufferAmount],
+  );
+  const lensLocked = !lens.canAccess(moneyMode);
+  const lockedAfterTrial =
+    Boolean(lens.trialEndedCycleId) && !lens.plusUnlocked && !lens.proUnlocked;
 
   // Honest balance-source caption (ENGINES.md §6) — every balance shows where it came from.
   const balanceSourceLabel = useMemo(() => {
@@ -440,25 +473,61 @@ export function TodayScreen({
               </Text>
             </Pressable>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open Melo"
-            onPress={() => nav.openMelo()}
-            style={({ pressed: p }) => [
-              styles.meloButton,
-              { backgroundColor: t.surface, borderColor: t.hairline },
-              p ? pressed : undefined,
-            ]}
-          >
-            <Melo size={22} mood={isLoading ? 'curious' : mood} />
-          </Pressable>
+          <View style={styles.headerRight}>
+            <TrialCountdownChip
+              lens={{
+                trialCycleId: lens.trialCycleId,
+                plusUnlocked: lens.plusUnlocked,
+                proUnlocked: lens.proUnlocked,
+                trialDaysLeft: lens.trialDaysLeft,
+              }}
+              onPress={() => nav.go('paywall')}
+            />
+            {/* Combined lens+weather pill — mirrors TodayModeScreen / TodayStabilityScreen (both
+                already render this). PARITY_GAPS.md Group 1: Survival Today was the one Today
+                surface missing it. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Lens ${moneyMode} — tap to switch lens`}
+              onPress={() => nav.openSheet('lens-picker')}
+              style={({ pressed: p }) => [
+                styles.lensPill,
+                { backgroundColor: t.surface, borderColor: t.hairline },
+                p ? pressed : undefined,
+              ]}
+            >
+              <MoneyModeChip mode={moneyMode} />
+              <MeloWeatherGlyph weather={modeState.weather} size={12} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Melo"
+              onPress={() => nav.openMelo()}
+              style={({ pressed: p }) => [
+                styles.meloButton,
+                { backgroundColor: t.surface, borderColor: t.hairline },
+                p ? pressed : undefined,
+              ]}
+            >
+              <Melo size={22} mood={isLoading ? 'curious' : mood} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Error branch — a dismissible, non-blocking banner OVER otherwise-populated content. */}
         {state === 'error' ? <ErrorBanner palette={t} /> : null}
 
-        {/* Sample-numbers chip — the onboarding gate / empty branch. */}
-        {!onboarding.done ? (
+        {/* Status strip — one slot, one pill. Locked lens wins over the sample-numbers chip so the
+            paywall message reads first when both apply — mirrors the web's ScreenToday priority. */}
+        {lensLocked ? (
+          <LensLockChip
+            moneyMode={moneyMode}
+            tierFor={lens.tierFor}
+            lockedAfterTrial={lockedAfterTrial}
+            onPress={() => nav.go('paywall')}
+            palette={t}
+          />
+        ) : !onboarding.done ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="The numbers on this screen are sample data — tap to make them yours"
@@ -852,6 +921,49 @@ function ErrorBanner({ palette }: { palette: Palette }) {
   );
 }
 
+// Locked-lens status pill — shown instead of the sample-numbers chip when the active Money Mode
+// isn't unlocked (paid tier without Plus/Pro, and no active trial). Mirrors the web ScreenToday's
+// status-strip branch: swaps to a soft "trial ended" explainer when the lock was caused by a trial
+// that just closed, so users are never confused why a lens re-locked (PARITY_GAPS.md Group 1).
+function LensLockChip({
+  moneyMode,
+  tierFor,
+  lockedAfterTrial,
+  onPress,
+  palette,
+}: {
+  moneyMode: MoneyMode;
+  tierFor: (m: MoneyMode) => 'free' | 'plus' | 'pro';
+  lockedAfterTrial: boolean;
+  onPress: () => void;
+  palette: Palette;
+}) {
+  const lockedTier = tierFor(moneyMode) === 'pro' ? 'Pro' : 'Plus';
+  const label = lockedAfterTrial
+    ? `Trial ended · ${moneyMode} back to Survival`
+    : `${moneyMode} is a ${lockedTier} lens · Survival for now`;
+  const cta = lockedAfterTrial ? 'See plans →' : 'Unlock →';
+  const aria = lockedAfterTrial
+    ? `Your trial ended — ${moneyMode} is a ${lockedTier} lens. Tap to see plans.`
+    : `${moneyMode} is a ${lockedTier} lens — tap to unlock`;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={aria}
+      onPress={onPress}
+      style={({ pressed: p }) => [
+        styles.chip,
+        { backgroundColor: palette.inset, borderColor: palette.hairline },
+        p ? pressed : undefined,
+      ]}
+    >
+      <View style={[styles.chipDot, { backgroundColor: palette.calm }]} />
+      <Text style={[styles.chipText, { color: palette.muted }]}>{label}</Text>
+      <Text style={[styles.chipText, { color: palette.calm }]}>{cta}</Text>
+    </Pressable>
+  );
+}
+
 // Reduced-motion (final state) — read once, then subscribe. Mirrors the kit's hook so route-draw,
 // pulse-ring, callout-in, the count-up, and the screen entrance all collapse to their final state.
 function useReduceMotion(): boolean {
@@ -889,6 +1001,21 @@ const styles = StyleSheet.create({
   headerDays: {
     fontSize: 12,
     marginTop: 2,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: gap.xs,
+  },
+  lensPill: {
+    height: 32,
+    paddingLeft: gap.sm,
+    paddingRight: gap.sm + 2,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   meloButton: {
     width: 40,

@@ -64,6 +64,123 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { useAppStore, type Transaction } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import type { Nav, Pressure } from '@/folio/types';
+import type { MoneyMode } from '@/folio/lib/modes/types';
+
+// ---------------------------------------------------------------------------
+// Mode-tinted copy (BREAKS-PARITY fix) — web `getWhatIfCopy(mode)`
+// (folio-melo lib/modes/action.ts, table `W`), ported verbatim. Every mode
+// gets its own eyebrow, intro, headline template, low/cover labels, and
+// CTA/cancel strings — same layout, different framing per Money Mode.
+// ---------------------------------------------------------------------------
+
+type WhatIfHeadline = { lead: string; accent: string; tail: string };
+
+type WhatIfCopy = {
+  eyebrow: string;
+  intro: string;
+  headlineTemplate: (amount: number) => WhatIfHeadline;
+  lowLabel: string;
+  coverLabel: string;
+  cta: string;
+  cancel: string;
+};
+
+const WHAT_IF_COPY: Record<MoneyMode, WhatIfCopy> = {
+  survival: {
+    eyebrow: 'Preview',
+    intro: 'A quiet experiment',
+    headlineTemplate: (a) => ({ lead: 'What if I spend', accent: `£${a}`, tail: 'today?' }),
+    lowLabel: 'New lowest',
+    coverLabel: 'Days this would last',
+    cta: 'See it on your money path',
+    cancel: 'Close — nothing was added',
+  },
+  stability: {
+    eyebrow: 'Rhythm check',
+    intro: 'A quiet experiment',
+    headlineTemplate: (a) => ({ lead: 'What if I break rhythm by', accent: `£${a}`, tail: '?' }),
+    lowLabel: 'Buffer after',
+    coverLabel: 'Days this would last',
+    cta: 'See it on the rhythm',
+    cancel: 'Close — nothing was added',
+  },
+  growth: {
+    eyebrow: 'Pace check',
+    intro: 'A quiet trade-off',
+    headlineTemplate: (a) => ({ lead: 'What if', accent: `£${a}`, tail: 'skips a feed?' }),
+    lowLabel: 'Pace after',
+    coverLabel: 'Days lost from pace',
+    cta: 'See it on the pace',
+    cancel: 'Close — pace unchanged',
+  },
+  debt: {
+    eyebrow: 'Chip check',
+    intro: 'A quiet trade-off',
+    headlineTemplate: (a) => ({ lead: 'What if', accent: `£${a}`, tail: 'misses a chip?' }),
+    lowLabel: 'Balance after',
+    coverLabel: 'Days added to debt',
+    cta: 'See it on the chip-down',
+    cancel: 'Close — chip unchanged',
+  },
+  irregular: {
+    eyebrow: 'Runway check',
+    intro: 'A quiet experiment',
+    headlineTemplate: (a) => ({ lead: 'What if', accent: `£${a}`, tail: 'leaves the runway?' }),
+    lowLabel: 'Runway after',
+    coverLabel: 'Days of runway left',
+    cta: 'See it on the runway',
+    cancel: 'Close — runway unchanged',
+  },
+  household: {
+    eyebrow: 'Side check',
+    intro: 'A quiet experiment',
+    headlineTemplate: (a) => ({ lead: 'What if your side spends', accent: `£${a}`, tail: '?' }),
+    lowLabel: 'Your side after',
+    coverLabel: 'Days your side lasts',
+    cta: 'See it on your side',
+    cancel: 'Close — nothing was added',
+  },
+  planning: {
+    eyebrow: 'Date check',
+    intro: 'A quiet trade-off',
+    headlineTemplate: (a) => ({ lead: 'What if', accent: `£${a}`, tail: 'moves the date?' }),
+    lowLabel: 'Date after',
+    coverLabel: 'Days pushed back',
+    cta: 'See it on the date',
+    cancel: 'Close — date unchanged',
+  },
+  optimizer: {
+    eyebrow: 'Leak check',
+    intro: 'A quiet experiment',
+    headlineTemplate: (a) => ({ lead: 'What if', accent: `£${a}`, tail: 'leaks again?' }),
+    lowLabel: 'Recovered after',
+    coverLabel: 'Days of leak allowed',
+    cta: 'See it on the leaks',
+    cancel: 'Close — nothing was cut',
+  },
+  reset: {
+    eyebrow: 'Just this',
+    intro: 'A quiet experiment',
+    headlineTemplate: (a) => ({ lead: 'What if I use', accent: `£${a}`, tail: 'today?' }),
+    lowLabel: 'Left after',
+    coverLabel: 'Days this would last',
+    cta: 'Hold this one',
+    cancel: 'Close — nothing changed',
+  },
+  lowVis: {
+    eyebrow: 'Rough preview',
+    intro: 'A quiet guess',
+    headlineTemplate: (a) => ({ lead: 'Roughly, if', accent: `£${a}`, tail: 'goes today?' }),
+    lowLabel: 'Rough low',
+    coverLabel: 'Rough days left',
+    cta: 'Keep as a rough guide',
+    cancel: 'Close — just looking',
+  },
+};
+
+function getWhatIfCopy(mode: MoneyMode): WhatIfCopy {
+  return WHAT_IF_COPY[mode] ?? WHAT_IF_COPY.survival;
+}
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -217,6 +334,11 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   const potsTotal = useAppStore((s) => s.pots.reduce((sum, p) => sum + p.saved, 0));
   const transactions = useAppStore((s) => s.transactions);
 
+  // Mode-tinted copy (BREAKS-PARITY fix) — eyebrow, intro, headline template, low/cover labels, and
+  // CTA/cancel strings all vary by Money Mode (web `getWhatIfCopy(mode)`).
+  const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival');
+  const modeCopy = getWhatIfCopy(moneyMode);
+
   // The single piece of local state — the hypothetical spend. Clamp 0..500, step 5.
   const [amount, setAmount] = useState(AMOUNT_DEFAULT);
 
@@ -255,6 +377,9 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   const breachesGoal = tightPointGoal !== null && newLow < tightPointGoal;
   // Honest signal: do you have enough across pots to absorb it? (Keep the >= direction.)
   const wouldEatPots = newLow < 0 && potsTotal >= Math.abs(newLow);
+
+  // The mode-tinted headline for the current amount (BREAKS-PARITY fix).
+  const headline = modeCopy.headlineTemplate(amount);
 
   // Mini money path — the illustrative envelope of the engine's route. `route.points` is the real
   // today→payday curve (the same series Today plots); its minimum IS `route.tightPoint`, which this
@@ -370,17 +495,18 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
             >
               <Text style={styles.backArrow}>←</Text>
             </Pressable>
-            <Text style={styles.eyebrow}>Preview</Text>
+            <Text style={styles.eyebrow}>{modeCopy.eyebrow}</Text>
             <View style={styles.headerSpacer} />
           </View>
 
-          {/* Title — italic kicker · headline with the terracotta £{amount} accent word. */}
+          {/* Title — italic kicker · headline with the terracotta £{amount} accent word. Both are
+              mode-tinted (BREAKS-PARITY fix — was fixed to survival's "What if I spend £X today?"). */}
           <View style={styles.title}>
-            <Text style={styles.kicker}>A quiet experiment</Text>
+            <Text style={styles.kicker}>{modeCopy.intro}</Text>
             <Text accessibilityRole="header" style={styles.headline}>
-              {'What if I spend '}
-              <Text style={styles.headlineAccent}>£{amount}</Text>
-              {' today?'}
+              {`${headline.lead} `}
+              <Text style={styles.headlineAccent}>{headline.accent}</Text>
+              {` ${headline.tail}`}
             </Text>
           </View>
 
@@ -458,7 +584,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
               when a floor is set), and Days this would last (count-up, negative under 5d) + pots total. */}
           <View style={styles.tilesRow}>
             <View style={styles.tile}>
-              <Text style={styles.tileLabel}>New lowest</Text>
+              <Text style={styles.tileLabel}>{modeCopy.lowLabel}</Text>
               <Text
                 style={[styles.tileValue, lowIsNegative ? styles.tileValueNegative : undefined]}
               >
@@ -478,7 +604,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
             </View>
 
             <View style={styles.tile}>
-              <Text style={styles.tileLabel}>Days this would last</Text>
+              <Text style={styles.tileLabel}>{modeCopy.coverLabel}</Text>
               <Text
                 style={[styles.tileValue, daysIsNegative ? styles.tileValueNegative : undefined]}
               >
@@ -506,7 +632,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
               isPressed ? styles.pressed : undefined,
             ]}
           >
-            <Text style={styles.primaryLabel}>See it on your money path</Text>
+            <Text style={styles.primaryLabel}>{modeCopy.cta}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -518,7 +644,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
               isPressed ? styles.pressed : undefined,
             ]}
           >
-            <Text style={styles.closeLabel}>Close — nothing was added</Text>
+            <Text style={styles.closeLabel}>{modeCopy.cancel}</Text>
           </Pressable>
         </Animated.View>
       </ScrollView>

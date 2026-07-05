@@ -78,6 +78,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
+import { getRetrospect, formatDelta } from '@/folio/lib/modes/retrospect';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -152,25 +153,44 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   const reduceMotion = useReduceMotion();
   const s = useMemo(() => makeStyles(t), [t]);
 
-  // All three real store slices (spec DOC-BLOCK DRIFT: wire the real reads, not the doc block).
+  // All real store slices (spec DOC-BLOCK DRIFT: wire the real reads, not the doc block). moneyMode /
+  // transactions / tinyWins added for the mode-tinted retrospect + weekly digest + tiny-wins section.
   const cycles = useAppStore((st) => st.cycles);
   const pots = useAppStore((st) => st.pots);
   const subPaused = useAppStore((st) => st.subPaused);
+  const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const transactions = useAppStore((st) => st.transactions);
+  const tinyWins = useAppStore((st) => st.tinyWins ?? []);
 
   // Derived aggregates — ported 1:1 from the web body. Summary tiles aggregate ALL cycles; the chart
   // windows to 6; the notes list windows to 4 (spec: three different windows, do not unify).
-  const totalSpare = cycles.reduce((acc, c) => acc + c.spare, 0);
   const avgTight = cycles.length
     ? Math.round(cycles.reduce((acc, c) => acc + c.tightPoint, 0) / cycles.length)
-    : 0;
-  const avgSetAside = cycles.length
-    ? Math.round(cycles.reduce((acc, c) => acc + c.setAside, 0) / cycles.length)
     : 0;
   const pausedCount = Object.values(subPaused).filter(Boolean).length;
   const potsTotal = pots.reduce((acc, p) => acc + p.saved, 0);
   const latest = cycles[0];
   const prior = cycles[1];
   const spareDelta = latest && prior ? latest.spare - prior.spare : 0;
+
+  // Mode-tinted retrospective framing (web `getRetrospect(mode, cycles, potsTotal)`) — the eyebrow,
+  // headline, both KPI cards, the trend caption, and the Melo note all vary by moneyMode.
+  const retro = useMemo(
+    () => getRetrospect(moneyMode, cycles, potsTotal),
+    [moneyMode, cycles, potsTotal],
+  );
+
+  // Weekly digest — trailing 7 days of user-visible spend + quiet days (web `weekly` memo).
+  const weekly = useMemo(() => {
+    const now = Date.now();
+    const weekAgo = now - 7 * 86_400_000;
+    const week = transactions.filter((t) => new Date(t.when).getTime() >= weekAgo && t.amount < 0);
+    const spent = week.reduce((acc, t) => acc + Math.abs(t.amount), 0);
+    const daysWithSpend = new Set(week.map((t) => new Date(t.when).toISOString().slice(0, 10)))
+      .size;
+    const quietDays = Math.max(0, 7 - daysWithSpend);
+    return { spent: Math.round(spent), quietDays };
+  }, [transactions]);
 
   // Tight-point trend: one point per closed cycle, oldest → newest (web: slice(0,6).reverse()).
   const trend = useMemo(() => cycles.slice(0, 6).reverse(), [cycles]);
@@ -199,9 +219,9 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
           <View style={s.titleBlock}>
             <Text style={s.eyebrowItalic}>Nothing wrapped up yet</Text>
             <Text accessibilityRole="header" style={s.headline}>
-              {'The '}
-              <Text style={s.headlineAccent}>shape</Text>
-              {' of your months.'}
+              {retro.title.lead}
+              <Text style={s.headlineAccent}>{retro.title.accent}</Text>
+              {retro.title.tail}
             </Text>
           </View>
 
@@ -231,57 +251,66 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
         <Header nav={nav} styles={s} palette={t} reduceMotion={reduceMotion} />
 
         <View style={s.titleBlock}>
-          <Text style={s.eyebrowItalic}>
-            {`${cycles.length} ${cycles.length === 1 ? 'month' : 'months'} done`}
-          </Text>
+          <Text style={s.eyebrowItalic}>{retro.eyebrow}</Text>
           <Text accessibilityRole="header" style={s.headline}>
-            {'The '}
-            <Text style={s.headlineAccent}>shape</Text>
-            {' of your months.'}
+            {retro.title.lead}
+            <Text style={s.headlineAccent}>{retro.title.accent}</Text>
+            {retro.title.tail}
           </Text>
         </View>
 
-        {/* 2×2 stat tiles. */}
+        {/* 2×2 stat tiles. The primary/secondary cards are mode-tinted (web `retro.primary` /
+            `retro.secondary`) — label, value, and tone all vary by moneyMode. The other two
+            ("In pots right now" / "Average set aside") stay generic across every mode. */}
         <View style={s.grid}>
           <StatTile
-            label="Saved across all months"
-            value={totalSpare}
-            tone="positive"
+            label={retro.primary.label}
+            value={retro.primary.value}
+            tone={retro.primary.tone === 'ink' ? undefined : retro.primary.tone}
             styles={s}
-            reduceMotion={reduceMotion}
             sub={
               prior ? (
                 <Text style={[s.delta, spareDelta >= 0 ? s.deltaPositive : s.deltaNegative]}>
-                  {`${spareDelta >= 0 ? '+' : '−'}£${Math.abs(spareDelta)} vs ${prior.label}`}
+                  {`${formatDelta(spareDelta)} vs ${prior.label}`}
                 </Text>
               ) : undefined
             }
           />
           <StatTile
             label="In pots right now"
-            value={potsTotal}
+            value={formatGBP(potsTotal)}
             styles={s}
             reduceMotion={reduceMotion}
+            countUpValue={potsTotal}
           />
           <StatTile
-            label="Average low balance"
-            value={avgTight}
-            tone="accent"
+            label={retro.secondary.label}
+            value={retro.secondary.value}
+            tone={retro.secondary.tone === 'ink' ? undefined : retro.secondary.tone}
             styles={s}
-            reduceMotion={reduceMotion}
           />
           <StatTile
             label="Average set aside"
-            value={avgSetAside}
+            value={formatGBP(
+              cycles.length
+                ? Math.round(cycles.reduce((acc, c) => acc + c.setAside, 0) / cycles.length)
+                : 0,
+            )}
             styles={s}
             reduceMotion={reduceMotion}
+            countUpValue={
+              cycles.length
+                ? Math.round(cycles.reduce((acc, c) => acc + c.setAside, 0) / cycles.length)
+                : 0
+            }
           />
         </View>
 
-        {/* Chart card — the only element with a shadow (shadow-card); tiles use hairline only. */}
+        {/* Chart card — the only element with a shadow (shadow-card); tiles use hairline only.
+            The trend caption is mode-tinted (web `retro.trendCaption`). */}
         <View style={s.chartCard}>
           <View style={s.chartTitleRow}>
-            <Text style={s.chartTitle}>{`Lowest balance, last ${trend.length}`}</Text>
+            <Text style={s.chartTitle}>{retro.trendCaption}</Text>
             <ChartAvg avgTight={avgTight} styles={s} reduceMotion={reduceMotion} />
           </View>
           <TrendChart trend={trend} avgTight={avgTight} palette={t} reduceMotion={reduceMotion} />
@@ -293,6 +322,53 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             ))}
           </View>
         </View>
+
+        {/* Mode-tinted Melo note (web `retro.meloNote`) — directly under the chart, ahead of the
+            weekly digest / tiny wins / notes-from-past-you sections. */}
+        <View style={s.meloNoteBlock}>
+          <MeloLine mood="calm" text={retro.meloNote} />
+        </View>
+
+        {/* Weekly digest — trailing 7 days, a calm 30-second read (web "This week, at a glance"). */}
+        <View style={s.weeklyCard}>
+          <Text style={s.weeklyEyebrow}>This week, at a glance</Text>
+          <View style={s.weeklyGrid}>
+            <View style={s.weeklyCol}>
+              <Text style={s.weeklyLabel}>Spent</Text>
+              <Text style={s.weeklyValue}>{formatGBP(weekly.spent)}</Text>
+            </View>
+            <View style={s.weeklyCol}>
+              <Text style={s.weeklyLabel}>Quiet days</Text>
+              <Text
+                style={[s.weeklyValue, weekly.quietDays >= 3 ? s.tileValuePositive : undefined]}
+              >
+                {`${weekly.quietDays}d`}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Tiny wins — up to 4, newest first (web `tinyWins.slice(0,4)`). Only renders once the
+            award engine (lib/wins.ts) has actually awarded one; empty state shows nothing, matching
+            the web's `tinyWins.length > 0` guard. */}
+        {tinyWins.length > 0 ? (
+          <View style={s.winsBlock}>
+            <Text style={s.winsEyebrow}>Tiny wins</Text>
+            <View style={s.winsCard}>
+              {tinyWins.slice(0, 4).map((w, i, arr) => (
+                <View
+                  key={w.id}
+                  style={[s.winRow, i < arr.length - 1 ? s.noteRowDivider : undefined]}
+                >
+                  <Text style={s.winMessage}>{w.message}</Text>
+                  <Text style={s.winDate}>
+                    {new Date(w.awardedAt).toLocaleDateString('en-GB', { weekday: 'long' })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         {/* Notes from past you — up to 4 closed cycles. */}
         <View style={s.notesBlock}>
@@ -382,15 +458,24 @@ function StatTile({
   sub,
   styles,
   reduceMotion,
+  countUpValue,
 }: {
   label: string;
-  value: number;
-  tone?: 'positive' | 'accent' | undefined;
+  /** Pre-formatted display string (web `Kpi.value` / `formatGBP(...)`) — this tile never formats
+   *  money itself, so mode-tinted retro values (which arrive already formatted, e.g. "£420" or a
+   *  non-money string like a month count) render byte-identical to the web source. */
+  value: string;
+  tone?: 'positive' | 'accent' | 'negative' | undefined;
   sub?: React.ReactNode;
   styles: ReturnType<typeof makeStyles>;
-  reduceMotion: boolean;
+  reduceMotion?: boolean | undefined;
+  /** When provided, the tile counts up to this raw number instead of rendering `value` directly —
+   *  only used by the two mode-invariant tiles ("In pots right now" / "Average set aside") that kept
+   *  their original count-up treatment; the mode-tinted retro tiles render their string as-is. */
+  countUpValue?: number | undefined;
 }) {
-  const counted = useCountUp(value, COUNT_MS, reduceMotion);
+  const counted = useCountUp(countUpValue ?? 0, COUNT_MS, reduceMotion ?? true);
+  const display = countUpValue !== undefined ? formatGBP(Math.round(counted)) : value;
   return (
     <View style={styles.tile}>
       <Text style={styles.tileLabel}>{label}</Text>
@@ -399,9 +484,10 @@ function StatTile({
           styles.tileValue,
           tone === 'positive' ? styles.tileValuePositive : undefined,
           tone === 'accent' ? styles.tileValueAccent : undefined,
+          tone === 'negative' ? styles.deltaNegative : undefined,
         ]}
       >
-        {formatGBP(Math.round(counted))}
+        {display}
       </Text>
       {sub}
     </View>
@@ -724,6 +810,84 @@ function makeStyles(t: Palette) {
       flex: 1,
       fontSize: 10,
       textAlign: 'center',
+    },
+
+    // Mode-tinted Melo note, directly under the chart — mt-4.
+    meloNoteBlock: {
+      marginTop: gap.lg,
+    },
+
+    // Weekly digest card — surface, hairline, 2xl radius, p-4, mt-5.
+    weeklyCard: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.xxl,
+      borderWidth: StyleSheet.hairlineWidth,
+      marginTop: gap.lg + gap.xs,
+      padding: gap.lg,
+    },
+    weeklyEyebrow: {
+      color: t.muted,
+      fontSize: 11,
+      letterSpacing: 11 * 0.14, // tracking-[0.14em]
+      textTransform: 'uppercase',
+    },
+    weeklyGrid: {
+      flexDirection: 'row',
+      gap: gap.md,
+      marginTop: gap.sm,
+    },
+    weeklyCol: {
+      flex: 1,
+    },
+    weeklyLabel: {
+      color: t.muted,
+      fontSize: 10.5,
+      letterSpacing: 10.5 * 0.12, // tracking-[0.12em]
+      textTransform: 'uppercase',
+    },
+    weeklyValue: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 18,
+      fontVariant: ['tabular-nums'],
+      fontWeight: '700',
+      marginTop: gap.xxs,
+    },
+
+    // Tiny wins block — mt-5.
+    winsBlock: {
+      marginTop: gap.lg + gap.xs,
+    },
+    winsEyebrow: {
+      color: t.muted,
+      fontSize: 11,
+      letterSpacing: 11 * 0.14, // tracking-[0.14em]
+      marginBottom: gap.sm,
+      paddingHorizontal: gap.xs,
+      textTransform: 'uppercase',
+    },
+    winsCard: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.xxl,
+      borderWidth: StyleSheet.hairlineWidth,
+      overflow: 'hidden',
+    },
+    // Each win row — px-5 py-3.
+    winRow: {
+      paddingHorizontal: gap.lg + gap.xs,
+      paddingVertical: gap.md,
+    },
+    winMessage: {
+      color: t.ink,
+      fontSize: 13.5,
+    },
+    winDate: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 10.5,
+      marginTop: 2,
     },
 
     // Notes block — mt-5.

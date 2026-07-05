@@ -31,7 +31,9 @@ import { useChartStyle } from '@/folio/lib/chartStyle';
 import { LensRhythm } from '@/folio/ui/LensRhythm';
 import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
-import { deriveModeState } from '@/folio/lib/modes';
+import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
+import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
+import { useLens } from '@/folio/lib/lens';
 import type { Nav } from '@/folio/types';
 
 import { formatGBP } from './today/format';
@@ -61,6 +63,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const currentBalance = useAppStore((st) => st.currentBalance);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
   const { style: chartStyle } = useChartStyle();
+  const lens = useLens();
 
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => setNow(new Date()), []);
@@ -153,18 +156,41 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             <Text style={[s.headerDays, { color: t.muted }]}>{daysToPayday} days to payday →</Text>
           </Pressable>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => nav.openSheet('lens-picker')}
-          style={[s.lensPill, { backgroundColor: t.surface, borderColor: t.hairline }]}
-          accessibilityLabel="Lens stability — tap to switch lens"
-        >
-          <MoneyModeChip mode="stability" />
-          <MeloWeatherGlyph weather={modeState.weather} size={12} />
-        </Pressable>
+        <View style={s.headerRight}>
+          <TrialCountdownChip
+            lens={{
+              trialCycleId: lens.trialCycleId,
+              plusUnlocked: lens.plusUnlocked,
+              proUnlocked: lens.proUnlocked,
+              trialDaysLeft: lens.trialDaysLeft,
+            }}
+            onPress={() => nav.go('paywall')}
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.openSheet('lens-picker')}
+            style={[s.lensPill, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            accessibilityLabel="Lens stability — tap to switch lens"
+          >
+            <MoneyModeChip mode="stability" />
+            <MeloWeatherGlyph weather={modeState.weather} size={12} />
+          </Pressable>
+        </View>
       </View>
 
-      {!onboarding.done ? (
+      {/* Status strip — Stability is a free lens so it can never be locked, but the strip keeps the
+          same priority shape as Survival/parked-lens Today for consistency (PARITY_GAPS.md Group 1). */}
+      {!lens.canAccess('stability') ? (
+        <LensLockChip
+          moneyMode="stability"
+          tierFor={lens.tierFor}
+          lockedAfterTrial={
+            Boolean(lens.trialEndedCycleId) && !lens.plusUnlocked && !lens.proUnlocked
+          }
+          onPress={() => nav.go('paywall')}
+          palette={t}
+        />
+      ) : !onboarding.done ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => nav.openSheet('onboarding')}
@@ -292,6 +318,65 @@ function capFirst(str: string): string {
   return trimmed[0]!.toUpperCase() + trimmed.slice(1);
 }
 
+// Locked-lens status pill — see TodayModeScreen's twin for the full rationale (PARITY_GAPS.md
+// Group 1). Stability is a free lens so this branch is inert today, but keeps the same
+// status-strip shape as its Today siblings.
+function LensLockChip({
+  moneyMode,
+  tierFor,
+  lockedAfterTrial,
+  onPress,
+  palette,
+}: {
+  moneyMode: MoneyMode;
+  tierFor: (m: MoneyMode) => 'free' | 'plus' | 'pro';
+  lockedAfterTrial: boolean;
+  onPress: () => void;
+  palette: Palette;
+}) {
+  const lockedTier = tierFor(moneyMode) === 'pro' ? 'Pro' : 'Plus';
+  const label = lockedAfterTrial
+    ? `Trial ended · ${moneyMode} back to Survival`
+    : `${moneyMode} is a ${lockedTier} lens · Survival for now`;
+  const cta = lockedAfterTrial ? 'See plans →' : 'Unlock →';
+  const aria = lockedAfterTrial
+    ? `Your trial ended — ${moneyMode} is a ${lockedTier} lens. Tap to see plans.`
+    : `${moneyMode} is a ${lockedTier} lens — tap to unlock`;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={aria}
+      onPress={onPress}
+      style={[
+        lockChipStyles.chip,
+        { backgroundColor: palette.inset, borderColor: palette.hairline },
+      ]}
+    >
+      <View style={[lockChipStyles.dot, { backgroundColor: palette.calm }]} />
+      <Text style={[lockChipStyles.text, { color: palette.muted }]}>{label}</Text>
+      <Text style={[lockChipStyles.text, { color: palette.calm }]}>{cta}</Text>
+    </Pressable>
+  );
+}
+
+const lockChipStyles = StyleSheet.create({
+  chip: {
+    marginHorizontal: 28,
+    marginTop: gap.xs,
+    marginBottom: gap.xs,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: gap.sm,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.md,
+    paddingVertical: 6,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  text: { fontSize: 11 },
+});
+
 function makeStyles(t: Palette) {
   return StyleSheet.create({
     root: { flex: 1 },
@@ -306,6 +391,7 @@ function makeStyles(t: Palette) {
     },
     headerDate: { fontFamily: serif.displayItalic, fontSize: 13 },
     headerDays: { fontSize: 12, marginTop: 2 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: gap.xs },
     lensPill: {
       height: 32,
       paddingLeft: gap.sm,

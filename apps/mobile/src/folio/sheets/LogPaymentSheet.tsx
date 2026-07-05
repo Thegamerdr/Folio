@@ -16,12 +16,18 @@
 // balance. This sheet computes the "cleared" / remaining figures itself (from the debt's balance
 // before the call) so the confirmation copy stays honest without needing a store-return-value
 // change outside this batch's file list.
+//
+// PARITY_GAPS Group 2 fix: the web shows a confirmation toast after logging a payment ("{name}
+// cleared" / "Payment logged · {name}", with the paid/remaining figures). RN previously showed no
+// acknowledgment at all. This reuses the existing undo/toast lib (useUndo/showUndo) — Undo re-applies
+// the payment amount back onto the balance, a faithful (if stronger) analogue of a plain toast.
 
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { useAppStore, logDebtPayment } from '@/folio/store';
+import { useAppStore, logDebtPayment, undoDebtPayment } from '@/folio/store';
+import { useUndo } from '@/folio/ui/useUndo';
 
 export type LogPaymentSheetProps = {
   visible: boolean;
@@ -32,6 +38,7 @@ export function LogPaymentSheet({ visible, onClose }: LogPaymentSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const debts = useAppStore((st) => st.debts ?? []);
+  const { showUndo } = useUndo();
 
   const [selectedId, setSelectedId] = useState<string>(debts[0]?.id ?? '');
   const [amount, setAmount] = useState<string>(debts[0] ? String(debts[0].minPayment) : '');
@@ -42,8 +49,17 @@ export function LogPaymentSheet({ visible, onClose }: LogPaymentSheetProps) {
 
   function handleLog() {
     if (!canLog || !selected) return;
+    // Mirrors the store's own clamp (balance never goes negative) so the confirmation figures agree
+    // with what actually landed, even on an overpay.
+    const paid = Math.min(amt, selected.balance);
+    const remaining = Math.max(0, selected.balance - amt);
+    const cleared = remaining <= 0;
+    const name = selected.name;
     logDebtPayment(selected.id, amt);
     onClose();
+    showUndo(cleared ? `${name} cleared` : `Payment logged · ${name}`, () => {
+      undoDebtPayment(selected.id, paid);
+    });
   }
 
   if (debts.length === 0) {

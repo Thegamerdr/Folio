@@ -79,7 +79,15 @@ import { Sheet } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { addToPot, setPots, useAppStore, type AppState, type Pot } from '@/folio/store';
+import {
+  addToPot,
+  repayToPot,
+  setPotAllowNegative,
+  setPots,
+  useAppStore,
+  type AppState,
+  type Pot,
+} from '@/folio/store';
 import { routeFromStore } from '@/folio/lib/storeRoute';
 import { pressureLow } from '@/folio/screens/today/pressure';
 import type { Nav, Pressure } from '@/folio/types';
@@ -198,6 +206,17 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
   const onboarding = useAppStore((st) => st.onboarding);
   const currentBalance = useAppStore((st) => st.currentBalance);
   const potLedger = useAppStore((st) => st.potLedger);
+
+  // Per-pot outstanding borrow = sum(borrow) − sum(repay) (ENGINES §4; web ScreenPots `owedByPot`).
+  // Drives the "Repay £n" affordance + caption on any pot with a positive residual.
+  const owedByPot = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const e of potLedger) {
+      if (e.kind === 'borrow') map[e.potId] = (map[e.potId] ?? 0) + e.amount;
+      else if (e.kind === 'repay') map[e.potId] = (map[e.potId] ?? 0) - e.amount;
+    }
+    return map;
+  }, [potLedger]);
 
   // The full app state — the same stable `useSyncExternalStore` snapshot the shared route bridge
   // selects, so the Reallocate sheet can re-route a HYPOTHETICAL copy for its real tight-point delta
@@ -372,7 +391,6 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
   // offline ≡ populated (local-first; renders identically, no network language).
   void onboarding;
   void currentBalance;
-  void potLedger;
 
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -426,10 +444,13 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
               pot={p}
               others={pots.filter((o) => o.id !== p.id)}
               moveOpen={moveFrom === p.id}
+              owed={owedByPot[p.id] ?? 0}
               t={t}
               s={s}
               reduceMotion={reduceMotion}
               onQuickAdd={(inc) => addToPot(p.id, inc)}
+              onRepay={(amt) => repayToPot(p.id, amt)}
+              onToggleAllowNegative={() => setPotAllowNegative(p.id, !p.allowNegative)}
               onToggleMove={() => openMove(p.id)}
               onChooseDestination={(toId) => chooseDestination(p.id, toId)}
             />
@@ -505,20 +526,27 @@ function PotCard({
   pot,
   others,
   moveOpen,
+  owed,
   t,
   s,
   reduceMotion,
   onQuickAdd,
+  onRepay,
+  onToggleAllowNegative,
   onToggleMove,
   onChooseDestination,
 }: {
   pot: Pot;
   others: readonly Pot[];
   moveOpen: boolean;
+  /** Outstanding borrow against this pot (ENGINES §4 `owedByPot`). 0 = nothing owed. */
+  owed: number;
   t: Palette;
   s: ReturnType<typeof makeStyles>;
   reduceMotion: boolean;
   onQuickAdd: (inc: number) => void;
+  onRepay: (amount: number) => void;
+  onToggleAllowNegative: () => void;
   onToggleMove: () => void;
   onChooseDestination: (toId: string) => void;
 }) {
@@ -526,6 +554,7 @@ function PotCard({
     pot.perWeek > 0 ? Math.ceil(Math.max(0, pot.goal - pot.saved) / pot.perWeek) : 0;
   const etaLabel = weeksLeft > 0 ? `about ${weeksLeft} weeks` : 'goal met';
   const canMove = pot.saved > 0 && others.length > 0;
+  const repayAmount = Math.min(owed, 20);
 
   return (
     <View style={[styles.potCard, { backgroundColor: t.surface }, elevation.card]}>
@@ -596,6 +625,61 @@ function PotCard({
           </Pressable>
         ) : null}
       </View>
+
+      {/* Repay a prior borrow — ENGINES §4 "Pot rules — borrow/repay ledger". Only when this pot has
+          a positive residual (owedByPot > 0). Records a repay entry; does not touch `saved` (the money
+          already sits in the pot — repaying just clears the owed marker). */}
+      {owed > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Repay £${repayAmount} to ${pot.name}`}
+          hitSlop={8}
+          onPress={() => onRepay(repayAmount)}
+          style={({ pressed: isPressed }) => [
+            styles.repayChip,
+            { backgroundColor: t.calmSoft },
+            isPressed ? styles.pressed : undefined,
+          ]}
+        >
+          <Text style={[styles.repayChipLabel, { color: t.calm }]}>{`Repay £${repayAmount}`}</Text>
+        </Pressable>
+      ) : null}
+      {owed > 0 ? (
+        <Text style={[styles.owedCaption, { color: t.muted }]}>
+          {`£${owed} borrowed from this pot — repay when the month allows.`}
+        </Text>
+      ) : null}
+
+      {/* "Can go briefly negative" — the per-pot opt-in that lets a buffer pot dip below £0 when
+          borrowed from, instead of the default hard cap (ENGINES §4). */}
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityLabel="Can go briefly negative"
+        accessibilityState={{ checked: !!pot.allowNegative }}
+        hitSlop={4}
+        onPress={onToggleAllowNegative}
+        style={({ pressed: isPressed }) => [
+          styles.allowNegRow,
+          { backgroundColor: t.inset },
+          isPressed ? styles.pressed : undefined,
+        ]}
+      >
+        <Text style={[styles.allowNegLabel, { color: t.muted }]}>Can go briefly negative</Text>
+        <View
+          style={[
+            styles.toggleTrack,
+            { backgroundColor: pot.allowNegative ? t.calm : t.inset, borderColor: t.hairline },
+          ]}
+        >
+          <View
+            style={[
+              styles.toggleThumb,
+              { backgroundColor: t.canvas },
+              pot.allowNegative ? styles.toggleThumbOn : undefined,
+            ]}
+          />
+        </View>
+      </Pressable>
 
       {/* The destination picker — the tap analogue of "drop pot A onto pot B". Choosing one opens the
           Reallocate sheet for that pair. */}
@@ -1066,6 +1150,58 @@ const styles = StyleSheet.create({
   moveChipLabel: {
     fontSize: 11.5,
     fontWeight: '500',
+  },
+
+  // Repay affordance — full-width accent-soft pill, mt-2 (web col-span-3 min-h-[44px]).
+  repayChip: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    marginTop: gap.sm,
+    minHeight: 44,
+    paddingHorizontal: gap.md,
+  },
+  repayChipLabel: {
+    fontSize: 12.5,
+    fontVariant: ['tabular-nums'],
+  },
+  // The owed caption under the repay chip, mt-1.5.
+  owedCaption: {
+    fontSize: 11,
+    marginTop: gap.xs + gap.xxs,
+  },
+
+  // "Can go briefly negative" row — inset well, rounded-xl, px-3 py-2, mt-3.
+  allowNegRow: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: gap.md,
+    paddingHorizontal: gap.sm + gap.xxs,
+    paddingVertical: gap.xs + gap.xxs,
+  },
+  allowNegLabel: {
+    flex: 1,
+    fontSize: 11.5,
+    lineHeight: 15,
+  },
+  // The switch track — w-9 h-5 rounded-full (web).
+  toggleTrack: {
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 20,
+    justifyContent: 'center',
+    padding: 2,
+    width: 36,
+  },
+  toggleThumb: {
+    borderRadius: radius.pill,
+    height: 16,
+    width: 16,
+  },
+  toggleThumbOn: {
+    transform: [{ translateX: 16 }],
   },
 
   // The destination picker — a hairline-topped well of the other pots' names, mt-3 pt-3.

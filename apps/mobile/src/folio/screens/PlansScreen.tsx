@@ -23,8 +23,8 @@
 //               two add CTAs (a bill / a debt), and a closing Melo line.
 // @reads        subs · subPaused · subOverrides · onboarding · pots · calendarEvents (via the shared
 //               `useRoute` bridge + `deriveCalendarEvents`) — the doc-block @reads contract.
-// @writes       — (navigation only: nav.back / nav.go('add-bill') / nav.go('add-debt'); tapping a row
-//               opens the route-detail sheet via nav.openSheet, honouring @opens-sheet).
+// @writes       — (navigation only: nav.back / nav.go('add-bill') / nav.openSheet('declare-debt');
+//               tapping a row opens the route-detail sheet via nav.openSheet, honouring @opens-sheet).
 // @opens-sheet  route-detail
 // @copy         FROZEN — the web prototype used INLINE literals (none are keyed in COPY_DECK yet), so
 //               every visible string here is a frozen inline literal taken VERBATIM from the source.
@@ -494,7 +494,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="or add a debt"
-            onPress={() => nav.go('add-debt')}
+            onPress={() => nav.openSheet('declare-debt')}
             style={({ pressed: isPressed }) => [
               styles.secondaryCta,
               isPressed ? styles.pressed : undefined,

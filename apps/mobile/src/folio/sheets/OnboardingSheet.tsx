@@ -1,6 +1,7 @@
 // @rn-sheet     OnboardingSheet
-// @purpose      Five-step onboarding — name, payday, income, balance, pot picker.
-// @writes       setOnboarding, setCurrentBalance, setPots
+// @purpose      Seven-step onboarding — name, intent picker (→ Money Mode), mode-specific extra
+//               question, payday, income, balance, pot picker.
+// @writes       setOnboarding, setMoneyMode, setBufferAmount, setCurrentBalance, setPots
 // @copy         FROZEN (verbatim from '@/folio/copy/copy' + the spec's inline strings)
 // @tokens       --paper (Sheet) · --accent (t.calm) · --accent-soft (t.calmSoft) ·
 //               --inset (t.inset) · --hairline (t.hairline) · --ink (t.ink) · --muted-ink (t.muted)
@@ -8,11 +9,13 @@
 //
 // Faithful 1:1 RN port of the web design source
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetOnboarding.tsx) and its
-// spec (plans/rn-port/specs/SheetOnboarding.spec.md). The web source renders FIVE steps with inline
+// spec (plans/rn-port/specs/SheetOnboarding.spec.md). The web source renders SEVEN steps with inline
 // copy that diverges from the COPY_DECK onb.* keys; per the spec the CODE is the rendered truth, so
-// the five steps and their exact inline strings are ported verbatim. The accent word in each headline
-// is rendered terracotta italic (the web's `<em class="not-italic text-accent">` reads as one coloured
-// run; here it is one Fraunces-italic, t.calm-coloured Text run inside the headline).
+// the seven steps and their exact inline strings are ported verbatim (PARITY_GAPS.md Group 4 —
+// BREAKS-PARITY fix: the intent-picker + mode-extra steps were previously dropped, so `setMoneyMode`
+// never fired during RN onboarding; restored here). The accent word in each headline is rendered
+// terracotta italic (the web's `<em class="not-italic text-accent">` reads as one coloured run; here
+// it is one Fraunces-italic, t.calm-coloured Text run inside the headline).
 //
 // Design-system discipline: every colour/font/spacing/radius token comes from '@/folio/theme'
 // (which re-exports the pressure-map kit). Nothing new is defined — no colour, no font, no spacing
@@ -61,11 +64,157 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import {
   resetToEmpty,
+  setBufferAmount,
   setCurrentBalance,
+  setMoneyMode,
   setOnboarding,
   setPots as storeSetPots,
   useAppStore,
 } from '@/folio/store';
+import type { MoneyMode } from '@/folio/lib/modes/types';
+
+// ---------------------------------------------------------------------------
+// Intent picker + mode-specific extra question (BREAKS-PARITY fix) — web
+// `INTENT_OPTIONS` + `MODE_EXTRA` (folio-melo SheetOnboarding.tsx), ported
+// verbatim. This is the ONLY place `setMoneyMode` fires during onboarding —
+// without it every user onboards into the default mode and none of the
+// mode-driven copy on Recovery/Ritual/WhatIf/RouteDetail can ever show
+// correctly (the root cause PARITY_GAPS.md Group 4 calls out).
+// ---------------------------------------------------------------------------
+
+// MONEY_MODES.md § 3 — user-declared intent → mode mapping. Kept in the user's language, not the
+// internal mode key. Order matches the product spec.
+type IntentOption = { label: string; mode: MoneyMode; modeLabel: string };
+
+const INTENT_OPTIONS: readonly IntentOption[] = [
+  { label: 'Know what I can safely spend', mode: 'stability', modeLabel: 'Stability' },
+  { label: 'Stop running out before payday', mode: 'survival', modeLabel: 'Survival' },
+  { label: 'Build savings', mode: 'growth', modeLabel: 'Growth' },
+  { label: 'Pay down debt', mode: 'debt', modeLabel: 'Debt' },
+  { label: 'Manage irregular income', mode: 'irregular', modeLabel: 'Irregular income' },
+  { label: 'Control subscriptions and leaks', mode: 'optimizer', modeLabel: 'Optimizer' },
+  { label: 'Plan a big purchase', mode: 'planning', modeLabel: 'Planning' },
+  { label: 'Share bills with someone', mode: 'household', modeLabel: 'Household' },
+  { label: 'Feel less anxious about money', mode: 'stability', modeLabel: 'Stability' },
+  { label: 'Understand where my money goes', mode: 'lowVis', modeLabel: 'Low visibility' },
+];
+
+// Mode-specific follow-up step (inserted after the intent step). Only Survival/Stability's captured
+// value is persisted today (their engines read `bufferAmount`); the other modes still capture the
+// answer visibly and label it honestly as "for when the mode ships fully" — never silently dropped.
+type ModeExtra = {
+  eyebrow: string;
+  headLead: string;
+  headAccent: string;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+  hint: string;
+};
+
+const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
+  survival: {
+    eyebrow: 'Your buffer',
+    headLead: 'How thin is ',
+    headAccent: 'too thin?',
+    unit: '£',
+    min: 0,
+    max: 500,
+    step: 10,
+    hint: 'Folio warns before the balance dips below this.',
+  },
+  stability: {
+    eyebrow: 'Comfort line',
+    headLead: 'What balance ',
+    headAccent: 'feels safe?',
+    unit: '£',
+    min: 0,
+    max: 2000,
+    step: 25,
+    hint: 'Anything above this reads as safe-to-spend.',
+  },
+  growth: {
+    eyebrow: 'Monthly pace',
+    headLead: 'How much would you ',
+    headAccent: 'like to save?',
+    unit: '£',
+    min: 0,
+    max: 1500,
+    step: 25,
+    hint: 'A pace, not a promise. Captured for when Growth mode ships fully.',
+  },
+  debt: {
+    eyebrow: 'The number',
+    headLead: 'Roughly how much ',
+    headAccent: 'is owed?',
+    unit: '£',
+    min: 0,
+    max: 30000,
+    step: 100,
+    hint: 'Ballpark. Captured for when Debt mode ships fully.',
+  },
+  optimizer: {
+    eyebrow: 'Target',
+    headLead: 'How much would you like to ',
+    headAccent: 'trim?',
+    unit: '£',
+    min: 0,
+    max: 300,
+    step: 5,
+    hint: "Per month. Captured for when Optimizer's leak tracking ships fully.",
+  },
+  reset: {
+    eyebrow: 'Essentials',
+    headLead: 'Rough weekly ',
+    headAccent: 'essentials?',
+    unit: '£',
+    min: 0,
+    max: 400,
+    step: 10,
+    hint: 'Food, transport, non-negotiables. Captured for when Reset mode ships fully.',
+  },
+  irregular: {
+    eyebrow: 'Floor',
+    headLead: 'Your ',
+    headAccent: 'worst month',
+    unit: '£',
+    min: 0,
+    max: 5000,
+    step: 50,
+    hint: 'Captured for when Irregular income runway ships fully.',
+  },
+  planning: {
+    eyebrow: 'Target',
+    headLead: 'How much for ',
+    headAccent: 'the goal?',
+    unit: '£',
+    min: 0,
+    max: 20000,
+    step: 100,
+    hint: 'Captured for when Planning mode ships fully.',
+  },
+  household: {
+    eyebrow: 'Your share',
+    headLead: 'Rough share of ',
+    headAccent: 'bills?',
+    unit: '£',
+    min: 0,
+    max: 3000,
+    step: 25,
+    hint: 'Captured for when Household mode ships fully.',
+  },
+  lowVis: {
+    eyebrow: 'Start rough',
+    headLead: 'Guess your ',
+    headAccent: 'typical monthly outgoings.',
+    unit: '£',
+    min: 0,
+    max: 5000,
+    step: 50,
+    hint: "It's fine to guess. Folio sharpens this each cycle.",
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -231,11 +380,18 @@ function OnboardingFlow({
   const ob = useAppStore((st) => st.onboarding);
   const existingPots = useAppStore((st) => st.pots);
   const currentBalance = useAppStore((st) => st.currentBalance);
+  const savedMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const savedBuffer = useAppStore((st) => st.bufferAmount ?? 100);
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(ob.name);
   const [payday, setPayday] = useState(ob.payday);
   const [income, setIncome] = useState(ob.monthlyIncome);
+  // Intent picker + mode-extra (BREAKS-PARITY fix) — MONEY_MODES.md § 3 — user-declared intent maps
+  // to a Money Mode, stored explicitly (never silently switched later). `modeExtra` is the mode's
+  // follow-up captured value; only Survival/Stability's is persisted today (see `done()` below).
+  const [intentMode, setIntentMode] = useState<MoneyMode>(savedMode);
+  const [modeExtra, setModeExtra] = useState<number>(savedBuffer);
   // Pre-seed from the existing balance unless it's still the sample, in which case start blank so the
   // user feels they're entering it fresh (spec BALANCE SEED LOGIC).
   const [balance, setBalance] = useState<number>(
@@ -275,6 +431,16 @@ function OnboardingFlow({
     // with what they entered while keeping done true.
     setOnboarding({ name, payday, monthlyIncome: income, done: true });
 
+    // The user's declared intent → Money Mode (BREAKS-PARITY fix — the root cause: without this,
+    // every RN user onboarded into the default mode and no mode-driven copy anywhere in the app
+    // could ever show correctly). Persist the mode-extra value only for the modes whose engines
+    // actually read it today (Survival/Stability read `bufferAmount`); other modes still capture the
+    // answer on-screen so the copy stays honest, but nothing is written for them yet.
+    setMoneyMode(intentMode);
+    if (intentMode === 'survival' || intentMode === 'stability') {
+      setBufferAmount(modeExtra);
+    }
+
     // Write the balance the user just entered with an honest source label (ENGINES.md §6). If they
     // left it at £0, `resetToEmpty`'s neutral £0 (user-entered/rough) already stands — no demo balance
     // survives either way.
@@ -297,21 +463,33 @@ function OnboardingFlow({
     onClose();
   }
 
-  // Typed as a fixed 5-tuple so `steps[0]` is known-defined under noUncheckedIndexedAccess (the
-  // five steps never grow or shrink — they mirror the web source one-for-one).
-  const steps: readonly [Step, Step, Step, Step, Step] = [
+  // The mode-extra step's copy for the currently-picked intent mode.
+  const extra = MODE_EXTRA[intentMode];
+
+  // Typed as a fixed 7-tuple so `steps[0]` is known-defined under noUncheckedIndexedAccess (BREAKS-
+  // PARITY fix — restores the web's intent-picker + mode-extra steps; RN previously skipped both,
+  // so `setMoneyMode` never fired during onboarding). STEP_INDEX below documents each index.
+  const steps: readonly [Step, Step, Step, Step, Step, Step, Step] = [
     { eyebrow: 'Hello', head: { lead: 'What should Melo ', accent: 'call you?', tail: '' } },
+    {
+      eyebrow: 'First thing',
+      head: { lead: 'What should Melo ', accent: 'help with first?', tail: '' },
+    },
+    { eyebrow: extra.eyebrow, head: { lead: extra.headLead, accent: extra.headAccent, tail: '' } },
     { eyebrow: 'Rhythm', head: { lead: 'When does payday ', accent: 'land?', tail: '' } },
     { eyebrow: 'Rough only', head: { lead: 'What lands, ', accent: 'roughly?', tail: '' } },
     { eyebrow: 'Today', head: { lead: "What's ", accent: 'in your account', tail: ' right now?' } },
     { eyebrow: 'Pots', head: { lead: 'What are you ', accent: 'saving for?', tail: '' } },
   ];
-  // `step` is always a valid index (0..4) — the `?? steps[0]` is a defensive fallback that satisfies
+  // Step indices — mirror the `steps` array above. 0 Hello · 1 intent picker · 2 mode-extra ·
+  // 3 payday · 4 income · 5 balance · 6 pots.
+  const STEP_POTS = 6;
+  // `step` is always a valid index (0..6) — the `?? steps[0]` is a defensive fallback that satisfies
   // noUncheckedIndexedAccess; it is never reached at runtime.
   const current = steps[step] ?? steps[0];
   const isLast = step === steps.length - 1;
-  // MELO_MOODS.md: steps 1-3 (name/payday/income) + the balance step read calm; the pot picker reads
-  // curious; a completed onboarding reads cheer. The pot step is the last index.
+  // MELO_MOODS.md: the middle steps read calm; the pot picker reads curious; a completed onboarding
+  // reads cheer. The pot step is the last index.
   const meloMood = isLast ? 'curious' : 'calm';
 
   // Step slide — a 360ms slide-in on each step change (doc-block "slide between steps"). Direction
@@ -397,7 +575,7 @@ function OnboardingFlow({
         {current.head.tail}
       </Text>
 
-      {/* The per-step body — five mutually exclusive branches, sliding on step change. */}
+      {/* The per-step body — seven mutually exclusive branches, sliding on step change. */}
       <Animated.View style={{ transform: [{ translateX: bodyTranslateX }] }}>
         {step === 0 ? (
           <TextInput
@@ -412,7 +590,66 @@ function OnboardingFlow({
           />
         ) : null}
 
+        {/* Intent picker (BREAKS-PARITY fix) — the ten Money Modes, in the user's language. Choosing
+            one sets `intentMode`, which `done()` persists via `setMoneyMode`. */}
         {step === 1 ? (
+          <View style={s.fieldBlock}>
+            <Text style={s.intentIntro}>
+              Choose one to start. You can change this later — Melo reshapes around it.
+            </Text>
+            <View style={s.intentList}>
+              {INTENT_OPTIONS.map((opt) => {
+                const on = intentMode === opt.mode;
+                return (
+                  <Pressable
+                    key={opt.label}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={`${opt.modeLabel}: ${opt.label}`}
+                    onPress={() => setIntentMode(opt.mode)}
+                    style={({ pressed: isPressed }) => [
+                      s.intentRow,
+                      on ? s.intentRowActive : s.intentRowInactive,
+                      isPressed ? pressed : null,
+                    ]}
+                  >
+                    <View style={s.intentRowText}>
+                      <Text style={s.intentModeLabel}>{opt.modeLabel}</Text>
+                      <Text style={s.intentLabel}>{opt.label}</Text>
+                    </View>
+                    <View style={[s.intentDotRing, on ? s.intentDotRingActive : null]}>
+                      {on ? <View style={s.intentDot} /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {/* Mode-extra follow-up (BREAKS-PARITY fix) — one slider per mode, copy from MODE_EXTRA. */}
+        {step === 2 ? (
+          <View style={s.fieldBlock}>
+            <View style={s.valueRow}>
+              <Text style={s.bigValue}>
+                {extra.unit}
+                {modeExtra.toLocaleString()}
+              </Text>
+            </View>
+            <FolioSlider
+              min={extra.min}
+              max={extra.max}
+              step={extra.step}
+              value={modeExtra}
+              onChange={setModeExtra}
+              palette={t}
+              accessibilityLabel={extra.eyebrow}
+            />
+            <Text style={s.help}>{extra.hint}</Text>
+          </View>
+        ) : null}
+
+        {step === 3 ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{String(payday)}</Text>
@@ -430,7 +667,7 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === 2 ? (
+        {step === 4 ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{poundsTabular(income)}</Text>
@@ -449,7 +686,7 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === 3 ? (
+        {step === 5 ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{poundsTabular(balance)}</Text>
@@ -471,7 +708,7 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === 4 ? (
+        {step === STEP_POTS ? (
           <View style={s.fieldBlock}>
             <Text style={s.potsIntro}>
               Pick any. Skip with none if you'd rather start blank — you can add later.
@@ -754,6 +991,68 @@ function makeStyles(t: Palette) {
     },
     fieldBlock: {
       marginTop: gap.lg + gap.xs, // mt-5 ≈ 20
+    },
+    // Intent picker (BREAKS-PARITY fix) — mt-4, 3-line intro, then a scrollable row list.
+    intentIntro: {
+      color: t.muted,
+      fontSize: 11.5,
+      lineHeight: 17,
+      marginBottom: gap.sm + gap.xxs,
+      marginTop: gap.md,
+    },
+    intentList: {
+      rowGap: gap.xs + gap.xxs, // web space-y-2
+    },
+    intentRow: {
+      alignItems: 'center',
+      borderRadius: radius.lg,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: gap.lg,
+      paddingVertical: gap.md,
+    },
+    intentRowActive: {
+      backgroundColor: t.surface,
+      borderColor: t.calm,
+      borderWidth: 1,
+    },
+    intentRowInactive: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderWidth: StyleSheet.hairlineWidth,
+    },
+    intentRowText: {
+      flexShrink: 1,
+      paddingRight: gap.md,
+    },
+    intentModeLabel: {
+      color: t.ink,
+      fontFamily: serif.displayItalic,
+      fontSize: 16,
+      fontStyle: 'italic',
+    },
+    intentLabel: {
+      color: t.muted,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    intentDotRing: {
+      alignItems: 'center',
+      borderColor: t.hairline,
+      borderRadius: 8,
+      borderWidth: 1,
+      height: 16,
+      justifyContent: 'center',
+      width: 16,
+    },
+    intentDotRingActive: {
+      borderColor: t.calm,
+    },
+    intentDot: {
+      backgroundColor: t.calm,
+      borderRadius: 4,
+      height: 8,
+      width: 8,
     },
     footer: {
       color: t.muted,

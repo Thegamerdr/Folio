@@ -9,7 +9,7 @@
  * @reads        moneyMode, bufferAmount, currentBalance, pots, subs, onboarding, cycles, debts,
  *               household, plans (via the store + the real modes/lens/debt/plan/household engines)
  * @writes       — (nav + sheet opens only)
- * @opens-sheet  log-invoice, onboarding, add-event, add-debt, log-payment, household-setup,
+ * @opens-sheet  log-invoice, onboarding, add-event, declare-debt, log-payment, household-setup,
  *               add-plan, lens-picker, melo-chat
  * @copy         mode-specific — verdict/spare-label come from `deriveModeState(mode, ...)`
  * @tokens       paper · surface · inset · ink · calm(accent) · positive · caution · repair(negative)
@@ -33,6 +33,7 @@ import { useChartStyle, type ChartStyle } from '@/folio/lib/chartStyle';
 import { LensProgress } from '@/folio/ui/LensProgress';
 import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
+import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
 import { StubDisclaimer } from '@/folio/ui/StubDisclaimer';
 import { useLens } from '@/folio/lib/lens';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
@@ -949,8 +950,8 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     openLogInvoice: () => nav.openSheet('log-invoice'),
     openOnboarding: () => nav.openSheet('onboarding'),
     openAddEvent: () => nav.openSheet('add-event'),
-    openAddBill: () => nav.openSheet('add-event'),
-    openAddDebt: () => nav.go('add-debt'),
+    openAddBill: () => nav.openSheet('add-event', { addEventKind: 'out', addEventTitle: '' }),
+    openAddDebt: () => nav.openSheet('declare-debt'),
     openLogPayment: () => nav.openSheet('log-payment'),
     openHouseholdSetup: () => nav.openSheet('household-setup'),
     openPots: () => nav.go('pots'),
@@ -979,18 +980,42 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
             <Text style={[s.headerDays, { color: t.muted }]}>{daysToPayday} days to payday →</Text>
           </Pressable>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => nav.openSheet('lens-picker')}
-          style={[s.lensPill, { backgroundColor: t.surface, borderColor: t.hairline }]}
-          accessibilityLabel={`Lens ${moneyMode} — tap to switch lens`}
-        >
-          <MoneyModeChip mode={moneyMode} />
-          <MeloWeatherGlyph weather={modeState.weather} size={12} />
-        </Pressable>
+        <View style={s.headerRight}>
+          <TrialCountdownChip
+            lens={{
+              trialCycleId: lens.trialCycleId,
+              plusUnlocked: lens.plusUnlocked,
+              proUnlocked: lens.proUnlocked,
+              trialDaysLeft: lens.trialDaysLeft,
+            }}
+            onPress={() => nav.go('paywall')}
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.openSheet('lens-picker')}
+            style={[s.lensPill, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            accessibilityLabel={`Lens ${moneyMode} — tap to switch lens`}
+          >
+            <MoneyModeChip mode={moneyMode} />
+            <MeloWeatherGlyph weather={modeState.weather} size={12} />
+          </Pressable>
+        </View>
       </View>
 
-      {!onboarding.done ? (
+      {/* Status strip — one slot, one pill. Locked lens wins over the sample-numbers chip so the
+          paywall message reads first when both apply — mirrors the web's ScreenTodayMode priority
+          (PARITY_GAPS.md Group 1). */}
+      {!lens.canAccess(moneyMode) ? (
+        <LensLockChip
+          moneyMode={moneyMode}
+          tierFor={lens.tierFor}
+          lockedAfterTrial={
+            Boolean(lens.trialEndedCycleId) && !lens.plusUnlocked && !lens.proUnlocked
+          }
+          onPress={() => nav.go('paywall')}
+          palette={t}
+        />
+      ) : !onboarding.done ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => nav.openSheet('onboarding')}
@@ -1070,6 +1095,65 @@ function capFirst(str: string): string {
   if (!trimmed) return str;
   return trimmed[0]!.toUpperCase() + trimmed.slice(1);
 }
+
+// Locked-lens status pill — shown instead of the sample-numbers chip when the active Money Mode
+// isn't unlocked. Mirrors ScreenTodayMode's status-strip branch: swaps to a soft "trial ended"
+// explainer when the lock was caused by a trial that just closed (PARITY_GAPS.md Group 1).
+function LensLockChip({
+  moneyMode,
+  tierFor,
+  lockedAfterTrial,
+  onPress,
+  palette,
+}: {
+  moneyMode: MoneyMode;
+  tierFor: (m: MoneyMode) => 'free' | 'plus' | 'pro';
+  lockedAfterTrial: boolean;
+  onPress: () => void;
+  palette: Palette;
+}) {
+  const lockedTier = tierFor(moneyMode) === 'pro' ? 'Pro' : 'Plus';
+  const label = lockedAfterTrial
+    ? `Trial ended · ${moneyMode} back to Survival`
+    : `${moneyMode} is a ${lockedTier} lens · Survival for now`;
+  const cta = lockedAfterTrial ? 'See plans →' : 'Unlock →';
+  const aria = lockedAfterTrial
+    ? `Your trial ended — ${moneyMode} is a ${lockedTier} lens. Tap to see plans.`
+    : `${moneyMode} is a ${lockedTier} lens — tap to unlock`;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={aria}
+      onPress={onPress}
+      style={[
+        lockChipStyles.chip,
+        { backgroundColor: palette.inset, borderColor: palette.hairline },
+      ]}
+    >
+      <View style={[lockChipStyles.dot, { backgroundColor: palette.calm }]} />
+      <Text style={[lockChipStyles.text, { color: palette.muted }]}>{label}</Text>
+      <Text style={[lockChipStyles.text, { color: palette.calm }]}>{cta}</Text>
+    </Pressable>
+  );
+}
+
+const lockChipStyles = StyleSheet.create({
+  chip: {
+    marginHorizontal: 28,
+    marginTop: gap.xs,
+    marginBottom: gap.xs,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: gap.sm,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.md,
+    paddingVertical: 6,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  text: { fontSize: 11 },
+});
 
 const EPOCH = new Date(0);
 
@@ -1277,6 +1361,7 @@ function makeStyles(t: Palette) {
     },
     headerDate: { fontFamily: serif.displayItalic, fontSize: 13 },
     headerDays: { fontSize: 12, marginTop: 2 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: gap.xs },
     lensPill: {
       height: 32,
       paddingLeft: gap.sm,

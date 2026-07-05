@@ -3,10 +3,12 @@
 //
 // @rn-screen    AccountScreen
 // @rn-stack     MainTabs > More > Account
-// @purpose      A calm read of who you are to Folio — current lens tier (Free / Plus / trial),
+// @purpose      A calm read of who you are to Folio — current lens tier (Free / Plus / Pro / trial),
 //               connected money sources, your footprint, and the quiet levers (sign in, restore
 //               purchase, manage plan, export, wipe).
-// @reads        subs.length, pots.length, cycles.length, onboarding.monthlyIncome/payday
+// @reads        lens.plusUnlocked / lens.proUnlocked / lens.trialCycleId (via useLens()),
+//               subs.length, pots.length, cycles.length, onboarding.monthlyIncome/payday,
+//               melo.quietMode
 // @writes       — none directly. "Wipe this device" routes to the gated Privacy reset (see
 //               FIDELITY DECISIONS); export routes through the real export engine (via Privacy).
 // @copy         FROZEN — ported verbatim from the web literals (no COPY_DECK entry exists yet for
@@ -17,21 +19,15 @@
 // @motion       slide-in-r on mount · press 0.97 on every row/button.
 //
 // FIDELITY DECISIONS (each grounded in the SPEC + confirmed kit/store source):
-//   • Lens tier: the web reads `lens.plusUnlocked` / `lens.proUnlocked` / `lens.trialCycleId` from a
-//     lens/billing engine (`@/lib/lens`) that does NOT exist in the RN store yet (confirmed: no
-//     `lens`, `moneyMode`, or `melo.quietMode` field anywhere in apps/mobile/src/folio/store.ts —
-//     GAP_MAP.md batch 5 flags PaywallScreen itself as "a real build not just a port" for the same
-//     reason). Per RN_PORT.md's loop discipline ("no new engine slipped in silently... must be added
-//     to ENGINES.md first"), this port does NOT invent a shadow lens/billing store slice. Tier is
-//     rendered honestly as always "Free" (nothing can be unlocked without the real engine), and the
-//     CTA routes to the Paywall screen, which carries the same honest scoping. See the paired
-//     @rn-engine tag below and PaywallScreen.tsx's own note.
-//   // @rn-engine lens-tier (needs @/folio/lib/lens: plusUnlocked/proUnlocked/trialCycleId + a real
-//   // billing/purchase flow — not wired here; tracked, not faked)
-//   • Quiet mode: the web reads `melo?.quietMode`. RN's store has no such field (MeloScreen's own
-//     quiet-mode row does not exist in this port either), so the "Melo & quiet mode" row hint is
-//     rendered without a live quiet-mode read — it states the row's purpose, not a live state, and
-//     routes to the Melo screen (nav.go('melo')) exactly like the web.
+//   • Lens tier: `@/folio/lib/lens`'s `useLens()` is a REAL engine (confirmed: `LensState` —
+//     plusUnlocked/proUnlocked/trialCycleId/trialEndedCycleId/trialEndAcknowledged — lives on
+//     `@/folio/store`, with `startLensTrial`/`setLensPlusUnlocked`/`setLensProUnlocked` mutators).
+//     This port wires it directly: tier renders as Pro / Plus / trial / Free exactly like the web,
+//     with the matching hint copy and CTA per tier ("See plans" / "Upgrade to Pro" / "Manage plan"),
+//     and the trial days-left chip uses the real `trialDaysLeft` from `useLens()`.
+//   • Quiet mode: `melo?.quietMode` is a REAL store field now (added alongside this round — see
+//     MeloScreen.tsx / store.ts `MeloState`). The "Melo & quiet mode" row hint reads it live, exactly
+//     like the web ("quiet mode on — Melo won't chime in" vs "how Melo speaks, and when").
 //   • Bank connection / sign-in: the web's `toast(...)` calls (sonner) are replaced with
 //     `Alert.alert`, the established RN convention across this codebase (SubscriptionsScreen /
 //     MeloChatSheet / PrivacyScreen) — RN has no sonner equivalent.
@@ -46,9 +42,6 @@
 //     MoreScreen's own "Start fresh" row was changed to ROUTE to Privacy rather than wipe from the
 //     hub). This port does not add a second, weaker wipe path — "Wipe this device" routes to the
 //     Privacy screen's gated reset instead of calling resetAll()/resetToEmpty() directly.
-//   • Trial days-left chip: the web's trial math depends on `lens.trialCycleId`, which does not exist
-//     here (see lens-tier note above) — the chip is dropped rather than rendered against fabricated
-//     trial state.
 //   • Three-tier-at-a-glance grid + "Sources" tappable rows + "Your footprint" stats are ported
 //     1:1 — they read only real store data (subs/pots/cycles/onboarding) and navigate honestly
 //     (intake for statements, the onboarding sheet for payday/income, a plain "coming with the mobile
@@ -80,6 +73,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
+import { useLens } from '@/folio/lib/lens';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy. Populated-only per the SPEC convention (offline is
@@ -116,8 +110,7 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-// The three tiers at a glance — copy sourced from the web's inline literals (no billing engine
-// backs "current" beyond Free; see FIDELITY DECISIONS lens-tier note).
+// The three tiers at a glance — copy sourced from the web's inline literals.
 const TIERS: readonly {
   key: 'free' | 'plus' | 'pro';
   name: string;
@@ -138,12 +131,33 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const potsCount = useAppStore((s) => s.pots.length);
   const cyclesCount = useAppStore((s) => s.cycles.length);
   const onboarding = useAppStore((s) => s.onboarding);
+  const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
 
-  // Tier — honestly always 'free'. No lens/billing engine exists in this store yet (see
-  // FIDELITY DECISIONS lens-tier note); rendering anything else would fabricate a purchase state.
-  const tier: 'free' = 'free';
-  const tierLabel = 'Free';
-  const tierHint = 'Survival and Stability, always yours.';
+  // Tier — the real lens engine. Renders Pro / Plus / trial / Free, matching the web exactly.
+  const { plusUnlocked, proUnlocked, trialCycleId, trialDaysLeft } = useLens();
+  const tier: 'pro' | 'plus' | 'trial' | 'free' = proUnlocked
+    ? 'pro'
+    : plusUnlocked
+      ? 'plus'
+      : trialCycleId
+        ? 'trial'
+        : 'free';
+  const tierLabel =
+    tier === 'pro'
+      ? 'Melo Pro'
+      : tier === 'plus'
+        ? 'Melo Plus'
+        : tier === 'trial'
+          ? 'All lenses · trial'
+          : 'Free';
+  const tierHint =
+    tier === 'pro'
+      ? 'Every lens, advanced forecasting, household mode.'
+      : tier === 'plus'
+        ? 'Four extra lenses. Renews on payday.'
+        : tier === 'trial'
+          ? 'Trying every paid lens for one cycle.'
+          : 'Survival and Stability, always yours.';
 
   // slide-in-r — drives the whole screen.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -274,6 +288,14 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             </View>
           </View>
           <Text style={[styles.tierHint, { color: t.ink }]}>{tierHint}</Text>
+          {tier === 'trial' && trialDaysLeft != null ? (
+            <Text style={[styles.tierTrialChip, { color: t.muted }]}>
+              <Text style={{ color: t.calm }}>{trialDaysLeft}</Text>
+              {trialDaysLeft === 1
+                ? " day left · we'll ask again at payday"
+                : " days left · we'll ask again at payday"}
+            </Text>
+          ) : null}
           <View style={styles.tierActions}>
             <Pressable
               accessibilityRole="button"
@@ -284,7 +306,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              <Text style={[styles.tierCtaLabel, { color: t.inverse }]}>See plans</Text>
+              <Text style={[styles.tierCtaLabel, { color: t.inverse }]}>
+                {tier === 'free' ? 'See plans' : tier === 'plus' ? 'Upgrade to Pro' : 'Manage plan'}
+              </Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -303,7 +327,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         {/* Three-tier at a glance. */}
         <View style={styles.tiersGrid}>
           {TIERS.map((p) => {
-            const isCurrent = p.key === tier;
+            const isCurrent = p.key === tier || (p.key === 'plus' && tier === 'trial');
             return (
               <Pressable
                 accessibilityLabel={`${p.name} — ${p.price} per month. Tap for details.`}
@@ -374,8 +398,8 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         {/* Levers. */}
         <Surface style={[styles.card, styles.leversCard, { borderColor: t.hairline }]}>
           <AccountRow
-            label="Melo"
-            hint="how Melo speaks, and when"
+            label="Melo & quiet mode"
+            hint={quietMode ? "quiet mode on — Melo won't chime in" : 'how Melo speaks, and when'}
             onPress={() => nav.go('melo')}
           />
           <Hairline />
@@ -548,6 +572,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
     marginTop: gap.sm,
+  },
+  tierTrialChip: {
+    fontFamily: serif.displayItalic,
+    fontSize: 11.5,
+    fontStyle: 'italic',
+    marginTop: gap.xs + gap.xxs,
   },
   tierActions: {
     columnGap: gap.sm,

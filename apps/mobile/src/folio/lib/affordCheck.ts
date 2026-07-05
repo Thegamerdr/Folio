@@ -1,38 +1,19 @@
 /**
  * @rn-lib affordCheck — "Before You Spend" engine.
  *
- * Faithful RE-DERIVATION (not a literal line-for-line port) of the web design source
- * (folio-melo/.claude/worktrees/design-main/src/lib/affordCheck/index.ts). The web version reads
- * `safeZoneMath(ModeInputs)` — a lens/mode-strategy engine (survival/stability/growth/…) that does
- * NOT exist in this RN app. RN's Today instead derives its headline number from the money-path
- * route engine (`computeRoute` / `routeFromStore` / `useRoute` in ./moneyPath + ./storeRoute),
- * which is what `TodayScreen.tsx` already reads for its own "tightest spare" figure. This module
- * re-expresses the SAME verdict shape (safe / tight / not-now / safe-later) and the SAME headline
- * copy against THAT engine's output, so the "Can I afford this?" verdict agrees byte-for-byte with
- * Today's own low-point number — the web's core invariant ("uses safeZoneMath so the answer agrees
- * with Today's headline") is preserved, just anchored to the RN route engine instead of the
- * unported mode-strategy system.
+ * Faithful 1:1 RN port of the web design source
+ * (folio-melo/.claude/worktrees/design-main/src/lib/affordCheck/index.ts).
  *
- * DEVIATION (flagged per instructions): the web's `tight` branch compares against `zone.perDay / 2`
- * (a per-day budget derived from the mode strategy). RN's route engine does not expose a `perDay`
- * figure independent of the tightest-spare point, so `perDay` here is computed the same way
- * `TodayScreen` derives its own daily figure: tightestSpare / daysLeft (floor, never negative). This
- * is the closest honest equivalent available in the ported engine set — flag for reconciliation if/
- * when a lens/mode engine lands in RN.
+ * Uses `safeZoneMath(ModeInputs)` — now ported verbatim at `./modes/safeZone` — so the "Can I
+ * afford this?" verdict agrees byte-for-byte with the web's Safe Zone-now figure and with Today's
+ * own headline number (both read the same `safeZoneMath` output). This replaces an earlier
+ * route-engine re-derivation that computed its own `perDay`/`tightestSpare` shape independently of
+ * `safeZoneMath` and so could disagree with Today's Safe Zone number — see PARITY_GAPS.md Group 1.
  *
  * Never judges the purchase; always celebrates the check (COPY_LINT discipline, PORT_BIBLE §6).
  */
-
-export type AffordInputs = {
-  /** The lowest projected balance across the route window (RouteResult.tightPoint.amount) — RN's
-   *  equivalent of the web's `safeZoneMath(...).total`. */
-  tightestSpare: number;
-  /** ISO date the tightest point falls on (RouteResult.tightPoint.date), or null when unknown. */
-  tightestDate: string | null;
-  /** Whole calendar days from today to payday (RouteResult.daysToPayday). Used to derive a
-   *  per-day figure the same way TodayScreen does (tightestSpare / daysLeft). */
-  daysToPayday: number;
-};
+import type { ModeInputs } from './modes/types';
+import { safeZoneMath } from './modes/safeZone';
 
 export type AffordVerdict = {
   state: 'safe' | 'tight' | 'not-now' | 'safe-later';
@@ -44,31 +25,30 @@ export type AffordVerdict = {
   safeOn: string | null;
 };
 
-/** "Tuesday" for the safe-later headline. Byte-faithful weekday-only rendering (the web's
- *  formatDayShort used the same locale weekday format; RN mirrors it without a date-fns dep). */
+/** "Tuesday" for the safe-later headline — matches the web's weekday-only rendering. */
 function formatDayShort(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
+  const d = new Date(`${iso}${iso.length === 10 ? 'T00:00:00' : ''}`);
   return d.toLocaleDateString('en-GB', { weekday: 'long' });
 }
 
-/** The single honest verdict every surface calls — RN's re-derivation of the web checkAfford(). */
-export function checkAfford(amount: number, inputs: AffordInputs): AffordVerdict {
+/** The single honest verdict every surface calls — byte-faithful to the web's checkAfford(). */
+export function checkAfford(amount: number, inputs: ModeInputs): AffordVerdict {
   const ask = Math.max(0, Math.round(amount));
-  const daysLeft = Math.max(1, Math.round(inputs.daysToPayday));
-  const perDayBefore = Math.max(0, Math.floor(inputs.tightestSpare / daysLeft));
-  const after = inputs.tightestSpare - ask;
+  const zone = safeZoneMath(inputs);
+  const after = zone.total - ask;
+  const daysLeft = Math.max(1, zone.daysLeft);
   const perDayAfter = Math.max(0, Math.floor(after / daysLeft));
 
-  // Not-now: pushes the tightest point under zero. If a tight-point date is known, offer
+  // Not-now: pushes Safe Zone under zero. If a payday date is known, offer
   // "safe on <weekday>" instead of a hard "no" — the same hedge the web makes.
   if (after < 0) {
-    if (inputs.tightestDate) {
+    if (zone.until) {
       return {
         state: 'safe-later',
-        headline: `Safe on ${formatDayShort(inputs.tightestDate)}`,
+        headline: `Safe on ${formatDayShort(zone.until)}`,
         after,
         perDayAfter,
-        safeOn: inputs.tightestDate,
+        safeOn: zone.until,
       };
     }
     return {
@@ -81,7 +61,7 @@ export function checkAfford(amount: number, inputs: AffordInputs): AffordVerdict
   }
 
   // Tight: fits, but eats into daily headroom.
-  if (perDayAfter < Math.floor(perDayBefore / 2)) {
+  if (perDayAfter < Math.floor(zone.perDay / 2)) {
     return {
       state: 'tight',
       headline: 'Tight, but the path holds',

@@ -69,7 +69,7 @@
 // parser / extraction / OCR / sync / dashboard / analytics / users / 100% / bank-grade / AI-powered /
 // smart / provenance / source record / indexed) are absent.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -88,6 +88,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { addToPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { getShortfallCopy } from '@/folio/lib/modes/action';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy (spec stateBranches). The STATES matrix gives Shortfall
@@ -157,6 +158,10 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   const pots = useAppStore((s) => s.pots);
   const subs = useAppStore((s) => s.subs);
   const subPaused = useAppStore((s) => s.subPaused);
+  // Mode-aware copy (web getShortfallCopy(mode)) — every string on this screen tints by the user's
+  // moneyMode, mirroring ScreenShortfall.tsx exactly. Falls back to 'survival' copy when unset.
+  const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival');
+  const modeCopy = getShortfallCopy(moneyMode);
 
   // Mount-gate (mirrors TodayScreen): defer `new Date()` so the route's "today" is honest and nothing
   // reads the clock on the first frame. `useRoute` can't be called conditionally, so it always runs
@@ -247,6 +252,26 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     setBorrowPreviewOpen(false);
   }
 
+  // Relief/cheer auto-close (web ScreenShortfall.tsx `relief` effect) — the moment the recomputed gap
+  // reaches £0 (from a prior >0), Melo briefly switches to "cheer", the closing line reads "Gap
+  // closed...", and the screen auto-navigates back after 1400ms. Guarded so it only fires on the
+  // 0-crossing (prevGap > 0 → gap === 0), never on a fresh mount that starts at 0.
+  const [relief, setRelief] = useState(false);
+  const prevGapRef = useRef(gapNow);
+  useEffect(() => {
+    if (prevGapRef.current > 0 && gapNow === 0) {
+      setRelief(true);
+      const id = setTimeout(() => {
+        setRelief(false);
+        nav.back();
+      }, 1400);
+      return () => clearTimeout(id);
+    }
+    prevGapRef.current = gapNow;
+    return undefined;
+  }, [gapNow, nav]);
+  const meloMood = relief ? 'cheer' : 'concern';
+
   // ── EMPTY ──────────────────────────────────────────────────────────────────────────────────────
   // STATES: n/a ("only shown when short"); the screen is gated upstream by the money-path verdict and
   // is never reached with no data. Kept defensive only — a calm doorway, never an error.
@@ -319,22 +344,27 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — back · "A quiet moment" eyebrow (centred) · a balancing spacer. */}
-        <Header onBack={nav.back} muted={t.muted} reduceMotion={reduceMotion} />
+        {/* Header — back · mode-tinted eyebrow (centred) · a balancing spacer. */}
+        <Header
+          onBack={nav.back}
+          muted={t.muted}
+          reduceMotion={reduceMotion}
+          eyebrow={modeCopy.eyebrow}
+        />
 
-        {/* Melo, concern, size 36 — the emotional weather of the moment (breathe-slow, never alarming). */}
+        {/* Melo — mode-honest to the gap; briefly "cheer" on the relief close (web meloMood). */}
         <View style={styles.meloHead}>
-          <Melo size={36} mood="concern" />
+          <Melo size={36} mood={meloMood} />
         </View>
 
-        {/* Fraunces italic kicker — "Honest answer". */}
-        <Text style={[styles.kicker, { color: t.muted }]}>Honest answer</Text>
+        {/* Fraunces italic kicker — mode-tinted (web copy.intro). */}
+        <Text style={[styles.kicker, { color: t.muted }]}>{modeCopy.intro}</Text>
 
-        {/* The gap headline — "Short by £{gap}." with the gap em in warm-negative + the gap-pulse. The
-            accent is the gap figure (the ONE coloured term). The deck's short.head carries the
-            **accent** markers; the gap figure here IS that accent word, styled terracotta-coral. */}
+        {/* The gap headline — "{headlineLead} £{gap}." with the gap em in warm-negative + the
+            gap-pulse. The accent is the gap figure (the ONE coloured term); headlineLead tints by
+            moneyMode (web copy.headlineLead). */}
         <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-          {'Short by '}
+          {`${modeCopy.headlineLead} `}
           <Animated.Text style={[styles.gap, { color: t.repair }, pulseStyle]}>
             {`${formatGBP(gapNow)}.`}
           </Animated.Text>
@@ -354,7 +384,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
               t={t}
               accessibilityLabel={copy.short.move.pause(pausableSub.name)}
               onPress={() => nav.openSheet('edit-item')}
-              eyebrow="Pause one sub"
+              eyebrow={modeCopy.pauseLabel}
               value={`+${formatGBP(pausableSub.cost)}`}
             >
               <Text style={[styles.cardBody, { color: t.ink }]}>
@@ -380,7 +410,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
                 ]}
               >
                 <View style={styles.cardHead}>
-                  <Text style={[styles.cardEyebrow, { color: t.muted }]}>Borrow from a pot</Text>
+                  <Text style={[styles.cardEyebrow, { color: t.muted }]}>{modeCopy.potLabel}</Text>
                   <Text
                     style={[styles.cardValue, { color: t.ink }]}
                   >{`+${formatGBP(gapNow)}`}</Text>
@@ -427,7 +457,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
             t={t}
             accessibilityLabel={copy.short.move.cap(formatGBP(dailyCap))}
             onPress={() => nav.go('whatif')}
-            eyebrow="Spend a little less"
+            eyebrow={modeCopy.holdLabel}
             value={`${formatGBP(dailyCap)}/day`}
           >
             <Text style={[styles.cardBody, { color: t.ink }]}>
@@ -436,16 +466,21 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
           </MoveCard>
         </View>
 
-        {/* The closing Melo line — concern, never blaming. */}
+        {/* The closing Melo line — mode-tinted; reads the relief line the instant the gap closes,
+            mirroring web's `relief ? "Gap closed..." : copy.meloDefault`. */}
         <View style={styles.meloLine}>
-          <MeloLine mood="concern" text="No move is fine too. Knowing the gap is half the work." />
+          <MeloLine
+            mood={meloMood}
+            text={relief ? "Gap closed. I'll keep watching the path." : modeCopy.meloDefault}
+          />
         </View>
 
-        {/* The refusal — pushed to the bottom via a flexGrow spacer (web mt-auto). Always an option. */}
+        {/* The refusal — pushed to the bottom via a flexGrow spacer (web mt-auto). Always an option;
+            label tints by mode (web copy.leaveIt). */}
         <View style={styles.spacer} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={copy.short.refuse}
+          accessibilityLabel={modeCopy.leaveIt}
           onPress={nav.back}
           style={({ pressed: isPressed }) => [
             styles.refusal,
@@ -453,7 +488,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
             isPressed ? styles.pressed : undefined,
           ]}
         >
-          <Text style={[styles.refusalLabel, { color: t.muted }]}>{copy.short.refuse}</Text>
+          <Text style={[styles.refusalLabel, { color: t.muted }]}>{modeCopy.leaveIt}</Text>
         </Pressable>
       </ScrollView>
     </Animated.View>
@@ -506,10 +541,14 @@ function Header({
   onBack,
   muted,
   reduceMotion,
+  eyebrow = 'A quiet moment',
 }: {
   onBack: () => void;
   muted: string;
   reduceMotion: boolean;
+  /** Mode-tinted eyebrow (web copy.eyebrow). Defaults to the survival-mode string for the
+   *  defensive empty/error branches, which don't read moneyMode. */
+  eyebrow?: string;
 }) {
   void reduceMotion; // press feel is handled per-Pressable; kept for parity with sibling headers.
   return (
@@ -523,7 +562,7 @@ function Header({
       >
         <BackArrow color={muted} />
       </Pressable>
-      <Text style={[styles.headerEyebrow, { color: muted }]}>A quiet moment</Text>
+      <Text style={[styles.headerEyebrow, { color: muted }]}>{eyebrow}</Text>
       <View style={styles.headerSpacer} />
     </View>
   );

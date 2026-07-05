@@ -43,6 +43,7 @@ import Svg, { Path } from 'react-native-svg';
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { addCalendarEvent, type CalendarEvent } from '@/folio/store';
 import { copy } from '@/folio/copy/copy';
+import type { SheetPayload } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -51,6 +52,10 @@ import { copy } from '@/folio/copy/copy';
 export type AddEventSheetProps = {
   visible: boolean;
   onClose: () => void;
+  /** Deep-link prefill (web `intent?.addEventKind` / `intent?.addEventTitle`) — e.g. a lens CTA like
+   *  "Add a bill" opening this sheet pre-filled with kind="out"/title="Rent". Absent/undefined = the
+   *  cold defaults (kind='out', empty title), exactly as before this prop existed. */
+  intent?: SheetPayload | undefined;
 };
 
 type Kind = CalendarEvent['kind'];
@@ -116,14 +121,14 @@ function useReduceMotion(): boolean {
 // AddEventSheet
 // ---------------------------------------------------------------------------
 
-export function AddEventSheet({ visible, onClose }: AddEventSheetProps) {
+export function AddEventSheet({ visible, onClose, intent }: AddEventSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReduceMotion();
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
-      <AddEventForm styles={s} palette={t} onClose={onClose} />
+      <AddEventForm styles={s} palette={t} onClose={onClose} intent={intent} />
     </Sheet>
   );
 }
@@ -136,14 +141,16 @@ function AddEventForm({
   styles: s,
   palette: t,
   onClose,
+  intent,
 }: {
   styles: ReturnType<typeof makeStyles>;
   palette: Palette;
   onClose: () => void;
+  intent?: SheetPayload | undefined;
 }) {
   const [date, setDate] = useState(todayIso());
-  const [kind, setKind] = useState<Kind>('out');
-  const [title, setTitle] = useState('');
+  const [kind, setKind] = useState<Kind>(intent?.addEventKind ?? 'out');
+  const [title, setTitle] = useState(intent?.addEventTitle ?? '');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
 

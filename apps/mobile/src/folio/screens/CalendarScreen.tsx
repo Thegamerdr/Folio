@@ -108,6 +108,11 @@ import {
   type DerivedEvent,
 } from '@/folio/lib/calendarEvents';
 import { useRoute } from '@/folio/lib/storeRoute';
+import {
+  calendarDefaultAnchor,
+  calendarAnchorLabel,
+  type CalendarAnchor,
+} from '@/folio/lib/modes/surfacePrefs';
 import type { Nav } from '@/folio/types';
 
 // The three planner views. Default is Agenda (the web default), the most legible on a narrow phone.
@@ -288,6 +293,11 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const manual = useAppStore((st) => st.calendarEvents);
   const focusDate = useAppStore((st) => st.calendarFocusDate);
   const pots = useAppStore((st) => st.pots);
+  // Mode-aware jump anchor (web calendarDefaultAnchor(mode)) — Survival/Stability/LowVis land on the
+  // tightest day, Debt/Optimizer jump to the next money-OUT, Irregular to the next money-IN,
+  // Growth/Household/Planning/Reset to the next payday. Falls back to 'survival' when unset.
+  const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const anchor: CalendarAnchor = calendarDefaultAnchor(moneyMode);
 
   // RN has no SSR — set `today` at mount. The null-guard is kept only so the very first frame is a
   // calm empty frame rather than a flash of half-derived content (NOT the web's UTC/SSR rationale).
@@ -354,16 +364,57 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
 
   const [view, setView] = useState<CalendarView>('agenda');
 
-  // Cross-view "jump" — to tightest, or to a specific date from Route detail. Views read `jumpDate`;
-  // bumping `jumpPulse` re-triggers a smooth scroll / offset realignment.
+  // Cross-view "jump" — to the mode-anchored day (tightest / next-in / next-out / next payday), or to a
+  // specific date from Route detail. Views read `jumpDate`; bumping `jumpPulse` re-triggers a smooth
+  // scroll / offset realignment.
   const [jumpPulse, setJumpPulse] = useState(0);
   const [jumpDate, setJumpDate] = useState<string | null>(null);
-  // Jump to the lowest-spare day. Targets the Route's tight point when the engine is ready (so the jump
-  // lands on the same day the pill names), else the ladder's tightest.
-  const jumpToTightest = () => {
-    const target = route ? route.tightPoint.date : tightestDate;
-    if (!target) return;
-    setJumpDate(target);
+
+  // Resolve the mode's anchor to a real date + caption (web `anchorInfo`). Falls back to the tightest
+  // day whenever the requested anchor has nothing to point at, so the pill is never empty when data
+  // exists. `tightestDate` here defers to the Route's tight point once the engine is ready (matching
+  // the pre-existing `jumpToTightest` behaviour), so Survival/Stability/LowVis still land on the exact
+  // day the Route agrees is lowest.
+  const routeTightestDate = route ? route.tightPoint.date : tightestDate;
+  const anchorInfo = useMemo(() => {
+    const todayIsoLocal = today ? isoDay(today) : '';
+    const future = events
+      .filter((e) => e.date >= todayIsoLocal)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    let date: string | null = routeTightestDate;
+    let caption: string | null = null;
+    if (anchor === 'nextIn') {
+      const hit = future.find((e) => e.kind === 'in');
+      if (hit) {
+        date = hit.date;
+        caption = `${hit.title}${typeof hit.amount === 'number' ? ` · +£${Math.abs(hit.amount).toFixed(0)}` : ''}`;
+      }
+    } else if (anchor === 'nextOut') {
+      const hit = future.find((e) => e.kind === 'out');
+      if (hit) {
+        date = hit.date;
+        caption = `${hit.title}${typeof hit.amount === 'number' ? ` · −£${Math.abs(hit.amount).toFixed(0)}` : ''}`;
+      }
+    } else if (anchor === 'payday') {
+      const hit = future.find((e) => e.kind === 'in' && /pay(day|check)?/i.test(e.title));
+      if (hit) {
+        date = hit.date;
+        caption =
+          `payday · +£${typeof hit.amount === 'number' ? Math.abs(hit.amount).toFixed(0) : ''}`.replace(
+            /\+£$/,
+            'lands',
+          );
+      }
+    }
+    if (!caption && date && typeof spareByDay[date] === 'number') {
+      caption = `£${Math.max(0, Math.round(spareByDay[date] ?? 0))} left`;
+    }
+    return { date, caption, label: calendarAnchorLabel(anchor) };
+  }, [anchor, events, routeTightestDate, spareByDay, today]);
+
+  const jumpToAnchor = () => {
+    if (!anchorInfo.date) return;
+    setJumpDate(anchorInfo.date);
     setJumpPulse((p) => p + 1);
   };
 
@@ -432,15 +483,12 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const missingBills = subs.length === 0;
   const missingPots = pots.length === 0 || pots.every((p) => !(p.perWeek > 0));
 
-  // The lowest-spare point. The tightest-day pill must AGREE with the Route's tight point (the same
-  // lowest-balance day TodayScreen shows), so when the route is ready it is authoritative — date and
-  // £ both come from `route.tightPoint`. Until the mount-gate opens, fall back to the ladder's tightest
-  // (anchored to the same route start) so the pre-mount-to-mounted transition never flips the figure.
-  // Driving the jump target and the views' accent-soft highlighting off this same `lowDate` keeps the
-  // pill, the jump, and the highlighted day pointing at one coherent day.
+  // The lowest-spare point. The views' accent-soft highlighting always names the ACTUAL lowest-balance
+  // day (agrees with the Route's tight point when the engine is ready), regardless of which day the
+  // mode-anchored jump pill points to — mirrors the web (AgendaView/WeekView/MonthView always receive
+  // `tightestDate`, only the pill switches to `anchorInfo`).
   const lowDate = route ? route.tightPoint.date : tightestDate;
   const lowSpare = route ? route.tightPoint.amount : tightestSpare;
-  const tightestLeft = Math.max(0, Math.round(lowSpare));
 
   return (
     <Animated.View style={[layout.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -453,7 +501,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
         ]}
       >
         <Header nav={nav} t={t} s={s} />
-        <TitleBlock s={s} withSubhead />
+        <TitleBlock s={s} withSubhead onCurve={() => nav.go('today')} />
 
         {/* View switcher — a tablist over the inset well. The selected tab lifts to the paper surface
             with a soft shadow; the rest are muted text. */}
@@ -481,14 +529,16 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
           })}
         </View>
 
-        {/* Tightest-day pill — a single line bridging to the lowest spare point. All three views
-            already highlight that day in colour; this is just the jump action. scale-in on appear. */}
-        {lowDate && !isEmpty ? (
+        {/* Mode-anchored jump pill — Survival/Stability/LowVis land on the tightest day, Debt/Optimizer
+            jump to the next money-out, Irregular to the next money-in, Growth/Household/Planning/Reset
+            to the next payday (web `anchorInfo` + `calendarDefaultAnchor(mode)`). scale-in on appear. */}
+        {anchorInfo.date && !isEmpty ? (
           <TightestPill
             s={s}
-            onPress={jumpToTightest}
-            dateProse={formatDayProse(lowDate)}
-            left={tightestLeft}
+            onPress={jumpToAnchor}
+            label={anchorInfo.label}
+            dateProse={formatDayProse(anchorInfo.date)}
+            caption={anchorInfo.caption}
             reduceMotion={reduceMotion}
           />
         ) : null}
@@ -627,37 +677,59 @@ function Header({ nav, t, s }: { nav: Nav; t: Palette; s: ReturnType<typeof make
 function TitleBlock({
   s,
   withSubhead,
+  onCurve,
 }: {
   s: ReturnType<typeof makeStyles>;
   withSubhead: boolean;
+  /** Web's "Curve →" button — jumps to Today's route-curve view as a sibling representation of the
+   *  same data (nav.go('today')). Omitted on the pre-mount skeleton call, which renders no controls. */
+  onCurve?: () => void;
 }) {
   return (
     <View style={layout.title}>
-      <Text style={s.kicker}>Calendar</Text>
-      <Text accessibilityRole="header" style={s.headline}>
-        {'Your week, with what’s '}
-        <Text style={s.headlineAccent}>coming and going.</Text>
-      </Text>
+      <View style={layout.titleRow}>
+        <View style={layout.titleTextCol}>
+          <Text style={s.kicker}>Calendar</Text>
+          <Text accessibilityRole="header" style={s.headline}>
+            {'Your week, with what’s '}
+            <Text style={s.headlineAccent}>coming and going.</Text>
+          </Text>
+        </View>
+        {onCurve ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Switch to curve view — same data, shape over time"
+            onPress={onCurve}
+            style={({ pressed }) => [s.curveButton, pressed ? layout.pressed : undefined]}
+          >
+            <Text style={s.curveButtonLabel}>Curve →</Text>
+          </Pressable>
+        ) : null}
+      </View>
       {withSubhead ? <Text style={s.subhead}>Each day, what lands and what leaves.</Text> : null}
     </View>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Tightest-day pill — scale-in banner: "Lowest point: {day} · £{n} left" + "Go there →".
+// Mode-anchored jump pill — scale-in banner: "{Label}: {day} · {caption}" + "Go there →". The label +
+// target vary by moneyMode (web anchorInfo + calendarAnchorLabel); "Lowest point" is the default for
+// Survival/Stability/LowVis, matching the prior tightest-only pill exactly for those modes.
 // ---------------------------------------------------------------------------
 
 function TightestPill({
   s,
   onPress,
+  label,
   dateProse,
-  left,
+  caption,
   reduceMotion,
 }: {
   s: ReturnType<typeof makeStyles>;
   onPress: () => void;
+  label: string;
   dateProse: string;
-  left: number;
+  caption: string | null;
   reduceMotion: boolean;
 }) {
   const appear = useSharedValue(reduceMotion ? 1 : 0);
@@ -673,17 +745,19 @@ function TightestPill({
     transform: [{ scale: SCALE_FROM + appear.value * (1 - SCALE_FROM) }],
   }));
 
+  const captionSuffix = caption ? ` · ${caption}` : '';
+
   return (
     <Animated.View style={appearStyle}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Lowest point: ${dateProse}, £${left} left. Go there.`}
+        accessibilityLabel={`${label}: ${dateProse}${captionSuffix}. Go there.`}
         onPress={onPress}
         style={({ pressed }) => [s.pill, pressed ? layout.pressed : undefined]}
       >
         <Text style={s.pillText}>
-          <Text style={s.pillLead}>Lowest point:</Text>
-          {` ${dateProse} · £${left} left`}
+          <Text style={s.pillLead}>{`${label}:`}</Text>
+          {` ${dateProse}${captionSuffix}`}
         </Text>
         <Text style={s.pillGo}>Go there →</Text>
       </Pressable>
@@ -1607,6 +1681,15 @@ const layout = StyleSheet.create({
   headerSpacer: { width: 44 },
 
   title: { gap: 4 },
+  // Title row — the kicker/headline column on the left, the "Curve →" button shrink-fit on the right
+  // (web `flex items-start justify-between gap-2`).
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  titleTextCol: { flex: 1 },
 
   body: { gap: gap.xl },
   emptyWrap: { marginTop: 8 },
@@ -1751,6 +1834,25 @@ export function makeStyles(t: Palette) {
     },
     headlineAccent: { color: t.calm },
     subhead: { color: t.muted, fontSize: 12.5, lineHeight: 17, marginTop: 4 },
+
+    // "Curve →" — jumps to Today's route-curve view (web `text-[10.5px] tracking-[0.12em] uppercase
+    // text-accent rounded-full bg-inset hairline px-2 py-1`).
+    curveButton: {
+      marginTop: 4,
+      flexShrink: 0,
+      backgroundColor: t.inset,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    curveButtonLabel: {
+      color: t.calm,
+      fontSize: 10.5,
+      letterSpacing: 1.26,
+      textTransform: 'uppercase',
+    },
 
     // Empty state — plain surface card (web bg-surface · hairline · rounded-2xl · p-6 · text-center),
     // a quoted italic Fraunces head + a muted body. No mascot, no shadow (the web card carries none).

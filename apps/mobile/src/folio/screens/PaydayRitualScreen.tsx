@@ -95,11 +95,408 @@ import {
 } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { ModeFramingBanner } from '@/folio/ui/ModeFramingBanner';
 import { type MeloMood } from '@/folio/melo/Melo';
-import { addCycle, setNextYouNote, useAppStore, type AppState } from '@/folio/store';
+import { addCycle, repayToPot, setNextYouNote, useAppStore, type AppState } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
+import { MODE_LABEL, type MoneyMode } from '@/folio/lib/modes/types';
+
+// ---------------------------------------------------------------------------
+// Mode-aware step framing (BREAKS-PARITY fix) — web `step1ByMode` / `step2ByMode` / `step3ByMode`
+// (folio-melo ScreenPaydayRitual.tsx), ported verbatim. Each of the 10 Money Modes gets its own
+// eyebrow, headline, body, stat label/tone, Melo line, and CTA for every ritual step. Step bodies
+// interpolate the real `Actuals` figures (spent/spare/tightPoint/setAside) — the RN engine already
+// computes these honestly (route + ledger reads); only the copy tables were missing.
+// ---------------------------------------------------------------------------
+
+type ModeStepTone = 'positive' | 'ink' | 'accent';
+
+type ModeStep = {
+  eyebrow: string;
+  headlineLead: string;
+  headlineAccent: string;
+  headlineTrail: string;
+  body: string;
+  statLabel: string;
+  statValue: number;
+  statTone: ModeStepTone;
+  melo: string;
+  meloMood: MeloMood;
+  cta: string;
+};
+
+type ModeActuals = { spent: number; spare: number; tightPoint: number; setAside: number };
+
+function step1ByMode(mode: MoneyMode, a: ModeActuals): ModeStep {
+  const base = {
+    eyebrow: `Closing · ${MODE_LABEL[mode]}`,
+    statLabel: 'Left over',
+    statValue: a.spare,
+    statTone: 'positive' as ModeStepTone,
+    meloMood: 'cheer' as MeloMood,
+    cta: 'Pay yourself first',
+  };
+  switch (mode) {
+    case 'survival':
+      return {
+        ...base,
+        headlineLead: 'Look at the ',
+        headlineAccent: 'month',
+        headlineTrail: ' just gone.',
+        body: `You spent ${poundsGrouped(a.spent)}. Bills cleared. Lowest balance was ${poundsGrouped(a.tightPoint)}.`,
+        melo: 'You made it through. Quietly well done.',
+      };
+    case 'stability':
+      return {
+        ...base,
+        headlineLead: 'The month ',
+        headlineAccent: 'held',
+        headlineTrail: '.',
+        body: `${poundsGrouped(a.spent)} out, bills clear, buffer intact. Shape looked steady.`,
+        melo: "Steady. That's the whole game in Stability.",
+      };
+    case 'growth':
+      return {
+        ...base,
+        statLabel: 'Set aside',
+        statValue: a.setAside,
+        headlineLead: 'You ',
+        headlineAccent: 'added',
+        headlineTrail: ' to your pots.',
+        body: `${poundsGrouped(a.setAside)} moved to savings this cycle. ${poundsGrouped(a.spare)} left over on top.`,
+        melo: 'Pace shows up in months, not weeks.',
+      };
+    case 'debt':
+      return {
+        ...base,
+        meloMood: 'calm',
+        cta: 'Look at repayments',
+        statLabel: 'After minimums',
+        statTone: 'ink',
+        headlineLead: 'Minimums ',
+        headlineAccent: 'held',
+        headlineTrail: '.',
+        body: `Repayments came out clean. ${poundsGrouped(a.spare)} left after. Nothing exposed.`,
+        melo: 'Steady progress. No shame, no rush.',
+      };
+    case 'optimizer':
+      return {
+        ...base,
+        cta: "See what's still leaking",
+        statLabel: 'Recovered',
+        statValue: a.setAside,
+        statTone: 'accent',
+        headlineLead: 'Leaks ',
+        headlineAccent: 'named',
+        headlineTrail: ' and cut.',
+        body: `Trimmed subs earned you back roughly ${poundsGrouped(a.setAside)} of headroom. ${poundsGrouped(a.spare)} left over on top.`,
+        melo: 'Two down. Still a couple worth naming.',
+      };
+    case 'reset':
+      return {
+        ...base,
+        meloMood: 'calm',
+        cta: 'Start next cycle',
+        headlineLead: 'Small steps, ',
+        headlineAccent: 'one cycle',
+        headlineTrail: '.',
+        body: `You got here. Essentials covered. ${poundsGrouped(a.spare)} left over. That's the win.`,
+        melo: 'One cycle done. That counts.',
+      };
+    case 'irregular':
+      return {
+        ...base,
+        headlineLead: 'Uneven month, ',
+        headlineAccent: 'covered',
+        headlineTrail: '.',
+        body: `Income was uneven but the cycle closed at ${poundsGrouped(a.spare)}. Lowest point was ${poundsGrouped(a.tightPoint)}.`,
+        melo: 'The runway held. That’s the metric that matters.',
+      };
+    case 'planning':
+      return {
+        ...base,
+        statLabel: 'Toward goal',
+        statValue: a.setAside,
+        statTone: 'accent',
+        headlineLead: 'Closer to ',
+        headlineAccent: 'the goal',
+        headlineTrail: '.',
+        body: `${poundsGrouped(a.setAside)} moved toward what you're planning for. ${poundsGrouped(a.spare)} sitting free.`,
+        melo: 'Every cycle nudges the date closer.',
+      };
+    case 'household':
+      return {
+        ...base,
+        headlineLead: 'Your ',
+        headlineAccent: 'half',
+        headlineTrail: ' held.',
+        body: `Your share cleared. ${poundsGrouped(a.spare)} left over on your side.`,
+        melo: 'Household stayed square. Nice.',
+      };
+    case 'lowVis':
+      return {
+        ...base,
+        meloMood: 'curious',
+        headlineLead: 'A little ',
+        headlineAccent: 'clearer',
+        headlineTrail: ' now.',
+        body: `${a.spent > 0 ? `Spent about ${poundsGrouped(a.spent)}.` : 'Not enough data yet to name a total.'} Closing balance around ${poundsGrouped(a.spare)}.`,
+        melo: 'Each cycle sharpens the picture.',
+      };
+  }
+}
+
+function step2ByMode(mode: MoneyMode, a: ModeActuals, potNames: string): ModeStep {
+  const base = {
+    eyebrow: 'Step two',
+    statLabel: 'Set aside',
+    statValue: a.setAside,
+    statTone: 'ink' as ModeStepTone,
+    meloMood: 'calm' as MeloMood,
+    cta: "See what's ahead",
+  };
+  switch (mode) {
+    case 'growth':
+      return {
+        ...base,
+        cta: 'Check the pace',
+        statTone: 'positive',
+        headlineLead: 'Feed the ',
+        headlineAccent: 'cadence',
+        headlineTrail: '.',
+        body:
+          a.setAside > 0
+            ? `${potNames || 'Your pots'} — ${poundsGrouped(a.setAside)} moved this cycle. Nudge the pace before it drifts.`
+            : 'No top-ups yet. Add one now — cadence beats size.',
+        melo: 'Rhythm compounds. Miss one, catch it next cycle.',
+      };
+    case 'debt':
+      return {
+        ...base,
+        cta: 'Check repayments',
+        statLabel: 'Freed up',
+        statTone: 'accent',
+        headlineLead: 'Any ',
+        headlineAccent: 'extra',
+        headlineTrail: ' onto the balance?',
+        body:
+          a.spare > 0
+            ? `${poundsGrouped(a.spare)} sitting free. Even £10 extra shortens the tail.`
+            : 'Repayments held. No extra to push this cycle — that’s ok.',
+        melo: 'Every extra pound bought is real progress.',
+      };
+    case 'optimizer':
+      return {
+        ...base,
+        cta: 'See what still leaks',
+        statLabel: 'Recovered',
+        statTone: 'accent',
+        headlineLead: 'Which ',
+        headlineAccent: 'leak',
+        headlineTrail: ' next?',
+        body: "Pick one more subscription that isn't earning its cost. Cutting now saves 12× next year.",
+        melo: 'One a cycle. That’s the whole method.',
+      };
+    case 'reset':
+      return {
+        ...base,
+        cta: 'Hold the line',
+        headlineLead: 'Hold the ',
+        headlineAccent: 'essentials',
+        headlineTrail: ' line.',
+        body: 'No pot moves this cycle. Rest the plan — essentials covered is the win.',
+        melo: "Recovery isn't performance. Small is fine.",
+      };
+    case 'planning':
+      return {
+        ...base,
+        cta: 'See the date shift',
+        statLabel: 'Toward goal',
+        statTone: 'accent',
+        headlineLead: 'Closer to ',
+        headlineAccent: 'the goal',
+        headlineTrail: '.',
+        body:
+          a.setAside > 0
+            ? `${poundsGrouped(a.setAside)} moved toward what you're planning for.`
+            : 'No move this cycle. The date holds — nudge it next payday.',
+        melo: 'Every cycle nudges the date.',
+      };
+    case 'irregular':
+      return {
+        ...base,
+        headlineLead: 'Level the ',
+        headlineAccent: 'runway',
+        headlineTrail: '.',
+        body: `Uneven months smooth out when you top the runway on the good ones. ${poundsGrouped(a.setAside)} added this cycle.`,
+        melo: 'The runway is the whole point.',
+      };
+    case 'household':
+      return {
+        ...base,
+        headlineLead: 'Move ',
+        headlineAccent: 'your share',
+        headlineTrail: ' to pots.',
+        body: `${poundsGrouped(a.setAside)} moved this cycle — your side of things.`,
+        melo: 'Your half is holding.',
+      };
+    case 'lowVis':
+      return {
+        ...base,
+        cta: 'See the shape',
+        headlineLead: 'Anything you ',
+        headlineAccent: 'quietly',
+        headlineTrail: ' set aside?',
+        body:
+          a.setAside > 0
+            ? `${poundsGrouped(a.setAside)} moved into pots this cycle.`
+            : 'No pot moves logged. Add one now if it happened.',
+        melo: 'The picture sharpens with each move.',
+      };
+    case 'survival':
+    case 'stability':
+      return {
+        ...base,
+        headlineLead: 'Move ',
+        headlineAccent: 'a little',
+        headlineTrail: ' into pots.',
+        body:
+          a.setAside > 0
+            ? `${potNames} — ${poundsGrouped(a.setAside)} moved in this cycle so far. You can change any of these.`
+            : 'No pot top-ups this cycle yet. Add one now if it feels right.',
+        melo: 'Small, steady. Your future self will thank you.',
+      };
+  }
+}
+
+function step3ByMode(mode: MoneyMode, a: ModeActuals, tightestDayProse: string | null): ModeStep {
+  const base = {
+    eyebrow: 'Step three',
+    statLabel: 'Next low point',
+    statValue: a.tightPoint,
+    statTone: 'accent' as ModeStepTone,
+    meloMood: 'curious' as MeloMood,
+    cta: 'Leave a note for next-you',
+  };
+  const dayFallback = tightestDayProse
+    ? `${tightestDayProse} looks tightest. Worth knowing in advance.`
+    : 'One day next month looks tightest. Worth knowing in advance.';
+  switch (mode) {
+    case 'stability':
+      return {
+        ...base,
+        statLabel: 'Buffer next',
+        statTone: 'ink',
+        headlineLead: 'Any ',
+        headlineAccent: 'collisions',
+        headlineTrail: ' next month?',
+        body: 'Nothing stacked in a bad week. Shape looks steady from here.',
+        melo: 'Steady is the whole game.',
+      };
+    case 'growth':
+      return {
+        ...base,
+        statLabel: 'Pace ahead',
+        statValue: a.setAside > 0 ? 1 : 0,
+        statTone: 'ink',
+        headlineLead: 'Is the ',
+        headlineAccent: 'pace',
+        headlineTrail: ' holding?',
+        body: "Look at whether next month has room for the same top-ups. If not, shrink one — don't skip.",
+        melo: 'Cadence over amount.',
+      };
+    case 'debt':
+      return {
+        ...base,
+        statLabel: 'Next repayment',
+        headlineLead: "When's the ",
+        headlineAccent: 'next',
+        headlineTrail: ' repayment?',
+        body: 'A big one lands mid-cycle. Cover it early so it can’t get squeezed.',
+        melo: 'Front-load the important ones.',
+      };
+    case 'optimizer':
+      return {
+        ...base,
+        statLabel: 'Still leaking',
+        statValue: Math.max(0, a.tightPoint),
+        headlineLead: "What's ",
+        headlineAccent: 'still',
+        headlineTrail: ' leaking?',
+        body: 'Two or three subs are quiet. Naming them here makes them easier to cut next payday.',
+        melo: 'Name it now, cut it later.',
+      };
+    case 'reset':
+      return {
+        ...base,
+        statLabel: 'Days ahead',
+        statValue: Math.max(0, Math.round(a.spare / 30)),
+        statTone: 'ink',
+        headlineLead: 'How many ',
+        headlineAccent: 'days',
+        headlineTrail: ' ahead?',
+        body: "Enough runway to breathe. Don't plan further than next week.",
+        melo: 'One week at a time.',
+      };
+    case 'planning':
+      return {
+        ...base,
+        statLabel: 'Target shift',
+        statValue: a.setAside,
+        headlineLead: 'Did the ',
+        headlineAccent: 'date',
+        headlineTrail: ' shift?',
+        body: 'This cycle nudged the goal date closer. Note where.',
+        melo: 'Numbers become a date. That’s the point.',
+      };
+    case 'irregular':
+      return {
+        ...base,
+        statLabel: 'Runway low',
+        headlineLead: 'How ',
+        headlineAccent: 'thin',
+        headlineTrail: ' did the runway get?',
+        body: `Lowest point was ${poundsGrouped(a.tightPoint)}. Rebuild it on the next strong month.`,
+        melo: 'The runway is everything.',
+      };
+    case 'household':
+      return {
+        ...base,
+        statLabel: 'Your share',
+        statTone: 'ink',
+        headlineLead: 'Any ',
+        headlineAccent: 'imbalance',
+        headlineTrail: ' to name?',
+        body: 'Your side held. If theirs didn’t, name it now — not later.',
+        melo: 'Small nudges beat big talks.',
+      };
+    case 'lowVis':
+      return {
+        ...base,
+        statLabel: 'Next low',
+        statTone: 'ink',
+        headlineLead: 'Rough ',
+        headlineAccent: 'shape',
+        headlineTrail: ' ahead.',
+        body: 'Not enough data for a sharp forecast. The rough shape is here to eyeball.',
+        melo: 'Rough beats nothing.',
+      };
+    case 'survival':
+      return {
+        ...base,
+        headlineLead: "Where's the ",
+        headlineAccent: 'squeeze',
+        headlineTrail: ' next month?',
+        body: dayFallback,
+        melo: 'Knowing in advance is half the work.',
+      };
+  }
+}
+
+// Note: the mode tables above call `poundsGrouped`, defined further down in this file (function
+// declarations hoist, so call-before-definition in module order is fine).
 
 // ---------------------------------------------------------------------------
 // Constants — motion cadence + ceremony numbers, mirrored from the web original
@@ -232,6 +629,9 @@ type RitualStep = {
   melo: string;
   meloMood: MeloMood;
   cta: string;
+  // The repay-a-pot step's real store write (BREAKS-PARITY fix) — fires once, when this step is
+  // confirmed (advanced past), mirroring the web's per-step `onConfirm`.
+  onConfirm?: () => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -267,6 +667,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const potLedger = useAppStore((st) => st.potLedger);
   const pots = useAppStore((st) => st.pots);
   const persistedNote = useAppStore((st) => st.nextYouNote);
+  const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
 
   // Step-4 input — seeded from the persisted draft so the user can leave and come back without losing
   // what they typed (ENGINES §7 "Cycle close note").
@@ -318,48 +719,101 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
 
   const noted = note.trim().length > 0;
 
+  // Step 3's mode-aware bodies name the real tightest day where the web named a fixed placeholder
+  // date; the day-agnostic fallback covers the single pre-engine frame (route not yet resolved).
+  const step1 = step1ByMode(moneyMode, actuals);
+  const step2 = step2ByMode(moneyMode, actuals, potFirstNames);
+  const step3 = step3ByMode(moneyMode, actuals, tightestDayProse);
+
+  // Repay-a-borrowed-pot step (BREAKS-PARITY fix) — inserted only when the user actually owes a pot
+  // (ENGINES §4 borrow/repay ledger), so the ritual stays its normal length for clean months. Owed
+  // amounts are derived from real `potLedger` borrow/repay entries, exactly as the web computes them.
+  const owedByPot = useMemo(() => {
+    const map = new Map<string, { name: string; owed: number }>();
+    for (const entry of potLedger) {
+      const pot = pots.find((p) => p.id === entry.potId);
+      if (!pot) continue;
+      const current = map.get(entry.potId) ?? {
+        name: pot.name.split(' · ')[0] ?? pot.name,
+        owed: 0,
+      };
+      if (entry.kind === 'borrow') current.owed += entry.amount;
+      else if (entry.kind === 'repay') current.owed -= entry.amount;
+      map.set(entry.potId, current);
+    }
+    return Array.from(map.entries())
+      .map(([id, v]) => ({ id, ...v }))
+      .filter((r) => r.owed > 0);
+  }, [potLedger, pots]);
+  const totalOwed = owedByPot.reduce((sum, r) => sum + r.owed, 0);
+  const repayHeadroom = Math.max(0, Math.min(totalOwed, actuals.spare));
+
   const steps: RitualStep[] = [
     {
-      eyebrow: 'Step one',
-      headlineLead: 'Look at the ',
-      headlineAccent: 'month',
-      headlineTrail: ' just gone.',
-      body: `You spent ${poundsGrouped(actuals.spent)}. Bills cleared. Lowest balance was ${poundsGrouped(actuals.tightPoint)}.`,
-      stat: { label: 'Left over', value: actuals.spare, tone: 'positive' },
-      melo: 'You made it through. Quietly well done.',
-      meloMood: 'cheer',
-      cta: 'Pay yourself first',
+      eyebrow: step1.eyebrow,
+      headlineLead: step1.headlineLead,
+      headlineAccent: step1.headlineAccent,
+      headlineTrail: step1.headlineTrail,
+      body: step1.body,
+      stat: { label: step1.statLabel, value: step1.statValue, tone: step1.statTone },
+      melo: step1.melo,
+      meloMood: step1.meloMood,
+      cta: step1.cta,
     },
     {
-      eyebrow: 'Step two',
-      headlineLead: 'Move ',
-      headlineAccent: 'a little',
-      headlineTrail: ' into pots.',
-      body:
-        actuals.setAside > 0
-          ? `${potFirstNames} — ${poundsGrouped(actuals.setAside)} moved in this cycle so far. You can change any of these.`
-          : 'No pot top-ups this cycle yet. Add one now if it feels right.',
-      stat: { label: 'Set aside', value: actuals.setAside, tone: 'ink' },
-      melo: 'Small, steady. Your future self will thank you.',
-      meloMood: 'calm',
-      cta: 'See the squeeze ahead',
+      eyebrow: step2.eyebrow,
+      headlineLead: step2.headlineLead,
+      headlineAccent: step2.headlineAccent,
+      headlineTrail: step2.headlineTrail,
+      body: step2.body,
+      stat: { label: step2.statLabel, value: step2.statValue, tone: step2.statTone },
+      melo: step2.melo,
+      meloMood: step2.meloMood,
+      cta: step2.cta,
     },
+    // Repay step — only when the user actually owes a pot.
+    ...(totalOwed > 0
+      ? [
+          {
+            eyebrow: 'Step three · repay',
+            headlineLead: 'Repay a ',
+            headlineAccent: 'borrowed',
+            headlineTrail: ' pot.',
+            body:
+              owedByPot.map((r) => `${r.name}: ${poundsGrouped(r.owed)} owed`).join('. ') +
+              (repayHeadroom > 0
+                ? `. You've got ${poundsGrouped(actuals.spare)} left over. Repay ${poundsGrouped(repayHeadroom)} now — the rest can wait.`
+                : '. Nothing left over this cycle. It can wait another month, calmly.'),
+            stat: { label: 'To repay', value: totalOwed, tone: 'accent' as ModeStepTone },
+            melo:
+              repayHeadroom > 0
+                ? `Puts ${poundsGrouped(repayHeadroom)} back where it belongs.`
+                : 'No pressure. Pots understand.',
+            meloMood: 'calm' as MeloMood,
+            cta: repayHeadroom > 0 ? `Repay ${poundsGrouped(repayHeadroom)}` : 'Skip for now',
+            onConfirm: () => {
+              if (repayHeadroom <= 0) return;
+              let remaining = repayHeadroom;
+              for (const r of owedByPot) {
+                if (remaining <= 0) break;
+                const share = Math.min(r.owed, remaining);
+                repayToPot(r.id, share, 'ritual-repay');
+                remaining -= share;
+              }
+            },
+          },
+        ]
+      : []),
     {
-      eyebrow: 'Step three',
-      headlineLead: "Where's the ",
-      headlineAccent: 'squeeze',
-      headlineTrail: ' next month?',
-      // @rn-engine money-path — the REAL tightest day comes from the route (`route.tightPoint.date`),
-      // formatted with Today's `formatDayProse`. The web's hardcoded "12 Jul … two bills land that week"
-      // placeholder is gone; we name the real day and drop the unverifiable bill claim. The pre-engine
-      // frame (route not yet resolved) uses an honest day-agnostic line.
-      body: tightestDayProse
-        ? `${tightestDayProse} looks tightest. Worth knowing in advance.`
-        : 'One day next month looks tightest. Worth knowing in advance.',
-      stat: { label: 'Next low point', value: actuals.tightPoint, tone: 'accent' },
-      melo: 'Knowing in advance is half the work.',
-      meloMood: 'curious',
-      cta: 'Leave a note for next-you',
+      eyebrow: step3.eyebrow,
+      headlineLead: step3.headlineLead,
+      headlineAccent: step3.headlineAccent,
+      headlineTrail: step3.headlineTrail,
+      body: step3.body,
+      stat: { label: step3.statLabel, value: step3.statValue, tone: step3.statTone },
+      melo: step3.melo,
+      meloMood: step3.meloMood,
+      cta: step3.cta,
     },
     {
       eyebrow: 'Step four',
@@ -411,6 +865,8 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
 
   function onAdvance() {
     if (!isLast) {
+      // The repay step's real store write (BREAKS-PARITY fix) — fires once, on confirming past it.
+      current.onConfirm?.();
       setStep((x) => x + 1);
       return;
     }
@@ -557,6 +1013,11 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
               </Text>
               {current.headlineTrail}
             </Text>
+
+            {/* Mode framing banner (BREAKS-PARITY fix) — web renders this only on step 0, telling the
+                user why this closing ritual reads differently in their current Money Mode. Returns
+                null for survival (the shipped default). */}
+            {step === 0 ? <ModeFramingBanner surface="cycleClose" /> : null}
 
             {current.isNote ? (
               <View style={styles.noteBlock}>

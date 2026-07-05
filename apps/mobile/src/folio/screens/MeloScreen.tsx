@@ -1,71 +1,82 @@
-// MeloScreen — the faithful 1:1 React Native port of the web Melo surface
+// MeloScreen — the faithful 1:1 React Native port of the web Melo companion hub
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenMelo.tsx).
 //
 // @rn-screen    MeloScreen
 // @rn-stack     MainTabs > Melo
-// @purpose      Standalone Melo companion surface. In the live web prototype this is NOT the full
-//               chat surface its doc block promises — it is a persona/mood PLAYGROUND: a hero Melo
-//               card that reflects the current money-pressure mood, plus a five-row pressure picker
-//               that lets you switch the band and watch Melo (and, conceptually, the money path)
-//               change with her. This port reproduces what the web JSX actually renders, not the
-//               doc-block's chat/snapshot/applyMeloTool promises (see SPEC fidelityRisks: the rendered
-//               component does none of those — they are the melo-chat SHEET's concern, not this screen).
-// @reads        the live money-path route (via the shared `routeFromStore` bridge over the store
-//               snapshot — the SAME curve Today / WhatIf read) to choose the band Melo OPENS in, and
-//               the active Pressure band thereafter (web read it off `nav.pressure`; the RN Nav
-//               contract carries no pressure, so the shell threads a `pressure` prop as the pre-mount
-//               fallback and this screen holds the picker's local selection on top of it — mirrors
-//               TodayScreen / PotsScreen / WhatIfScreen).
-// @writes       — NONE. The active band is LOCAL component state (the web `nav.setPressure(p)` was a
-//               local nav flip with no store behind it); reading the route is pure and never mutates
-//               the store. No store mutator is wired — faithful to the web, whose ~20 store-action
-//               imports + meloHero/waxSeal assets are DEAD on this screen.
-// @opens-sheet  — (none; the rendered web component opens no sheet. The full chat lives in melo-chat.)
-// @copy         FROZEN. The hero line + row lines are VERBATIM from the design's pressureLine map
-//               (reconciled into ./today/pressure); the kicker / headline / footer hint are the web's
-//               inline @copy-frozen literals. The single accent word "quiet" is terracotta + upright.
-// @tokens       canvas (paper) · surface · inset/surface (rows) · calm (accent) · calmSoft (active row) ·
-//               muted · hairline · serif (Fraunces) — all from the kit, no new token.
-// @motion       slide-in-r (whole screen, 360ms) · press 0.97 (back + each row) · Melo breathe + blink +
-//               mood-pulse (kit-owned, per mood). All gated to FINAL STATE under reduce-motion.
-// @melo-mood    derived from the active band via pressureMood (reconciled to the canonical Melo
-//               vocabulary calm | curious | cheer | concern | celebrate — the lossy web soft/alert
-//               aliases are DROPPED, per SPEC + MELO_MOODS).
+// @purpose      Melo companion hub — presence + a live "plumage" (money-health) read, companion
+//               touches (wardrobe), a Quiet Mode toggle, and Rituals shortcuts (Payday / Sunday
+//               look). This REPLACES the prior "pressure band playground" build, which faithfully
+//               ported a different web surface (a mood picker, not the companion hub) — see
+//               PARITY_GAPS.md Group 3 for the finding. This port renders what ScreenMelo.tsx
+//               actually is: the companion's home, not a mood/pressure toy.
+// @reads        melo (quietMode, wardrobe), moneyMode, onboarding, subs, subPaused, pots,
+//               currentBalance, cycles — via the store, mirroring the web's useAppStore reads.
+// @writes       setMelo (wardrobe, quietMode) — via @/folio/store. nav.openMelo() on tapping Melo
+//               herself (opens the melo-chat sheet, same as web's onTap).
+// @opens-sheet  melo-chat (via nav.openMelo(), tapping the hero Melo)
+// @copy         FROZEN — ported verbatim from the web literals (no COPY_DECK entry exists yet for
+//               this screen; the web JSX strings are the frozen source, same convention every
+//               other folio screen uses for its own inline literals).
+// @tokens       canvas (paper) · surface · inset (chips) · calm (accent) · calmSoft (active/equip) ·
+//               hairline · muted · serif (Fraunces) — all from the kit, no new token.
+// @motion       slide-in-r (whole screen, 360ms ease-out-expo) · press 0.97 on every row/button ·
+//               Melo breathe + blink (kit-owned). All gated to final state under reduce-motion.
 //
 // FIDELITY DECISIONS (each grounded in the SPEC + confirmed kit/store source):
-//   • Mood mapping: the web routed Pressure through the legacy 3-way pressureMood (calm|soft|alert),
-//     which the web kit's normalizeMood collapsed (soft→calm, alert→concern). The RN port re-maps
-//     Pressure DIRECTLY onto the canonical 5 moods via ./today/pressure's pressureMood — the
-//     documented, reconciled set (safe→calm, calm→calm, soft→curious, pressured→concern,
-//     overspent→concern). No lossy alias path is reintroduced.
-//   • intensity={1.4}: the web hero Melo amplified its tilt past the standard tiers. The canonical RN
-//     <Melo> has no `intensity` prop (tilt is baked per mood); the hero renders at the canonical mood
-//     tilt. Tagged below rather than inventing a non-existent prop.
-//   • Accent word "quiet": web uses <em class="not-italic text-accent">. RN has no inline <em>, so the
-//     headline is three Text runs and the accent run is a nested, UPRIGHT, terracotta span (the
-//     StartScreen pattern — same Fraunces face, colour-only override, never italic).
-//   • Row labels: keys are lowercase; the web CSS-capitalized them. RN uses textTransform:'capitalize'
-//     so the data is never mutated.
-//   • Lines: rendered with the literal straight double-quotes the web wraps them in (typographic voice,
-//     part of the string — not a decoration). The em dash inside pressured/overspent is preserved.
-//   • The pressure band is local state, but its OPENING value is now @rn-engine money-path WIRED: the
-//     band Melo first poses in is read from the real route's tightest point (route.tightPoint.amount)
-//     through the shared `routeFromStore` bridge, mapped onto the canonical bands by the same
-//     per-band floors the rest of the app uses (pressureLow, safest→tightest) — so the copy ("your
-//     money path shifts with her") is honest. Flipping the picker is still a purely local selection
-//     (mirrors the web's `nav.setPressure`), and a deliberate flip is never overridden by a later
-//     engine update (tracked by `touched`). Reading the route is pure — the store is never mutated.
+//   • Plumage (vitality): the web derives a live 0..1 "vitality" from money-health signals
+//     (tightest spare vs monthly income, sub load, pot health, ritual freshness) via
+//     `deriveMeloVitality`, projected onto four labels (dim/warm/bright/radiant) — a live money-
+//     health READ, explicitly NOT a streak or level. RN has no `deriveMeloVitality` port and no
+//     `@/folio/lib/melo/state` module (grepped before writing — neither exists). Rather than
+//     silently inventing a parallel vitality formula, this port derives an honest, comparably-
+//     shaped signal from the REAL RN mode engine already wired everywhere else on this app:
+//     `deriveModeState(moneyMode, inputs).safeZone.amount` (the same safe-zone number Today/
+//     Paywall/Account already trust) divided by monthly income, clamped to 0..1, banded into the
+//     same four dim/warm/bright/radiant labels at the same thresholds the web used internally
+//     (<0.15 dim, <0.4 warm, <0.7 bright, else radiant — ported verbatim from the web's own
+//     `deriveMeloVitality` thresholds). This is a real, live, money-aware read — not a fabricated
+//     placeholder — built entirely from engines that already exist in this codebase, with no new
+//     engine slipped in silently (mirrors RN_PORT.md's loop discipline).
+//   • Mood/pose for the hero Melo: ported through the same `deriveModeState` call (its `.mood` /
+//     `.pose` fields), the same derivation Today already uses — keeps the companion hub in
+//     lockstep with the rest of the app's mood language instead of running a second, disagreeing
+//     derivation.
+//   • Lens-lock state line: the web's `LensStateLine` reads `useLens().canAccess(mode)` + weather +
+//     the mode label, showing a small Plus-lock chip that routes to `plans` (web) when the active
+//     lens is locked. RN's real `useLens()` (`@/folio/lib/lens`) is used directly — `canAccess`,
+//     `MODE_LABEL` — and the chip routes to `nav.go('paywall')` (RN's actual plans/pricing screen;
+//     there is no separate `plans` screen for lens tiers in this app — `paywall` IS Folio's plans
+//     surface, confirmed via AccountScreen/MoreScreen's own `nav.go('paywall')` routing).
+//   • Companion touches (wardrobe): ported verbatim — three touches (Ember scarf / Paper crown /
+//     Listener cups), Plus-gated for two of the three, tap to equip/unequip (max 3), suppressed
+//     (no-op, dimmed) when locked AND `canShowUpsell` says not to sell right now. `canShowUpsell`
+//     is the REAL RN port (`@/folio/lib/lensPaywall`), fed real inputs: weather from
+//     `deriveModeState`, `recoveryActive` = `moneyMode === 'reset'` (mirrors the web's own
+//     recoveryActive derivation), the same safe-zone-derived total, and the real `melo.quietMode`.
+//   • Quiet Mode: real, persisted via the new `setMelo({ quietMode })` store mutator (`@/folio/
+//     store` — added alongside this port; ports the web's `melo.quietMode` slice 1:1). When on,
+//     the hero Melo is replaced by "Melo is resting." (verbatim) and the Plumage + line sections
+//     are hidden, matching the web exactly.
+//   • Rituals: "Payday" -> nav.go('ritual'), "Sunday look" -> nav.go('insights') — both real
+//     ScreenIds already wired in this app's Nav contract. The "last · {date}" / "never run" caption
+//     reads `cycles[0]?.closedAt`, the same field the web reads.
+//   • Accent words ("quiet", "Reflects", "plan" pattern used elsewhere): web uses
+//     `<em class="not-italic text-accent">`. RN has no inline `<em>`, so each headline is built from
+//     Text runs with a nested UPRIGHT terracotta span (the StartScreen / AccountScreen / MoreScreen
+//     pattern — same Fraunces face, colour-only override, never italic).
+//   • `pressure` prop: the previous (now-replaced) build accepted a `pressure` prop threaded by
+//     FolioShell (`<MeloScreen nav={nav} pressure={pressure} />`). The web ScreenMelo this port is
+//     now faithful to has no pressure/mood-picker concept at all, so the prop is accepted (kept
+//     optional, for FolioShell call-site compatibility) but intentionally unused by this screen.
 //   • slide-in-r: translateX 28→0 + fade over 360ms ease-out-expo, gated to final state under
-//     reduce-motion (resolved layout, never a slower animation) — mirrors Melo's own gating.
-//   • STATES: the SPEC declares this screen populated-only (offline ≡ populated; empty/loading/error
-//     n/a — no async, no spinner). All five branches are rendered for completeness: populated/offline =
-//     the playground; loading = Melo curious + a line (NEVER a spinner, per the hard rule + STATES.md);
-//     empty/error = the calm EmptyState doorway, which never dead-ends.
+//     reduce-motion (resolved layout, never a slower animation) — mirrors every other folio screen.
+//   • STATES: populated-only per the SPEC convention (offline = populated; no async dependency). All
+//     five branches are rendered for completeness, mirroring MoreScreen/AccountScreen/PaywallScreen.
 //
-// HONEST CLAIMS: this screen asserts no privacy/security property. No banned product vocabulary appears
-// in any visible string. Tokens only; tap targets are >=44px (full-width rows) or carry hitSlop.
+// HONEST CLAIMS: this screen asserts no privacy/security property. No banned product vocabulary
+// appears in any visible string. Tap targets are >=44px (full-width rows) or carry hitSlop.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -80,41 +91,56 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { useAppStore, setMelo } from '@/folio/store';
+import { useLens } from '@/folio/lib/lens';
+import { canShowUpsell } from '@/folio/lib/lensPaywall';
+import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
+import { useRoute } from '@/folio/lib/storeRoute';
 import type { Nav, Pressure } from '@/folio/types';
 
-import { pressureLine, pressureMood } from './today/pressure';
-
-// The render states this screen can occupy. Per the SPEC, MeloScreen is populated-only and offline is
-// identical to populated (local-first, no network); loading/empty/error are n/a for a pure playground
-// but are rendered for completeness so every branch is exercised.
 export type MeloScreenState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
 
 export type MeloScreenProps = {
   nav: Nav;
-  /** The route pressure band. The web read this off `nav.pressure`; the RN Nav contract has no
-   *  pressure, so the shell threads it explicitly (mirrors Today / Pots / WhatIf). Seeds the picker's
-   *  initial selection; the user can flip it locally on this screen. Defaults to 'calm' — the web
-   *  app's default landing mood (folio-melo index: `search.p ?? "calm"`). */
+  /** Accepted for FolioShell call-site compatibility (the shell threads its app-wide pressure
+   *  default to this screen name historically). Unused — the companion hub this screen now
+   *  faithfully ports has no pressure/mood-picker concept. See FIDELITY DECISIONS. */
   pressure?: Pressure;
   /** STATES.md branch. Defaults to 'populated'. */
   state?: MeloScreenState;
 };
 
-// The five bands, in the web's order — safest to tightest.
-const BANDS: readonly Pressure[] = ['safe', 'calm', 'soft', 'pressured', 'overspent'];
+// Plumage labels — ported verbatim from the web's `vitalityLabel` bands.
+type Plumage = 'dim' | 'warm' | 'bright' | 'radiant';
 
-// Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
+function vitalityLabel(v: number): Plumage {
+  if (v < 0.15) return 'dim';
+  if (v < 0.4) return 'warm';
+  if (v < 0.7) return 'bright';
+  return 'radiant';
+}
+
+const PLUMAGE_COPY: Record<Plumage, { line: string; caption: string }> = {
+  dim: { line: 'Feathers drawn in.', caption: "The path is thin. He's holding still with you." },
+  warm: { line: 'Warm at the edges.', caption: 'Enough to breathe. The ember is patient.' },
+  bright: { line: 'Bright and steady.', caption: "The runway holds. He's alert, not anxious." },
+  radiant: {
+    line: 'Full plumage, quietly lit.',
+    caption: 'Real headroom. The ember runs warm.',
+  },
+};
+
+// Companion touches — verbatim from the web `WARDROBE` list.
+const WARDROBE: readonly { id: string; label: string; note: string; plus: boolean }[] = [
+  { id: 'scarf', label: 'Ember scarf', note: 'cool months', plus: false },
+  { id: 'crown', label: 'Paper crown', note: 'goal-hit day', plus: true },
+  { id: 'headphones', label: 'Listener cups', note: 'focus sessions', plus: true },
+];
+
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-
-// slide-in-r geometry (from the SPEC @motion): the whole screen enters from +28px on X with a fade.
 const SLIDE_FROM_X = 28;
 const SLIDE_MS = 360;
 
-// Hero / row Melo sizes — byte-faithful to the web (<Melo size={120} /> hero, <Melo size={28} /> rows).
-const HERO_MELO_SIZE = 120;
-const ROW_MELO_SIZE = 28;
-
-// Local reduce-motion read, mirroring Melo.tsx / StartScreen exactly: read once, then subscribe.
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
   useEffect(() => {
@@ -131,21 +157,63 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: MeloScreenProps) {
+export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  // The active band IS the shell's app-wide pressure (the `pressure` prop) — already DERIVED from the
-  // real route AND gated (an empty/cleared app stays neutral calm, never alarmist) AND override-aware.
-  // Reading the prop keeps the Melo screen in LOCKSTEP with Today, instead of running a second, ungated
-  // derivation that could disagree (it did: an empty app showed "overspent" here while Today was calm).
-  // Picking a row sets the band APP-WIDE via nav.setPressure — the shell owns the override.
-  const active = pressure;
-  const selectBand = (p: Pressure) => nav.setPressure(p);
+  const melo = useAppStore((s) => s.melo ?? { quietMode: false, wardrobe: [] });
+  const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival') as MoneyMode;
+  const onboarding = useAppStore((s) => s.onboarding);
+  const subs = useAppStore((s) => s.subs);
+  const subPaused = useAppStore((s) => s.subPaused);
+  const pots = useAppStore((s) => s.pots);
+  const currentBalance = useAppStore((s) => s.currentBalance);
+  const cycles = useAppStore((s) => s.cycles);
 
-  // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
-  // resolve straight to the final state instead of animating.
+  const { canAccess } = useLens();
+
+  const route = useRoute(new Date());
+
+  const modeState = useMemo(
+    () =>
+      deriveModeState(moneyMode, {
+        currentBalance,
+        onboarding,
+        pots,
+        subs,
+        subPaused,
+        tightestSpare: route.tightPoint.amount,
+        tightestDate: route.tightPoint.date,
+        ritualCompletedRecently: !!cycles[0]?.closedAt,
+        hour: new Date().getHours(),
+      }),
+    [moneyMode, currentBalance, onboarding, pots, subs, subPaused, route, cycles],
+  );
+
+  // Vitality — the real safe-zone read, normalised against monthly income. See FIDELITY DECISIONS.
+  const vitality = useMemo(() => {
+    const monthly = Math.max(1, onboarding.monthlyIncome);
+    return Math.max(0, Math.min(1, modeState.safeZone.amount / monthly));
+  }, [modeState, onboarding.monthlyIncome]);
+  const plumage = vitalityLabel(vitality);
+  const plumageCopy = PLUMAGE_COPY[plumage];
+
+  // Four dots visualise vitality as a plumage reading — not a level.
+  const dotCount = plumage === 'dim' ? 1 : plumage === 'warm' ? 2 : plumage === 'bright' ? 3 : 4;
+
+  const recoveryActive = moneyMode === 'reset';
+  const safeZoneTotal = modeState.safeZone.amount;
+  const upsellsOn = canShowUpsell({
+    weather: modeState.weather,
+    recoveryActive,
+    safeZoneTotal,
+    quietMode: melo.quietMode,
+  });
+
+  const lastCycle = cycles[0]?.closedAt;
+
+  // slide-in-r — drives the whole screen.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
     if (reduceMotion) {
@@ -160,8 +228,17 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness). The
-  // single CTA routes back so the doorway never dead-ends. EmptyState gates its own motion.
+  const toggleWardrobe = (id: string, equipped: boolean, locked: boolean) => {
+    if (locked && !upsellsOn) return;
+    const next = equipped
+      ? melo.wardrobe.filter((x) => x !== id)
+      : [...melo.wardrobe, id].slice(0, 3);
+    setMelo({ wardrobe: next });
+  };
+
+  const toggleQuietMode = () => setMelo({ quietMode: !melo.quietMode });
+
+  // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness).
   if (state === 'empty' || state === 'error') {
     const headline = state === 'error' ? copy.err.generic : 'Meet Melo, your quiet companion.';
     const body =
@@ -176,8 +253,7 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
     );
   }
 
-  // loading — Melo curious + a line, never a spinner (per the hard rule + STATES.md). A calm, centred
-  // holding moment while the surface settles.
+  // loading — Melo curious + a line, never a spinner (per the hard rule + STATES.md).
   if (state === 'loading') {
     return (
       <View
@@ -188,10 +264,7 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
     );
   }
 
-  // populated / offline — the real playground. offline ≡ populated (local-first; nothing here needs
-  // the network). Web used overflow-y-auto no-scrollbar inside a fixed phone -> RN ScrollView.
-  const heroMood = pressureMood[active];
-  const heroLine = pressureLine[active];
+  const modeLocked = !canAccess(moneyMode);
 
   return (
     <Animated.View style={[styles.flex, enterStyle, { backgroundColor: t.canvas }]}>
@@ -202,7 +275,7 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — back glyph · "Melo" eyebrow · spacer to keep the label optically centred. */}
+        {/* Header — back glyph · "Melo" eyebrow · spacer. */}
         <View style={styles.header}>
           <Pressable
             accessibilityHint="Goes back."
@@ -218,62 +291,210 @@ export function MeloScreen({ nav, pressure = 'calm', state = 'populated' }: Melo
           <View style={styles.headerSpacer} />
         </View>
 
-        {/* Title block — Fraunces italic kicker + the hero headline with one accent word. */}
+        {/* Presence — editorial masthead. */}
         <View style={styles.titleBlock}>
           <Text style={[styles.kicker, { color: t.muted }]}>Companion</Text>
-          {/* "quiet" is the single accent word: UPRIGHT (web em.not-italic), terracotta. */}
-          <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {'A '}
-            <Text style={[styles.headlineAccent, { color: t.calm }]}>quiet</Text>
-            {' presence across the journey.'}
-          </Text>
+          {melo.quietMode ? (
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+              {'A '}
+              <Text style={[styles.headlineAccent, { color: t.calm }]}>quiet</Text>
+              {' lens on your money.'}
+            </Text>
+          ) : (
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+              {'Reads your money. '}
+              <Text style={[styles.headlineAccent, { color: t.calm }]}>Reflects</Text>
+              {' it back.'}
+            </Text>
+          )}
         </View>
 
-        {/* Hero card — surface, hairline, rounded-2xl. Melo at 120 reflecting the active band's mood,
-            with her quoted line beneath in Fraunces italic. (Web intensity={1.4} has no RN prop — the
-            canonical mood tilt is rendered; see FIDELITY DECISIONS.) */}
-        <View style={[styles.heroCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <Melo size={HERO_MELO_SIZE} mood={heroMood} grounded />
-          <Text style={[styles.heroLine, { color: t.muted }]}>{`“${heroLine}”`}</Text>
-        </View>
+        {/* Presence — hero Melo or the quiet-mode resting line. */}
+        <View style={styles.heroWrap}>
+          {melo.quietMode ? (
+            <View style={styles.restingWrap}>
+              <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
+            </View>
+          ) : (
+            <Melo
+              size={140}
+              mood={modeState.mood}
+              pose={modeState.pose}
+              grounded
+              onTap={() => nav.openMelo()}
+            />
+          )}
 
-        {/* Pressure picker — the five bands. Tapping one re-poses the hero Melo + swaps her line. Each
-            row is a full-width >=44px tap target carrying the kit press feel. */}
-        <View style={styles.picker}>
-          {BANDS.map((p) => {
-            const isActive = active === p;
-            return (
+          {/* Live state line — weather + lens, no chip container. Locked Plus lens shows a small
+              lock so the paywall state is legible without opening the picker. */}
+          <View style={styles.lensLine}>
+            <Text style={[styles.lensLineText, { color: t.muted }]}>
+              {MODE_LABEL[moneyMode].toLowerCase()} lens
+            </Text>
+            {modeLocked ? (
               <Pressable
-                accessibilityHint="Sets the pressure band and re-poses Melo."
-                accessibilityLabel={`${p} pressure`}
+                accessibilityLabel="This lens is Plus — tap to unlock"
                 accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                key={p}
-                onPress={() => selectBand(p)}
+                onPress={() => nav.go('paywall')}
                 style={({ pressed: isPressed }) => [
-                  styles.row,
-                  {
-                    backgroundColor: isActive ? t.calmSoft : t.surface,
-                    borderColor: t.hairline,
-                  },
+                  styles.lockChip,
+                  { backgroundColor: t.inset, borderColor: t.hairline },
                   isPressed ? styles.pressed : undefined,
                 ]}
               >
-                <Melo size={ROW_MELO_SIZE} mood={pressureMood[p]} grounded />
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: t.ink }]}>{p}</Text>
-                  <Text style={[styles.rowLine, { color: t.muted }]}>{`“${pressureLine[p]}”`}</Text>
-                </View>
-                {isActive ? <Text style={[styles.rowDot, { color: t.calm }]}>●</Text> : null}
+                <Text style={[styles.lockChipLabel, { color: t.calm }]}>plus</Text>
               </Pressable>
-            );
-          })}
+            ) : null}
+          </View>
         </View>
 
-        {/* Footer hint — VERBATIM from the web design source. */}
-        <Text style={[styles.footerHint, { color: t.muted }]}>
-          Try each mood — Melo changes, and your money path shifts with her.
-        </Text>
+        {/* Plumage reading — the "tier", tied to money health, not streaks. */}
+        {!melo.quietMode ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: t.ink }]}>Plumage</Text>
+              <Text style={[styles.sectionHint, { color: t.muted }]}>live · money health</Text>
+            </View>
+            <View style={styles.plumageRow}>
+              <Text style={[styles.plumageWord, { color: t.ink }]}>{plumage}</Text>
+              <View style={styles.plumageDots} accessibilityLabel={`plumage ${plumage}`}>
+                {[0, 1, 2, 3].map((i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.plumageDot,
+                      { backgroundColor: i < dotCount ? t.calm : t.inset },
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Melo line — kept as a whisper, no giant card. */}
+        {!melo.quietMode ? (
+          <View style={styles.meloLineWrap}>
+            <MeloLine
+              text={
+                plumage === 'dim'
+                  ? "I'm here. Small moves count more than big ones this week."
+                  : plumage === 'radiant'
+                    ? "You've built a soft floor. I'll keep it warm."
+                    : plumageCopy.caption
+              }
+            />
+          </View>
+        ) : null}
+
+        {/* Companion touches — reframed wardrobe, quieter row. */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Companion touches</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>{melo.wardrobe.length}/3</Text>
+          </View>
+          <View style={styles.wardrobeList}>
+            {WARDROBE.map((w) => {
+              const equipped = melo.wardrobe.includes(w.id);
+              const locked = w.plus && !equipped;
+              const suppress = locked && !upsellsOn;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: equipped, disabled: suppress }}
+                  key={w.id}
+                  onPress={() => toggleWardrobe(w.id, equipped, locked)}
+                  style={({ pressed: isPressed }) => [
+                    styles.wardrobeRow,
+                    {
+                      backgroundColor: equipped ? t.calmSoft : t.surface,
+                      borderColor: t.hairline,
+                      opacity: suppress ? 0.5 : 1,
+                    },
+                    isPressed && !suppress ? styles.pressed : undefined,
+                  ]}
+                >
+                  <View style={styles.wardrobeText}>
+                    <Text style={[styles.wardrobeLabel, { color: t.ink }]}>{w.label}</Text>
+                    <Text style={[styles.wardrobeNote, { color: t.muted }]}>{w.note}</Text>
+                  </View>
+                  {w.plus && !equipped ? (
+                    <Text style={[styles.wardrobePlus, { color: t.muted }]}>Plus</Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Quiet Mode */}
+        <View style={styles.section}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: melo.quietMode }}
+            onPress={toggleQuietMode}
+            style={({ pressed: isPressed }) => [
+              styles.quietRow,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <View style={styles.quietText}>
+              <Text style={[styles.quietLabel, { color: t.ink }]}>Quiet Mode</Text>
+              <Text style={[styles.quietHint, { color: t.muted }]}>
+                {melo.quietMode
+                  ? 'Character hidden. Weather chip still shows on Today.'
+                  : 'Turn off the character. Keep the numbers.'}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.quietPill,
+                { backgroundColor: melo.quietMode ? t.calmSoft : 'transparent' },
+              ]}
+            >
+              <Text style={[styles.quietPillLabel, { color: melo.quietMode ? t.calm : t.muted }]}>
+                {melo.quietMode ? 'on' : 'off'}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {/* Rituals */}
+        <View style={[styles.section, styles.ritualsSection]}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Rituals</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>
+              {lastCycle ? `last · ${lastCycle}` : 'never run'}
+            </Text>
+          </View>
+          <View style={styles.ritualsGrid}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('ritual')}
+              style={({ pressed: isPressed }) => [
+                styles.ritualCard,
+                { backgroundColor: t.surface, borderColor: t.hairline },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.ritualLabel, { color: t.ink }]}>Payday</Text>
+              <Text style={[styles.ritualHint, { color: t.muted }]}>close the cycle together</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('insights')}
+              style={({ pressed: isPressed }) => [
+                styles.ritualCard,
+                { backgroundColor: t.surface, borderColor: t.hairline },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.ritualLabel, { color: t.ink }]}>Sunday look</Text>
+              <Text style={[styles.ritualHint, { color: t.muted }]}>what shifted this week</Text>
+            </Pressable>
+          </View>
+        </View>
       </ScrollView>
     </Animated.View>
   );
@@ -283,7 +504,6 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  // px-7 ≈ gap.xl (24) horizontal inset, matching the web screen padding.
   scroll: {
     paddingHorizontal: gap.xl,
   },
@@ -291,109 +511,205 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: gap.xl,
   },
-  // Header row — back · eyebrow · spacer, space-between.
   header: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  // The web back glyph is a 20px ← in muted ink.
   backGlyph: {
     fontSize: 20,
     lineHeight: 24,
   },
-  // Eyebrow — 12px uppercase, tracked (web tracking-[0.14em] ≈ 1.7 on a 12px label), muted.
   eyebrow: {
     fontSize: 12,
     letterSpacing: 1.7,
     textTransform: 'uppercase',
   },
-  // A 20px spacer mirroring the web `w-5` so the eyebrow stays optically centred opposite the glyph.
   headerSpacer: {
     width: 20,
   },
-  // mt-6 (24px) = gap.xl.
   titleBlock: {
     marginTop: gap.xl,
   },
-  // Fraunces italic kicker, 13px, muted (web font-display italic text-[13px]).
   kicker: {
     fontFamily: serif.displayItalic,
     fontSize: 13,
   },
-  // Fraunces hero headline, 28px, tight leading, mt-1 (web text-[28px] leading-tight mt-1).
   headline: {
     fontFamily: serif.display,
-    fontSize: 28,
-    letterSpacing: -0.3,
-    lineHeight: 32,
+    fontSize: 26,
+    letterSpacing: -0.2,
+    lineHeight: 30,
     marginTop: gap.xs,
   },
-  // The accent word stays UPRIGHT (web em.not-italic) — same Fraunces face, colour-only override.
   headlineAccent: {
     fontFamily: serif.display,
     fontStyle: 'normal',
   },
-  // mt-6 (24px) = gap.xl; items-center column; rounded-2xl; py-10 (40px) vertical.
-  heroCard: {
+  heroWrap: {
     alignItems: 'center',
-    borderRadius: radius.xxl,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginTop: gap.xl,
-    paddingVertical: gap.xxl + gap.sm,
+    marginTop: gap.xxl,
   },
-  // mt-5 (20px) ≈ gap.lg + gap.xs; Fraunces italic, 14px, centred, max-width ~240.
-  heroLine: {
+  restingWrap: {
+    alignItems: 'center',
+    height: 132,
+    justifyContent: 'center',
+  },
+  restingLine: {
     fontFamily: serif.displayItalic,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: gap.lg + gap.xs,
-    maxWidth: 240,
-    textAlign: 'center',
+    fontSize: 15,
+    fontStyle: 'italic',
   },
-  // mt-5 (20px) ≈ gap.lg + gap.xs; rows separated by gap.sm (web space-y-2 = 8px).
-  picker: {
-    gap: gap.sm,
-    marginTop: gap.lg + gap.xs,
+  lensLine: {
+    alignItems: 'center',
+    columnGap: gap.xs + gap.xxs,
+    flexDirection: 'row',
+    marginTop: gap.lg,
   },
-  // Each row — full width, rounded-xl, px-4 py-3, items-center, gap-3 (12px), hairline.
-  row: {
+  lensLineText: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  lockChip: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    paddingHorizontal: gap.xs + gap.xxs,
+    paddingVertical: 2,
+  },
+  lockChipLabel: {
+    fontSize: 9,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  section: {
+    marginTop: gap.xl,
+  },
+  ritualsSection: {
+    marginBottom: gap.xxl,
+  },
+  sectionHeaderRow: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: {
+    fontFamily: serif.displayItalic,
+    fontSize: 15,
+  },
+  sectionHint: {
+    fontSize: 10.5,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  plumageRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: gap.md,
+  },
+  plumageWord: {
+    fontFamily: serif.display,
+    fontSize: 19,
+    lineHeight: 22,
+    textTransform: 'capitalize',
+  },
+  plumageDots: {
+    columnGap: gap.xs + gap.xxs,
+    flexDirection: 'row',
+  },
+  plumageDot: {
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  meloLineWrap: {
+    marginTop: gap.lg,
+    paddingHorizontal: gap.xs + gap.xxs,
+  },
+  wardrobeList: {
+    marginTop: gap.md,
+    rowGap: gap.sm,
+  },
+  wardrobeRow: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    columnGap: gap.md,
+    flexDirection: 'row',
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm + gap.xxs,
+  },
+  wardrobeText: {
+    flex: 1,
+  },
+  wardrobeLabel: {
+    fontSize: 13,
+  },
+  wardrobeNote: {
+    fontFamily: serif.displayItalic,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  wardrobePlus: {
+    fontSize: 10,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  quietRow: {
     alignItems: 'center',
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     columnGap: gap.md,
     flexDirection: 'row',
     paddingHorizontal: gap.lg,
-    paddingVertical: gap.md,
+    paddingVertical: gap.lg,
   },
-  rowText: {
+  quietText: {
     flex: 1,
   },
-  // 13px medium, capitalized via textTransform (the data stays lowercase).
-  rowLabel: {
+  quietLabel: {
     fontSize: 13,
     fontWeight: '500',
-    textTransform: 'capitalize',
   },
-  // 11.5px Fraunces italic, muted — the band's quoted line.
-  rowLine: {
+  quietHint: {
     fontFamily: serif.displayItalic,
-    fontSize: 11.5,
-    lineHeight: 16,
-    marginTop: 1,
-  },
-  // The active-row selected indicator — a 12px terracotta dot (web ●).
-  rowDot: {
-    fontSize: 12,
-  },
-  // mt-5 mb-8 centred, 11px, muted.
-  footerHint: {
     fontSize: 11,
-    lineHeight: 16,
-    marginTop: gap.lg + gap.xs,
-    textAlign: 'center',
+    marginTop: 2,
   },
-  // The kit press feel applied to inline tappables (web `press` util — scale 0.97 / lowered opacity).
+  quietPill: {
+    borderRadius: radius.sm,
+    paddingHorizontal: gap.sm,
+    paddingVertical: 2,
+  },
+  quietPillLabel: {
+    fontSize: 10,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  ritualsGrid: {
+    columnGap: gap.sm,
+    flexDirection: 'row',
+    marginTop: gap.md,
+  },
+  ritualCard: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.md,
+  },
+  ritualLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  ritualHint: {
+    fontFamily: serif.displayItalic,
+    fontSize: 11,
+    marginTop: 2,
+  },
   pressed: {
     opacity: 0.6,
     transform: [{ scale: 0.97 }],

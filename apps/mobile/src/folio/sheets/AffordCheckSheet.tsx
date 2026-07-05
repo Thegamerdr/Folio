@@ -15,10 +15,11 @@
 //
 // Faithful 1:1 RN port of the web design source
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetAffordCheck.tsx).
-// Layout, copy, and verdict states are ported verbatim; the underlying compute engine is
-// RE-DERIVED against RN's actual money-path route engine rather than the web's unported
-// lens/mode-strategy `safeZoneMath` — see lib/affordCheck.ts's header comment for the full,
-// explicit deviation note (this is the single largest deviation in this sheet and is NOT silent).
+// Layout, copy, and verdict states are ported verbatim; the underlying compute engine now calls
+// the same `safeZoneMath(ModeInputs)` the web reads (ported verbatim at lib/modes/safeZone.ts),
+// so "Safe Zone now" on this sheet agrees byte-for-byte with the web and with Today's own
+// headline number (PARITY_GAPS.md Group 1 fix — previously re-derived from the route engine and
+// so could disagree with the Safe Zone total on other lens screens).
 //
 // STORE-SEAM DEVIATION (flagged per instructions): the web writes `addShelfItem` / `awardTinyWin`
 // on the shared app store. RN's `store.ts` has neither a `shelf` slot nor a tiny-wins slot, and
@@ -47,7 +48,9 @@ import {
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { useAppStore } from '@/folio/store';
 import { checkAfford, type AffordVerdict } from '@/folio/lib/affordCheck';
+import { safeZoneMath } from '@/folio/lib/modes/safeZone';
 import { addShelfItem } from '@/folio/lib/shelf';
 import { formatGBP } from '@/folio/screens/today/format';
 
@@ -147,16 +150,42 @@ function AffordCheckForm({
   const [amountRaw, setAmountRaw] = useState('');
   const amount = Math.max(0, parseFloat(amountRaw) || 0);
 
+  // Same ModeInputs shape TodayScreen/safeZoneMath consumers build — the route bridge supplies
+  // the tightest-point figure/date (the same "when" Today itself uses), and the rest of the
+  // snapshot comes straight off the store, exactly like the web's `inputs` useMemo.
   const route = useRoute(NOW);
-  const verdict = useMemo(
-    () =>
-      checkAfford(amount, {
-        tightestSpare: route.tightPoint.amount,
-        tightestDate: route.tightPoint.date,
-        daysToPayday: route.daysToPayday,
-      }),
-    [amount, route.tightPoint.amount, route.tightPoint.date, route.daysToPayday],
+  const onboarding = useAppStore((st) => st.onboarding);
+  const pots = useAppStore((st) => st.pots);
+  const subs = useAppStore((st) => st.subs);
+  const subPaused = useAppStore((st) => st.subPaused);
+  const currentBalance = useAppStore((st) => st.currentBalance);
+  const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
+
+  const modeInputs = useMemo(
+    () => ({
+      currentBalance,
+      onboarding,
+      pots,
+      subs,
+      subPaused,
+      tightestSpare: route.tightPoint.amount,
+      tightestDate: route.tightPoint.date,
+      ritualCompletedRecently: false,
+      bufferAmount,
+    }),
+    [
+      currentBalance,
+      onboarding,
+      pots,
+      subs,
+      subPaused,
+      route.tightPoint.amount,
+      route.tightPoint.date,
+      bufferAmount,
+    ],
   );
+  const zone = useMemo(() => safeZoneMath(modeInputs), [modeInputs]);
+  const verdict = useMemo(() => checkAfford(amount, modeInputs), [amount, modeInputs]);
 
   const canShelf =
     verdict.state === 'not-now' || verdict.state === 'tight' || verdict.state === 'safe-later';
@@ -208,7 +237,7 @@ function AffordCheckForm({
           <View style={s.verdictRow}>
             <View style={s.verdictCol}>
               <Text style={s.verdictLabel}>Safe Zone now</Text>
-              <Text style={s.verdictValue}>{formatGBP(route.tightPoint.amount)}</Text>
+              <Text style={s.verdictValue}>{formatGBP(zone.total)}</Text>
             </View>
             <View style={s.verdictCol}>
               <Text style={s.verdictLabel}>After this</Text>
