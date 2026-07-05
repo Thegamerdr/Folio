@@ -14,7 +14,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     policy: 'appVersion',
   },
   updates: {
-    enabled: false,
+    // OTA JS updates via EAS Update (enabled 2026-07-05). Non-blocking check on launch
+    // (fallbackToCacheTimeout 0): users never wait on the network, a fetched update applies on
+    // the NEXT launch. Locally-built APKs pin the 'production' channel via requestHeaders;
+    // EAS-built profiles get their channel from eas.json. Native/config changes still need a
+    // full rebuild — runtimeVersion (appVersion policy) fences incompatible updates.
+    enabled: true,
+    url: 'https://u.expo.dev/ef69039d-abaf-48e9-b35a-52d80b03a96a',
+    fallbackToCacheTimeout: 0,
+    requestHeaders: {
+      'expo-channel-name': 'production',
+    },
   },
   ios: {
     ...config.ios,
@@ -44,7 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-secure-store',
     'expo-iap',
-    './plugins/withUploadSigning',
+    './plugins/withUploadSigning.cjs',
     [
       // R8 code + resource shrinking for release builds (the 68MB sideload APK problem).
       // If a release build ever crashes on boot after a new native dep, suspect missing
@@ -123,6 +133,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // Cloudflare Worker secret (see services/ai-gateway) and never reaches the app/APK.
   extra: {
     ...config.extra,
+    eas: {
+      projectId: 'ef69039d-abaf-48e9-b35a-52d80b03a96a',
+    },
     // Prefer an env override (EAS env / .env), else the deployed gateway. These ship in the app by
     // design — the URL and the WEAK shared token only. The real OpenRouter key is a Cloudflare Worker
     // secret and never reaches the app. Embedding here (Constants.expoConfig.extra) is reliable across
