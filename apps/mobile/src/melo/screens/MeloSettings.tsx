@@ -17,9 +17,11 @@ import {
   useTheme,
 } from '@/surfaces/pressureMap/kit';
 
+import type { MoneyMode } from '@folio/melo-engine';
 import { MeloMascot } from '../mascot/MeloMascot';
-import { FORMS } from '../mascot/forms';
-import { WARDROBE } from '../mascot/wardrobe';
+import { FENICE_ACCESSORIES } from '../mascot/fenice';
+import { MoneyModeSelector } from '../components/MoneyModeSelector';
+import { AppIconPreview, WidgetPreviewCard } from '../components/BrandPreviews';
 import type { MeloBill, MeloSetup } from '../state/meloStore';
 import { BILL_PRESETS, billId, parsePoundsText } from '../state/presets';
 
@@ -35,9 +37,11 @@ type Props = {
   /** Trust infrastructure: wipe everything on this phone. Two-tap confirmed inline —
    *  the row arms on the first tap, fires on the second. Optional for demo callers. */
   onResetAll?: (() => void) | undefined;
+  /** The auto-resolved money mode (from the numbers) — shown inside the selector. */
+  autoMode: MoneyMode;
 };
 
-export function MeloSettings({ setup, onSave, onClose, onPaidToday, onResetAll }: Props) {
+export function MeloSettings({ setup, onSave, onClose, onPaidToday, onResetAll, autoMode }: Props) {
   const t = useTheme();
   const [paydayDay, setPaydayDay] = useState(setup.paydayDay);
   const [lastWorkingDay, setLastWorkingDay] = useState(setup.paydayLastWorkingDay);
@@ -54,7 +58,6 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday, onResetAll }
   const [bills, setBills] = useState<readonly MeloBill[]>(setup.bills);
   const [quietMode, setQuietMode] = useState(setup.quietMode);
   const [wardrobe, setWardrobe] = useState<string | null>(setup.wardrobe);
-  const [form, setForm] = useState<string | null>(setup.form);
   const [resetArmed, setResetArmed] = useState(false);
 
   const toggleBill = (preset: Omit<MeloBill, 'id'>) => {
@@ -83,7 +86,6 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday, onResetAll }
       bills,
       quietMode,
       wardrobe,
-      form,
     });
     onClose();
   };
@@ -237,33 +239,14 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday, onResetAll }
           </Surface>
         ) : null}
 
-        <Muted style={s.sectionTag}>MELO’S FORM — ONE MELO, FIVE LOOKS</Muted>
-        <View style={s.chipsWrap}>
-          {FORMS.map((f) => {
-            const selected = form === f.id;
-            return (
-              <Pressable
-                key={f.id ?? 'original'}
-                onPress={() => setForm(f.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                style={[
-                  s.chip,
-                  s.formChip,
-                  {
-                    borderColor: selected ? t.calm : t.hairline,
-                    backgroundColor: selected ? t.calmSoft : t.inset,
-                  },
-                ]}
-              >
-                <MeloMascot emotion="calm" colorway={setup.colorway} size={40} form={f.id} />
-                <Text style={[s.chipLabel, { color: t.ink }]}>{f.name}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <Muted style={s.sectionTag}>MONEY MODE</Muted>
+        <MoneyModeSelector
+          value={(setup.manualMode as MoneyMode | null) ?? null}
+          onChange={(m) => onSave({ manualMode: m })}
+          autoResolved={autoMode}
+        />
 
-        <Muted style={s.sectionTag}>MELO’S WARDROBE — ALL FREE</Muted>
+        <Muted style={s.sectionTag}>MELO — ACCESSORIES</Muted>
         <View style={s.chipsWrap}>
           <Pressable
             onPress={() => setWardrobe(null)}
@@ -277,18 +260,20 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday, onResetAll }
           >
             <Text style={[s.chipLabel, { color: t.ink }]}>nothing on</Text>
           </Pressable>
-          {WARDROBE.map((item) => (
+          {FENICE_ACCESSORIES.map((item) => (
             <Pressable
               key={item.id}
               onPress={() => setWardrobe(item.id)}
               style={[
                 s.chip,
+                s.formChip,
                 {
                   borderColor: wardrobe === item.id ? t.calm : t.hairline,
                   backgroundColor: wardrobe === item.id ? t.calmSoft : t.inset,
                 },
               ]}
             >
+              <MeloMascot emotion="calm" colorway={setup.colorway} size={40} wardrobe={item.id} />
               <Text style={[s.chipLabel, { color: t.ink }]}>{item.name}</Text>
             </Pressable>
           ))}
@@ -316,6 +301,10 @@ export function MeloSettings({ setup, onSave, onClose, onPaidToday, onResetAll }
             </Surface>
           </>
         ) : null}
+
+        <Muted style={s.sectionTag}>COMING WITH THE NATIVE BUILD</Muted>
+        <WidgetPreviewCard />
+        <AppIconPreview />
 
         <Muted style={s.sectionTag}>QUIET MODE</Muted>
         <Surface style={s.list} tone="sunken">

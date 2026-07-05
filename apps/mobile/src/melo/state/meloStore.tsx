@@ -61,6 +61,8 @@ export interface MeloSetup {
   /** Irregular income (§13 risk 8): when true, incomePence is the LOW month the user
    *  plans on — honest floor, not an average. */
   readonly incomeVaries: boolean;
+  /** Manual money-mode override (Fenice pass) — null = auto-resolved from the numbers. */
+  readonly manualMode: string | null;
 }
 
 export interface MeloJourney {
@@ -104,7 +106,13 @@ export interface MeloState {
   readonly lastCycleClosedISO: string | null;
   /** Yesterday's picture, snapshotted at most once per day — the honest end-of-cycle
    *  reading (post-payday balances would bias every closed cycle positive). */
-  readonly lastSeen: { readonly szPence: number; readonly atISO: string } | null;
+  readonly lastSeen: {
+    readonly szPence: number;
+    readonly atISO: string;
+    /** Fuller snapshot for the what-changed diff (optional — old blobs lack them). */
+    readonly balancePence?: number;
+    readonly dangerDaysAway?: number | null;
+  } | null;
   /** Last day the app was opened — absence detection for the welcome-back state. */
   readonly lastOpenedISO: string | null;
   /** Day recovery ended (journey left 'recovery') — feeds rebuilding copy. */
@@ -135,6 +143,7 @@ const DEFAULT_SETUP: MeloSetup = {
   form: null,
   comfortablePerDayPence: 800,
   incomeVaries: false,
+  manualMode: null,
 };
 
 const DEFAULT_STATE: MeloState = {
@@ -190,7 +199,11 @@ export interface MeloStoreApi {
   readonly markPaidToday: (todayISO: string) => void;
   readonly markReviewSeen: (todayISO: string) => void;
   /** Once per app-open: absence tracking + daily end-of-day picture snapshot. */
-  readonly markOpened: (todayISO: string, szPence: number) => void;
+  readonly markOpened: (
+    todayISO: string,
+    szPence: number,
+    extra?: { balancePence: number; dangerDaysAway: number | null },
+  ) => void;
   /** Record a closed payday cycle (rollover detected by the surface). */
   readonly closeCycle: (record: {
     endedISO: string;
@@ -401,7 +414,7 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
         })),
       markPaidToday: (todayISO) => update((prev) => ({ ...prev, manualPaydayISO: todayISO })),
       markReviewSeen: (todayISO) => update((prev) => ({ ...prev, lastReviewISO: todayISO })),
-      markOpened: (todayISO, szPence) =>
+      markOpened: (todayISO, szPence, extra) =>
         update((prev) => {
           const openedChanged = prev.lastOpenedISO !== todayISO;
           const seenStale = prev.lastSeen?.atISO !== todayISO;
@@ -410,7 +423,7 @@ export function MeloStoreProvider({ children }: { children: ReactNode }) {
             ...prev,
             lastOpenedISO: todayISO,
             // Snapshot once per day: tomorrow this becomes "yesterday's honest picture".
-            lastSeen: seenStale ? { szPence, atISO: todayISO } : prev.lastSeen,
+            lastSeen: seenStale ? { szPence, atISO: todayISO, ...(extra ?? {}) } : prev.lastSeen,
           };
         }),
       closeCycle: (record) =>

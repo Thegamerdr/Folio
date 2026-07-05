@@ -75,6 +75,7 @@ export function MeloOnboarding({ onComplete, onSkipToDemo }: Props) {
       form: null,
       comfortablePerDayPence: 800,
       incomeVaries,
+      manualMode: null,
     }),
     [
       colorway,

@@ -107,3 +107,32 @@ export { assessUnsafe, type UnsafeInputs, type UnsafeOption, type UnsafeState } 
 export { buildChatContext, type ChatContextInputs } from './chatContext.js';
 
 export { assessAffordImpact, type AffordImpact, type AffordImpactInputs } from './affordImpact.js';
+
+export {
+  diffChanges,
+  type WhatChangedItem,
+  type WhatChangedSnapshot,
+  type WhatChangedContext,
+} from './whatChanged.js';
+
+export {
+  pickNextBestAction,
+  type NextBestAction,
+  type NextBestActionId,
+  type NextBestActionInputs,
+} from './nextBestAction.js';
+
+export {
+  buildCalendarRows,
+  type CalendarRow,
+  type CalendarRowKind,
+  type CalendarBill,
+  type CalendarRowsInputs,
+} from './calendarRows.js';
+
+export {
+  resolveMoneyMode,
+  MODE_LABELS,
+  type MoneyMode,
+  type MoneyModeInputs,
+} from './moneyMode.js';

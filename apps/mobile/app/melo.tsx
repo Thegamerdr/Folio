@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/surfaces/pressureMap/kit';
+import { AppShell } from '@/melo/shell/AppShell';
 import { MeloGlance } from '@/melo/screens/MeloGlance';
 import { MeloOnboarding } from '@/melo/screens/MeloOnboarding';
 import { MeloStoreProvider, useMeloStore } from '@/melo/state/meloStore';
@@ -38,11 +39,18 @@ function MeloRoute() {
           onComplete={store.completeOnboarding}
           onSkipToDemo={() => setPeeking(true)}
         />
-      ) : (
+      ) : peeking ? (
+        // Demo peek stays shell-less (single glance with sample data).
         <MeloGlance
-          onSetUp={peeking ? () => setPeeking(false) : undefined}
-          // Melo must never be a room without a door (owner: it read as a takeover). Folio
-          // stays the front door until the cutover is decided — this is the way back to it.
+          onSetUp={() => setPeeking(false)}
+          onExitToFolio={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace('/');
+          }}
+        />
+      ) : (
+        // Fenice pass: the full app — tabs (Today / Calendar / Melo / Settings).
+        <AppShell
           onExitToFolio={() => {
             if (router.canGoBack()) router.back();
             else router.replace('/');

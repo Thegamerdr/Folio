@@ -49,6 +49,11 @@ import { BillsShield } from './BillsShield';
 import { MeloReview } from './MeloReview';
 import { MeloImport } from './MeloImport';
 import { MeloChat } from './MeloChat';
+import { Transactions } from './Transactions';
+import { GrowthDebt } from './GrowthDebt';
+import { Premium } from './Premium';
+import { WhatChangedCard } from '../components/WhatChangedCard';
+import { MODE_LABELS } from '@folio/melo-engine';
 
 const SKY_HEIGHT = 200;
 
@@ -114,6 +119,9 @@ export function MeloGlance({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [growthOpen, setGrowthOpen] = useState(false);
+  const [premiumOpen, setPremiumOpen] = useState(false);
   const [balanceEdit, setBalanceEdit] = useState(false);
   const [balanceText, setBalanceText] = useState('');
   const [spendEdit, setSpendEdit] = useState(false);
@@ -198,7 +206,10 @@ export function MeloGlance({
   // Absence tracking + the once-a-day end-of-day snapshot (tomorrow's honest "yesterday").
   useEffect(() => {
     if (mode !== 'live' || !liveDerived) return;
-    store.markOpened(liveDerived.today, liveDerived.safeZone.safeZonePence);
+    store.markOpened(liveDerived.today, liveDerived.safeZone.safeZonePence, {
+      balancePence: store.state.setup.balancePence,
+      dangerDaysAway: liveDerived.dangerDayOffset,
+    });
   }, [mode, liveDerived, store]);
 
   // Cycle rollover: first open of a new cycle closes the previous one, using the LAST
@@ -442,6 +453,9 @@ export function MeloGlance({
     setShieldOpen(false);
     setReviewOpen(false);
     setImportOpen(false);
+    setActivityOpen(false);
+    setGrowthOpen(false);
+    setPremiumOpen(false);
   };
 
   const saveSpend = () => {
@@ -570,6 +584,7 @@ export function MeloGlance({
               }
             : undefined
         }
+        autoMode={liveDerived ? liveDerived.moneyMode : 'stability'}
         onResetAll={() => {
           // Reset drops onboarded=false → the route lands back on onboarding.
           store.resetAll();
@@ -619,6 +634,18 @@ export function MeloGlance({
       daysToPayday: liveDerived.safeZone.daysToPayday,
     });
     return <MeloReview review={review} onClose={() => setReviewOpen(false)} />;
+  }
+
+  if (activityOpen && mode === 'live') {
+    return <Transactions onClose={() => setActivityOpen(false)} />;
+  }
+
+  if (growthOpen && mode === 'live') {
+    return <GrowthDebt onClose={() => setGrowthOpen(false)} />;
+  }
+
+  if (premiumOpen && mode === 'live') {
+    return <Premium onClose={() => setPremiumOpen(false)} />;
   }
 
   if (importOpen && mode === 'live' && liveDerived) {
@@ -860,6 +887,17 @@ export function MeloGlance({
           />
         </Pressable>
 
+        {/* current money mode + what changed since yesterday (honest diff, empty = silent) */}
+        {mode === 'live' && liveDerived ? (
+          <View style={s.changedWrap}>
+            <Muted style={s.modeLine}>
+              {MODE_LABELS[liveDerived.moneyMode].name}
+              {store.state.setup.manualMode ? '' : ' · read from your numbers'}
+            </Muted>
+            <WhatChangedCard items={[...liveDerived.whatChanged]} />
+          </View>
+        ) : null}
+
         {/* the ONE action card */}
         {model.action ? (
           <Surface style={s.card}>
@@ -1016,6 +1054,15 @@ export function MeloGlance({
                 <Muted style={s.updateLinkText}>log a spend</Muted>
               </Pressable>
             ) : null}
+            <Pressable onPress={() => setActivityOpen(true)}>
+              <Muted style={s.updateLinkText}>activity</Muted>
+            </Pressable>
+            <Pressable onPress={() => setGrowthOpen(true)}>
+              <Muted style={s.updateLinkText}>growth &amp; debt</Muted>
+            </Pressable>
+            <Pressable onPress={() => setPremiumOpen(true)}>
+              <Muted style={s.updateLinkText}>premium</Muted>
+            </Pressable>
             <Pressable onPress={openReview}>
               <Muted style={s.updateLinkText}>this week</Muted>
             </Pressable>
@@ -1268,6 +1315,8 @@ const s = StyleSheet.create({
   updateLinkText: { fontSize: 12, textDecorationLine: 'underline' },
   importLink: { fontSize: 12, textDecorationLine: 'underline', marginTop: 10 },
   signpostLine: { marginHorizontal: 26, marginTop: 8, fontSize: 12.5, lineHeight: 18 },
+  changedWrap: { marginHorizontal: 26, marginTop: 6, gap: 8 },
+  modeLine: { fontSize: 11.5, letterSpacing: 0.4 },
   devWrap: { position: 'absolute', right: 14, bottom: 14, alignItems: 'flex-end', gap: 8 },
   devMenu: {
     borderRadius: 14,

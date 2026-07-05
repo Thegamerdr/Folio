@@ -11,7 +11,7 @@ import type { MascotFamily } from '@folio/melo-engine';
 
 import { MELO_COLORWAYS, type MeloColorway } from '../theme/weather';
 import { WARDROBE, WardrobeLayer, type WardrobeId } from './wardrobe';
-import { FORM_RIGS, asFormId } from './forms';
+import { FENICE_ACCESSORIES, FeniceAccessory, feniceRig, type FeniceAccessoryId } from './fenice';
 
 const INK = '#3A342C';
 const UMBRELLA = '#5A646E';
@@ -73,9 +73,15 @@ export function MeloMascot({
   form = null,
 }: Props) {
   const c = MELO_COLORWAYS[colorway];
-  const worn = asWardrobeId(wardrobe);
-  const formId = asFormId(form);
-  const rig = formId ? FORM_RIGS[formId] : null;
+  // Fenice pass (locked brand): ONE phoenix identity — the form roster is retired. The
+  // `form` prop is kept for call-site compatibility but every Melo renders the fenice rig.
+  void form;
+  const rig = feniceRig;
+  const feniceWorn = FENICE_ACCESSORIES.some((a) => a.id === wardrobe)
+    ? (wardrobe as FeniceAccessoryId)
+    : null;
+  // Legacy persisted wardrobe ids (knitwear era) still render via the old layer.
+  const worn = feniceWorn ? null : asWardrobeId(wardrobe);
   const reduceMotion = useReduceMotion();
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -124,31 +130,8 @@ export function MeloMascot({
           </RadialGradient>
         </Defs>
 
-        {rig ? (
-          // A chosen form: same soul, different body (full 7-emotion rig from forms/).
-          <rig.Render emotion={emotion} c={c} glow={glow} glowId={glowId} />
-        ) : (
-          <>
-            {/* tail */}
-            <Path d="M86 94 q16 8 24 -2 q-9 -1 -15 -9" fill={c.shade} />
-            {/* body */}
-            <Path
-              d="M60 20 C42 20 28 38 28 66 C28 94 42 106 60 106 C78 106 92 94 92 66 C92 38 78 20 60 20 Z"
-              fill={c.body}
-            />
-            {/* crest */}
-            <G translateY={crestDip}>
-              <Circle cx={46} cy={24} r={5} fill={c.crest} />
-              <Circle cx={60} cy={18.5} r={6} fill={c.crest} />
-              <Circle cx={74} cy={24} r={5} fill={c.crest} />
-            </G>
-            {/* belly + glow */}
-            <Ellipse cx={60} cy={81} rx={20} ry={15.5} fill={c.belly} opacity={0.95} />
-            <Ellipse cx={60} cy={81} rx={16} ry={12} fill={`url(#${glowId})`} opacity={glow} />
-
-            <Face emotion={emotion} bodyFill={c.body} />
-          </>
-        )}
+        <rig.Render emotion={emotion} c={c} glow={glow} glowId={glowId} />
+        {feniceWorn ? <FeniceAccessory id={feniceWorn} /> : null}
         {worn ? <WardrobeLayer id={worn} /> : null}
       </Svg>
     </Animated.View>

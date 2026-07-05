@@ -6,9 +6,12 @@
 import {
   addDays,
   assessUnsafe,
+  computeRawLadder,
   computeSafeZone,
   daysBetween,
   deriveCycleState,
+  diffChanges,
+  resolveMoneyMode,
   formatPounds,
   observedRunRatePence,
   projectDangerDate,
@@ -18,9 +21,11 @@ import {
   type Bill,
   type CopyContext,
   type ISODate,
+  type MoneyMode,
   type SafeZoneResult,
   type StateInputs,
   type UnsafeState,
+  type WhatChangedItem,
 } from '@folio/melo-engine';
 
 import type { RunwayBill } from '../components/RunwayStrip';
@@ -125,6 +130,10 @@ export interface LiveDerived {
   /** Structural-shortfall assessment (audit: the engine existed but nothing called it —
    *  the honest "this cycle doesn't fit" flow and free debt signposting were dead code). */
   readonly unsafe: UnsafeState;
+  /** Fenice pass: the resolved money mode (manual override wins, else read from the numbers). */
+  readonly moneyMode: MoneyMode;
+  /** Honest diff vs yesterday's snapshot — [] when nothing real moved. */
+  readonly whatChanged: readonly WhatChangedItem[];
 }
 
 /** Weekend paydays pay the Friday before (UK convention). If the shift lands the payday in the
@@ -312,6 +321,33 @@ export function deriveLive(state: MeloState, now: Date = new Date()): LiveDerive
     newMilestoneIds: cycleDerived.newMilestoneIds,
     milestoneLines: cycleDerived.milestoneLines,
     savingsThisCyclePence: savingsThisCycle,
+    moneyMode: resolveMoneyMode({
+      ladder: computeRawLadder(inputs),
+      journey: journey.record?.journey ?? 'none',
+      billsCovered,
+      savingsThisCyclePence: savingsThisCycle,
+      cyclesEndedPositive: cycleDerived.cyclesEndedPositive,
+      incomeVaries: setup.incomeVaries,
+      quietMode: setup.quietMode,
+      hasDebtBills: setup.bills.some((b) => b.kind === 'debt'),
+      manualMode: (setup.manualMode as MoneyMode | null) ?? null,
+    }),
+    whatChanged:
+      state.lastSeen && state.lastSeen.atISO !== today
+        ? diffChanges(
+            {
+              balancePence: state.lastSeen.balancePence ?? setup.balancePence,
+              dangerDaysAway: state.lastSeen.dangerDaysAway ?? null,
+              safeZonePence: state.lastSeen.szPence,
+            },
+            {
+              balancePence: setup.balancePence,
+              dangerDaysAway: danger ? danger.daysAway : null,
+              safeZonePence: safeZone.safeZonePence,
+            },
+            { runRatePence: observed, billLandedName: null },
+          )
+        : [],
     unsafe: assessUnsafe({
       todayISO: today,
       payday,
