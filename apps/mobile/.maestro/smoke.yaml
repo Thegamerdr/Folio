@@ -22,6 +22,11 @@ appId: com.folio.v2.greenfield
 - tapOn: "Review"
 - tapOn: "Melo"
 - tapOn: "More"
-- assertVisible: "Start fresh"
-- assertVisible: "Reminders"
+- assertVisible: "The quiet hub"
+- scrollUntilVisible:
+    element: "Reminders"
+    direction: DOWN
+- scrollUntilVisible:
+    element: "Start fresh"
+    direction: DOWN
 - tapOn: "Today"

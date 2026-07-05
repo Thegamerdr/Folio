@@ -10,7 +10,7 @@
 const { withAppBuildGradle, withGradleProperties } = require('expo/config-plugins');
 
 const RELEASE_SIGNING = `        release {
-            if (project.hasProperty('FOLIO_UPLOAD_STORE_FILE')) {
+            if (project.hasProperty('FOLIO_UPLOAD_STORE_FILE') && project.property('FOLIO_UPLOAD_STORE_FILE')) {
                 storeFile file(FOLIO_UPLOAD_STORE_FILE)
                 storePassword FOLIO_UPLOAD_STORE_PASSWORD
                 keyAlias FOLIO_UPLOAD_KEY_ALIAS
