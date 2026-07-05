@@ -1,4 +1,4 @@
-// @rn-engine store-migration — wire @folio/storage + op-sqlite persistence later (see BUILD_PLAN §3)
+﻿// @rn-engine store-migration — wire @folio/storage + op-sqlite persistence later (see BUILD_PLAN §3)
 //
 // Folio data spine — RN port of the web design store
 // (folio-melo/src/lib/store.ts), faithful 1:1.
@@ -66,6 +66,92 @@ export type Sub = {
   /** Free trial ends in N days. The single highest-regret category — every
    *  surface that mentions this sub should flag it. Undefined = no trial. */
   trialEndsInDays?: number;
+};
+
+/** A single outstanding debt line — loan, credit card, BNPL, or "other".
+ *  Purely local; ports the Lovable design's Debt lens data shape 1:1
+ *  (folio-melo `src/lib/store.ts` `Debt`). APR is annual %, min payment is
+ *  monthly £, `dueDom` is day-of-month the payment falls. Balance is
+ *  decremented by future debt-payment logging (not yet wired here). */
+export type Debt = {
+  id: string;
+  name: string;
+  kind: 'loan' | 'card' | 'bnpl' | 'other';
+  /** Current outstanding £. Never negative. */
+  balance: number;
+  /** Annual %. 0-100. Set to 0 for interest-free BNPL. */
+  apr: number;
+  /** Monthly minimum payment £. */
+  minPayment: number;
+  /** Day of month the payment lands. 1-31. */
+  dueDom: number;
+  /** ISO date the debt was added — used only for sorting stability. */
+  addedAt: string;
+};
+
+/** Household lens state — the shared-bills ledger. Ports the Lovable design's
+ *  `Household` shape 1:1 (folio-melo `src/lib/store.ts`). Honest-minimal:
+ *    - `partnerName` — who the user shares with (blank = not set yet)
+ *    - `defaultShare` — user's share of any bill they haven't explicitly
+ *      allocated (0..1). Default 0.5 = even split.
+ *    - `subShareOverrides` — per-sub overrides keyed by `Sub.name`. Value
+ *      is the user's share of that bill, 0..1. Absent = fall back to
+ *      `defaultShare`. */
+export type Household = {
+  partnerName: string;
+  defaultShare: number;
+  subShareOverrides: Record<string, number>;
+};
+
+/** A single big-ticket target the user is saving toward — the Planning
+ *  lens's first-class object. Ports the Lovable design's `Plan` shape 1:1
+ *  (folio-melo `src/lib/store.ts`). Distinct from `Pot`: a Plan has a
+ *  *deadline* (`byDate`) and the strategy compares required-per-week
+ *  against current cadence to say "on pace" or "short". */
+export type Plan = {
+  id: string;
+  name: string;
+  /** £ target. Never negative. */
+  target: number;
+  /** £ already put aside toward the plan. Never negative. */
+  saved: number;
+  /** ISO YYYY-MM-DD — the "by" date. */
+  byDate: string;
+  /** Current weekly contribution cadence £/wk. 0 = not started. */
+  perWeek: number;
+  /** ISO timestamp added. Used only for sort stability. */
+  addedAt: string;
+};
+
+/** The user's declared Money Mode / Lens (see `lib/modes/types.ts`).
+ *  Every existing install migrates to `'survival'` so behaviour is
+ *  byte-identical to the shipped default. */
+export type MoneyMode =
+  | 'survival'
+  | 'stability'
+  | 'growth'
+  | 'debt'
+  | 'irregular'
+  | 'household'
+  | 'planning'
+  | 'optimizer'
+  | 'reset'
+  | 'lowVis';
+
+/** Lens / Plus-Pro entitlement state. Ports the Lovable design's `lens`
+ *  slice 1:1 (folio-melo `src/lib/store.ts`). `plusUnlocked` = paid Plus;
+ *  `proUnlocked` = paid Pro (implies Plus — see `setLensProUnlocked`).
+ *  `trialCycleId` marks the cycle the user activated a one-cycle free
+ *  trial in (unlocks every paid lens together); cleared at cycle close.
+ *  `trialEndedCycleId` captures the just-closed trial cycle so Today can
+ *  surface a soft "trial ended" prompt exactly once; `trialEndAcknowledged`
+ *  flips true after the user taps the prompt or dismisses it. */
+export type LensState = {
+  plusUnlocked: boolean;
+  proUnlocked: boolean;
+  trialCycleId: string | null;
+  trialEndedCycleId: string | null;
+  trialEndAcknowledged: boolean;
 };
 
 const DEFAULT_SUBS: Sub[] = [
@@ -228,12 +314,77 @@ export type AppState = {
    *  predating this field (mirrors `edits?` above); `DEFAULTS`/`load()`/
    *  `resetToEmpty()` always populate it ([]). */
   ignoredReviewSigs?: string[];
+  /** The user's declared Money Mode / Lens (`lib/modes/types.ts`). Every
+   *  existing install migrates to `'survival'` so behaviour is
+   *  byte-identical to the shipped default. Onboarding sets this on first
+   *  run (not yet wired — defaults hold until the onboarding flow is built).
+   *  Optional for shape back-compat with hand-built `AppState` fixtures
+   *  predating this field; `DEFAULTS`/`load()` always populate it. */
+  moneyMode?: MoneyMode;
+  /** User-declared safety buffer (£). Stability + several other lenses read
+   *  this; £100 default per the Lovable design's MONEY_MODES.md § 2.2.
+   *  Optional for shape back-compat; `DEFAULTS`/`load()` always populate it. */
+  bufferAmount?: number;
+  /** User-declared outstanding debts. Read by the Debt lens strategy +
+   *  amortisation engine (`lib/modes/debtEngine.ts`) to produce payoff
+   *  month, weighted APR, and next-due callouts. Empty when the user has
+   *  no debts declared. Optional for shape back-compat. */
+  debts?: Debt[];
+  /** Household lens state — shared-bills ledger. Read by the Household
+   *  strategy to compute the user's share of upcoming bills honestly.
+   *  Optional for shape back-compat. */
+  household?: Household;
+  /** User-declared big-ticket plans. Read by the Planning lens strategy +
+   *  plan engine (`lib/modes/planEngine.ts`) to produce pace, weeks-
+   *  available, required-per-week. Empty when the user hasn't declared any.
+   *  Optional for shape back-compat. */
+  plans?: Plan[];
+  /** Lens / Plus-Pro entitlement state (`lib/lens.ts`). See `LensState`.
+   *  Optional for shape back-compat; `DEFAULTS`/`load()` always populate it. */
+  lens?: LensState;
 };
-
+/** Persistence key prefix, used only for the parked-future-blob slot name
+ *  below (`${KEY}.future.${v}`) — mirrors the web original's localStorage
+ *  key. Pre-existing reference that had no backing declaration; added here
+ *  rather than left dangling, since it sits in a file this round already owns. */
 const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
+
+/** Non-optional fallback for `AppState.moneyMode` — same widening issue as
+ *  `DEFAULT_LENS` below (the field is optional on `AppState` for shape
+ *  back-compat, so `DEFAULTS.moneyMode` reads as `MoneyMode | undefined`). */
+const DEFAULT_MONEY_MODE: MoneyMode = 'survival';
+
+/** Non-optional fallback for `AppState.bufferAmount` — same widening issue. */
+const DEFAULT_BUFFER_AMOUNT = 100;
+
+/** Non-optional fallback for `AppState.debts` — same widening issue. Empty,
+ *  not the DEFAULTS seed data, since this is used by `load()`/`migrate()`
+ *  for a genuinely-missing slot on an existing install, not a fresh install
+ *  (a fresh install goes through `DEFAULTS` directly, which does carry the
+ *  seed debts). */
+const DEFAULT_DEBTS: Debt[] = [];
+
+/** Non-optional fallback for `AppState.plans` — see `DEFAULT_DEBTS`. */
+const DEFAULT_PLANS: Plan[] = [];
+
+/** Non-optional fallback for `AppState.lens` — `DEFAULTS.lens` widens to
+ *  `LensState | undefined` through the `AppState` annotation (the field is
+ *  optional for shape back-compat), so callers that need a guaranteed
+ *  `LensState` read this constant instead. */
+const DEFAULT_LENS: LensState = {
+  plusUnlocked: false,
+  proUnlocked: false,
+  trialCycleId: null,
+  trialEndedCycleId: null,
+  trialEndAcknowledged: true,
+};
+
+/** Non-optional fallback for `AppState.household` — see `DEFAULT_LENS` for
+ *  why `DEFAULTS.household` can't be used directly here. */
+const DEFAULT_HOUSEHOLD: Household = { partnerName: '', defaultShare: 0.5, subShareOverrides: {} };
 
 const SAMPLE_BALANCE: CurrentBalance = {
   amount: 720,
@@ -301,6 +452,56 @@ const DEFAULTS: AppState = {
   routeFocusDate: null,
   readerCandidates: [],
   ignoredReviewSigs: [],
+  moneyMode: 'survival',
+  bufferAmount: 100,
+  // Two seed debts so the Debt lens has honest numbers on first run, mirroring
+  // the Lovable design's DEFAULTS. Klarna is interest-free; the loan is a
+  // mid-APR personal loan. Balances are rough — the user replaces via a
+  // future SheetAddDebt (not yet wired on RN).
+  debts: [
+    {
+      id: 'seed-loan',
+      name: 'Personal loan',
+      kind: 'loan',
+      balance: 2400,
+      apr: 12.9,
+      minPayment: 120,
+      dueDom: 5,
+      addedAt: '2026-03-01T00:00:00.000Z',
+    },
+    {
+      id: 'seed-klarna',
+      name: 'Klarna sofa',
+      kind: 'bnpl',
+      balance: 320,
+      apr: 0,
+      minPayment: 80,
+      dueDom: 15,
+      addedAt: '2026-05-01T00:00:00.000Z',
+    },
+  ],
+  household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
+  // One seed plan so the Planning lens has an honest number on first run,
+  // mirroring the Lovable design's DEFAULTS. Illustrative — the user
+  // replaces via a future SheetAddPlan (not yet wired on RN).
+  plans: [
+    {
+      id: 'seed-macbook',
+      name: 'New MacBook',
+      target: 1600,
+      saved: 240,
+      byDate: '2026-12-15',
+      perWeek: 40,
+      addedAt: '2026-06-01T00:00:00.000Z',
+    },
+  ],
+  lens: {
+    plusUnlocked: false,
+    proUnlocked: false,
+    trialCycleId: null,
+    trialEndedCycleId: null,
+    trialEndAcknowledged: true,
+  },
 };
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
@@ -385,6 +586,27 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
       edits: prior.edits ?? [],
     };
   },
+  // v3 → v4: introduce the lens/mode-engine slots ported from the Lovable
+  // design (moneyMode, bufferAmount, debts, household, plans, lens). Every
+  // pre-v4 install migrates to the shipped-default Survival lens with no
+  // paid entitlement, so behaviour is byte-identical until the user opts
+  // into a different lens. Debts/plans default to the same honest seed data
+  // DEFAULTS uses (not the user's own — this is a migration of a state
+  // *shape*, not user data, so falling back to the documented seed is
+  // consistent with a fresh-install experience for a slot that didn't exist).
+  4: (prev) => {
+    const prior = prev as Partial<AppState>;
+    return {
+      ...prev,
+      schemaVersion: 4,
+      moneyMode: prior.moneyMode ?? 'survival',
+      bufferAmount: prior.bufferAmount ?? 100,
+      debts: prior.debts ?? DEFAULTS.debts,
+      household: prior.household ?? DEFAULT_HOUSEHOLD,
+      plans: prior.plans ?? DEFAULTS.plans,
+      lens: prior.lens ?? DEFAULT_LENS,
+    };
+  },
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -453,6 +675,12 @@ function load(): AppState {
       // excluded from getPersistBlob), so a load always starts it empty.
       readerCandidates: [],
       ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
+      moneyMode: migrated.moneyMode ?? DEFAULT_MONEY_MODE,
+      bufferAmount: migrated.bufferAmount ?? DEFAULT_BUFFER_AMOUNT,
+      debts: migrated.debts ?? DEFAULT_DEBTS,
+      household: migrated.household ?? DEFAULT_HOUSEHOLD,
+      plans: migrated.plans ?? DEFAULT_PLANS,
+      lens: migrated.lens ?? DEFAULT_LENS,
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
@@ -641,6 +869,148 @@ export function setTightPointGoal(amount: number | null) {
   setPartial({ tightPointGoal: amount });
 }
 
+/* ---------- Lens / Money Mode engine (ports folio-melo `lib/store.ts` 1:1) ---------- */
+
+/** The user's declared Money Mode / Lens. See `lib/modes/types.ts`. */
+export function setMoneyMode(mode: MoneyMode) {
+  setPartial({ moneyMode: mode });
+}
+
+/** User-declared safety buffer for Stability + other buffer-aware lenses. */
+export function setBufferAmount(amount: number) {
+  setPartial({ bufferAmount: Math.max(0, Math.round(amount)) });
+}
+
+/** Plus-tier entitlement setter. */
+export function setLensPlusUnlocked(unlocked: boolean) {
+  const lens: LensState = state.lens ?? DEFAULT_LENS;
+  setPartial({ lens: { ...lens, plusUnlocked: unlocked } });
+}
+
+/** Pro-tier entitlement setter. Pro implies Plus — flipping `proUnlocked` on
+ *  also lifts `plusUnlocked` so downstream `canAccess(plusLens)` stays true. */
+export function setLensProUnlocked(unlocked: boolean) {
+  const lens: LensState = state.lens ?? DEFAULT_LENS;
+  setPartial({
+    lens: {
+      ...lens,
+      proUnlocked: unlocked,
+      plusUnlocked: unlocked ? true : lens.plusUnlocked,
+    },
+  });
+}
+
+/** Start a one-cycle free trial that unlocks every paid lens together.
+ *  `cycleId` is the anchor date (see `lib/lens.ts` `useLens().startTrial`). */
+export function startLensTrial(cycleId: string) {
+  const lens: LensState = state.lens ?? DEFAULT_LENS;
+  setPartial({
+    lens: {
+      ...lens,
+      trialCycleId: cycleId,
+      // A fresh trial supersedes any lingering ack state from the last one.
+      trialEndedCycleId: null,
+      trialEndAcknowledged: true,
+    },
+  });
+}
+
+/** End the active trial (called by the Payday Ritual at cycle close). */
+export function endLensTrial() {
+  const lens: LensState = state.lens ?? DEFAULT_LENS;
+  setPartial({ lens: { ...lens, trialCycleId: null } });
+}
+
+/** User has seen the "trial ended" prompt on Today — don't show it again. */
+export function acknowledgeTrialEnd() {
+  const lens: LensState = state.lens ?? DEFAULT_LENS;
+  setPartial({ lens: { ...lens, trialEndAcknowledged: true } });
+}
+
+/* ---------- Debts (Debt lens) ---------- */
+
+export function addDebt(d: Omit<Debt, 'id' | 'addedAt'> & { id?: string; addedAt?: string }): Debt {
+  const full: Debt = {
+    id: d.id ?? `debt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: d.name,
+    kind: d.kind,
+    balance: Math.max(0, d.balance),
+    apr: d.apr,
+    minPayment: d.minPayment,
+    dueDom: d.dueDom,
+    addedAt: d.addedAt ?? new Date().toISOString(),
+  };
+  setPartial({ debts: [...(state.debts ?? []), full] });
+  return full;
+}
+
+export function removeDebt(id: string) {
+  setPartial({ debts: (state.debts ?? []).filter((d) => d.id !== id) });
+}
+
+/** Log a payment against a debt — decrements the balance, never below £0. */
+export function logDebtPayment(id: string, amount: number) {
+  if (!(amount > 0)) return;
+  setPartial({
+    debts: (state.debts ?? []).map((d) =>
+      d.id === id ? { ...d, balance: Math.max(0, d.balance - amount) } : d,
+    ),
+  });
+}
+
+/* ---------- Plans (Planning lens) ---------- */
+
+export function addPlan(p: Omit<Plan, 'id' | 'addedAt'> & { id?: string; addedAt?: string }): Plan {
+  const full: Plan = {
+    id: p.id ?? `plan-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: p.name,
+    target: Math.max(0, p.target),
+    saved: Math.max(0, p.saved),
+    byDate: p.byDate,
+    perWeek: Math.max(0, p.perWeek),
+    addedAt: p.addedAt ?? new Date().toISOString(),
+  };
+  setPartial({ plans: [...(state.plans ?? []), full] });
+  return full;
+}
+
+export function removePlan(id: string) {
+  setPartial({ plans: (state.plans ?? []).filter((p) => p.id !== id) });
+}
+
+export function addToPlan(id: string, amount: number) {
+  if (!(amount > 0)) return;
+  setPartial({
+    plans: (state.plans ?? []).map((p) => (p.id === id ? { ...p, saved: p.saved + amount } : p)),
+  });
+}
+
+/* ---------- Household (Household lens) ---------- */
+
+export function setHousehold(patch: Partial<Household>) {
+  const household = state.household ?? DEFAULT_HOUSEHOLD;
+  setPartial({ household: { ...household, ...patch } });
+}
+
+export function setSubShareOverride(subName: string, share: number) {
+  const household = state.household ?? DEFAULT_HOUSEHOLD;
+  setPartial({
+    household: {
+      ...household,
+      subShareOverrides: {
+        ...household.subShareOverrides,
+        [subName]: Math.max(0, Math.min(1, share)),
+      },
+    },
+  });
+}
+
+export function removeSubShareOverride(subName: string) {
+  const household = state.household ?? DEFAULT_HOUSEHOLD;
+  const { [subName]: _gone, ...rest } = household.subShareOverrides;
+  setPartial({ household: { ...household, subShareOverrides: rest } });
+}
+
 export function addTransaction(
   t: Omit<Transaction, 'id' | 'when'> & { id?: string; when?: string },
 ): Transaction {
@@ -818,6 +1188,18 @@ export function resetToEmpty() {
     routeFocusDate: null,
     readerCandidates: [],
     ignoredReviewSigs: [],
+    moneyMode: 'survival',
+    bufferAmount: 100,
+    debts: [],
+    household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
+    plans: [],
+    lens: {
+      plusUnlocked: false,
+      proUnlocked: false,
+      trialCycleId: null,
+      trialEndedCycleId: null,
+      trialEndAcknowledged: true,
+    },
   };
   state = empty;
   persist();

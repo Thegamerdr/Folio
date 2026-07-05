@@ -29,6 +29,8 @@ import { Sheet } from '@/surfaces/pressureMap/Sheet';
 
 import { StartScreen } from '@/folio/screens/StartScreen';
 import { TodayScreen } from '@/folio/screens/TodayScreen';
+import { TodayModeScreen } from '@/folio/screens/TodayModeScreen';
+import { TodayStabilityScreen } from '@/folio/screens/TodayStabilityScreen';
 import { IntakeScreen } from '@/folio/screens/IntakeScreen';
 import { AddEntryScreen } from '@/folio/screens/AddEntryScreen';
 import { VisualizerScreen } from '@/folio/screens/VisualizerScreen';
@@ -67,6 +69,15 @@ import { SheetDayDetail } from '@/folio/sheets/SheetDayDetail';
 import { RouteDetailSheet } from '@/folio/sheets/RouteDetailSheet';
 import { MeloChatSheet } from '@/folio/sheets/MeloChatSheet';
 import { ShareSheet } from '@/folio/sheets/ShareSheet';
+import { AffordCheckSheet } from '@/folio/sheets/AffordCheckSheet';
+import { ShelfSheet } from '@/folio/sheets/ShelfSheet';
+import { HiddenReviewSheet } from '@/folio/sheets/HiddenReviewSheet';
+import { LogInvoiceSheet } from '@/folio/sheets/LogInvoiceSheet';
+import { LensPickerSheet } from '@/folio/sheets/LensPickerSheet';
+import { SafeZoneSheet } from '@/folio/sheets/SafeZoneSheet';
+import { AddPlanSheet } from '@/folio/sheets/AddPlanSheet';
+import { LogPaymentSheet } from '@/folio/sheets/LogPaymentSheet';
+import { HouseholdSetupSheet } from '@/folio/sheets/HouseholdSetupSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
@@ -379,6 +390,17 @@ export function FolioShell() {
       {sheet === 'add-event' && <AddEventSheet visible onClose={closeSheet} />}
       {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
       {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
+      {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
+      {sheet === 'afford-check' && <AffordCheckSheet visible onClose={closeSheet} />}
+      {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
+      {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
+      {sheet === 'add-plan' && <AddPlanSheet visible onClose={closeSheet} />}
+      {sheet === 'log-payment' && <LogPaymentSheet visible onClose={closeSheet} />}
+      {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
+      {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
+          sibling hosts like RouteDetailSheet/MeloChatSheet rather than through the generic host. */}
+      {sheet === 'lens-picker' && <LensPickerSheet visible onClose={closeSheet} nav={nav} />}
+      {sheet === 'safe-zone' && <SafeZoneSheet visible onClose={closeSheet} nav={nav} />}
       {/* Route-detail — the money-path point sheet. Owns its own kit Sheet, so it is a sibling host;
           it needs the shell's nav (its CTA bridges to the Calendar) and the shell's pressure default
           (the "Left after this" figure + Melo mood, threaded the same way as the screens). The tapped
@@ -442,7 +464,30 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'melo-chat',
   'share',
   'day-detail',
+  'log-invoice',
+  'afford-check',
+  'shelf',
+  'hidden-review',
+  'add-plan',
+  'log-payment',
+  'household-setup',
+  'lens-picker',
+  'safe-zone',
 ]);
+
+// ---------------------------------------------------------------------------
+// Today mode dispatch — the single `today` ScreenId fans out to one of three screens by the active
+// Money Mode (Lens), mirroring the web's HeroPhone `effectiveMode` switch: Survival keeps its own
+// money-path hero (TodayScreen), Stability gets its calm Safe Zone shell (TodayStabilityScreen), and
+// the other eight parked lenses share one per-lens hero shell (TodayModeScreen).
+// ---------------------------------------------------------------------------
+
+function TodayByMode({ nav, pressure }: { nav: Nav; pressure: Pressure }) {
+  const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  if (moneyMode === 'survival') return <TodayScreen nav={nav} pressure={pressure} />;
+  if (moneyMode === 'stability') return <TodayStabilityScreen nav={nav} />;
+  return <TodayModeScreen nav={nav} />;
+}
 
 // ---------------------------------------------------------------------------
 // Screen host — the real ported screens for the wired ScreenIds, and a calm PressureScreen
@@ -453,7 +498,14 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
 function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pressure: Pressure }) {
   // Wave 1 — the real ported screens.
   if (screen === 'start') return <StartScreen nav={nav} />;
-  if (screen === 'today') return <TodayScreen nav={nav} pressure={pressure} />;
+  // Today dispatches on the active Money Mode (Lens) — faithful to the web's HeroPhone
+  // `effectiveMode` switch (ScreenToday for survival, ScreenTodayStability for stability,
+  // ScreenTodayMode's shared per-lens hero shell for the other eight). `today-mode` /
+  // `today-stability` exist in the ScreenId union for parity but are not separately navigated to —
+  // the single `today` screen is the one entry point, exactly like the web's single route.
+  if (screen === 'today') return <TodayByMode nav={nav} pressure={pressure} />;
+  if (screen === 'today-mode') return <TodayModeScreen nav={nav} />;
+  if (screen === 'today-stability') return <TodayStabilityScreen nav={nav} />;
 
   // Wave 2 — the intake / reader-state / review surfaces.
   if (screen === 'intake') return <IntakeScreen nav={nav} />;

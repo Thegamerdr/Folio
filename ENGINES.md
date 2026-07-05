@@ -419,3 +419,41 @@ apps/mobile/tsconfig.json` exit 0, folio vitest 325/325, and an independent 7-bl
 > engine ships first, the surface wiring follows. Top-level `pnpm` verification is also unblocked: the
 > `pnpm-workspace.yaml` `allowBuilds` placeholder (sharp/workerd) was filled, so `pnpm install` no
 > longer aborts with ERR_PNPM_IGNORED_BUILDS.
+
+> **Progress (2026-07-05) — Lens / Money Modes engine ported 1:1.** The Lovable design's entire
+> lens/modes engine layer (`folio-melo/.claude/worktrees/design-main/src/lib/modes/**` +
+> `src/lib/lens/**`) is now ported verbatim onto the shipping `apps/mobile/src/folio/` surface at
+> `lib/modes/**` (types, registry, 10 strategies incl. `debtEngine.ts`/`planEngine.ts`/`safeZone.ts`,
+> plus the copy-table modules `action.ts`/`framing.ts`/`openers.ts`/`retrospect.ts`/`starters.ts`/
+> `suggest.ts`/`surfacePrefs.ts`/`toolPrefs.ts`/`emptyVoice.ts`) and `lib/lens.ts` +
+> `lib/lensPaywall.ts` (the pricing/gating engine, split into two files since the source's
+> `lens/index.ts` + `lens/paywall.ts` pair would otherwise collide a file and a directory of the same
+> name on the RN side). `store.ts` gained the additive `moneyMode`, `bufferAmount`, `debts[]`,
+> `household`, `plans[]`, and `lens` (Plus/Pro entitlement + trial) slots plus their setters
+> (`setMoneyMode`, `setBufferAmount`, `setLensPlusUnlocked`, `setLensProUnlocked`, `startLensTrial`,
+> `endLensTrial`, `acknowledgeTrialEnd`, debt/plan/household CRUD) — schema bumped to v4 with a v3→v4
+> migration. Every existing pre-v4 install migrates to the shipped-default Survival lens with no paid
+> entitlement, so behaviour stays byte-identical until a user opts into a different lens.
+>
+> Platform adaptations (the only intentional deviations from the source): (1) `lib/modes/types.ts`
+> declares a local `MeloWeather` union — RN's canonical `Melo.tsx` only exports `MeloMood`/`MeloPose`,
+> and no native surface wires the source's sunny/cloudy/rainy/storm/rainbow/night/alarm/fog weather
+> vocabulary yet, so every strategy can still port its weather logic verbatim without inventing a
+> different union or blocking on UI that doesn't exist. (2) `lib/lens.ts`'s `nextPaydayDate` is a
+> thin adapter over RN's existing `lib/payday.ts` `resolvePayday()` engine instead of duplicating the
+> source's web-only `nextPayday(Date, dayOfMonth)` date math — reuses the payday-clamp/weekend engine
+> RN already owns rather than a second implementation.
+>
+> Reuse note: `packages/melo-engine` (a separate, pre-existing pence-based engine with different mode
+> names — e.g. `lowVisibility` vs `lowVis` — and different formulas) was evaluated but NOT reused,
+> since none of its functions are identical to the Lovable design's; importing from it would have
+> silently changed behaviour rather than porting it. `apps/mobile/src/folio/lib/useMeloOpener.ts`
+> (pre-existing) is the first live consumer — it already imported `pickOpener` from
+> `@/folio/lib/modes` in anticipation of this port, so `lib/modes/index.ts` re-exports the full
+> mode-engine fleet (not just the registry) to satisfy that existing wiring.
+>
+> STILL OPEN (tracked, NOT this round's scope): wiring the mode engine into Today/Pots/Subs/Calendar/
+> Cycle-Close screens (this round ported the engine layer only, per the task's explicit scope); a
+> lens-picker/paywall UI; onboarding writing `moneyMode` on first run; the RN-only Melo engines
+> (`meloProgress`/`meloReactions`/`meloNeglect`/`meloCosmetics`) that PORT_BIBLE.md flags as separate,
+> unbuilt work.
