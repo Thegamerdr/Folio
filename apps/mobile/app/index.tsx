@@ -18,6 +18,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useTheme } from '@/surfaces/pressureMap/kit';
 import { FolioShell } from '@/folio/shell/FolioShell';
 import { importMeloBlobIfPresent, loadPersisted, startPersisting } from '@/folio/lib/persist';
+import { startNotificationScheduler } from '@/folio/lib/notifyScheduler';
+import { ensureAndroidChannel } from '@/folio/lib/notifications';
+import { startWidgetSync } from '@/folio/widget/widgetSnapshotWriter';
 
 export default function FolioRoute() {
   const t = useTheme();
@@ -28,6 +31,8 @@ export default function FolioRoute() {
 
   useEffect(() => {
     let stop: (() => void) | undefined;
+    let stopNotifications: (() => void) | undefined;
+    let stopWidgetSync: (() => void) | undefined;
     let cancelled = false;
     void (async () => {
       await loadPersisted(); // read blob off disk → hydrate store (no-op on first run).
@@ -39,11 +44,23 @@ export default function FolioRoute() {
       await importMeloBlobIfPresent();
       if (cancelled) return;
       stop = startPersisting(); // begin debounced write-on-change.
+      // Reminders: create the Android channel once, then start the reschedule loop (reads real
+      // hydrated state — see notifyScheduler.ts). A denied/undetermined permission makes every
+      // schedule call a graceful no-op, so this is safe to start unconditionally.
+      await ensureAndroidChannel();
+      if (cancelled) return;
+      stopNotifications = startNotificationScheduler();
+      // Keep the SafeZoneWidget snapshot (widget/widgetSnapshotStore.ts) and any widget already on
+      // a home screen in sync with the store, debounced. Android-only under the hood
+      // (react-native-android-widget no-ops on iOS), so this is safe to start unconditionally.
+      stopWidgetSync = startWidgetSync();
       setReady(true);
     })();
     return () => {
       cancelled = true;
       stop?.();
+      stopNotifications?.();
+      stopWidgetSync?.();
     };
   }, []);
 

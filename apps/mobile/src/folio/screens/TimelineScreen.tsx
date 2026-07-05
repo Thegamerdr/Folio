@@ -5,10 +5,11 @@
 // @rn-stack     More > Timeline
 // @purpose      Reverse-chronological log of what you added or left. A read-with-light-touch surface:
 //               newest first, nothing hidden, every row carries a tappable category chip.
-// @reads        transactions  (the web doc block also @reads `cycles`; the web body read NEITHER and
-//               rendered a hardcoded 8-item demo array. Per the spec fidelityRisks — "Port the
-//               CONTRACT, not the demo stub. Do not ship the 8 fake rows." — this port reads the REAL
-//               store `transactions`, newest-first, and derives the calm projection below.)
+// @reads        transactions, edits, timelineEvents  (the web doc block also @reads `cycles`; the web
+//               body read NEITHER and rendered a hardcoded 8-item demo array. Per the spec
+//               fidelityRisks — "Port the CONTRACT, not the demo stub. Do not ship the 8 fake rows." —
+//               this port reads the REAL store slices, merges them via `lib/timelineEvents.ts`
+//               `buildTimelineRows`, and derives the calm projection below, newest first.)
 // @writes       — none directly. A row tap OPENS the edit-txn sheet for that transaction; the write
 //               (a non-destructive correction) happens in the store's editTransaction, called by the
 //               sheet's Save — not from this screen.
@@ -49,10 +50,13 @@
 //   • Eyebrow + when labels: uppercase + tracking 0.14em at 12px / 10.5px → letterSpacing in px
 //     (1.68 / 1.47), per the spec (RN letterSpacing is px, not em).
 //   • Real-data projection (the engine the web demo stubbed): each row's `when` / `verb` / `note` /
-//     category chip is derived from the REAL Transaction. `verb` derives from the transaction lifecycle
-//     (manual/seed → "Added", melo-logged → "Edited") — the richer Paused / Ignored / Left-for-later
-//     verbs come from sub-pause + Review-decision events the engine does not yet emit, so they are
-//     tagged `// @rn-engine timeline-verbs` and simply do not appear until that projection lands.
+//     category chip is derived from the REAL store. `verb` derives from `buildTimelineRows`
+//     (`lib/timelineEvents.ts`) — a transaction with a matching entry in `edits` reads "Edited",
+//     everything else "Added"; a `timelineEvents` log entry (`// @rn-engine timeline-verbs`, store.ts)
+//     supplies the richer Paused / Resumed / Left-for-later ("review-ignored") rows, written by
+//     `togglePaused` and `addIgnoredReviewSig`. "Ignored" (the web's 5th verb, an unrecognised bank
+//     line) has no writer yet on RN — Folio has no bank feed to ignore a row FROM — so it is reachable
+//     in the type but never emitted; it will appear once a feed exists to ignore from.
 //   • Category chip: the web cycled a COMPONENT-LOCAL category that reset on unmount — a real bug the
 //     spec says NOT to replicate. The chip here reflects the PERSISTED transaction.category as a
 //     read-only label (no cycler). The ROW is the edit affordance — it opens the edit-txn sheet for
@@ -81,6 +85,7 @@ import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { useAppStore, type Transaction } from '@/folio/store';
+import { buildTimelineRows, type TimelineRow, type TimelineVerb } from '@/folio/lib/timelineEvents';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -106,30 +111,19 @@ const RAIL_X = 7; // web rail left offset
 const DOT_X = 3; // web dot left offset
 
 // ---------------------------------------------------------------------------
-// The calm projection — a Transaction → timeline row
+// The calm projection — TimelineRow (lib/timelineEvents.ts) → display row
 // ---------------------------------------------------------------------------
 
-// The verbs the web showed, in the web's exact wording. Only "Added" / "Edited" are derivable from the
-// current Transaction shape; the rest are `// @rn-engine timeline-verbs` (sub-pause + Review-decision
-// events the engine does not yet emit). The tone of each marker dot is keyed by verb.
-type Verb = 'Added' | 'Left for later' | 'Ignored' | 'Edited' | 'Paused';
-
-type TimelineRow = {
-  id: string;
-  when: string;
-  verb: Verb;
-  what: string;
-  note?: string | undefined;
-  category?: string | undefined;
-};
-
 // Verb → marker-dot colour. Mirrors the web verbTone map (--positive / --muted-ink / --accent /
-// --caution) onto the kit palette.
-function verbTone(verb: Verb, t: Palette): string {
+// --caution) onto the kit palette. "Resumed" (a new verb this engine introduces — see
+// lib/timelineEvents.ts) reads the same calm tone as "Edited": both are a considered adjustment, not
+// a fresh add or a caution state.
+function verbTone(verb: TimelineVerb, t: Palette): string {
   switch (verb) {
     case 'Added':
       return t.positive;
     case 'Edited':
+    case 'Resumed':
       return t.calm; // web --accent
     case 'Paused':
       return t.caution;
@@ -173,31 +167,53 @@ function relativeWhen(iso: string, now: Date): string {
   return then.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-// The calm money + cadence note. Income reads "+ £x", spend reads "£x". The category word is appended
-// the way the web demo did ("£42 · groceries") — lower-cased, calm, no banned vocabulary.
-function noteFor(txn: Transaction): string | undefined {
+// The calm money + cadence note for a transaction row. Income reads "+ £x", spend reads "£x". The
+// category word is appended the way the web demo did ("£42 · groceries") — lower-cased, calm, no
+// banned vocabulary. Non-transaction rows (sub pause/resume, review-ignore) carry their own note from
+// the timeline event and never pass through this — see `noteForRow`.
+function noteForTransaction(txn: Transaction): string | undefined {
   const amount = Math.abs(txn.amount);
   if (!(amount > 0)) return undefined;
   const money = `£${amount.toLocaleString('en-GB', { maximumFractionDigits: 2 })}`;
   const word = CATEGORY_LABEL[txn.category]?.toLowerCase();
-  if (txn.amount > 0) return word ? `${money} · ${word}` : money;
   return word ? `${money} · ${word}` : money;
 }
 
-// Transaction → row. `verb`: a Melo-logged spend reads "Edited" (you nudged it), everything else reads
-// "Added". `// @rn-engine timeline-verbs` — the Paused / Ignored / Left-for-later verbs need the
-// sub-pause + Review-decision feed that is not built yet, so they never appear until it lands.
-function toRow(txn: Transaction, now: Date): TimelineRow {
-  const verb: Verb = txn.source === 'melo' ? 'Edited' : 'Added';
-  return {
-    id: txn.id,
-    when: relativeWhen(txn.when, now),
-    verb,
-    what: txn.merchant,
-    note: noteFor(txn),
-    category: CATEGORY_LABEL[txn.category],
-  };
+// A quick lookup so the display layer can recover the full Transaction (for its note + category)
+// behind a merged TimelineRow — buildTimelineRows only carries the calm subset, keeping the merge
+// engine itself free of RN-specific formatting concerns.
+function noteForRow(
+  row: TimelineRow,
+  txnById: ReadonlyMap<string, Transaction>,
+): string | undefined {
+  const txn = txnById.get(row.id);
+  if (txn) return noteForTransaction(txn);
+  return row.note;
 }
+
+function categoryForRow(
+  row: TimelineRow,
+  txnById: ReadonlyMap<string, Transaction>,
+): string | undefined {
+  const txn = txnById.get(row.id);
+  return txn ? CATEGORY_LABEL[txn.category] : undefined;
+}
+
+// Display row — the merged TimelineRow (lib/timelineEvents.ts) plus the formatted `when` label. Kept
+// separate from the pure engine's row shape so formatting (relativeWhen, note/category lookups) stays
+// a display concern. `editable` is true only for a real Transaction row — a verb-state row (sub
+// paused/resumed, review-ignored) has no transaction behind its id, so tapping it must NOT open
+// edit-txn (that sheet expects a real transaction id; opening it with a non-transaction id would hit
+// its cold-open fallback and read as broken, not just inert).
+type DisplayRow = {
+  id: string;
+  when: string;
+  verb: TimelineVerb;
+  what: string;
+  note: string | undefined;
+  category: string | undefined;
+  editable: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Reduced motion (final state) — read once, then subscribe. Mirrors Melo.tsx / Insights exactly.
@@ -239,15 +255,31 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
   const reduceMotion = useReduceMotion();
   const s = useMemo(() => makeStyles(t), [t]);
 
-  // The REAL store feed — newest first (the store keeps `transactions` newest-first, capped at 200).
+  // The REAL store feeds — newest first (the store keeps `transactions`/`timelineEvents` newest-first,
+  // both capped at 200). `edits` classifies a transaction as "Edited"; `timelineEvents` is the
+  // `// @rn-engine timeline-verbs` log for sub-pause/resume + review-ignore moments.
   const transactions = useAppStore((st) => st.transactions);
+  const edits = useAppStore((st) => st.edits ?? []);
+  const events = useAppStore((st) => st.timelineEvents ?? []);
 
   // Project once per change. `now` is captured per render so the relative whens stay live without a
   // ticking timer (this is a read projection, not a clock).
   const rows = useMemo(() => {
     const now = new Date();
-    return transactions.map((txn) => toRow(txn, now));
-  }, [transactions]);
+    const txnById = new Map(transactions.map((txn) => [txn.id, txn] as const));
+    const merged = buildTimelineRows({ transactions, edits, events });
+    return merged.map(
+      (row): DisplayRow => ({
+        id: row.id,
+        when: relativeWhen(row.at, now),
+        verb: row.verb,
+        what: row.what,
+        note: noteForRow(row, txnById),
+        category: categoryForRow(row, txnById),
+        editable: txnById.has(row.id),
+      }),
+    );
+  }, [transactions, edits, events]);
 
   // error → "falls back": this screen invents no error UI; on failure it routes back to More.
   const fallsBack = state === 'error';
@@ -395,7 +427,7 @@ function TimelineRowView({
   isLast,
   nav,
 }: {
-  row: TimelineRow;
+  row: DisplayRow;
   styles: Styles;
   palette: Palette;
   isLast: boolean;
@@ -404,14 +436,42 @@ function TimelineRowView({
   const tone = verbTone(row.verb, palette);
   const hasCategory = !!row.category;
   const chipLabel = row.category ?? 'Add a label';
+  // The category chip only makes sense for a real transaction row — a verb-state row (sub
+  // paused/resumed, review-ignored) has no category to reflect, so it shows no chip at all rather
+  // than a permanently-empty "Add a label" pill with nothing behind it to add a label TO.
+  const showChip = row.editable;
 
   // Tappable row — opens the edit sheet for THIS transaction: nav.openSheet('edit-txn', { id }). The
   // shell threads the id into <EditTxnSheet target={id}>, so Save corrects this exact row via the
   // store's editTransaction (replace-in-place + one immutable correction record, ENGINES §6 D4). The
   // row is one button; a screen reader announces the entry and that it opens for correction.
-  const a11yLabel = `${row.verb} ${row.what}${row.note !== undefined ? `, ${row.note}` : ''}, ${
-    hasCategory ? row.category : 'uncategorised'
+  //
+  // A verb-state row (`!row.editable` — sub paused/resumed, review-ignored) has no transaction behind
+  // it, so it renders as a plain (non-Pressable) log line: nothing to correct, same as the web's
+  // read-only body for those entries.
+  const a11yLabel = `${row.verb} ${row.what}${row.note !== undefined ? `, ${row.note}` : ''}${
+    showChip ? `, ${hasCategory ? row.category : 'uncategorised'}` : ''
   }, ${row.when}`;
+
+  if (!row.editable) {
+    return (
+      <View
+        style={[styles.row, isLast ? undefined : styles.rowGap]}
+        accessible
+        accessibilityLabel={a11yLabel}
+      >
+        <RowMarker tone={tone} styles={styles} palette={palette} />
+        <RowBody
+          row={row}
+          styles={styles}
+          palette={palette}
+          hasCategory={hasCategory}
+          chipLabel={chipLabel}
+          showChip={showChip}
+        />
+      </View>
+    );
+  }
 
   return (
     <Pressable
@@ -425,28 +485,66 @@ function TimelineRowView({
         pressed ? styles.pressed : undefined,
       ]}
     >
-      {/* Marker node — a verb-toned dot inside a canvas (paper) halo, so the rail reads behind it. */}
-      <View style={styles.markerSlot} pointerEvents="none">
-        <View style={[styles.halo, { backgroundColor: palette.canvas }]}>
-          <View style={[styles.dot, { backgroundColor: tone }]} />
-        </View>
+      <RowMarker tone={tone} styles={styles} palette={palette} />
+      <RowBody
+        row={row}
+        styles={styles}
+        palette={palette}
+        hasCategory={hasCategory}
+        chipLabel={chipLabel}
+        showChip={showChip}
+      />
+    </Pressable>
+  );
+}
+
+// Marker node — a verb-toned dot inside a canvas (paper) halo, so the rail reads behind it. Shared by
+// both the editable (Pressable) and non-editable (plain View) row shells.
+function RowMarker({ tone, styles, palette }: { tone: string; styles: Styles; palette: Palette }) {
+  return (
+    <View style={styles.markerSlot} pointerEvents="none">
+      <View style={[styles.halo, { backgroundColor: palette.canvas }]}>
+        <View style={[styles.dot, { backgroundColor: tone }]} />
       </View>
+    </View>
+  );
+}
 
-      {/* Row body — a read-only log line (the web body is not interactive). */}
-      <View style={styles.rowBody}>
-        <Text style={[styles.when, { color: palette.muted }]}>{row.when}</Text>
-        <Text style={styles.whatLine}>
-          <Text style={[styles.verb, { color: palette.muted }]}>{`${row.verb} `}</Text>
-          <Text style={[styles.what, { color: palette.ink }]}>{row.what}</Text>
-        </Text>
-        {row.note !== undefined ? (
-          <Text style={[styles.note, { color: palette.muted }]}>{row.note}</Text>
-        ) : null}
+// Row body — a read-only log line (the web body is not interactive). Shared by both row shells.
+function RowBody({
+  row,
+  styles,
+  palette,
+  hasCategory,
+  chipLabel,
+  showChip,
+}: {
+  row: DisplayRow;
+  styles: Styles;
+  palette: Palette;
+  hasCategory: boolean;
+  chipLabel: string;
+  showChip: boolean;
+}) {
+  return (
+    <View style={styles.rowBody}>
+      <Text style={[styles.when, { color: palette.muted }]}>{row.when}</Text>
+      <Text style={styles.whatLine}>
+        <Text style={[styles.verb, { color: palette.muted }]}>{`${row.verb} `}</Text>
+        <Text style={[styles.what, { color: palette.ink }]}>{row.what}</Text>
+      </Text>
+      {row.note !== undefined ? (
+        <Text style={[styles.note, { color: palette.muted }]}>{row.note}</Text>
+      ) : null}
 
-        {/* Category chip — a read-only label reflecting the persisted category (the web cycler was a
-            local-state bug not replicated). Tapping the ROW opens the edit sheet (the Note is editable
-            there); the chip itself stays a label — `// @rn-engine category-edit` marks where an
-            in-place re-categorise would write once EditTxnSheet makes the category row editable. */}
+      {/* Category chip — a read-only label reflecting the persisted category (the web cycler was a
+          local-state bug not replicated). Tapping the ROW opens the edit sheet (the Note is editable
+          there); the chip itself stays a label — `// @rn-engine category-edit` marks where an
+          in-place re-categorise would write once EditTxnSheet makes the category row editable. Only a
+          real transaction row shows this chip (`showChip`) — a verb-state row (sub paused/resumed,
+          review-ignored) has no category to reflect, so it shows nothing rather than a permanently
+          empty "Add a label" pill. */}
+      {showChip ? (
         <View
           style={[styles.chip, { backgroundColor: palette.surface, borderColor: palette.hairline }]}
         >
@@ -458,8 +556,8 @@ function TimelineRowView({
           />
           <Text style={[styles.chipText, { color: palette.muted }]}>{chipLabel}</Text>
         </View>
-      </View>
-    </Pressable>
+      ) : null}
+    </View>
   );
 }
 

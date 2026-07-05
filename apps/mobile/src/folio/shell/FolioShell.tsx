@@ -81,6 +81,7 @@ import { AddDebtSheet } from '@/folio/sheets/AddDebtSheet';
 import { LogPaymentSheet } from '@/folio/sheets/LogPaymentSheet';
 import { HouseholdSetupSheet } from '@/folio/sheets/HouseholdSetupSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
+import { ToastHost } from '@/folio/ui/Toast';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { derivePressure } from '@/folio/screens/today/pressure';
@@ -453,6 +454,10 @@ export function FolioShell() {
           date={dayDetailDate ?? todayIsoForDayDetail()}
         />
       )}
+      {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
+          ported). Mounted once at the top-level overlay, alongside the undo snackbar it never
+          disturbs. */}
+      <ToastHost />
     </UndoProvider>
   );
 }

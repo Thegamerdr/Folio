@@ -51,7 +51,7 @@ const phoenixConcern = require('./assets/phoenix-concern.png');
 // Public API
 // ---------------------------------------------------------------------------
 
-export type MeloMood = 'calm' | 'curious' | 'cheer' | 'concern' | 'celebrate';
+export type MeloMood = 'calm' | 'curious' | 'cheer' | 'concern' | 'celebrate' | 'protect' | 'think';
 
 export type MeloPose =
   | 'none' // default, just Melo
@@ -71,9 +71,10 @@ export type MeloProps = {
 };
 
 // ---------------------------------------------------------------------------
-// Mood specs — mirrored 1:1 from the web kit's MOOD map (PhoenixMood), restricted to the 5 moods
-// Melo.tsx's public API exposes. curious/think and cheer/celebrate share the web's own pose
-// choices (curious -> think sprite; cheer -> hero sprite) exactly as the source MOOD table does.
+// Mood specs — mirrored 1:1 from the web kit's MOOD map (PhoenixMood), full 7-mood set.
+// curious shares the think sprite and cheer shares the hero sprite exactly as the source
+// MOOD table does; float/halo timing names map to amplitude/duration pairs (base 3/3200,
+// fast 3/2400, slow 2/4000) and emberSpeed seconds convert to ms.
 // ---------------------------------------------------------------------------
 
 type MoodSpec = Readonly<{
@@ -137,6 +138,26 @@ const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
     embers: 5,
     emberSpeedMs: 3200,
     src: phoenixCelebrate,
+  },
+  protect: {
+    tilt: 0,
+    scale: 1.02,
+    floatAmplitude: 3,
+    floatDurationMs: 3200,
+    glow: 0.6,
+    embers: 3,
+    emberSpeedMs: 5600,
+    src: phoenixProtect,
+  },
+  think: {
+    tilt: -6,
+    scale: 1.0,
+    floatAmplitude: 2,
+    floatDurationMs: 4000,
+    glow: 0.34,
+    embers: 2,
+    emberSpeedMs: 7200,
+    src: phoenixThink,
   },
 };
 

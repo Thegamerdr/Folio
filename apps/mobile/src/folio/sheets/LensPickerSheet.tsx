@@ -156,7 +156,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
                     </View>
                   </View>
                   <Text style={s.rowLine} numberOfLines={1}>
-                    &ldquo;{ONE_LINE[m]}&rdquo;
+                    "{ONE_LINE[m]}"
                   </Text>
                 </View>
                 {isActive ? <View style={s.activeDot} /> : <Text style={s.chevron}>→</Text>}

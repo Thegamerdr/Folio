@@ -67,6 +67,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useAuth, useUser } from '@clerk/clerk-expo';
 
 import { Surface, Hairline, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
@@ -74,6 +75,8 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
+import { isClerkConfigured } from '@/folio/lib/clerkAuth';
+import { SignInSheet } from '@/folio/sheets/SignInSheet';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy. Populated-only per the SPEC convention (offline is
@@ -132,6 +135,13 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const cyclesCount = useAppStore((s) => s.cycles.length);
   const onboarding = useAppStore((s) => s.onboarding);
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
+
+  // Sign-in is entirely optional (see clerkAuth.ts). Evaluated once per render, not via a hook, so
+  // this branch stays safe whether or not a ClerkProvider ancestor exists — Clerk's own hooks only
+  // ever run inside ClerkSignInRow, which only mounts when this is true (and therefore only when
+  // the root layout actually wrapped the tree in ClerkProvider).
+  const clerkConfigured = isClerkConfigured();
+  const [signInVisible, setSignInVisible] = useState(false);
 
   // Tier — the real lens engine. Renders Pro / Plus / trial / Free, matching the web exactly.
   const { plusUnlocked, proUnlocked, trialCycleId, trialDaysLeft } = useLens();
@@ -425,7 +435,11 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             onPress={handleExport}
           />
           <Hairline />
-          <AccountRow label="Sign in" hint="save across devices — coming soon" muted />
+          {clerkConfigured ? (
+            <ClerkSignInRow onPressSignIn={() => setSignInVisible(true)} />
+          ) : (
+            <AccountRow label="Sign in" hint="save across devices — coming soon" muted />
+          )}
         </Surface>
 
         <Surface style={[styles.card, styles.wipeCard, { borderColor: t.hairline }]}>
@@ -445,8 +459,37 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           Folio · designed on web, shipping on mobile
         </Text>
       </ScrollView>
+      {clerkConfigured ? (
+        <SignInSheet visible={signInVisible} onClose={() => setSignInVisible(false)} />
+      ) : null}
     </Animated.View>
   );
+}
+
+// Rendered ONLY when isClerkConfigured() is true (see AccountScreen body above), so a real
+// ClerkProvider ancestor is guaranteed here and these hooks never run unprovided. Shows the
+// signed-in email + sign-out once a session exists; otherwise the tappable "Sign in" row.
+function ClerkSignInRow({ onPressSignIn }: { onPressSignIn: () => void }) {
+  const { isSignedIn, user } = useUser();
+  const { signOut } = useAuth();
+
+  if (isSignedIn) {
+    const email = user?.primaryEmailAddress?.emailAddress ?? 'Signed in';
+    return (
+      <AccountRow
+        label="Sign out"
+        hint={email}
+        onPress={() =>
+          Alert.alert('Sign out?', "You'll still keep everything on this device.", [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
+          ])
+        }
+      />
+    );
+  }
+
+  return <AccountRow label="Sign in" hint="save across devices" onPress={onPressSignIn} />;
 }
 
 function Stat({ n, label }: { n: number; label: string }) {

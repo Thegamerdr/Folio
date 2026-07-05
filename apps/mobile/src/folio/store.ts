@@ -239,6 +239,27 @@ export type Transaction = {
   source: 'manual' | 'melo' | 'seed';
 };
 
+/** @rn-engine timeline-verbs — the missing event log the web's ScreenTimeline demo stubbed with 8
+ *  hardcoded rows. This is the REAL engine: an append-only log of the verb-state moments the web
+ *  Timeline shows (subscription paused/resumed, a Review candidate ignored). "Added"/"Edited" rows
+ *  don't need a log entry — they are derived straight from `transactions`/`edits` by the row builder
+ *  (`lib/timelineEvents.ts`), so this log carries only the events that have NO other durable trace:
+ *  a sub pause/resume (a map flip, not a row) and a Review "Ignore" (recorded elsewhere only as an
+ *  opaque signature string, not a human-readable subject). Newest first, capped at 200 — mirrors the
+ *  `transactions` cap so the timeline never grows unbounded. */
+export type TimelineEventKind = 'sub-paused' | 'sub-resumed' | 'review-ignored';
+
+export type TimelineEvent = {
+  id: string;
+  /** ISO timestamp. */
+  at: string;
+  kind: TimelineEventKind;
+  /** The human-facing subject — a sub name ('Disney+') or a Review candidate's merchant. */
+  subject: string;
+  /** Optional short note the row builder can show verbatim (e.g. the paused-for-how-long line). */
+  note?: string;
+};
+
 /** A user-added calendar event. Derived events (paydays, bills, sub renewals,
  *  deadlines) come from `deriveCalendarEvents()` and are NOT stored. */
 export type CalendarEvent = {
@@ -354,6 +375,10 @@ export type AppState = {
    *  "Tiny wins" section when non-empty. Optional for shape back-compat; `DEFAULTS`/`load()` always
    *  populate it ([]). */
   tinyWins?: TinyWin[];
+  /** @rn-engine timeline-verbs — append-only log of sub pause/resume + Review-ignore moments (see
+   *  `TimelineEvent`). Newest first, capped at 200. Optional for shape back-compat; `DEFAULTS`/
+   *  `load()`/`resetToEmpty()` always populate it ([]). */
+  timelineEvents?: TimelineEvent[];
 };
 
 /** Melo companion settings (`MeloScreen`). `quietMode` hides the character
@@ -369,7 +394,10 @@ export type MeloState = {
 const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
+
+/** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
+const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
 
 /** Non-optional fallback for `AppState.moneyMode` — same widening issue as
  *  `DEFAULT_LENS` below (the field is optional on `AppState` for shape
@@ -528,6 +556,7 @@ const DEFAULTS: AppState = {
   },
   melo: { quietMode: false, wardrobe: [] },
   tinyWins: [],
+  timelineEvents: [],
 };
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
@@ -645,6 +674,18 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
       melo: prior.melo ?? DEFAULT_MELO,
     };
   },
+  // v5 → v6: introduce the timeline event log (`timelineEvents`), the missing engine behind the
+  // Timeline screen's verb-state rows (sub paused/resumed, Review-ignored). Pre-v6 installs have no
+  // log, so default to empty — byte-identical behaviour (an empty log renders no verb-state rows)
+  // until the user pauses a sub or ignores a Review candidate for the first time post-upgrade.
+  6: (prev) => {
+    const prior = prev as Partial<AppState>;
+    return {
+      ...prev,
+      schemaVersion: 6,
+      timelineEvents: prior.timelineEvents ?? DEFAULT_TIMELINE_EVENTS,
+    };
+  },
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -721,6 +762,7 @@ function load(): AppState {
       lens: migrated.lens ?? DEFAULT_LENS,
       melo: migrated.melo ?? DEFAULT_MELO,
       tinyWins: migrated.tinyWins ?? [],
+      timelineEvents: migrated.timelineEvents ?? DEFAULT_TIMELINE_EVENTS,
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
@@ -992,6 +1034,9 @@ export function togglePaused(name: string, value?: boolean) {
   // (byte-faithful mood/pose/copy/durations). MELO_EMOTIONAL_ENGINE.md § 3 "sub paused" / "sub
   // resumed" reactions — cooldown/dedupe is the separate `meloReactions` engine (ENGINES.md § 9.4).
   if (current !== next) {
+    // @rn-engine timeline-verbs — log the pause/resume so Timeline can render the moment as a
+    // verb-state row. A no-op toggle (current === next) logs nothing, same guard as the reaction.
+    logTimelineEvent(next ? 'sub-paused' : 'sub-resumed', name);
     void import('./lib/melo/reactionBus').then(({ emitMeloReaction }) => {
       emitMeloReaction('subs-inline', {
         mood: next ? 'calm' : 'curious',
@@ -1221,6 +1266,24 @@ export function removeTransaction(id: string) {
   setPartial({ transactions: state.transactions.filter((t) => t.id !== id) });
 }
 
+/** @rn-engine timeline-verbs — the single write path for the timeline event log (see
+ *  `TimelineEvent`). Newest first, capped at 200 (mirrors the `transactions` cap). Internal writer —
+ *  called from `togglePaused` (sub-paused/sub-resumed) and `addIgnoredReviewSig` (review-ignored);
+ *  not exported, since every verb-state moment already has its own dedicated store action and a
+ *  caller should never log an event without also making the underlying change. */
+function logTimelineEvent(kind: TimelineEventKind, subject: string, note?: string): TimelineEvent {
+  const entry: TimelineEvent = {
+    id: `tl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    at: new Date().toISOString(),
+    kind,
+    subject,
+    ...(note !== undefined ? { note } : {}),
+  };
+  const existing = state.timelineEvents ?? [];
+  setPartial({ timelineEvents: [entry, ...existing].slice(0, 200) });
+  return entry;
+}
+
 /** ENGINES.md §6 "Editing existing transactions — required, never destructive".
  *  Apply a correction to the transaction with `txnId`: run the pure `applyTxnEdit`
  *  engine (stamping `at = now`), REPLACE the matching row in place (same id, so
@@ -1311,11 +1374,18 @@ export function reviewCandidateSig(merchant: string, amount: number, date: strin
 /** Record a Review candidate signature as ignored (ENGINES.md §6 "Ignored
  *  review items"). A future intake with the exact same merchant/amount/date
  *  is suppressed rather than nagging again. Idempotent — adding the same
- *  signature twice does not duplicate it. */
-export function addIgnoredReviewSig(sig: string) {
+ *  signature twice does not duplicate it.
+ *
+ *  `subject` is optional and ONLY feeds the `// @rn-engine timeline-verbs` log below — the
+ *  signature itself is opaque (`merchant|amountCents|date`), so callers that want the Ignore to
+ *  surface as a human-readable Timeline row (ReviewScreen's onIgnore) pass the candidate's merchant
+ *  name. Omitting it (e.g. a future caller with no readable subject) simply logs nothing, matching
+ *  the byte-faithful ignore behaviour that predates this engine. */
+export function addIgnoredReviewSig(sig: string, subject?: string) {
   const current = state.ignoredReviewSigs ?? [];
   if (current.includes(sig)) return;
   setPartial({ ignoredReviewSigs: [sig, ...current] });
+  if (subject) logTimelineEvent('review-ignored', subject);
 }
 
 /** Un-hide a previously-ignored Review candidate signature (HiddenReviewSheet's
@@ -1344,7 +1414,7 @@ export function resetSubOverrides(name?: string) {
 }
 
 export function resetAll() {
-  state = { ...DEFAULTS, transactions: seedTransactions(), calendarEvents: [] };
+  state = { ...DEFAULTS, transactions: seedTransactions(), calendarEvents: [], timelineEvents: [] };
   persist();
   emit();
 }
@@ -1393,6 +1463,7 @@ export function resetToEmpty() {
     },
     melo: { quietMode: false, wardrobe: [] },
     tinyWins: [],
+    timelineEvents: [],
   };
   state = empty;
   persist();

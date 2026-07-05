@@ -6,6 +6,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'folio-v2-greenfield',
   scheme: 'folio',
   version: '0.0.1',
+  icon: './assets/brand/app-icon-1024.png',
   orientation: 'portrait',
   platforms: ['ios', 'android'],
   userInterfaceStyle: 'automatic',
@@ -26,6 +27,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     ...config.android,
+    adaptiveIcon: {
+      foregroundImage: './assets/brand/adaptive-foreground.png',
+      backgroundColor: '#EFE9DD',
+    },
     allowBackup: false,
     blockedPermissions: [
       'android.permission.READ_EXTERNAL_STORAGE',
@@ -37,6 +42,37 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-router',
     'expo-secure-store',
+    'expo-iap',
+    [
+      // Small-icon tint uses the brand's calm terracotta — visible on the shade without
+      // reading as an alert color. No dedicated monochrome icon asset yet; falls back to
+      // the app icon until one is drawn.
+      'expo-notifications',
+      {
+        color: '#DC5E33',
+        defaultChannel: 'melo',
+      },
+    ],
+    [
+      'react-native-android-widget',
+      {
+        widgets: [
+          {
+            name: 'SafeZoneWidget', // must match SAFE_ZONE_WIDGET_NAME in widget/widgetSnapshotWriter.tsx
+            label: 'Folio — Safe Zone',
+            description: 'See how much you can safely spend today, at a glance.',
+            minWidth: '110dp',
+            minHeight: '40dp',
+            targetCellWidth: 4,
+            targetCellHeight: 1,
+            maxResizeWidth: '250dp',
+            maxResizeHeight: '110dp',
+            resizeMode: 'horizontal|vertical',
+            updatePeriodMillis: 1800000,
+          },
+        ],
+      },
+    ],
     [
       'expo-splash-screen',
       {
@@ -82,5 +118,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'https://folio-ai-gateway.tgdroppin.workers.dev/v1',
     EXPO_PUBLIC_MELO_GATEWAY_TOKEN:
       process.env.EXPO_PUBLIC_MELO_GATEWAY_TOKEN ?? 'folio-local-38cf0d6da78a33a51382b91cafe0a7f2',
+    // Clerk PUBLISHABLE key (pk_test_* — public by design, same tier as the gateway URL above).
+    // The secret key never exists anywhere in this repo or app.
+    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:
+      process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ??
+      'pk_test_dW5pdGVkLWdpcmFmZmUtMzMuY2xlcmsuYWNjb3VudHMuZGV2JA',
   },
 });

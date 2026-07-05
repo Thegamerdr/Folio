@@ -21,7 +21,9 @@
  *               "after adding Tesco" verdict + both SVG path 'd' strings are the design's HARDCODED
  *               before/after demo of the money-path engine (not yet built — ENGINES §6), tagged
  *               `// @rn-engine money-path`. Preview-then-commit: this screen only navigates, it
- *               performs no store mutation.
+ *               performs no store mutation. The verdict line + Melo reassurance-strip quote are
+ *               mode-tinted per moneyMode (AFTER_VERDICT table, 1:1 web ScreenTodayAfter.tsx
+ *               lines 55-66) — not a single hardcoded pair.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -52,6 +54,26 @@ import type { RoutePoint } from '@/folio/lib/moneyPath';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import type { Nav } from '@/folio/types';
+import type { MoneyMode } from '@/folio/lib/modes/types';
+
+// Mode-tinted verdict for the "one less thing waiting" moment. 1:1 port of the web's AFTER_VERDICT
+// table (ScreenTodayAfter.tsx lines 55-66) — the spare number is unchanged; only the framing shifts
+// so Growth doesn't read like Survival and Reset doesn't read like Optimizer. FROZEN copy.
+const AFTER_VERDICT: Record<MoneyMode, { line: string; melo: string }> = {
+  survival: {
+    line: 'You make it to payday.',
+    melo: "One less thing waiting. You're still on track.",
+  },
+  stability: { line: 'The shape still holds.', melo: 'Buffer intact. Nothing to do.' },
+  growth: { line: 'Still room to save.', melo: 'That trim feeds the pace next month.' },
+  debt: { line: 'Still on the plan.', melo: 'Small win. It compounds.' },
+  optimizer: { line: 'Leak closed. Cleaner shape.', melo: 'One down. The rest can wait a cycle.' },
+  reset: { line: 'One small step held.', melo: 'That counts. Rest the plan.' },
+  irregular: { line: 'Runway just got longer.', melo: 'Every trim buys a week.' },
+  household: { line: 'Your share still holds.', melo: 'Household stays square.' },
+  planning: { line: 'The goal moved closer.', melo: 'Steady nudges the date.' },
+  lowVis: { line: 'A little clearer.', melo: 'Each move sharpens the picture.' },
+};
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -219,6 +241,11 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
   // The verdict is conditional on the REAL spare, never an unconditional "you make it".
   const makesIt = spareTarget >= 0;
 
+  // Mode-tinted verdict (1:1 web parity, ScreenTodayAfter.tsx AFTER_VERDICT) — the frozen line/melo
+  // pair shifts with the user's declared MoneyMode instead of collapsing to two hardcoded strings.
+  const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival');
+  const verdict = AFTER_VERDICT[moneyMode] ?? AFTER_VERDICT.survival;
+
   // slide-in-r — the whole screen enters from the right (translateX 28→0) over 360ms.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
@@ -294,14 +321,16 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
               p ? pressed : undefined,
             ]}
           >
-            <Melo size={22} mood={makesIt ? 'cheer' : 'concern'} />
+            {/* Web always renders this instance as mood="cheer" (ScreenTodayAfter.tsx line 83),
+                unconditionally — never tinted by outcome. */}
+            <Melo size={22} mood="cheer" />
           </Pressable>
         </View>
 
         {/* Verdict block */}
         <View style={styles.verdictBlock} accessibilityLiveRegion="polite">
           <Text style={[styles.positiveLine, { color: makesIt ? t.positive : t.repair }]}>
-            {makesIt ? 'You make it to payday.' : "It's tight to payday."}
+            {verdict.line}
           </Text>
           <View style={styles.amountRow}>
             <Text style={[styles.amount, { color: t.ink }]}>
@@ -401,9 +430,7 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
         {/* Melo reassurance strip */}
         <View style={[styles.meloStrip, { backgroundColor: t.inset }]}>
           <Melo size={28} mood="cheer" />
-          <Text style={[styles.meloQuote, { color: t.ink }]}>
-            “One less thing waiting. You're still on track.”
-          </Text>
+          <Text style={[styles.meloQuote, { color: t.ink }]}>“{verdict.melo}”</Text>
         </View>
 
         {/* Exit tiles */}

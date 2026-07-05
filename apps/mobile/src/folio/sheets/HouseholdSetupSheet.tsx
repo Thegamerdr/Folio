@@ -25,6 +25,7 @@ import {
   removeSubShareOverride,
 } from '@/folio/store';
 import { computeBillSplits } from '@/folio/lib/modes/strategies/household';
+import { showToast } from '@/folio/ui/Toast';
 
 export type HouseholdSetupSheetProps = {
   visible: boolean;
@@ -55,6 +56,14 @@ export function HouseholdSetupSheet({ visible, onClose }: HouseholdSetupSheetPro
 
   function commit() {
     setHousehold({ partnerName: name.trim(), defaultShare: pct / 100 });
+    // Web parity: SheetHouseholdSetup.tsx's toast("Household saved", { description: ... }) — copy
+    // ported verbatim, including its name.trim() ? ... : ... branch.
+    showToast(
+      'Household saved',
+      name.trim()
+        ? `Sharing with ${name.trim()} · your default share ${pct}%.`
+        : `Your default share ${pct}%.`,
+    );
     onClose();
   }
 

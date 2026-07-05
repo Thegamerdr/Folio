@@ -25,6 +25,12 @@
 // Signatures are stored `merchant|amountCents|date` (store.ts `reviewCandidateSig`) — this sheet
 // splits for display but never re-guesses the merchant casing, matching the web source's `parseSig`.
 //
+// Headline accent split: the web renders `Hidden <em class="not-italic text-[var(--accent)]">from
+// Review.</em>` — copy.hidden.title carries the bold segment as `**from Review.**`. `splitAccent`
+// below parses that marker once and renders the segment as a nested <Text> in the kit's terracotta
+// accent token (t.calm — the RN Palette's single accent, confirmed against kitTheme.tsx / web
+// --accent), matching every other bold-accent word in this design system.
+//
 // Design-system discipline: every colour/font/spacing/radius token comes from '@/folio/theme' (which
 // re-exports the pressure-map kit). Nothing new is defined — no colour, font, spacing, radius, or
 // dependency. This sheet OWNS its Sheet host (visible / onClose), mounted as a sibling in the shell —
@@ -59,16 +65,43 @@ function parseSig(sig: string): { merchant: string; amount: number; date: string
   return { merchant, amount: Number(centsStr) / 100, date };
 }
 
+// ---------------------------------------------------------------------------
+// Accent-split parsing — mirrors the web `<em class="text-[var(--accent)]">` wrap. Copy carries the
+// bold segment between a single `**...**` pair (`copy.hidden.title`); anything outside the markers is
+// plain ink. Degrades to a single plain segment if the markers are absent or malformed, so a copy
+// edit that drops the markers still renders (no crash, no bold, no accent).
+// ---------------------------------------------------------------------------
+
+type HeadlineSegment = { text: string; accent: boolean };
+
+function splitAccent(title: string): HeadlineSegment[] {
+  const match = title.match(/^(.*?)\*\*(.+?)\*\*(.*)$/);
+  if (!match) return [{ text: title, accent: false }];
+  const before = match[1] ?? '';
+  const accented = match[2] ?? '';
+  const after = match[3] ?? '';
+  const segments: HeadlineSegment[] = [];
+  if (before) segments.push({ text: before, accent: false });
+  segments.push({ text: accented, accent: true });
+  if (after) segments.push({ text: after, accent: false });
+  return segments;
+}
+
 export function HiddenReviewSheet({ visible, onClose }: HiddenReviewSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const sigs = useAppStore((state) => state.ignoredReviewSigs ?? []);
+  const headlineSegments = useMemo(() => splitAccent(copy.hidden.title), []);
 
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={s.body}>
         <Text accessibilityRole="header" style={s.headline}>
-          {copy.hidden.title.replace(/\*\*/g, '')}
+          {headlineSegments.map((segment, index) => (
+            <Text key={index} style={segment.accent ? s.headlineAccent : undefined}>
+              {segment.text}
+            </Text>
+          ))}
         </Text>
         <Text style={s.subhead}>{copy.hidden.body}</Text>
 
@@ -129,14 +162,17 @@ function makeStyles(t: Palette) {
     body: {
       paddingBottom: gap.sm,
     },
-    // Fraunces 22px headline (web font-display text-[22px] leading-tight). The **accent** marker on
-    // "from Review" is dropped here — this sheet has no accent-splitting need beyond the plain
-    // display line (the web renders it terracotta via <em>, a refinement left for a follow-up visual
-    // pass since no accent-capable Headline primitive is imported by this sheet's siblings).
+    // Fraunces 22px headline (web font-display text-[22px] leading-tight). The **from Review.**
+    // segment renders in the kit's terracotta accent (t.calm) via the nested Text below, matching the
+    // web's <em class="not-italic text-[var(--accent)]">.
     headline: {
       color: t.ink,
       fontSize: 22,
       lineHeight: 26,
+    },
+    // Accent segment — plain (not-italic) weight, terracotta accent colour (web text-[var(--accent)]).
+    headlineAccent: {
+      color: t.calm,
     },
     // Muted 13px body copy, relaxed leading, mt-2 (web text-[13px] text-muted-ink leading-relaxed).
     subhead: {

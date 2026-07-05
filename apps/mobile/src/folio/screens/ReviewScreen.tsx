@@ -13,7 +13,7 @@
 // @writes       addTransaction (only on Accept / "Keep both"). De-dupe: when the candidate matches an
 //               existing row the card PROPOSES a link (ENGINES §8 / lib/reviewDedupe → lib/dedupe);
 //               "Link them" adds NOTHING (no double count), "Keep both" is the only Add.
-// @opens-sheet  edit-txn (the ⋯ and the Edit button open the edit-txn sheet via nav.openSheet)
+// @opens-sheet  edit-txn (the header's ⋯ opens the edit-txn sheet via nav.openSheet)
 // @copy         FROZEN
 // @tokens       surface · hairline · inset · calm (accent) · calmSoft (accent-soft) · muted · ink ·
 //               inverse — all from the kit via '@/folio/theme'. No new token.
@@ -57,7 +57,15 @@
 // Melo line is its own frozen literal.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -202,6 +210,13 @@ export function ReviewScreen({
   const [stamped, setStamped] = useState(false);
   const [category, setCategory] = useState<Category>('Groceries');
 
+  // Web-exact inline edit (ScreenReview.tsx): merchant and amount-out are corrected directly on the
+  // review card before Add, not in a separate sheet. Seeded from the candidate; the candidate itself
+  // is never mutated — only the local draft, which is what Accept actually records.
+  const [merchant, setMerchant] = useState(candidate.merchant);
+  const [amountText, setAmountText] = useState(candidate.amount.toFixed(2));
+  const editedAmount = Math.max(0, Number(amountText) || 0);
+
   // Existing rows + a mount-gated clock, for the de-dupe proposal (ENGINES §8 / the dedupe engine):
   // when the candidate looks like a transaction the user ALREADY added, Review PROPOSES a link rather
   // than silently double-counting. Read reactively so a just-added row is considered.
@@ -216,7 +231,8 @@ export function ReviewScreen({
   const editTargetPayload = candidate.id !== undefined ? { id: candidate.id } : {};
 
   // The "if you add it" balance: before until stamped, after once committed (a spend drops it).
-  const signedDelta = candidate.flow === 'out' ? -candidate.amount : candidate.amount;
+  // Uses the edited draft amount so the projection stays honest to what Accept will actually record.
+  const signedDelta = candidate.flow === 'out' ? -editedAmount : editedAmount;
   const afterBalance = candidate.before + signedDelta;
   const balance = useCountUp(stamped ? afterBalance : candidate.before, COUNT_MS, reduceMotion);
 
@@ -232,12 +248,12 @@ export function ReviewScreen({
         id: candidate.id ?? 'review-candidate',
         amount: signedDelta,
         dateIso,
-        merchant: candidate.merchant,
+        merchant,
       },
       transactions,
       now.toISOString().slice(0, 10),
     );
-  }, [hasRealCandidate, stamped, now, candidate, signedDelta, transactions]);
+  }, [hasRealCandidate, stamped, now, candidate, signedDelta, merchant, transactions]);
 
   // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -272,10 +288,10 @@ export function ReviewScreen({
   // Accept — the ONLY money-path mutation on this surface. The candidate becomes one posted
   // Transaction (review-before-truth: the user's deliberate "add"), the stamp seals it, then Today.
   function onAdd() {
-    if (stamped) return;
+    if (stamped || editedAmount <= 0) return;
     setStamped(true);
     addTransaction({
-      merchant: candidate.merchant,
+      merchant: merchant.trim() || 'Unnamed',
       amount: signedDelta,
       category: categoryFor(category),
       source: 'manual',
@@ -308,8 +324,15 @@ export function ReviewScreen({
     if (hasRealCandidate) {
       const year = now?.getFullYear() ?? new Date().getFullYear();
       const dateIso = reviewDateToIso(candidate.date, year) ?? candidate.date;
-      addIgnoredReviewSig(reviewCandidateSig(candidate.merchant, signedDelta, dateIso));
+      addIgnoredReviewSig(reviewCandidateSig(merchant, signedDelta, dateIso), merchant);
     }
+    nav.back();
+  }
+
+  // Cancel — web ScreenReview.tsx's plain Cancel button: backs out with NO side effect at all (no
+  // suppression signature, unlike Ignore). The edited draft is simply discarded.
+  function onCancel() {
+    if (stamped) return;
     nav.back();
   }
 
@@ -354,8 +377,7 @@ export function ReviewScreen({
   // populated / offline / error — the real one-decision card. offline ≡ populated (local-first); a
   // direct error mount still shows the card so the user can decide on the candidate in hand.
   const isOut = candidate.flow === 'out';
-  const moneyStr = `${isOut ? '£' : '+£'}${candidate.amount.toFixed(2)}`;
-  const dropLine = `from £${candidate.before} · ${isOut ? 'drops' : 'rises'} by £${candidate.amount}`;
+  const dropLine = `from £${candidate.before} · ${isOut ? 'drops' : 'rises'} by £${editedAmount.toFixed(0)}`;
 
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -402,7 +424,9 @@ export function ReviewScreen({
           <Text style={[styles.kicker, { color: t.muted }]}>Review</Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
             {'Is this your '}
-            <Text style={[styles.headlineAccent, { color: t.calm }]}>{candidate.merchant}</Text>
+            <Text style={[styles.headlineAccent, { color: t.calm }]}>
+              {merchant.trim() || candidate.merchant}
+            </Text>
             {' payment?'}
           </Text>
         </View>
@@ -419,9 +443,42 @@ export function ReviewScreen({
             </Animated.View>
           ) : null}
 
-          <View style={styles.amountRow}>
-            <Text style={[styles.amountValue, { color: t.ink }]}>{moneyStr}</Text>
+          {/* Merchant — web-exact inline edit (ScreenReview.tsx): underlined text input directly on
+              the card, corrected before Add rather than in a separate sheet. */}
+          <View style={styles.merchantField}>
+            <Text style={[styles.fieldLabel, { color: t.muted }]}>Merchant</Text>
+            <TextInput
+              accessibilityLabel="Merchant"
+              editable={!stamped}
+              onChangeText={setMerchant}
+              style={[
+                styles.merchantInput,
+                { borderBottomColor: t.hairline, color: t.ink },
+                stamped ? styles.inputDisabled : undefined,
+              ]}
+              value={merchant}
+            />
+          </View>
+
+          <View style={styles.amountHeaderRow}>
+            <Text style={[styles.fieldLabel, { color: t.muted }]}>Amount out</Text>
             <Text style={[styles.outLabel, { color: t.muted }]}>{isOut ? 'out' : 'in'}</Text>
+          </View>
+          <View style={styles.amountRow}>
+            <Text style={[styles.amountPrefix, { color: t.ink }]}>£</Text>
+            <TextInput
+              accessibilityLabel="Amount out"
+              editable={!stamped}
+              inputMode="decimal"
+              keyboardType="decimal-pad"
+              onChangeText={setAmountText}
+              style={[
+                styles.amountValue,
+                { color: t.ink },
+                stamped ? styles.inputDisabled : undefined,
+              ]}
+              value={amountText}
+            />
           </View>
           <Text
             style={[styles.dateLine, { color: t.muted }]}
@@ -548,18 +605,19 @@ export function ReviewScreen({
           </View>
         ) : (
           <>
-            {/* Primary CTA — the dominant "Add to my picture"; reads "Added…" once sealed. */}
+            {/* Primary CTA — the dominant "Add to my picture"; reads "Added…" once sealed. Web-exact
+                disabled guard: sealed OR the edited amount is zero/blank. */}
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: stamped }}
+              accessibilityState={{ disabled: stamped || editedAmount <= 0 }}
               accessibilityLabel={stamped ? 'Added to your picture' : 'Add to my picture'}
-              disabled={stamped}
+              disabled={stamped || editedAmount <= 0}
               onPress={onAdd}
               style={({ pressed: isPressed }) => [
                 styles.primary,
                 { backgroundColor: t.calm },
-                stamped ? styles.primaryStamped : undefined,
-                isPressed && !stamped ? styles.pressed : undefined,
+                stamped || editedAmount <= 0 ? styles.primaryStamped : undefined,
+                isPressed && !stamped && editedAmount > 0 ? styles.pressed : undefined,
               ]}
             >
               <Text style={[styles.primaryLabel, { color: t.inverse }]}>
@@ -567,31 +625,35 @@ export function ReviewScreen({
               </Text>
             </Pressable>
 
-            {/* Secondary row — Edit (opens edit-txn) + Ignore (backs out). */}
+            {/* Secondary row — web-exact order (ScreenReview.tsx "grid-cols-2"): Ignore (records a
+                suppression signature, backs out) then Cancel (backs out with no side effect at all —
+                the edited draft is simply discarded). The edit-txn sheet stays reachable via the
+                header's "More options" glyph above, so that route keeps working. */}
             <View style={styles.secondaryRow}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Edit"
-                onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
-                style={({ pressed: isPressed }) => [
-                  styles.secondaryCell,
-                  { backgroundColor: t.surface, borderColor: t.hairline },
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.secondaryLabel, { color: t.ink }]}>Edit</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
                 accessibilityLabel="Ignore"
-                onPress={nav.back}
+                disabled={stamped}
+                onPress={onIgnore}
                 style={({ pressed: isPressed }) => [
                   styles.secondaryCell,
                   { backgroundColor: t.surface, borderColor: t.hairline },
-                  isPressed ? styles.pressed : undefined,
+                  isPressed && !stamped ? styles.pressed : undefined,
                 ]}
               >
                 <Text style={[styles.secondaryLabel, { color: t.ink }]}>Ignore</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                onPress={onCancel}
+                style={({ pressed: isPressed }) => [
+                  styles.secondaryCell,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.secondaryLabel, { color: t.ink }]}>Cancel</Text>
               </Pressable>
             </View>
           </>
@@ -715,25 +777,61 @@ const styles = StyleSheet.create({
     letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
-  // Amount row — the big money + the "out"/"in" label, baseline aligned.
-  amountRow: {
+  // Merchant field — web-exact (ScreenReview.tsx label className="text-[10.5px] uppercase
+  // tracking-[0.12em]"): a tiny uppercase-tracked label over an underlined inline text input.
+  merchantField: {
+    marginTop: 0,
+  },
+  fieldLabel: {
+    fontSize: 10.5,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+  },
+  // Web: "mt-1 w-full ... text-[18px] font-medium ... border-b border-hairline py-1".
+  merchantInput: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    fontSize: 18,
+    fontWeight: '500',
+    marginTop: gap.xs,
+    paddingVertical: gap.xs,
+  },
+  // Web: "mt-4 flex items-baseline justify-between" above the amount row.
+  amountHeaderRow: {
     alignItems: 'baseline',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: gap.lg,
   },
-  // Money size 'xl' = 44px, Fraunces, tabular. Web Money applies font-medium (weight 500).
-  amountValue: {
-    fontFamily: serif.display,
-    fontSize: 44,
-    fontVariant: ['tabular-nums'],
-    fontWeight: '500',
-    letterSpacing: -1,
-  },
-  // 12px uppercase tracked muted.
+  // 12px uppercase tracked muted (web "text-[12px] uppercase tracking-[0.14em]").
   outLabel: {
     fontSize: 12,
     letterSpacing: 1.7,
     textTransform: 'uppercase',
+  },
+  // Amount row — the big £ prefix + the inline number input, baseline aligned (web "mt-1 flex
+  // items-baseline gap-1").
+  amountRow: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    marginTop: gap.xs,
+  },
+  amountPrefix: {
+    fontFamily: serif.display,
+    fontSize: 36,
+    fontVariant: ['tabular-nums'],
+    marginRight: gap.xxs,
+  },
+  // Money size 36px, Fraunces, tabular (web "font-display tabular text-[36px]"), flexed to fill
+  // the row like the web's `w-full` input.
+  amountValue: {
+    flex: 1,
+    fontFamily: serif.display,
+    fontSize: 36,
+    fontVariant: ['tabular-nums'],
+    padding: 0,
+  },
+  inputDisabled: {
+    opacity: 0.6,
   },
   // 13px muted, mt-3.
   dateLine: {

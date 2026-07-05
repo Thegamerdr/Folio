@@ -103,7 +103,66 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { fastForwardMonth, useAppStore } from '@/folio/store';
 import { useChartStyle, CHART_STYLE_LABEL, CHART_STYLE_HINT } from '@/folio/lib/chartStyle';
+import {
+  DEFAULT_REMINDERS_SETTINGS,
+  loadRemindersSettings,
+  saveRemindersSettings,
+} from '@/folio/lib/notifySettings';
+import { getPermissionState, requestPermission } from '@/folio/lib/notifications';
+import { forceRescheduleNow } from '@/folio/lib/notifyScheduler';
+import type { PermissionState } from '@/folio/lib/notifications';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
+
+/** The Reminders row's live hint, one calm line per permission/enabled combination — no separate
+ *  screen, this is a single settings-row toggle (per the notifications-binding brief). */
+function remindersHint(enabled: boolean, permission: PermissionState): string {
+  if (!enabled) return 'off';
+  if (permission === 'denied') return 'blocked in system settings';
+  if (permission === 'undetermined') return 'tap to allow';
+  return 'on · quiet by default';
+}
+
+/** Reminders on/off + live permission state, backing the MoreScreen "Reminders" row. Self-contained
+ *  (own persisted module, not store.ts) — see lib/notifySettings.ts + lib/notifications.ts. */
+function useReminders(): {
+  enabled: boolean;
+  permission: PermissionState;
+  onPress: () => void;
+} {
+  const [enabled, setEnabled] = useState(DEFAULT_REMINDERS_SETTINGS.remindersEnabled);
+  const [permission, setPermission] = useState<PermissionState>('undetermined');
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      const [settings, perm] = await Promise.all([loadRemindersSettings(), getPermissionState()]);
+      if (!mounted) return;
+      setEnabled(settings.remindersEnabled);
+      setPermission(perm);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const onPress = () => {
+    void (async () => {
+      // Undetermined permission: the tap itself is the ask (no separate "enable" step first).
+      if (enabled && permission === 'undetermined') {
+        const result = await requestPermission();
+        setPermission(result);
+        forceRescheduleNow();
+        return;
+      }
+      const next = !enabled;
+      setEnabled(next);
+      await saveRemindersSettings({ remindersEnabled: next });
+      forceRescheduleNow();
+    })();
+  };
+
+  return { enabled, permission, onPress };
+}
 
 // Routing: the web "Data & privacy" row navigates to the Privacy screen (web `to: "privacy"`), where
 // the export action lives (the Privacy "Export my data" CTA). This RN row is faithful to that — it
@@ -176,6 +235,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   // dropped (see FIDELITY DECISIONS).
   const { style: chartStyle } = useChartStyle();
   const hiddenCount = useAppStore((s) => s.ignoredReviewSigs?.length ?? 0);
+  const reminders = useReminders();
 
   // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
   // we resolve straight to the final state instead of animating.
@@ -229,6 +289,11 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           ? 'nothing hidden'
           : `${hiddenCount} ${hiddenCount === 1 ? 'row' : 'rows'} · tap to un-hide`,
       sheet: 'hidden-review',
+    },
+    {
+      label: 'Reminders',
+      hint: remindersHint(reminders.enabled, reminders.permission),
+      onPress: reminders.onPress,
     },
     { label: 'App lock', hint: 'Face ID · off', to: 'privacy' },
     {

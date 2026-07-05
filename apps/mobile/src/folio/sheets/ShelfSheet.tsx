@@ -320,7 +320,7 @@ function makeStyles(t: Palette) {
       fontVariant: ['tabular-nums'],
       paddingHorizontal: gap.md,
       paddingVertical: 10,
-      width: 72,
+      width: 80,
     },
     body: { paddingBottom: gap.sm, paddingHorizontal: gap.xs },
     emptyLine: { marginTop: gap.lg + gap.xs },

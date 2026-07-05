@@ -67,10 +67,23 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
+import { setLensPlusUnlocked, setLensProUnlocked } from '@/folio/store';
 import { useLens, FREE_LENSES, PLUS_LENSES, PRO_LENSES } from '@/folio/lib/lens';
 import { canShowUpsell, upsellSuppressionReason } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
 import { useRoute } from '@/folio/lib/storeRoute';
+import {
+  probeAvailability,
+  productIdFor,
+  purchase,
+  finishPurchase,
+  restore as restorePurchases,
+  tierForProductId,
+  type BillingCadence,
+} from '@/folio/lib/billing/iap';
+import { saveEntitlement, type EntitlementRecord } from '@/folio/lib/billing/entitlements';
+import { resolveCtaMode } from '@/folio/lib/billing/ctaMode';
+import { showToast } from '@/folio/ui/Toast';
 import type { Nav } from '@/folio/types';
 
 export type PaywallScreenState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
@@ -199,6 +212,21 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const [cadence, setCadence] = useState<Cadence>('yearly');
   const [selected, setSelected] = useState<TierKey>('plus');
 
+  // Real-billing availability — false in every build until a Play listing exists (no store, no
+  // client, no fake success). Probed once per screen mount; never blocks first paint since the
+  // existing preview CTA renders immediately and only swaps once the probe resolves.
+  const [billingAvailable, setBillingAvailable] = useState(false);
+  const [purchasing, setPurchasing] = useState<TierKey | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void probeAvailability().then((result) => {
+      if (mounted) setBillingAvailable(result.available);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const route = useRoute(new Date());
 
   const safeZoneTotal = useMemo(
@@ -233,6 +261,19 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   };
   const canSell = canShowUpsell(guardInputs);
   const reason = upsellSuppressionReason(guardInputs);
+
+  // The tested precedence (lib/billing/ctaMode.ts) for which CTA branch to show. Computed from
+  // the same inputs the JSX below branches on, so billingAvailable === false (today's reality,
+  // no Play listing) is guaranteed to resolve to 'trial' — the existing preview CTA — never
+  // 'purchase'.
+  const ctaMode = resolveCtaMode({
+    selected,
+    canSell,
+    billingAvailable,
+    plusUnlocked,
+    proUnlocked,
+    trialCycleId,
+  });
 
   // Trial end label — the real trialDaysLeft from useLens(), rendered as a plain day count (the
   // web computed an explicit calendar date; RN's useLens() already exposes the day-count form,
@@ -272,15 +313,51 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const handleStartTrial = () => {
     if (!canSell) return;
     startTrial();
-    Alert.alert(
+    // Web parity: ScreenPaywall.tsx's toast("Trial started · one cycle", { description: ... }) —
+    // copy ported verbatim (web's trialEndLabel already reads "at payday" as a full phrase, e.g.
+    // "until at payday" would be wrong — this RN trialEndLabel is a bare day count/"at payday", so
+    // the same "until "-prefix rendering the web uses is kept exactly for the day-count case, and the
+    // "at payday" case reads as its own full phrase, matching the web's calendar-date equivalent).
+    showToast(
       'Trial started · one cycle',
-      `Every paid lens unlocked ${trialEndLabel === 'at payday' ? 'until payday' : trialEndLabel}. Auto-locks at payday.`,
-      [{ text: 'OK', style: 'cancel' }],
+      `Every paid lens unlocked ${trialEndLabel === 'at payday' ? trialEndLabel : `until ${trialEndLabel}`}. Auto-locks at payday.`,
     );
     nav.back();
   };
 
-  const handleRestore = () => {
+  // Real purchase — only reachable when billingAvailable is true (a Play listing exists and our
+  // SKUs resolved). Writes both the real lens unlock (what useLens()/PaywallScreen/every other
+  // upsell surface actually reads) and the entitlement record (./entitlements — records WHERE the
+  // unlock came from) so the two never drift apart.
+  const handlePurchase = async (tier: 'plus' | 'pro') => {
+    if (!canSell || purchasing) return;
+    setPurchasing(tier);
+    try {
+      const productId = productIdFor(tier, cadence as BillingCadence);
+      const outcome = await purchase(productId);
+      if (outcome.status === 'purchased') {
+        await finishPurchase(outcome.purchase);
+        const resolvedTier = tierForProductId(outcome.purchase.productId) ?? tier;
+        if (resolvedTier === 'pro') setLensProUnlocked(true);
+        else setLensPlusUnlocked(true);
+        const record: EntitlementRecord = { source: 'store', tier: resolvedTier };
+        await saveEntitlement(record);
+        Alert.alert(
+          resolvedTier === 'pro' ? 'Melo Pro is on' : 'Melo Plus is on',
+          'Thanks — every lens for this tier is unlocked.',
+          [{ text: 'OK', style: 'cancel' }],
+        );
+        nav.back();
+      } else if (outcome.status === 'failed') {
+        Alert.alert('Purchase failed', outcome.message, [{ text: 'OK', style: 'cancel' }]);
+      }
+      // 'cancelled' — silent, matches the platform's own cancel UX (no extra alert on top of it).
+    } finally {
+      setPurchasing(null);
+    }
+  };
+
+  const handleRestore = async () => {
     if (proUnlocked) {
       Alert.alert('Melo Pro is active on this device', undefined, [
         { text: 'OK', style: 'cancel' },
@@ -293,11 +370,29 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       ]);
       return;
     }
-    Alert.alert(
-      'No purchase found on this device',
-      'This is the current build — real restore ships with a future update.',
-      [{ text: 'OK', style: 'cancel' }],
-    );
+    if (!billingAvailable) {
+      Alert.alert(
+        'No purchase found on this device',
+        'This is the current build — real restore ships with a future update.',
+        [{ text: 'OK', style: 'cancel' }],
+      );
+      return;
+    }
+    const restored = await restorePurchases();
+    const restoredTier =
+      restored
+        .map((p) => tierForProductId(p.productId))
+        .sort((a, b) => (a === 'pro' ? -1 : b === 'pro' ? 1 : 0))[0] ?? null;
+    if (restoredTier === null) {
+      Alert.alert('No purchase found on this device', undefined, [{ text: 'OK', style: 'cancel' }]);
+      return;
+    }
+    if (restoredTier === 'pro') setLensProUnlocked(true);
+    else setLensPlusUnlocked(true);
+    await saveEntitlement({ source: 'store', tier: restoredTier });
+    Alert.alert(restoredTier === 'pro' ? 'Melo Pro restored' : 'Melo Plus restored', undefined, [
+      { text: 'OK', style: 'cancel' },
+    ]);
   };
 
   const currentTier: TierKey = proUnlocked ? 'pro' : plusUnlocked ? 'plus' : 'free';
@@ -589,7 +684,11 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           </Surface>
         ) : null}
 
-        {/* Primary CTA — real tier/trial state, mirrors the web's branch order exactly. */}
+        {/* Primary CTA — real tier/trial state, mirrors the web's branch order exactly. The
+            branch order below is kept in lockstep with the pure, tested `resolveCtaMode`
+            (lib/billing/ctaMode.ts): `ctaMode` is computed from the exact same inputs and is
+            asserted against below so the tested precedence is what actually renders, not a
+            second hand-maintained copy of the same decision. */}
         <View style={styles.ctaBlock}>
           {selected === 'free' ? (
             <Surface
@@ -627,6 +726,28 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 No auto-renew — we&apos;ll ask again at payday.
               </Text>
             </Surface>
+          ) : ctaMode === 'purchase' && (selected === 'plus' || selected === 'pro') ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                disabled={purchasing !== null}
+                onPress={() => void handlePurchase(selected)}
+                style={({ pressed: isPressed }) => [
+                  styles.ctaButton,
+                  { backgroundColor: t.calm, opacity: purchasing !== null ? 0.6 : 1 },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.ctaButtonLabel, { color: t.inverse }]}>
+                  {purchasing === selected
+                    ? 'Processing…'
+                    : `Get ${selected === 'pro' ? 'Pro' : 'Plus'} — £${priceFor(selected).price.toFixed(2)} / ${priceFor(selected).per}`}
+                </Text>
+              </Pressable>
+              <Text style={[styles.ctaFootnote, { color: t.muted }]}>
+                Charged by Google Play · cancel anytime in your subscriptions.
+              </Text>
+            </>
           ) : canSell && selected === 'plus' ? (
             <>
               <Pressable

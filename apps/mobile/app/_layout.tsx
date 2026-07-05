@@ -5,16 +5,28 @@ import {
   Fraunces_600SemiBold,
   Fraunces_600SemiBold_Italic,
 } from '@expo-google-fonts/fraunces';
+import { ClerkProvider, type ClerkProviderProps } from '@clerk/clerk-expo';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { registerWidgetTaskHandler } from 'react-native-android-widget';
 
 import { ThemeProvider, useIsDark, useTheme } from '../src/surfaces/pressureMap/kit';
+import { clerkTokenCache, getClerkPublishableKey } from '../src/folio/lib/clerkAuth';
+import { safeZoneWidgetTaskHandler } from '../src/folio/widget/widgetTaskHandler';
 
 // Editorial Ledger lives or dies on a real serif. Keep the splash up until Fraunces is loaded so
 // the first paint is already editorial — never a system-font flash that then swaps.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+// Widget headless task registration — MUST happen at module scope (not inside a component/effect):
+// Android can invoke `RNWidgetBackgroundTask` in its own headless JS context — e.g. the OS's
+// periodic update tick, or a widget added while the app was never opened — with no app UI ever
+// mounting. Registering here means it runs unconditionally the instant this file's module graph
+// loads, on every JS entry point (this app has no other one — `main` is `expo-router/entry`, which
+// loads this root layout). See widget/widgetTaskHandler.tsx for the render-from-disk-snapshot logic.
+registerWidgetTaskHandler(safeZoneWidgetTaskHandler);
 
 // The themed shell. It lives UNDER ThemeProvider so the root background + status bar follow the
 // resolved palette (and so a forced Light/Dark choice — not just 'system' — is honoured here too).
@@ -51,9 +63,24 @@ export default function RootLayout() {
 
   if (!fontsLoaded) return null;
 
-  return (
+  const tree = (
     <ThemeProvider>
       <ThemedRoot />
     </ThemeProvider>
   );
+
+  // Sign-in stays entirely optional (see clerkAuth.ts) — with no publishable key configured this
+  // renders exactly the same tree as before ClerkProvider existed. Zero behaviour change.
+  const publishableKey = getClerkPublishableKey();
+  if (publishableKey === undefined) return tree;
+
+  // @clerk/types builds ClerkProviderProps from several `Without<..., K>` intersections whose
+  // remaining members are themselves optional at runtime; under this project's
+  // `exactOptionalPropertyTypes: true` those collapse into a structural type TS reports as
+  // "missing" properties that Clerk's own JSX usage examples never provide. This is a documented
+  // upstream typing friction with strict optional-property configs, not a real prop gap — the
+  // object below is the complete, valid set clerk-expo's own Expo quickstart passes.
+  const clerkProps = { publishableKey, tokenCache: clerkTokenCache } as ClerkProviderProps;
+
+  return <ClerkProvider {...clerkProps}>{tree}</ClerkProvider>;
 }

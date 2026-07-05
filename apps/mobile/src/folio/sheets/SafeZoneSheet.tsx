@@ -132,7 +132,7 @@ function makeStyles(t: Palette) {
     body: { paddingHorizontal: gap.xs, paddingBottom: gap.xs },
     eyebrow: { fontFamily: serif.displayItalic, fontSize: 13, color: t.muted },
     numberRow: { marginTop: 2, flexDirection: 'row', alignItems: 'baseline', gap: gap.xs },
-    number: { fontFamily: serif.display, fontSize: 34, fontVariant: ['tabular-nums'] },
+    number: { fontFamily: serif.display, fontSize: 44, fontVariant: ['tabular-nums'] },
     numberCaption: { fontFamily: serif.displayItalic, fontSize: 14, color: t.muted },
     list: {
       marginTop: gap.lg,

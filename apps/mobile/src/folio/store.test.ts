@@ -17,6 +17,7 @@ import {
   type Pot,
   type Transaction,
   addCycle,
+  addIgnoredReviewSig,
   addToPot,
   addTransaction,
   applyMeloTool,
@@ -120,6 +121,64 @@ describe('pauseMany / togglePaused', () => {
     expect(getState().subPaused.iCloud).toBe(true);
     togglePaused('iCloud', true); // idempotent at the same value
     expect(getState().subPaused.iCloud).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineEvents — @rn-engine timeline-verbs. togglePaused logs sub-paused/sub-resumed;
+// addIgnoredReviewSig logs review-ignored (only when given a subject). Newest first, capped at 200.
+// ---------------------------------------------------------------------------
+describe('timelineEvents log', () => {
+  it('togglePaused logs a sub-paused event when a sub is paused', () => {
+    togglePaused('Spotify', true);
+    const events = getState().timelineEvents ?? [];
+    expect(events.length).toBe(1);
+    expect(events[0]!.kind).toBe('sub-paused');
+    expect(events[0]!.subject).toBe('Spotify');
+    expect(typeof events[0]!.at).toBe('string');
+  });
+
+  it('togglePaused logs a sub-resumed event when a paused sub is resumed', () => {
+    togglePaused('Spotify', true);
+    togglePaused('Spotify', false);
+    const events = getState().timelineEvents ?? [];
+    // Newest first — the resume is index 0, the pause is index 1.
+    expect(events[0]!.kind).toBe('sub-resumed');
+    expect(events[0]!.subject).toBe('Spotify');
+    expect(events[1]!.kind).toBe('sub-paused');
+  });
+
+  it('togglePaused logs nothing when the value does not actually change', () => {
+    togglePaused('Spotify', true);
+    togglePaused('Spotify', true); // idempotent no-op
+    const events = getState().timelineEvents ?? [];
+    expect(events.length).toBe(1);
+  });
+
+  it('addIgnoredReviewSig logs a review-ignored event only when given a subject', () => {
+    addIgnoredReviewSig('tesco|4210|2026-07-01', 'Tesco');
+    const events = getState().timelineEvents ?? [];
+    expect(events.length).toBe(1);
+    expect(events[0]!.kind).toBe('review-ignored');
+    expect(events[0]!.subject).toBe('Tesco');
+  });
+
+  it('addIgnoredReviewSig logs nothing when no subject is given', () => {
+    addIgnoredReviewSig('tesco|4210|2026-07-01');
+    expect((getState().timelineEvents ?? []).length).toBe(0);
+  });
+
+  it('addIgnoredReviewSig is idempotent by signature — a repeat call logs nothing further', () => {
+    addIgnoredReviewSig('tesco|4210|2026-07-01', 'Tesco');
+    addIgnoredReviewSig('tesco|4210|2026-07-01', 'Tesco');
+    expect((getState().timelineEvents ?? []).length).toBe(1);
+  });
+
+  it('caps the log at 200, newest first', () => {
+    for (let i = 0; i < 205; i++) togglePaused(`Sub${i}`, true);
+    const events = getState().timelineEvents ?? [];
+    expect(events.length).toBe(200);
+    expect(events[0]!.subject).toBe('Sub204');
   });
 });
 
@@ -747,8 +806,37 @@ describe('editTransaction', () => {
 describe('schema migration v3', () => {
   it('defaults DEFAULTS/state to the current schema version with an empty edit history', () => {
     resetAll();
-    expect(getState().schemaVersion).toBe(5);
+    expect(getState().schemaVersion).toBe(6);
     expect(getState().edits).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// schema migration — v5 → v6 defaults the `timelineEvents` log (@rn-engine timeline-verbs)
+// ---------------------------------------------------------------------------
+describe('schema migration v6', () => {
+  it('a pre-v6 blob with no timelineEvents migrates to an empty log, byte-identical otherwise', () => {
+    resetAll();
+    // Simulate a persisted v5 blob (no timelineEvents field at all).
+    const v5Blob = { ...getState(), schemaVersion: 5 } as Record<string, unknown>;
+    delete v5Blob.timelineEvents;
+    hydrateFromBlob(JSON.stringify(v5Blob));
+
+    const s = getState();
+    expect(s.schemaVersion).toBe(6);
+    expect(s.timelineEvents).toEqual([]);
+  });
+
+  it('a blob that already carries timelineEvents keeps them intact across migration', () => {
+    togglePaused('Spotify', true);
+    const blob = getPersistBlob();
+    resetAll();
+    hydrateFromBlob(blob);
+
+    const events = getState().timelineEvents ?? [];
+    expect(events.length).toBe(1);
+    expect(events[0]!.kind).toBe('sub-paused');
+    expect(events[0]!.subject).toBe('Spotify');
   });
 });
 
@@ -821,7 +909,7 @@ describe('persist blob round-trip', () => {
     hydrateFromBlob(blob);
 
     const s = getState();
-    expect(s.schemaVersion).toBe(5);
+    expect(s.schemaVersion).toBe(6);
     expect((s.edits ?? []).length).toBe(1);
     expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
   });
