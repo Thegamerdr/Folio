@@ -66,6 +66,7 @@ import { EditItemSheet } from '@/folio/sheets/EditItemSheet';
 import { EditTxnSheet } from '@/folio/sheets/EditTxnSheet';
 import { LogSpendSheet } from '@/folio/sheets/LogSpendSheet';
 import { SubCaughtSheet } from '@/folio/sheets/SubCaughtSheet';
+import { IncomeCaughtSheet } from '@/folio/sheets/IncomeCaughtSheet';
 import { AddEventSheet } from '@/folio/sheets/AddEventSheet';
 import { CalendarExportSheet } from '@/folio/sheets/CalendarExportSheet';
 import { CalendarConnectSheet } from '@/folio/sheets/CalendarConnectSheet';
@@ -403,6 +404,7 @@ export function FolioShell() {
       {sheet === 'edit-txn' && <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />}
       {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
       {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
+      {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
       {sheet === 'add-event' && (
         <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
       )}
@@ -484,6 +486,7 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'edit-txn',
   'log-spend',
   'sub-caught',
+  'income-caught',
   'add-event',
   'calendar-export',
   'calendar-connect',
@@ -698,6 +701,7 @@ const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {
   'declare-debt': 'Add a debt',
   'household-setup': 'Household',
   'sub-caught': 'A recurring charge',
+  'income-caught': 'A recurring payment',
   'add-event': 'Add to your calendar',
   'calendar-export': 'Export your calendar',
   'calendar-connect': 'Connect your calendar',

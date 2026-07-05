@@ -128,6 +128,33 @@ export const copy = {
     },
   },
 
+  // ## Income (income-signal detection, DATA_INTELLIGENCE.md phase ②)
+  income: {
+    caught: {
+      head: (merchant: string): string => `Melo noticed **${merchant}** pays you.`,
+      body: {
+        strong: (cadence: string): string =>
+          `Looks like a ${cadence} payment. Add it so Folio can plan around it?`,
+        possible: (cadence: string): string =>
+          `Looks like a ${cadence} payment — amounts vary, so check this before adding it.`,
+      },
+      // Same-income UPDATE proposal — the detected merchant looks like the
+      // same real income as an already-declared source under a different
+      // cadence/label (e.g. onboarding's generic "Pay"). Never framed as a
+      // new income; always an offer to correct the existing one.
+      update: {
+        head: (): string => `Pay looks **different.**`,
+        body: {
+          strong: (merchant: string, cadence: string): string =>
+            `Melo noticed ${merchant} arriving ${cadence}. Update your Pay to match?`,
+          possible: (merchant: string, cadence: string): string =>
+            `Melo noticed ${merchant} arriving ${cadence} — amounts vary, so check this before updating.`,
+        },
+        cta: 'Update Pay',
+      },
+    },
+  },
+
   // ## Insights
   insights: {
     empty: {

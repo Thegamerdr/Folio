@@ -92,6 +92,7 @@ import {
   type Transaction,
 } from '@/folio/store';
 import { reviewDateToIso, reviewMatch, reviewMatchSubline } from '@/folio/lib/reviewDedupe';
+import { findCaughtIncome } from '@/folio/lib/caughtIncome';
 import type { Nav } from '@/folio/types';
 
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
@@ -385,7 +386,21 @@ export function ReviewScreen({
     } else {
       stampScale.value = 1;
     }
-    dwellRef.current = setTimeout(() => nav.go('today'), reduceMotion ? 0 : ADD_DWELL_MS);
+    // Income-signal check (DATA_INTELLIGENCE.md phase ②) — run over the ledger
+    // AFTER this accept has landed. Propose-and-confirm only: this opens the
+    // sheet after the stamp's dwell, it never writes an IncomeSource itself.
+    // No-op when nothing qualifies, so the ordinary Today dwell-route is
+    // unaffected for the common case.
+    const stateAfterAdd = getState();
+    const signals = findCaughtIncome(
+      stateAfterAdd.transactions,
+      stateAfterAdd.incomeSources ?? [],
+      stateAfterAdd.dismissedIncomeSignals ?? [],
+    );
+    dwellRef.current = setTimeout(
+      () => (signals.length > 0 ? nav.openSheet('income-caught') : nav.go('today')),
+      reduceMotion ? 0 : ADD_DWELL_MS,
+    );
   }
 
   // Link them — the candidate is the same as an existing row, so we DON'T add a duplicate: no double

@@ -85,6 +85,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import {
   addTransaction,
   clearReaderCandidates,
+  getState,
   useReaderCandidates,
   type Transaction,
 } from '@/folio/store';
@@ -93,6 +94,7 @@ import {
   type CandidateMoneyItem as SheetCandidate,
   type ColumnIssue,
 } from '@/folio/lib/importSheet';
+import { findCaughtIncome } from '@/folio/lib/caughtIncome';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -344,6 +346,21 @@ export function VisualizerScreen({
       });
     }
     clearReaderCandidates();
+    // Income-signal check (DATA_INTELLIGENCE.md phase ②) — run over the ledger
+    // AFTER the batch has landed, so a newly-completed pattern is visible to the
+    // detector. Propose-and-confirm only: this opens the sheet, it never writes
+    // an IncomeSource itself. No-op when nothing qualifies (no signal, already
+    // declared, or already dismissed) — the "Add all" flow never blocks on it.
+    const state = getState();
+    const signals = findCaughtIncome(
+      state.transactions,
+      state.incomeSources ?? [],
+      state.dismissedIncomeSignals ?? [],
+    );
+    if (signals.length > 0) {
+      nav.openSheet('income-caught');
+      return;
+    }
     nav.go('today-after');
   }
 

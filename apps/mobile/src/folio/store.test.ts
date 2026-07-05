@@ -25,6 +25,7 @@ import {
   borrowFromPot,
   clearReaderCandidates,
   clearReviewQueue,
+  dismissIncomeSignal,
   editTransaction,
   enqueueReviewItems,
   fastForwardMonth,
@@ -1165,6 +1166,29 @@ describe('income sources setters', () => {
     setIncomeSources([weekly]);
     removeIncomeSource('does-not-exist');
     expect(getState().incomeSources).toEqual([weekly]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// dismissIncomeSignal — IncomeCaughtSheet's "Not this one" suppression list
+// (mirrors addIgnoredReviewSig's "said no once, stays quiet" contract).
+// ---------------------------------------------------------------------------
+describe('dismissIncomeSignal', () => {
+  it('records the merchant, normalised (trimmed + lowercased)', () => {
+    dismissIncomeSignal('  Stafflink Payroll  ');
+    expect(getState().dismissedIncomeSignals).toEqual(['stafflink payroll']);
+  });
+
+  it('is idempotent — a repeat call for the same merchant does not duplicate it', () => {
+    dismissIncomeSignal('Stafflink Payroll');
+    dismissIncomeSignal('stafflink payroll'); // same merchant, different case
+    expect(getState().dismissedIncomeSignals).toEqual(['stafflink payroll']);
+  });
+
+  it('prepends new dismissals so the most recent is first', () => {
+    dismissIncomeSignal('Alpha Co');
+    dismissIncomeSignal('Beta Co');
+    expect(getState().dismissedIncomeSignals).toEqual(['beta co', 'alpha co']);
   });
 });
 

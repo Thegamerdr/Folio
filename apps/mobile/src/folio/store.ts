@@ -428,6 +428,14 @@ export type AppState = {
    *  `AppState` fixtures predating this field; `DEFAULTS`/`load()`/
    *  `resetToEmpty()` always populate it ([]). */
   incomeSources?: IncomeSource[];
+  /** Income-signal (`lib/incomeSignals.ts`) merchants the user tapped "Not this
+   *  one" on in `IncomeCaughtSheet` — recorded by normalised merchant key so a
+   *  future detection pass on the same merchant is suppressed rather than
+   *  nagging again, mirroring `ignoredReviewSigs`'s "dismissed once, quiet
+   *  after that" contract. Optional for shape back-compat with hand-built
+   *  `AppState` fixtures predating this field; `DEFAULTS`/`load()`/
+   *  `resetToEmpty()` always populate it ([]). */
+  dismissedIncomeSignals?: string[];
 };
 
 /** A single unreviewed intake candidate (design source `ReviewItem`, verbatim
@@ -634,6 +642,7 @@ const DEFAULTS: AppState = {
   // single-lump derivation until the user (or the v7→v8 migration, for an
   // existing install) populates this list.
   incomeSources: [],
+  dismissedIncomeSignals: [],
 };
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
@@ -884,6 +893,7 @@ function load(): AppState {
       tinyWins: migrated.tinyWins ?? [],
       timelineEvents: migrated.timelineEvents ?? DEFAULT_TIMELINE_EVENTS,
       incomeSources: migrated.incomeSources ?? DEFAULT_INCOME_SOURCES,
+      dismissedIncomeSignals: migrated.dismissedIncomeSignals ?? [],
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
@@ -1232,6 +1242,24 @@ export function upsertIncomeSource(sourceEntry: IncomeSource) {
 export function removeIncomeSource(id: string) {
   const prev = state.incomeSources ?? DEFAULT_INCOME_SOURCES;
   setPartial({ incomeSources: prev.filter((s) => s.id !== id) });
+}
+
+/** Normalise a merchant name into the `dismissedIncomeSignals` key — matches
+ *  `lib/caughtIncome.ts`'s own normalisation so a dismissal always matches the
+ *  signal it was raised against, case/whitespace-insensitively. */
+function normaliseIncomeSignalKey(merchant: string): string {
+  return merchant.trim().toLowerCase();
+}
+
+/** Record a detected income-signal merchant as dismissed (`IncomeCaughtSheet`'s
+ *  "Not this one"). A future detection pass over the same merchant is
+ *  suppressed rather than surfacing the sheet again — mirrors
+ *  `addIgnoredReviewSig`'s "said no once, stays quiet" contract. Idempotent. */
+export function dismissIncomeSignal(merchant: string) {
+  const key = normaliseIncomeSignalKey(merchant);
+  const current = state.dismissedIncomeSignals ?? [];
+  if (current.includes(key)) return;
+  setPartial({ dismissedIncomeSignals: [key, ...current] });
 }
 
 /* ---------- Lens / Money Mode engine (ports folio-melo `lib/store.ts` 1:1) ---------- */
@@ -1701,6 +1729,7 @@ export function resetToEmpty() {
     reviewQueue: [],
     moneyMode: 'survival',
     bufferAmount: 100,
+    dismissedIncomeSignals: [],
     debts: [],
     household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
     plans: [],

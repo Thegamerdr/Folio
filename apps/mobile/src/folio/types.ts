@@ -71,6 +71,7 @@ export type SheetId =
   | 'declare-debt'
   | 'household-setup'
   | 'sub-caught'
+  | 'income-caught'
   | 'add-event'
   | 'calendar-export'
   | 'calendar-connect'
