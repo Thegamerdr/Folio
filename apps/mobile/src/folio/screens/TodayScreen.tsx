@@ -461,7 +461,16 @@ export function TodayScreen({
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.headerDate, { color: t.muted }]}>Saturday, 27 June</Text>
+            {/* DELIBERATE PARITY BREAK: the web design hardcodes "Saturday, 27 June" (a demo
+                string, ScreenToday.tsx:230). A live app showing a frozen date is dishonest —
+                caught on-device 2026-07-05 with real user data next to a wrong date. */}
+            <Text style={[styles.headerDate, { color: t.muted }]}>
+              {new Date().toLocaleDateString('en-GB', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              })}
+            </Text>
             <Pressable
               accessibilityRole="button"
               onPress={() => nav.go('ritual')}
