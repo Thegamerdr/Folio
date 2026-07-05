@@ -991,9 +991,21 @@ function WeekView({
             >
               <View style={layout.dayHead}>
                 <Text style={s.dayHeader}>{formatDayHeader(iso)}</Text>
-                {typeof spare === 'number' ? (
-                  <Text style={s.spareRight}>£{Math.max(0, Math.round(spare))} left</Text>
-                ) : null}
+                <View style={layout.dayHeadRight}>
+                  {typeof spare === 'number' ? (
+                    <Text style={s.spareRight}>£{Math.max(0, Math.round(spare))} left</Text>
+                  ) : null}
+                  {/* "Full day →" — the Week day header's full-detail entry point (opens
+                      SheetDayDetail). Mirrors the web's per-block button next to the spare figure. */}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`See full detail for ${formatDayProse(iso)}`}
+                    onPress={() => nav.openSheet('day-detail', { date: iso })}
+                    style={({ pressed }) => [pressed ? layout.pressed : undefined]}
+                  >
+                    <Text style={s.fullDayLink}>Full day →</Text>
+                  </Pressable>
+                </View>
               </View>
               <View style={layout.eventListCompact}>
                 {evs.map((e) => (
@@ -1139,13 +1151,24 @@ function MonthView({
               : net < 0
                 ? t.repair
                 : 'transparent';
+          // Tap semantics mirror the web exactly: tapping an unselected cell selects it (as before);
+          // tapping the ALREADY-selected cell opens the full-detail sheet ("tap again for full
+          // detail" — the web's aria-label addendum, carried into accessibilityHint below).
+          const overflow = evs.length > 3 ? evs.length - 3 : 0;
           return (
             <Pressable
               key={iso}
               accessibilityRole="button"
               accessibilityLabel={describeDay(iso, evs, spareByDay[iso], isTightest)}
+              accessibilityHint={isSelected ? 'Tap again for full detail' : undefined}
               accessibilityState={{ selected: isSelected }}
-              onPress={() => setSelected(iso)}
+              onPress={() => {
+                if (isSelected) {
+                  nav.openSheet('day-detail', { date: iso });
+                } else {
+                  setSelected(iso);
+                }
+              }}
               style={({ pressed }) => [
                 layout.gridCell,
                 isSelected
@@ -1182,6 +1205,20 @@ function MonthView({
                     ]}
                   />
                 ))}
+                {/* "+N" overflow chip — same row as the dots, decorative (folded into the cell's own
+                    accessibilityLabel via describeDay, matching the web's aria-hidden span). */}
+                {overflow > 0 ? (
+                  <Text
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                    style={[
+                      s.gridOverflow,
+                      { color: isSelected ? withAlpha(t.canvas, 0.7) : t.muted },
+                    ]}
+                  >
+                    {`+${overflow}`}
+                  </Text>
+                ) : null}
               </View>
             </Pressable>
           );
@@ -1201,7 +1238,19 @@ function MonthView({
 
       {/* Selected-day panel. */}
       <View style={s.selectedPanel}>
-        <Text style={s.dayHeader}>{formatDayHeader(selected)}</Text>
+        <View style={layout.dayHead}>
+          <Text style={s.dayHeader}>{formatDayHeader(selected)}</Text>
+          {selectedEvents.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`See full detail for ${formatDayProse(selected)}`}
+              onPress={() => nav.openSheet('day-detail', { date: selected })}
+              style={({ pressed }) => [pressed ? layout.pressed : undefined]}
+            >
+              <Text style={s.fullDayLink}>Full day →</Text>
+            </Pressable>
+          ) : null}
+        </View>
         {selectedEvents.length === 0 ? (
           <Text style={s.nothingLine}>Nothing moves your money on this day.</Text>
         ) : (
@@ -1294,7 +1343,11 @@ function Sparkline({
 // the pause/nudge controls; manual events get Move ±1d + Remove.
 // ---------------------------------------------------------------------------
 
-function EventRow({
+// Exported so SheetDayDetail (the Month-cell / +N-chip / Week-header day drill-in) can render the
+// exact same row the inline panels use — "the sheet must never disagree with the cell it opened
+// from" (SheetDayDetail's own doc block). Mirrors the web port's `import { EventRow } from
+// "@/components/folio/screens/ScreenCalendar"`.
+export function EventRow({
   e,
   t,
   s,
@@ -1578,6 +1631,9 @@ const layout = StyleSheet.create({
   agendaStack: { gap: gap.lg },
   dayHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   dayHeadLeft: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexShrink: 1 },
+  // Wraps the spare-£ text + the Week block's "Full day →" button — mirrors the web's
+  // `flex items-baseline gap-2` on the day-block header's right side.
+  dayHeadRight: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   eventList: { gap: gap.sm, marginTop: 10 },
   eventListCompact: { gap: 6, marginTop: 8 },
   past: { opacity: 0.55 },
@@ -1618,7 +1674,9 @@ const layout = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gridDots: { flexDirection: 'row', gap: 2, marginTop: 2, height: 4, alignItems: 'center' },
+  // Height bumped from 4 to 8 vs the original dots-only row so the "+N" overflow chip (7.5px text,
+  // web-matched) has room without clipping; the dots themselves stay 4px and vertically centre.
+  gridDots: { flexDirection: 'row', gap: 2, marginTop: 2, height: 8, alignItems: 'center' },
   gridDot: { width: 4, height: 4, borderRadius: 2 },
   sparkBlock: { paddingHorizontal: 4, paddingTop: 4 },
 
@@ -1665,7 +1723,9 @@ const layout = StyleSheet.create({
   },
 });
 
-function makeStyles(t: Palette) {
+// Exported alongside EventRow so SheetDayDetail can build a style object EventRow accepts without
+// duplicating this screen's ~300-line style sheet. Pure function, no behaviour change.
+export function makeStyles(t: Palette) {
   return StyleSheet.create({
     backGlyph: { fontSize: 20, fontWeight: '500' },
     eyebrow: {
@@ -1830,6 +1890,20 @@ function makeStyles(t: Palette) {
       textTransform: 'none',
     },
     spareRight: { color: t.muted, fontSize: 11, fontVariant: ['tabular-nums'] },
+    // "Full day →" — Week block's full-detail entry point. Matches the web's
+    // `text-[10.5px] uppercase tracking-[0.12em] text-[var(--accent)]` treatment.
+    fullDayLink: {
+      color: t.calm,
+      fontSize: 10.5,
+      letterSpacing: 1.26,
+      textTransform: 'uppercase',
+    },
+    // "+N" overflow chip inside a Month grid cell's dot row.
+    gridOverflow: {
+      fontSize: 7.5,
+      fontVariant: ['tabular-nums'],
+      marginLeft: 1,
+    },
 
     // Month / week nav
     navRound: {

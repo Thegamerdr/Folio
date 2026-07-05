@@ -211,6 +211,8 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
     {
       title: 'Your data',
       rows: [
+        { label: 'Account', hint: 'your plan, your sources, your footprint', to: 'account' },
+        { label: 'Folio plans', hint: 'Free · Melo Plus · Melo Pro', to: 'paywall' },
         { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
         {
           label: 'Appearance',

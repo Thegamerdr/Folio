@@ -1,0 +1,37 @@
+# 1:1 PORT PROGRAM — Lovable → RN (goal-locked 2026-07-05)
+
+Owner goal: finish the app, 1:1 with the Lovable build. Complete, fully working, ready to go.
+UI/UX absolutely equal to Lovable. Remove+archive what's dead. Reuse engines. Sonnet fleets.
+
+## Decisions (owner-answered)
+- Target branch: `claude/melo-mvp` (this worktree) — becomes THE app branch.
+- Archive: (1) /melo parallel surface, (2) old SVG rigs/forms/wardrobe, (3) legacy /home
+  pressure-map route. Delete from branch + ARCHIVE.md manifest; git history preserves.
+- Native trio: JS-complete first; native follow-up after owner flips LongPathsEnabled.
+- Backend: local-first + live ai-gateway. CHECK Lovable for anything more (account,
+  payments, open-banking) → do if needed; report open-banking/account completeness plan.
+
+## Sources of truth
+- Design repo (READ-ONLY): `C:\dev\folio-melo\.claude\worktrees\design-main` @ origin/main
+  (~30 screens src/components/folio/screens/, 24 sheets .../sheets/, 17 root docs + docs/).
+- Port rules: RN_PORT.md + @rn-screen/@rn-sheet headers per file (FROZEN copy, tokens, motion).
+- RN app surface: `apps/mobile/src/folio/` (FolioShell) — THE app. Melo engines/phoenix/chat
+  from `packages/melo-engine` + `src/melo/*` get REUSED into it, then /melo route archived.
+
+## Phases
+1. RECON→FILES (running): agents write PORT_BIBLE.md (docs digest), GAP_MAP.md (screen/sheet
+   diff Lovable vs RN src/folio), BACKEND_FINDINGS.md. Agents return 1-line status only.
+2. PORT WAVES: sonnet agents batch-port screens/sheets per GAP_MAP (disjoint files, follow
+   PORT_BIBLE + @rn-screen headers). Nav/shell wiring last, by orchestrator.
+3. ABSORB+ARCHIVE: phoenix/lenses/chat into folio surface per Lovable structure; delete
+   /melo route, old rigs, /home; write ARCHIVE.md.
+4. QA: typecheck/tests/copy-lint sweep + device walk on phone 2af26a2c19017ece + ship.
+
+## Toolchain (agents)
+Worktree: C:\dev\folio-v2-greenfield\.claude\worktrees\melo-mvp — absolute paths, no pnpm/git.
+tsc: ./node_modules/.bin/tsc -b apps/mobile --pretty false | grep <file>. vitest for engine.
+Voice: calm/no-shame/no "again"-negative/max one "!". Kit: '@/surfaces/pressureMap/kit'.
+
+## Status log (append)
+- 07-05: program started; phase 1 launched.
+- 07-05: phase 1 DONE (PORT_BIBLE/GAP_MAP/BACKEND_FINDINGS written; RN base 26/29 screens 11/22 sheets; backend=gateway-only, openbanking=phase-later). Phase 2 launched wf_d3113c89 (batch1 shell alone, then 2-7 parallel).

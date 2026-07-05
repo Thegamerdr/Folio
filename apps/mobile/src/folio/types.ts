@@ -10,6 +10,13 @@
 // "Review" tab carries the id `import`). The web design speaks ScreenId (where the same
 // screen is `review`). The shell owns the small, explicit map between the two so the kit stays
 // untouched and the web nav semantics are preserved exactly.
+//
+// Batch-1 union parity note (GAP_MAP.md NAV section): `today-mode`, `today-stability`,
+// `paywall`, `account` and the sheet ids below were missing from these unions — added here
+// (+ FolioShell's SCREEN_TITLE/SHEET_TITLE placeholder maps + MORE_SUBTREE) so batches 2/4/5/7
+// have a union to build their real screens/sheets against instead of being blocked on a shared
+// file. The screens/sheets themselves still render only the shell's placeholder body until the
+// batch that owns them lands the real port.
 
 // Every screen the shell can show. Mirrors the web ScreenId union, name-for-name.
 export type ScreenId =
@@ -24,6 +31,8 @@ export type ScreenId =
   | 'visualizer'
   | 'review'
   | 'today'
+  | 'today-mode'
+  | 'today-stability'
   | 'today-after'
   | 'privacy'
   | 'melo'
@@ -31,6 +40,7 @@ export type ScreenId =
   | 'timeline'
   | 'calendar'
   | 'plans'
+  | 'paywall'
   | 'whatif'
   | 'recovery'
   | 'add-bill'
@@ -39,7 +49,8 @@ export type ScreenId =
   | 'pots'
   | 'ritual'
   | 'insights'
-  | 'shortfall';
+  | 'shortfall'
+  | 'account';
 
 // The single sheet the shell hosts at a time. `null` = no sheet. Mirrors the web SheetId union.
 export type SheetId =
@@ -51,10 +62,21 @@ export type SheetId =
   | 'share'
   | 'onboarding'
   | 'log-spend'
+  | 'log-invoice'
+  | 'log-payment'
+  | 'add-plan'
+  | 'household-setup'
   | 'sub-caught'
   | 'add-event'
   | 'calendar-export'
-  | 'calendar-connect';
+  | 'calendar-connect'
+  | 'safe-zone'
+  | 'shelf'
+  | 'afford-check'
+  | 'lens-picker'
+  | 'chart-style'
+  | 'hidden-review'
+  | 'day-detail';
 
 // Carried when a flow opens Melo so the companion can start with a prefilled draft / seed.
 export type MeloIntent = { prefill?: string; seed?: string };
@@ -64,7 +86,9 @@ export type MeloIntent = { prefill?: string; seed?: string };
 // edits THAT row (via the store's editTransaction) instead of a hardcoded demo subject. Mirrors the
 // MeloIntent pattern — an optional slot the shell threads into the sheet that needs it. Absent /
 // `undefined` = no target (cold open) → the sheet keeps its safe inert fallback.
-export type SheetPayload = { id?: string };
+// `date` is the day-detail sheet's subject — the ISO day (YYYY-MM-DD) a Month cell / "+N" chip /
+// Week day header tap resolved, so day-detail opens showing THAT day instead of a hardcoded one.
+export type SheetPayload = { id?: string; date?: string };
 
 // The route pressure mood — the emotional weather of the money. Mirrors the web Pressure union.
 export type Pressure = 'safe' | 'calm' | 'soft' | 'pressured' | 'overspent';

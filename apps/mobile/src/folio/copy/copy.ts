@@ -87,6 +87,16 @@ export const copy = {
     },
   },
 
+  // ## Hidden — the un-hide list for Review candidates the user told Folio to ignore
+  // (SheetHiddenReview / HiddenReviewSheet). Plain "Hidden", never "ignored"/"blacklisted".
+  hidden: {
+    title: 'Hidden **from Review.**',
+    body: "Items you told Folio to ignore. Future intakes with the exact same merchant, amount, and date won't nag you. Un-hide to let them surface again.",
+    empty: 'Nothing hidden yet.',
+    unhide: 'Un-hide',
+    done: 'Done',
+  },
+
   // ## Pots
   pots: {
     title: 'Pots',

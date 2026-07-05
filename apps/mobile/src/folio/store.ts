@@ -217,6 +217,17 @@ export type AppState = {
    *  by `load()` — it must NOT survive a restart, exactly like the ephemeral
    *  `calendarFocusDate` / `routeFocusDate` bridges. */
   readerCandidates: CandidateMoneyItem[];
+  /** ENGINES.md §6 "Ignored review items: suppressed in main flow, visible in
+   *  Hidden list." A Review candidate the user tapped "Ignore" on is recorded
+   *  here by signature (`merchant|amountCents|date`, matching the design
+   *  source's dedupe key shape) so a future intake with the EXACT same
+   *  merchant/amount/date is suppressed rather than nagging again. Un-hiding
+   *  (HiddenReviewSheet) removes the signature so it can surface again.
+   *  Persisted — this is a durable user choice, not an ephemeral bridge.
+   *  Optional for shape back-compat with hand-built `AppState` fixtures
+   *  predating this field (mirrors `edits?` above); `DEFAULTS`/`load()`/
+   *  `resetToEmpty()` always populate it ([]). */
+  ignoredReviewSigs?: string[];
 };
 
 const KEY = 'folio.state.v1';
@@ -289,6 +300,7 @@ const DEFAULTS: AppState = {
   calendarFocusDate: null,
   routeFocusDate: null,
   readerCandidates: [],
+  ignoredReviewSigs: [],
 };
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
@@ -440,6 +452,7 @@ function load(): AppState {
       // Transient review queue — never restored from a persisted blob (it is
       // excluded from getPersistBlob), so a load always starts it empty.
       readerCandidates: [],
+      ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
@@ -727,6 +740,29 @@ export function useReaderCandidates(): CandidateMoneyItem[] {
   return useAppStore((s) => s.readerCandidates);
 }
 
+/** Build the review-candidate signature used to suppress a repeat intake.
+ *  Mirrors the design source's dedupe key shape: `merchant|amountCents|date`.
+ *  Pure — callers (Review's Ignore action) compute this from a candidate. */
+export function reviewCandidateSig(merchant: string, amount: number, date: string): string {
+  return `${merchant}|${Math.round(amount * 100)}|${date}`;
+}
+
+/** Record a Review candidate signature as ignored (ENGINES.md §6 "Ignored
+ *  review items"). A future intake with the exact same merchant/amount/date
+ *  is suppressed rather than nagging again. Idempotent — adding the same
+ *  signature twice does not duplicate it. */
+export function addIgnoredReviewSig(sig: string) {
+  const current = state.ignoredReviewSigs ?? [];
+  if (current.includes(sig)) return;
+  setPartial({ ignoredReviewSigs: [sig, ...current] });
+}
+
+/** Un-hide a previously-ignored Review candidate signature (HiddenReviewSheet's
+ *  "Un-hide" action) — future intakes matching it will surface again. */
+export function unhideReviewSig(sig: string) {
+  setPartial({ ignoredReviewSigs: (state.ignoredReviewSigs ?? []).filter((s) => s !== sig) });
+}
+
 /** Nudge a flexible bill (subscription renewal) by `deltaDays`. This is
  *  the "what if I move this?" affordance — additive so repeated taps stack,
  *  clamped to ±7 days so we don't pretend bills are fully discretionary. */
@@ -781,6 +817,7 @@ export function resetToEmpty() {
     calendarFocusDate: null,
     routeFocusDate: null,
     readerCandidates: [],
+    ignoredReviewSigs: [],
   };
   state = empty;
   persist();

@@ -27,6 +27,9 @@
 //               is a follow-up. Save applies the change(s) via the store, then closes.
 // @writes       editTransaction (store; replace-in-place + one TxnEdit per changed field, §6). With no
 //               target, or an unchanged note, NOTHING is written (the web close-only contract holds).
+//               A successful save also raises a Tier-1 undo window (useUndo/showUndo — ENGINES §6
+//               "Undo windows"), matching the web source's `undoToast(...)` after `updateTransaction`;
+//               tapping Undo restores every field to its pre-edit snapshot in one call.
 // @copy         FROZEN (verbatim frame; the field VALUES are bound from the real transaction)
 // @tokens       --surface (field rows) · --hairline (row borders) · --accent (t.calm, primary fill) ·
 //               --muted-ink (field labels) · --ink (field values) · --inverse (primary label)
@@ -60,6 +63,7 @@ import Svg, { Path } from 'react-native-svg';
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { editTransaction, useAppStore, type Transaction } from '@/folio/store';
 import type { EditableTransaction } from '@/folio/lib/editTxn';
+import { useUndo } from '@/folio/ui/useUndo';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -176,6 +180,7 @@ function EditTxnForm({
   const [amountText, setAmountText] = useState(Math.abs(txn.amount).toFixed(2));
   const [category, setCategory] = useState<Transaction['category']>(txn.category);
   const [note, setNote] = useState(txn.note ?? '');
+  const { showUndo } = useUndo();
 
   const title = `${txn.merchant} · ${monthDay(txn.when)}`.replace(/ · $/, '');
 
@@ -194,9 +199,25 @@ function EditTxnForm({
   // field left at its current value (so an untouched field fabricates no history, and a Save that
   // changes nothing writes nothing). It replaces the row in place (same id, no duplicate); every
   // transaction-derived view (Timeline, Insights, Today's recent spend) updates reactively. Then close.
+  //
+  // A snapshot of the pre-edit fields is captured BEFORE the write so, if anything actually changed,
+  // Undo can restore all three fields in one call — mirrors the web source's `undoToast(...)` after
+  // `updateTransaction` (SheetEditTxn.tsx), which snapshots merchant/amount/category/when and restores
+  // them together. A no-op save (nothing changed) raises no undo window, matching editTransaction's
+  // own no-op contract (an unchanged patch writes nothing, so there is nothing to undo).
   function handleSave() {
-    editTransaction(txn.id, { amount: resolvedAmount(), category, note: note.trim() }, 'user');
+    const nextAmount = resolvedAmount();
+    const nextNote = note.trim();
+    const changed =
+      nextAmount !== txn.amount || category !== txn.category || nextNote !== (txn.note ?? '');
+    const snapshot = { amount: txn.amount, category: txn.category, note: txn.note ?? '' };
+    editTransaction(txn.id, { amount: nextAmount, category, note: nextNote }, 'user');
     onClose();
+    if (changed) {
+      showUndo(`Updated ${txn.merchant}`, () => {
+        editTransaction(txn.id, snapshot, 'user');
+      });
+    }
   }
 
   return (

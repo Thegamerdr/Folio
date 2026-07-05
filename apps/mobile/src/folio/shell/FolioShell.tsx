@@ -53,6 +53,8 @@ import { TimelineScreen } from '@/folio/screens/TimelineScreen';
 import { PlansScreen } from '@/folio/screens/PlansScreen';
 import { GuidedCheckInScreen } from '@/folio/screens/GuidedCheckInScreen';
 import { MeloScreen } from '@/folio/screens/MeloScreen';
+import { PaywallScreen } from '@/folio/screens/PaywallScreen';
+import { AccountScreen } from '@/folio/screens/AccountScreen';
 import { OnboardingSheet } from '@/folio/sheets/OnboardingSheet';
 import { EditItemSheet } from '@/folio/sheets/EditItemSheet';
 import { EditTxnSheet } from '@/folio/sheets/EditTxnSheet';
@@ -61,6 +63,7 @@ import { SubCaughtSheet } from '@/folio/sheets/SubCaughtSheet';
 import { AddEventSheet } from '@/folio/sheets/AddEventSheet';
 import { CalendarExportSheet } from '@/folio/sheets/CalendarExportSheet';
 import { CalendarConnectSheet } from '@/folio/sheets/CalendarConnectSheet';
+import { SheetDayDetail } from '@/folio/sheets/SheetDayDetail';
 import { RouteDetailSheet } from '@/folio/sheets/RouteDetailSheet';
 import { MeloChatSheet } from '@/folio/sheets/MeloChatSheet';
 import { ShareSheet } from '@/folio/sheets/ShareSheet';
@@ -102,6 +105,8 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   visualizer: 'Check',
   review: 'Review',
   today: 'Today',
+  'today-mode': 'Today',
+  'today-stability': 'Today',
   'today-after': 'After',
   whatif: 'What if',
   plans: 'Plans',
@@ -118,6 +123,8 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   more: 'More',
   privacy: 'Privacy',
   melo: 'Melo',
+  paywall: 'Folio plans',
+  account: 'Account',
 };
 
 // ---------------------------------------------------------------------------
@@ -135,6 +142,7 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'timeline',
   'calendar',
   'plans',
+  'paywall',
   'whatif',
   'recovery',
   'privacy',
@@ -145,6 +153,7 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'ritual',
   'insights',
   'shortfall',
+  'account',
 ]);
 
 // Which bottom-tab lights up for a given screen. Faithful to the web TabBar's active-state map:
@@ -210,6 +219,11 @@ export function FolioShell() {
   // openSheet('edit-txn', { id }) is called, cleared whenever a sheet closes or a navigation
   // supersedes it. `undefined` = no target (cold open) → the sheet keeps its safe inert fallback.
   const [editTxnTarget, setEditTxnTarget] = useState<string | undefined>(undefined);
+  // Carried into the day-detail sheet when a Month cell / "+N" chip / Week day header opens it with
+  // a real subject — the ISO day the tap resolved. Mirrors the editTxnTarget slot exactly: set when
+  // openSheet('day-detail', { date }) is called, cleared whenever a sheet closes or a navigation
+  // supersedes it.
+  const [dayDetailDate, setDayDetailDate] = useState<string | undefined>(undefined);
   const reduceMotion = useReducedMotion();
 
   // Back-history stack — a faithful port of the web shell's `historyRef` (HeroPhone.tsx): `go` pushes
@@ -254,6 +268,7 @@ export function FolioShell() {
     setSheet(null);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
+    setDayDetailDate(undefined);
     setScreen(next);
   }, []);
 
@@ -267,15 +282,19 @@ export function FolioShell() {
     setSheet(null);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
+    setDayDetailDate(undefined);
     setScreen(prev);
   }, []);
 
-  // Open a sheet, carrying the optional payload for sheets that need a real subject. Only 'edit-txn'
-  // reads it today: `payload.id` is the posted transaction the user chose to correct, parked in the
-  // editTxnTarget slot and threaded into <EditTxnSheet target={...}>. Any other sheet ignores the
-  // payload and the target is cleared, so opening a different sheet never carries a stale id.
+  // Open a sheet, carrying the optional payload for sheets that need a real subject. 'edit-txn'
+  // reads `payload.id` (the posted transaction the user chose to correct), parked in the
+  // editTxnTarget slot and threaded into <EditTxnSheet target={...}>. 'day-detail' reads
+  // `payload.date` (the ISO day a Month cell / "+N" chip / Week day header resolved), parked in the
+  // dayDetailDate slot and threaded into <SheetDayDetail date={...}>. Any other sheet ignores the
+  // payload and both slots are cleared, so opening a different sheet never carries a stale target.
   const openSheet = useCallback((next: SheetId, payload?: SheetPayload) => {
     setEditTxnTarget(next === 'edit-txn' ? payload?.id : undefined);
+    setDayDetailDate(next === 'day-detail' ? payload?.date : undefined);
     setSheet(next);
   }, []);
 
@@ -283,6 +302,7 @@ export function FolioShell() {
     setSheet(null);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
+    setDayDetailDate(undefined);
   }, []);
 
   // Open the Melo companion CHAT sheet, carrying any prefill/seed the flow provided (web intent).
@@ -337,9 +357,10 @@ export function FolioShell() {
       <BottomNav active={activeTab} onChange={onTabChange} />
       {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
           sheets (onboarding, edit-item, edit-txn, log-spend, sub-caught, add-event, calendar-export,
-          calendar-connect, route-detail, melo-chat, share) each wrap the kit Sheet internally and are
-          mounted as sibling hosts below, so they are excluded here (via SELF_HOSTING_SHEETS) to avoid
-          double-nesting. With these wired, every SheetId now resolves to a real component. */}
+          calendar-connect, route-detail, melo-chat, share, day-detail) each wrap the kit Sheet
+          internally and are mounted as sibling hosts below, so they are excluded here (via
+          SELF_HOSTING_SHEETS) to avoid double-nesting. With these wired, every SheetId now resolves
+          to a real component. */}
       {sheet !== null && !SELF_HOSTING_SHEETS.has(sheet) && (
         <Sheet visible onClose={closeSheet} reduceMotion={reduceMotion}>
           <SheetView sheet={sheet} />
@@ -380,8 +401,30 @@ export function FolioShell() {
       )}
       {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
       {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
+      {/* Day-detail — the Calendar's full-detail day drill-in (Month cell / "+N" chip / Week day
+          header). The shell threads the parked ISO day; a cold open (no payload, e.g. reached via
+          the generic nav rather than a Calendar tap) falls back to today so the sheet always shows a
+          meaningful day rather than an inert state. */}
+      {sheet === 'day-detail' && (
+        <SheetDayDetail
+          visible
+          onClose={closeSheet}
+          nav={nav}
+          date={dayDetailDate ?? todayIsoForDayDetail()}
+        />
+      )}
     </UndoProvider>
   );
+}
+
+// Local-date YYYY-MM-DD fallback for a cold-opened day-detail sheet (no payload threaded). Scoped to
+// the shell so it never collides with a screen/sheet's own todayIso() helper.
+function todayIsoForDayDetail(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
 
 // The SheetIds whose components own their own kit Sheet (visible / onClose). They are mounted as
@@ -398,6 +441,7 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'route-detail',
   'melo-chat',
   'share',
+  'day-detail',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -456,6 +500,11 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   if (screen === 'plans') return <PlansScreen nav={nav} />;
   if (screen === 'guided') return <GuidedCheckInScreen nav={nav} />;
   if (screen === 'melo') return <MeloScreen nav={nav} pressure={pressure} />;
+
+  // Batch 5 — Melo + chat + paywall + account. Paywall and Account read only real store data (no
+  // fabricated lens/billing engine — see each screen's FIDELITY DECISIONS header).
+  if (screen === 'paywall') return <PaywallScreen nav={nav} />;
+  if (screen === 'account') return <AccountScreen nav={nav} />;
 
   // Every other screen is still a placeholder — a calm title through the editorial Headline.
   const title = SCREEN_TITLE[screen];
@@ -555,10 +604,21 @@ const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {
   share: 'Share',
   onboarding: 'Welcome',
   'log-spend': 'Log a spend',
+  'log-invoice': 'Log an invoice',
+  'log-payment': 'Log a payment',
+  'add-plan': 'Add a plan',
+  'household-setup': 'Household',
   'sub-caught': 'A recurring charge',
   'add-event': 'Add to your calendar',
   'calendar-export': 'Export your calendar',
   'calendar-connect': 'Connect your calendar',
+  'safe-zone': 'Your Safe Zone',
+  shelf: '24-Hour Shelf',
+  'afford-check': 'Before you spend',
+  'lens-picker': 'Choose a lens',
+  'chart-style': 'Path style',
+  'hidden-review': 'Hidden',
+  'day-detail': 'This day',
 };
 
 function SheetView({ sheet }: { sheet: SheetId }) {
