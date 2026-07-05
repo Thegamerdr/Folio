@@ -7,7 +7,7 @@
 // ~/.gradle/gradle.properties, keystore at ~/.folio-signing/ — NEVER committed), release builds
 // sign with the real upload keystore. When absent (CI, another machine), release falls back to
 // the debug keystore so local builds still work; such builds must never be uploaded to Play.
-const { withAppBuildGradle } = require('expo/config-plugins');
+const { withAppBuildGradle, withGradleProperties } = require('expo/config-plugins');
 
 const RELEASE_SIGNING = `        release {
             if (project.hasProperty('FOLIO_UPLOAD_STORE_FILE')) {
@@ -42,8 +42,20 @@ function injectSigning(gradle) {
 }
 
 module.exports = function withUploadSigning(config) {
-  return withAppBuildGradle(config, (cfg) => {
+  config = withAppBuildGradle(config, (cfg) => {
     cfg.modResults.contents = injectSigning(cfg.modResults.contents);
+    return cfg;
+  });
+  // Deliberate arm64-only builds (the prebuild template writes all four ABIs; a stray manual
+  // append used to override it by last-line-wins — this makes the decision explicit + durable).
+  // Play distribution should be an AAB, where per-ABI splits make this moot; sideload APKs
+  // target modern arm64 phones. Revisit if a 32-bit or emulator-x86 target ever matters.
+  return withGradleProperties(config, (cfg) => {
+    const props = cfg.modResults.filter(
+      (p) => !(p.type === 'property' && p.key === 'reactNativeArchitectures'),
+    );
+    props.push({ type: 'property', key: 'reactNativeArchitectures', value: 'arm64-v8a' });
+    cfg.modResults = props;
     return cfg;
   });
 };

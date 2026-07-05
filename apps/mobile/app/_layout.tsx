@@ -14,7 +14,12 @@ import { registerWidgetTaskHandler } from 'react-native-android-widget';
 
 import { ThemeProvider, useIsDark, useTheme } from '../src/surfaces/pressureMap/kit';
 import { clerkTokenCache, getClerkPublishableKey } from '../src/folio/lib/clerkAuth';
+import { initErrorReporting } from '../src/folio/lib/errorReporting';
 import { safeZoneWidgetTaskHandler } from '../src/folio/widget/widgetTaskHandler';
+
+// Crash reporting first — module scope, before anything else can throw. Privacy-tuned
+// (no PII/screenshots/tracing — see errorReporting.ts); no-op when no DSN is configured.
+initErrorReporting();
 
 // Editorial Ledger lives or dies on a real serif. Keep the splash up until Fraunces is loaded so
 // the first paint is already editorial — never a system-font flash that then swaps.

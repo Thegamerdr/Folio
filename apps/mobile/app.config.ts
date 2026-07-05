@@ -44,6 +44,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-secure-store',
     'expo-iap',
+    './plugins/withUploadSigning',
+    [
+      // R8 code + resource shrinking for release builds (the 68MB sideload APK problem).
+      // If a release build ever crashes on boot after a new native dep, suspect missing
+      // ProGuard keep rules first.
+      'expo-build-properties',
+      {
+        android: {
+          enableProguardInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+        },
+      },
+    ],
     [
       // Small-icon tint uses the brand's calm terracotta — visible on the shade without
       // reading as an alert color. No dedicated monochrome icon asset yet; falls back to
@@ -124,5 +137,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ??
       'pk_test_dW5pdGVkLWdpcmFmZmUtMzMuY2xlcmsuYWNjb3VudHMuZGV2JA',
+    // Sentry DSN — public submit-only key (crash reports; privacy-tuned init lives in
+    // src/folio/lib/errorReporting.ts: no PII, no screenshots, no tracing).
+    EXPO_PUBLIC_SENTRY_DSN:
+      process.env.EXPO_PUBLIC_SENTRY_DSN ??
+      'https://4593a25966a06219730d6509c801febf@o4511684285497344.ingest.de.sentry.io/4511684377641040',
   },
 });
