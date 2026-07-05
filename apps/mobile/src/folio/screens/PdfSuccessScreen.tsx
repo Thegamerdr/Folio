@@ -7,13 +7,13 @@
 //               file summary + a short list of found money items + one Melo line, then a primary
 //               path to review what was found and a secondary path to use a different file. Nothing
 //               is committed here — the user only chooses to proceed (review-before-truth).
-// @reads        — (nav only; the web @reads is an em-dash. The web file's ~17 store imports —
-//               setPots/setSubs/togglePaused/addTransaction/… — are DEAD in its body and are NOT
-//               ported. This screen reads no store state.)
-// @writes       — (no store mutation on this screen; the web @writes is an em-dash. An Accept in the
-//               downstream Review step is what calls store.addTransaction — never here.)
-// @opens-sheet  edit-item (INTENDED downstream from Review, NOT fired on this screen — the web
-//               buttons route to 'visualizer'/'intake'. We keep edit-item documented but do not open it.)
+// @reads        readerCandidates (the staged reader output this screen previews).
+// @writes       enqueueReviewItems + clearReaderCandidates (primary CTA only — what the card showed
+//               moves into the PERSISTED review queue, then routes to Review; web ScreenPdfSuccess
+//               parity. Still no money-path mutation: an Accept in the downstream Review step is
+//               what calls store.addTransaction — never here.)
+// @opens-sheet  edit-item (INTENDED downstream from Review, NOT fired on this screen. We keep
+//               edit-item documented but do not open it.)
 // @copy         FROZEN
 // @tokens       surface · hairline · positive · calm (accent) · calmSoft (accent-soft) · muted ·
 //               ink · inverse — all from the kit via '@/folio/theme'. No new token.
@@ -108,7 +108,12 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
-import { useReaderCandidates } from '@/folio/store';
+import {
+  clearReaderCandidates,
+  enqueueReviewItems,
+  queueInputFromCandidates,
+  useReaderCandidates,
+} from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio found in the statement — the eventual shape of one CandidateMoneyItem from the
@@ -195,11 +200,14 @@ function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
 
 // The found list, derived once from the real engine over the sample statement text. The file name +
 // page count are the eventual reader's metadata (kept as the web source's sample until a live read
-// threads them in). The clean sample parses with zero issues.
+// threads them in). The clean sample parses with zero issues. The raw candidates are kept so the
+// primary CTA can enqueue exactly what the card showed (web parity — ScreenPdfSuccess enqueues its
+// sample rows too), never a re-derived list.
+const SAMPLE_CANDIDATES = parseSheet(SAMPLE_STATEMENT_TEXT, { source: 'csv' }).candidates;
 const SAMPLE_FOUND: FoundStatement = {
   fileName: 'Statement_June_2025.pdf',
   pageCount: 8,
-  items: toFoundItems(parseSheet(SAMPLE_STATEMENT_TEXT, { source: 'csv' }).candidates),
+  items: toFoundItems(SAMPLE_CANDIDATES),
 };
 
 // The honest file label for a LIVE read: the reader stages the money movements, not the file's name
@@ -409,14 +417,22 @@ export function PdfSuccessScreen({
         {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
         <View style={styles.spacer} />
 
-        {/* Primary CTA — terracotta fill + terracotta-tinted lift; routes to the Visualizer ("what
-            Folio found") preview, faithful to the web source's nav.go('visualizer'). That preview is
-            where the user actually accepts items (review-before-truth — nothing mutates the money path
-            on this screen; addTransaction fires only on Accept downstream). */}
+        {/* Primary CTA — terracotta fill + terracotta-tinted lift; enqueues what the card showed
+            into the persisted review queue and routes to Review, faithful to the web source
+            (ScreenPdfSuccess.tsx: enqueueReviewItems(...) then nav.go("review")). Review-before-truth
+            holds — queued items are candidates, never posted facts; addTransaction fires only on the
+            Review screen's Add. The transient staging slot is cleared once its items move into the
+            queue so the same rows can't be double-surfaced from the Check tab. A fixture-driven
+            `statement` prop carries no raw candidates, so it enqueues nothing (tests only). */}
         <PressButton
-          onPress={() => nav.go('visualizer')}
+          onPress={() => {
+            const showing = statementProp ? [] : staged.length > 0 ? staged : SAMPLE_CANDIDATES;
+            enqueueReviewItems(queueInputFromCandidates(showing, 'pdf'));
+            if (staged.length > 0) clearReaderCandidates();
+            nav.go('review');
+          }}
           accessibilityLabel="Check what Folio found"
-          accessibilityHint="Opens the preview of what was found"
+          accessibilityHint="Opens the review of what was found"
           style={[styles.primary, elevation.cta, { backgroundColor: t.calm }]}
         >
           <Text style={[styles.primaryLabel, { color: t.inverse }]}>Check what Folio found</Text>

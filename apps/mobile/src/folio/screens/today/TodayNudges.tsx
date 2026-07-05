@@ -6,11 +6,11 @@
 // @purpose      Collapsed single-chip nudge banner: top-priority nudge + a "+N" badge counting the
 //               rest. Tapping the chip runs the TOP nudge's action (web parity — collapse-to-one,
 //               not "up to 2 full banners").
-// @reads        subs, subPaused, onboarding, cycles, transactions, tightPointGoal, readerCandidates
+// @reads        subs, subPaused, onboarding, cycles, transactions, tightPointGoal, reviewQueue
 //               (+ the screen's computed tightestSpare, passed down so the nudge never disagrees
 //               with the headline). shelf via lib/shelf.ts useShelf() (STORE-SEAM DEVIATION, see
 //               that file's header — store.ts has no shelf slot and is outside this batch's file list).
-// @writes       —
+// @writes       sweepReviewQueue (mount only — the queue's 14-day age-out, web parity)
 // @opens-sheet  onboarding, shelf, melo-chat (via nav.openMelo)
 // @copy         FROZEN — verbatim from the deck.
 // @tokens       calm (accent) · calmSoft (accent-soft) · surface · ink · muted · hairline · inset
@@ -18,23 +18,25 @@
 //               onboarding > review-queue > shelf > melo > ritual > insights. Renders nothing when 0
 //               nudges (empty branch).
 //
-// STORE-SEAM NOTE: RN has no persisted `reviewQueue` field — the web store.ts v8 seam maps onto RN's
-// existing `readerCandidates` (store.ts), the staged, review-before-truth queue the Intake reader
-// (PDF/photo/CSV/paste) already writes and VisualizerScreen already drains via clearReaderCandidates.
-// That is a richer, already-shipped superset of the web queue (multi-select, live totals, per-row
-// Fix) and is INTENTIONALLY ephemeral/non-persisted (store.ts `readerCandidates` doc comment) — unlike
-// web's persisted reviewQueue. This nudge is the one piece that was genuinely missing: it points at
-// the SAME staged queue and routes to 'visualizer' (RN's real multi-candidate review screen), not
-// 'review' (RN's separate single-decision manual-entry card, which has no queue-consuming shape).
+// STORE-SEAM NOTE (updated): the persisted `reviewQueue` (web store.ts v8 seam) now EXISTS on RN
+// (store.ts v7 migration) — the intake success screens enqueue into it and the Review screen drains
+// it one decision at a time, exactly like the web. This nudge therefore reads `reviewQueue` and
+// routes to 'review' (web TodayNudges.tsx parity). The transient `readerCandidates` staging slot
+// remains the preview hand-off between Intake and the success screens; it is no longer this nudge's
+// source of truth.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, pressed, radius, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
-import { useAppStore, useReaderCandidates } from '@/folio/store';
+import { sweepReviewQueue, useAppStore, type ReviewItem } from '@/folio/store';
 import { useShelf } from '@/folio/lib/shelf';
 import type { Nav } from '@/folio/types';
+
+// Stable empty fallback for the optional store slot — DEFAULTS/load always populate `reviewQueue`,
+// but the selector must never mint a fresh [] per call (useSyncExternalStore snapshot stability).
+const EMPTY_REVIEW_QUEUE: ReviewItem[] = [];
 
 const MIN_TAP = 44;
 
@@ -66,8 +68,13 @@ export function TodayNudges({
   const cycles = useAppStore((st) => st.cycles);
   const transactions = useAppStore((st) => st.transactions);
   const tightPointGoal = useAppStore((st) => st.tightPointGoal);
-  const readerCandidates = useReaderCandidates();
+  const reviewQueue = useAppStore((st) => st.reviewQueue ?? EMPTY_REVIEW_QUEUE);
   const shelf = useShelf();
+
+  // Age out expired queue items once on mount (web: `sweepReviewQueue()` in the mount effect).
+  useEffect(() => {
+    sweepReviewQueue();
+  }, []);
 
   const nextSub = subs
     .filter(
@@ -114,28 +121,21 @@ export function TodayNudges({
 
   // Unreviewed intake candidates — the "waiting to be checked" chip. Sits above shelf so a fresh
   // statement/paste is the first thing you see when you land back on Today (web parity: TodayNudges.tsx
-  // review-queue nudge, priority slot after onboarding + before shelf). Routes to 'visualizer' — RN's
-  // real multi-candidate review screen for the staged `readerCandidates` queue (see STORE-SEAM NOTE
-  // above); NOT 'review', which is the separate single-decision manual-entry card.
-  if (readerCandidates.length > 0) {
-    const [firstCandidate] = readerCandidates;
-    // RN's CandidateSource union is 'csv' | 'paste' | 'pdf' | 'photo' (importSheet.ts) — mirrors the
-    // web source label mapping (pdf→statement, image→photo, paste→paste) onto RN's actual source set.
-    const sourceLabel =
-      firstCandidate?.source === 'paste'
-        ? 'paste'
-        : firstCandidate?.source === 'photo'
-          ? 'photo'
-          : 'statement';
+  // review-queue nudge, priority slot after onboarding + before shelf). Reads the PERSISTED
+  // `reviewQueue` and routes to 'review' — the queue's drain surface — exactly like the web. The
+  // singular label's source ternary is the web's verbatim mapping (paste → paste, pdf → statement,
+  // image → photo, anything else → intake).
+  if (reviewQueue.length > 0) {
+    const firstQueued = reviewQueue[0]!;
     nudges.push({
       key: 'review-queue',
       tone: 'accent',
       label:
-        readerCandidates.length === 1
-          ? `1 thing waiting to be checked — from your ${sourceLabel}.`
-          : `${readerCandidates.length} things waiting to be checked.`,
+        reviewQueue.length === 1
+          ? `1 thing waiting to be checked — from your ${firstQueued.source === 'paste' ? 'paste' : firstQueued.source === 'pdf' ? 'statement' : firstQueued.source === 'image' ? 'photo' : 'intake'}.`
+          : `${reviewQueue.length} things waiting to be checked.`,
       cta: 'Check →',
-      onPress: () => nav.go('visualizer'),
+      onPress: () => nav.go('review'),
     });
   }
 

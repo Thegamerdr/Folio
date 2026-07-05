@@ -7,12 +7,13 @@
 //               image thumb + the saved name + a short list of found money items + one Melo line,
 //               then a primary path to review what was found and a secondary path to a different
 //               image. Nothing is committed here — the user only chooses to proceed.
-// @reads        — (nav only; the web @reads is an em-dash. The web file's ~17 store imports are DEAD
-//               in its body and are NOT ported. This screen reads no store state.)
-// @writes       — (no store mutation; the web @writes is an em-dash. An Accept in the downstream
-//               Review/Visualizer step is what calls store.addTransaction — never here.)
-// @opens-sheet  edit-item (INTENDED downstream from Review; NOT fired here — the web buttons route to
-//               'visualizer'/'intake'. Kept documented but not opened.)
+// @reads        readerCandidates (the staged reader output this screen previews).
+// @writes       enqueueReviewItems + clearReaderCandidates (primary CTA only — what the card showed
+//               moves into the PERSISTED review queue, then routes to Review; web ScreenImageSuccess
+//               parity. Still no money-path mutation: an Accept in the downstream Review step is
+//               what calls store.addTransaction — never here.)
+// @opens-sheet  edit-item (INTENDED downstream from Review; NOT fired here. Kept documented but not
+//               opened.)
 // @copy         FROZEN
 // @tokens       surface · hairline · inset · positive · calm (accent) · muted · ink · inverse — all
 //               from the kit via '@/folio/theme'. No new token.
@@ -79,7 +80,12 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
-import { useReaderCandidates } from '@/folio/store';
+import {
+  clearReaderCandidates,
+  enqueueReviewItems,
+  queueInputFromCandidates,
+  useReaderCandidates,
+} from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio read from the photo — `merchant` is the display name, `hint` is the voice-
@@ -367,12 +373,23 @@ export function ImageSuccessScreen({
         {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
         <View style={styles.spacer} />
 
-        {/* Primary CTA — terracotta fill; routes to the Visualizer preview where items are accepted. */}
+        {/* Primary CTA — terracotta fill; enqueues what the card showed into the persisted review
+            queue and routes to Review, faithful to the web source (ScreenImageSuccess.tsx:
+            enqueueReviewItems(...) then nav.go("review")). Review-before-truth holds — queued items
+            are candidates, never posted facts. The transient staging slot is cleared once its items
+            move into the queue. A fixture-driven `image` prop carries no raw candidates, so it
+            enqueues nothing (tests only). */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Check what Folio found"
-          accessibilityHint="Opens the preview of what was found"
-          onPress={() => nav.go('visualizer')}
+          accessibilityHint="Opens the review of what was found"
+          onPress={() => {
+            if (!imageProp && staged.length > 0) {
+              enqueueReviewItems(queueInputFromCandidates(staged, 'image'));
+              clearReaderCandidates();
+            }
+            nav.go('review');
+          }}
           style={({ pressed: isPressed }) => [
             styles.primary,
             { backgroundColor: t.calm },

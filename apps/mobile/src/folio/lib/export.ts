@@ -23,6 +23,7 @@ import type {
   CycleRecord,
   Pot,
   PotLedgerEntry,
+  ReviewItem,
   Sub,
   Transaction,
 } from '../store';
@@ -64,6 +65,7 @@ export const EXPORT_CSV_FILES = [
   'cycles.csv',
   'ledger.csv',
   'calendarEvents.csv',
+  'reviewQueue.csv',
   'onboarding.csv',
   'balance.csv',
   'settings.csv',
@@ -219,6 +221,25 @@ function calendarEventsCsv(calendarEvents: readonly CalendarEvent[]): string {
   );
 }
 
+/** Unreviewed intake candidates — the persisted review queue. Column set is
+ *  the design source's review-queue export verbatim (web export.ts
+ *  `review-queue.csv`: id · source · merchant · amount · date · hint ·
+ *  addedAt); the file name follows this bundle's camelCase convention. */
+function reviewQueueCsv(reviewQueue: readonly ReviewItem[]): string {
+  return toCsv(
+    ['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt'],
+    reviewQueue.map((r) => [
+      r.id,
+      r.source,
+      r.merchant,
+      r.amount,
+      r.date ?? '',
+      r.hint ?? '',
+      r.addedAt,
+    ]),
+  );
+}
+
 /** Onboarding / payday rule — a single-row CSV. */
 function onboardingCsv(state: AppState): string {
   const o = state.onboarding;
@@ -286,6 +307,7 @@ export function buildExport(state: AppState): ExportBundle {
     'cycles.csv': cyclesCsv(state.cycles),
     'ledger.csv': ledgerCsv(state.potLedger),
     'calendarEvents.csv': calendarEventsCsv(state.calendarEvents),
+    'reviewQueue.csv': reviewQueueCsv(state.reviewQueue ?? []),
     'onboarding.csv': onboardingCsv(state),
     'balance.csv': balanceCsv(state),
     'settings.csv': settingsCsv(state),

@@ -7,12 +7,13 @@
 //               accepts. A calm preview gate: a hairline-divided list of money-in / money-out items
 //               + one Melo line, then a primary path to check them and a quiet "leave for later".
 //               Nothing is committed here — the user only chooses to proceed.
-// @reads        — (nav only; the web @reads is an em-dash. The web file's ~17 store imports are DEAD
-//               in its body and are NOT ported. This screen reads no store state.)
-// @writes       — (no store mutation; the web @writes is an em-dash. An Accept in the downstream
-//               Visualizer step is what calls store.addTransaction — never here.)
-// @opens-sheet  edit-item (INTENDED downstream from Review; NOT fired here — the web buttons route to
-//               'visualizer'/back. Kept documented but not opened.)
+// @reads        — (the found list derives from the `pasteText` prop via the pure parseSheet engine).
+// @writes       enqueueReviewItems (primary CTA only — what the card showed moves into the PERSISTED
+//               review queue with source "csv", then routes to Review; web ScreenPasteSuccess `send`
+//               parity. Still no money-path mutation: an Accept in the downstream Review step is
+//               what calls store.addTransaction — never here.)
+// @opens-sheet  edit-item (INTENDED downstream from Review; NOT fired here. Kept documented but not
+//               opened.)
 // @copy         FROZEN
 // @tokens       surface · hairline · positive · calm (accent) · muted · ink · inverse — all from the
 //               kit via '@/folio/theme'. No new token.
@@ -70,6 +71,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
+import { enqueueReviewItems, queueInputFromCandidates } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
 // One thing Folio found in the pasted text — `flow` distinguishes money-in from money-out, `amount`
@@ -178,17 +180,31 @@ export function PasteSuccessScreen({
   // The real engine derivation. Live pasted text (when threaded in) is read by `parseSheet`;
   // otherwise we fall back to the faithful sample (the same module-level parse, no re-run). An
   // explicit `items` prop still wins for fixtures. `issues` are the engine's honest fix prompts.
-  const { items, issues } = useMemo(() => {
+  // `candidates` keeps the raw parse output so the primary CTA can enqueue exactly what the card
+  // showed (an `items` fixture carries no raw candidates, so it enqueues nothing — tests only).
+  const { items, issues, candidates } = useMemo(() => {
     if (itemsOverride) {
-      return { items: itemsOverride, issues: [] as readonly ColumnIssue[] };
+      return {
+        items: itemsOverride,
+        issues: [] as readonly ColumnIssue[],
+        candidates: [] as readonly CandidateMoneyItem[],
+      };
     }
     if (pasteText !== undefined) {
       const parsed = parseSheet(pasteText, { source: 'paste' });
-      return { items: toPastedItems(parsed.candidates), issues: parsed.issues };
+      return {
+        items: toPastedItems(parsed.candidates),
+        issues: parsed.issues,
+        candidates: parsed.candidates,
+      };
     }
     // Nothing pasted (a cold open from the nav): show the empty doorway below, never a fabricated
     // sample list. The SAMPLE_* consts are gone — a real paste is the only source of rows here.
-    return { items: [] as readonly PastedItem[], issues: [] as readonly ColumnIssue[] };
+    return {
+      items: [] as readonly PastedItem[],
+      issues: [] as readonly ColumnIssue[],
+      candidates: [] as readonly CandidateMoneyItem[],
+    };
   }, [itemsOverride, pasteText]);
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.
@@ -335,12 +351,18 @@ export function PasteSuccessScreen({
         {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
         <View style={styles.spacer} />
 
-        {/* Primary CTA — terracotta fill; routes to the Visualizer preview where items are accepted. */}
+        {/* Primary CTA — terracotta fill; enqueues what the card showed into the persisted review
+            queue and routes to Review, faithful to the web source (ScreenPasteSuccess.tsx `send`:
+            enqueueReviewItems with source "csv", then nav.go("review")). Review-before-truth holds —
+            queued items are candidates, never posted facts. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Check these"
-          accessibilityHint="Opens the preview of what was found"
-          onPress={() => nav.go('visualizer')}
+          accessibilityHint="Opens the review of what was found"
+          onPress={() => {
+            enqueueReviewItems(queueInputFromCandidates(candidates, 'csv'));
+            nav.go('review');
+          }}
           style={({ pressed: isPressed }) => [
             styles.primary,
             { backgroundColor: t.calm },

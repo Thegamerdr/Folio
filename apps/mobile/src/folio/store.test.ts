@@ -23,7 +23,9 @@ import {
   applyMeloTool,
   borrowFromPot,
   clearReaderCandidates,
+  clearReviewQueue,
   editTransaction,
+  enqueueReviewItems,
   fastForwardMonth,
   getPersistBlob,
   getState,
@@ -31,13 +33,17 @@ import {
   hydrateFromBlob,
   matchMeloTool,
   pauseMany,
+  queueInputFromCandidates,
   resetAll,
   resetToEmpty,
+  resolveReviewItem,
+  reviewCandidateSig,
   setPartial,
   setPotAllowNegative,
   setPots,
   setReaderCandidates,
   setTightPointGoal,
+  sweepReviewQueue,
   togglePaused,
 } from './store';
 import type { CandidateMoneyItem } from './lib/importSheet';
@@ -806,7 +812,7 @@ describe('editTransaction', () => {
 describe('schema migration v3', () => {
   it('defaults DEFAULTS/state to the current schema version with an empty edit history', () => {
     resetAll();
-    expect(getState().schemaVersion).toBe(6);
+    expect(getState().schemaVersion).toBe(7);
     expect(getState().edits).toEqual([]);
   });
 });
@@ -823,7 +829,7 @@ describe('schema migration v6', () => {
     hydrateFromBlob(JSON.stringify(v5Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(6);
+    expect(s.schemaVersion).toBe(7);
     expect(s.timelineEvents).toEqual([]);
   });
 
@@ -909,7 +915,7 @@ describe('persist blob round-trip', () => {
     hydrateFromBlob(blob);
 
     const s = getState();
-    expect(s.schemaVersion).toBe(6);
+    expect(s.schemaVersion).toBe(7);
     expect((s.edits ?? []).length).toBe(1);
     expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
   });
@@ -993,6 +999,199 @@ describe('readerCandidates staging slot', () => {
     hydrateFromBlob(JSON.stringify(blob));
 
     expect(getState().readerCandidates).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// schema migration — v6 → v7 introduces the PERSISTED reviewQueue (the design
+// source's v7→v8 seam, ported 1:1). Unlike readerCandidates above, this queue
+// survives a restart.
+// ---------------------------------------------------------------------------
+describe('schema migration v7', () => {
+  it('a pre-v7 blob with no reviewQueue migrates to an empty queue, byte-identical otherwise', () => {
+    resetAll();
+    // Simulate a persisted v6 blob (no reviewQueue field at all).
+    const v6Blob = { ...getState(), schemaVersion: 6 } as Record<string, unknown>;
+    delete v6Blob.reviewQueue;
+    hydrateFromBlob(JSON.stringify(v6Blob));
+
+    const s = getState();
+    expect(s.schemaVersion).toBe(7);
+    expect(s.reviewQueue).toEqual([]);
+  });
+
+  it('a blob that already carries queued items keeps them intact across migration', () => {
+    enqueueReviewItems([{ source: 'pdf', merchant: 'Tesco', amount: -42.1, date: '2026-07-01' }]);
+    const blob = getPersistBlob();
+    resetAll();
+    hydrateFromBlob(blob);
+
+    const queue = getState().reviewQueue ?? [];
+    expect(queue.length).toBe(1);
+    expect(queue[0]!.merchant).toBe('Tesco');
+    expect(queue[0]!.source).toBe('pdf');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reviewQueue — the persisted intake review queue (web enqueueReviewItems /
+// resolveReviewItem / clearReviewQueue / sweepReviewQueue semantics).
+// ---------------------------------------------------------------------------
+describe('reviewQueue', () => {
+  const input = (
+    over: Partial<{ source: 'pdf'; merchant: string; amount: number; date: string }> = {},
+  ) => ({
+    source: 'pdf' as const,
+    merchant: 'Tesco',
+    amount: -42.1,
+    date: '2026-07-01',
+    ...over,
+  });
+
+  it('defaults to an empty queue', () => {
+    expect(getState().reviewQueue).toEqual([]);
+  });
+
+  it('enqueue stamps id + addedAt and returns the fresh items', () => {
+    // Arrange + Act
+    const fresh = enqueueReviewItems([input()]);
+
+    // Assert
+    expect(fresh.length).toBe(1);
+    expect(fresh[0]!.id).toMatch(/^rv-/);
+    expect(new Date(fresh[0]!.addedAt).getTime()).not.toBeNaN();
+    const queue = getState().reviewQueue ?? [];
+    expect(queue.length).toBe(1);
+    expect(queue[0]!.merchant).toBe('Tesco');
+  });
+
+  it('newest items sit at the head of the queue', () => {
+    enqueueReviewItems([input()]);
+    enqueueReviewItems([input({ merchant: 'Boots', amount: -8.4 })]);
+
+    const queue = getState().reviewQueue ?? [];
+    expect(queue.map((it) => it.merchant)).toEqual(['Boots', 'Tesco']);
+  });
+
+  it('skips duplicates already in the queue (same merchant + amount + date)', () => {
+    enqueueReviewItems([input()]);
+    const fresh = enqueueReviewItems([input()]);
+
+    expect(fresh).toEqual([]);
+    expect((getState().reviewQueue ?? []).length).toBe(1);
+  });
+
+  it('a different date is NOT a duplicate', () => {
+    enqueueReviewItems([input()]);
+    enqueueReviewItems([input({ date: '2026-07-02' })]);
+
+    expect((getState().reviewQueue ?? []).length).toBe(2);
+  });
+
+  it('skips candidates whose signature the user already ignored', () => {
+    addIgnoredReviewSig(reviewCandidateSig('Tesco', -42.1, '2026-07-01'));
+    const fresh = enqueueReviewItems([input()]);
+
+    expect(fresh).toEqual([]);
+    expect((getState().reviewQueue ?? []).length).toBe(0);
+  });
+
+  it('caps the queue at 60, newest kept', () => {
+    const many = Array.from({ length: 70 }, (_, i) =>
+      input({ merchant: `Shop ${i}`, amount: -(i + 1) }),
+    );
+    enqueueReviewItems(many);
+
+    expect((getState().reviewQueue ?? []).length).toBe(60);
+  });
+
+  it('resolveReviewItem removes exactly the given id; unknown ids are a safe no-op', () => {
+    enqueueReviewItems([input(), input({ merchant: 'Boots', amount: -8.4 })]);
+    const queue = getState().reviewQueue ?? [];
+    const target = queue.find((it) => it.merchant === 'Tesco')!;
+
+    resolveReviewItem(target.id);
+    resolveReviewItem('rv-does-not-exist');
+
+    const after = getState().reviewQueue ?? [];
+    expect(after.length).toBe(1);
+    expect(after[0]!.merchant).toBe('Boots');
+  });
+
+  it('clearReviewQueue drains everything', () => {
+    enqueueReviewItems([input(), input({ merchant: 'Boots', amount: -8.4 })]);
+    clearReviewQueue();
+    expect(getState().reviewQueue).toEqual([]);
+  });
+
+  it('sweepReviewQueue ages out items older than 14 days and keeps fresh ones', () => {
+    enqueueReviewItems([input()]);
+    const queue = getState().reviewQueue ?? [];
+    const stale = {
+      ...queue[0]!,
+      id: 'rv-stale',
+      merchant: 'Old row',
+      addedAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+    };
+    setPartial({ reviewQueue: [...queue, stale] });
+
+    sweepReviewQueue();
+
+    const after = getState().reviewQueue ?? [];
+    expect(after.some((it) => it.id === 'rv-stale')).toBe(false);
+    expect(after.length).toBe(1);
+  });
+
+  it('persists across a blob round-trip (unlike the transient readerCandidates)', () => {
+    enqueueReviewItems([input()]);
+    const parsed = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    expect('reviewQueue' in parsed).toBe(true);
+
+    hydrateFromBlob(getPersistBlob());
+    expect((getState().reviewQueue ?? []).length).toBe(1);
+  });
+
+  it('resetToEmpty clears the queue', () => {
+    enqueueReviewItems([input()]);
+    resetToEmpty();
+    expect(getState().reviewQueue).toEqual([]);
+  });
+
+  it('queueInputFromCandidates maps reader candidates with date + note riding along', () => {
+    const mapped = queueInputFromCandidates(
+      [
+        {
+          id: 'r1',
+          source: 'csv',
+          kind: 'spend',
+          merchant: 'Tesco',
+          amount: -42.1,
+          date: '2026-07-01',
+          note: 'looks like a bill',
+          confidence: 'low',
+        },
+        {
+          id: 'r2',
+          source: 'csv',
+          kind: 'spend',
+          merchant: 'Boots',
+          amount: -8.4,
+          confidence: 'low',
+        },
+      ],
+      'pdf',
+    );
+
+    expect(mapped[0]).toEqual({
+      source: 'pdf',
+      merchant: 'Tesco',
+      amount: -42.1,
+      date: '2026-07-01',
+      hint: 'looks like a bill',
+    });
+    // No explicit-undefined keys when the candidate carried no date/note.
+    expect(mapped[1]).toEqual({ source: 'pdf', merchant: 'Boots', amount: -8.4 });
+    expect('date' in mapped[1]!).toBe(false);
   });
 });
 

@@ -379,6 +379,35 @@ export type AppState = {
    *  `TimelineEvent`). Newest first, capped at 200. Optional for shape back-compat; `DEFAULTS`/
    *  `load()`/`resetToEmpty()` always populate it ([]). */
   timelineEvents?: TimelineEvent[];
+  /** Unreviewed candidates from the intake pipeline (PDF / paste / image / CSV
+   *  / TXT) — the PERSISTED review queue, ported 1:1 from the design source
+   *  (folio-melo store.ts `reviewQueue`, its v7→v8 seam). Each entry is one row
+   *  the user has NOT yet accepted or dismissed. Surfaced on Today as "N
+   *  waiting to be checked" and drained one at a time via `resolveReviewItem`.
+   *  Unlike the transient `readerCandidates` staging slot above, this queue
+   *  survives a restart (the web persists it) — review-before-truth still
+   *  holds: queued items are never posted facts and never auto-counted.
+   *  Optional for shape back-compat with hand-built `AppState` fixtures
+   *  (mirrors `timelineEvents?` above); `DEFAULTS`/`load()`/`resetToEmpty()`
+   *  always populate it ([]). */
+  reviewQueue?: ReviewItem[];
+};
+
+/** A single unreviewed intake candidate (design source `ReviewItem`, verbatim
+ *  shape). Signed pounds — negative = out, positive = in — matches
+ *  `Transaction`. */
+export type ReviewItem = {
+  id: string;
+  /** Which intake path produced it. Used only for captions, never logic. */
+  source: 'paste' | 'pdf' | 'image' | 'csv' | 'txt' | 'manual';
+  merchant: string;
+  amount: number;
+  /** ISO YYYY-MM-DD if the reader pinned a date. */
+  date?: string;
+  /** Human hint the reader wrote ("looks like a bill"). */
+  hint?: string;
+  /** When Folio queued it. Used for sort + 14-day age-out. */
+  addedAt: string;
 };
 
 /** Melo companion settings (`MeloScreen`). `quietMode` hides the character
@@ -394,7 +423,7 @@ export type MeloState = {
 const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -504,6 +533,7 @@ const DEFAULTS: AppState = {
   routeFocusDate: null,
   readerCandidates: [],
   ignoredReviewSigs: [],
+  reviewQueue: [],
   moneyMode: 'survival',
   bufferAmount: 100,
   // Two seed debts so the Debt lens has honest numbers on first run, mirroring
@@ -686,6 +716,17 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
       timelineEvents: prior.timelineEvents ?? DEFAULT_TIMELINE_EVENTS,
     };
   },
+  // v6 → v7: introduce the persisted `reviewQueue` for unreviewed intake
+  // candidates (the design source's v7→v8 seam, ported 1:1). Empty on
+  // upgrade — reader paths populate it going forward.
+  7: (prev) => {
+    const prior = prev as Partial<AppState>;
+    return {
+      ...prev,
+      schemaVersion: 7,
+      reviewQueue: Array.isArray(prior.reviewQueue) ? prior.reviewQueue : [],
+    };
+  },
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -754,6 +795,7 @@ function load(): AppState {
       // excluded from getPersistBlob), so a load always starts it empty.
       readerCandidates: [],
       ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
+      reviewQueue: Array.isArray(migrated.reviewQueue) ? migrated.reviewQueue : [],
       moneyMode: migrated.moneyMode ?? DEFAULT_MONEY_MODE,
       bufferAmount: migrated.bufferAmount ?? DEFAULT_BUFFER_AMOUNT,
       debts: migrated.debts ?? DEFAULT_DEBTS,
@@ -1394,6 +1436,99 @@ export function unhideReviewSig(sig: string) {
   setPartial({ ignoredReviewSigs: (state.ignoredReviewSigs ?? []).filter((s) => s !== sig) });
 }
 
+/* ---------- reviewQueue — the persisted intake review queue ---------- */
+// Ported 1:1 from the design source (folio-melo store.ts `enqueueReviewItems` /
+// `resolveReviewItem` / `clearReviewQueue` / `sweepReviewQueue`). The web's
+// combined `ignoreReviewItem` is intentionally NOT ported as one action: the RN
+// Review surface composes `addIgnoredReviewSig` (which also feeds the
+// timeline-verbs log) + `resolveReviewItem`, preserving its existing behaviour.
+
+/** Queue TTL — items older than 14 days age out (design source REVIEW_TTL_MS). */
+const REVIEW_TTL_MS = 14 * 24 * 3600 * 1000;
+/** Queue cap — newest 60 kept (design source's `.slice(0, 60)`). */
+const REVIEW_QUEUE_CAP = 60;
+
+/** Enqueue candidates from an intake reader. Each candidate becomes one Review
+ *  card. `id` and `addedAt` are stamped here so callers can pass minimal input.
+ *  Duplicates already in the queue (same merchant + amount + date) are skipped
+ *  so re-running a reader on the same file doesn't nag twice. Candidates whose
+ *  signature is in `ignoredReviewSigs` are also skipped — the user already said
+ *  "not this one" for that exact row (ENGINES.md § 6 "Future intakes skip exact
+ *  re-matches"). The suppression signature is this store's `reviewCandidateSig`
+ *  (the same key the Review surface's Ignore writes), so the skip and the
+ *  writes always agree. */
+export function enqueueReviewItems(
+  candidates: Array<Omit<ReviewItem, 'id' | 'addedAt'>>,
+): ReviewItem[] {
+  if (candidates.length === 0) return [];
+  const existing = state.reviewQueue ?? [];
+  const ignored = new Set(state.ignoredReviewSigs ?? []);
+  const now = Date.now();
+  const fresh: ReviewItem[] = [];
+  for (const c of candidates) {
+    if (ignored.has(reviewCandidateSig(c.merchant, c.amount, c.date ?? ''))) continue;
+    const dupe = existing.some(
+      (it) =>
+        it.merchant === c.merchant && it.amount === c.amount && (it.date ?? '') === (c.date ?? ''),
+    );
+    if (dupe) continue;
+    fresh.push({
+      ...c,
+      id: `rv-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      addedAt: new Date(now).toISOString(),
+    });
+  }
+  if (fresh.length === 0) return [];
+  // Newest first, capped, age-out anything older than TTL.
+  const combined = [...fresh, ...existing]
+    .filter((it) => now - new Date(it.addedAt).getTime() < REVIEW_TTL_MS)
+    .slice(0, REVIEW_QUEUE_CAP);
+  setPartial({ reviewQueue: combined });
+  return fresh;
+}
+
+/** Map reader candidates (the `readerCandidates` staging shape) into
+ *  review-queue entries for `enqueueReviewItems` — the web success screens'
+ *  exact per-screen mapping (ScreenPdfSuccess / ScreenImageSuccess /
+ *  ScreenPasteSuccess: hardcoded per-screen `source`, merchant, signed amount,
+ *  date + hint when present). Conditional spreads keep
+ *  exactOptionalPropertyTypes honest (no explicit-undefined keys). Pure. */
+export function queueInputFromCandidates(
+  candidates: readonly CandidateMoneyItem[],
+  source: ReviewItem['source'],
+): Array<Omit<ReviewItem, 'id' | 'addedAt'>> {
+  return candidates.map((c) => ({
+    source,
+    merchant: c.merchant,
+    amount: c.amount,
+    ...(c.date !== undefined ? { date: c.date } : {}),
+    ...(c.note !== undefined ? { hint: c.note } : {}),
+  }));
+}
+
+/** Resolve one candidate — user tapped Accept, or Ignored it (the Review
+ *  surface records the suppression signature separately via
+ *  `addIgnoredReviewSig`). Silent no-op if the id is gone. */
+export function resolveReviewItem(id: string) {
+  const queue = state.reviewQueue ?? [];
+  const next = queue.filter((it) => it.id !== id);
+  if (next.length !== queue.length) setPartial({ reviewQueue: next });
+}
+
+/** Drain the whole queue — used when the user explicitly says "clear all"
+ *  or when a cycle closes and stale candidates should stop nagging. */
+export function clearReviewQueue() {
+  if ((state.reviewQueue ?? []).length > 0) setPartial({ reviewQueue: [] });
+}
+
+/** Public sweep — call on Today mount to age out expired items. */
+export function sweepReviewQueue() {
+  const queue = state.reviewQueue ?? [];
+  const now = Date.now();
+  const next = queue.filter((it) => now - new Date(it.addedAt).getTime() < REVIEW_TTL_MS);
+  if (next.length !== queue.length) setPartial({ reviewQueue: next });
+}
+
 /** Nudge a flexible bill (subscription renewal) by `deltaDays`. This is
  *  the "what if I move this?" affordance — additive so repeated taps stack,
  *  clamped to ±7 days so we don't pretend bills are fully discretionary. */
@@ -1449,6 +1584,7 @@ export function resetToEmpty() {
     routeFocusDate: null,
     readerCandidates: [],
     ignoredReviewSigs: [],
+    reviewQueue: [],
     moneyMode: 'survival',
     bufferAmount: 100,
     debts: [],

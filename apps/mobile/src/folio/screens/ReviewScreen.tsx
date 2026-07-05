@@ -8,11 +8,14 @@
 // @purpose      One found item, one decision. A single review card — the amount, the date, what
 //               adding it would do to the balance, and a category — with one dominant "Add to my
 //               picture". This is review-before-truth: nothing counts until the user taps Add.
-// @reads        — (nav only; the web @reads is an em-dash. The web file's ~16 store imports are DEAD
-//               in its body and are NOT ported. This screen reads no store state.)
-// @writes       addTransaction (only on Accept / "Keep both"). De-dupe: when the candidate matches an
-//               existing row the card PROPOSES a link (ENGINES §8 / lib/reviewDedupe → lib/dedupe);
-//               "Link them" adds NOTHING (no double count), "Keep both" is the only Add.
+// @reads        reviewQueue[0] + currentBalance (frozen at mount — the next queued intake candidate
+//               when no direct candidate prop is passed, web ScreenReview.tsx parity), transactions
+//               (reactive, for the de-dupe proposal).
+// @writes       addTransaction (only on Accept / "Keep both") · resolveReviewItem (drains the queued
+//               item on Accept AND on Ignore, so the Today "waiting to be checked" chip decrements).
+//               De-dupe: when the candidate matches an existing row the card PROPOSES a link
+//               (ENGINES §8 / lib/reviewDedupe → lib/dedupe); "Link them" adds NOTHING (no double
+//               count), "Keep both" is the only Add.
 // @opens-sheet  edit-txn (the header's ⋯ opens the edit-txn sheet via nav.openSheet)
 // @copy         FROZEN
 // @tokens       surface · hairline · inset · calm (accent) · calmSoft (accent-soft) · muted · ink ·
@@ -81,8 +84,11 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import {
   addIgnoredReviewSig,
   addTransaction,
+  getState,
+  resolveReviewItem,
   reviewCandidateSig,
   useAppStore,
+  type ReviewItem,
   type Transaction,
 } from '@/folio/store';
 import { reviewDateToIso, reviewMatch, reviewMatchSubline } from '@/folio/lib/reviewDedupe';
@@ -172,6 +178,59 @@ function categoryFor(label: Category): Transaction['category'] {
   }
 }
 
+// Month names for the friendly date line — reviewDateToIso (lib/reviewDedupe.ts) parses this exact
+// "26 June" form back to ISO, so the display and the suppression signature can never drift apart.
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+// Render an ISO YYYY-MM-DD as the card's friendly "26 June" form. A non-ISO or missing date returns
+// the input unchanged — never invented, never reformatted on a guess.
+function friendlyDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  const month = MONTH_NAMES[Number(m[2]) - 1];
+  if (!month) return iso;
+  return `${Number(m[3])} ${month}`;
+}
+
+// The caption noun for where a queued candidate came from — the web design's exact source mapping
+// (TodayNudges.tsx: paste → "paste", pdf → "statement", image → "photo", anything else → "intake").
+function sourceNoun(source: ReviewItem['source']): string {
+  return source === 'paste'
+    ? 'paste'
+    : source === 'pdf'
+      ? 'statement'
+      : source === 'image'
+        ? 'photo'
+        : 'intake';
+}
+
+// Thread one queued ReviewItem into this screen's candidate shape. `id` is intentionally OMITTED —
+// a queued candidate is not a posted fact (review-before-truth), so the edit-txn sheet must keep its
+// safe inert fallback. `date` keeps the item's raw ISO (or '' when the reader pinned none) so the
+// de-dupe engine and the Ignore signature read the exact stored value; display formats separately.
+function candidateFromQueueItem(item: ReviewItem, before: number): ReviewCandidate {
+  return {
+    merchant: item.merchant,
+    amount: Math.abs(item.amount),
+    flow: item.amount < 0 ? 'out' : 'in',
+    date: item.date ?? '',
+    before,
+  };
+}
+
 // Local reduce-motion read, mirroring Melo.tsx / StartScreen.tsx exactly: read once, then subscribe.
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
@@ -198,14 +257,32 @@ export function ReviewScreen({
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  // Whether a REAL candidate was handed in. A cold open from the shell (FolioShell renders
-  // <ReviewScreen nav={nav} /> with no candidate — e.g. the Intake "Add numbers yourself" path)
-  // passes none. We never fabricate a sample row in that case: the empty doorway shows below, so the
-  // user can never accidentally Add a fake "Tesco £42" as a real transaction. SAMPLE_CANDIDATE is kept
-  // ONLY as a safe fallback so the hooks/derivations below never read undefined — its values are never
+  // Queue consumption (web ScreenReview.tsx `reviewQueue[0]`): with no direct candidate prop, the
+  // screen reviews the NEXT queued intake candidate. Frozen ONCE at mount (useState initializer) so
+  // the card never flips mid-decision when the queue shrinks — the web got the same stability from
+  // its nav.bumpReview() re-key; here the shell re-mounts the screen on every visit, so the next
+  // visit picks up the next queued item. `before` is the live balance at mount, mirroring the web's
+  // store read.
+  const [queued] = useState<{ item: ReviewItem; count: number } | null>(() => {
+    if (candidateProp !== undefined) return null;
+    const queue = getState().reviewQueue ?? [];
+    const top = queue[0];
+    return top ? { item: top, count: queue.length } : null;
+  });
+  const queuedCandidate = useMemo(
+    () => (queued ? candidateFromQueueItem(queued.item, getState().currentBalance.amount) : null),
+    [queued],
+  );
+
+  // Whether a REAL candidate was handed in — directly as a prop, or pulled from the persisted
+  // review queue. A cold open from the shell (FolioShell renders <ReviewScreen nav={nav} /> with no
+  // candidate — e.g. the Intake "Add numbers yourself" path) with an EMPTY queue passes none. We
+  // never fabricate a sample row in that case: the empty doorway shows below, so the user can never
+  // accidentally Add a fake "Tesco £42" as a real transaction. SAMPLE_CANDIDATE is kept ONLY as a
+  // safe fallback so the hooks/derivations below never read undefined — its values are never
   // displayed when `hasRealCandidate` is false.
-  const hasRealCandidate = candidateProp !== undefined;
-  const candidate = candidateProp ?? SAMPLE_CANDIDATE;
+  const hasRealCandidate = candidateProp !== undefined || queuedCandidate !== null;
+  const candidate = candidateProp ?? queuedCandidate ?? SAMPLE_CANDIDATE;
 
   const [stamped, setStamped] = useState(false);
   const [category, setCategory] = useState<Category>('Groceries');
@@ -296,6 +373,10 @@ export function ReviewScreen({
       category: categoryFor(category),
       source: 'manual',
     });
+    // Drain the queued item this card was showing so the Today chip decrements
+    // (web ScreenReview.tsx: `if (topCandidate) resolveReviewItem(topCandidate.id)`).
+    // No-op when the card came from a direct candidate prop.
+    if (queued) resolveReviewItem(queued.item.id);
     if (!reduceMotion) {
       stampScale.value = withSequence(
         withTiming(1.12, { duration: STAMP_MS * 0.6, easing: STAMP_EASE }),
@@ -325,6 +406,9 @@ export function ReviewScreen({
       const year = now?.getFullYear() ?? new Date().getFullYear();
       const dateIso = reviewDateToIso(candidate.date, year) ?? candidate.date;
       addIgnoredReviewSig(reviewCandidateSig(merchant, signedDelta, dateIso), merchant);
+      // A queued candidate also leaves the queue (web ignoreReviewItem drops the item AND records
+      // its signature; RN composes the same outcome from the two store actions).
+      if (queued) resolveReviewItem(queued.item.id);
     }
     nav.back();
   }
@@ -379,6 +463,12 @@ export function ReviewScreen({
   const isOut = candidate.flow === 'out';
   const dropLine = `from £${candidate.before} · ${isOut ? 'drops' : 'rises'} by £${editedAmount.toFixed(0)}`;
 
+  // Position + provenance. Queue-fed cards read honestly from the queue ("1 of N", the item's own
+  // intake source); the direct-candidate path keeps its original literals byte-for-byte.
+  const positionLabel = queued ? `1 of ${queued.count}` : '1 of 3';
+  const provenance = queued ? `from your ${sourceNoun(queued.item.source)}` : 'from your statement';
+  const dateLine = candidate.date ? `${friendlyDate(candidate.date)} · ${provenance}` : provenance;
+
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView
@@ -402,8 +492,11 @@ export function ReviewScreen({
           >
             <BackArrow color={t.muted} />
           </Pressable>
-          <Text accessibilityLabel="Item 1 of 3" style={[styles.position, { color: t.muted }]}>
-            1 of 3
+          <Text
+            accessibilityLabel={`Item ${positionLabel}`}
+            style={[styles.position, { color: t.muted }]}
+          >
+            {positionLabel}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -480,9 +573,7 @@ export function ReviewScreen({
               value={amountText}
             />
           </View>
-          <Text
-            style={[styles.dateLine, { color: t.muted }]}
-          >{`${candidate.date} · from your statement`}</Text>
+          <Text style={[styles.dateLine, { color: t.muted }]}>{dateLine}</Text>
 
           <View style={[styles.cardDivider, { backgroundColor: t.hairline }]} />
 

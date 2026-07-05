@@ -118,6 +118,17 @@ function fullState(): AppState {
     calendarFocusDate: null,
     routeFocusDate: null,
     readerCandidates: [],
+    reviewQueue: [
+      {
+        id: 'rv-1',
+        source: 'pdf',
+        merchant: 'Caffè Nero',
+        amount: -4.2,
+        date: '2026-06-25',
+        hint: 'looks like spending',
+        addedAt: '2026-06-26T00:00:00.000Z',
+      },
+    ],
   };
 }
 
@@ -145,6 +156,7 @@ function emptyState(): AppState {
     calendarFocusDate: null,
     routeFocusDate: null,
     readerCandidates: [],
+    reviewQueue: [],
   };
 }
 
@@ -250,6 +262,7 @@ describe('buildExport — per-surface csvs', () => {
     expect(csvs).toHaveProperty('cycles.csv');
     expect(csvs).toHaveProperty('ledger.csv');
     expect(csvs).toHaveProperty('calendarEvents.csv');
+    expect(csvs).toHaveProperty('reviewQueue.csv');
   });
 
   it('every category that exists in the store is present in BOTH json and a csv', () => {
@@ -263,6 +276,7 @@ describe('buildExport — per-surface csvs', () => {
       ['cycles', 'cycles.csv'],
       ['potLedger', 'ledger.csv'],
       ['calendarEvents', 'calendarEvents.csv'],
+      ['reviewQueue', 'reviewQueue.csv'],
       ['onboarding', 'onboarding.csv'],
       ['currentBalance', 'balance.csv'],
       ['tightPointGoal', 'settings.csv'],
@@ -308,6 +322,19 @@ describe('buildExport — per-surface csvs', () => {
     expect(disney?.[pausedIdx]).toBe('true');
     expect(spotify?.[pausedIdx]).toBe('false');
     expect(spotify?.[nudgeIdx]).toBe('3');
+  });
+
+  it('reviewQueue.csv carries the queued intake candidates (design-source column set)', () => {
+    const { csvs } = buildExport(fullState());
+    const rows = parseCsv(csvs['reviewQueue.csv'] as string);
+    expect(rows[0]).toEqual(['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt']);
+    expect(rows).toHaveLength(2); // header + 1 queued candidate
+    const header = rows[0] as string[];
+    const row = rows[1] as string[];
+    expect(row[header.indexOf('merchant')]).toBe('Caffè Nero');
+    expect(row[header.indexOf('source')]).toBe('pdf');
+    expect(row[header.indexOf('amount')]).toBe('-4.2');
+    expect(row[header.indexOf('hint')]).toBe('looks like spending');
   });
 
   it('pots.csv carries the per-pot cadence kind', () => {
@@ -424,6 +451,7 @@ describe('buildExport — empty state', () => {
       'cycles.csv',
       'ledger.csv',
       'calendarEvents.csv',
+      'reviewQueue.csv',
     ];
     // Singleton surfaces always carry the one row that describes the scalar.
     const singletons = ['onboarding.csv', 'balance.csv', 'settings.csv'];
