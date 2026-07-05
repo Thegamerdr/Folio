@@ -12,6 +12,7 @@ import type { MascotFamily } from '@folio/melo-engine';
 import { MELO_COLORWAYS, type MeloColorway } from '../theme/weather';
 import { WARDROBE, WardrobeLayer, type WardrobeId } from './wardrobe';
 import { FENICE_ACCESSORIES, FeniceAccessory, feniceRig, type FeniceAccessoryId } from './fenice';
+import { MeloPhoenix } from './MeloPhoenix';
 
 const INK = '#3A342C';
 const UMBRELLA = '#5A646E';
@@ -63,6 +64,32 @@ function useReduceMotion(): boolean {
 }
 
 export function MeloMascot({
+  emotion,
+  colorway = 'ember',
+  size = 96,
+  glow = 0.8,
+  breathe = false,
+  breatheDurationMs = 6_500,
+  wardrobe = null,
+  form = null,
+}: Props) {
+  // Phoenix port (owner's real Lovable design, PNG sprites): every Melo IS MeloPhoenix now.
+  // Props pass straight through; colorway/form are sprite-era no-ops kept for call sites.
+  void colorway;
+  void form;
+  return (
+    <MeloPhoenix
+      emotion={emotion}
+      size={size}
+      glow={glow}
+      breathe={breathe}
+      breatheDurationMs={breatheDurationMs}
+      wardrobe={wardrobe}
+    />
+  );
+}
+
+function LegacySvgMascot({
   emotion,
   colorway = 'ember',
   size = 96,

@@ -61,6 +61,26 @@ describe('resolveMoneyMode — priority order', () => {
     ).not.toBe('growth');
   });
 
+  it('optimizer applies when stable and bills-covered but not yet saving this cycle', () => {
+    expect(
+      resolveMoneyMode(
+        base({ billsCovered: true, cyclesEndedPositive: 1, savingsThisCyclePence: 0 }),
+      ),
+    ).toBe('optimizer');
+  });
+
+  it('optimizer yields to growth once savings actually land this cycle', () => {
+    expect(
+      resolveMoneyMode(
+        base({
+          billsCovered: true,
+          cyclesEndedPositive: 2,
+          savingsThisCyclePence: 500,
+        }),
+      ),
+    ).toBe('growth');
+  });
+
   it('stability applies when bills are covered and the ladder is calm or protected', () => {
     expect(resolveMoneyMode(base({ billsCovered: true, ladder: 'protected' }))).toBe('stability');
     expect(resolveMoneyMode(base({ billsCovered: true, ladder: 'calm' }))).toBe('stability');

@@ -2,7 +2,9 @@
 // override the engine's auto-read of their situation. Auto stays the honest default — the chip
 // shows what Melo currently reads without the user having to know the taxonomy. household + debt
 // are flagged 'early' inline: the mode exists so the right words show up, but the deeper tracking
-// for those two isn't built yet — an honest placeholder, not a locked feature.
+// for those two isn't built yet — an honest placeholder, not a locked feature. MODE_ORDER is a
+// deliberate display order over MODE_LABELS (all ten modes) — keep it in sync whenever a mode is
+// added to the engine; MoneyMode is the single source of truth for which modes exist.
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -25,6 +27,7 @@ const MODE_ORDER: readonly MoneyMode[] = [
   'irregular',
   'household',
   'planning',
+  'optimizer',
   'reset',
   'lowVisibility',
 ];
