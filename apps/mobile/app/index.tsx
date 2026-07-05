@@ -17,7 +17,7 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { useTheme } from '@/surfaces/pressureMap/kit';
 import { FolioShell } from '@/folio/shell/FolioShell';
-import { loadPersisted, startPersisting } from '@/folio/lib/persist';
+import { importMeloBlobIfPresent, loadPersisted, startPersisting } from '@/folio/lib/persist';
 
 export default function FolioRoute() {
   const t = useTheme();
@@ -31,6 +31,12 @@ export default function FolioRoute() {
     let cancelled = false;
     void (async () => {
       await loadPersisted(); // read blob off disk → hydrate store (no-op on first run).
+      if (cancelled) return;
+      // One-time data-continuity import from the archived Melo surface's own
+      // blob, if the folio store is still empty. Runs AFTER loadPersisted so
+      // the emptiness check reads real hydrated state. Silent no-op on any
+      // failure — see lib/persist.ts `importMeloBlobIfPresent`.
+      await importMeloBlobIfPresent();
       if (cancelled) return;
       stop = startPersisting(); // begin debounced write-on-change.
       setReady(true);

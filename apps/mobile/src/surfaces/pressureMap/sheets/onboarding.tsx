@@ -475,9 +475,9 @@ function clampInt(n: number, lo: number, hi: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Styles — colours map 1:1 to the web CSS variables: --inset #FCFBF7 (paper.inset),
-// --ink #1A1815 (paper.ink), --muted-ink #6B6760 (paper.muted), --hairline #ECE9E0
-// (paper.hairline), --accent #E0633A (paper.calm), --accent-soft #F5E4DB
+// Styles — colours map 1:1 to the web CSS variables: --inset #EFEDE5 (paper.inset),
+// --ink #1A1815 (paper.ink), --muted-ink #6B6760 (paper.muted), --hairline #E6E1D5
+// (paper.hairline), --accent #DC5E33 (paper.calm), --accent-soft #F4E2D6
 // (paper.calmSoft). Serif display + italic come from the kit's serif faces.
 // Resolved against the active palette `t` (light or dark) via makeStyles(t).
 // ---------------------------------------------------------------------------

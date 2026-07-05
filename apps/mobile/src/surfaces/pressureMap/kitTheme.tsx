@@ -7,7 +7,7 @@
 //
 // THE CONTRACT (read before adding a colour):
 //   • `paper`     — the canonical LIGHT palette. Lives in kit.tsx as a literal. Tests grep its exact
-//                   hexes (e.g. `calm: '#E0633A'`), so it MUST stay there, byte-stable. kit.tsx
+//                   hexes (e.g. `calm: '#DC5E33'`), so it MUST stay there, byte-stable. kit.tsx
 //                   passes it into <ThemeProvider light={paper} /> — this module never imports it,
 //                   which keeps the two files free of an import cycle.
 //   • `paperDark` — the matching DARK palette, defined here. EVERY key of `paper` has a dark value.

@@ -30,7 +30,7 @@
 // @tokens       canvas (paper) · inset · hairline · ink · muted · repair (coral / warm-negative) ·
 //               calm (accent) — all from the kit via '@/folio/theme'. The web referenced a `--coral`
 //               token that is NOT in the web :root; per the spec fidelity note the warm-negative reads
-//               as `repair` (#C5503E, the web --negative) — the emotionally-correct coral for the gap.
+//               as `repair` (#C0503E, the web --negative) — the emotionally-correct coral for the gap.
 // @motion       slide-in-r on mount (360ms ease-out-expo) · gap-pulse on the gap em (1.6s ease-in-out,
 //               opacity 1→0.62, OFF under reduce-motion) · press 0.97 on back / all cards / refusal.
 //               Melo carries the only other continuous motion (concern breathe-slow, 6s, internal).

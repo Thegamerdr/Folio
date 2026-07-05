@@ -52,7 +52,7 @@ function paletteKeys(source: string, declarationStart: string): readonly string[
 describe('dark-mode foundation — palette contract', () => {
   it('the light palette keeps its grepped literal hexes in kit.tsx', () => {
     // Pinned here AND in lovableImplementation.test.ts — the sweep must not move these out of kit.tsx.
-    expect(kit).toContain("calm: '#E0633A'");
+    expect(kit).toContain("calm: '#DC5E33'");
     expect(kit).toContain("positive: '#3E8E5A'");
     expect(kit).toContain("positiveInk: '#2F7048'");
     expect(kit).toContain('export const paper = {');

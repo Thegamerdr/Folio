@@ -1215,6 +1215,155 @@ export function hasAnyUserData(s: AppState): boolean {
   return s.transactions.length > 0 || s.pots.length > 0 || s.subs.length > 0 || s.cycles.length > 0;
 }
 
+/* ---------- One-time melo → folio data-continuity migration ----------
+ * The archived Melo surface (apps/mobile/src/melo, removed at commit eb34425)
+ * persisted its own encrypted blob (`melo.state.v1.json`) with a setup the
+ * user actually filled in — payday, income, bills, balance — that never had
+ * anywhere to land once the surface was archived. This is a one-time,
+ * additive-only import of that dogfood data into the folio store, so it
+ * survives the archival instead of silently vanishing. See lib/persist.ts
+ * `importMeloBlobIfPresent` for the file I/O (read/decrypt/rename) that
+ * drives this pure mapper. */
+
+/** The slice of the archived Melo store's shape this migration reads. Kept
+ *  minimal + structurally-typed (not imported from the deleted module) since
+ *  the source no longer exists in the tree; every field is read defensively. */
+export type MeloImportBill = {
+  name?: unknown;
+  amountPence?: unknown;
+  dueDay?: unknown;
+  kind?: unknown;
+};
+export type MeloImportSetup = {
+  paydayDay?: unknown;
+  paydayLastWorkingDay?: unknown;
+  incomePence?: unknown;
+  balancePence?: unknown;
+  bills?: unknown;
+};
+export type MeloImportBlob = {
+  v?: unknown;
+  state?: { setup?: MeloImportSetup };
+};
+
+/** True when the current folio state is "effectively empty" — i.e. nothing
+ *  the melo import would clobber or duplicate. Deliberately narrower than
+ *  `hasAnyUserData`: this gate exists ONLY to decide whether the one-time
+ *  melo import should run, so it checks exactly the slots the import writes
+ *  (transactions, debts, onboarding, balance) rather than every user-data
+ *  slot in the app. A fresh install (DEFAULTS) is NOT "empty" by this check
+ *  because DEFAULTS seeds sample transactions/debts/balance — which is
+ *  correct: the import must not overwrite real seeded-vs-real ambiguity by
+ *  guessing, it only fires when the user has neither. */
+export function isEmptyForMeloImport(s: AppState): boolean {
+  const noTransactions = s.transactions.length === 0;
+  const noDebts = (s.debts ?? []).length === 0;
+  const noOnboarding = !s.onboarding.done;
+  const sampleBalance = s.currentBalance.source === 'sample';
+  return noTransactions && noDebts && noOnboarding && sampleBalance;
+}
+
+/** Map an archived Melo blob's `setup` onto a folio state patch. Pure — no
+ *  I/O, no Date.now() beyond stamping `setAt`/`addedAt` on the produced
+ *  records via the caller's `now` param, so this stays deterministic and
+ *  Node-testable. Returns `null` when the blob has no usable setup at all
+ *  (e.g. the user never finished melo onboarding), so the caller can skip
+ *  the import + still rename the blob out of the way.
+ *
+ *  Deliberate, documented gaps (additive-only — never invents a folio field):
+ *   - `paydayLastWorkingDay` has no destination on folio's `Onboarding`
+ *     (`payday` is a single day-of-month number); the flag is read but
+ *     dropped rather than approximated.
+ *   - Melo bills have no balance/APR — they are recurring flat costs, not
+ *     debts. They still map onto folio's `Debt` (the closest first-class
+ *     "amount + day-of-month + kind" object) with `balance: 0, apr: 0` so
+ *     they surface honestly as zero-balance/zero-interest recurring items,
+ *     never fabricated numbers. `kind: 'bill'` (a plain recurring bill) has
+ *     no folio `Debt.kind` equivalent, so it maps to `'other'`; `'bnpl'` and
+ *     `'debt'` map to `'bnpl'` and `'loan'` respectively. */
+export function mapMeloBlobToFolioPatch(
+  blob: MeloImportBlob,
+  now: string = new Date().toISOString(),
+): Partial<AppState> | null {
+  const setup = blob.state?.setup;
+  if (setup === null || typeof setup !== 'object') return null;
+
+  const patch: Partial<AppState> = {};
+
+  const paydayDay =
+    typeof setup.paydayDay === 'number' && Number.isFinite(setup.paydayDay)
+      ? Math.round(setup.paydayDay)
+      : null;
+  const incomePence =
+    typeof setup.incomePence === 'number' && Number.isFinite(setup.incomePence)
+      ? setup.incomePence
+      : null;
+  if (paydayDay !== null || incomePence !== null) {
+    patch.onboarding = {
+      done: true,
+      name: '',
+      payday: paydayDay ?? DEFAULTS.onboarding.payday,
+      monthlyIncome: incomePence !== null ? incomePence / 100 : DEFAULTS.onboarding.monthlyIncome,
+    };
+  }
+
+  const balancePence = setup.balancePence;
+  if (typeof balancePence === 'number' && Number.isFinite(balancePence)) {
+    patch.currentBalance = {
+      amount: balancePence / 100,
+      source: 'user-entered',
+      confidence: 'rough',
+      setAt: now,
+    };
+  }
+
+  const rawBills = Array.isArray(setup.bills) ? (setup.bills as MeloImportBill[]) : [];
+  if (rawBills.length > 0) {
+    const kindMap: Record<string, Debt['kind']> = { bill: 'other', bnpl: 'bnpl', debt: 'loan' };
+    const debts: Debt[] = rawBills
+      .map((b, i) => {
+        const name = typeof b.name === 'string' ? b.name.trim() : '';
+        const amountPence =
+          typeof b.amountPence === 'number' && Number.isFinite(b.amountPence)
+            ? b.amountPence
+            : null;
+        const dueDay =
+          typeof b.dueDay === 'number' && Number.isFinite(b.dueDay)
+            ? Math.min(31, Math.max(1, Math.round(b.dueDay)))
+            : 1;
+        const kind = typeof b.kind === 'string' ? (kindMap[b.kind] ?? 'other') : 'other';
+        if (!name || amountPence === null) return null;
+        const full: Debt = {
+          id: `melo-import-${i}-${name.toLowerCase().replace(/\s+/g, '-')}`,
+          name,
+          kind,
+          balance: 0,
+          apr: 0,
+          minPayment: amountPence / 100,
+          dueDom: dueDay,
+          addedAt: now,
+        };
+        return full;
+      })
+      .filter((d): d is Debt => d !== null);
+    if (debts.length > 0) patch.debts = debts;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+/** Apply the melo import patch to the live store, exactly once. Guarded by
+ *  `isEmptyForMeloImport` so a returning user with real folio data is never
+ *  clobbered. Called from `lib/persist.ts` after it has read + decrypted the
+ *  archived melo blob and confirmed the folio store has already loaded. */
+export function applyMeloImportIfEmpty(blob: MeloImportBlob): boolean {
+  if (!isEmptyForMeloImport(state)) return false;
+  const patch = mapMeloBlobToFolioPatch(blob);
+  if (patch === null) return false;
+  setPartial(patch);
+  return true;
+}
+
 /** Debug: shift every dated thing backwards by ~30 days and add a synthetic
  *  closed cycle. Lets us demo Insights without waiting a month. */
 export function fastForwardMonth() {

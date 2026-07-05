@@ -24,7 +24,13 @@
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 
-import { getPersistBlob, hydrateFromBlob, subscribeStore } from '@/folio/store';
+import {
+  applyMeloImportIfEmpty,
+  getPersistBlob,
+  hydrateFromBlob,
+  subscribeStore,
+  type MeloImportBlob,
+} from '@/folio/store';
 import { GCM_NONCE_BYTES, decryptBlob, encryptBlob, isEncryptedBlob } from '@/folio/lib/cryptoBlob';
 import { getVaultKey } from '@/folio/lib/vaultKey';
 
@@ -32,6 +38,15 @@ import { getVaultKey } from '@/folio/lib/vaultKey';
  *  CURRENT_SCHEMA_VERSION so a future schema bump can adopt a new file name
  *  without colliding with an older binary's blob. */
 const STATE_FILENAME = 'folio.state.v3.json';
+
+/** The archived Melo surface's own encrypted blob (apps/mobile/src/melo,
+ *  removed at commit eb34425). Read once, one-time, for data continuity — see
+ *  `importMeloBlobIfPresent` below and `store.ts`'s melo-import section. */
+const MELO_STATE_FILENAME = 'melo.state.v1.json';
+/** Renamed target once the melo blob has been read (successfully or not) so a
+ *  future launch never re-attempts the import. The rename itself is the
+ *  "never re-import" latch — there is no separate flag to fall out of sync. */
+const MELO_STATE_IMPORTED_FILENAME = 'melo.state.v1.imported.json';
 
 /** Debounce window for disk writes. State can change in bursts (a ritual close
  *  touches several slices); coalescing them into one write keeps disk churn low
@@ -103,6 +118,56 @@ export async function loadPersisted(): Promise<void> {
     }
   } catch {
     /* read/parse/keystore failure — keep defaults, never block launch. */
+  }
+}
+
+/**
+ * One-time data-continuity migration: if the archived Melo surface left its
+ * own encrypted blob on disk (`melo.state.v1.json`), and the folio store is
+ * still effectively empty (see `store.ts` `isEmptyForMeloImport`), decrypt it
+ * and fold the user's payday/income/bills/balance into the folio store. The
+ * blob is then RENAMED to `melo.state.v1.imported.json` (whether or not the
+ * import actually applied) so this never re-runs — the rename is the latch,
+ * not a separate persisted flag. Call once, AFTER `loadPersisted()`, so the
+ * emptiness check reads the real hydrated folio state, not fresh defaults.
+ *
+ * Fully defensive: a missing file, a decrypt failure, a malformed blob, or a
+ * failed rename are all silent no-ops. A failed one-time import must never
+ * crash the app or block launch — worst case the user's melo data is lost
+ * exactly as it already would have been with no migration at all.
+ */
+export async function importMeloBlobIfPresent(): Promise<void> {
+  const dir = FileSystem.documentDirectory;
+  if (dir === null) return; // no document directory on this device.
+  const uri = `${dir}${MELO_STATE_FILENAME}`;
+  const importedUri = `${dir}${MELO_STATE_IMPORTED_FILENAME}`;
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) return; // nothing to import — already imported, or never existed.
+    const raw = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    const plain = isEncryptedBlob(raw) ? decryptBlob(raw, await vaultKey()) : raw;
+    if (plain !== null) {
+      const parsed = JSON.parse(plain) as MeloImportBlob;
+      if (parsed !== null && typeof parsed === 'object') {
+        applyMeloImportIfEmpty(parsed);
+      }
+    }
+  } catch {
+    /* decrypt / parse / apply failure — fall through to the rename below so
+     * a corrupt or unreadable blob still never re-attempts on next launch. */
+  } finally {
+    try {
+      const stillThere = await FileSystem.getInfoAsync(uri);
+      if (stillThere.exists) {
+        await FileSystem.moveAsync({ from: uri, to: importedUri });
+      }
+    } catch {
+      /* rename failure — worst case this re-attempts next launch, which is
+       * safe: applyMeloImportIfEmpty is itself guarded by isEmptyForMeloImport
+       * so a successful prior import can never be double-applied. */
+    }
   }
 }
 

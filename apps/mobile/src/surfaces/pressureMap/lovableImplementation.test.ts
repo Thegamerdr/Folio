@@ -209,7 +209,7 @@ describe('Lovable target — colour semantics split action from "you make it"', 
   const path = read('./MoneyPath.tsx');
 
   it('the accent is terracotta and the positive verdict is green', () => {
-    expect(kit).toContain("calm: '#E0633A'"); // terracotta action accent
+    expect(kit).toContain("calm: '#DC5E33'"); // terracotta action accent
     expect(kit).toContain("positive: '#3E8E5A'"); // calm green verdict
     expect(kit).toContain("positiveInk: '#2F7048'");
   });

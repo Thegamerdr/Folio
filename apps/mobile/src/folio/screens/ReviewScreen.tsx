@@ -70,7 +70,13 @@ import Animated, {
 
 import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { addTransaction, useAppStore, type Transaction } from '@/folio/store';
+import {
+  addIgnoredReviewSig,
+  addTransaction,
+  reviewCandidateSig,
+  useAppStore,
+  type Transaction,
+} from '@/folio/store';
 import { reviewDateToIso, reviewMatch, reviewMatchSubline } from '@/folio/lib/reviewDedupe';
 import type { Nav } from '@/folio/types';
 
@@ -291,6 +297,20 @@ export function ReviewScreen({
   function onLink() {
     if (stamped) return;
     nav.go('today');
+  }
+
+  // Ignore — mirrors the web source's ignoreReviewItem exactly: record the candidate's signature
+  // (merchant|amountCents|date, store.ts reviewCandidateSig) so HiddenReviewSheet can list it and the
+  // user can un-hide it later, and so a future intake with the exact same merchant/amount/date is
+  // suppressed rather than nagging again (ENGINES.md §6). Only real candidates have a signature worth
+  // recording — the pre-truth SAMPLE/empty-doorway path has nothing to suppress.
+  function onIgnore() {
+    if (hasRealCandidate) {
+      const year = now?.getFullYear() ?? new Date().getFullYear();
+      const dateIso = reviewDateToIso(candidate.date, year) ?? candidate.date;
+      addIgnoredReviewSig(reviewCandidateSig(candidate.merchant, signedDelta, dateIso));
+    }
+    nav.back();
   }
 
   // empty — no candidate to review: an explicit empty state, OR a cold open with no candidate passed

@@ -44,6 +44,9 @@ export default function RootLayout() {
     Fraunces_500Medium_Italic,
     Fraunces_600SemiBold,
     Fraunces_600SemiBold_Italic,
+    // Body/UI sans, matching the web's --font-sans. Vendored locally as a single variable TTF
+    // (Inter Tight ships variable-only upstream — see assets/fonts/InterTight-Variable.ttf).
+    InterTight: require('../assets/fonts/InterTight-Variable.ttf'),
   });
 
   if (!fontsLoaded) return null;

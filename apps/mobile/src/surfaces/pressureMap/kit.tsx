@@ -79,31 +79,31 @@ import {
 // not heavy cards). Numerals stay grotesque tabular; the editorial character comes from the
 // Fraunces serif display + a single accent word.
 export const paper = {
-  canvas: '#F7F6F1', // warm paper ground
-  surface: '#FFFFFF', // raised surface (cards, sheets)
-  surfaceRaised: '#FFFFFF',
-  sunken: '#EFEAE1', // deeper inset well (inputs, skeletons, keypad rest)
-  inset: '#FCFBF7', // near-white well (web --inset) — chips, icon tiles, Melo panels, day cells
+  canvas: '#F6F4EE', // warm paper ground (web --paper)
+  surface: '#FBFAF5', // raised surface (cards, sheets) (web --surface)
+  surfaceRaised: '#FBFAF5',
+  sunken: '#EFEDE5', // deeper inset well (inputs, skeletons, keypad rest) (web --inset)
+  inset: '#EFEDE5', // near-white well (web --inset) — chips, icon tiles, Melo panels, day cells
   ink: '#1A1815', // near-black warm ink
   secondary: '#4A453E', // warm secondary
   muted: '#6B6760', // warm muted ink — clears WCAG AA (>=4.5:1) on paper + surface
   // The single terracotta accent (action / brand accent word / tight-point on the path).
-  calm: '#E0633A', // accent
-  calmStrong: '#B5471F', // deeper terracotta — clears WCAG AA both as 13px eyebrow text on paper
-  //                        and as the primary-button fill under a white label (~5:1 each way)
-  calmSoft: '#F5E4DB', // accent-soft (chips, melo-soft, success wells)
+  calm: '#DC5E33', // accent (web --accent)
+  calmStrong: '#B84A24', // deeper terracotta — clears WCAG AA both as 13px eyebrow text on paper
+  //                        and as the primary-button fill under a white label (~5:1 each way) (web --accent-deep)
+  calmSoft: '#F4E2D6', // accent-soft (chips, melo-soft, success wells) (web --accent-soft)
   // "You make it to payday" — the calm green verdict + money-in.
   positive: '#3E8E5A',
   positiveSoft: '#DDEBE0',
   positiveInk: '#2F7048', // AA-strength green for text on paper
   warm: '#C98A2E', // caution gold for TEXT (clears AA); pairs with warmInk
-  caution: '#D9A441', // web --caution gold — DATA fills/marks only (rings, dots, bars), not text
+  caution: '#C99334', // web --caution gold — DATA fills/marks only (rings, dots, bars), not text
   warmSoft: '#F3E6CC',
   warmInk: '#7A5A18',
-  repair: '#C5503E', // shortfall / material change (coral, data only)
+  repair: '#C0503E', // shortfall / material change (coral, data only) (web --negative)
   repairSoft: '#F4DDD7',
   repairInk: '#8A4632',
-  hairline: '#ECE9E0', // warm hairline — the primary depth mechanism
+  hairline: '#E6E1D5', // warm hairline — the primary depth mechanism (web --hairline)
   hairlineStrong: '#D8D2C6',
   payday: '#2F7048', // route end-cap (calm green — you reach payday)
   routeShadow: '#E7E2D8',
@@ -130,6 +130,14 @@ export const serif = {
   displayItalic: 'Fraunces_500Medium_Italic',
   medium: 'Fraunces_500Medium',
   regular: 'Fraunces_400Regular',
+} as const;
+
+// Body/UI sans — Inter Tight, matching the web's `--font-sans` ("Inter Tight", "Inter", ui-sans-serif,
+// system-ui). Vendored locally as a single variable TTF (Inter Tight ships variable-only upstream) and
+// registered under this one family name in app/_layout via useFonts({ InterTight: require(...) }). RN
+// resolves the weight axis from `fontWeight` on iOS; Android renders at the font's default weight.
+export const sans = {
+  family: 'InterTight',
 } as const;
 
 export const gap = folioTokens.spacing.scale;
@@ -1005,11 +1013,13 @@ function makeStyles(t: Palette) {
     },
     body: {
       color: t.secondary,
+      fontFamily: sans.family,
       fontSize: 16,
       lineHeight: 23,
     },
     muted: {
       color: t.muted,
+      fontFamily: sans.family,
       fontSize: 14,
       lineHeight: 20,
     },
