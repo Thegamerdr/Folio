@@ -70,11 +70,23 @@ export type StatementReadResult =
 const VISION_MODEL = 'google/gemini-2.5-flash';
 /** Own timeout so a stuck request can't hang the review flow. */
 const REQUEST_TIMEOUT_MS = 45_000;
+/**
+ * Pre-flight ceiling for picked PDFs. Ground truth from a real device test (2026-07-05): a
+ * one-month statement (~25KB, 1 page) reads perfectly in ~5s; a 133-page/1.28MB full-history
+ * export never returns — the model generates for minutes and the request dies long after the
+ * 45s timeout. Extraction time scales with transaction count, so the honest move is to catch
+ * the long export BEFORE the spinner and steer the user to monthly exports, which every UK
+ * bank offers. ~500KB ≈ up to roughly 15 text pages — comfortably a month or three.
+ */
+export const MAX_STATEMENT_BYTES = 500 * 1024;
+/** Output budget. finish_reason 'length' → the statement had more rows than one pass can carry;
+ *  we say so honestly instead of returning a silently truncated month. */
+const MAX_COMPLETION_TOKENS = 16_384;
 
 const SYSTEM_PROMPT = [
   'You are a careful bank-statement reader.',
-  'You are shown ONE page of a bank or card statement (an image or a PDF).',
-  'Read every money movement on the page and return them as structured data.',
+  'You are shown a bank or card statement (an image or a PDF, possibly several pages).',
+  'Read every money movement on every page and return them as structured data.',
   'Return ONLY a JSON object with this exact shape — no commentary, no markdown, no code fences:',
   '{ "items": [ { "date": "YYYY-MM-DD" | null, "merchant": string, "amount": number, "category": string | null } ] }',
   'Rules for each item:',
@@ -88,7 +100,7 @@ const SYSTEM_PROMPT = [
 ].join('\n');
 
 const USER_TEXT_INSTRUCTION =
-  'Extract every money movement from this statement page. Return strictly the JSON object described — nothing else.';
+  'Extract every money movement from this statement. Return strictly the JSON object described — nothing else.';
 
 // ---------------------------------------------------------------------------
 // Wire types (OpenAI-compatible, multimodal; OpenRouter file part for PDFs)
@@ -124,9 +136,15 @@ export async function extractStatementCandidates(
   // The source CandidateSource: a PDF the model read vs a photographed/screenshotted statement.
   const source: CandidateSource = input.kind === 'pdf' ? 'pdf' : 'photo';
 
-  // Own timeout, merged with the caller's abort signal. Whichever fires first wins.
+  // Own timeout, merged with the caller's abort signal. Whichever fires first wins. `timedOut`
+  // lets the catch below tell OUR timeout (long statement — give guidance) apart from the
+  // caller's cancel (say nothing more than "Cancelled").
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
   const onCallerAbort = (): void => controller.abort();
   if (input.signal) {
     if (input.signal.aborted) {
@@ -137,6 +155,20 @@ export async function extractStatementCandidates(
   }
 
   try {
+    // Pre-flight: a full-history export can't be read in one pass (see MAX_STATEMENT_BYTES).
+    // Catch it BEFORE the read/spinner and steer to monthly exports rather than spinning for
+    // 45 seconds into a dead timeout.
+    if (input.kind === 'pdf') {
+      const info = await FileSystem.getInfoAsync(input.uri);
+      if (info.exists && typeof info.size === 'number' && info.size > MAX_STATEMENT_BYTES) {
+        return {
+          kind: 'error',
+          message:
+            'That looks like a long export — too much for one read. A one-month statement works best; most banks offer monthly PDFs.',
+        };
+      }
+    }
+
     // Read the picked file as base64 (legacy expo-file-system API — mirrors nativeDataExport.ts /
     // nativeDocumentImport.ts). The bytes never leave the device except inside this one gateway call.
     const base64 = await FileSystem.readAsStringAsync(input.uri, {
@@ -165,6 +197,7 @@ export async function extractStatementCandidates(
         // Extraction, not creativity.
         temperature: 0,
         stream: false,
+        max_tokens: MAX_COMPLETION_TOKENS,
         response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
@@ -180,10 +213,28 @@ export async function extractStatementCandidates(
       return { kind: 'error', message: 'The reader sent an unexpected response.' };
     }
 
+    // A 'length' finish means the statement had more rows than one pass can return — a silently
+    // truncated month would be a lie (missing transactions look like missing spending). Refuse
+    // honestly instead.
+    if (extractFinishReason(data) === 'length') {
+      return {
+        kind: 'error',
+        message:
+          'That statement has more rows than one read can carry. Try a shorter export — one month works best.',
+      };
+    }
+
     const candidates = parseCandidatesFromModelJson(rawReply, source);
     return { kind: 'ok', candidates };
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
+      if (timedOut) {
+        return {
+          kind: 'error',
+          message:
+            'Reading took too long — that usually means a long export. A one-month statement works best.',
+        };
+      }
       return { kind: 'error', message: 'Cancelled.' };
     }
     return { kind: 'error', message: "Couldn't read that statement just now." };
@@ -239,6 +290,14 @@ function extractAssistantText(data: unknown): string | null {
   const first = choices[0] as { message?: { content?: unknown } } | undefined;
   const content = first?.message?.content;
   return typeof content === 'string' ? content : null;
+}
+
+function extractFinishReason(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const choices = (data as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || choices.length === 0) return null;
+  const reason = (choices[0] as { finish_reason?: unknown } | undefined)?.finish_reason;
+  return typeof reason === 'string' ? reason : null;
 }
 
 // `parseCandidatesFromModelJson` lives in ./statementReaderParse (pure, no expo imports) and is

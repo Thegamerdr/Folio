@@ -97,6 +97,7 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import { setReaderCandidates } from '@/folio/store';
+import { showToast } from '@/folio/ui/Toast';
 import { pickLocalStatementDocument } from '../../local/nativeDocumentImport';
 import { pickStatementImage } from '../../local/nativeImageIntake';
 import {
@@ -290,7 +291,13 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         nav.go(successScreen);
         return;
       }
-      // no-provider / error / empty read → the file is saved, but nothing was read. Honest fallback.
+      // no-provider / error / empty read → the file is saved, but nothing was read. Honest
+      // fallback — and when the reader knows WHY (long export, timeout, gateway trouble), say it:
+      // the fallback screen's copy is generic, and the specific guidance ("one month works best")
+      // is the difference between a retry that works and giving up on the feature.
+      if (result.kind === 'error') {
+        showToast("Couldn't read that", result.message);
+      }
       nav.go(fallbackScreen);
     } finally {
       setReading(false);
