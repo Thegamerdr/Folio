@@ -34,6 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     allowBackup: false,
     blockedPermissions: [
       'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.RECORD_AUDIO',
       'android.permission.SYSTEM_ALERT_WINDOW',
       'android.permission.WRITE_EXTERNAL_STORAGE',
     ],

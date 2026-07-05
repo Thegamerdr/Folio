@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { resolveCtaMode, type CtaModeInputs } from './ctaMode';
+import { ctaBranchFor, resolveCtaMode, type CtaMode, type CtaModeInputs } from './ctaMode';
 
 const base: CtaModeInputs = {
   selected: 'plus',
@@ -92,5 +92,33 @@ describe('resolveCtaMode — ownership and trial precedence (unaffected by billi
         billingAvailable: true,
       }),
     ).toBe('unlocked');
+  });
+});
+
+// Render-independent pin: PaywallScreen's ctaBlock JSX is a single switch on `ctaMode` with one
+// case per CtaMode value (see PaywallScreen.tsx "Primary CTA" comment). This guarantees the
+// mapping stays 1:1 and total — every CtaMode resolves to exactly one branch name, and no branch
+// name is shared between two different modes — so the tested `resolveCtaMode` precedence and the
+// rendered UI cannot drift apart without this test catching it, without needing to render the
+// screen at all.
+describe('ctaBranchFor — pins the CtaMode -> render-branch mapping PaywallScreen switches on', () => {
+  const ALL_MODES: readonly CtaMode[] = [
+    'free-note',
+    'unlocked',
+    'trial-active',
+    'purchase',
+    'trial',
+    'none',
+  ];
+
+  it('maps every CtaMode to a branch, one-to-one (no two modes collapse to the same branch)', () => {
+    const branches = ALL_MODES.map(ctaBranchFor);
+    expect(new Set(branches).size).toBe(ALL_MODES.length);
+  });
+
+  it('maps each mode to its own identically-named branch', () => {
+    for (const mode of ALL_MODES) {
+      expect(ctaBranchFor(mode)).toBe(mode);
+    }
   });
 });

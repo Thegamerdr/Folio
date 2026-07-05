@@ -129,6 +129,7 @@ function fullState(): AppState {
         addedAt: '2026-06-26T00:00:00.000Z',
       },
     ],
+    ignoredReviewSigs: ['ATM withdrawal|-2000|2026-06-23'],
   };
 }
 
@@ -157,6 +158,7 @@ function emptyState(): AppState {
     routeFocusDate: null,
     readerCandidates: [],
     reviewQueue: [],
+    ignoredReviewSigs: [],
   };
 }
 
@@ -263,6 +265,7 @@ describe('buildExport — per-surface csvs', () => {
     expect(csvs).toHaveProperty('ledger.csv');
     expect(csvs).toHaveProperty('calendarEvents.csv');
     expect(csvs).toHaveProperty('reviewQueue.csv');
+    expect(csvs).toHaveProperty('ignored-review.csv');
   });
 
   it('every category that exists in the store is present in BOTH json and a csv', () => {
@@ -277,6 +280,7 @@ describe('buildExport — per-surface csvs', () => {
       ['potLedger', 'ledger.csv'],
       ['calendarEvents', 'calendarEvents.csv'],
       ['reviewQueue', 'reviewQueue.csv'],
+      ['ignoredReviewSigs', 'ignored-review.csv'],
       ['onboarding', 'onboarding.csv'],
       ['currentBalance', 'balance.csv'],
       ['tightPointGoal', 'settings.csv'],
@@ -335,6 +339,14 @@ describe('buildExport — per-surface csvs', () => {
     expect(row[header.indexOf('source')]).toBe('pdf');
     expect(row[header.indexOf('amount')]).toBe('-4.2');
     expect(row[header.indexOf('hint')]).toBe('looks like spending');
+  });
+
+  it('ignored-review.csv carries one signature per row (design-source shape)', () => {
+    const { csvs } = buildExport(fullState());
+    const rows = parseCsv(csvs['ignored-review.csv'] as string);
+    expect(rows[0]).toEqual(['signature']);
+    expect(rows).toHaveLength(2); // header + 1 ignored signature
+    expect(rows[1]).toEqual(['ATM withdrawal|-2000|2026-06-23']);
   });
 
   it('pots.csv carries the per-pot cadence kind', () => {
@@ -452,6 +464,7 @@ describe('buildExport — empty state', () => {
       'ledger.csv',
       'calendarEvents.csv',
       'reviewQueue.csv',
+      'ignored-review.csv',
     ];
     // Singleton surfaces always carry the one row that describes the scalar.
     const singletons = ['onboarding.csv', 'balance.csv', 'settings.csv'];

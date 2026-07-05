@@ -57,7 +57,7 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
       const attempt = await signIn.create({ identifier: trimmed });
       const emailFactor = attempt.supportedFirstFactors?.find((f) => f.strategy === 'email_code');
       if (!emailFactor || !('emailAddressId' in emailFactor)) {
-        setError("We couldn't find a way to email you a code. Try again in a moment.");
+        setError('We could not find a way to email you a code. Give it a moment, then retry.');
         return;
       }
       await signIn.prepareFirstFactor({
@@ -66,7 +66,7 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
       });
       setStep('code');
     } catch {
-      setError("That didn't work — check the email and try again.");
+      setError('Check the email address and retry.');
     } finally {
       setBusy(false);
     }
@@ -84,10 +84,10 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
         await setActive({ session: attempt.createdSessionId });
         handleClose();
       } else {
-        setError("That code didn't match — check it and try again.");
+        setError('That code did not match. Check it and retry.');
       }
     } catch {
-      setError("That code didn't match — check it and try again.");
+      setError('That code did not match. Check it and retry.');
     } finally {
       setBusy(false);
     }

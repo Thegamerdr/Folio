@@ -684,13 +684,13 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           </Surface>
         ) : null}
 
-        {/* Primary CTA — real tier/trial state, mirrors the web's branch order exactly. The
-            branch order below is kept in lockstep with the pure, tested `resolveCtaMode`
-            (lib/billing/ctaMode.ts): `ctaMode` is computed from the exact same inputs and is
-            asserted against below so the tested precedence is what actually renders, not a
-            second hand-maintained copy of the same decision. */}
+        {/* Primary CTA — one switch on the tested, pure `ctaMode` (lib/billing/ctaMode.ts).
+            `ctaMode` is computed above from the exact same inputs this render reads, so the
+            tested precedence IS what renders — there is no second hand-maintained copy of the
+            branch order to drift out of lockstep with it. Every string/behavior below is
+            unchanged from the prior inline-condition version; this is a pure de-duplication. */}
         <View style={styles.ctaBlock}>
-          {selected === 'free' ? (
+          {ctaMode === 'free-note' ? (
             <Surface
               style={[styles.ctaNote, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
             >
@@ -698,23 +698,18 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 Free is always yours. Nothing to buy.
               </Text>
             </Surface>
-          ) : selected === 'plus' && plusUnlocked ? (
+          ) : ctaMode === 'unlocked' ? (
             <Surface
               style={[styles.ctaNote, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
             >
-              <Text style={[styles.ctaStateEyebrow, { color: t.positive }]}>Plus is on</Text>
+              <Text style={[styles.ctaStateEyebrow, { color: t.positive }]}>
+                {selected === 'pro' ? 'Pro is on' : 'Plus is on'}
+              </Text>
               <Text style={[styles.ctaStateBody, { color: t.muted }]}>
-                Every Plus lens is unlocked.
+                {selected === 'pro' ? 'Every lens is unlocked.' : 'Every Plus lens is unlocked.'}
               </Text>
             </Surface>
-          ) : selected === 'pro' && proUnlocked ? (
-            <Surface
-              style={[styles.ctaNote, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
-            >
-              <Text style={[styles.ctaStateEyebrow, { color: t.positive }]}>Pro is on</Text>
-              <Text style={[styles.ctaStateBody, { color: t.muted }]}>Every lens is unlocked.</Text>
-            </Surface>
-          ) : trialCycleId && (selected === 'plus' || selected === 'pro') ? (
+          ) : ctaMode === 'trial-active' ? (
             <Surface
               style={[styles.ctaNote, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
             >
@@ -726,12 +721,12 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 No auto-renew — we&apos;ll ask again at payday.
               </Text>
             </Surface>
-          ) : ctaMode === 'purchase' && (selected === 'plus' || selected === 'pro') ? (
+          ) : ctaMode === 'purchase' ? (
             <>
               <Pressable
                 accessibilityRole="button"
                 disabled={purchasing !== null}
-                onPress={() => void handlePurchase(selected)}
+                onPress={() => void handlePurchase(selected as 'plus' | 'pro')}
                 style={({ pressed: isPressed }) => [
                   styles.ctaButton,
                   { backgroundColor: t.calm, opacity: purchasing !== null ? 0.6 : 1 },
@@ -748,7 +743,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 Charged by Google Play · cancel anytime in your subscriptions.
               </Text>
             </>
-          ) : canSell && selected === 'plus' ? (
+          ) : ctaMode === 'trial' ? (
             <>
               <Pressable
                 accessibilityRole="button"
@@ -760,26 +755,9 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 ]}
               >
                 <Text style={[styles.ctaButtonLabel, { color: t.inverse }]}>
-                  {`Try Plus free — ends ${trialEndLabel}`}
-                </Text>
-              </Pressable>
-              <Text style={[styles.ctaFootnote, { color: t.muted }]}>
-                One cycle · no card · we don&apos;t charge when it ends.
-              </Text>
-            </>
-          ) : canSell && selected === 'pro' ? (
-            <>
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleStartTrial}
-                style={({ pressed: isPressed }) => [
-                  styles.ctaButton,
-                  { backgroundColor: t.calm },
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.ctaButtonLabel, { color: t.inverse }]}>
-                  {`Try Pro free — ends ${trialEndLabel}`}
+                  {selected === 'pro'
+                    ? `Try Pro free — ends ${trialEndLabel}`
+                    : `Try Plus free — ends ${trialEndLabel}`}
                 </Text>
               </Pressable>
               <Text style={[styles.ctaFootnote, { color: t.muted }]}>

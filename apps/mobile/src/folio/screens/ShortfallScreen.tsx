@@ -73,7 +73,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -86,6 +85,7 @@ import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
@@ -281,7 +281,14 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.md }]}>
-          <Header onBack={nav.back} muted={t.muted} reduceMotion={reduceMotion} />
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow="A quiet moment"
+            spacerWidth={16}
+            backHitWidth={24}
+            eyebrowSize={11}
+            eyebrowTracking={1.54}
+          />
           <View style={styles.flexFill}>
             <EmptyState
               mood="calm"
@@ -314,7 +321,14 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.md }]}>
-          <Header onBack={nav.back} muted={t.muted} reduceMotion={reduceMotion} />
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow="A quiet moment"
+            spacerWidth={16}
+            backHitWidth={24}
+            eyebrowSize={11}
+            eyebrowTracking={1.54}
+          />
           <View style={styles.errorWrap}>
             <MeloLine mood="concern" text="Couldn't work the gap out just now." />
             <Pressable
@@ -347,11 +361,13 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         {/* Header — back · mode-tinted eyebrow (centred) · a balancing spacer. */}
-        <Header
+        <ScreenHeader
           onBack={nav.back}
-          muted={t.muted}
-          reduceMotion={reduceMotion}
           eyebrow={modeCopy.eyebrow}
+          spacerWidth={16}
+          backHitWidth={24}
+          eyebrowSize={11}
+          eyebrowTracking={1.54}
         />
 
         {/* Melo — mode-honest to the gap; briefly "cheer" on the relief close (web meloMood). */}
@@ -536,58 +552,6 @@ function MoveCard({
   );
 }
 
-// ── Header ─────────────────────────────────────────────────────────────────────────────────────
-// Back glyph (left) · "A quiet moment" eyebrow (centre, uppercase tracked, muted) · a balancing
-// spacer (right, width 16 — the web <span className="w-4" />) so the eyebrow stays optically centred.
-function Header({
-  onBack,
-  muted,
-  reduceMotion,
-  eyebrow = 'A quiet moment',
-}: {
-  onBack: () => void;
-  muted: string;
-  reduceMotion: boolean;
-  /** Mode-tinted eyebrow (web copy.eyebrow). Defaults to the survival-mode string for the
-   *  defensive empty/error branches, which don't read moneyMode. */
-  eyebrow?: string;
-}) {
-  void reduceMotion; // press feel is handled per-Pressable; kept for parity with sibling headers.
-  return (
-    <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        hitSlop={12}
-        onPress={onBack}
-        style={({ pressed: isPressed }) => [styles.backHit, isPressed ? styles.pressed : undefined]}
-      >
-        <BackArrow color={muted} />
-      </Pressable>
-      <Text style={[styles.headerEyebrow, { color: muted }]}>{eyebrow}</Text>
-      <View style={styles.headerSpacer} />
-    </View>
-  );
-}
-
-// ── Glyphs ─────────────────────────────────────────────────────────────────────────────────────
-// Back arrow — the web '←' glyph, drawn inline (matches PotsScreen / ReviewScreen). 20×20.
-function BackArrow({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Path
-        d="M12 4 L6 10 L12 16"
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path d="M6 10 H16" stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none" />
-    </Svg>
-  );
-}
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -614,29 +578,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: gap.xl,
     justifyContent: 'center',
-  },
-
-  // Header — back · eyebrow · spacer, centre-aligned.
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  backHit: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 24,
-  },
-  // 11px uppercase tracked muted (web text-[11px] tracking-[0.14em]; 0.14em × 11 ≈ 1.54).
-  headerEyebrow: {
-    fontSize: 11,
-    letterSpacing: 1.54,
-    textTransform: 'uppercase',
-  },
-  // Balances the back glyph so the eyebrow stays optically centred (web <span className="w-4" />).
-  headerSpacer: {
-    width: 16,
   },
 
   // Melo head — mt-6 (gap.xl).

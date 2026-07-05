@@ -89,7 +89,7 @@ async function recomputeAndReschedule(): Promise<void> {
   rolloverCountersIfNewDay(now);
 
   const route = routeFromStore(state, now);
-  const nextSnapshot = snapshotFromRoute(route, now);
+  const nextSnapshot = snapshotFromRoute(state, route, now);
   const built = deriveNotifyInputs(state, route, lastSnapshot, nextSnapshot, now, {
     sentToday,
     dangerSentToday,

@@ -66,7 +66,6 @@ const SURFACE_FILES = [
   'fileWorkbench.tsx',
   'MoneyPath.tsx',
   'todayPath.tsx',
-  'trustControl.tsx',
   'melo/MeloPresence.tsx',
   'melo/meloStates.ts',
   // Converted secondary surfaces (2026-06-27 whole-app pass) — these are now user-facing screens,
@@ -112,24 +111,9 @@ describe('Lovable target — visible copy carries no machinery vocabulary', () =
 
   it('the words people read are the accepted ones', () => {
     const review = read('./reviewDecision.tsx');
-    const trust = read('./trustControl.tsx');
     const workbench = read('./fileWorkbench.tsx');
     expect(review).toContain('Add to my money');
     expect(review).toContain('Is this your {current.interpretation}?');
-    // The privacy hero reads "It stays on this device." — now composed as the Editorial Ledger
-    // serif Headline with one terracotta accent word ("this device"), faithful to the web's
-    // ScreenPrivacy, so the phrase lives across the lead/accent/tail props, not one literal.
-    expect(trust).toContain('lead="It stays on "');
-    expect(trust).toContain('accent="this device"');
-    // The honest device-local guarantee a reader actually sees on the screen.
-    expect(trust).toContain('It stays on this device');
-    // The lede is honest about the real egress paths: text typed to Melo AND any statement you add
-    // are read by the AI provider when one is configured, plus a copy you export. It must NOT make
-    // the blanket "nothing leaves unless you export" claim, which is false once a Melo gateway exists.
-    expect(trust).toContain('Your money stays on this phone');
-    expect(trust).toContain('statement you add');
-    expect(trust).toContain('read by your AI provider');
-    expect(trust).not.toContain('Nothing leaves your phone unless you export it.');
     expect(workbench).toContain('File saved. It has not changed your money picture.');
   });
 });

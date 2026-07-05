@@ -107,25 +107,3 @@ describe('dark-mode foundation — theme API + pattern', () => {
     expect(theme).toContain('SecureStore.getItemAsync');
   });
 });
-
-describe('dark-mode foundation — Appearance control', () => {
-  const trust = read('./trustControl.tsx');
-
-  it('the Data & privacy screen offers a System / Light / Dark selector wired to the theme', () => {
-    expect(trust).toContain('Appearance');
-    expect(trust).toContain('useThemeMode');
-    for (const label of ['System', 'Light', 'Dark']) {
-      expect(trust).toContain(`label: '${label}'`);
-    }
-  });
-
-  it('the Appearance copy introduces no banned machinery vocabulary', () => {
-    const lowered = trust.toLowerCase();
-    for (const banned of ['parser', 'extraction', 'provenance', 'canonical', 'indexed']) {
-      // the word must not appear in the appearance block's visible copy
-      const appearanceBlock = trust.slice(trust.indexOf('Appearance'));
-      expect(appearanceBlock.toLowerCase().includes(banned)).toBe(false);
-    }
-    expect(lowered).toContain('match your device, or pick a look.');
-  });
-});

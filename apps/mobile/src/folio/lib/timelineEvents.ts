@@ -21,6 +21,13 @@ import type { Transaction, StoredTxnEdit, TimelineEvent } from '../store';
 
 // The verbs the web's ScreenTimeline union defines, reproduced verbatim (COPY FROZEN — no new verb
 // strings; "review-ignored" reads as "Left for later" per ENGINES.md §6's deferred-not-rejected framing).
+//
+// DEFERRED — 'Ignored' is unreachable from this engine: the store's real `review-ignored` event
+// (addIgnoredReviewSig, store.ts) maps to 'Left for later' above, not 'Ignored'. In the web design
+// source 'Ignored' only ever appears in ScreenTimeline's 8 hardcoded demo rows, which read from no
+// real state at all (see file header) — there is no live emitter to port. The member is kept for
+// union-shape parity with the web's verb type; if a future real source needs a distinct "outright
+// rejected" (vs. "deferred") verb, wire it here explicitly rather than resurrecting this unused case.
 export type TimelineVerb = 'Added' | 'Left for later' | 'Ignored' | 'Edited' | 'Paused' | 'Resumed';
 
 export type TimelineRow = {

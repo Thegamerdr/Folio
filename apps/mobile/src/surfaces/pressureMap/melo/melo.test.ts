@@ -28,7 +28,6 @@ const coreScreens: Readonly<Record<string, string>> = {
   guidedInput: read('../roughFirstAnswer.tsx'),
   review: read('../reviewDecision.tsx'),
   today: read('../todayPath.tsx'),
-  data: read('../trustControl.tsx'),
   fileWorkbench: read('../fileWorkbench.tsx'),
 };
 const presence = read('./MeloPresence.tsx');

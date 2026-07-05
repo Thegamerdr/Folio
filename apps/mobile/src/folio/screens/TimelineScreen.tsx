@@ -84,6 +84,7 @@ import Animated, {
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useAppStore, type Transaction } from '@/folio/store';
 import { buildTimelineRows, type TimelineRow, type TimelineVerb } from '@/folio/lib/timelineEvents';
 import type { Nav } from '@/folio/types';
@@ -309,7 +310,15 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
     return (
       <Animated.View style={[s.root, enterStyle]}>
         <View style={[s.screen, { paddingTop: insets.top + gap.md }]}>
-          <Header nav={nav} styles={s} palette={t} />
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow="Timeline"
+            arrow="text"
+            spacerWidth={20}
+            backHitWidth={20}
+            backHitHeight={0}
+            eyebrowTracking={1.68}
+          />
           <View style={s.loadingBlock}>
             <MeloLine mood="curious" text="Gathering what you've added…" />
           </View>
@@ -323,7 +332,15 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
     return (
       <Animated.View style={[s.root, enterStyle]}>
         <View style={[s.screen, { paddingTop: insets.top + gap.md }]}>
-          <Header nav={nav} styles={s} palette={t} />
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow="Timeline"
+            arrow="text"
+            spacerWidth={20}
+            backHitWidth={20}
+            backHitHeight={0}
+            eyebrowTracking={1.68}
+          />
 
           <View style={s.titleBlock}>
             <Text accessibilityRole="header" style={s.headline}>
@@ -357,7 +374,15 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Header nav={nav} styles={s} palette={t} />
+        <ScreenHeader
+          onBack={nav.back}
+          eyebrow="Timeline"
+          arrow="text"
+          spacerWidth={20}
+          backHitWidth={20}
+          backHitHeight={0}
+          eyebrowTracking={1.68}
+        />
 
         {/* Title block — Fraunces 28px, the single upright terracotta accent word. */}
         <View style={s.titleBlock}>
@@ -390,29 +415,6 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
         </View>
       </ScrollView>
     </Animated.View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Header — back arrow / centred eyebrow / equal-width spacer (keeps the eyebrow optically centred)
-// ---------------------------------------------------------------------------
-
-function Header({ nav, styles, palette }: { nav: Nav; styles: Styles; palette: Palette }) {
-  return (
-    <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        onPress={nav.back}
-        hitSlop={10}
-        style={({ pressed: p }) => [styles.backHit, p ? styles.pressed : undefined]}
-      >
-        <Text style={[styles.backArrow, { color: palette.muted }]}>{'←'}</Text>
-      </Pressable>
-      <Text style={[styles.eyebrow, { color: palette.muted }]}>Timeline</Text>
-      {/* Equal-width spacer (web w-5) so the eyebrow stays centred against the back arrow. */}
-      <View style={styles.headerSpacer} />
-    </View>
   );
 }
 
@@ -578,27 +580,6 @@ function makeStyles(_t: Palette) {
     },
     scrollContent: {
       paddingHorizontal: SCREEN_INSET,
-    },
-
-    // Header — back / centred eyebrow / spacer (web flex items-center justify-between, pt-4).
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    backHit: {
-      minWidth: 20,
-    },
-    backArrow: {
-      fontSize: 20,
-    },
-    eyebrow: {
-      fontSize: 12,
-      letterSpacing: 1.68, // web tracking 0.14em at 12px
-      textTransform: 'uppercase',
-    },
-    headerSpacer: {
-      width: 20, // web w-5
     },
 
     // Title block — mt-6.

@@ -58,7 +58,18 @@ export default function RootLayout() {
     Fraunces_600SemiBold_Italic,
     // Body/UI sans, matching the web's --font-sans. Vendored locally as a single variable TTF
     // (Inter Tight ships variable-only upstream — see assets/fonts/InterTight-Variable.ttf).
+    // Kept registered for back-compat with any code still requesting the bare 'InterTight' family.
     InterTight: require('../assets/fonts/InterTight-Variable.ttf'),
+    // Static per-weight instances (fontTools varLib.instancer, wght 400/500/600/700). Android does
+    // not resolve the `wght` variation axis from RN's `fontWeight` prop on a variable font — every
+    // weight silently renders at the font's default instance (400). Registering one static family
+    // per weight and switching `fontFamily` (via src/folio/theme/fontWeight.ts's weightFamily())
+    // instead of relying on `fontWeight` is the only reliable cross-platform fix. See
+    // src/surfaces/pressureMap/kit.tsx (`sans`) for the consumer-facing token.
+    InterTightRegular: require('../assets/fonts/InterTight-Regular.ttf'),
+    InterTightMedium: require('../assets/fonts/InterTight-Medium.ttf'),
+    InterTightSemiBold: require('../assets/fonts/InterTight-SemiBold.ttf'),
+    InterTightBold: require('../assets/fonts/InterTight-Bold.ttf'),
   });
 
   if (!fontsLoaded) return null;

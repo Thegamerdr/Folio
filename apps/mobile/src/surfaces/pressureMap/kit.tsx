@@ -133,12 +133,37 @@ export const serif = {
 } as const;
 
 // Body/UI sans — Inter Tight, matching the web's `--font-sans` ("Inter Tight", "Inter", ui-sans-serif,
-// system-ui). Vendored locally as a single variable TTF (Inter Tight ships variable-only upstream) and
-// registered under this one family name in app/_layout via useFonts({ InterTight: require(...) }). RN
-// resolves the weight axis from `fontWeight` on iOS; Android renders at the font's default weight.
+// system-ui). The upstream family ships variable-only; it's vendored as both the original variable
+// TTF (kept for back-compat under the bare 'InterTight' family — see app/_layout's useFonts) AND as
+// four static per-weight instances (fontTools varLib.instancer, wght 400/500/600/700). Android does
+// NOT resolve the `wght` variation axis from RN's `fontWeight` style prop on a variable font — every
+// weight silently renders at the font's default instance (regular). Static families are the only
+// reliable cross-platform fix, so `weightFamily()` below is the canonical way to pair InterTight with
+// a weight: pass it the intended numeric weight and drop `fontWeight` from the style — the static
+// family already bakes the weight in. Call sites that still need `fontWeight` for non-InterTight text
+// (default system font, which resolves `wght` fine on both platforms) are unaffected.
 export const sans = {
   family: 'InterTight',
 } as const;
+
+/** Maps a nominal font weight to the matching static InterTight family registered in app/_layout.
+ *  Use in place of `fontFamily: sans.family` + `fontWeight` — the returned family already bakes the
+ *  weight in, so drop any `fontWeight` on the same style once you switch to this. Any weight below
+ *  500 falls back to the regular static instance (no separate light/thin instance is vendored). */
+export function weightFamily(
+  weight: 400 | 500 | 600 | 700 | '400' | '500' | '600' | '700',
+): string {
+  switch (Number(weight)) {
+    case 700:
+      return 'InterTightBold';
+    case 600:
+      return 'InterTightSemiBold';
+    case 500:
+      return 'InterTightMedium';
+    default:
+      return 'InterTightRegular';
+  }
+}
 
 export const gap = folioTokens.spacing.scale;
 
@@ -622,7 +647,7 @@ export function MoneyPad({ value, onChange }: { value: string; onChange: (next: 
 
 // SVG glyphs can't read a StyleSheet, so theme-following colours arrive as props. Each glyph reads the
 // active palette for its DEFAULT colour; an explicit `color` prop still wins (e.g. the on-accent
-// chevron PrimaryAction passes, or the green check trustControl passes).
+// chevron PrimaryAction passes, or a green check on another surface passes).
 export function ChevronRight({ color }: { color?: string | undefined }) {
   const t = useTheme();
   return (
@@ -1013,13 +1038,15 @@ function makeStyles(t: Palette) {
     },
     body: {
       color: t.secondary,
-      fontFamily: sans.family,
+      // Static per-weight family (not sans.family + fontWeight) — see weightFamily() above.
+      fontFamily: weightFamily(400),
       fontSize: 16,
       lineHeight: 23,
     },
     muted: {
       color: t.muted,
-      fontFamily: sans.family,
+      // Static per-weight family (not sans.family + fontWeight) — see weightFamily() above.
+      fontFamily: weightFamily(400),
       fontSize: 14,
       lineHeight: 20,
     },

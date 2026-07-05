@@ -66,6 +66,7 @@ export const EXPORT_CSV_FILES = [
   'ledger.csv',
   'calendarEvents.csv',
   'reviewQueue.csv',
+  'ignored-review.csv',
   'onboarding.csv',
   'balance.csv',
   'settings.csv',
@@ -240,6 +241,22 @@ function reviewQueueCsv(reviewQueue: readonly ReviewItem[]): string {
   );
 }
 
+/** Ignored review signatures — ENGINES §6 "Ignored review items: suppressed in
+ *  main flow, visible in Hidden list." Mirrors the design source's
+ *  `ignored-review-signatures.csv` shape verbatim (single `signature`
+ *  column, one row per suppressed merchant|amountCents|date key); this
+ *  bundle's file name follows its own hyphenated convention already used
+ *  elsewhere (`calendarEvents.csv` is the camelCase outlier, kept as-is for
+ *  back-compat). `ignoredReviewSigs` is optional on `AppState` for shape
+ *  back-compat with hand-built fixtures predating the field (store.ts) —
+ *  callers pass `state.ignoredReviewSigs ?? []`. */
+function ignoredReviewCsv(ignoredReviewSigs: readonly string[]): string {
+  return toCsv(
+    ['signature'],
+    ignoredReviewSigs.map((sig) => [sig]),
+  );
+}
+
 /** Onboarding / payday rule — a single-row CSV. */
 function onboardingCsv(state: AppState): string {
   const o = state.onboarding;
@@ -308,6 +325,7 @@ export function buildExport(state: AppState): ExportBundle {
     'ledger.csv': ledgerCsv(state.potLedger),
     'calendarEvents.csv': calendarEventsCsv(state.calendarEvents),
     'reviewQueue.csv': reviewQueueCsv(state.reviewQueue ?? []),
+    'ignored-review.csv': ignoredReviewCsv(state.ignoredReviewSigs ?? []),
     'onboarding.csv': onboardingCsv(state),
     'balance.csv': balanceCsv(state),
     'settings.csv': settingsCsv(state),

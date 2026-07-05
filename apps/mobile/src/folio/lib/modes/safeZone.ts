@@ -22,6 +22,14 @@
  */
 import type { ModeInputs } from './types';
 
+/** The one shared "getting dangerous" floor (£), used anywhere a mode-agnostic ladder needs a
+ *  single number to compare Safe Zone spare against. Mirrors melo-engine's own
+ *  `DANGER_FLOOR_PENCE` (packages/melo-engine/src/states.ts, £10 in pence) — kept as one exported
+ *  constant here (rather than duplicated per call site) since the UI engine had no equivalent
+ *  constant of its own before this. Notifications (`lib/notifyState.ts`) import this rather than
+ *  hardcoding their own copy of the same number. */
+export const DANGER_FLOOR = 10;
+
 export type SafeZoneLine = {
   key: string;
   label: string;

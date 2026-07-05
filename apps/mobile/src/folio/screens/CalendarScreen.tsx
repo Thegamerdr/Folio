@@ -98,6 +98,7 @@ import {
 import { elevation, gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { type MeloMood } from '@/folio/melo/Melo';
+import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import {
   deriveCalendarEvents,
   groupByDay,
@@ -470,7 +471,14 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.huge },
           ]}
         >
-          <Header nav={nav} t={t} s={s} />
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow="What's coming"
+            arrow="text"
+            spacerWidth={44}
+            backHitAlign="flex-start"
+            eyebrowTracking={1.68}
+          />
           <TitleBlock s={s} withSubhead={false} />
           <View style={s.skeletonCard} />
         </ScrollView>
@@ -500,7 +508,14 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
           { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.huge },
         ]}
       >
-        <Header nav={nav} t={t} s={s} />
+        <ScreenHeader
+          onBack={nav.back}
+          eyebrow="What's coming"
+          arrow="text"
+          spacerWidth={44}
+          backHitAlign="flex-start"
+          eyebrowTracking={1.68}
+        />
         <TitleBlock s={s} withSubhead onCurve={() => nav.go('today')} />
 
         {/* View switcher — a tablist over the inset well. The selected tab lifts to the paper surface
@@ -645,28 +660,6 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
         </View>
       </ScrollView>
     </Animated.View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Header — back chevron · centred uppercase eyebrow "What's coming" · symmetric spacer.
-// ---------------------------------------------------------------------------
-
-function Header({ nav, t, s }: { nav: Nav; t: Palette; s: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={layout.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        hitSlop={12}
-        onPress={nav.back}
-        style={({ pressed }) => [layout.backHit, pressed ? layout.pressed : undefined]}
-      >
-        <Text style={[s.backGlyph, { color: t.muted }]}>←</Text>
-      </Pressable>
-      <Text style={s.eyebrow}>What&apos;s coming</Text>
-      <View style={layout.headerSpacer} />
-    </View>
   );
 }
 
@@ -1676,10 +1669,6 @@ const layout = StyleSheet.create({
 
   pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  backHit: { minWidth: 44, minHeight: 44, alignItems: 'flex-start', justifyContent: 'center' },
-  headerSpacer: { width: 44 },
-
   title: { gap: 4 },
   // Title row — the kicker/headline column on the left, the "Curve →" button shrink-fit on the right
   // (web `flex items-start justify-between gap-2`).
@@ -1810,7 +1799,6 @@ const layout = StyleSheet.create({
 // duplicating this screen's ~300-line style sheet. Pure function, no behaviour change.
 export function makeStyles(t: Palette) {
   return StyleSheet.create({
-    backGlyph: { fontSize: 20, fontWeight: '500' },
     eyebrow: {
       color: t.muted,
       fontSize: 12,

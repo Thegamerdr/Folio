@@ -19,10 +19,20 @@
 // @notes        Claims here are checked by RN copy-lint tests. Edit copy with care.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store source):
-//   • COPY IS FROZEN. Every visible string is the web literal, byte-for-byte. The deck (COPY_DECK.md)
-//     has NO keys for this screen, so the strings are inline literals here (exactly as the web keeps
-//     them) — none of them are keyed in '@/folio/copy/copy', so nothing is imported from the deck.
-//     They must remain literally true of the shipped app, or the honest-claims copy-lint fails.
+//   • COPY IS FROZEN except the two honest-claims corrections below. Every other visible string is
+//     the web literal, byte-for-byte. The deck (COPY_DECK.md) has NO keys for this screen, so the
+//     strings are inline literals here (exactly as the web keeps them) — none of them are keyed in
+//     '@/folio/copy/copy', so nothing is imported from the deck. The second and third honest claims
+//     were rewritten (see below) because the original web wording overstated what the shipped app
+//     does; every claim here must remain literally true of the shipped app, or the honest-claims
+//     copy-lint fails.
+//   • HONEST_CLAIMS[1] (was "Nothing shared without you tapping export"): the statement reader sends
+//     the picked PDF/photo to Folio's reader service, and Melo chat sends the conversation (plus an
+//     optional snapshot) to the gateway — both leave the device before any export tap. The rewritten
+//     claim names those two real egress paths instead of promising nothing leaves.
+//   • HONEST_CLAIMS[2] (was "Delete everything in one tap"): both resets below run the SAME
+//     three-gate confirm chain (exportedAck → typedConfirm → finalConfirm) — never a single tap. The
+//     rewritten claim describes the actual deliberate, multi-step gate instead of a one-tap wipe.
 //   • The accent word "your call." is rendered UPRIGHT (not italic) in terracotta — the web uses
 //     <em class="not-italic text-[accent]">. The headline is two Text runs so the accent run is a
 //     nested, upright, calm-coloured span inside the Fraunces hero line (same pattern as StartScreen).
@@ -46,9 +56,10 @@
 //     wants only their own data, so its toast truthfully says the app is empty). Both run the SAME
 //     tier-3 confirm chain (exportedAck → typedConfirm → finalConfirm); only the final branch wipes.
 //     Per D3 there is NO post-wipe Undo (no fake undo after a confirmed wipe): the toast is a plain
-//     confirmation, and the export acknowledged in gate 1 is the real recovery path. The frozen
-//     web claims ("Delete everything in one tap") describe the user's OWN data being wiped; the gate is
-//     deliberately multi-step, and what's LEFT after differs by which reset was chosen. See @rn-engine.
+//     confirmation, and the export acknowledged in gate 1 is the real recovery path. The honest claim
+//     above ("a few deliberate confirmations, never one accidental tap") describes the user's OWN
+//     data being wiped; the gate is deliberately multi-step, and what's LEFT after differs by which
+//     reset was chosen. See @rn-engine.
 //   • slide-in-r resolves straight to its final state under reduce-motion (resolved layout, never a
 //     slower animation), mirroring Melo's own gating and StartScreen.
 //   • STATES: per the spec, Privacy is populated-only and offline ≡ populated (local-first, no network
@@ -111,8 +122,8 @@ export type PrivacyScreenProps = {
 // wipes the user's data in one tap. Copy-lint checks these.
 const HONEST_CLAIMS = [
   'No ads, no tracking',
-  'Nothing shared without you tapping export',
-  'Delete everything in one tap',
+  'What you type to Melo, or a statement you add, goes to that AI provider — a copy only leaves when you export',
+  'Clearing everything takes a few deliberate confirmations, never one accidental tap',
 ] as const;
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).

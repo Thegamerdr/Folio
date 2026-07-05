@@ -74,7 +74,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -85,6 +84,7 @@ import Animated, {
 import { elevation, gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
@@ -342,7 +342,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.sm }]}>
-          <Header onBack={nav.back} muted={t.muted} />
+          <ScreenHeader onBack={nav.back} eyebrow="PLANS" eyebrowWeight="600" backHitWidth={24} />
           <View style={styles.intro}>
             <Text style={[styles.eyebrowItalic, { color: t.muted }]}>Before next payday</Text>
             <Text accessibilityRole="header" style={[styles.heading, { color: t.ink }]}>
@@ -371,7 +371,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.sm }]}>
-          <Header onBack={nav.back} muted={t.muted} />
+          <ScreenHeader onBack={nav.back} eyebrow="PLANS" eyebrowWeight="600" backHitWidth={24} />
           <View style={styles.errorWrap}>
             <MeloLine mood="concern" text="Couldn't bring up what's coming just now." />
             <Pressable
@@ -403,7 +403,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Header onBack={nav.back} muted={t.muted} />
+        <ScreenHeader onBack={nav.back} eyebrow="PLANS" eyebrowWeight="600" backHitWidth={24} />
 
         {/* Title frame — italic "Before next payday" eyebrow + the display line with the ONE upright
             terracotta accent word ("already"). */}
@@ -513,43 +513,6 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   );
 }
 
-// ── Header ─────────────────────────────────────────────────────────────────────────────────────
-// Back glyph (left) · "PLANS" eyebrow (centre, uppercase tracked, muted) · a balancing spacer (right).
-function Header({ onBack, muted }: { onBack: () => void; muted: string }) {
-  return (
-    <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        hitSlop={12}
-        onPress={onBack}
-        style={({ pressed: isPressed }) => [styles.backHit, isPressed ? styles.pressed : undefined]}
-      >
-        <BackArrow color={muted} />
-      </Pressable>
-      <Text style={[styles.eyebrow, { color: muted }]}>PLANS</Text>
-      <View style={styles.headerSpacer} />
-    </View>
-  );
-}
-
-// Back arrow — the web '←' glyph, drawn inline (matches PotsScreen / ReviewScreen). 20×20.
-function BackArrow({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Path
-        d="M12 4 L6 10 L12 16"
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path d="M6 10 H16" stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none" />
-    </Svg>
-  );
-}
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -567,30 +530,6 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     paddingHorizontal: gap.xl,
-  },
-
-  // Header — back · PLANS eyebrow · spacer.
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  backHit: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 24,
-  },
-  // 12px uppercase tracked muted (web tracking-[0.14em]@12px ≈ 1.7px).
-  eyebrow: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1.7,
-    textTransform: 'uppercase',
-  },
-  // Balances the back glyph so the eyebrow stays optically centred (web <span className="w-5" />).
-  headerSpacer: {
-    width: 20,
   },
 
   // Intro frame — mt-5 (gap.lg).

@@ -35,3 +35,23 @@ export function resolveCtaMode(i: CtaModeInputs): CtaMode {
   if (i.billingAvailable) return 'purchase';
   return 'trial';
 }
+
+/** The CTA-block render branch each `CtaMode` maps to. PaywallScreen's `ctaBlock` JSX switches on
+ *  `ctaMode` with exactly these branch names (`free-note` / `unlocked` / `trial-active` /
+ *  `purchase` / `trial` render their own Surface/Pressable block; `none` renders nothing) — this
+ *  map is the render-independent pin that the mapping is 1:1 and total, so a future edit to either
+ *  `resolveCtaMode` or the JSX switch can't silently drift the two apart without a test failing. */
+export type CtaBranch = 'free-note' | 'unlocked' | 'trial-active' | 'purchase' | 'trial' | 'none';
+
+const CTA_BRANCH_BY_MODE: Readonly<Record<CtaMode, CtaBranch>> = {
+  'free-note': 'free-note',
+  unlocked: 'unlocked',
+  'trial-active': 'trial-active',
+  purchase: 'purchase',
+  trial: 'trial',
+  none: 'none',
+};
+
+export function ctaBranchFor(mode: CtaMode): CtaBranch {
+  return CTA_BRANCH_BY_MODE[mode];
+}

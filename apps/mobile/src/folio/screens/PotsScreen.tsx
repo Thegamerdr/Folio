@@ -79,6 +79,7 @@ import { Sheet } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { MeloReaction } from '@/folio/ui/MeloReaction';
+import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import {
   addToPot,
@@ -326,7 +327,12 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.sm }]}>
-          <Header onBack={nav.back} muted={t.muted} />
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow={copy.pots.title.toUpperCase()}
+            eyebrowWeight="600"
+            backHitWidth={24}
+          />
           <View style={styles.intro}>
             <Text style={[styles.kicker, { color: t.muted }]}>Set aside</Text>
             <Text accessibilityRole="header" style={[styles.heading, { color: t.ink }]}>
@@ -367,7 +373,12 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.sm }]}>
-          <Header onBack={nav.back} muted={t.muted} />
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow={copy.pots.title.toUpperCase()}
+            eyebrowWeight="600"
+            backHitWidth={24}
+          />
           <View style={styles.errorWrap}>
             <MeloLine mood="concern" text="Couldn't bring your pots up just now." />
             <Pressable
@@ -402,7 +413,12 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Header onBack={nav.back} muted={t.muted} />
+        <ScreenHeader
+          onBack={nav.back}
+          eyebrow={copy.pots.title.toUpperCase()}
+          eyebrowWeight="600"
+          backHitWidth={24}
+        />
 
         {/* Frame — italic "Set aside" kicker + the calm display line + the move subhead. */}
         <View style={styles.intro}>
@@ -499,26 +515,6 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
         onMove={commit}
       />
     </Animated.View>
-  );
-}
-
-// ── Header ─────────────────────────────────────────────────────────────────────────────────────
-// Back glyph (left) · "POTS" eyebrow (centre, uppercase tracked, muted) · a balancing spacer (right).
-function Header({ onBack, muted }: { onBack: () => void; muted: string }) {
-  return (
-    <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        hitSlop={12}
-        onPress={onBack}
-        style={({ pressed: isPressed }) => [styles.backHit, isPressed ? styles.pressed : undefined]}
-      >
-        <BackArrow color={muted} />
-      </Pressable>
-      <Text style={[styles.eyebrow, { color: muted }]}>{copy.pots.title.toUpperCase()}</Text>
-      <View style={styles.headerSpacer} />
-    </View>
   );
 }
 
@@ -921,23 +917,6 @@ function StepButton({
 }
 
 // ── Glyphs ─────────────────────────────────────────────────────────────────────────────────────
-// Back arrow — the web '←' glyph, drawn inline (matches ReviewScreen / PdfSuccessScreen). 20×20.
-function BackArrow({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Path
-        d="M12 4 L6 10 L12 16"
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path d="M6 10 H16" stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none" />
-    </Svg>
-  );
-}
-
 // Grip — the web '⋮⋮' drag-handle glyph, kept as the move affordance's visual cue. 14×16, two columns
 // of three dots.
 function GripGlyph({ color }: { color: string }) {
@@ -970,28 +949,6 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     paddingHorizontal: gap.xl,
-  },
-  // Header — back · POTS eyebrow · spacer, baseline-balanced.
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  backHit: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 24,
-  },
-  eyebrow: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1.7,
-    textTransform: 'uppercase',
-  },
-  // Balances the back glyph so the eyebrow stays optically centred (web <span className="w-5" />).
-  headerSpacer: {
-    width: 20,
   },
   // Intro frame — mt-5 (gap.lg).
   intro: {

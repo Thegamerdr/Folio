@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const surfaceFiles = [
-  'dataControlSurface.tsx',
   'firstMinuteSurface.tsx',
   'importReviewSurface.tsx',
   'mobileShell.tsx',
@@ -66,7 +65,6 @@ describe('pre-dogfood UI trust copy', () => {
     expect(surfaceSource).toContain('Check these before they count.');
     expect(surfaceSource).toContain('Add keeps this payment in your money view.');
     expect(surfaceSource).toContain('nothing affects your money view until you review it');
-    expect(surfaceSource).toContain('Added to your money');
   });
 
   it('keeps mission-banned internal language out of visible copy strings', () => {

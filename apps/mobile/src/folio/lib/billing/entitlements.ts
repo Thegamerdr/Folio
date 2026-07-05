@@ -9,6 +9,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 
+import { getState, setLensPlusUnlocked, setLensProUnlocked } from '../../store';
 import {
   isEntitlementActive,
   parseEntitlement,
@@ -61,4 +62,38 @@ export async function saveEntitlement(record: EntitlementRecord | null): Promise
 export async function loadActiveEntitlement(): Promise<EntitlementRecord | null> {
   const record = await loadEntitlement();
   return isEntitlementActive(record, new Date()) ? record : null;
+}
+
+/**
+ * Boot-time reconciliation between the persisted entitlement record and the lens store's own
+ * unlock flags. Call once on app launch, after the store has been hydrated from disk.
+ *
+ * Two cases this repairs:
+ *  1. A real store purchase (`source: 'store'`) that is still active but the lens store's
+ *     `plusUnlocked`/`proUnlocked` flag was never set (or was lost — e.g. a restore/migration
+ *     edge case) — the flag is re-set from the entitlement record.
+ *  2. A store entitlement whose expiry has passed (`isEntitlementActive` false) — this is
+ *     deliberately a NO-OP. An offline user must never be punished by having a tier revoked out
+ *     from under them just because their expiry lapsed while the device couldn't reach the
+ *     store to renew the record; the platform (or a future explicit expiry-refresh flow) owns
+ *     revocation, not boot-time reconciliation.
+ *
+ * Never throws — every step is already defensive (loadActiveEntitlement/loadEntitlement never
+ * throw), and this function does nothing observable when there is nothing to reconcile.
+ */
+export async function reconcileEntitlements(): Promise<void> {
+  const active = await loadActiveEntitlement();
+  if (active === null || active.source !== 'store') return; // no entitlement, or a preview/trial
+  // record — trials are governed entirely by lens.trialCycleId, not this record.
+
+  // `lens` is optional on AppState for shape-migration reasons (see store.ts DEFAULT_LENS);
+  // `?? false` mirrors how useLens() reads these same flags.
+  const lens = getState().lens;
+  const plusUnlocked = lens?.plusUnlocked ?? false;
+  const proUnlocked = lens?.proUnlocked ?? false;
+  if (active.tier === 'pro' && !proUnlocked) {
+    setLensProUnlocked(true);
+  } else if (active.tier === 'plus' && !plusUnlocked) {
+    setLensPlusUnlocked(true);
+  }
 }

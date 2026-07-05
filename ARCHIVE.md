@@ -9,6 +9,7 @@ plain deletion. Full content is recoverable via git history on branch `claude/me
 ## Deleted
 
 ### Routes
+
 - `apps/mobile/app/melo.tsx` — the parallel `/melo` route (MELO_PHASE2_PLAN.md §3 dogfooding
   surface). Confirmed unreferenced by any other route, nav call, or config (`_layout.tsx` uses
   file-based `<Stack>` with no explicit screen list; no `router.push('/melo')` anywhere else).
@@ -17,6 +18,7 @@ plain deletion. Full content is recoverable via git history on branch `claude/me
   directly), so its removal has zero blast radius on the pressure-map kit.
 
 ### `apps/mobile/src/melo/**` (entire tree — only reachable via the deleted `/melo` route)
+
 - `components/` — BrandPreviews.tsx, MoneyModeSelector.tsx, NextBestActionCard.tsx,
   RunwayStrip.tsx, StateViews.tsx, WeatherSky.tsx, WhatChangedCard.tsx
 - `mascot/` — MeloMascot.tsx, MeloPhoenix.tsx, fenice.tsx, wardrobe.tsx, `assets/` (5 PNG phoenix
@@ -36,14 +38,14 @@ repoint was needed.
 
 ## Kept / reused (not touched)
 
-- **`apps/mobile/src/folio/melo/`** (`Melo.tsx`, `MeloLine.tsx`) — a *separate* directory, part of
+- **`apps/mobile/src/folio/melo/`** (`Melo.tsx`, `MeloLine.tsx`) — a _separate_ directory, part of
   the kept Folio port, unrelated to the deleted `src/melo/`. `src/folio/lib/modes/strategies/*.ts`
   and `src/folio/lib/modes/types.ts` import `MeloMood`/`MeloPose` types from here. Untouched.
 - **`apps/mobile/src/surfaces/pressureMap/**`** — the pressure-map kit (including its own
-  `melo/` subfolder: `MeloFigure.tsx`, `MeloPresence.tsx`, `meloStates.ts`, `meloCompanion.tsx`,
-  `meloPressure.ts`) is imported app-wide (`app/_layout.tsx` pulls `ThemeProvider`/`useTheme`/
-  `useIsDark` from `src/surfaces/pressureMap/kit`, and `app/index.tsx` uses the same). Fully
-  independent of the deleted `src/melo/**` tree — different directory, different purpose (in-app
+`melo/`subfolder:`MeloFigure.tsx`, `MeloPresence.tsx`, `meloStates.ts`, `meloCompanion.tsx`,
+`meloPressure.ts`) is imported app-wide (`app/\_layout.tsx`pulls`ThemeProvider`/`useTheme`/
+`useIsDark`from`src/surfaces/pressureMap/kit`, and `app/index.tsx`uses the same). Fully
+independent of the deleted`src/melo/\*\*` tree — different directory, different purpose (in-app
   companion figure inside the ported Folio UI, not the standalone dogfood surface).
 - **`packages/melo-engine`** — the shared engine package stays whole per instructions. It is a
   separate workspace package; its only consumers in `apps/mobile` were files under the now-deleted
@@ -94,5 +96,61 @@ Verified: `grep -rn "phoenix-hero" apps/mobile/src/folio` hits inside the new `M
 (pre-existing, out of scope); `Melo.tsx` reformatted with `./node_modules/.bin/prettier --write`.
 
 ## 07-05 addendum: archived evidence tests
-12 test files pinning the deleted legacy /home route + pre-port app shape (dogfoodMode, iosReadinessEvidence, routeSurfaceTruth, 9 surfaces/* UX-evidence suites) removed with the surface they tested; recoverable from git history. Stale apps/mobile/dist build output dropped.
+
+12 test files pinning the deleted legacy /home route + pre-port app shape (dogfoodMode, iosReadinessEvidence, routeSurfaceTruth, 9 surfaces/\* UX-evidence suites) removed with the surface they tested; recoverable from git history. Stale apps/mobile/dist build output dropped.
 Also: androidRecoveryMeloCompletionEvidence.test.ts + releaseBlockerFoundation.test.ts (evidence suites statically reading the archived test files).
+
+## Deleted (copy-honesty lane) — dead legacy Data & privacy surfaces
+
+Two dead, unimported legacy "Data & privacy" screens deleted outright (plain deletion, no move;
+recoverable via git history):
+
+- `apps/mobile/src/surfaces/pressureMap/trustControl.tsx` — the pressure-map kit's own
+  `DataControlScreen` (Editorial Ledger layout). Not imported by any live route — the app's actual
+  Data & privacy surface is `mobileShell.tsx`'s local `DataControlScreen` function (line ~4072,
+  exported at line ~8473), a separate implementation. `trustControl.tsx` was only reachable through
+  `surfaces/pressureMap/index.ts`'s re-export, which itself had no importer.
+- `apps/mobile/src/surfaces/dataControlSurface.tsx` — `DataControlOwnershipSurface`, an older
+  ownership-tile-grid take on the same screen. Confirmed unimported anywhere (`grep -rn
+"DataControlOwnershipSurface|dataControlSurface"` outside test files hit nothing).
+
+Fixed up the test files that read these two dead files' source as text (source-grep style guards,
+common in this codebase) so the suite stays green without the dead files:
+
+- `surfaces/pressureMap/index.ts` — dropped the `export { DataControlScreen } from './trustControl'`
+  re-export line.
+- `surfaces/uiTrustReviewCopy.test.ts` — dropped `dataControlSurface.tsx` from `surfaceFiles`; also
+  dropped one now-orphaned assertion (`toContain('Added to your money')`) whose only source was the
+  deleted file's `OwnershipTile` label — nowhere else in the live surface tree.
+- `surfaces/pressureMap/lovableImplementation.test.ts` — dropped `trustControl.tsx` from
+  `SURFACE_FILES`; removed the `trust`-specific assertions in the `'the words people read are the
+accepted ones'` test (they existed solely to pin `trustControl.tsx`'s privacy-hero copy).
+- `surfaces/pressureMap/darkModeFoundation.test.ts` — removed the whole `'dark-mode foundation —
+Appearance control'` describe block; the System/Light/Dark selector it tested lived only in the
+  dead `trustControl.tsx` (confirmed no live equivalent — `mobileShell.tsx` has no `Appearance` /
+  `useThemeMode` usage at all).
+- `surfaces/pressureMap/melo/melo.test.ts` — dropped the `data: read('../trustControl.tsx')` entry
+  from `coreScreens` (used only by the "Melo appears across the core slice" check).
+- `surfaces/pressureMap/kit.tsx` — a stale comment referencing `trustControl` (illustrative only,
+  not a test dependency) reworded to not point at a deleted file.
+- `local/productExperienceEvidence.ts` — inspected; NOT changed. Its two `"DataControlScreen"` /
+  `dataControlTrustCopy` references are a plain descriptive string label and an import from
+  `productExperienceLoop.js` respectively — neither imports from either deleted file, so this was a
+  false positive in the original task brief.
+
+Verification: `./node_modules/.bin/tsc -b apps/mobile --pretty false` → zero errors.
+`./node_modules/.bin/vitest run apps/mobile` → 92/93 files green, 946/947 tests green. The one
+failure is `folio/copy/sourceVoiceLint.test.ts` (new file, see below) correctly catching a real
+pre-existing "try again" violation in `sheets/SignInSheet.tsx`, a file outside this lane's scope.
+
+## Added — `folio/copy/sourceVoiceLint.test.ts`
+
+New source-level voice-lint test covering the 5 shipped-today user-facing files (`ui/Toast.tsx`,
+`sheets/SignInSheet.tsx`, `widget/SafeZoneWidget.tsx`, `screens/today/TodayNudges.tsx`,
+`screens/PrivacyScreen.tsx`): reads each file's raw source, strips comments, extracts string
+literals, and asserts none trip `BANNED_PATTERNS` reused from `@folio/melo-engine` (no re-derived
+list, so this gate can't drift from the engine's canonical banned-voice rules). Currently reports
+one real finding — `SignInSheet.tsx` has four "try again" instances that hit the engine's absolute
+`again-negative` pattern (`/\bagain\b/i`, banned unconditionally per the engine's own comment). Left
+failing rather than silently weakened, since fixing that file's copy is outside this lane
+(`screens/PrivacyScreen.tsx`, the dead surfaces, this file, and `ARCHIVE.md` only).

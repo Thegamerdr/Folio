@@ -5,10 +5,14 @@
 // palette) that is explicitly web-only and NOT ported; what ports is the navigation core: a
 // screen-router keyed by ScreenId, the bottom nav, and a single-sheet host keyed by SheetId.
 //
-// Every screen here is a PLACEHOLDER for now — a calm PressureScreen carrying only the screen's
-// title through the editorial Headline. They get replaced wave by wave. No fabricated data, no
-// scaffolding text. The shell composes the existing pressure-map kit (BottomNav / Sheet /
-// PressureScreen / Headline) so there is zero styling drift; it introduces no new tokens.
+// The wave-by-wave placeholder rollout this header originally described is DONE: every ScreenId
+// (`ScreenView` below) and every SheetId (`SELF_HOSTING_SHEETS` below) now resolves to a real,
+// ported component. The calm PressureScreen-title placeholder (`ScreenView`'s final fallback) and
+// the generic single-sheet host's `SheetView` (also below) are kept only as an exhaustive fallback
+// for the whole ScreenId/SheetId space — neither is reachable with the current unions, so neither
+// renders in practice. No fabricated data, no scaffolding text. The shell composes the existing
+// pressure-map kit (BottomNav / Sheet / PressureScreen / Headline) so there is zero styling drift;
+// it introduces no new tokens.
 //
 // ThemeProvider is mounted once at the app root (app/_layout.tsx) — the shell never remounts it.
 
@@ -515,9 +519,11 @@ function TodayByMode({ nav, pressure }: { nav: Nav; pressure: Pressure }) {
 }
 
 // ---------------------------------------------------------------------------
-// Screen host — the real ported screens for the wired ScreenIds, and a calm PressureScreen
-// placeholder (carrying only the screen title) for every screen not yet ported. Replaced wave by
-// wave; the placeholder fallback still covers the whole ScreenId space.
+// Screen host — every ScreenId now resolves to a real ported screen below (see the header note on
+// wave-by-wave completion). The calm PressureScreen placeholder (title only) at the end of this
+// function is unreachable with the current ScreenId union; it is kept as an exhaustive fallback so
+// a future ScreenId added without a matching branch here degrades to a title screen instead of a
+// blank one, rather than as a sign more waves are pending.
 // ---------------------------------------------------------------------------
 
 function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pressure: Pressure }) {
@@ -583,7 +589,9 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   if (screen === 'paywall') return <PaywallScreen nav={nav} />;
   if (screen === 'account') return <AccountScreen nav={nav} />;
 
-  // Every other screen is still a placeholder — a calm title through the editorial Headline.
+  // Exhaustive fallback only — every current ScreenId is handled above, so this branch is
+  // unreachable today. Kept so an un-wired future ScreenId still renders a calm title instead of
+  // nothing.
   const title = SCREEN_TITLE[screen];
   return (
     <PressureScreen>
@@ -670,7 +678,10 @@ const errorStyles = StyleSheet.create({
 
 // ---------------------------------------------------------------------------
 // Placeholder sheet body — a title for the active sheet. `null` renders nothing (the host is
-// closed). Replaced wave by wave alongside the screens.
+// closed). Every current SheetId is in SELF_HOSTING_SHEETS (above) and mounts its own real sheet
+// component as a sibling host, so the generic host that would render this component never mounts
+// today — SheetView is unreachable, kept only as an exhaustive fallback for a future SheetId added
+// without a matching self-hosting entry.
 // ---------------------------------------------------------------------------
 
 const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {

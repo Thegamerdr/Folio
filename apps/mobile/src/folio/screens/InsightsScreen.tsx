@@ -76,6 +76,7 @@ import Animated, {
 import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
 import { getRetrospect, formatDelta } from '@/folio/lib/modes/retrospect';
@@ -214,7 +215,12 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
     return (
       <Animated.View style={[s.root, enterStyle]}>
         <View style={[s.screen, { paddingTop: insets.top + gap.sm }]}>
-          <Header nav={nav} styles={s} palette={t} reduceMotion={reduceMotion} />
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow="Insights"
+            backHitWidth={24}
+            eyebrowTracking={1.68}
+          />
 
           <View style={s.titleBlock}>
             <Text style={s.eyebrowItalic}>Nothing wrapped up yet</Text>
@@ -248,7 +254,12 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Header nav={nav} styles={s} palette={t} reduceMotion={reduceMotion} />
+        <ScreenHeader
+          onBack={nav.back}
+          eyebrow="Insights"
+          backHitWidth={24}
+          eyebrowTracking={1.68}
+        />
 
         <View style={s.titleBlock}>
           <Text style={s.eyebrowItalic}>{retro.eyebrow}</Text>
@@ -414,36 +425,6 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
         </View>
       </ScrollView>
     </Animated.View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Header — back glyph · "Insights" eyebrow · a spacer (mirrors the web justify-between row).
-// ---------------------------------------------------------------------------
-function Header({
-  nav,
-  styles,
-  palette,
-}: {
-  nav: Nav;
-  styles: ReturnType<typeof makeStyles>;
-  palette: Palette;
-  reduceMotion: boolean;
-}) {
-  return (
-    <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        hitSlop={12}
-        onPress={nav.back}
-        style={({ pressed }) => [styles.backTap, pressed ? styles.pressed : undefined]}
-      >
-        <BackArrow color={palette.muted} />
-      </Pressable>
-      <Text style={styles.headerEyebrow}>Insights</Text>
-      <View style={styles.headerSpacer} />
-    </View>
   );
 }
 
@@ -638,25 +619,6 @@ function TrendChart({
 }
 
 // ---------------------------------------------------------------------------
-// Back arrow — the web '←' glyph, drawn inline (matches ReviewScreen). 20×20 user space.
-// ---------------------------------------------------------------------------
-function BackArrow({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Path
-        d="M12 4 L6 10 L12 16"
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path d="M6 10 H16" stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none" />
-    </Svg>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Styles — two layers per the DARK-MODE PATTERN. Colour-bearing styles in makeStyles(t); the rest
 // ride along (single source per element). The whole sheet is rebuilt per theme via useMemo.
 // ---------------------------------------------------------------------------
@@ -675,26 +637,6 @@ function makeStyles(t: Palette) {
       flexGrow: 1,
       paddingHorizontal: gap.xl,
     },
-
-    // Header row — back · eyebrow · spacer.
-    header: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-    },
-    backTap: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: 44,
-      minWidth: 24,
-    },
-    headerEyebrow: {
-      color: t.muted,
-      fontSize: 12,
-      letterSpacing: 12 * 0.14, // web tracking-[0.14em] → em × fontSize (RN letterSpacing is points)
-      textTransform: 'uppercase',
-    },
-    headerSpacer: { width: 20 },
 
     // Title block — italic eyebrow + the Fraunces headline with the single accent word.
     titleBlock: {

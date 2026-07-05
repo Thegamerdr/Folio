@@ -8,14 +8,14 @@
 // @tokens       muted-ink (muted) · 10.5px · opacity 0.7
 //
 // FIDELITY DECISION: the web reads `MODE_SHIP_STATUS[mode]` from `@/lib/modes` to decide whether
-// to append the "this mode borrows the survival maths for now" caveat. Confirmed: `@/folio/store`
-// already exports a real `MoneyMode` union (used here) but there is no `@/folio/lib/modes` module
-// yet and no `MODE_SHIP_STATUS` export anywhere in this app (grepped before writing). Per
-// RN_PORT.md's loop discipline this port does not fabricate that map. `shipped` is an explicit
-// prop instead — pass `MODE_SHIP_STATUS[mode] === 'shipped'` once `@/folio/lib/modes` ships;
-// until then callers can pass `true` (every RN lens currently behaves like Survival, so the
-// caveat line is honestly omitted by default — see the `shipped` prop default below). Reported as
-// a wiringNeeds dependency.
+// to append the "this mode borrows the survival maths for now" caveat. `@/folio/lib/modes/types`
+// now exports a real `MODE_SHIP_STATUS` map (types.ts:45) — but every one of the ten `MoneyMode`
+// entries is `'shipped'` (each has a real strategy under `strategies/`), so
+// `MODE_SHIP_STATUS[mode] === 'shipped'` is always `true` today and the caveat line would never
+// render regardless. `shipped` stays an explicit prop (not a direct `MODE_SHIP_STATUS` read) so a
+// future mode landing as `'parked'` can flip this without this component needing to know about the
+// modes module; callers can keep passing `true`, or switch to `MODE_SHIP_STATUS[mode] === 'shipped'`
+// for defense-in-depth against a future non-shipped mode — either is correct while the map is all-shipped.
 
 import { StyleSheet, Text } from 'react-native';
 

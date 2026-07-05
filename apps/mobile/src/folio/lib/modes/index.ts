@@ -80,6 +80,6 @@ export {
 } from './surfacePrefs';
 export { MODE_TOOL_PRIORITY, toolPriorityDirective, type MeloTool } from './toolPrefs';
 export { getEmptyVoice, type EmptyVoiceCopy } from './emptyVoice';
-export { safeZoneMath, type SafeZoneLine, type SafeZoneMath } from './safeZone';
+export { safeZoneMath, DANGER_FLOOR, type SafeZoneLine, type SafeZoneMath } from './safeZone';
 export * as debtEngine from './debtEngine';
 export * as planEngine from './planEngine';

@@ -21,6 +21,7 @@ import { importMeloBlobIfPresent, loadPersisted, startPersisting } from '@/folio
 import { startNotificationScheduler } from '@/folio/lib/notifyScheduler';
 import { ensureAndroidChannel } from '@/folio/lib/notifications';
 import { startWidgetSync } from '@/folio/widget/widgetSnapshotWriter';
+import { reconcileEntitlements } from '@/folio/lib/billing/entitlements';
 
 export default function FolioRoute() {
   const t = useTheme();
@@ -42,6 +43,12 @@ export default function FolioRoute() {
       // the emptiness check reads real hydrated state. Silent no-op on any
       // failure — see lib/persist.ts `importMeloBlobIfPresent`.
       await importMeloBlobIfPresent();
+      if (cancelled) return;
+      // Reconcile the persisted store-purchase entitlement record against the lens store's own
+      // unlock flags (see lib/billing/entitlements.ts `reconcileEntitlements` for the exact
+      // repair rule + why an expired entitlement is never revoked here). Runs after the melo
+      // import so it reconciles against the final hydrated lens state, before persistence starts.
+      await reconcileEntitlements();
       if (cancelled) return;
       stop = startPersisting(); // begin debounced write-on-change.
       // Reminders: create the Android channel once, then start the reschedule loop (reads real

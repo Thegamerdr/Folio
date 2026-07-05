@@ -65,6 +65,7 @@ import { routeFromStore, useRoute } from '@/folio/lib/storeRoute';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { MeloReaction } from '@/folio/ui/MeloReaction';
+import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useUndo } from '@/folio/ui/useUndo';
 import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
@@ -302,7 +303,14 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
         contentContainerStyle={layout.screen}
         showsVerticalScrollIndicator={false}
       >
-        <Header nav={nav} t={t} s={s} />
+        <ScreenHeader
+          onBack={nav.back}
+          eyebrow={copy.subs.title}
+          arrow="text"
+          spacerWidth={44}
+          backHitAlign="flex-start"
+          eyebrowTracking={1.68}
+        />
 
         <View style={layout.head}>
           <Text style={s.kicker}>Recurring spend</Text>
@@ -330,7 +338,14 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
       contentContainerStyle={layout.screen}
       showsVerticalScrollIndicator={false}
     >
-      <Header nav={nav} t={t} s={s} />
+      <ScreenHeader
+        onBack={nav.back}
+        eyebrow={copy.subs.title}
+        arrow="text"
+        spacerWidth={44}
+        backHitAlign="flex-start"
+        eyebrowTracking={1.68}
+      />
 
       <View style={layout.head}>
         <Text style={s.kicker}>Recurring spend</Text>
@@ -442,28 +457,6 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
         />
       </View>
     </ScrollView>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Header — back chevron · centred uppercase title · symmetric spacer.
-// ---------------------------------------------------------------------------
-
-function Header({ nav, t, s }: { nav: Nav; t: Palette; s: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={layout.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        hitSlop={12}
-        onPress={nav.back}
-        style={({ pressed: isPressed }) => [layout.backHit, isPressed ? layout.pressed : undefined]}
-      >
-        <Text style={[s.backGlyph, { color: t.muted }]}>←</Text>
-      </Pressable>
-      <Text style={s.headerTitle}>{copy.subs.title}</Text>
-      <View style={layout.headerSpacer} />
-    </View>
   );
 }
 
@@ -619,10 +612,6 @@ const layout = StyleSheet.create({
     flexGrow: 1,
   },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  backHit: { minWidth: 44, minHeight: 44, alignItems: 'flex-start', justifyContent: 'center' },
-  headerSpacer: { width: 44 },
-
   head: { gap: 4, marginTop: 4 },
   emptyWrap: { marginTop: 8 },
 
@@ -655,14 +644,6 @@ const layout = StyleSheet.create({
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-    backGlyph: { fontSize: 20, fontWeight: '500' },
-    headerTitle: {
-      color: t.muted,
-      fontSize: 12,
-      letterSpacing: 1.68,
-      textTransform: 'uppercase',
-    },
-
     // Italic serif kicker — web font-display italic, 13px, muted ink.
     kicker: {
       color: t.muted,
