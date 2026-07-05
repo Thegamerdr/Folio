@@ -33,7 +33,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { routeFromStore } from './storeRoute';
 import { deriveCalendarEvents, groupByDay, computeSpareAndTightest } from './calendarEvents';
-import { getState, resetAll, setOnboarding, type AppState } from '../store';
+import {
+  getState,
+  resetAll,
+  setIncomeSources,
+  setOnboarding,
+  type AppState,
+  type IncomeSource,
+} from '../store';
 
 // The store is a module-level singleton; reset to its known seed before each test
 // so `getState()` is the deterministic seed (default subs/pots/onboarding/balance).
@@ -216,5 +223,75 @@ describe('routeFromStore — seed state', () => {
     const lastPoint = route.points[route.points.length - 1]!;
     expect(lastPoint.date > paydayPoint.date).toBe(true); // window runs past payday
     expect(lastPoint.y).toBeLessThan(paydayPoint.y); // post-payday bills pull it back down
+  });
+});
+
+// ---------------------------------------------------------------------------
+// routeFromStore — income-cadence sources (lib/income.ts). CONSTRAINT:
+// additive — a monthly-only user (state.incomeSources empty/absent) must see
+// BYTE-IDENTICAL route output to before this feature existed.
+// ---------------------------------------------------------------------------
+describe('routeFromStore — income sources', () => {
+  it('legacy fallback: a monthly-only user (no incomeSources) is byte-identical to before', () => {
+    const state = seedState();
+    // seedState() already has incomeSources: [] via resetAll(); route with vs.
+    // without the field explicitly set must agree.
+    const withField = routeFromStore({ ...state, incomeSources: [] }, NOW);
+    const withoutField = (() => {
+      const { incomeSources: _omit, ...rest } = state;
+      return routeFromStore(rest as AppState, NOW);
+    })();
+    expect(withField).toEqual(withoutField);
+    expect(withField).toEqual(routeFromStore(state, NOW));
+  });
+
+  it("a weekly earner's daysToPayday is never more than 7 (bounded by the weekly cadence)", () => {
+    const weekly: IncomeSource = {
+      id: 'wage',
+      label: 'Weekly wage',
+      cadence: 'weekly',
+      anchorISO: '2026-06-05',
+      amount: 300,
+      source: 'manual',
+    };
+    setIncomeSources([weekly]);
+    const route = routeFromStore(getState(), NOW);
+    expect(route.daysToPayday).toBeGreaterThanOrEqual(0);
+    expect(route.daysToPayday).toBeLessThanOrEqual(7);
+  });
+
+  it('routes payday to the source-driven earliest income event, not the legacy day-of-month', () => {
+    // Onboarding still says payday=25th, but a weekly source anchored to a Friday
+    // fires well before the 25th — the route must follow the SOURCE, not the stale
+    // onboarding day-of-month, once sources are declared.
+    const weekly: IncomeSource = {
+      id: 'wage',
+      label: 'Weekly wage',
+      cadence: 'weekly',
+      anchorISO: '2026-06-05',
+      amount: 300,
+      source: 'manual',
+    };
+    setIncomeSources([weekly]);
+    const route = routeFromStore(getState(), NOW);
+    // From 2026-06-10, the next Friday-anchored weekly occurrence is 2026-06-12 (2 days out).
+    expect(route.daysToPayday).toBe(2);
+  });
+
+  it('a monthly IncomeSource (post-migration shape) reproduces the legacy day-of-month result', () => {
+    // Same payday/income as the legacy onboarding seed, expressed as a source.
+    const migrated: IncomeSource = {
+      id: 'income-migrated-pay',
+      label: 'Pay',
+      cadence: 'monthly',
+      dayOfMonth: 25,
+      amount: 2180,
+      source: 'onboarding',
+    };
+    const legacyRoute = routeFromStore(seedState(), NOW);
+    setIncomeSources([migrated]);
+    const sourceRoute = routeFromStore(getState(), NOW);
+    expect(sourceRoute.daysToPayday).toBe(legacyRoute.daysToPayday);
+    expect(sourceRoute.tightPoint).toEqual(legacyRoute.tightPoint);
   });
 });

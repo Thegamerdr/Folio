@@ -23,12 +23,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  type IncomeSource,
   type Pot,
   getState,
   hasAnyUserData,
   resetAll,
   resetToEmpty,
   setCurrentBalance,
+  setIncomeSources,
   setOnboarding,
   setPots,
 } from '../store';
@@ -40,22 +42,61 @@ beforeEach(() => {
   resetAll();
 });
 
+const WEEK_BASED_CADENCES = new Set<IncomeSource['cadence']>([
+  'weekly',
+  'fortnightly',
+  'four-weekly',
+]);
+
+function dayOfMonthFromIso(iso: string): number {
+  const day = Number(iso.slice(8, 10));
+  return Number.isInteger(day) && day >= 1 && day <= 31 ? day : 1;
+}
+
 // The store sequence OnboardingSheet.done() runs on the primary finish path, parameterised by what
 // the user entered. Kept byte-faithful to the component so the test tracks the real contract.
+// `cadence`/`anchorISO` default to the legacy monthly-only path so every pre-existing test in this
+// file (which predates the cadence step) keeps exercising byte-identical behaviour.
 function completeOnboarding(input: {
   name: string;
   payday: number;
   monthlyIncome: number;
   balance: number;
   pickedPots: ReadonlyArray<Omit<Pot, 'saved'>>;
+  cadence?: IncomeSource['cadence'];
+  anchorISO?: string;
+  lastWorkingDayNumber?: number;
 }) {
+  const cadence = input.cadence ?? 'monthly';
+  const anchorISO = input.anchorISO ?? '2026-07-01';
+
   resetToEmpty();
+
+  const legacyPayday =
+    cadence === 'monthly'
+      ? input.payday
+      : cadence === 'last-working-day'
+        ? (input.lastWorkingDayNumber ?? 29)
+        : dayOfMonthFromIso(anchorISO);
+
   setOnboarding({
     name: input.name,
-    payday: input.payday,
+    payday: legacyPayday,
     monthlyIncome: input.monthlyIncome,
     done: true,
   });
+
+  const incomeSource: IncomeSource = {
+    id: 'income-onboarding-pay',
+    label: 'Pay',
+    cadence,
+    amount: input.monthlyIncome,
+    source: 'onboarding',
+    ...(cadence === 'monthly' ? { dayOfMonth: input.payday } : {}),
+    ...(WEEK_BASED_CADENCES.has(cadence) ? { anchorISO } : {}),
+  };
+  setIncomeSources([incomeSource]);
+
   if (input.balance > 0) {
     setCurrentBalance({ amount: input.balance, source: 'user-entered', confidence: 'rough' });
   }
@@ -207,5 +248,102 @@ describe('OnboardingSheet skip → keeps the sample (an explicit demo choice, no
     expect(hasAnyUserData(s)).toBe(true); // sample data still present
     expect(s.currentBalance.source).toBe('sample'); // sample balance still shown
     expect(s.transactions.length).toBeGreaterThan(0);
+  });
+});
+
+// Cadence step (new — "How does pay arrive?", ahead of the day picker). Proves completion writes
+// BOTH the income-cadence model (`incomeSources[0]`, source 'onboarding') AND the legacy
+// `onboarding.payday` day-of-month equivalent, for every cadence the picker offers.
+describe('OnboardingSheet cadence step → incomeSources + legacy payday equivalent', () => {
+  it('monthly (default) writes a monthly incomeSource matching the day-of-month slider', () => {
+    completeOnboarding({
+      name: 'Ada',
+      payday: 28,
+      monthlyIncome: 2400,
+      balance: 0,
+      pickedPots: [],
+      cadence: 'monthly',
+    });
+    const s = getState();
+    expect(s.onboarding.payday).toBe(28);
+    expect(s.incomeSources).toHaveLength(1);
+    const source = s.incomeSources![0]!;
+    expect(source.cadence).toBe('monthly');
+    expect(source.dayOfMonth).toBe(28);
+    expect(source.anchorISO).toBeUndefined();
+    expect(source.amount).toBe(2400);
+    expect(source.source).toBe('onboarding');
+  });
+
+  it('weekly writes an anchorISO-based incomeSource and derives the legacy day-of-month from the anchor', () => {
+    completeOnboarding({
+      name: 'Ada',
+      payday: 25, // unused for week-based cadences — the day picker is hidden
+      monthlyIncome: 1800,
+      balance: 0,
+      pickedPots: [],
+      cadence: 'weekly',
+      anchorISO: '2026-06-05',
+    });
+    const s = getState();
+    expect(s.incomeSources).toHaveLength(1);
+    const source = s.incomeSources![0]!;
+    expect(source.cadence).toBe('weekly');
+    expect(source.anchorISO).toBe('2026-06-05');
+    expect(source.dayOfMonth).toBeUndefined();
+    // Legacy single-number equivalent — the anchor's own day-of-month (05), not the unused slider value.
+    expect(s.onboarding.payday).toBe(5);
+  });
+
+  it('fortnightly writes an anchorISO-based incomeSource', () => {
+    completeOnboarding({
+      name: 'Ada',
+      payday: 25,
+      monthlyIncome: 1800,
+      balance: 0,
+      pickedPots: [],
+      cadence: 'fortnightly',
+      anchorISO: '2026-06-18',
+    });
+    const source = getState().incomeSources![0]!;
+    expect(source.cadence).toBe('fortnightly');
+    expect(source.anchorISO).toBe('2026-06-18');
+    expect(getState().onboarding.payday).toBe(18);
+  });
+
+  it('four-weekly writes an anchorISO-based incomeSource', () => {
+    completeOnboarding({
+      name: 'Ada',
+      payday: 25,
+      monthlyIncome: 1800,
+      balance: 0,
+      pickedPots: [],
+      cadence: 'four-weekly',
+      anchorISO: '2026-06-11',
+    });
+    const source = getState().incomeSources![0]!;
+    expect(source.cadence).toBe('four-weekly');
+    expect(source.anchorISO).toBe('2026-06-11');
+    expect(getState().onboarding.payday).toBe(11);
+  });
+
+  it('last-working-day writes a dayOfMonth/anchorISO-free incomeSource and a resolved legacy day-of-month', () => {
+    completeOnboarding({
+      name: 'Ada',
+      payday: 25,
+      monthlyIncome: 2000,
+      balance: 0,
+      pickedPots: [],
+      cadence: 'last-working-day',
+      lastWorkingDayNumber: 30,
+    });
+    const s = getState();
+    const source = s.incomeSources![0]!;
+    expect(source.cadence).toBe('last-working-day');
+    expect(source.dayOfMonth).toBeUndefined();
+    expect(source.anchorISO).toBeUndefined();
+    // Legacy equivalent is whatever the current month's last working day resolves to — not the
+    // (unused, hidden) day-of-month slider value.
+    expect(s.onboarding.payday).toBe(30);
   });
 });

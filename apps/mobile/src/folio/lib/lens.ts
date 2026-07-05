@@ -26,13 +26,69 @@
  * weekend-aware). `nextPaydayDate` below is a small local adapter over that
  * existing engine — not a new date-math implementation — so this file
  * doesn't duplicate payday logic RN already owns.
+ *
+ * Multi-cadence note: `nextPaydayDate` only resolves the legacy monthly
+ * day-of-month rule, which is wrong for weekly/fortnightly/four-weekly/
+ * last-working-day earners. `trialDaysLeft` now prefers the income-cadence
+ * engine (`./income.ts`'s `nextIncomeDate`) when the user has `incomeSources`
+ * configured, falling back to `nextPaydayDate` only for users still on the
+ * legacy single-payday-DOM shape (no sources yet) — same fallback order
+ * `storeRoute.ts`'s `routeFromStore` already uses, so trial-cycle-end and the
+ * Route's own `daysToPayday` never disagree.
+ *
+ * 21-day trial floor: the paywall promise is roughly "try it for a month".
+ * For a monthly earner the next income date already lands ~a month out, so
+ * this floor is a no-op. For a weekly/fortnightly/four-weekly earner, the
+ * NEXT income date alone would end the trial in as little as 0-6 days (a
+ * weekly earner's "one cycle" is one week) — nowhere near the promised
+ * month. `trialEndDate` therefore walks the income-cadence engine's
+ * occurrences forward and picks the FIRST one that is at least 21 days after
+ * the trial's start, so a weekly earner gets roughly 4 pay cycles (~21-27
+ * days, approx. one month) instead of one. Monthly/last-working-day earners
+ * are unaffected — their very first occurrence already clears 21 days in
+ * nearly every case, and on the rare short month it still only pushes the
+ * trial out to the FOLLOWING occurrence (never shortens it).
  */
 import { useAppStore, startLensTrial, acknowledgeTrialEnd } from '../store';
 import type { MoneyMode } from './modes/types';
 import { MODE_LABEL } from './modes/types';
 import { resolvePayday } from './payday';
+import { projectIncomeEvents } from './income';
+import type { IncomeSource } from '../store';
 
 export type LensTier = 'free' | 'plus' | 'pro';
+
+/** The trial promise is roughly a month; see the file header's "21-day trial
+ *  floor" note for why this exists and why 21 (≈3 weeks — clears a weekly
+ *  earner's cadence at least twice over before the trial can end). */
+const TRIAL_MIN_DAYS = 21;
+/** Wide enough to guarantee at least one income occurrence >= TRIAL_MIN_DAYS
+ *  out even for the slowest cadence this engine models (four-weekly, 28-day
+ *  step): 21 + 28 + a week of slack comfortably covers every cadence. */
+const TRIAL_SEARCH_WINDOW_DAYS = 63;
+
+/**
+ * The first income date at least `TRIAL_MIN_DAYS` days after `startIso`,
+ * across every source. `null` when there are no sources (caller falls back
+ * to the legacy `nextPaydayDate` adapter) or — defensively — if the search
+ * window somehow finds no occurrence that far out (should not happen for any
+ * real cadence; the window is sized generously above).
+ */
+export function trialEndDate(sources: readonly IncomeSource[], startIso: string): string | null {
+  if (sources.length === 0) return null;
+  const events = projectIncomeEvents(sources, startIso, TRIAL_SEARCH_WINDOW_DAYS);
+  const startMs = new Date(`${startIso}T00:00:00`).getTime();
+  for (const event of events) {
+    const eventMs = new Date(`${event.date}T00:00:00`).getTime();
+    const daysOut = Math.round((eventMs - startMs) / (1000 * 60 * 60 * 24));
+    if (daysOut >= TRIAL_MIN_DAYS) return event.date;
+  }
+  return null;
+}
+
+// Stable empty fallback for the optional store slot — never mint a fresh [] per
+// call (useAppStore/useSyncExternalStore snapshot stability).
+const EMPTY_INCOME_SOURCES: IncomeSource[] = [];
 
 // The two baselines Folio answers for everyone.
 export const FREE_LENSES: readonly MoneyMode[] = ['survival', 'stability'] as const;
@@ -107,6 +163,7 @@ export function useLens() {
   const trialEndedCycleId = useAppStore((s) => s.lens?.trialEndedCycleId ?? null);
   const trialEndAcknowledged = useAppStore((s) => s.lens?.trialEndAcknowledged ?? true);
   const paydayDom = useAppStore((s) => s.onboarding.payday);
+  const incomeSources = useAppStore((s) => s.incomeSources ?? EMPTY_INCOME_SOURCES);
 
   const canAccess = (lens: MoneyMode): boolean => {
     const t = tierOf(lens);
@@ -137,6 +194,19 @@ export function useLens() {
   const trialDaysLeft: number | null = (() => {
     if (!trialCycleId) return null;
     const today = new Date();
+    const todayIso = today.toISOString().slice(0, 10);
+    // Prefer the multi-cadence income engine when sources exist — correct for
+    // weekly/fortnightly/four-weekly/last-working-day earners, not just monthly
+    // day-of-month. Falls back to the legacy DOM-only adapter for users who
+    // haven't been migrated onto `incomeSources` yet. `trialEndDate` applies the
+    // 21-day floor (see file header) so a weekly earner's trial reads as ~a
+    // month, not ~a week.
+    const endIso = trialEndDate(incomeSources, todayIso);
+    if (endIso !== null) {
+      const end = new Date(`${endIso}T00:00:00`);
+      const ms = end.getTime() - today.getTime();
+      return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+    }
     const end = nextPaydayDate(today, paydayDom || 25);
     const ms = end.getTime() - today.getTime();
     return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));

@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { Sub, Onboarding, CalendarEvent, Pot } from '../store';
+import type { Sub, Onboarding, CalendarEvent, Pot, IncomeSource } from '../store';
 import {
   type DerivedEvent,
   computeSpareAndTightest,
@@ -296,5 +296,141 @@ describe('previewSubNudge', () => {
 describe('formatDayHeader', () => {
   it('formats an ISO day as "WEEKDAY · D MON"', () => {
     expect(formatDayHeader('2026-07-08')).toBe('WED · 8 JUL');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// incomeSources — the income-cadence model (lib/income.ts) generalises the
+// single monthly `onboarding.payday`/`monthlyIncome` lump into per-cadence
+// sources. CONSTRAINT: additive — a monthly-only user (no incomeSources
+// declared) must see byte-IDENTICAL output to before this feature existed.
+// ---------------------------------------------------------------------------
+describe('deriveCalendarEvents — legacy fallback (no incomeSources)', () => {
+  it('is byte-identical to the pre-existing single-payday derivation when incomeSources is omitted', () => {
+    const now = at('2026-07-01');
+    const subs: Sub[] = [
+      { name: 'Spotify', cost: 11, nextRenewalDaysAway: 5, lastUsedDaysAgo: 0, usesPerMonth: 28 },
+    ];
+    const withoutField = deriveCalendarEvents({
+      subs,
+      subPaused: {},
+      onboarding: ONBOARDING,
+      manualEvents: [],
+      now,
+    });
+    const withEmptyArray = deriveCalendarEvents({
+      subs,
+      subPaused: {},
+      onboarding: ONBOARDING,
+      manualEvents: [],
+      incomeSources: [],
+      now,
+    });
+    expect(withEmptyArray).toEqual(withoutField);
+
+    // And it still produces exactly the legacy single monthly payday shape.
+    const paydays = withoutField.filter((e) => e.source === 'payday');
+    expect(paydays.length).toBeGreaterThan(0);
+    expect(paydays[0]!.title).toBe('Payday');
+    expect(paydays[0]!.id).toMatch(/^payday-\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('deriveCalendarEvents — income-cadence sources', () => {
+  it('projects every occurrence of a weekly source inside the window, replacing the monthly lump', () => {
+    const now = at('2026-07-01');
+    const weekly: IncomeSource = {
+      id: 'wage',
+      label: 'Weekly wage',
+      cadence: 'weekly',
+      anchorISO: '2026-07-03',
+      amount: 300,
+      source: 'manual',
+    };
+    const events = deriveCalendarEvents({
+      subs: [],
+      subPaused: {},
+      onboarding: ONBOARDING,
+      manualEvents: [],
+      incomeSources: [weekly],
+      now,
+    });
+
+    const paydays = events.filter((e) => e.source === 'payday');
+    // 35-day window from Jul 1 anchored Jul 3 weekly -> 5 occurrences (3,10,17,24,31).
+    expect(paydays.map((e) => e.date)).toEqual([
+      '2026-07-03',
+      '2026-07-10',
+      '2026-07-17',
+      '2026-07-24',
+      '2026-07-31',
+    ]);
+    expect(paydays.every((e) => e.amount === 300 && e.title === 'Weekly wage')).toBe(true);
+    // The legacy monthly-payday-derived id shape must NOT appear.
+    expect(events.some((e) => e.id === 'payday-2026-07-25')).toBe(false);
+  });
+
+  it('merges multiple income sources into the derived timeline, sorted with everything else', () => {
+    const now = at('2026-07-01');
+    const weekly: IncomeSource = {
+      id: 'wage',
+      label: 'Weekly wage',
+      cadence: 'weekly',
+      anchorISO: '2026-07-03',
+      amount: 300,
+      source: 'manual',
+    };
+    const sideGig: IncomeSource = {
+      id: 'side',
+      label: 'Side gig',
+      cadence: 'monthly',
+      dayOfMonth: 15,
+      amount: 150,
+      source: 'manual',
+    };
+    const events = deriveCalendarEvents({
+      subs: [],
+      subPaused: {},
+      onboarding: ONBOARDING,
+      manualEvents: [],
+      incomeSources: [weekly, sideGig],
+      now,
+    });
+    const paydayDates = events.filter((e) => e.source === 'payday').map((e) => e.date);
+    expect(paydayDates).toContain('2026-07-15'); // side gig
+    expect(paydayDates).toContain('2026-07-03'); // weekly wage
+    // Output stays globally sorted by date.
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i]!.date >= events[i - 1]!.date).toBe(true);
+    }
+  });
+
+  it('anchors pot after-payday top-ups to the source-driven earliest income event', () => {
+    const now = at('2026-07-01');
+    const weekly: IncomeSource = {
+      id: 'wage',
+      label: 'Weekly wage',
+      cadence: 'weekly',
+      anchorISO: '2026-07-03',
+      amount: 300,
+      source: 'manual',
+    };
+    const pots: Pot[] = [
+      { id: 'buffer', name: 'Buffer', saved: 0, goal: 500, perWeek: 20, accent: false },
+    ];
+    const events = deriveCalendarEvents({
+      subs: [],
+      subPaused: {},
+      onboarding: ONBOARDING,
+      manualEvents: [],
+      incomeSources: [weekly],
+      pots,
+      now,
+    });
+    const potTopUp = events.find((e) => e.source === 'pot');
+    expect(potTopUp).toBeDefined();
+    // after-payday defaults to the FIRST income event, which is the weekly wage's
+    // first in-window occurrence (Jul 3), not a monthly-derived date.
+    expect(potTopUp?.date).toBe('2026-07-03');
   });
 });

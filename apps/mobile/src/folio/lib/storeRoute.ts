@@ -30,6 +30,7 @@ import { useMemo } from 'react';
 import { computeRoute, type DatedAmount, type RouteResult } from './moneyPath';
 import { deriveCalendarEvents } from './calendarEvents';
 import { resolvePayday } from './payday';
+import { nextIncomeDate } from './income';
 import { useAppStore, type AppState } from '../store';
 
 /** Fallback day-of-month payday when onboarding hasn't set one. Matches the
@@ -132,6 +133,7 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // manual events. Same inputs + same 35-day window the Calendar screen feeds, so the curve below IS
   // the Calendar's ladder. Anchored to UTC midnight of `todayIso` so `deriveCalendarEvents`' own UTC
   // slice resolves to the SAME local day — event dates then land on the indices `computeRoute` uses.
+  const incomeSources = state.incomeSources ?? [];
   const events = deriveCalendarEvents({
     subs: state.subs,
     subPaused: state.subPaused,
@@ -139,6 +141,7 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
     onboarding: state.onboarding,
     manualEvents: state.calendarEvents,
     pots: state.pots,
+    incomeSources,
     windowDays: ROUTE_WINDOW_DAYS,
     now: utcMidnightOf(todayIso),
     // Sample/demo bills only while the seed is untouched (currentBalance still 'sample'). A cleared or
@@ -160,15 +163,20 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // The route's `payday` — it bounds `daysToPayday` and where `spare` is read, NOT the sampled
   // window (that is the 35-day picture above). Take the FIRST payday the timeline itself resolved
   // (its in-window `payday`-source event), so payday is the same concrete day the Calendar shows.
-  // When income is 0 (no payday event), fall back to resolving the day-of-month in the same UTC
-  // month space: this month's resolved payday if still ahead of today, else next month's.
+  // When income is 0 (no payday event in the sampled window — only possible with a payday further out
+  // than the window), fall back to the income-cadence engine directly when sources exist (so a
+  // weekly/fortnightly/etc. earner's `daysToPayday` is still correctly cadenced), else the legacy
+  // day-of-month resolution: this month's resolved payday if still ahead of today, else next month's.
   const firstPaydayEvent = events.find((e) => e.source === 'payday');
   const thisMonthPayday = resolvePayday({ dayOfMonth: paydayDom }, todayIso.slice(0, 7));
+  const legacyPaydayIso =
+    thisMonthPayday >= todayIso
+      ? thisMonthPayday
+      : resolvePayday({ dayOfMonth: paydayDom }, nextYearMonthOf(todayIso));
   const paydayIso =
     firstPaydayEvent?.date ??
-    (thisMonthPayday >= todayIso
-      ? thisMonthPayday
-      : resolvePayday({ dayOfMonth: paydayDom }, nextYearMonthOf(todayIso)));
+    (incomeSources.length > 0 ? nextIncomeDate(incomeSources, todayIso) : null) ??
+    legacyPaydayIso;
 
   // Earmark the already-SAVED pot cash OUT of the start: the path begins at
   // `currentBalance.amount − Σ pots.saved`, not the full balance — the "saved amount lowers Today's

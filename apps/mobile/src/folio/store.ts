@@ -192,6 +192,35 @@ export type Onboarding = {
   monthlyIncome: number;
 };
 
+/** Income-cadence model — Phase ① of the data-intelligence program (see
+ *  `lib/income.ts`). Generalises the legacy single "day-of-month + monthly
+ *  amount" (`onboarding.payday` / `onboarding.monthlyIncome`) into a list of
+ *  named, independently-cadenced pay events, so weekly/fortnightly/four-weekly/
+ *  last-working-day earners get correct math instead of the one-size-fits-all
+ *  monthly lump every other screen assumed.
+ *
+ *  `dayOfMonth` is required (and meaningful) only for `cadence: 'monthly'`;
+ *  `anchorISO` is required only for the three week-based cadences
+ *  (`weekly`/`fortnightly`/`four-weekly`) — any known past or future payday
+ *  date the cadence repeats from. `last-working-day` needs neither: it always
+ *  resolves to the last non-weekend day of the month. `lib/income.ts` throws
+ *  if the field its cadence needs is missing — that is an engine-boundary
+ *  contract violation, not something to silently guess around. */
+export type IncomeSource = {
+  id: string;
+  label: string;
+  cadence: 'monthly' | 'weekly' | 'fortnightly' | 'four-weekly' | 'last-working-day';
+  /** 1..31. Only meaningful for `cadence: 'monthly'`. */
+  dayOfMonth?: number;
+  /** ISO "YYYY-MM-DD" — any known occurrence of a week-based cadence, past or
+   *  future. Only meaningful for `weekly`/`fortnightly`/`four-weekly`. */
+  anchorISO?: string;
+  amount: number;
+  /** Where this source came from — user-entered at onboarding, inferred by a
+   *  future statement-reading pass, or added later via a manual "Add income". */
+  source: 'onboarding' | 'inferred' | 'manual';
+};
+
 /** ENGINES.md § 6 "Starting balance — source + confidence".
  *  Every balance on Today/Ritual reads `currentBalance.amount`; the literal
  *  720 fallback has been removed. `sample` is the only source allowed in
@@ -391,6 +420,14 @@ export type AppState = {
    *  (mirrors `timelineEvents?` above); `DEFAULTS`/`load()`/`resetToEmpty()`
    *  always populate it ([]). */
   reviewQueue?: ReviewItem[];
+  /** Income-cadence model (`lib/income.ts`) — see `IncomeSource`. Additive:
+   *  when empty/absent, every caller (calendarEvents, storeRoute) falls back
+   *  BYTE-IDENTICAL to the legacy single-payday derivation off
+   *  `onboarding.payday` / `onboarding.monthlyIncome`, so a monthly-only user's
+   *  numbers never change. Optional for shape back-compat with hand-built
+   *  `AppState` fixtures predating this field; `DEFAULTS`/`load()`/
+   *  `resetToEmpty()` always populate it ([]). */
+  incomeSources?: IncomeSource[];
 };
 
 /** A single unreviewed intake candidate (design source `ReviewItem`, verbatim
@@ -423,7 +460,7 @@ export type MeloState = {
 const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -445,6 +482,11 @@ const DEFAULT_DEBTS: Debt[] = [];
 
 /** Non-optional fallback for `AppState.plans` — see `DEFAULT_DEBTS`. */
 const DEFAULT_PLANS: Plan[] = [];
+
+/** Non-optional fallback for `AppState.incomeSources` — see `DEFAULT_DEBTS`.
+ *  Empty means "no income sources declared yet"; every caller falls back to
+ *  the legacy single-payday derivation in that case (see `lib/income.ts`). */
+const DEFAULT_INCOME_SOURCES: IncomeSource[] = [];
 
 /** Non-optional fallback for `AppState.lens` — `DEFAULTS.lens` widens to
  *  `LensState | undefined` through the `AppState` annotation (the field is
@@ -587,6 +629,11 @@ const DEFAULTS: AppState = {
   melo: { quietMode: false, wardrobe: [] },
   tinyWins: [],
   timelineEvents: [],
+  // Empty by default — a fresh install has NOT declared income sources yet, so
+  // every caller falls back to the legacy `onboarding.payday`/`monthlyIncome`
+  // single-lump derivation until the user (or the v7→v8 migration, for an
+  // existing install) populates this list.
+  incomeSources: [],
 };
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
@@ -727,6 +774,37 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
       reviewQueue: Array.isArray(prior.reviewQueue) ? prior.reviewQueue : [],
     };
   },
+  // v7 → v8: introduce the income-cadence model (`incomeSources`, see
+  // `lib/income.ts`). Every pre-v8 install synthesizes exactly ONE monthly
+  // source ("Pay") from its existing `onboarding.payday` + `.monthlyIncome`, so
+  // the legacy single-lump behaviour survives as this user's honest starting
+  // data rather than being silently discarded. If `incomeSources` already
+  // exists (a blob that somehow pre-dates this schema bump but already carries
+  // the field), it is preserved untouched rather than re-synthesized.
+  8: (prev) => {
+    const prior = prev as Partial<AppState>;
+    if (Array.isArray(prior.incomeSources)) {
+      return { ...prev, schemaVersion: 8, incomeSources: prior.incomeSources };
+    }
+    const onboarding = prior.onboarding;
+    const payday = onboarding?.payday ?? DEFAULTS.onboarding.payday;
+    const monthlyIncome = onboarding?.monthlyIncome ?? DEFAULTS.onboarding.monthlyIncome;
+    const synthesized: IncomeSource[] = [
+      {
+        id: 'income-migrated-pay',
+        label: 'Pay',
+        cadence: 'monthly',
+        dayOfMonth: payday,
+        amount: monthlyIncome,
+        source: 'onboarding',
+      },
+    ];
+    return {
+      ...prev,
+      schemaVersion: 8,
+      incomeSources: synthesized,
+    };
+  },
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -805,6 +883,7 @@ function load(): AppState {
       melo: migrated.melo ?? DEFAULT_MELO,
       tinyWins: migrated.tinyWins ?? [],
       timelineEvents: migrated.timelineEvents ?? DEFAULT_TIMELINE_EVENTS,
+      incomeSources: migrated.incomeSources ?? DEFAULT_INCOME_SOURCES,
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
@@ -1124,6 +1203,35 @@ export function setNextYouNote(note: string) {
 
 export function setTightPointGoal(amount: number | null) {
   setPartial({ tightPointGoal: amount });
+}
+
+/* ---------- Income sources (`lib/income.ts`) ---------- */
+
+/** Replace the whole income-source list. Accepts either a value or an updater
+ *  over the previous list, mirroring `setPots`/`setSubs`. */
+export function setIncomeSources(
+  sources: IncomeSource[] | ((prev: IncomeSource[]) => IncomeSource[]),
+) {
+  const prev = state.incomeSources ?? DEFAULT_INCOME_SOURCES;
+  const next = typeof sources === 'function' ? sources(prev) : sources;
+  setPartial({ incomeSources: next });
+}
+
+/** Add a new source, or replace the existing one with the same `id`. Immutable
+ *  — never mutates the previous list. */
+export function upsertIncomeSource(sourceEntry: IncomeSource) {
+  const prev = state.incomeSources ?? DEFAULT_INCOME_SOURCES;
+  const exists = prev.some((s) => s.id === sourceEntry.id);
+  const next = exists
+    ? prev.map((s) => (s.id === sourceEntry.id ? sourceEntry : s))
+    : [...prev, sourceEntry];
+  setPartial({ incomeSources: next });
+}
+
+/** Remove a source by id. No-op if the id is not present. */
+export function removeIncomeSource(id: string) {
+  const prev = state.incomeSources ?? DEFAULT_INCOME_SOURCES;
+  setPartial({ incomeSources: prev.filter((s) => s.id !== id) });
 }
 
 /* ---------- Lens / Money Mode engine (ports folio-melo `lib/store.ts` 1:1) ---------- */
@@ -1549,7 +1657,13 @@ export function resetSubOverrides(name?: string) {
 }
 
 export function resetAll() {
-  state = { ...DEFAULTS, transactions: seedTransactions(), calendarEvents: [], timelineEvents: [] };
+  state = {
+    ...DEFAULTS,
+    transactions: seedTransactions(),
+    calendarEvents: [],
+    timelineEvents: [],
+    incomeSources: [],
+  };
   persist();
   emit();
 }
@@ -1600,6 +1714,7 @@ export function resetToEmpty() {
     melo: { quietMode: false, wardrobe: [] },
     tinyWins: [],
     timelineEvents: [],
+    incomeSources: [],
   };
   state = empty;
   persist();

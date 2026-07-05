@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   type CycleRecord,
+  type IncomeSource,
   type Pot,
   type Transaction,
   addCycle,
@@ -34,10 +35,12 @@ import {
   matchMeloTool,
   pauseMany,
   queueInputFromCandidates,
+  removeIncomeSource,
   resetAll,
   resetToEmpty,
   resolveReviewItem,
   reviewCandidateSig,
+  setIncomeSources,
   setPartial,
   setPotAllowNegative,
   setPots,
@@ -45,6 +48,7 @@ import {
   setTightPointGoal,
   sweepReviewQueue,
   togglePaused,
+  upsertIncomeSource,
 } from './store';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import { subscribeMeloReaction, type MeloReactionPayload } from './lib/melo/reactionBus';
@@ -812,7 +816,7 @@ describe('editTransaction', () => {
 describe('schema migration v3', () => {
   it('defaults DEFAULTS/state to the current schema version with an empty edit history', () => {
     resetAll();
-    expect(getState().schemaVersion).toBe(7);
+    expect(getState().schemaVersion).toBe(8);
     expect(getState().edits).toEqual([]);
   });
 });
@@ -829,7 +833,7 @@ describe('schema migration v6', () => {
     hydrateFromBlob(JSON.stringify(v5Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(7);
+    expect(s.schemaVersion).toBe(8);
     expect(s.timelineEvents).toEqual([]);
   });
 
@@ -915,7 +919,7 @@ describe('persist blob round-trip', () => {
     hydrateFromBlob(blob);
 
     const s = getState();
-    expect(s.schemaVersion).toBe(7);
+    expect(s.schemaVersion).toBe(8);
     expect((s.edits ?? []).length).toBe(1);
     expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
   });
@@ -1016,7 +1020,7 @@ describe('schema migration v7', () => {
     hydrateFromBlob(JSON.stringify(v6Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(7);
+    expect(s.schemaVersion).toBe(8);
     expect(s.reviewQueue).toEqual([]);
   });
 
@@ -1030,6 +1034,137 @@ describe('schema migration v7', () => {
     expect(queue.length).toBe(1);
     expect(queue[0]!.merchant).toBe('Tesco');
     expect(queue[0]!.source).toBe('pdf');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// schema migration — v7 → v8 introduces the income-cadence model
+// (`incomeSources`, see lib/income.ts). Every pre-v8 install synthesizes
+// exactly ONE monthly source ("Pay") from its legacy onboarding.payday +
+// .monthlyIncome, so a real user's existing pay setup is carried forward
+// honestly instead of silently discarded on upgrade.
+// ---------------------------------------------------------------------------
+describe('schema migration v8', () => {
+  it('synthesizes one monthly "Pay" source from legacy onboarding.payday + monthlyIncome', () => {
+    resetAll();
+    setPartial({ onboarding: { ...getState().onboarding, payday: 28, monthlyIncome: 2500 } });
+    // Simulate a persisted v7 blob (no incomeSources field at all).
+    const v7Blob = { ...getState(), schemaVersion: 7 } as Record<string, unknown>;
+    delete v7Blob.incomeSources;
+    hydrateFromBlob(JSON.stringify(v7Blob));
+
+    const s = getState();
+    expect(s.schemaVersion).toBe(8);
+    expect(s.incomeSources).toEqual([
+      {
+        id: 'income-migrated-pay',
+        label: 'Pay',
+        cadence: 'monthly',
+        dayOfMonth: 28,
+        amount: 2500,
+        source: 'onboarding',
+      },
+    ]);
+  });
+
+  it('leaves every other field byte-identical across the v7 -> v8 migration', () => {
+    resetAll();
+    const before = getState();
+    const v7Blob = { ...before, schemaVersion: 7 } as Record<string, unknown>;
+    delete v7Blob.incomeSources;
+    hydrateFromBlob(JSON.stringify(v7Blob));
+
+    const after = getState();
+    const { incomeSources: _incomeAfter, schemaVersion: _versionAfter, ...restAfter } = after;
+    const { incomeSources: _incomeBefore, schemaVersion: _versionBefore, ...restBefore } = before;
+    expect(restAfter).toEqual(restBefore);
+  });
+
+  it('a blob that already carries incomeSources keeps them intact across migration (not re-synthesized)', () => {
+    resetAll();
+    const existing: IncomeSource[] = [
+      {
+        id: 'weekly-wage',
+        label: 'Weekly wage',
+        cadence: 'weekly',
+        anchorISO: '2026-06-05',
+        amount: 400,
+        source: 'manual',
+      },
+    ];
+    setIncomeSources(existing);
+    const blob = getPersistBlob();
+    resetAll();
+    hydrateFromBlob(blob);
+
+    expect(getState().incomeSources).toEqual(existing);
+  });
+
+  it('a fresh install (DEFAULTS) has an empty incomeSources list', () => {
+    resetAll();
+    expect(getState().incomeSources).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// incomeSources setters — setIncomeSources / upsertIncomeSource / removeIncomeSource
+// ---------------------------------------------------------------------------
+describe('income sources setters', () => {
+  const weekly: IncomeSource = {
+    id: 'src-weekly',
+    label: 'Weekly wage',
+    cadence: 'weekly',
+    anchorISO: '2026-06-05',
+    amount: 400,
+    source: 'manual',
+  };
+  const monthly: IncomeSource = {
+    id: 'src-monthly',
+    label: 'Side gig',
+    cadence: 'monthly',
+    dayOfMonth: 10,
+    amount: 200,
+    source: 'manual',
+  };
+
+  it('setIncomeSources replaces the whole list', () => {
+    setIncomeSources([weekly]);
+    expect(getState().incomeSources).toEqual([weekly]);
+    setIncomeSources([weekly, monthly]);
+    expect(getState().incomeSources).toEqual([weekly, monthly]);
+  });
+
+  it('setIncomeSources accepts an updater function over the previous list', () => {
+    setIncomeSources([weekly]);
+    setIncomeSources((prev) => [...prev, monthly]);
+    expect(getState().incomeSources).toEqual([weekly, monthly]);
+  });
+
+  it('upsertIncomeSource adds a new source by id', () => {
+    setIncomeSources([weekly]);
+    upsertIncomeSource(monthly);
+    expect(getState().incomeSources).toEqual([weekly, monthly]);
+  });
+
+  it('upsertIncomeSource replaces an existing source with the same id (immutable)', () => {
+    setIncomeSources([weekly]);
+    const updated: IncomeSource = { ...weekly, amount: 999 };
+    upsertIncomeSource(updated);
+    const sources = getState().incomeSources ?? [];
+    expect(sources.length).toBe(1);
+    expect(sources[0]).toEqual(updated);
+  });
+
+  it('removeIncomeSource removes by id', () => {
+    setIncomeSources([weekly, monthly]);
+    removeIncomeSource(weekly.id);
+    expect(getState().incomeSources).toEqual([monthly]);
+  });
+
+  it('removeIncomeSource is a no-op when the id is not present', () => {
+    setIncomeSources([weekly]);
+    removeIncomeSource('does-not-exist');
+    expect(getState().incomeSources).toEqual([weekly]);
   });
 });
 

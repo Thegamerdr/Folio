@@ -15,9 +15,10 @@
  * Types come from the data spine: `@/folio/store` (alias `@/*` -> `src/*`),
  * imported relatively as `../store` so the pure-logic test runner resolves it.
  */
-import type { Sub, Onboarding, CalendarEvent, Pot } from '../store';
+import type { Sub, Onboarding, CalendarEvent, Pot, IncomeSource } from '../store';
 import { resolvePayday } from './payday';
 import { resolveNextTopUp } from './potCadence';
+import { projectIncomeEvents } from './income';
 
 export type DerivedEventKind = 'in' | 'out' | 'review' | 'deadline' | 'manual';
 export type DerivedEventSource =
@@ -112,6 +113,7 @@ export function deriveCalendarEvents({
   onboarding,
   manualEvents,
   pots = [],
+  incomeSources = [],
   windowDays = 35,
   now = new Date(),
   includeSampleBills = true,
@@ -126,6 +128,13 @@ export function deriveCalendarEvents({
   /** Pot top-ups surface as "Out" events (each on its own cadence) so the
    *  Calendar explains dips that have a pot cause, not just bills + subs. */
   pots?: Pot[];
+  /** Income-cadence sources (`lib/income.ts`). When non-empty, every income
+   *  event in the window is projected through `projectIncomeEvents` — the
+   *  correct per-cadence (weekly/fortnightly/four-weekly/monthly/
+   *  last-working-day) derivation. When empty/absent (the legacy shape),
+   *  falls back BYTE-IDENTICAL to the single monthly `onboarding.payday` /
+   *  `.monthlyIncome` lump this function always injected. */
+  incomeSources?: IncomeSource[];
   windowDays?: number;
   now?: Date;
   /** Whether to inject the hardcoded DEMO example bills (RECURRING_BILLS). True for the seeded demo
@@ -143,26 +152,49 @@ export function deriveCalendarEvents({
   const nowIso = isoDay(now);
   const windowEndIso = isoDay(windowEnd);
 
-  // The next concrete payday (engine-resolved: Feb-31 clamp + weekend-previous).
-  // Reused below as the `after-payday` anchor for pot top-ups.
-  const firstPaydayIso = nextDayOfMonth(nowIso, onboarding.payday || 25);
+  // Income — the income-cadence model (`lib/income.ts`) when the user has
+  // declared sources; otherwise the LEGACY single monthly `onboarding.payday` /
+  // `.monthlyIncome` lump, byte-identical to what this function always did.
+  // `firstPaydayIso` is reused below as the `after-payday` anchor for pot
+  // top-ups in BOTH branches — a source-driven user's pot top-ups anchor to
+  // their real earliest income event, not a fixed day-of-month.
+  let firstPaydayIso: string;
+  if (incomeSources.length > 0) {
+    const incomeEvents = projectIncomeEvents(incomeSources, nowIso, windowDays);
+    firstPaydayIso = incomeEvents[0]?.date ?? nextDayOfMonth(nowIso, onboarding.payday || 25);
+    for (const evt of incomeEvents) {
+      out.push({
+        id: `payday-${evt.sourceId}-${evt.date}`,
+        date: evt.date,
+        kind: 'in',
+        source: 'payday',
+        title: evt.label,
+        note: 'Salary in',
+        amount: evt.amount,
+        recurring: 'monthly',
+      });
+    }
+  } else {
+    // The next concrete payday (engine-resolved: Feb-31 clamp + weekend-previous).
+    firstPaydayIso = nextDayOfMonth(nowIso, onboarding.payday || 25);
 
-  // Payday — next occurrence(s) within window.
-  let payIso = firstPaydayIso;
-  while (payIso <= windowEndIso) {
-    out.push({
-      id: `payday-${payIso}`,
-      date: payIso,
-      kind: 'in',
-      source: 'payday',
-      title: 'Payday',
-      note: 'Salary in',
-      amount: onboarding.monthlyIncome || 0,
-      recurring: 'monthly',
-    });
-    // Advance to the same day-of-month next month, re-resolved through the
-    // engine so each month gets its own clamp/weekend shift.
-    payIso = nextDayOfMonth(nextYearMonth(yearMonthOf(payIso)) + '-01', onboarding.payday || 25);
+    // Payday — next occurrence(s) within window.
+    let payIso = firstPaydayIso;
+    while (payIso <= windowEndIso) {
+      out.push({
+        id: `payday-${payIso}`,
+        date: payIso,
+        kind: 'in',
+        source: 'payday',
+        title: 'Payday',
+        note: 'Salary in',
+        amount: onboarding.monthlyIncome || 0,
+        recurring: 'monthly',
+      });
+      // Advance to the same day-of-month next month, re-resolved through the
+      // engine so each month gets its own clamp/weekend shift.
+      payIso = nextDayOfMonth(nextYearMonth(yearMonthOf(payIso)) + '-01', onboarding.payday || 25);
+    }
   }
 
   // Recurring bills — DEMO scaffolding only. RECURRING_BILLS are the design's hardcoded example bills;
@@ -392,14 +424,17 @@ export function previewSubNudge(args: {
   onboarding: Onboarding;
   manualEvents: CalendarEvent[];
   pots?: Pot[];
+  incomeSources?: IncomeSource[];
   startingSpare: number;
   now?: Date;
 }): number {
-  // exactOptionalPropertyTypes: only forward optional `pots`/`now` when defined,
-  // so an absent value is omitted rather than passed as explicit undefined.
-  // RN-port idiom — behaviour is identical to the web's direct pass-through.
+  // exactOptionalPropertyTypes: only forward optional `pots`/`incomeSources`/`now`
+  // when defined, so an absent value is omitted rather than passed as explicit
+  // undefined. RN-port idiom — behaviour is identical to the web's direct
+  // pass-through.
   const optional = {
     ...(args.pots !== undefined ? { pots: args.pots } : {}),
+    ...(args.incomeSources !== undefined ? { incomeSources: args.incomeSources } : {}),
     ...(args.now !== undefined ? { now: args.now } : {}),
   };
   const base = computeSpareAndTightest(

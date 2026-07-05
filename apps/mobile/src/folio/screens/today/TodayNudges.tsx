@@ -30,15 +30,63 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, pressed, radius, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
-import { sweepReviewQueue, useAppStore, type ReviewItem } from '@/folio/store';
+import { sweepReviewQueue, useAppStore, type IncomeSource, type ReviewItem } from '@/folio/store';
 import { useShelf } from '@/folio/lib/shelf';
+import { daysToNextIncome } from '@/folio/lib/income';
+import { resolvePayday } from '@/folio/lib/payday';
 import type { Nav } from '@/folio/types';
 
 // Stable empty fallback for the optional store slot — DEFAULTS/load always populate `reviewQueue`,
 // but the selector must never mint a fresh [] per call (useSyncExternalStore snapshot stability).
 const EMPTY_REVIEW_QUEUE: ReviewItem[] = [];
+// Same stability contract for the optional `incomeSources` slot.
+const EMPTY_INCOME_SOURCES: IncomeSource[] = [];
 
 const MIN_TAP = 44;
+
+const RECENT_CLOSE_WINDOW_MS = 3 * 86_400_000;
+
+/**
+ * Pure predicate for the "offer the payday ritual" nudge. Extracted from the
+ * component body so it is independently testable in a node-safe `.test.ts`
+ * (no jsdom/RTL needed — the component itself is never rendered here).
+ *
+ * The ritual is a monthly ceremony (`PaydayRitualScreen`'s retrospective
+ * covers a trailing 30 days). Gating purely on "daysToPayday <= 2" fires
+ * WEEKLY for weekly/fortnightly/four-weekly earners, offering the same
+ * monthly ceremony several times a month. This caps it at most once per
+ * CALENDAR MONTH: suppressed when the latest closed cycle already falls in
+ * the current calendar month, on top of the pre-existing 3-day recent-close
+ * check (kept because it also catches a close that happened right at the
+ * last-day/first-day boundary of the *previous* month, just before payday).
+ *
+ * `now` / `lastClosedAt` are passed in (not read from `Date.now()`/the store)
+ * so this stays pure and deterministic for tests.
+ */
+export function shouldOfferRitual(params: {
+  onboardingDone: boolean;
+  daysToPayday: number | null;
+  lastClosedAt: string | null;
+  now: Date;
+}): boolean {
+  const { onboardingDone, daysToPayday, lastClosedAt, now } = params;
+  if (!onboardingDone || daysToPayday === null || daysToPayday > 2) return false;
+
+  const closedRecently =
+    lastClosedAt !== null &&
+    now.getTime() - new Date(`${lastClosedAt}T00:00:00`).getTime() < RECENT_CLOSE_WINDOW_MS;
+  if (closedRecently) return false;
+
+  const closedThisCalendarMonth =
+    lastClosedAt !== null &&
+    (() => {
+      const closed = new Date(`${lastClosedAt}T00:00:00`);
+      return closed.getFullYear() === now.getFullYear() && closed.getMonth() === now.getMonth();
+    })();
+  if (closedThisCalendarMonth) return false;
+
+  return true;
+}
 
 type NudgeTone = 'accent' | 'ink' | 'melo';
 
@@ -69,6 +117,7 @@ export function TodayNudges({
   const transactions = useAppStore((st) => st.transactions);
   const tightPointGoal = useAppStore((st) => st.tightPointGoal);
   const reviewQueue = useAppStore((st) => st.reviewQueue ?? EMPTY_REVIEW_QUEUE);
+  const incomeSources = useAppStore((st) => st.incomeSources ?? EMPTY_INCOME_SOURCES);
   const shelf = useShelf();
 
   // Age out expired queue items once on mount (web: `sweepReviewQueue()` in the mount effect).
@@ -183,21 +232,36 @@ export function TodayNudges({
   // Payday ritual — if payday is within 2 days or already past today without a close, surface
   // the ritual so it stops being a hidden More link.
   const now = useMemo(() => new Date(), []);
+  // Routed through the income-cadence engine (lib/income.ts) rather than re-deriving day-of-month
+  // math locally — that local version was also wrong for weekly/fortnightly/four-weekly/
+  // last-working-day earners, and skipped the payday engine's Feb-31 clamp + weekend shift even for
+  // monthly earners. Prefers `incomeSources` (multi-cadence); falls back to the legacy DOM-only
+  // `resolvePayday` for users not yet migrated onto sources — same fallback order storeRoute.ts and
+  // lens.ts already use, so this nudge never disagrees with the Route/Today headline.
   const daysToPayday = useMemo(() => {
     if (!onboarding.done) return null;
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const d = onboarding.payday;
-    let next = new Date(y, m, d);
-    if (next.getTime() < now.getTime()) next = new Date(y, m + 1, d);
-    return Math.round((next.getTime() - now.getTime()) / 86_400_000);
-  }, [now, onboarding.done, onboarding.payday]);
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (incomeSources.length > 0) return daysToNextIncome(incomeSources, todayIso);
+    const thisMonthIso = resolvePayday({ dayOfMonth: onboarding.payday }, todayIso.slice(0, 7));
+    const nextYearMonth =
+      now.getMonth() === 11
+        ? `${now.getFullYear() + 1}-01`
+        : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, '0')}`;
+    const nextIso =
+      thisMonthIso >= todayIso
+        ? thisMonthIso
+        : resolvePayday({ dayOfMonth: onboarding.payday }, nextYearMonth);
+    const nextDate = new Date(`${nextIso}T00:00:00`);
+    return Math.round((nextDate.getTime() - now.getTime()) / 86_400_000);
+  }, [now, onboarding.done, onboarding.payday, incomeSources]);
   const lastClosedAt = cycles[0]?.closedAt ?? null;
-  const cycleClosedRecently = useMemo(() => {
-    if (!lastClosedAt) return false;
-    return now.getTime() - new Date(lastClosedAt + 'T00:00:00').getTime() < 3 * 86_400_000;
-  }, [lastClosedAt, now]);
-  if (onboarding.done && daysToPayday !== null && daysToPayday <= 2 && !cycleClosedRecently) {
+  // Gate logic lives in the pure, independently-tested `shouldOfferRitual` above —
+  // see its doc comment for the monthly-cap rationale.
+  const offerRitual = useMemo(
+    () => shouldOfferRitual({ onboardingDone: onboarding.done, daysToPayday, lastClosedAt, now }),
+    [onboarding.done, daysToPayday, lastClosedAt, now],
+  );
+  if (offerRitual) {
     nudges.push({
       key: 'ritual',
       tone: 'melo',

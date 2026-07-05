@@ -46,6 +46,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 import {
   Eyebrow,
@@ -55,6 +56,7 @@ import {
   radius,
   serif,
   Sheet,
+  useIsDark,
   useTheme,
   type Palette,
 } from '@/folio/theme';
@@ -66,12 +68,15 @@ import {
   resetToEmpty,
   setBufferAmount,
   setCurrentBalance,
+  setIncomeSources,
   setMoneyMode,
   setOnboarding,
   setPots as storeSetPots,
   useAppStore,
+  type IncomeSource,
 } from '@/folio/store';
 import type { MoneyMode } from '@/folio/lib/modes/types';
+import { isBusinessDay } from '@/folio/lib/payday';
 
 // ---------------------------------------------------------------------------
 // Intent picker + mode-specific extra question (BREAKS-PARITY fix) — web
@@ -278,6 +283,66 @@ const PROGRESS_PIP_MS = 400; // web transition-all duration-400
 const MIN_TAP = 44; // tap-only, >=44px
 
 // ---------------------------------------------------------------------------
+// Cadence selector — new "How does pay arrive?" step, ahead of the day picker.
+// This extends beyond the Lovable design (the web has no cadence UI): the
+// onboarding sheet is the ONLY place a user declares a cadence other than
+// monthly, so the copy/tokens/pip pattern below are grown from the sheet's own
+// visual language rather than imported from anywhere else. See lib/income.ts
+// for the cadence engine this feeds.
+// ---------------------------------------------------------------------------
+
+type PayCadence = IncomeSource['cadence'];
+
+type CadenceOption = { cadence: PayCadence; label: string };
+
+// Calm, jargon-free labels — 'Every 4 weeks' not 'quadweekly' (spec copy rule).
+const CADENCE_OPTIONS: readonly CadenceOption[] = [
+  { cadence: 'monthly', label: 'Monthly' },
+  { cadence: 'weekly', label: 'Every week' },
+  { cadence: 'fortnightly', label: 'Every 2 weeks' },
+  { cadence: 'four-weekly', label: 'Every 4 weeks' },
+  { cadence: 'last-working-day', label: 'Last working day' },
+];
+
+const WEEK_BASED_CADENCES = new Set<PayCadence>(['weekly', 'fortnightly', 'four-weekly']);
+
+const ISO_DATE_LENGTH = 10; // "YYYY-MM-DD"
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, ISO_DATE_LENGTH);
+}
+
+/** Zero-pad a positive integer to two digits ("3" -> "03"). */
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function isoFromDate(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+/** Day-of-month (1..31) an ISO "YYYY-MM-DD" string falls on. */
+function dayOfMonthFromIso(iso: string): number {
+  const day = Number(iso.slice(8, ISO_DATE_LENGTH));
+  return Number.isInteger(day) && day >= 1 && day <= 31 ? day : 1;
+}
+
+/** Last non-weekend calendar day of the current month, as a day-of-month
+ *  number — the honest "nearest day-of-month equivalent" for a
+ *  last-working-day earner, used only to keep the legacy `onboarding.payday`
+ *  slot populated for anything that hasn't yet been swept onto `incomeSources`. */
+function lastWorkingDayOfMonthNumber(): number {
+  const now = new Date();
+  const lastCalendarDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  for (let day = lastCalendarDay; day >= 1; day--) {
+    const candidate = new Date(now.getFullYear(), now.getMonth(), day);
+    const iso = isoFromDate(candidate);
+    if (isBusinessDay(iso)) return day;
+  }
+  return lastCalendarDay;
+}
+
+// ---------------------------------------------------------------------------
 // Reduced-motion hook (AccessibilityInfo-backed, mirrors Melo's local hook)
 // ---------------------------------------------------------------------------
 
@@ -381,12 +446,20 @@ function OnboardingFlow({
   const existingPots = useAppStore((st) => st.pots);
   const currentBalance = useAppStore((st) => st.currentBalance);
   const savedMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const isDark = useIsDark();
   const savedBuffer = useAppStore((st) => st.bufferAmount ?? 100);
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(ob.name);
   const [payday, setPayday] = useState(ob.payday);
   const [income, setIncome] = useState(ob.monthlyIncome);
+  // Pay cadence (new step, ahead of the day picker) — see lib/income.ts. Monthly is the honest
+  // default: it matches every existing user's behaviour byte-for-byte until they say otherwise.
+  const [cadence, setCadence] = useState<PayCadence>('monthly');
+  // Anchor date for the three week-based cadences — "when did pay last arrive?" Defaults to today so
+  // the date picker never opens on a blank/undefined value.
+  const [anchorISO, setAnchorISO] = useState<string>(todayIso());
+  const [showAnchorPicker, setShowAnchorPicker] = useState(false);
   // Intent picker + mode-extra (BREAKS-PARITY fix) — MONEY_MODES.md § 3 — user-declared intent maps
   // to a Money Mode, stored explicitly (never silently switched later). `modeExtra` is the mode's
   // follow-up captured value; only Survival/Stability's is persisted today (see `done()` below).
@@ -426,10 +499,36 @@ function OnboardingFlow({
     // so skipping is an explicit, deliberate choice to KEEP exploring the sample.
     resetToEmpty();
 
+    // Legacy day-of-month equivalent — kept alive for anything not yet swept onto `incomeSources`
+    // (see lib/income.ts doc-block). Monthly/last-working-day earners already have an honest
+    // day-of-month; week-based cadences use the day-of-month their anchor date falls on, which is the
+    // nearest honest single-number equivalent of "when pay lands" for a legacy reader.
+    const legacyPayday =
+      cadence === 'monthly'
+        ? payday
+        : cadence === 'last-working-day'
+          ? lastWorkingDayOfMonthNumber()
+          : dayOfMonthFromIso(anchorISO);
+
     // The user's real onboarding identity, written over the clean state. `resetToEmpty` preserved the
     // prior (still-blank) onboarding fields and flipped done→true; this overwrites name/payday/income
     // with what they entered while keeping done true.
-    setOnboarding({ name, payday, monthlyIncome: income, done: true });
+    setOnboarding({ name, payday: legacyPayday, monthlyIncome: income, done: true });
+
+    // The income-cadence model (lib/income.ts) — the FIRST declared source, correctly cadenced. Every
+    // caller downstream (calendarEvents, storeRoute, notifications, the widget) reads this instead of
+    // re-deriving payday math, so a weekly/fortnightly/four-weekly/last-working-day earner gets correct
+    // "next payday" math everywhere, not just the legacy single-lump approximation above.
+    const incomeSource: IncomeSource = {
+      id: 'income-onboarding-pay',
+      label: 'Pay',
+      cadence,
+      amount: income,
+      source: 'onboarding',
+      ...(cadence === 'monthly' ? { dayOfMonth: payday } : {}),
+      ...(WEEK_BASED_CADENCES.has(cadence) ? { anchorISO } : {}),
+    };
+    setIncomeSources([incomeSource]);
 
     // The user's declared intent → Money Mode (BREAKS-PARITY fix — the root cause: without this,
     // every RN user onboarded into the default mode and no mode-driven copy anywhere in the app
@@ -466,25 +565,30 @@ function OnboardingFlow({
   // The mode-extra step's copy for the currently-picked intent mode.
   const extra = MODE_EXTRA[intentMode];
 
-  // Typed as a fixed 7-tuple so `steps[0]` is known-defined under noUncheckedIndexedAccess (BREAKS-
+  // Typed as a fixed 8-tuple so `steps[0]` is known-defined under noUncheckedIndexedAccess (BREAKS-
   // PARITY fix — restores the web's intent-picker + mode-extra steps; RN previously skipped both,
-  // so `setMoneyMode` never fired during onboarding). STEP_INDEX below documents each index.
-  const steps: readonly [Step, Step, Step, Step, Step, Step, Step] = [
+  // so `setMoneyMode` never fired during onboarding). A cadence step was inserted ahead of the day
+  // picker (extends beyond the Lovable design — the web has no cadence UI). STEP_INDEX below
+  // documents each index.
+  const steps: readonly [Step, Step, Step, Step, Step, Step, Step, Step] = [
     { eyebrow: 'Hello', head: { lead: 'What should Melo ', accent: 'call you?', tail: '' } },
     {
       eyebrow: 'First thing',
       head: { lead: 'What should Melo ', accent: 'help with first?', tail: '' },
     },
     { eyebrow: extra.eyebrow, head: { lead: extra.headLead, accent: extra.headAccent, tail: '' } },
+    { eyebrow: 'Rhythm', head: { lead: 'How does pay ', accent: 'arrive?', tail: '' } },
     { eyebrow: 'Rhythm', head: { lead: 'When does payday ', accent: 'land?', tail: '' } },
     { eyebrow: 'Rough only', head: { lead: 'What lands, ', accent: 'roughly?', tail: '' } },
     { eyebrow: 'Today', head: { lead: "What's ", accent: 'in your account', tail: ' right now?' } },
     { eyebrow: 'Pots', head: { lead: 'What are you ', accent: 'saving for?', tail: '' } },
   ];
   // Step indices — mirror the `steps` array above. 0 Hello · 1 intent picker · 2 mode-extra ·
-  // 3 payday · 4 income · 5 balance · 6 pots.
-  const STEP_POTS = 6;
-  // `step` is always a valid index (0..6) — the `?? steps[0]` is a defensive fallback that satisfies
+  // 3 cadence · 4 payday-day/anchor · 5 income · 6 balance · 7 pots.
+  const STEP_CADENCE = 3;
+  const STEP_PAYDAY = 4;
+  const STEP_POTS = 7;
+  // `step` is always a valid index (0..7) — the `?? steps[0]` is a defensive fallback that satisfies
   // noUncheckedIndexedAccess; it is never reached at runtime.
   const current = steps[step] ?? steps[0];
   const isLast = step === steps.length - 1;
@@ -649,25 +753,94 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === 3 ? (
+        {/* Cadence picker (new step, ahead of the day picker) — calm, jargon-free options. Choosing a
+            week-based cadence swaps the next step's slider for a date pick; monthly/last-working-day
+            keep the day-of-month slider (hidden for last-working-day, which needs no day input). */}
+        {step === STEP_CADENCE ? (
           <View style={s.fieldBlock}>
-            <View style={s.valueRow}>
-              <Text style={s.bigValue}>{String(payday)}</Text>
-              <Text style={s.unit}>of the month</Text>
+            <View style={s.intentList}>
+              {CADENCE_OPTIONS.map((opt) => {
+                const on = cadence === opt.cadence;
+                return (
+                  <Pressable
+                    key={opt.cadence}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={opt.label}
+                    onPress={() => setCadence(opt.cadence)}
+                    style={({ pressed: isPressed }) => [
+                      s.intentRow,
+                      on ? s.intentRowActive : s.intentRowInactive,
+                      isPressed ? pressed : null,
+                    ]}
+                  >
+                    <Text style={s.cadenceLabel}>{opt.label}</Text>
+                    <View style={[s.intentDotRing, on ? s.intentDotRingActive : null]}>
+                      {on ? <View style={s.intentDot} /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
-            <FolioSlider
-              min={PAYDAY_MIN}
-              max={PAYDAY_MAX}
-              step={PAYDAY_STEP}
-              value={payday}
-              onChange={setPayday}
-              palette={t}
-              accessibilityLabel="Payday day of the month"
-            />
           </View>
         ) : null}
 
-        {step === 4 ? (
+        {step === STEP_PAYDAY ? (
+          <View style={s.fieldBlock}>
+            {cadence === 'monthly' ? (
+              <>
+                <View style={s.valueRow}>
+                  <Text style={s.bigValue}>{String(payday)}</Text>
+                  <Text style={s.unit}>of the month</Text>
+                </View>
+                <FolioSlider
+                  min={PAYDAY_MIN}
+                  max={PAYDAY_MAX}
+                  step={PAYDAY_STEP}
+                  value={payday}
+                  onChange={setPayday}
+                  palette={t}
+                  accessibilityLabel="Payday day of the month"
+                />
+              </>
+            ) : null}
+
+            {cadence === 'last-working-day' ? (
+              <Text style={s.help}>
+                The last working day of each month — Folio works this out for you.
+              </Text>
+            ) : null}
+
+            {WEEK_BASED_CADENCES.has(cadence) ? (
+              <>
+                <Text style={s.help}>When did pay last arrive?</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick the date pay last arrived"
+                  onPress={() => setShowAnchorPicker(true)}
+                  style={({ pressed: isPressed }) => [s.anchorButton, isPressed ? pressed : null]}
+                >
+                  <Text style={s.bigValue}>{anchorISO}</Text>
+                </Pressable>
+                {showAnchorPicker ? (
+                  <DateTimePicker
+                    value={new Date(`${anchorISO}T00:00:00`)}
+                    mode="date"
+                    display="default"
+                    themeVariant={isDark ? 'dark' : 'light'}
+                    maximumDate={new Date()}
+                    onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                      setShowAnchorPicker(false);
+                      if (selected) setAnchorISO(isoFromDate(selected));
+                    }}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
+        {step === 5 ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{poundsTabular(income)}</Text>
@@ -686,7 +859,7 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === 5 ? (
+        {step === 6 ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{poundsTabular(balance)}</Text>
@@ -1053,6 +1226,28 @@ function makeStyles(t: Palette) {
       borderRadius: 4,
       height: 8,
       width: 8,
+    },
+    // Cadence picker (new step) — a single-line label reusing the intent row/dot-ring shell, no
+    // subtitle so no intentRowText wrapper is needed.
+    cadenceLabel: {
+      color: t.ink,
+      fontFamily: serif.displayItalic,
+      fontSize: 16,
+      fontStyle: 'italic',
+    },
+    // Anchor-date pick (week-based cadences) — a tappable row painted like the slider's tap target,
+    // reusing --inset/--hairline so it reads as an input, not a label.
+    anchorButton: {
+      alignItems: 'flex-start',
+      backgroundColor: t.inset,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      justifyContent: 'center',
+      marginTop: gap.sm,
+      minHeight: gap.xxxl, // 48 — matches nameInput's h-12
+      paddingHorizontal: gap.lg,
+      paddingVertical: gap.md,
     },
     footer: {
       color: t.muted,
