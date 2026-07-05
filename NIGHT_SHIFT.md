@@ -49,7 +49,7 @@ Program spec with all file:line evidence: `DATA_INTELLIGENCE.md` (repo root). St
 bottom — append one line per shipped phase.
 - [x] Phase ① income cadence model (shipped + OTA, commit range → 2224ec6)
 - [x] Phase ② salary inference + same-income update guard (shipped + OTA, 5c605d3)
-- [ ] Phase ③ merchant→category memory — workflow wf_ac6bad4d-90a launched 07-06; if it left
+- [x] Phase ③ merchant→category memory (shipped + OTA 07-06, flip-threshold hardened)
       uncommitted work + no commit, resume it (scriptPath in the workflows/scripts dir,
       di-phase3-merchant-memory) or relaunch per DATA_INTELLIGENCE.md §merchant-memory.
 - [ ] Phase ④ historic backfill: synthesize past cycles from imported transactions (income
