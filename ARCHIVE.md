@@ -95,3 +95,4 @@ Verified: `grep -rn "phoenix-hero" apps/mobile/src/folio` hits inside the new `M
 
 ## 07-05 addendum: archived evidence tests
 12 test files pinning the deleted legacy /home route + pre-port app shape (dogfoodMode, iosReadinessEvidence, routeSurfaceTruth, 9 surfaces/* UX-evidence suites) removed with the surface they tested; recoverable from git history. Stale apps/mobile/dist build output dropped.
+Also: androidRecoveryMeloCompletionEvidence.test.ts + releaseBlockerFoundation.test.ts (evidence suites statically reading the archived test files).
