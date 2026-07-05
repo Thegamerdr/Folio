@@ -677,3 +677,4 @@ compounding). Decision recorded: live folio spine is the only work target;
 (income-source cadence model) begins execution next session against
 `store.ts` Onboarding type, `payday.ts`, `calendarEvents.ts`,
 `storeRoute.ts`, `lens.ts`, `OnboardingSheet.tsx`.
+- 07-05/06: PHASE 1 SHIPPED + OTA'd (income cadence model, 1057 tests). Discovery hardening: weekend shift for week-based paydays, ritual once/calendar-month, trial 21-day floor. Discovery lesson: run discovery AFTER verify (raced the build lanes, one stale false positive). Phase 2 (salary inference) launched.
