@@ -84,6 +84,13 @@ export const copy = {
     review: {
       confirm: 'Looks right',
       fix: 'Fix something',
+      // DATA_INTELLIGENCE.md phase ③ — the merchant-memory provenance caption. Shown only when a
+      // candidate's category chip was pre-filled from a remembered correction, never for a fresh
+      // model guess (honesty discipline — see lib/merchantMemory.ts). Tappable — see `forget` below.
+      remembered: 'remembered from your last fix',
+      // The forget affordance on the caption above — tapping it calls `forgetMerchantCategory` and
+      // clears the caption, leaving the chip selection untouched so the user can keep editing freely.
+      forget: 'forget this',
     },
   },
 

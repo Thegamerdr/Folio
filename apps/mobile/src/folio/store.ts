@@ -23,6 +23,14 @@
 
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
 import type { CandidateMoneyItem } from './lib/importSheet';
+import {
+  applyMemoryToCandidates,
+  MERCHANT_CATEGORY_CAP,
+  type CandidateWithMemory,
+  type MerchantCategoryMap,
+  type MerchantCategoryMemory,
+} from './lib/merchantMemory';
+import { normaliseMerchant } from './lib/subSignals';
 import { makeWin, hasWin, type TinyWin, type TinyWinKind } from './lib/wins';
 
 /** The element type of the persisted `AppState.edits` slot. It is the engine's
@@ -436,6 +444,16 @@ export type AppState = {
    *  `AppState` fixtures predating this field; `DEFAULTS`/`load()`/
    *  `resetToEmpty()` always populate it ([]). */
   dismissedIncomeSignals?: string[];
+  /** Merchant→category memory (`lib/merchantMemory.ts`) — DATA_INTELLIGENCE.md
+   *  phase ③. Keyed by normalised merchant (`normaliseMerchant`,
+   *  `lib/subSignals.ts`); each entry is the user's most-recently-confirmed
+   *  category correction for that merchant, so a future statement re-import
+   *  can pre-fill the remembered category instead of re-asking the model's
+   *  low-confidence guess forever. Capped at `MERCHANT_CATEGORY_CAP` (500),
+   *  least-recently-corrected evicted first. Optional for shape back-compat
+   *  with hand-built `AppState` fixtures predating this field; `DEFAULTS`/
+   *  `load()`/`resetToEmpty()` always populate it ({}). */
+  merchantCategories?: MerchantCategoryMap;
 };
 
 /** A single unreviewed intake candidate (design source `ReviewItem`, verbatim
@@ -453,6 +471,15 @@ export type ReviewItem = {
   hint?: string;
   /** When Folio queued it. Used for sort + 14-day age-out. */
   addedAt: string;
+  /** The reader's suggested category (model guess, or a merchant-memory recall —
+   *  see `rememberedCategory` below) for the Review screen's category chips to
+   *  pre-select. Absent when the reader gave no category guess at all. */
+  category?: string;
+  /** Present and `true` only when `category` came from remembered merchant
+   *  memory (`lib/merchantMemory.ts` `applyMemoryToCandidates`), not a fresh
+   *  model/parse guess — lets Review show honest provenance ("remembered from
+   *  a past correction") rather than passing memory off as a confident guess. */
+  rememberedCategory?: true;
 };
 
 /** Melo companion settings (`MeloScreen`). `quietMode` hides the character
@@ -495,6 +522,13 @@ const DEFAULT_PLANS: Plan[] = [];
  *  Empty means "no income sources declared yet"; every caller falls back to
  *  the legacy single-payday derivation in that case (see `lib/income.ts`). */
 const DEFAULT_INCOME_SOURCES: IncomeSource[] = [];
+
+/** Non-optional fallback for `AppState.merchantCategories` — see
+ *  `DEFAULT_DEBTS`. Empty means "no corrections remembered yet"; every reader
+ *  (`lib/merchantMemory.ts` `recallCategory`/`applyMemoryToCandidates`) treats
+ *  a missing/empty map as "nothing to recall", falling back to the model's own
+ *  guess. */
+const DEFAULT_MERCHANT_CATEGORIES: MerchantCategoryMap = {};
 
 /** Non-optional fallback for `AppState.lens` — `DEFAULTS.lens` widens to
  *  `LensState | undefined` through the `AppState` annotation (the field is
@@ -643,6 +677,7 @@ const DEFAULTS: AppState = {
   // existing install) populates this list.
   incomeSources: [],
   dismissedIncomeSignals: [],
+  merchantCategories: DEFAULT_MERCHANT_CATEGORIES,
 };
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
@@ -894,6 +929,7 @@ function load(): AppState {
       timelineEvents: migrated.timelineEvents ?? DEFAULT_TIMELINE_EVENTS,
       incomeSources: migrated.incomeSources ?? DEFAULT_INCOME_SOURCES,
       dismissedIncomeSignals: migrated.dismissedIncomeSignals ?? [],
+      merchantCategories: migrated.merchantCategories ?? DEFAULT_MERCHANT_CATEGORIES,
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
@@ -1262,6 +1298,103 @@ export function dismissIncomeSignal(merchant: string) {
   setPartial({ dismissedIncomeSignals: [key, ...current] });
 }
 
+/* ---------- Merchant→category memory (`lib/merchantMemory.ts`) ---------- */
+
+/** Record (or update) the user's category correction for a merchant —
+ *  `ReviewScreen.tsx`'s category-chip pick / edit-transaction sheet is the
+ *  intended caller. Upserts by normalised merchant key (`normaliseMerchant`,
+ *  `lib/subSignals.ts`).
+ *
+ *  FLIP THRESHOLD (anti-thrash / anti one-tap-poisoning): a correction that
+ *  agrees with the existing committed category is a plain confirmation —
+ *  `hits` increments, `correctedAt` refreshes, no flip needed. A correction
+ *  that DISAGREES does not overwrite the committed category on the spot;
+ *  it is staged as `pendingCategory`/`pendingCount` and only promoted to the
+ *  committed category once the SAME new category has been chosen twice in a
+ *  row. A disagreeing correction that doesn't match the currently-pending
+ *  category (including a correction back to the committed one) resets
+ *  pending to just this one attempt — one mis-tap never flips, only two
+ *  consecutive agreeing corrections do. `hits` still increments on every
+ *  call, matching the pre-existing "confirms this merchant" contract.
+ *  `correctedAt` is always stamped to now, which both records provenance and
+ *  is the signal the eviction policy below reads. A brand new merchant
+ *  writes immediately at `hits: 1` — first-ever corrections are never
+ *  pending. Caps the map at `MERCHANT_CATEGORY_CAP` (500) distinct merchants
+ *  — once full, a genuinely new merchant evicts the single
+ *  least-recently-corrected entry (oldest `correctedAt`) to make room, so the
+ *  map self-bounds instead of growing forever. */
+export function rememberMerchantCategory(merchant: string, category: string) {
+  const key = normaliseMerchant(merchant);
+  const current = state.merchantCategories ?? DEFAULT_MERCHANT_CATEGORIES;
+  const existing = current[key];
+  const correctedAt = new Date().toISOString();
+
+  if (existing) {
+    const nextEntry = buildFlipEntry(existing, category, correctedAt);
+    setPartial({ merchantCategories: { ...current, [key]: nextEntry } });
+    return;
+  }
+
+  const nextEntry = { category, correctedAt, hits: 1 };
+  const entries = Object.entries(current);
+  if (entries.length < MERCHANT_CATEGORY_CAP) {
+    setPartial({ merchantCategories: { ...current, [key]: nextEntry } });
+    return;
+  }
+
+  // At capacity and this is a new merchant — evict the least-recently-
+  // corrected entry first to make room.
+  const oldest = entries.reduce((a, b) => (a[1].correctedAt <= b[1].correctedAt ? a : b));
+  const rest = { ...current };
+  delete rest[oldest[0]];
+  setPartial({ merchantCategories: { ...rest, [key]: nextEntry } });
+}
+
+/** Pure helper for `rememberMerchantCategory`'s flip-threshold decision on an
+ *  EXISTING entry — see that function's doc for the full contract. Kept
+ *  separate so the three outcomes (agree / new pending / promote) are each a
+ *  single, testable branch. */
+function buildFlipEntry(
+  existing: MerchantCategoryMemory,
+  category: string,
+  correctedAt: string,
+): MerchantCategoryMemory {
+  const hits = existing.hits + 1;
+
+  // Agrees with the committed category — plain confirmation, clears any
+  // stale pending state from an earlier abandoned disagreement.
+  if (category === existing.category) {
+    return { category, correctedAt, hits };
+  }
+
+  // Disagrees, and matches the currently-pending category — second time in a
+  // row, so promote it to committed and clear pending.
+  if (existing.pendingCategory === category) {
+    return { category, correctedAt, hits };
+  }
+
+  // Disagrees, and doesn't match any pending category (first disagreement,
+  // or a different disagreement than what was pending) — stage it as the
+  // new pending candidate; the committed category is untouched.
+  return {
+    category: existing.category,
+    correctedAt,
+    hits,
+    pendingCategory: category,
+    pendingCount: 1,
+  };
+}
+
+/** Remove a merchant's remembered category entirely. No-op if the merchant
+ *  has no remembered correction. */
+export function forgetMerchantCategory(merchant: string) {
+  const key = normaliseMerchant(merchant);
+  const current = state.merchantCategories ?? DEFAULT_MERCHANT_CATEGORIES;
+  if (!(key in current)) return;
+  const { [key]: _removed, ...rest } = current;
+  setPartial({ merchantCategories: rest });
+}
+
 /* ---------- Lens / Money Mode engine (ports folio-melo `lib/store.ts` 1:1) ---------- */
 
 /** The user's declared Money Mode / Lens. See `lib/modes/types.ts`. */
@@ -1522,9 +1655,20 @@ export function setRouteFocusDate(date: string | null) {
  *  Review screen. Review-before-truth: these are candidates only — NEVER posted
  *  facts, NEVER auto-counted. The Review screen confirms each one before it
  *  becomes a transaction. Excluded from `getPersistBlob`, so the queue does not
- *  survive a restart (an unreviewed candidate must never be silently kept). */
+ *  survive a restart (an unreviewed candidate must never be silently kept).
+ *
+ *  RECALL (`lib/merchantMemory.ts`, DATA_INTELLIGENCE.md phase ③): before
+ *  staging, each candidate's category is checked against the store's
+ *  remembered merchant→category map (`applyMemoryToCandidates`) — a merchant
+ *  the user has corrected before gets that category pre-filled + flagged
+ *  `rememberedCategory: true`, instead of re-asking the model's low-confidence
+ *  guess forever. This is the single choke point for both the LLM
+ *  statement/photo reader and the on-device text/CSV parser (both routes
+ *  through IntakeScreen call this one setter), so recall only needs wiring
+ *  here, not at every producer. Category-only: amount/date/kind are untouched. */
 export function setReaderCandidates(items: CandidateMoneyItem[]) {
-  setPartial({ readerCandidates: items });
+  const withMemory = applyMemoryToCandidates(items, state.merchantCategories);
+  setPartial({ readerCandidates: withMemory });
 }
 
 /** Clear the staged statement-reader review queue — call once Review has
@@ -1628,9 +1772,15 @@ export function enqueueReviewItems(
  *  exact per-screen mapping (ScreenPdfSuccess / ScreenImageSuccess /
  *  ScreenPasteSuccess: hardcoded per-screen `source`, merchant, signed amount,
  *  date + hint when present). Conditional spreads keep
- *  exactOptionalPropertyTypes honest (no explicit-undefined keys). Pure. */
+ *  exactOptionalPropertyTypes honest (no explicit-undefined keys). Pure.
+ *
+ *  Also carries `category` + `rememberedCategory` through when present
+ *  (`CandidateWithMemory`, `lib/merchantMemory.ts`) so a merchant-memory
+ *  recall applied upstream (`setReaderCandidates`, or a direct
+ *  `applyMemoryToCandidates` call in the paste path) survives into the
+ *  persisted queue and reaches ReviewScreen's category chips. */
 export function queueInputFromCandidates(
-  candidates: readonly CandidateMoneyItem[],
+  candidates: readonly CandidateWithMemory[],
   source: ReviewItem['source'],
 ): Array<Omit<ReviewItem, 'id' | 'addedAt'>> {
   return candidates.map((c) => ({
@@ -1639,6 +1789,8 @@ export function queueInputFromCandidates(
     amount: c.amount,
     ...(c.date !== undefined ? { date: c.date } : {}),
     ...(c.note !== undefined ? { hint: c.note } : {}),
+    ...(c.category !== undefined ? { category: c.category } : {}),
+    ...(c.rememberedCategory !== undefined ? { rememberedCategory: c.rememberedCategory } : {}),
   }));
 }
 
@@ -1744,6 +1896,7 @@ export function resetToEmpty() {
     tinyWins: [],
     timelineEvents: [],
     incomeSources: [],
+    merchantCategories: {},
   };
   state = empty;
   persist();

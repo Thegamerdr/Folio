@@ -45,7 +45,7 @@ import {
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { copy } from '@/folio/copy/copy';
-import { addTransaction, type Transaction } from '@/folio/store';
+import { addTransaction, rememberMerchantCategory, type Transaction } from '@/folio/store';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -139,6 +139,10 @@ function LogSpendForm({
     const v = parseFloat(amount);
     if (!m || !(v > 0)) return;
     addTransaction({ merchant: m, amount: -v, category, source: 'manual' });
+    // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a manual log is the user
+    // explicitly setting this merchant's category from scratch — remember it so a future statement
+    // import for the same merchant pre-fills instead of re-asking.
+    rememberMerchantCategory(m, category);
     onClose();
   }
 

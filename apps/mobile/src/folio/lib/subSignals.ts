@@ -143,8 +143,12 @@ const AMOUNT_SPLIT_FACTOR = 1.5;
 // Small pure helpers.
 // ---------------------------------------------------------------------------
 
-/** Lowercase, trim, collapse whitespace, strip punctuation — the group key. */
-function normaliseMerchant(raw: string): string {
+/** Lowercase, trim, collapse whitespace, strip punctuation — the group key.
+ *  Canonical merchant-normalisation for the whole app: `incomeSignals.ts`
+ *  mirrors this (kept local/duplicated there deliberately, see that module's
+ *  header), and `merchantMemory.ts` imports this copy directly rather than
+ *  adding a third. */
+export function normaliseMerchant(raw: string): string {
   return raw
     .toLowerCase()
     .replace(/[.,_·\-]/g, ' ')

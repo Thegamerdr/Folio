@@ -19,6 +19,7 @@ import {
   addTransaction,
   editTransaction,
   getState,
+  rememberMerchantCategory,
   resetAll,
   setPartial,
   type Transaction,
@@ -111,5 +112,41 @@ describe('EditTxnSheet Save → editTransaction (real target id)', () => {
     // a safe no-op — nothing is written, so no random row is touched.
     editTransaction('does-not-exist', { note: 'x' }, 'user');
     expect((getState().edits ?? []).length).toBe(0);
+  });
+});
+
+// LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③) — the store-seam contract
+// EditTxnSheet's `handleSave` calls: `rememberMerchantCategory` fires ONLY when the category chip
+// actually changed, mirroring editTransaction's own "no-op writes nothing" discipline.
+describe('EditTxnSheet Save → rememberMerchantCategory (category-only learn)', () => {
+  it('learns the new category when the Save changed it', () => {
+    const row = seedOne({ merchant: 'Tesco', category: 'food' });
+    const categoryChanged = 'bills' !== row.category;
+
+    if (categoryChanged) rememberMerchantCategory(row.merchant, 'bills');
+
+    const entry = getState().merchantCategories?.['tesco'];
+    expect(entry?.category).toBe('bills');
+    expect(entry?.hits).toBe(1);
+  });
+
+  it('does not touch merchant memory when the category was left unchanged', () => {
+    const row = seedOne({ merchant: 'Tesco', category: 'food' });
+    const categoryChanged = row.category !== row.category; // the sheet's exact predicate: same value
+
+    if (categoryChanged) rememberMerchantCategory(row.merchant, row.category);
+
+    expect(getState().merchantCategories?.['tesco']).toBeUndefined();
+  });
+
+  it('a repeat correction for the same merchant upserts (hits++), never a duplicate entry', () => {
+    const row = seedOne({ merchant: 'Tesco', category: 'food' });
+    rememberMerchantCategory(row.merchant, 'bills');
+    rememberMerchantCategory(row.merchant, 'bills');
+
+    const map = getState().merchantCategories ?? {};
+    expect(Object.keys(map).length).toBe(1);
+    expect(map['tesco']?.hits).toBe(2);
+    expect(map['tesco']?.category).toBe('bills');
   });
 });

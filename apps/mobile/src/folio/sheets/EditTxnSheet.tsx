@@ -61,7 +61,12 @@ import {
 import Svg, { Path } from 'react-native-svg';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { editTransaction, useAppStore, type Transaction } from '@/folio/store';
+import {
+  editTransaction,
+  rememberMerchantCategory,
+  useAppStore,
+  type Transaction,
+} from '@/folio/store';
 import type { EditableTransaction } from '@/folio/lib/editTxn';
 import { useUndo } from '@/folio/ui/useUndo';
 
@@ -216,10 +221,11 @@ function EditTxnForm({
     const nextMerchant = merchant.trim();
     const nextAmount = resolvedAmount();
     const nextNote = note.trim();
+    const categoryChanged = category !== txn.category;
     const changed =
       nextMerchant !== txn.merchant ||
       nextAmount !== txn.amount ||
-      category !== txn.category ||
+      categoryChanged ||
       nextNote !== (txn.note ?? '');
     const snapshot = {
       merchant: txn.merchant,
@@ -227,11 +233,17 @@ function EditTxnForm({
       category: txn.category,
       note: txn.note ?? '',
     };
+    const finalMerchant = nextMerchant || txn.merchant;
     editTransaction(
       txn.id,
-      { merchant: nextMerchant || txn.merchant, amount: nextAmount, category, note: nextNote },
+      { merchant: finalMerchant, amount: nextAmount, category, note: nextNote },
       'user',
     );
+    // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a category correction on a real,
+    // already-posted transaction is an explicit override — remember it so a future import for this
+    // merchant pre-fills the corrected category instead of re-asking. Only when the category actually
+    // changed (an untouched Save writes nothing here either, mirroring editTransaction's own contract).
+    if (categoryChanged) rememberMerchantCategory(finalMerchant, category);
     onClose();
     if (changed) {
       showUndo(`Updated ${txn.merchant}`, () => {

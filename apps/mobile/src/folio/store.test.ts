@@ -29,6 +29,7 @@ import {
   editTransaction,
   enqueueReviewItems,
   fastForwardMonth,
+  forgetMerchantCategory,
   getPersistBlob,
   getState,
   hasAnyUserData,
@@ -36,6 +37,7 @@ import {
   matchMeloTool,
   pauseMany,
   queueInputFromCandidates,
+  rememberMerchantCategory,
   removeIncomeSource,
   resetAll,
   resetToEmpty,
@@ -1005,6 +1007,32 @@ describe('readerCandidates staging slot', () => {
 
     expect(getState().readerCandidates).toEqual([]);
   });
+
+  // RECALL (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): setReaderCandidates is the single
+  // choke point for both the LLM statement/photo reader and the on-device text/CSV parser, so recall
+  // is applied here rather than at every producer.
+  it('recall overrides a fresh model category guess with the remembered one', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    setReaderCandidates([candidate({ id: 'r1', merchant: 'Tesco', category: 'other' })]);
+
+    const [staged] = getState().readerCandidates as Array<
+      CandidateMoneyItem & { rememberedCategory?: true }
+    >;
+    expect(staged?.category).toBe('food');
+    expect(staged?.rememberedCategory).toBe(true);
+  });
+
+  it('a candidate for a merchant with no remembered category is staged unchanged', () => {
+    setReaderCandidates([
+      candidate({ id: 'r1', merchant: 'Never Corrected Ltd', category: 'other' }),
+    ]);
+
+    const [staged] = getState().readerCandidates as Array<
+      CandidateMoneyItem & { rememberedCategory?: true }
+    >;
+    expect(staged?.category).toBe('other');
+    expect(staged?.rememberedCategory).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1193,6 +1221,168 @@ describe('dismissIncomeSignal', () => {
 });
 
 // ---------------------------------------------------------------------------
+// merchantCategories — merchant→category memory (DATA_INTELLIGENCE.md phase
+// ③): rememberMerchantCategory / forgetMerchantCategory, cap + eviction,
+// most-recent-wins, normalisation symmetry with lib/subSignals.ts.
+// ---------------------------------------------------------------------------
+describe('merchantCategories', () => {
+  it('a fresh install (DEFAULTS) has an empty merchantCategories map', () => {
+    expect(getState().merchantCategories).toEqual({});
+  });
+
+  it('rememberMerchantCategory upserts a normalised-key entry with hits:1', () => {
+    rememberMerchantCategory('Tesco Stores Ltd.', 'food');
+    const entry = getState().merchantCategories?.['tesco stores ltd'];
+    expect(entry).toBeDefined();
+    expect(entry?.category).toBe('food');
+    expect(entry?.hits).toBe(1);
+    expect(typeof entry?.correctedAt).toBe('string');
+  });
+
+  it('normalises merchant keys the same way lib/subSignals.ts does (case/punct/whitespace)', () => {
+    rememberMerchantCategory('  TESCO   STORES-LTD.  ', 'food');
+    const keys = Object.keys(getState().merchantCategories ?? {});
+    expect(keys).toEqual(['tesco stores ltd']);
+  });
+
+  it('a repeat correction for the same merchant (agreeing) keeps the category and increments hits', () => {
+    rememberMerchantCategory('Tesco', 'other');
+    rememberMerchantCategory('Tesco', 'other');
+    const map = getState().merchantCategories ?? {};
+    expect(Object.keys(map)).toHaveLength(1);
+    expect(map['tesco']?.category).toBe('other');
+    expect(map['tesco']?.hits).toBe(2);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Flip threshold — a disagreeing correction stages as pending and only
+  // promotes to committed after the SAME new category is chosen twice in a row.
+  // ---------------------------------------------------------------------------
+
+  it('one mis-tap does not flip the committed category — it only stages a pending one', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    rememberMerchantCategory('Tesco', 'other'); // single disagreement
+    const entry = getState().merchantCategories?.['tesco'];
+    expect(entry?.category).toBe('food');
+    expect(entry?.pendingCategory).toBe('other');
+    expect(entry?.pendingCount).toBe(1);
+  });
+
+  it('two consecutive agreeing corrections flip the committed category', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    rememberMerchantCategory('Tesco', 'other');
+    rememberMerchantCategory('Tesco', 'other'); // same disagreement again — flips
+    const entry = getState().merchantCategories?.['tesco'];
+    expect(entry?.category).toBe('other');
+    expect(entry?.pendingCategory).toBeUndefined();
+    expect(entry?.pendingCount).toBeUndefined();
+  });
+
+  it('alternating A/B/A corrections never flip — each new disagreement resets pending', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    rememberMerchantCategory('Tesco', 'other'); // pending: other x1
+    rememberMerchantCategory('Tesco', 'food'); // agrees with committed — resets pending
+    rememberMerchantCategory('Tesco', 'other'); // pending: other x1 again (not x2)
+    const entry = getState().merchantCategories?.['tesco'];
+    expect(entry?.category).toBe('food');
+    expect(entry?.pendingCategory).toBe('other');
+    expect(entry?.pendingCount).toBe(1);
+  });
+
+  it('a different disagreement than the pending one resets pending to the new candidate', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    rememberMerchantCategory('Tesco', 'other'); // pending: other x1
+    rememberMerchantCategory('Tesco', 'bills'); // different disagreement — resets to bills x1
+    const entry = getState().merchantCategories?.['tesco'];
+    expect(entry?.category).toBe('food');
+    expect(entry?.pendingCategory).toBe('bills');
+    expect(entry?.pendingCount).toBe(1);
+  });
+
+  it('hits increments on every call, including pending disagreements', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    rememberMerchantCategory('Tesco', 'other');
+    rememberMerchantCategory('Tesco', 'other');
+    expect(getState().merchantCategories?.['tesco']?.hits).toBe(3);
+  });
+
+  it('recall keeps returning the committed category during a pending window', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    rememberMerchantCategory('Tesco', 'other'); // pending, not yet flipped
+    setReaderCandidates([
+      {
+        id: 'r1',
+        source: 'csv',
+        kind: 'spend',
+        merchant: 'Tesco',
+        amount: -42.1,
+        category: 'other',
+        confidence: 'low',
+      },
+    ]);
+    const [staged] = getState().readerCandidates as Array<
+      CandidateMoneyItem & { rememberedCategory?: true }
+    >;
+    expect(staged?.category).toBe('food');
+    expect(staged?.rememberedCategory).toBe(true);
+  });
+
+  it('pending state survives a persist round-trip (hydrateFromBlob)', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    rememberMerchantCategory('Tesco', 'other'); // pending: other x1
+    const blob = getPersistBlob();
+
+    hydrateFromBlob(blob);
+
+    const entry = getState().merchantCategories?.['tesco'];
+    expect(entry?.category).toBe('food');
+    expect(entry?.pendingCategory).toBe('other');
+    expect(entry?.pendingCount).toBe(1);
+  });
+
+  it('forgetMerchantCategory removes the entry', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    forgetMerchantCategory('Tesco');
+    expect(getState().merchantCategories?.['tesco']).toBeUndefined();
+  });
+
+  it('forgetMerchantCategory is a no-op for a merchant with no remembered entry', () => {
+    rememberMerchantCategory('Tesco', 'food');
+    const before = getState().merchantCategories;
+    forgetMerchantCategory('Never Seen Merchant');
+    expect(getState().merchantCategories).toEqual(before);
+  });
+
+  it('caps the map at 500 entries, evicting the least-recently-corrected on overflow', () => {
+    for (let i = 0; i < 500; i += 1) {
+      rememberMerchantCategory(`Merchant ${i}`, 'other');
+    }
+    expect(Object.keys(getState().merchantCategories ?? {})).toHaveLength(500);
+
+    // 'merchant 0' is the oldest correction — a 501st NEW merchant should evict it.
+    rememberMerchantCategory('Merchant 500', 'food');
+    const map = getState().merchantCategories ?? {};
+    expect(Object.keys(map)).toHaveLength(500);
+    expect(map['merchant 0']).toBeUndefined();
+    expect(map['merchant 500']).toBeDefined();
+  });
+
+  it('does not evict anything when correcting an EXISTING merchant at capacity', () => {
+    for (let i = 0; i < 500; i += 1) {
+      rememberMerchantCategory(`Merchant ${i}`, 'other');
+    }
+    // Re-correct an existing merchant — map stays at exactly 500, nothing evicted. This is the first
+    // disagreement, so under the flip threshold it stages pending rather than committing immediately.
+    rememberMerchantCategory('Merchant 250', 'food');
+    const map = getState().merchantCategories ?? {};
+    expect(Object.keys(map)).toHaveLength(500);
+    expect(map['merchant 0']).toBeDefined();
+    expect(map['merchant 250']?.category).toBe('other');
+    expect(map['merchant 250']?.pendingCategory).toBe('food');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // reviewQueue — the persisted intake review queue (web enqueueReviewItems /
 // resolveReviewItem / clearReviewQueue / sweepReviewQueue semantics).
 // ---------------------------------------------------------------------------
@@ -1351,6 +1541,61 @@ describe('reviewQueue', () => {
     // No explicit-undefined keys when the candidate carried no date/note.
     expect(mapped[1]).toEqual({ source: 'pdf', merchant: 'Boots', amount: -8.4 });
     expect('date' in mapped[1]!).toBe(false);
+  });
+
+  // Provenance carry-through (DATA_INTELLIGENCE.md phase ③): a merchant-memory recall applied
+  // upstream (setReaderCandidates, or the paste path's own applyMemoryToCandidates call) must survive
+  // this mapping into the persisted queue, so ReviewScreen can pre-select the chip + show honest
+  // provenance instead of the recall silently evaporating at the queue boundary.
+  it('carries category + rememberedCategory through when the candidate has them', () => {
+    const mapped = queueInputFromCandidates(
+      [
+        {
+          id: 'r1',
+          source: 'csv',
+          kind: 'spend',
+          merchant: 'Tesco',
+          amount: -42.1,
+          category: 'food',
+          rememberedCategory: true,
+          confidence: 'low',
+        },
+      ],
+      'pdf',
+    );
+
+    expect(mapped[0]).toEqual({
+      source: 'pdf',
+      merchant: 'Tesco',
+      amount: -42.1,
+      category: 'food',
+      rememberedCategory: true,
+    });
+  });
+
+  it('carries a fresh (non-remembered) category guess without a rememberedCategory flag', () => {
+    const mapped = queueInputFromCandidates(
+      [
+        {
+          id: 'r1',
+          source: 'csv',
+          kind: 'spend',
+          merchant: 'Tesco',
+          amount: -42.1,
+          category: 'other',
+          confidence: 'low',
+        },
+      ],
+      'csv',
+    );
+
+    expect(mapped[0]).toEqual({
+      source: 'csv',
+      merchant: 'Tesco',
+      amount: -42.1,
+      category: 'other',
+    });
+    expect('rememberedCategory' in mapped[0]!).toBe(false);
   });
 });
 

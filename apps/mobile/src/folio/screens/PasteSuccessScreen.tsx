@@ -71,7 +71,8 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
-import { enqueueReviewItems, queueInputFromCandidates } from '@/folio/store';
+import { applyMemoryToCandidates } from '@/folio/lib/merchantMemory';
+import { enqueueReviewItems, getState, queueInputFromCandidates } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
 // One thing Folio found in the pasted text — `flow` distinguishes money-in from money-out, `amount`
@@ -192,10 +193,15 @@ export function PasteSuccessScreen({
     }
     if (pasteText !== undefined) {
       const parsed = parseSheet(pasteText, { source: 'paste' });
+      // RECALL (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): this is the
+      // one paste path that never touches setReaderCandidates (the file/photo
+      // reader's choke point), so a remembered merchant category is applied here
+      // directly before the candidates reach the card / the queue. Category only.
+      const withMemory = applyMemoryToCandidates(parsed.candidates, getState().merchantCategories);
       return {
-        items: toPastedItems(parsed.candidates),
+        items: toPastedItems(withMemory),
         issues: parsed.issues,
-        candidates: parsed.candidates,
+        candidates: withMemory,
       };
     }
     // Nothing pasted (a cold open from the nav): show the empty doorway below, never a fabricated

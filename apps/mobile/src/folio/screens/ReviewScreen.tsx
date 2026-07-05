@@ -81,12 +81,15 @@ import Animated, {
 
 import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
+import { copy } from '@/folio/copy/copy';
 import {
   addIgnoredReviewSig,
   addTransaction,
+  forgetMerchantCategory,
   getState,
   resolveReviewItem,
   reviewCandidateSig,
+  rememberMerchantCategory,
   useAppStore,
   type ReviewItem,
   type Transaction,
@@ -109,6 +112,15 @@ export type ReviewCandidate = {
   flow: 'in' | 'out';
   date: string;
   before: number;
+  /** The reader's suggested `Transaction['category']` bucket (model guess, or a
+   *  merchant-memory recall — see `rememberedCategory`), when known. Used only
+   *  to pre-select a chip below; the user's own tap always wins. */
+  category?: Transaction['category'];
+  /** Present and `true` only when `category` came from remembered merchant
+   *  memory (`lib/merchantMemory.ts`), not a fresh model guess — drives the
+   *  honest "remembered" caption rather than passing memory off as a fresh
+   *  confident read. */
+  rememberedCategory?: true;
 };
 
 // What a completed read hands this screen. Until the reader lands, the shell passes the SAMPLE below
@@ -179,6 +191,29 @@ function categoryFor(label: Category): Transaction['category'] {
   }
 }
 
+// The reverse of `categoryFor`, for pre-selecting a chip from a candidate's incoming
+// `Transaction['category']` bucket (a model guess or a merchant-memory recall). `categoryFor` is
+// many-to-one (Groceries/Eating out both fold to 'food'; Bills/Subscription both fold to 'bills'), so
+// this picks one representative chip per bucket — good enough for a pre-fill the user can still
+// change; it is never used to grade correctness. 'income' has no matching chip on this spend-oriented
+// screen (candidates land here already signed; nothing to pre-select).
+function categoryLabelFor(bucket: Transaction['category']): Category | null {
+  switch (bucket) {
+    case 'food':
+      return 'Groceries';
+    case 'transport':
+      return 'Transport';
+    case 'bills':
+      return 'Bills';
+    case 'shopping':
+      return 'Shopping';
+    case 'other':
+      return 'Other';
+    default:
+      return null;
+  }
+}
+
 // Month names for the friendly date line — reviewDateToIso (lib/reviewDedupe.ts) parses this exact
 // "26 June" form back to ISO, so the display and the suppression signature can never drift apart.
 const MONTH_NAMES = [
@@ -218,17 +253,44 @@ function sourceNoun(source: ReviewItem['source']): string {
         : 'intake';
 }
 
+// The known Transaction category buckets, for safely narrowing a ReviewItem's free-text `category`
+// (a model guess, or a merchant-memory recall carried through queueInputFromCandidates — either way
+// it is an untrusted string, not a validated union member). An unrecognised value is dropped rather
+// than coerced, so a bad guess never mis-labels the pre-selected chip.
+const KNOWN_CATEGORY_BUCKETS: ReadonlySet<Transaction['category']> = new Set([
+  'food',
+  'transport',
+  'bills',
+  'fun',
+  'shopping',
+  'income',
+  'other',
+]);
+function asCategoryBucket(value: string | undefined): Transaction['category'] | undefined {
+  if (value === undefined) return undefined;
+  return KNOWN_CATEGORY_BUCKETS.has(value as Transaction['category'])
+    ? (value as Transaction['category'])
+    : undefined;
+}
+
 // Thread one queued ReviewItem into this screen's candidate shape. `id` is intentionally OMITTED —
 // a queued candidate is not a posted fact (review-before-truth), so the edit-txn sheet must keep its
 // safe inert fallback. `date` keeps the item's raw ISO (or '' when the reader pinned none) so the
 // de-dupe engine and the Ignore signature read the exact stored value; display formats separately.
+// `category`/`rememberedCategory` carry the reader's guess or a merchant-memory recall
+// (DATA_INTELLIGENCE.md phase ③) through to pre-select a chip + show honest provenance.
 function candidateFromQueueItem(item: ReviewItem, before: number): ReviewCandidate {
+  const bucket = asCategoryBucket(item.category);
   return {
     merchant: item.merchant,
     amount: Math.abs(item.amount),
     flow: item.amount < 0 ? 'out' : 'in',
     date: item.date ?? '',
     before,
+    ...(bucket !== undefined ? { category: bucket } : {}),
+    ...(bucket !== undefined && item.rememberedCategory
+      ? { rememberedCategory: true as const }
+      : {}),
   };
 }
 
@@ -286,7 +348,21 @@ export function ReviewScreen({
   const candidate = candidateProp ?? queuedCandidate ?? SAMPLE_CANDIDATE;
 
   const [stamped, setStamped] = useState(false);
-  const [category, setCategory] = useState<Category>('Groceries');
+  // Pre-select the chip from the candidate's incoming category (a model guess, or a merchant-memory
+  // recall — DATA_INTELLIGENCE.md phase ③) when one resolves to a known chip; otherwise the existing
+  // 'Groceries' default holds, unchanged. `categoryLabelFor` is the reverse of `categoryFor` below.
+  // Lazy initializer — evaluated once at mount, exactly like the merchant/amount seeds below.
+  const [category, setCategory] = useState<Category>(
+    () =>
+      (candidate.category !== undefined ? categoryLabelFor(candidate.category) : null) ??
+      'Groceries',
+  );
+  // Whether the chip is still showing an untouched merchant-memory recall — drives the "remembered"
+  // caption. Any manual chip tap (including re-picking the same label) counts as the user's own
+  // decision, so the caption clears rather than misrepresenting a fresh tap as passive memory.
+  const [showingRecall, setShowingRecall] = useState(
+    () => candidate.rememberedCategory === true && candidate.category !== undefined,
+  );
 
   // Web-exact inline edit (ScreenReview.tsx): merchant and amount-out are corrected directly on the
   // review card before Add, not in a separate sheet. Seeded from the candidate; the candidate itself
@@ -368,12 +444,19 @@ export function ReviewScreen({
   function onAdd() {
     if (stamped || editedAmount <= 0) return;
     setStamped(true);
+    const finalMerchant = merchant.trim() || 'Unnamed';
+    const finalCategory = categoryFor(category);
     addTransaction({
-      merchant: merchant.trim() || 'Unnamed',
+      merchant: finalMerchant,
       amount: signedDelta,
-      category: categoryFor(category),
+      category: finalCategory,
       source: 'manual',
     });
+    // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): every Accept confirms this
+    // merchant's category — whether the user changed the chip away from the incoming guess, or left
+    // it as-is. A passive accept of a correct guess is still a confirmation (rememberMerchantCategory
+    // dedupes via hits++ on a repeat), so re-imports stop re-asking the same question forever.
+    rememberMerchantCategory(finalMerchant, finalCategory);
     // Drain the queued item this card was showing so the Today chip decrements
     // (web ScreenReview.tsx: `if (topCandidate) resolveReviewItem(topCandidate.id)`).
     // No-op when the card came from a direct candidate prop.
@@ -616,7 +699,12 @@ export function ReviewScreen({
                   accessibilityRole="button"
                   accessibilityState={{ selected: active, disabled: stamped }}
                   disabled={stamped}
-                  onPress={() => setCategory(c)}
+                  onPress={() => {
+                    setCategory(c);
+                    // Any manual tap — even re-picking the same chip — is the user's own decision,
+                    // not a passive memory recall, so the "remembered" caption clears.
+                    setShowingRecall(false);
+                  }}
                   style={({ pressed: isPressed }) => [
                     styles.chip,
                     {
@@ -631,6 +719,26 @@ export function ReviewScreen({
               );
             })}
           </View>
+          {/* Provenance caption (DATA_INTELLIGENCE.md phase ③, honesty discipline): shown ONLY while
+              the chip still reflects an untouched merchant-memory recall — never for a fresh model
+              guess, and cleared the moment the user taps any chip themselves. Tappable: lets the user
+              forget this merchant's memory outright without disturbing their current chip pick. */}
+          {showingRecall ? (
+            <Pressable
+              accessibilityHint="Removes the remembered category for this merchant"
+              accessibilityLabel="Forget this remembered category"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => {
+                forgetMerchantCategory(merchant);
+                setShowingRecall(false);
+              }}
+            >
+              <Text style={[styles.catRemembered, { color: t.muted }]}>
+                {copy.add.review.remembered} · {copy.add.review.forget}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Melo line — the quiet companion, calm mood. MeloLine adds the straight quotes. */}
@@ -997,6 +1105,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1.8,
     marginBottom: gap.sm,
     textTransform: 'uppercase',
+  },
+  // Merchant-memory provenance caption (DATA_INTELLIGENCE.md phase ③) — small muted note under the
+  // chip row, matching the existing muted-caption pattern (dateLine/projDelta: 12-13px muted, small
+  // top margin). Never bold, never the accent colour — this is a quiet aside, not a call to action.
+  catRemembered: {
+    fontSize: 12,
+    marginTop: gap.xs,
   },
   // Wrapping chip row — gap-1.5.
   chipRow: {
