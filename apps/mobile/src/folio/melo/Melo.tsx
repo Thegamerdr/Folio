@@ -1,59 +1,51 @@
 // Melo — the faithful 1:1 React Native port of Folio's brand character.
 //
-// This is NOT the older "seedling-guardian" mark in surfaces/pressureMap/melo/MeloFigure.tsx. This is
-// the canonical FOLDED-DOCUMENT Melo from the web design source
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/kit.tsx → <Melo>), mirrored unit-for-
-// unit onto react-native-svg + react-native-reanimated. The geometry, the viewBox, every coordinate,
-// the stroke weights, and the motion durations/easings all match the web original so the character
-// reads identically across web and native.
+// This is the canonical PNG-sprite phoenix / fenice money companion — the owner's LOCKED brand
+// mascot. Source of truth (read-only, do not edit): the Lovable web component at
+// C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/MeloPhoenix.tsx
 //
-// IDENTITY (must not drift — see MELO_MOODS.md "Form & materiality"):
-//   • chunky 2.4 single ink-outline folded document (the body path is one continuous stroke)
-//   • a caution-yellow folded top-right corner with an inner crease line for depth
-//   • two solid ink ear-cup ellipses sitting BEHIND the body (he is listening to your money)
-//   • ink-dot eyes with asymmetric white catchlights, five expressions
-//   • a mouth at 1.7 stroke weight, carved into him, not penned on
-//   • cheek blush on cheer/celebrate; a worry-bead on concern; torn-paper confetti on celebrate
-//   • two beige content lines (he IS the page); a soft paper-lift shadow beneath
+// Mood is expressed as physical gesture (tilt, float, halo pulse, ember output) and by cross-fading
+// between a small pose-sprite library — never by recolouring the bird. One character across every
+// surface.
 //
-// COLOUR DISCIPLINE: every fill/stroke comes from the active folio palette via useTheme(). No
-// hard-coded brand colours. The web token → palette mapping (confirmed against kit.tsx `paper`):
-//   --ink → ink · --surface → surface · --caution → caution · --accent → calm ·
-//   --accent-soft → calmSoft · --positive → positive · --negative → repair.
+// Rendering stack (back to front):
+//   1. Halo         — soft radial ember light, breathes with vitality
+//   2. Embers       — up to 5 drifting particles rising behind the bird
+//   3. Phoenix pose — cross-fades 420ms between pose sprites, floats + tilts + breathes
+//   4. Ground pool  — soft warm shadow anchoring it to the surface
+//   5. Pose badge   — optional enamel-pin accessory (kept from the pre-sprite vector rig; still an
+//                      overlay, not a repaint of the bird itself)
 //
-// MOTION: breathe (4.4s default / 2.4s curious-fast / 6s concern-slow), blink (~5.4s, L/R phase
-// offset), mood swap (600ms tilt + a 520ms scale pulse), pose-in (520ms overshoot), tap (420ms
-// acknowledge bounce). All gated to FINAL STATE when reduce-motion is on (MOTION.md: reduced motion
-// is the resolved layout, never a slower animation).
+// PUBLIC API IS FROZEN: every folio screen imports { Melo, MeloMood, MeloPose } from this file with
+// the same mood/pose/size/grounded/onTap contract as the previous vector implementation, so this
+// rewrite changes ONLY the rendering internals — zero call sites need to change.
+//
+// COLOUR DISCIPLINE (pose badge only — the bird itself is always the locked coral/gold/cream
+// palette from the web original, never re-themed): every fill/stroke on the badge comes from the
+// active folio palette via useTheme(). The web token → palette mapping (confirmed against kit.tsx
+// `paper`): --ink → ink · --surface → surface · --caution → caution · --accent → calm ·
+// --accent-soft → calmSoft · --positive → positive · --negative → repair.
 
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Pressable, View } from 'react-native';
+import { useEffect, useId, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import Svg, {
   Circle,
   Defs,
-  Ellipse,
   G,
   Line,
-  LinearGradient,
   Path,
   RadialGradient,
-  Rect,
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedProps,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
 
 import { useTheme, type Palette } from '@/surfaces/pressureMap/kit';
+
+const phoenixHero = require('./assets/phoenix-hero.png');
+const phoenixProtect = require('./assets/phoenix-protect.png');
+const phoenixCelebrate = require('./assets/phoenix-celebrate.png');
+const phoenixThink = require('./assets/phoenix-think.png');
+const phoenixConcern = require('./assets/phoenix-concern.png');
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -79,131 +71,91 @@ export type MeloProps = {
 };
 
 // ---------------------------------------------------------------------------
-// Mood specs — mirrored from the web kit's MOODS map (byte-faithful coordinates)
+// Mood specs — mirrored 1:1 from the web kit's MOOD map (PhoenixMood), restricted to the 5 moods
+// Melo.tsx's public API exposes. curious/think and cheer/celebrate share the web's own pose
+// choices (curious -> think sprite; cheer -> hero sprite) exactly as the source MOOD table does.
 // ---------------------------------------------------------------------------
 
-type EyeExpression = 'open' | 'up' | 'closed-smile' | 'closed-worry';
-
 type MoodSpec = Readonly<{
-  tilt: number; // body tilt in degrees, about (20, 22)
-  eyes: EyeExpression;
-  mouth: string; // path drawn at the body stroke weight (1.7)
-  breatheMs: number; // breathe cycle length for this mood
-  breatheScale: number; // peak scale of the breathe pulse
-  breatheOpacity: number; // trough opacity of the breathe pulse
-  cheek: boolean; // terracotta blush (cheer / celebrate)
-  earLift: number; // 0..1 — right ear lifts on curious
-  worryBead: boolean; // small bead at the temple on concern
-  confetti: boolean; // torn-paper confetti on celebrate
+  tilt: number; // deg — body rotation
+  scale: number; // subtle mass change
+  floatAmplitude: number; // px, vertical drift
+  floatDurationMs: number; // per float half-cycle
+  glow: number; // halo opacity 0..1 (base, before vitality)
+  embers: number; // 0..5 particles (base)
+  emberSpeedMs: number; // ms per rise cycle
+  src: number;
 }>;
 
-const MOODS: Readonly<Record<MeloMood, MoodSpec>> = {
+const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
   calm: {
     tilt: 0,
-    eyes: 'open',
-    mouth: 'M15.5 27 Q20 29.6 24.5 27',
-    breatheMs: 4400,
-    breatheScale: 1.04,
-    breatheOpacity: 0.94,
-    cheek: false,
-    earLift: 0,
-    worryBead: false,
-    confetti: false,
+    scale: 1.0,
+    floatAmplitude: 3,
+    floatDurationMs: 3200,
+    glow: 0.42,
+    embers: 2,
+    emberSpeedMs: 6400,
+    src: phoenixHero,
   },
   curious: {
-    tilt: -3,
-    eyes: 'up',
-    mouth: 'M17 27.4 Q20 26.4 23 27.4',
-    breatheMs: 2400,
-    breatheScale: 1.06,
-    breatheOpacity: 0.9,
-    cheek: false,
-    earLift: 1,
-    worryBead: false,
-    confetti: false,
+    tilt: -4,
+    scale: 1.01,
+    floatAmplitude: 3,
+    floatDurationMs: 2400,
+    glow: 0.52,
+    embers: 3,
+    emberSpeedMs: 4800,
+    src: phoenixThink,
   },
   cheer: {
     tilt: 2,
-    eyes: 'open',
-    mouth: 'M14.5 26.4 Q20 31 25.5 26.4',
-    breatheMs: 4400,
-    breatheScale: 1.04,
-    breatheOpacity: 0.94,
-    cheek: true,
-    earLift: 0,
-    worryBead: false,
-    confetti: false,
+    scale: 1.03,
+    floatAmplitude: 3,
+    floatDurationMs: 3200,
+    glow: 0.7,
+    embers: 4,
+    emberSpeedMs: 4200,
+    src: phoenixHero,
   },
   concern: {
     tilt: -2,
-    eyes: 'closed-worry',
-    mouth: 'M16.5 28.2 Q20 26.4 23.5 28.2',
-    breatheMs: 6000,
-    breatheScale: 1.025,
-    breatheOpacity: 0.96,
-    cheek: false,
-    earLift: 0,
-    worryBead: true,
-    confetti: false,
+    scale: 0.98,
+    floatAmplitude: 2,
+    floatDurationMs: 4000,
+    glow: 0.22,
+    embers: 1,
+    emberSpeedMs: 8000,
+    src: phoenixConcern,
   },
   celebrate: {
-    tilt: 1,
-    eyes: 'closed-smile',
-    mouth: 'M14 26 Q20 31.6 26 26',
-    breatheMs: 4400,
-    breatheScale: 1.04,
-    breatheOpacity: 0.94,
-    cheek: true,
-    earLift: 0,
-    worryBead: false,
-    confetti: true,
+    tilt: 4,
+    scale: 1.05,
+    floatAmplitude: 3,
+    floatDurationMs: 2400,
+    glow: 0.92,
+    embers: 5,
+    emberSpeedMs: 3200,
+    src: phoenixCelebrate,
   },
 };
 
-// Shared cubic-bezier — the web's cubic-bezier(.16, 1, .3, 1) "ease-out-expo".
-const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
+// Vitality — Melo.tsx has no explicit vitality prop (unlike the engine-driven MeloMascot), so we
+// use a fixed "healthy" baseline (0.7) matching the web component's own default. Concern still caps
+// the curve per the web original so a worried Melo never glows as brightly as a calm one.
+const DEFAULT_VITALITY = 0.7;
 
-// Folded-corner geometry — the fold is baked into the body path so the ink outline reads as one
-// continuous stroke (matches the web original exactly).
-const FOLD = 7.5;
-const STROKE = 2.4;
-
-const BODY_PATH = [
-  'M 9.5 5.5',
-  `L ${33.5 - FOLD} 5.5`,
-  `L 33.5 ${5.5 + FOLD}`,
-  'L 33.5 35',
-  'Q 33.5 38.5 30 38.5',
-  'L 10 38.5',
-  'Q 6.5 38.5 6.5 35',
-  'L 6.5 9',
-  'Q 6.5 5.5 9.5 5.5',
-  'Z',
-].join(' ');
-
-const FOLD_FILL_PATH = [
-  `M ${33.5 - FOLD} 5.5`,
-  `L ${33.5 - FOLD} ${5.5 + FOLD}`,
-  `L 33.5 ${5.5 + FOLD}`,
-  'Z',
-].join(' ');
-
-const FOLD_CREASE_PATH = `M ${33.5 - FOLD} ${5.5 + FOLD} L 33.5 ${5.5 + FOLD}`;
-
-const FOLD_SHADOW_PATH = [
-  `M ${33.5 - FOLD} ${5.5 + FOLD + 0.4}`,
-  `L ${33.5 - FOLD + 0.4} ${5.5 + FOLD + 1.6}`,
-  `L 33.5 ${5.5 + FOLD + 0.4}`,
-  'Z',
-].join(' ');
+// Deterministic pseudo-random for particle placement — same formula as the web original
+// (Math.sin(seed) fractional part) so ember scatter matches in feel.
+function rand(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
 
 // ---------------------------------------------------------------------------
 // Reduced-motion hook (local, AccessibilityInfo-backed)
 // ---------------------------------------------------------------------------
 
-// Kept self-contained rather than importing the 8.5k-line mobileShell (which would pull a large
-// native module graph into this foundation piece). Mirrors mobileShell's useReducedMotionPreference
-// exactly: read once, then subscribe to changes.
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
 
@@ -223,259 +175,54 @@ function useReduceMotion(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Animated SVG primitives
-// ---------------------------------------------------------------------------
-
-const AnimatedG = Animated.createAnimatedComponent(G);
-
-// ---------------------------------------------------------------------------
 // Melo
 // ---------------------------------------------------------------------------
 
 export function Melo({ mood, pose = 'none', size = 28, grounded = true, onTap }: MeloProps) {
   const t = useTheme();
   const reduceMotion = useReduceMotion();
-  const spec = MOODS[mood];
+  const spec = MOOD[mood];
 
-  // Breathe — a continuous scale+opacity pulse on the whole figure. Three rhythms by mood.
-  const breathe = useSharedValue(0);
-  useEffect(() => {
-    cancelAnimation(breathe);
-    if (reduceMotion) {
-      breathe.value = 0; // final state = the rest pose (scale 1, opacity 1)
-      return;
-    }
-    breathe.value = withRepeat(
-      withTiming(1, { duration: spec.breatheMs / 2, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true,
-    );
-    return () => cancelAnimation(breathe);
-  }, [breathe, reduceMotion, spec.breatheMs]);
+  const vCap = mood === 'concern' ? 0.5 : 1;
+  const v = DEFAULT_VITALITY * vCap;
+  const vMul = 0.35 + v * 0.9;
 
-  const breatheStyle = useAnimatedStyle(() => {
-    const scale = 1 + breathe.value * (spec.breatheScale - 1);
-    const opacity = 1 - breathe.value * (1 - spec.breatheOpacity);
-    return { opacity, transform: [{ scale }] };
-  });
+  const effGlow = Math.min(1, spec.glow * vMul);
+  const effEmbers = Math.max(0, Math.round(spec.embers * (0.4 + v * 0.9)));
+  const showGlow = size >= 32;
+  const showEmbers = showGlow && !reduceMotion && effEmbers > 0 && size >= 44;
 
-  // Mood swap — a one-shot 520ms scale pulse on the inner group (re-fires whenever mood changes),
-  // matching the web's .melo-mood-pulse. The body tilt itself eases over 600ms via `tilt`.
-  const moodPulse = useSharedValue(1);
-  const tilt = useSharedValue(spec.tilt);
-  useEffect(() => {
-    if (reduceMotion) {
-      moodPulse.value = 1;
-      tilt.value = spec.tilt;
-      return;
-    }
-    tilt.value = withTiming(spec.tilt, { duration: 600, easing: EASE_OUT_EXPO });
-    moodPulse.value = withSequence(
-      withTiming(0.985, { duration: 0 }),
-      withTiming(1.025, { duration: 286, easing: EASE_OUT_EXPO }),
-      withTiming(1, { duration: 234, easing: EASE_OUT_EXPO }),
-    );
-  }, [moodPulse, tilt, reduceMotion, spec.tilt]);
-
-  const moodGroupProps = useAnimatedProps(() => ({
-    // Tilt about the web's pivot (20, 22); the pulse scales about the same origin.
-    transform: [
-      { translateX: 20 },
-      { translateY: 22 },
-      { rotate: `${tilt.value}deg` },
-      { scale: moodPulse.value },
-      { translateX: -20 },
-      { translateY: -22 },
-    ],
-  }));
-
-  // Tap — a 420ms acknowledge bounce on the whole figure (only when onTap is set).
-  const tapScale = useSharedValue(1);
+  // Tap — a quick acknowledge scale (matches the vector rig's tap affordance).
+  const tapScale = useRef(new Animated.Value(1)).current;
   function handleTap() {
     if (!onTap) return;
     if (!reduceMotion) {
-      tapScale.value = withSequence(
-        withTiming(0.92, { duration: 147, easing: EASE_OUT_EXPO }),
-        withTiming(1.04, { duration: 147, easing: EASE_OUT_EXPO }),
-        withTiming(1, { duration: 126, easing: EASE_OUT_EXPO }),
-      );
+      Animated.sequence([
+        Animated.timing(tapScale, { toValue: 0.92, duration: 110, useNativeDriver: true }),
+        Animated.timing(tapScale, { toValue: 1.04, duration: 110, useNativeDriver: true }),
+        Animated.timing(tapScale, { toValue: 1, duration: 100, useNativeDriver: true }),
+      ]).start();
     }
     onTap();
   }
-  const tapStyle = useAnimatedStyle(() => ({ transform: [{ scale: tapScale.value }] }));
-
-  // Right ear lifts a hair on curious.
-  const earRightY = 22 - spec.earLift * 1.2;
 
   const ariaLabel = onTap ? `Melo, ${mood}, tap to chat` : `Melo, ${mood}`;
 
   const figure = (
-    <Animated.View style={[{ width: size, height: size }, breatheStyle, tapStyle]}>
-      <Svg width={size} height={size} viewBox="0 0 40 44">
-        <Defs>
-          <RadialGradient id="melo-lift" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor={t.ink} stopOpacity={0.24} />
-            <Stop offset="100%" stopColor={t.ink} stopOpacity={0} />
-          </RadialGradient>
-          <LinearGradient id="melo-grain" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor={t.surface} stopOpacity={0.85} />
-            <Stop offset="35%" stopColor={t.surface} stopOpacity={0} />
-          </LinearGradient>
-        </Defs>
-
-        {/* Paper-lift shadow — proves he's a sheet resting on the paper, not a sticker. */}
-        {grounded ? <Ellipse cx={20} cy={41.6} rx={12.5} ry={1.7} fill="url(#melo-lift)" /> : null}
-
-        {/* Celebrate — torn-paper confetti drawn from the palette. */}
-        {spec.confetti ? (
-          <G opacity={0.95}>
-            <Rect
-              x={1.5}
-              y={9}
-              width={2.6}
-              height={1.5}
-              rx={0.4}
-              fill={t.calm}
-              origin="2.8, 9.8"
-              rotation={-18}
-            />
-            <Rect
-              x={35}
-              y={3.5}
-              width={2.6}
-              height={1.5}
-              rx={0.4}
-              fill={t.caution}
-              origin="36.3, 4.3"
-              rotation={22}
-            />
-            <Rect
-              x={36}
-              y={26}
-              width={2.2}
-              height={1.4}
-              rx={0.4}
-              fill={t.positive}
-              origin="37.1, 26.7"
-              rotation={-10}
-            />
-            <Rect
-              x={1}
-              y={28}
-              width={2.4}
-              height={1.4}
-              rx={0.4}
-              fill={t.calm}
-              origin="2.2, 28.7"
-              rotation={14}
-            />
-          </G>
-        ) : null}
-
-        <AnimatedG animatedProps={moodGroupProps}>
-          {/* Ear cups — chunky ink pads, BEHIND the body so the body covers their inner edge. */}
-          <Ellipse cx={4.8} cy={22} rx={3.2} ry={4.2} fill={t.ink} />
-          <Ellipse cx={35.2} cy={earRightY} rx={3.2} ry={4.2} fill={t.ink} />
-
-          {/* Soft cast-shadow under the fold flap. */}
-          <Path d={FOLD_SHADOW_PATH} fill={t.ink} opacity={0.12} />
-
-          {/* Document body — paper fill, single bold ink outline. */}
-          <Path
-            d={BODY_PATH}
-            fill={t.surface}
-            stroke={t.ink}
-            strokeWidth={STROKE}
-            strokeLinejoin="round"
-          />
-          {/* Top paper-grain highlight. */}
-          <Path d={BODY_PATH} fill="url(#melo-grain)" opacity={0.35} />
-
-          {/* Folded corner — caution-yellow with an inner crease line for depth. */}
-          <Path
-            d={FOLD_FILL_PATH}
-            fill={t.caution}
-            stroke={t.ink}
-            strokeWidth={STROKE}
-            strokeLinejoin="round"
-          />
-          <Path
-            d={FOLD_CREASE_PATH}
-            stroke={t.ink}
-            strokeOpacity={0.35}
-            strokeWidth={0.5}
-            fill="none"
-          />
-
-          {/* Content lines — two short beige strokes (writing on a document). */}
-          <Line
-            x1={11.5}
-            y1={31}
-            x2={22.5}
-            y2={31}
-            stroke={t.hairlineStrong}
-            strokeWidth={1.6}
-            strokeLinecap="round"
-          />
-          <Line
-            x1={11.5}
-            y1={34}
-            x2={18.5}
-            y2={34}
-            stroke={t.hairlineStrong}
-            strokeWidth={1.6}
-            strokeLinecap="round"
-          />
-
-          {/* Cheek blush — only on cheer / celebrate. */}
-          {spec.cheek ? (
-            <G fill={t.calm} opacity={0.32}>
-              <Ellipse cx={12.8} cy={24.4} rx={1.5} ry={0.9} />
-              <Ellipse cx={27.2} cy={24.4} rx={1.5} ry={0.9} />
-            </G>
-          ) : null}
-
-          {/* Concern — single small worry-bead at the temple. */}
-          {spec.worryBead ? (
-            <Path
-              d="M28.5 16 Q29.4 17.4 29.4 18.4 Q29.4 19.4 28.5 19.4 Q27.6 19.4 27.6 18.4 Q27.6 17.4 28.5 16 Z"
-              fill={t.calm}
-              opacity={0.55}
-              stroke={t.ink}
-              strokeWidth={0.45}
-            />
-          ) : null}
-
-          {/* Brows — subtle expression depth. */}
-          {mood === 'concern' ? (
-            <G stroke={t.ink} strokeWidth={1.05} strokeLinecap="round" fill="none" opacity={0.85}>
-              <Path d="M14 17.4 L17.4 18.4" />
-              <Path d="M26 17.4 L22.6 18.4" />
-            </G>
-          ) : null}
-          {mood === 'curious' ? (
-            <G stroke={t.ink} strokeWidth={1.05} strokeLinecap="round" fill="none" opacity={0.7}>
-              <Path d="M22.4 17.6 L25.6 17.0" />
-            </G>
-          ) : null}
-
-          {/* Eyes — five expressions. */}
-          <Eyes expression={spec.eyes} ink={t.ink} surface={t.surface} />
-
-          {/* Mouth — drawn at the body stroke weight so it feels carved, not penned. */}
-          <Path
-            d={spec.mouth}
-            stroke={t.ink}
-            strokeWidth={1.7}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </AnimatedG>
-
-        {/* Pose badge — contextual signal, stays upright OUTSIDE the tilt group. */}
-        {pose !== 'none' ? <PoseBadge pose={pose} palette={t} reduceMotion={reduceMotion} /> : null}
-      </Svg>
+    <Animated.View style={{ width: size, height: size, transform: [{ scale: tapScale }] }}>
+      <Halo size={size} opacity={effGlow * 0.75} visible={showGlow} />
+      {showEmbers ? <Embers size={size} count={effEmbers} speedMs={spec.emberSpeedMs} /> : null}
+      <PhoenixBody
+        spec={spec}
+        size={size}
+        reduceMotion={reduceMotion}
+        showGlow={showGlow}
+        effGlow={effGlow}
+      />
+      {grounded ? <GroundPool size={size} opacity={0.5 + v * 0.3} /> : null}
+      {pose !== 'none' ? (
+        <PoseBadge pose={pose} palette={t} reduceMotion={reduceMotion} size={size} />
+      ) : null}
     </Animated.View>
   );
 
@@ -505,185 +252,326 @@ export function Melo({ mood, pose = 'none', size = 28, grounded = true, onTap }:
 }
 
 // ---------------------------------------------------------------------------
-// Eyes
+// 1. Halo — breathing ember light behind the bird.
 // ---------------------------------------------------------------------------
 
-// Eyes carry the blink. Left and right blink ~5.4s apart with a small phase offset (a slightly
-// shorter delay on the right), so it never reads as mechanical. Blink = a quick scaleY collapse at
-// the tail of each cycle, mirroring the web @keyframes blink (≈93% of the cycle).
-function Eyes({
-  expression,
-  ink,
-  surface,
-}: {
-  expression: EyeExpression;
-  ink: string;
-  surface: string;
-}) {
-  if (expression === 'closed-smile') {
-    return (
-      <G stroke={ink} strokeWidth={1.6} strokeLinecap="round" fill="none">
-        <Path d="M13.5 20.2 Q16 18 18.5 20.2" />
-        <Path d="M21.5 20.2 Q24 18 26.5 20.2" />
-      </G>
-    );
-  }
-  if (expression === 'closed-worry') {
-    return (
-      <G stroke={ink} strokeWidth={1.6} strokeLinecap="round" fill="none">
-        <Path d="M13.5 19.5 Q16 20.8 18.5 19.5" />
-        <Path d="M21.5 19.5 Q24 20.8 26.5 19.5" />
-      </G>
-    );
-  }
-
-  // open / up — pupils nudged up on "up". Each eye blinks on its own offset clock.
-  const pupilCy = expression === 'up' ? 19.4 : 20;
-  const catchCy = expression === 'up' ? 18.9 : 19.5;
-  const catchCyR = expression === 'up' ? 18.95 : 19.55;
+function Halo({ size, opacity, visible }: { size: number; opacity: number; visible: boolean }) {
+  const uid = useId();
+  if (!visible) return null;
+  const inset = size * 0.14;
+  const diameter = size + inset * 2;
   return (
-    <>
-      <BlinkEye
-        cx={16}
-        cy={pupilCy}
-        catchCx={15.5}
-        catchCy={catchCy}
-        catchR={0.5}
-        delayMs={0}
-        ink={ink}
-        surface={surface}
-      />
-      <BlinkEye
-        cx={24}
-        cy={pupilCy}
-        catchCx={23.6}
-        catchCy={catchCyR}
-        catchR={0.42}
-        delayMs={460}
-        ink={ink}
-        surface={surface}
-      />
-    </>
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: -inset,
+        top: -inset,
+        width: diameter,
+        height: diameter,
+        opacity,
+      }}
+    >
+      <Svg width={diameter} height={diameter} viewBox="0 0 100 100">
+        <Defs>
+          <RadialGradient id={`meloHalo-${uid}`} cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor="rgb(224,99,58)" stopOpacity={0.32} />
+            <Stop offset="0.55" stopColor="rgb(217,164,65)" stopOpacity={0.1} />
+            <Stop offset="0.78" stopColor="rgb(224,99,58)" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={50} cy={50} r={50} fill={`url(#meloHalo-${uid})`} />
+      </Svg>
+    </View>
   );
 }
 
-function BlinkEye({
-  cx,
-  cy,
-  catchCx,
-  catchCy,
-  catchR,
-  delayMs,
-  ink,
-  surface,
-}: {
-  cx: number;
-  cy: number;
-  catchCx: number;
-  catchCy: number;
-  catchR: number;
-  delayMs: number;
-  ink: string;
-  surface: string;
-}) {
-  const reduceMotion = useReduceMotion();
-  const blink = useSharedValue(1); // 1 = open, ~0.08 = closed
+// ---------------------------------------------------------------------------
+// 2. Embers — drifting particles rising behind the bird, deterministic placement.
+// ---------------------------------------------------------------------------
+
+function Embers({ size, count, speedMs }: { size: number; count: number; speedMs: number }) {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {Array.from({ length: count }).map((_, i) => (
+        <Ember key={i} index={i} size={size} speedMs={speedMs} />
+      ))}
+    </View>
+  );
+}
+
+function Ember({ index, size, speedMs }: { index: number; size: number; speedMs: number }) {
+  const seed = index + 1;
+  const leftPct = 20 + rand(seed * 3.1) * 60;
+  const delayMs = rand(seed * 5.7) * speedMs;
+  const durMs = speedMs * (0.85 + rand(seed * 7.3) * 0.4);
+  const dotSize = Math.max(3, size * (0.05 + rand(seed * 2.2) * 0.05));
+  const isCoral = rand(seed * 11.1) > 0.5;
+  const color = isCoral ? 'rgba(224,99,58,0.7)' : 'rgba(217,164,65,0.7)';
+
+  const drift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    cancelAnimation(blink);
-    if (reduceMotion) {
-      blink.value = 1; // final state = eyes open
-      return;
-    }
-    // One cycle ≈ 5400ms: open almost the whole time, a quick collapse + reopen near the end.
-    const cycle = withSequence(
-      withTiming(1, { duration: 5022 }), // ~93% open
-      withTiming(0.08, { duration: 120, easing: Easing.in(Easing.ease) }),
-      withTiming(1, { duration: 258, easing: EASE_OUT_EXPO }),
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delayMs),
+        Animated.timing(drift, {
+          toValue: 1,
+          duration: durMs,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(drift, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
     );
-    blink.value = withDelay(delayMs, withRepeat(cycle, -1, false));
-    return () => cancelAnimation(blink);
-  }, [blink, reduceMotion, delayMs]);
+    loop.start();
+    return () => loop.stop();
+  }, [drift, delayMs, durMs]);
 
-  const eyeProps = useAnimatedProps(() => ({
-    // Collapse vertically about the pupil centre — a blink, not a shrink.
-    transform: [{ translateY: cy }, { scaleY: blink.value }, { translateY: -cy }],
-  }));
+  const translateY = drift.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.55] });
+  const opacity = drift.interpolate({
+    inputRange: [0, 0.15, 0.85, 1],
+    outputRange: [0, 0.7, 0.4, 0],
+  });
 
   return (
-    <>
-      <AnimatedG animatedProps={eyeProps}>
-        <Circle cx={cx} cy={cy} r={1.6} fill={ink} />
-      </AnimatedG>
-      {/* Catchlight — a small near-white spark. Uses the surface (paper) colour so it reads as a
-          highlight in both light and dark, never a hard-coded white. */}
-      <Circle cx={catchCx} cy={catchCy} r={catchR} fill={surface} opacity={0.95} />
-    </>
+    <Animated.View
+      style={{
+        position: 'absolute',
+        left: `${leftPct}%`,
+        bottom: size * 0.42,
+        width: dotSize,
+        height: dotSize,
+        borderRadius: dotSize / 2,
+        backgroundColor: color,
+        opacity,
+        transform: [{ translateY }],
+      }}
+    />
   );
 }
 
 // ---------------------------------------------------------------------------
-// Pose badge — an enamel-pin accessory at the lower-right corner
+// 3. Phoenix body — floats + tilts, cross-fades 420ms between the previous and current pose
+// sprite so a worried -> calm transition reads as relief, not an asset swap. Honours reduce-motion
+// (instant swap, no fade, no float).
 // ---------------------------------------------------------------------------
+
+function PhoenixBody({
+  spec,
+  size,
+  reduceMotion,
+  showGlow,
+  effGlow,
+}: {
+  spec: MoodSpec;
+  size: number;
+  reduceMotion: boolean;
+  showGlow: boolean;
+  effGlow: number;
+}) {
+  const [prevSrc, setPrevSrc] = useState<number | null>(null);
+  const lastSrc = useRef(spec.src);
+  const crossFade = useRef(new Animated.Value(1)).current;
+  const float = useRef(new Animated.Value(0)).current;
+
+  // Pose cross-fade.
+  useEffect(() => {
+    if (lastSrc.current === spec.src) return;
+    if (reduceMotion) {
+      lastSrc.current = spec.src;
+      return;
+    }
+    setPrevSrc(lastSrc.current);
+    lastSrc.current = spec.src;
+    crossFade.setValue(0);
+    Animated.timing(crossFade, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start(() => setPrevSrc(null));
+  }, [spec.src, reduceMotion, crossFade]);
+
+  // Slow float loop (per-mood amplitude/speed).
+  useEffect(() => {
+    if (reduceMotion) {
+      float.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(float, {
+          toValue: 1,
+          duration: spec.floatDurationMs,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(float, {
+          toValue: 0,
+          duration: spec.floatDurationMs,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [float, spec.floatDurationMs, reduceMotion]);
+
+  const translateY = float.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -spec.floatAmplitude],
+  });
+
+  const poseTransform = [{ translateY }, { rotate: `${spec.tilt}deg` }, { scale: spec.scale }];
+
+  const shadowOpacity = showGlow ? 0.2 + effGlow * 0.35 : 0;
+
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size }}>
+      {prevSrc !== null ? (
+        <Animated.Image
+          source={prevSrc}
+          resizeMode="contain"
+          style={{
+            position: 'absolute',
+            width: size,
+            height: size,
+            opacity: crossFade.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+            transform: poseTransform,
+            shadowColor: 'rgb(224,99,58)',
+            shadowOpacity,
+            shadowRadius: size * 0.06,
+            shadowOffset: { width: 0, height: size * 0.03 },
+          }}
+        />
+      ) : null}
+      <Animated.Image
+        source={spec.src}
+        resizeMode="contain"
+        style={{
+          position: 'absolute',
+          width: size,
+          height: size,
+          opacity: reduceMotion ? 1 : crossFade,
+          transform: poseTransform,
+          shadowColor: 'rgb(224,99,58)',
+          shadowOpacity,
+          shadowRadius: size * 0.06,
+          shadowOffset: { width: 0, height: size * 0.03 },
+        }}
+      />
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 4. Ground pool — soft warm shadow anchoring the bird to the surface.
+// ---------------------------------------------------------------------------
+
+function GroundPool({ size, opacity }: { size: number; opacity: number }) {
+  const uid = useId();
+  const width = size * 0.44;
+  const height = size * 0.06;
+  return (
+    <View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: size * 0.28, bottom: 0, width, height, opacity }}
+    >
+      <Svg width={width} height={height} viewBox="0 0 100 100" preserveAspectRatio="none">
+        <Defs>
+          <RadialGradient id={`meloGround-${uid}`} cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor="rgba(26,24,21,1)" stopOpacity={0.14} />
+            <Stop offset="0.78" stopColor="rgba(26,24,21,1)" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={50} cy={50} r={50} fill={`url(#meloGround-${uid})`} />
+      </Svg>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 5. Pose badge — an enamel-pin accessory at the lower-right corner. Kept from the pre-sprite
+// vector rig as a separate overlay (the sprite bird itself is never repainted).
+// ---------------------------------------------------------------------------
+
+const AnimatedG = Animated.createAnimatedComponent(G);
+const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 
 function PoseBadge({
   pose,
   palette,
   reduceMotion,
+  size,
 }: {
   pose: Exclude<MeloPose, 'none'>;
   palette: Palette;
   reduceMotion: boolean;
+  size: number;
 }) {
+  const badgeSize = 40; // fixed badge-space viewBox, independent of the bird's own size
   const cx = 33;
   const cy = 36;
   const r = 5.4;
   const ink = palette.ink;
 
-  // Pose-in — a 520ms scale-in with a soft overshoot, then it stays put (no looping).
-  const enter = useSharedValue(reduceMotion ? 1 : 0);
+  const enter = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
   useEffect(() => {
     if (reduceMotion) {
-      enter.value = 1;
+      enter.setValue(1);
       return;
     }
-    enter.value = withSequence(
-      withTiming(0, { duration: 0 }),
-      withTiming(1.08, { duration: 312, easing: EASE_OUT_EXPO }),
-      withTiming(1, { duration: 208, easing: EASE_OUT_EXPO }),
-    );
+    Animated.sequence([
+      Animated.timing(enter, { toValue: 0, duration: 0, useNativeDriver: false }),
+      Animated.timing(enter, {
+        toValue: 1.08,
+        duration: 312,
+        easing: EASE_OUT_EXPO,
+        useNativeDriver: false,
+      }),
+      Animated.timing(enter, {
+        toValue: 1,
+        duration: 208,
+        easing: EASE_OUT_EXPO,
+        useNativeDriver: false,
+      }),
+    ]).start();
   }, [enter, reduceMotion]);
-
-  const enterProps = useAnimatedProps(() => ({
-    opacity: enter.value === 0 ? 0 : 1,
-    transform: [
-      { translateX: cx },
-      { translateY: cy },
-      { scale: enter.value },
-      { translateX: -cx },
-      { translateY: -cy },
-    ],
-  }));
 
   const swatch = POSE_PALETTE(palette)[pose];
 
   return (
-    <AnimatedG animatedProps={enterProps}>
-      {/* Lift shadow under the badge. */}
-      <Ellipse cx={cx} cy={cy + r + 0.6} rx={r * 0.85} ry={0.9} fill={ink} opacity={0.12} />
-      <Circle cx={cx} cy={cy} r={r} fill={swatch.fill} stroke={swatch.stroke} strokeWidth={0.9} />
-      {/* Inner hairline — reads as an enamel pin on paper. */}
-      <Circle
-        cx={cx}
-        cy={cy}
-        r={r - 0.9}
-        fill="none"
-        stroke={palette.surface}
-        strokeOpacity={0.35}
-        strokeWidth={0.4}
-      />
-      <PoseMark pose={pose} cx={cx} cy={cy} palette={palette} />
-    </AnimatedG>
+    <View
+      pointerEvents="none"
+      style={{ position: 'absolute', top: 0, left: 0, width: size, height: size }}
+    >
+      <Svg width={size} height={size} viewBox={`0 0 ${badgeSize} ${badgeSize}`}>
+        <G opacity={reduceMotion ? 1 : undefined}>
+          {/* Lift shadow under the badge. */}
+          <Circle cx={cx} cy={cy + r + 0.6} r={r * 0.85} fill={ink} opacity={0.12} />
+          <Circle
+            cx={cx}
+            cy={cy}
+            r={r}
+            fill={swatch.fill}
+            stroke={swatch.stroke}
+            strokeWidth={0.9}
+          />
+          <Circle
+            cx={cx}
+            cy={cy}
+            r={r - 0.9}
+            fill="none"
+            stroke={palette.surface}
+            strokeOpacity={0.35}
+            strokeWidth={0.4}
+          />
+          <PoseMark pose={pose} cx={cx} cy={cy} palette={palette} />
+        </G>
+      </Svg>
+    </View>
   );
 }
 
