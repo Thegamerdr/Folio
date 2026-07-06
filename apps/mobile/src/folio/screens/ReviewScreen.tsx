@@ -137,7 +137,9 @@ const SAMPLE_CANDIDATE: ReviewCandidate = {
   before: 325,
 };
 
-// The category chips — the web CATEGORIES list, verbatim.
+// The category chips — the web CATEGORIES list, verbatim, PLUS 'Income' (task: income-category
+// fix). An income-flow candidate must never be forced into a spend bucket like 'Groceries' — see
+// `categoryFor`/`categoryLabelFor` below for the paired mapping this chip completes.
 const CATEGORIES = [
   'Groceries',
   'Transport',
@@ -145,6 +147,7 @@ const CATEGORIES = [
   'Eating out',
   'Subscription',
   'Shopping',
+  'Income',
   'Other',
 ] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -177,7 +180,8 @@ const ADD_DWELL_MS = 900;
 const COUNT_MS = 700;
 
 // Map a chosen category chip → a Transaction category bucket, so an accepted item flows into the
-// money path with an honest bucket.
+// money path with an honest bucket. 'Income' -> 'income' (task: income-category fix — an income
+// candidate must never store 'food' just because 'food' happened to be the default chip).
 function categoryFor(label: Category): Transaction['category'] {
   switch (label) {
     case 'Groceries':
@@ -190,6 +194,8 @@ function categoryFor(label: Category): Transaction['category'] {
       return 'bills';
     case 'Shopping':
       return 'shopping';
+    case 'Income':
+      return 'income';
     default:
       return 'other';
   }
@@ -199,8 +205,9 @@ function categoryFor(label: Category): Transaction['category'] {
 // `Transaction['category']` bucket (a model guess or a merchant-memory recall). `categoryFor` is
 // many-to-one (Groceries/Eating out both fold to 'food'; Bills/Subscription both fold to 'bills'), so
 // this picks one representative chip per bucket — good enough for a pre-fill the user can still
-// change; it is never used to grade correctness. 'income' has no matching chip on this spend-oriented
-// screen (candidates land here already signed; nothing to pre-select).
+// change; it is never used to grade correctness. 'income' -> 'Income' (task: income-category fix) so
+// an income-flow candidate pre-selects the Income chip instead of falling through to the 'Groceries'
+// default declared below.
 function categoryLabelFor(bucket: Transaction['category']): Category | null {
   switch (bucket) {
     case 'food':
@@ -211,6 +218,8 @@ function categoryLabelFor(bucket: Transaction['category']): Category | null {
       return 'Bills';
     case 'shopping':
       return 'Shopping';
+    case 'income':
+      return 'Income';
     case 'other':
       return 'Other';
     default:
@@ -353,13 +362,16 @@ export function ReviewScreen({
 
   const [stamped, setStamped] = useState(false);
   // Pre-select the chip from the candidate's incoming category (a model guess, or a merchant-memory
-  // recall — DATA_INTELLIGENCE.md phase ③) when one resolves to a known chip; otherwise the existing
-  // 'Groceries' default holds, unchanged. `categoryLabelFor` is the reverse of `categoryFor` below.
-  // Lazy initializer — evaluated once at mount, exactly like the merchant/amount seeds below.
+  // recall — DATA_INTELLIGENCE.md phase ③) when one resolves to a known chip. Falling further back:
+  // an 'in'-flow candidate with no usable category guess pre-selects 'Income' rather than the spend
+  // default (task: income-category fix — a bare income row must never land on 'Groceries' just
+  // because that's the first chip in the list). Only an 'out'-flow candidate with no guess falls all
+  // the way to 'Groceries'. `categoryLabelFor` is the reverse of `categoryFor` below. Lazy
+  // initializer — evaluated once at mount, exactly like the merchant/amount seeds below.
   const [category, setCategory] = useState<Category>(
     () =>
       (candidate.category !== undefined ? categoryLabelFor(candidate.category) : null) ??
-      'Groceries',
+      (candidate.flow === 'in' ? 'Income' : 'Groceries'),
   );
   // Whether the chip is still showing an untouched merchant-memory recall — drives the "remembered"
   // caption. Any manual chip tap (including re-picking the same label) counts as the user's own

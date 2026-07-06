@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 // importSheet.test.ts). Type-only, so it is erased before runtime regardless.
 import type { CandidateMoneyItem } from '../folio/lib/importSheet';
 
-import { parseCandidatesFromModelJson } from './statementReaderParse';
+import { parseCandidatesFromModelJson, parseStatementReaderResult } from './statementReaderParse';
 
 const byMerchant = (
   cands: readonly CandidateMoneyItem[],
@@ -146,5 +146,83 @@ describe('parseCandidatesFromModelJson — degenerate input', () => {
     });
     const candidates = parseCandidatesFromModelJson(raw, 'pdf');
     expect(candidates.map((c) => c.merchant)).toEqual(['Tesco']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseStatementReaderResult — closing balance (task: READER CLOSING BALANCE).
+//
+// Live gateway confirmation (2026-07-06, google/gemini-2.5-flash via the deployed Cloudflare Worker
+// gateway, against .claude-session/monzo-small.pdf, extended SYSTEM_PROMPT): the model reliably
+// returned `"closingBalance": 1.96, "closingDate": "2021-03-31"` across two independent live runs —
+// see statementReaderClient.ts's SYSTEM_PROMPT doc comment for the full note. These tests cover the
+// pure parser's handling of that field pair without hitting the network.
+// ---------------------------------------------------------------------------
+describe('parseStatementReaderResult — closing balance', () => {
+  it('parses the confirmed live-gateway shape (Monzo small statement, 2026-07-06)', () => {
+    const raw = JSON.stringify({
+      items: [
+        { date: '2021-03-03', merchant: 'FPS, Andrea Nsiah', amount: 30, category: 'Transfer' },
+      ],
+      closingBalance: 1.96,
+      closingDate: '2021-03-31',
+    });
+    const result = parseStatementReaderResult(raw, 'pdf');
+    expect(result.candidates.length).toBe(1);
+    expect(result.closingBalance).toEqual({ amount: 1.96, asOfISO: '2021-03-31' });
+  });
+
+  it('returns closingBalance: null when the model omits both fields', () => {
+    const raw = JSON.stringify({ items: [{ merchant: 'Tesco', amount: -10 }] });
+    expect(parseStatementReaderResult(raw, 'pdf').closingBalance).toBeNull();
+  });
+
+  it('returns closingBalance: null when the model explicitly returns null for both', () => {
+    const raw = JSON.stringify({ items: [], closingBalance: null, closingDate: null });
+    expect(parseStatementReaderResult(raw, 'pdf').closingBalance).toBeNull();
+  });
+
+  it('never fabricates a balance when only one of the pair is present', () => {
+    const balanceOnly = JSON.stringify({ items: [], closingBalance: 42, closingDate: null });
+    expect(parseStatementReaderResult(balanceOnly, 'pdf').closingBalance).toBeNull();
+
+    const dateOnly = JSON.stringify({ items: [], closingBalance: null, closingDate: '2026-03-31' });
+    expect(parseStatementReaderResult(dateOnly, 'pdf').closingBalance).toBeNull();
+  });
+
+  it('rejects a non-numeric closingBalance and an unparseable closingDate', () => {
+    const badAmount = JSON.stringify({
+      items: [],
+      closingBalance: 'lots',
+      closingDate: '2026-03-31',
+    });
+    expect(parseStatementReaderResult(badAmount, 'pdf').closingBalance).toBeNull();
+
+    const badDate = JSON.stringify({ items: [], closingBalance: 1.96, closingDate: 'not-a-date' });
+    expect(parseStatementReaderResult(badDate, 'pdf').closingBalance).toBeNull();
+  });
+
+  it('items are unaffected by the presence or absence of a closing balance', () => {
+    const withBalance = parseStatementReaderResult(
+      JSON.stringify({
+        items: [{ merchant: 'Tesco', amount: -10 }],
+        closingBalance: 1.96,
+        closingDate: '2021-03-31',
+      }),
+      'pdf',
+    ).candidates;
+    const withoutBalance = parseStatementReaderResult(
+      JSON.stringify({ items: [{ merchant: 'Tesco', amount: -10 }] }),
+      'pdf',
+    ).candidates;
+    expect(withBalance.map((c) => ({ merchant: c.merchant, amount: c.amount }))).toEqual(
+      withoutBalance.map((c) => ({ merchant: c.merchant, amount: c.amount })),
+    );
+  });
+
+  it('malformed JSON yields no candidates and no closing balance', () => {
+    const result = parseStatementReaderResult('not json', 'pdf');
+    expect(result.candidates).toEqual([]);
+    expect(result.closingBalance).toBeNull();
   });
 });

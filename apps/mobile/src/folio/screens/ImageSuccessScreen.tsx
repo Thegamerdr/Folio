@@ -81,12 +81,15 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import {
   clearReaderCandidates,
   enqueueReviewItems,
   queueInputFromCandidates,
   useReaderCandidates,
+  useReaderClosingBalance,
 } from '@/folio/store';
+import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio read from the photo — `id` is the candidate's own identity (the found list
@@ -234,9 +237,22 @@ export function ImageSuccessScreen({
   // EMPTY image so the empty-doorway gate below shows — never a fabricated sample. An explicit `image`
   // prop still wins (fixtures / tests).
   const staged = useReaderCandidates();
+  // The closing balance the reader staged alongside `staged` (null when the read didn't carry
+  // one — a photographed statement's reader path can still return one, per StatementReadResult).
+  const stagedClosingBalance = useReaderClosingBalance();
   const image: FoundImage =
     imageProp ??
     (staged.length > 0 ? liveImageFrom(staged) : { imageName: LIVE_READ_IMAGE_LABEL, items: [] });
+
+  // The raw candidates this screen would enqueue/land — a fixture-driven `image` prop carries none
+  // (tests only). BULK ADD-AS-HISTORY (task): a multi-candidate read swaps the ordinary single-item
+  // CTA pair for the bulk landing surface (BulkStatementLanding owns the actual
+  // `addStatementAsHistory` write). A single-candidate read is unchanged.
+  const rawCandidates: readonly CandidateMoneyItem[] = imageProp ? [] : staged;
+  const isBulk = !imageProp && isBulkStatement(rawCandidates.length);
+  // Mirrors `rawCandidates`' fixture guard: a fixture-driven `image` prop (tests only) never
+  // carries a real reader-staged balance through to the landing.
+  const closingBalance = imageProp ? undefined : (stagedClosingBalance ?? undefined);
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -371,27 +387,20 @@ export function ImageSuccessScreen({
           </View>
         </View>
 
-        {/* Melo line — the quiet companion, calm mood. MeloLine adds the straight quotes. */}
-        <View style={styles.meloBlock}>
-          <MeloLine mood="calm" text="Add it only if it belongs." />
-        </View>
-
-        {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
-        <View style={styles.spacer} />
-
-        {/* Primary CTA — terracotta fill; enqueues what the card showed into the persisted review
-            queue and routes to Review, faithful to the web source (ScreenImageSuccess.tsx:
-            enqueueReviewItems(...) then nav.go("review")). Review-before-truth holds — queued items
-            are candidates, never posted facts. The transient staging slot is cleared once its items
-            move into the queue. A fixture-driven `image` prop carries no raw candidates, so it
-            enqueues nothing (tests only). */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Check what Folio found"
-          accessibilityHint="Opens the review of what was found"
-          onPress={() => {
-            if (!imageProp && staged.length > 0) {
-              const { dropped } = enqueueReviewItems(queueInputFromCandidates(staged, 'image'));
+        {/* BULK ADD-AS-HISTORY (task): a multi-candidate read (a real photographed statement) swaps
+            the ordinary single-item CTA pair for the bulk landing surface — summary + "Add all as
+            history" / "Review one by one" + the post-import offer sequencer. A single-candidate
+            read (or a fixture-driven `image` prop) is UNCHANGED — same enqueue-then-Review path. */}
+        {isBulk ? (
+          <BulkStatementLanding
+            nav={nav}
+            candidates={rawCandidates}
+            {...(closingBalance !== undefined ? { closingBalance } : {})}
+            onAdded={() => clearReaderCandidates()}
+            onReviewOneByOne={() => {
+              const { dropped } = enqueueReviewItems(
+                queueInputFromCandidates(rawCandidates, 'image'),
+              );
               if (dropped > 0) {
                 showToast(
                   'Showing the newest 60 to check first',
@@ -399,30 +408,67 @@ export function ImageSuccessScreen({
                 );
               }
               clearReaderCandidates();
-            }
-            nav.go('review');
-          }}
-          style={({ pressed: isPressed }) => [
-            styles.primary,
-            { backgroundColor: t.calm },
-            isPressed ? styles.pressed : undefined,
-          ]}
-        >
-          <Text style={[styles.primaryLabel, { color: t.inverse }]}>Check what Folio found</Text>
-        </Pressable>
+              nav.go('review');
+            }}
+          />
+        ) : (
+          <>
+            {/* Melo line — the quiet companion, calm mood. MeloLine adds the straight quotes. */}
+            <View style={styles.meloBlock}>
+              <MeloLine mood="calm" text="Add it only if it belongs." />
+            </View>
 
-        {/* Secondary CTA — quiet path back to intake to pick a different image. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Use a different image"
-          onPress={() => nav.go('intake')}
-          style={({ pressed: isPressed }) => [
-            styles.secondary,
-            isPressed ? styles.pressed : undefined,
-          ]}
-        >
-          <Text style={[styles.secondaryLabel, { color: t.muted }]}>Use a different image</Text>
-        </Pressable>
+            {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
+            <View style={styles.spacer} />
+
+            {/* Primary CTA — terracotta fill; enqueues what the card showed into the persisted review
+                queue and routes to Review, faithful to the web source (ScreenImageSuccess.tsx:
+                enqueueReviewItems(...) then nav.go("review")). Review-before-truth holds — queued items
+                are candidates, never posted facts. The transient staging slot is cleared once its items
+                move into the queue. A fixture-driven `image` prop carries no raw candidates, so it
+                enqueues nothing (tests only). */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Check what Folio found"
+              accessibilityHint="Opens the review of what was found"
+              onPress={() => {
+                if (!imageProp && staged.length > 0) {
+                  const { dropped } = enqueueReviewItems(queueInputFromCandidates(staged, 'image'));
+                  if (dropped > 0) {
+                    showToast(
+                      'Showing the newest 60 to check first',
+                      `${dropped} more will follow as you clear them.`,
+                    );
+                  }
+                  clearReaderCandidates();
+                }
+                nav.go('review');
+              }}
+              style={({ pressed: isPressed }) => [
+                styles.primary,
+                { backgroundColor: t.calm },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+                Check what Folio found
+              </Text>
+            </Pressable>
+
+            {/* Secondary CTA — quiet path back to intake to pick a different image. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Use a different image"
+              onPress={() => nav.go('intake')}
+              style={({ pressed: isPressed }) => [
+                styles.secondary,
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.secondaryLabel, { color: t.muted }]}>Use a different image</Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </Animated.View>
   );

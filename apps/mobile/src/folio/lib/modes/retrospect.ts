@@ -17,7 +17,13 @@ import type { MoneyMode } from './types';
 export type Kpi = {
   label: string;
   value: string;
-  tone?: 'ink' | 'positive' | 'accent' | 'negative';
+  // COLOUR FIX (insights lane, diagnosis item 2 — DEAD FOOT-GUN): 'negative' was in this union but
+  // no builder below ever set it, while InsightsScreen's StatTile silently painted it t.repair
+  // (coral) if it ever fired — a whole KPI turning alarm-red with no code path exercising or
+  // testing that. Removed here too (not just at the tile prop) so the type stays the single source
+  // of truth for what a Kpi.tone can actually be; every builder's tone already fits 'ink' |
+  // 'positive' | 'accent'.
+  tone?: 'ink' | 'positive' | 'accent';
 };
 
 export type Retrospect = {

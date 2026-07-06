@@ -96,7 +96,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
-import { setReaderCandidates } from '@/folio/store';
+import { setReaderCandidates, setReaderClosingBalance } from '@/folio/store';
 import { setReaderFallbackReason } from '@/folio/lib/readerFallbackReason';
 import { showToast } from '@/folio/ui/Toast';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -316,6 +316,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       const result = await extractStatementCandidates({ uri, mediaType, kind });
       if (result.kind === 'ok' && result.candidates.length > 0) {
         setReaderCandidates(result.candidates);
+        setReaderClosingBalance(result.closingBalance);
         nav.go(successScreen);
         return;
       }
@@ -392,6 +393,11 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       if (result.kind === 'ok' || result.kind === 'partial') {
         if (result.candidates.length > 0) {
           setReaderCandidates(result.candidates);
+          // The chunked reader intentionally never surfaces a whole-statement closing balance
+          // (see SingleRequestResult's doc in statementReaderClient.ts — no single chunk is a
+          // trustworthy source for it), so explicitly clear any balance staged by a prior
+          // single-shot read rather than letting it leak into this landing.
+          setReaderClosingBalance(null);
           if (result.kind === 'partial') {
             const failed = result.coverage.filter((outcome) => !outcome.ok);
             const pages = failed
@@ -452,6 +458,10 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         const candidates = readTextCandidates(result.text);
         if (candidates !== null) {
           setReaderCandidates(candidates);
+          // A delimited (CSV/TSV/TXT) statement never carries a closing balance — the offline
+          // column parser has no such concept — so explicitly clear any balance staged by a
+          // prior reader read rather than letting it leak into this landing.
+          setReaderClosingBalance(null);
           nav.go('pdf-success');
         } else {
           // The column parser found nothing readable — no reader-side reason to hand over.

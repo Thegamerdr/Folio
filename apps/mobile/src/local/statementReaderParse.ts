@@ -21,6 +21,21 @@ import type {
  *  Review screen makes the user confirm each one. */
 const READER_CONFIDENCE: CandidateConfidence = 'low';
 
+/** The statement's closing balance, as the model returned it — a fact the reader surfaces
+ *  ALONGSIDE the item list, never derived or guessed by this parser. `amount` is signed pounds
+ *  (whatever the model reported, verbatim); `asOfISO` is the date that balance is as-of. Both are
+ *  required together — a closing balance with no date (or vice versa) is not useful enough to act on
+ *  honestly, so the pair is dropped rather than kept half-populated. */
+export type StatementClosingBalance = { amount: number; asOfISO: string };
+
+/** Result of parsing a model reply: the item candidates PLUS the optional closing-balance fact.
+ *  `closingBalance` is `null` when the model didn't return one (or returned an unusable shape) — the
+ *  caller must never fabricate a balance when this is `null`. */
+export type ParsedStatementReaderResult = {
+  candidates: CandidateMoneyItem[];
+  closingBalance: StatementClosingBalance | null;
+};
+
 /**
  * Turn the model's JSON reply into `CandidateMoneyItem[]`.
  *
@@ -32,29 +47,65 @@ const READER_CONFIDENCE: CandidateConfidence = 'low';
  *  - Malformed JSON -> []. A missing / non-array / empty `items` -> []. Individual bad items are
  *    dropped, never coerced — we never fabricate a row the model did not return.
  *  - Pure: no I/O, no react-native/expo imports — safe to unit-test in plain Node.
+ *
+ * Kept as the stable public entry point (existing callers unaffected) — use
+ * `parseStatementReaderResult` for the closing-balance-aware result.
  */
 export function parseCandidatesFromModelJson(
   raw: string,
   source: CandidateSource,
 ): CandidateMoneyItem[] {
+  return parseStatementReaderResult(raw, source).candidates;
+}
+
+/**
+ * Turn the model's JSON reply into candidates PLUS the statement's closing balance, when the model
+ * supplied one. Same item contract as `parseCandidatesFromModelJson` (see its doc); additionally
+ * reads the reply's OPTIONAL `closingBalance` (number) / `closingDate` ("YYYY-MM-DD") top-level
+ * fields — set by the reader's extended system prompt (see statementReaderClient.ts's
+ * SYSTEM_PROMPT). Never fabricates a balance: a missing, non-numeric `closingBalance`, or a missing/
+ * unparseable `closingDate` yields `closingBalance: null` in the result — items are unaffected
+ * either way. Pure: no I/O, no react-native/expo imports.
+ */
+export function parseStatementReaderResult(
+  raw: string,
+  source: CandidateSource,
+): ParsedStatementReaderResult {
   const cleaned = stripCodeFences(raw);
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    return [];
+    return { candidates: [], closingBalance: null };
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return [];
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { candidates: [], closingBalance: null };
+  }
 
   const items = (parsed as { items?: unknown }).items;
-  if (!Array.isArray(items)) return [];
-
   const candidates: CandidateMoneyItem[] = [];
-  items.forEach((entry, index) => {
-    const candidate = toCandidate(entry, source, index);
-    if (candidate !== null) candidates.push(candidate);
-  });
-  return candidates;
+  if (Array.isArray(items)) {
+    items.forEach((entry, index) => {
+      const candidate = toCandidate(entry, source, index);
+      if (candidate !== null) candidates.push(candidate);
+    });
+  }
+
+  const closingBalance = toClosingBalance(parsed);
+  return { candidates, closingBalance };
+}
+
+/** Validate the reply's optional top-level `closingBalance`/`closingDate` pair. Returns `null` when
+ *  either is absent/unusable — see `StatementClosingBalance`'s doc for why the pair is all-or-
+ *  nothing. Reuses `normaliseDate` so the date passes the exact same real-calendar-date validation
+ *  every item date does. */
+function toClosingBalance(parsed: object): StatementClosingBalance | null {
+  const row = parsed as { closingBalance?: unknown; closingDate?: unknown };
+  const amount = row.closingBalance;
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return null;
+  const asOfISO = normaliseDate(row.closingDate);
+  if (asOfISO === null) return null;
+  return { amount, asOfISO };
 }
 
 /** Remove a wrapping ```json … ``` (or bare ``` … ```) fence if the model added one. */

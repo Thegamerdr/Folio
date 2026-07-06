@@ -536,7 +536,13 @@ function StatTile({
    *  money itself, so mode-tinted retro values (which arrive already formatted, e.g. "£420" or a
    *  non-money string like a month count) render byte-identical to the web source. */
   value: string;
-  tone?: 'positive' | 'accent' | 'negative' | undefined;
+  // COLOUR FIX (insights lane, diagnosis item 2 — DEAD FOOT-GUN): 'negative' used to route to
+  // styles.deltaNegative (t.repair / coral) but no `Kpi.tone` builder in retrospect.ts ever emits
+  // it — a whole KPI tile turning coral is exactly the "no alarming red" violation the kit warns
+  // against. Removed from the tone union entirely (not just left dead) so a future builder can't
+  // silently wire it back in without a deliberate styles addition; every retrospect.ts Kpi.tone
+  // ('ink' | 'positive' | 'accent') still has a real style below.
+  tone?: 'positive' | 'accent' | undefined;
   sub?: React.ReactNode;
   styles: ReturnType<typeof makeStyles>;
   reduceMotion?: boolean | undefined;
@@ -555,7 +561,6 @@ function StatTile({
           styles.tileValue,
           tone === 'positive' ? styles.tileValuePositive : undefined,
           tone === 'accent' ? styles.tileValueAccent : undefined,
-          tone === 'negative' ? styles.deltaNegative : undefined,
         ]}
       >
         {display}
@@ -635,10 +640,16 @@ function TrendChart({
       accessibilityRole="image"
       accessibilityLabel={`Lowest balance trend over your last ${n} months`}
     >
+      {/* COLOUR FIX (insights lane, DATA_INTELLIGENCE.md diagnosis item 1 — TERRACOTTA OVERLOAD):
+          t.calm used to paint the gradient fill AND the drawn line AND the detected-annual-charge
+          amount, on top of already being the headline accent — arbitrary, not honest signal. Per
+          kit.tsx:76-77's own rule ("accent carries the tight-point on the path"), calm now marks
+          ONLY the single tight-point (the last dot below); the line/fill/other dots read in the
+          ink/muted family so the one terracotta moment on this chart stays meaningful. */}
       <Defs>
         <LinearGradient id="insFill" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor={t.calm} stopOpacity={0.18} />
-          <Stop offset="100%" stopColor={t.calm} stopOpacity={0} />
+          <Stop offset="0%" stopColor={t.ink} stopOpacity={0.1} />
+          <Stop offset="100%" stopColor={t.ink} stopOpacity={0} />
         </LinearGradient>
       </Defs>
 
@@ -652,7 +663,8 @@ function TrendChart({
         strokeDasharray="2 4"
       />
 
-      {/* Area fill + route-draw line — only with more than one point (spec sub-branch (b)). */}
+      {/* Area fill + route-draw line — only with more than one point (spec sub-branch (b)). Muted
+          ink, not calm: the line is the trend, not the headline moment (see colour-fix note above). */}
       {n > 1 ? (
         <Path
           d={`${d} L ${(CHART_W - CHART_PAD_X).toFixed(1)} ${CHART_H - CHART_PAD_Y} L ${CHART_PAD_X} ${
@@ -665,7 +677,7 @@ function TrendChart({
         <AnimatedPath
           d={d}
           fill="none"
-          stroke={t.calm}
+          stroke={t.muted}
           strokeWidth={1.8}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -674,7 +686,8 @@ function TrendChart({
         />
       ) : null}
 
-      {/* Per-point dots — last is accent-filled + larger, no stroke; the rest are surface + ink ring. */}
+      {/* Per-point dots — last is the single accent-filled tight-point (larger, no stroke); the rest
+          are surface + ink ring, same as before. */}
       {ptsArr.map((p, i) => {
         const isLast = i === ptsArr.length - 1;
         return (
@@ -789,7 +802,14 @@ function makeStyles(t: Palette) {
       marginTop: gap.xs,
     },
     tileValuePositive: { color: t.positive },
-    tileValueAccent: { color: t.calm },
+    // COLOUR FIX (insights lane, diagnosis item 1 — TERRACOTTA OVERLOAD): this used to be `t.calm`,
+    // the same terracotta as the headline accent AND the chart line/dots AND the annual-charge
+    // figure — four unrelated things sharing one colour reads as arbitrary, not intentional. Every
+    // mode's `retro.secondary` Kpi ('accent' tone) is a plain data figure ("Average low balance"
+    // etc.), not the screen's one accent moment, so it gets `secondary` (a warm, slightly bolder
+    // ink than the tile default) — distinct from both the neutral tileValue ink and the reserved
+    // headline/CTA terracotta, and still fully on-palette.
+    tileValueAccent: { color: t.secondary },
     // Spare-delta sub-line — tabular, mt-1, coloured by sign.
     delta: {
       fontSize: 10.5,
@@ -935,8 +955,13 @@ function makeStyles(t: Palette) {
       fontSize: 14,
       fontWeight: '500',
     },
+    // COLOUR FIX (insights lane, diagnosis item 1 — TERRACOTTA OVERLOAD): was `t.calm`, the same
+    // terracotta as the headline accent + the chart line/dots + the KPI accent figure — four
+    // different things claiming the one "this is the moment" colour. This is a detected recurring
+    // charge amount (a data figure, like the KPI above), so it gets the same `secondary` treatment:
+    // bolder than plain ink, still clearly not the screen's single accent word.
     annualAmount: {
-      color: t.calm,
+      color: t.secondary,
       fontFamily: serif.display,
       fontSize: 18,
       fontVariant: ['tabular-nums'],

@@ -33,6 +33,15 @@ import {
 import { normaliseMerchant } from './lib/subSignals';
 import { synthesizeHistoryCycles } from './lib/historyCycles';
 import { makeWin, hasWin, type TinyWin, type TinyWinKind } from './lib/wins';
+import {
+  buildStatementSummary,
+  candidateToTransactionDraft,
+  type StatementSummary,
+} from './lib/statementSummary';
+import { findCaughtIncome, type IncomeCaughtCandidate } from './lib/caughtIncome';
+import { findCaughtBills } from './lib/caughtBills';
+import { findCaughtAnnual } from './lib/caughtAnnual';
+import { isOverspentLanding } from './lib/storeRoute';
 
 /** The element type of the persisted `AppState.edits` slot. It is the engine's
  *  full `TxnEdit` with `id` relaxed to optional: every record this store writes
@@ -394,6 +403,18 @@ export type AppState = {
    *  by `load()` — it must NOT survive a restart, exactly like the ephemeral
    *  `calendarFocusDate` / `routeFocusDate` bridges. */
   readerCandidates: CandidateMoneyItem[];
+  /** Transient sibling to `readerCandidates` — the closing balance the statement
+   *  reader reported alongside this read (see `StatementReadResult.closingBalance`
+   *  in `statementReaderClient.ts`), staged so the success screens can offer it
+   *  to `BulkStatementLanding` ("£X — use it?"). `null` when the reader didn't
+   *  return one (or the read came from a source that never carries one, e.g.
+   *  paste/CSV). Same review-before-truth lifecycle as `readerCandidates`:
+   *  excluded from `getPersistBlob`, reset by `load()`/`resetToEmpty()`, and
+   *  cleared alongside it by `clearReaderCandidates()` and the read-once wipe.
+   *  Optional for shape back-compat with hand-built `AppState` fixtures
+   *  predating this field; `DEFAULTS`/`load()`/`resetToEmpty()` always
+   *  populate it (null). */
+  readerClosingBalance?: { amount: number; asOfISO: string } | null;
   /** ENGINES.md §6 "Ignored review items: suppressed in main flow, visible in
    *  Hidden list." A Review candidate the user tapped "Ignore" on is recorded
    *  here by signature (`merchant|amountCents|date`, matching the design
@@ -704,6 +725,7 @@ const DEFAULTS: AppState = {
   calendarFocusDate: null,
   routeFocusDate: null,
   readerCandidates: [],
+  readerClosingBalance: null,
   ignoredReviewSigs: [],
   reviewQueue: [],
   reviewQueueSpillover: [],
@@ -1025,6 +1047,7 @@ function load(): AppState {
       // Transient review queue — never restored from a persisted blob (it is
       // excluded from getPersistBlob), so a load always starts it empty.
       readerCandidates: [],
+      readerClosingBalance: null,
       ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
       reviewQueue: Array.isArray(migrated.reviewQueue) ? migrated.reviewQueue : [],
       reviewQueueSpillover: Array.isArray(migrated.reviewQueueSpillover)
@@ -1109,16 +1132,18 @@ export function getState(): AppState {
  *  Pure + Node-safe — the native adapter (lib/persist.ts) writes the returned
  *  string to disk. Excludes the ephemeral cross-screen bridges
  *  (`calendarFocusDate` / `routeFocusDate`) and the transient statement-reader
- *  review queue (`readerCandidates`): they are read-once / review-before-truth
- *  hand-offs that `load()` already resets, so persisting them would be noise
- *  and — for `readerCandidates` — would let unreviewed candidates survive a
- *  restart, which the review-before-truth rule forbids.
+ *  review queue (`readerCandidates` + its `readerClosingBalance` sibling): they
+ *  are read-once / review-before-truth hand-offs that `load()` already resets,
+ *  so persisting them would be noise and — for `readerCandidates` — would let
+ *  unreviewed candidates survive a restart, which the review-before-truth rule
+ *  forbids.
  *  Per ENGINES §7 store-migration / RN_PORT "Store migration". */
 export function getPersistBlob(): string {
   const {
     calendarFocusDate: _f,
     routeFocusDate: _r,
     readerCandidates: _rc,
+    readerClosingBalance: _rcb,
     ...persistable
   } = state;
   return JSON.stringify(persistable);
@@ -1837,6 +1862,107 @@ export function removeTransaction(id: string) {
   setPartial({ transactions: state.transactions.filter((t) => t.id !== id) });
 }
 
+/* ---------- Bulk "add all as history" (task: BULK ADD-AS-HISTORY) ---------- */
+
+/** A closing-balance offer surfaced by `addStatementAsHistory` when the reader supplied one — never
+ *  fabricated (see `statementReaderParse.ts` / `statementReaderClient.ts`'s closing-balance fields).
+ *  The caller (the bulk-landing screen) offers this as a ONE-TAP confirm; nothing here writes
+ *  `currentBalance` itself. */
+export type StatementClosingBalanceOffer = { amountPence: number; asOfISO: string };
+
+/** What `addStatementAsHistory` hands back to the bulk-landing screen — one honest summary of a
+ *  whole-statement "add all" landing, plus the two follow-on offers the owner spec calls for: the
+ *  strongest detected income signal (if any) and a closing-balance offer (if the reader supplied
+ *  one). Both offers are OPTIONAL and OFFERED, never auto-applied — review-before-truth extends to
+ *  what happens after the add, not just to the add itself. */
+export type AddStatementAsHistoryResult = StatementSummary & {
+  /** The strongest income signal detected over the FULL post-landing ledger — `undefined` when
+   *  nothing qualifies (mirrors `findCaughtIncome`'s own "nothing to offer" contract). "Strongest" is
+   *  the detector's own first result: `findCaughtIncome`/`detectIncomeSources` already ranks by
+   *  occurrence/confidence, so this is simply `signals[0]`, not a second ranking pass. */
+  incomeSignal?: IncomeCaughtCandidate;
+  /** Present only when the caller supplied a closing balance alongside the candidates (i.e. the
+   *  reader actually returned one) — never invented here. */
+  closingBalanceOffer?: StatementClosingBalanceOffer;
+};
+
+/** Bulk-land a whole statement's candidates as history in ONE user-confirmed action (task: BULK
+ *  ADD-AS-HISTORY — the core of the "one confirm populates everything" flow). Composes, in order:
+ *
+ *   1. Map every candidate to a transaction draft (`candidateToTransactionDraft` — signed amount
+ *      verbatim, kind-correct category INCLUDING income; see that module's doc for why this can
+ *      never coerce an income row onto a spend bucket).
+ *   2. `addTransactionsBatch` — the single retention-aware write path (one `setPartial` for the
+ *      whole batch, matches VisualizerScreen's existing "Add all").
+ *   3. `syncHistoryCycles()` — so Insights has reconstructed cycles for the newly-landed history
+ *      instead of staying empty regardless of import volume (this is the fix for the diagnosed
+ *      "syncHistoryCycles is only called from VisualizerScreen.commit, never reached with real
+ *      candidates" gap).
+ *   4. Run the FOUR caught-* detectors ONCE over the full post-landing ledger state (income takes
+ *      precedence per the existing ReviewScreen.tsx onAdd ordering — see that function's comment for
+ *      the full income > bill > drift > annual precedence and the overspent quiet-moment gate) and
+ *      surface the strongest income signal as an offer. Bills/drift/annual are detected here for
+ *      parity with that same ordering (nothing here forces the caller to open a caught-sheet — the
+ *      caller decides what to do with `incomeSignal`), but only `incomeSignal` is threaded through
+ *      the return per the owner spec's two named offers (income + closing balance).
+ *
+ * `closingBalance`/`closingDate` are OPTIONAL inputs — pass them straight from the reader's result
+ * when it supplied them (see `statementReaderParse.ts`'s `closingBalance`/`closingDate` fields).
+ * Never fabricated here: omit them and no `closingBalanceOffer` is returned.
+ *
+ * No-op-safe: an empty `candidates` array adds nothing, runs no detectors, and returns a zeroed
+ * summary with no offers — the caller can call this unconditionally without a length guard.
+ */
+export function addStatementAsHistory(
+  candidates: readonly CandidateMoneyItem[],
+  closingBalance?: { amount: number; asOfISO: string },
+): AddStatementAsHistoryResult {
+  const summary = buildStatementSummary(candidates);
+  if (candidates.length === 0) return summary;
+
+  addTransactionsBatch(candidates.map(candidateToTransactionDraft));
+  syncHistoryCycles();
+
+  const stateAfterAdd = getState();
+  const overspent = isOverspentLanding(stateAfterAdd);
+
+  // Same precedence ordering as ReviewScreen.tsx's onAdd (income > bill > drift > annual, gated off
+  // entirely when the landing is overspent) — computed here for parity even though only the income
+  // signal is threaded through the return today.
+  const incomeSignals = overspent
+    ? []
+    : findCaughtIncome(
+        stateAfterAdd.transactions,
+        stateAfterAdd.incomeSources ?? [],
+        stateAfterAdd.dismissedIncomeSignals ?? [],
+      );
+  if (!overspent && incomeSignals.length === 0) {
+    findCaughtBills(
+      stateAfterAdd.transactions,
+      stateAfterAdd.subs.map((s) => s.name),
+      stateAfterAdd.dismissedBillSignals ?? [],
+    );
+  }
+  if (!overspent && incomeSignals.length === 0) {
+    findCaughtAnnual(
+      stateAfterAdd.transactions,
+      stateAfterAdd.dismissedAnnualSignals ?? [],
+      stateAfterAdd.subs.map((s) => s.name),
+    );
+  }
+
+  const result: AddStatementAsHistoryResult = { ...summary };
+  const strongestIncomeSignal = incomeSignals[0];
+  if (strongestIncomeSignal !== undefined) result.incomeSignal = strongestIncomeSignal;
+  if (closingBalance !== undefined) {
+    result.closingBalanceOffer = {
+      amountPence: Math.round(closingBalance.amount * 100),
+      asOfISO: closingBalance.asOfISO,
+    };
+  }
+  return result;
+}
+
 /** @rn-engine timeline-verbs — the single write path for the timeline event log (see
  *  `TimelineEvent`). Newest first, capped at 200 (mirrors the `transactions` cap). Internal writer —
  *  called from `togglePaused` (sub-paused/sub-resumed) and `addIgnoredReviewSig` (review-ignored);
@@ -1931,11 +2057,27 @@ export function setReaderCandidates(items: CandidateMoneyItem[]) {
   setPartial({ readerCandidates: withMemory });
 }
 
+/** Stage the closing balance the statement reader reported alongside a read
+ *  (`StatementReadResult.closingBalance` — see statementReaderClient.ts), the
+ *  sibling of `setReaderCandidates`. IntakeScreen calls this in the same place
+ *  it calls `setReaderCandidates` for every reader `ok` (and chunked `ok`/
+ *  `partial`) branch that carries one; pass `null` (or omit the call) when the
+ *  read didn't produce one — never fabricated here. Consumed by
+ *  `BulkStatementLanding` via `useReaderClosingBalance()`. Same review-before-
+ *  truth lifecycle as `readerCandidates`: excluded from `getPersistBlob`, reset
+ *  by `load()`, and cleared alongside it by `clearReaderCandidates()`. */
+export function setReaderClosingBalance(
+  closingBalance: { amount: number; asOfISO: string } | null,
+) {
+  setPartial({ readerClosingBalance: closingBalance });
+}
+
 /** Clear the staged statement-reader review queue — call once Review has
  *  consumed the candidates (confirmed or discarded) so the staging slot is
- *  empty again. */
+ *  empty again. Clears the `readerClosingBalance` sibling in the same call so
+ *  a stale balance from a prior read can never survive into the next one. */
 export function clearReaderCandidates() {
-  setPartial({ readerCandidates: [] });
+  setPartial({ readerCandidates: [], readerClosingBalance: null });
 }
 
 /** Read path for the staged statement-reader review queue. A thin selector over
@@ -1944,6 +2086,16 @@ export function clearReaderCandidates() {
  *  `useAppStore` is declared. */
 export function useReaderCandidates(): CandidateMoneyItem[] {
   return useAppStore((s) => s.readerCandidates);
+}
+
+/** Read path for the staged statement-reader closing balance (the
+ *  `readerCandidates` sibling set by `setReaderClosingBalance`). Returns `null`
+ *  when the current read didn't carry one — a stable reference (not a fresh
+ *  `null` literal per call, though `null` needs no identity guard) so
+ *  `BulkStatementLandingProps.closingBalance` gets `undefined`/`null`
+ *  consistently rather than a fabricated object. */
+export function useReaderClosingBalance(): { amount: number; asOfISO: string } | null {
+  return useAppStore((s) => s.readerClosingBalance ?? null);
 }
 
 /** Build the review-candidate signature used to suppress a repeat intake.
@@ -2226,6 +2378,7 @@ export function resetToEmpty() {
     calendarFocusDate: null,
     routeFocusDate: null,
     readerCandidates: [],
+    readerClosingBalance: null,
     ignoredReviewSigs: [],
     reviewQueue: [],
     reviewQueueSpillover: [],

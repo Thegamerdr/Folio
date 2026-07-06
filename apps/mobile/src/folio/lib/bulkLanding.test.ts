@@ -1,0 +1,114 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  bulkSummaryLine,
+  closingBalanceOfferLine,
+  isBulkStatement,
+  nextBulkLandingOffer,
+  type BulkLandingOffer,
+} from './bulkLanding';
+import type { AddStatementAsHistoryResult } from '../store';
+
+describe('isBulkStatement', () => {
+  it('is false for zero or one candidate', () => {
+    expect(isBulkStatement(0)).toBe(false);
+    expect(isBulkStatement(1)).toBe(false);
+  });
+
+  it('is true for more than one candidate', () => {
+    expect(isBulkStatement(2)).toBe(true);
+    expect(isBulkStatement(37)).toBe(true);
+  });
+});
+
+describe('bulkSummaryLine', () => {
+  it('renders the count, date range, and in/out totals', () => {
+    const summary: AddStatementAsHistoryResult = {
+      added: 12,
+      dateRange: { fromISO: '2026-06-01', toISO: '2026-06-26' },
+      totalInPence: 218000,
+      totalOutPence: 42000,
+    };
+    expect(bulkSummaryLine(summary)).toBe(
+      'Found 12 transactions · 1 Jun–26 Jun · £2,180 in / £420 out',
+    );
+  });
+
+  it('uses singular "transaction" for exactly one', () => {
+    const summary: AddStatementAsHistoryResult = {
+      added: 1,
+      dateRange: { fromISO: '2026-06-26', toISO: '2026-06-26' },
+      totalInPence: 0,
+      totalOutPence: 4200,
+    };
+    expect(bulkSummaryLine(summary)).toContain('Found 1 transaction ');
+  });
+
+  it('omits the date segment when no candidate carried a date', () => {
+    const summary: AddStatementAsHistoryResult = {
+      added: 3,
+      dateRange: null,
+      totalInPence: 0,
+      totalOutPence: 1000,
+    };
+    expect(bulkSummaryLine(summary)).toBe('Found 3 transactions · £0 in / £10 out');
+  });
+});
+
+describe('nextBulkLandingOffer', () => {
+  const both: AddStatementAsHistoryResult = {
+    added: 5,
+    dateRange: null,
+    totalInPence: 100,
+    totalOutPence: 100,
+    incomeSignal: {
+      merchant: 'Acme Ltd',
+      cadence: 'monthly',
+      medianAmount: 2000,
+      occurrences: 3,
+      lastSeenISO: '2026-06-25',
+      anchorISO: '2026-06-25',
+      confidence: 'strong',
+    },
+    closingBalanceOffer: { amountPence: 19600, asOfISO: '2026-06-30' },
+  };
+
+  it('offers closing-balance first when both are present', () => {
+    expect(nextBulkLandingOffer(both, new Set())).toBe('closing-balance');
+  });
+
+  it('offers income once closing-balance has been shown', () => {
+    expect(nextBulkLandingOffer(both, new Set<BulkLandingOffer>(['closing-balance']))).toBe(
+      'income',
+    );
+  });
+
+  it('returns null once both have been shown', () => {
+    expect(
+      nextBulkLandingOffer(both, new Set<BulkLandingOffer>(['closing-balance', 'income'])),
+    ).toBeNull();
+  });
+
+  it('skips straight to income when there is no closing-balance offer', () => {
+    const { closingBalanceOffer: _omit, ...incomeOnly } = both;
+    expect(nextBulkLandingOffer(incomeOnly, new Set())).toBe('income');
+  });
+
+  it('returns null when neither offer is present', () => {
+    const neither: AddStatementAsHistoryResult = {
+      added: 2,
+      dateRange: null,
+      totalInPence: 0,
+      totalOutPence: 500,
+    };
+    expect(nextBulkLandingOffer(neither, new Set())).toBeNull();
+  });
+});
+
+describe('closingBalanceOfferLine', () => {
+  it('formats the one-tap confirm line', () => {
+    expect(closingBalanceOfferLine({ amountPence: 19600, asOfISO: '2026-06-30' })).toBe(
+      'Your balance looks like £196 as of 30 Jun — use it?',
+    );
+  });
+});

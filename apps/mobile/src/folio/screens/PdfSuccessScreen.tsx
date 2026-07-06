@@ -109,12 +109,15 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import {
   clearReaderCandidates,
   enqueueReviewItems,
   queueInputFromCandidates,
   useReaderCandidates,
+  useReaderClosingBalance,
 } from '@/folio/store';
+import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio found in the statement — the eventual shape of one CandidateMoneyItem from the
@@ -279,8 +282,31 @@ export function PdfSuccessScreen({
   // When the slot is non-empty we render those; when it is empty (a cold / dev open of this screen)
   // we fall back to the faithful sample. An explicit `statement` prop still wins (fixtures / tests).
   const staged = useReaderCandidates();
+  // The closing balance the reader staged alongside `staged` (null when the read didn't carry
+  // one, or came from a path that never does — see setReaderClosingBalance's doc). Only
+  // meaningful for the REAL staged read, never for the fixture sample below.
+  const stagedClosingBalance = useReaderClosingBalance();
   const statement: FoundStatement =
     statementProp ?? (staged.length > 0 ? liveStatementFrom(staged) : SAMPLE_FOUND);
+
+  // The raw candidates this screen would enqueue/land — a fixture-driven `statement` prop carries
+  // none (tests only); otherwise the real staged read, falling back to the sample so the bulk
+  // landing still renders honestly off real-shaped data on a cold/dev open.
+  const rawCandidates: readonly CandidateMoneyItem[] = statementProp
+    ? []
+    : staged.length > 0
+      ? staged
+      : SAMPLE_CANDIDATES;
+
+  // Mirrors `rawCandidates`' fixture guard: a fixture-driven `statement` prop (tests only) never
+  // carries a real reader-staged balance through to the landing.
+  const closingBalance = statementProp ? undefined : (stagedClosingBalance ?? undefined);
+
+  // BULK ADD-AS-HISTORY (task): a multi-candidate read is a statement — swap the ordinary per-item
+  // preview for the bulk summary + "Add all as history" landing (BulkStatementLanding owns the
+  // actual `addStatementAsHistory` write, fired only on that CTA tap). A single-candidate read
+  // keeps going straight to the existing per-row enqueue -> Review path below, unchanged.
+  const isBulk = !statementProp && isBulkStatement(rawCandidates.length);
 
   // slide-in-r — drives the whole screen. 0 = entering, 1 = resting (translateX 0, opacity 1). Under
   // reduce-motion we resolve straight to the final state instead of animating.
@@ -412,54 +438,85 @@ export function PdfSuccessScreen({
           </View>
         </View>
 
-        {/* Melo line — the quiet companion. The web passes mood='soft'; in the web kit 'soft' is a
-            MeloMoodInput ALIAS that normalizeMood resolves to 'calm' (kit.tsx: `if (m === "soft")
-            return "calm"`). The RN MeloLine takes the canonical MeloMood directly, so the byte-
-            faithful equivalent of the prototype's mood='soft' is mood='calm' — same resolved
-            character, the quiet "nothing counts yet" tone. Its breathe + blink are the only
-            continuous motion on this screen. MeloLine adds the straight quotes; we pass raw text. */}
-        <View style={styles.meloBlock}>
-          <MeloLine mood="calm" text="This is waiting. Add it only if it belongs." />
-        </View>
-
-        {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
-        <View style={styles.spacer} />
-
-        {/* Primary CTA — terracotta fill + terracotta-tinted lift; enqueues what the card showed
-            into the persisted review queue and routes to Review, faithful to the web source
-            (ScreenPdfSuccess.tsx: enqueueReviewItems(...) then nav.go("review")). Review-before-truth
-            holds — queued items are candidates, never posted facts; addTransaction fires only on the
-            Review screen's Add. The transient staging slot is cleared once its items move into the
-            queue so the same rows can't be double-surfaced from the Check tab. A fixture-driven
-            `statement` prop carries no raw candidates, so it enqueues nothing (tests only). */}
-        <PressButton
-          onPress={() => {
-            const showing = statementProp ? [] : staged.length > 0 ? staged : SAMPLE_CANDIDATES;
-            const { dropped } = enqueueReviewItems(queueInputFromCandidates(showing, 'pdf'));
-            if (dropped > 0) {
-              showToast(
-                'Showing the newest 60 to check first',
-                `${dropped} more will follow as you clear them.`,
+        {/* BULK ADD-AS-HISTORY (task): a multi-candidate read (a real statement) swaps the ordinary
+            single-item CTA pair below for the bulk landing surface — summary + "Add all as
+            history" / "Review one by one" + the post-import offer sequencer. A single-candidate
+            read (or a fixture-driven `statement` prop) is UNCHANGED — same enqueue-then-Review
+            path as before. */}
+        {isBulk ? (
+          <BulkStatementLanding
+            nav={nav}
+            candidates={rawCandidates}
+            {...(closingBalance !== undefined ? { closingBalance } : {})}
+            onAdded={() => clearReaderCandidates()}
+            onReviewOneByOne={() => {
+              const { dropped } = enqueueReviewItems(
+                queueInputFromCandidates(rawCandidates, 'pdf'),
               );
-            }
-            if (staged.length > 0) clearReaderCandidates();
-            nav.go('review');
-          }}
-          accessibilityLabel="Check what Folio found"
-          accessibilityHint="Opens the review of what was found"
-          style={[styles.primary, elevation.cta, { backgroundColor: t.calm }]}
-        >
-          <Text style={[styles.primaryLabel, { color: t.inverse }]}>Check what Folio found</Text>
-        </PressButton>
+              if (dropped > 0) {
+                showToast(
+                  'Showing the newest 60 to check first',
+                  `${dropped} more will follow as you clear them.`,
+                );
+              }
+              clearReaderCandidates();
+              nav.go('review');
+            }}
+          />
+        ) : (
+          <>
+            {/* Melo line — the quiet companion. The web passes mood='soft'; in the web kit 'soft' is a
+                MeloMoodInput ALIAS that normalizeMood resolves to 'calm' (kit.tsx: `if (m === "soft")
+                return "calm"`). The RN MeloLine takes the canonical MeloMood directly, so the byte-
+                faithful equivalent of the prototype's mood='soft' is mood='calm' — same resolved
+                character, the quiet "nothing counts yet" tone. Its breathe + blink are the only
+                continuous motion on this screen. MeloLine adds the straight quotes; we pass raw text. */}
+            <View style={styles.meloBlock}>
+              <MeloLine mood="calm" text="This is waiting. Add it only if it belongs." />
+            </View>
 
-        {/* Secondary CTA — quiet path back to intake to pick a different file. */}
-        <PressButton
-          onPress={() => nav.go('intake')}
-          accessibilityLabel="Use a different file"
-          style={styles.secondary}
-        >
-          <Text style={[styles.secondaryLabel, { color: t.muted }]}>Use a different file</Text>
-        </PressButton>
+            {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
+            <View style={styles.spacer} />
+
+            {/* Primary CTA — terracotta fill + terracotta-tinted lift; enqueues what the card showed
+                into the persisted review queue and routes to Review, faithful to the web source
+                (ScreenPdfSuccess.tsx: enqueueReviewItems(...) then nav.go("review")). Review-before-truth
+                holds — queued items are candidates, never posted facts; addTransaction fires only on the
+                Review screen's Add. The transient staging slot is cleared once its items move into the
+                queue so the same rows can't be double-surfaced from the Check tab. A fixture-driven
+                `statement` prop carries no raw candidates, so it enqueues nothing (tests only). */}
+            <PressButton
+              onPress={() => {
+                const showing = statementProp ? [] : staged.length > 0 ? staged : SAMPLE_CANDIDATES;
+                const { dropped } = enqueueReviewItems(queueInputFromCandidates(showing, 'pdf'));
+                if (dropped > 0) {
+                  showToast(
+                    'Showing the newest 60 to check first',
+                    `${dropped} more will follow as you clear them.`,
+                  );
+                }
+                if (staged.length > 0) clearReaderCandidates();
+                nav.go('review');
+              }}
+              accessibilityLabel="Check what Folio found"
+              accessibilityHint="Opens the review of what was found"
+              style={[styles.primary, elevation.cta, { backgroundColor: t.calm }]}
+            >
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+                Check what Folio found
+              </Text>
+            </PressButton>
+
+            {/* Secondary CTA — quiet path back to intake to pick a different file. */}
+            <PressButton
+              onPress={() => nav.go('intake')}
+              accessibilityLabel="Use a different file"
+              style={styles.secondary}
+            >
+              <Text style={[styles.secondaryLabel, { color: t.muted }]}>Use a different file</Text>
+            </PressButton>
+          </>
+        )}
       </ScrollView>
     </Animated.View>
   );

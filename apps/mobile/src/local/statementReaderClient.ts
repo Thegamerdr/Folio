@@ -46,13 +46,13 @@ import {
   buildPdfChunkAt,
   planPdfChunks,
 } from './pdfChunkSplitter';
-import { parseCandidatesFromModelJson } from './statementReaderParse';
+import { parseStatementReaderResult, type StatementClosingBalance } from './statementReaderParse';
 import { mergeChunkCandidates } from './statementReaderDedup';
 
 // Re-export the PURE parser so callers (and the colocated test) have one public surface. The parser
 // itself lives in statementReaderParse.ts — with no expo imports — so it can be unit-tested in plain
 // Node WITHOUT loading this module (which pulls in expo-file-system).
-export { parseCandidatesFromModelJson } from './statementReaderParse';
+export { parseCandidatesFromModelJson, type StatementClosingBalance } from './statementReaderParse';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -72,10 +72,16 @@ export type StatementReaderInput = Readonly<{
   signal?: AbortSignal;
 }>;
 
-/** Discriminated result the caller branches on. `ok` carries candidates for Review; `no-provider`
- *  means the gateway isn't configured (fall back to OCR/manual); `error` carries a short message. */
+/** Discriminated result the caller branches on. `ok` carries candidates for Review, plus the
+ *  statement's closing balance when the model returned one (`null` otherwise — never fabricated;
+ *  see statementReaderParse.ts's `StatementClosingBalance`). `no-provider` means the gateway isn't
+ *  configured (fall back to OCR/manual); `error` carries a short message. */
 export type StatementReadResult =
-  | Readonly<{ kind: 'ok'; candidates: CandidateMoneyItem[] }>
+  | Readonly<{
+      kind: 'ok';
+      candidates: CandidateMoneyItem[];
+      closingBalance: StatementClosingBalance | null;
+    }>
   | Readonly<{ kind: 'no-provider' }>
   | Readonly<{ kind: 'error'; message: string }>;
 
@@ -177,19 +183,30 @@ export const MAX_CHUNKED_STATEMENT_BYTES = 5 * 1024 * 1024;
  *  a silently truncated read. */
 const MAX_COMPLETION_TOKENS = 16_384;
 
+// EXTENDED (task: READER CLOSING BALANCE) to ALSO return the statement's closing balance + as-of
+// date as separate top-level fields — items are unaffected either way. Confirmed live against the
+// gateway (2026-07-06, monzo-small.pdf): the model reliably returns `closingBalance: 1.96,
+// closingDate: "2021-03-31"` for that statement across repeated calls. `statementReaderParse.ts`'s
+// `toClosingBalance` treats both fields as OPTIONAL and never fabricates a value when the model
+// omits them (or returns an unusable shape) — see that function's doc.
 const SYSTEM_PROMPT = [
   'You are a careful bank-statement reader.',
   'You are shown a bank or card statement (an image or a PDF, possibly several pages).',
   'Read every money movement on every page and return them as structured data.',
   'Return ONLY a JSON object with this exact shape — no commentary, no markdown, no code fences:',
-  '{ "items": [ { "date": "YYYY-MM-DD" | null, "merchant": string, "amount": number, "category": string | null } ] }',
+  '{ "items": [ { "date": "YYYY-MM-DD" | null, "merchant": string, "amount": number, "category": string | null } ], "closingBalance": number | null, "closingDate": "YYYY-MM-DD" | null }',
   'Rules for each item:',
   '- "date": the transaction date as a "YYYY-MM-DD" string, or null if the page does not show one.',
   '- "merchant": the merchant or description text, trimmed.',
   '- "amount": a number in pounds (GBP). NEGATIVE for money out (a payment, purchase, debit, or fee)',
   '  and POSITIVE for money in (a credit, refund, deposit, or salary).',
   '- "category": a short category guess as a string, or null if you are unsure.',
-  'Do NOT include running balances, opening/closing balances, headers, totals, or interest summaries.',
+  'Do NOT include running balances, opening/closing balances, headers, totals, or interest summaries',
+  'inside "items".',
+  'Separately, at the top level: "closingBalance" is the statement\'s CLOSING BALANCE (the final',
+  'balance shown on the statement, in pounds), and "closingDate" is the ISO date that balance is',
+  'as-of (usually the last day of the statement period). Set both to null if the statement does not',
+  'clearly show a closing balance — never guess one.',
   'If you cannot find any money movements, return { "items": [] }.',
 ].join('\n');
 
@@ -214,9 +231,17 @@ type UserContentPart = TextContentPart | ImageContentPart | FileContentPart;
 
 /** Same discriminated shape as StatementReadResult, minus 'no-provider' (the caller checks
  *  configuration once, before ever calling this). Shared by the single-shot and per-chunk paths so
- *  both apply the exact same request, timeout, and response-parsing rules. */
+ *  both apply the exact same request, timeout, and response-parsing rules. Carries the closing
+ *  balance too (see StatementReadResult's doc) — per-chunk reads also parse it, though only the
+ *  single-shot caller surfaces it today (a chunked, multi-page read has no single obvious chunk to
+ *  trust for a whole-statement closing balance, so extractStatementCandidatesChunked intentionally
+ *  does not thread it through — see that function's own doc). */
 type SingleRequestResult =
-  | Readonly<{ kind: 'ok'; candidates: CandidateMoneyItem[] }>
+  | Readonly<{
+      kind: 'ok';
+      candidates: CandidateMoneyItem[];
+      closingBalance: StatementClosingBalance | null;
+    }>
   | Readonly<{ kind: 'error'; message: string; timedOut: boolean }>;
 
 /** Send ONE gateway request for a base64 PDF/image payload and parse the reply into candidates.
@@ -297,8 +322,8 @@ async function sendStatementReadRequest(args: {
       };
     }
 
-    const candidates = parseCandidatesFromModelJson(rawReply, args.source);
-    return { kind: 'ok', candidates };
+    const { candidates, closingBalance } = parseStatementReaderResult(rawReply, args.source);
+    return { kind: 'ok', candidates, closingBalance };
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       return timedOut
@@ -375,7 +400,7 @@ export async function extractStatementCandidates(
   });
 
   if (result.kind === 'ok') {
-    return { kind: 'ok', candidates: result.candidates };
+    return { kind: 'ok', candidates: result.candidates, closingBalance: result.closingBalance };
   }
   // Recover the single-shot-specific honest guidance for the two cases that most benefit from it
   // (long-export timeout, truncated read); every other error keeps the shared generic message.

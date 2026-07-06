@@ -19,6 +19,7 @@ import {
   type Transaction,
   addCycle,
   addIgnoredReviewSig,
+  addStatementAsHistory,
   addToPot,
   addTransaction,
   addTransactionsBatch,
@@ -50,6 +51,7 @@ import {
   setPotAllowNegative,
   setPots,
   setReaderCandidates,
+  setReaderClosingBalance,
   setTightPointGoal,
   sweepReviewQueue,
   syncHistoryCycles,
@@ -1135,6 +1137,90 @@ describe('readerCandidates staging slot', () => {
 });
 
 // ---------------------------------------------------------------------------
+// readerClosingBalance — the readerCandidates sibling threading the reader's
+// closing-balance result (StatementReadResult.closingBalance) through to
+// BulkStatementLanding. Proves the FULL thread — a reader 'ok' result with a
+// closing balance survives into the staging slot, and clearReaderCandidates
+// wipes it alongside the candidates — not just that the two ends exist.
+// ---------------------------------------------------------------------------
+describe('readerClosingBalance staging slot', () => {
+  const candidate = (over: Partial<CandidateMoneyItem> = {}): CandidateMoneyItem => ({
+    id: 'reader-1',
+    source: 'csv',
+    kind: 'spend',
+    merchant: 'Tesco',
+    amount: -42.1,
+    confidence: 'low',
+    ...over,
+  });
+
+  it('defaults to null', () => {
+    expect(getState().readerClosingBalance).toBeNull();
+  });
+
+  it('a reader "ok" result with a closing balance survives the same store write IntakeScreen makes', () => {
+    // Mirrors IntakeScreen's runReader handler: on `result.kind === 'ok'`, it calls
+    // setReaderCandidates(result.candidates) THEN setReaderClosingBalance(result.closingBalance) —
+    // the exact shape `extractStatementCandidates` returns (statementReaderClient.ts).
+    const result = {
+      kind: 'ok' as const,
+      candidates: [candidate()],
+      closingBalance: { amount: 1.96, asOfISO: '2026-06-30' },
+    };
+    setReaderCandidates(result.candidates);
+    setReaderClosingBalance(result.closingBalance);
+
+    expect(getState().readerCandidates).toHaveLength(1);
+    expect(getState().readerClosingBalance).toEqual({ amount: 1.96, asOfISO: '2026-06-30' });
+  });
+
+  it('a reader "ok" result with no closing balance stages null, not undefined or a stale value', () => {
+    setReaderCandidates([candidate({ id: 'r1' })]);
+    setReaderClosingBalance({ amount: 250, asOfISO: '2026-06-01' });
+
+    // A later read (e.g. the chunked reader, which never surfaces one) explicitly clears it.
+    setReaderCandidates([candidate({ id: 'r2' })]);
+    setReaderClosingBalance(null);
+
+    expect(getState().readerClosingBalance).toBeNull();
+  });
+
+  it('clearReaderCandidates wipes the balance alongside the candidates (the read-once wipe)', () => {
+    setReaderCandidates([candidate()]);
+    setReaderClosingBalance({ amount: 12.34, asOfISO: '2026-05-15' });
+
+    clearReaderCandidates();
+
+    expect(getState().readerCandidates).toEqual([]);
+    expect(getState().readerClosingBalance).toBeNull();
+  });
+
+  it('is dropped from the persist blob — must not survive a restart', () => {
+    setReaderCandidates([candidate()]);
+    setReaderClosingBalance({ amount: 1.96, asOfISO: '2026-06-30' });
+    const parsed = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+
+    expect('readerClosingBalance' in parsed).toBe(false);
+  });
+
+  it('hydrate leaves the balance null even if a blob smuggled one in', () => {
+    setReaderClosingBalance({ amount: 1.96, asOfISO: '2026-06-30' });
+    const blob = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    blob.readerClosingBalance = { amount: 999, asOfISO: '2026-01-01' };
+
+    hydrateFromBlob(JSON.stringify(blob));
+
+    expect(getState().readerClosingBalance).toBeNull();
+  });
+
+  it('resetToEmpty clears the balance', () => {
+    setReaderClosingBalance({ amount: 1.96, asOfISO: '2026-06-30' });
+    resetToEmpty();
+    expect(getState().readerClosingBalance).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // schema migration — v6 → v7 introduces the PERSISTED reviewQueue (the design
 // source's v7→v8 seam, ported 1:1). Unlike readerCandidates above, this queue
 // survives a restart.
@@ -1986,6 +2072,294 @@ describe('syncHistoryCycles', () => {
     // the two OLDEST reconstructed months (1965, the earliest) were evicted first.
     const closedDates = cycles.map((c) => c.closedAt).sort();
     expect(closedDates[0]).not.toMatch(/^1965-01/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// addStatementAsHistory — the bulk "add all as history" action (task: BULK ADD-AS-HISTORY).
+// ---------------------------------------------------------------------------
+describe('addStatementAsHistory', () => {
+  function candidate(over: Partial<CandidateMoneyItem> = {}): CandidateMoneyItem {
+    return {
+      id: `cand-${Math.random().toString(36).slice(2)}`,
+      source: 'pdf',
+      kind: 'spend',
+      merchant: 'Tesco',
+      amount: -10,
+      confidence: 'low',
+      ...over,
+    };
+  }
+
+  it('is a no-op on an empty candidate list — no transactions added, zeroed summary', () => {
+    const before = getState().transactions.length;
+    const result = addStatementAsHistory([]);
+    expect(getState().transactions.length).toBe(before);
+    expect(result).toEqual({ added: 0, dateRange: null, totalInPence: 0, totalOutPence: 0 });
+  });
+
+  it('lands every candidate as a transaction, signed amount verbatim', () => {
+    setPartial({ transactions: [] });
+    addStatementAsHistory([
+      candidate({ merchant: 'Tesco', amount: -42.1, kind: 'spend', date: '2026-03-03' }),
+      candidate({ merchant: 'Salary', amount: 215.51, kind: 'income', date: '2026-03-12' }),
+    ]);
+    const txns = getState().transactions;
+    expect(txns.length).toBe(2);
+    expect(txns.find((t) => t.merchant === 'Tesco')?.amount).toBe(-42.1);
+    expect(txns.find((t) => t.merchant === 'Salary')?.amount).toBe(215.51);
+  });
+
+  it('gives an income-kind candidate category "income", never "food" — even with no category guess', () => {
+    setPartial({ transactions: [] });
+    addStatementAsHistory([candidate({ merchant: 'Staffline', amount: 215.51, kind: 'income' })]);
+    const row = getState().transactions.find((t) => t.merchant === 'Staffline');
+    expect(row?.category).toBe('income');
+  });
+
+  it('gives a spend-kind candidate a mapped category and falls back to "other" when unrecognised', () => {
+    setPartial({ transactions: [] });
+    addStatementAsHistory([
+      candidate({
+        merchant: 'Virgin Media',
+        amount: -29,
+        kind: 'bill',
+        category: 'Bills & Utilities',
+      }),
+      candidate({
+        merchant: 'Mystery Co',
+        amount: -5,
+        kind: 'spend',
+        category: 'Something Unknown',
+      }),
+    ]);
+    const txns = getState().transactions;
+    expect(txns.find((t) => t.merchant === 'Virgin Media')?.category).toBe('bills');
+    expect(txns.find((t) => t.merchant === 'Mystery Co')?.category).toBe('other');
+  });
+
+  it('calls syncHistoryCycles so a qualifying past month reconstructs (not left empty)', () => {
+    setPartial({ transactions: [], cycles: [] });
+    const rows = Array.from({ length: 5 }, (_, i) =>
+      candidate({
+        merchant: `M${i}`,
+        amount: -10,
+        kind: 'spend',
+        date: `2020-01-${String(i + 1).padStart(2, '0')}`,
+      }),
+    );
+    addStatementAsHistory(rows);
+    const cycles = getState().cycles;
+    expect(cycles.length).toBe(1);
+    expect(cycles[0]?.reconstructed).toBe(true);
+    expect(cycles[0]?.label).toBe('January 2020');
+  });
+
+  it('returns an honest summary — added count, date range, totals in pence', () => {
+    setPartial({ transactions: [] });
+    const result = addStatementAsHistory([
+      candidate({ merchant: 'Tesco', amount: -42.1, kind: 'spend', date: '2026-03-03' }),
+      candidate({ merchant: 'Landlord', amount: -450, kind: 'bill', date: '2026-03-12' }),
+      candidate({ merchant: 'Salary', amount: 215.51, kind: 'income', date: '2026-03-25' }),
+    ]);
+    expect(result.added).toBe(3);
+    expect(result.dateRange).toEqual({ fromISO: '2026-03-03', toISO: '2026-03-25' });
+    expect(result.totalInPence).toBe(21551);
+    expect(result.totalOutPence).toBe(49210);
+  });
+
+  it('surfaces the strongest detected income signal when one qualifies over the full landed ledger', () => {
+    // Clear pots/subs/debts too — isOverspentLanding projects the whole money picture forward, and
+    // the seeded demo pots/subs/debts would otherwise gate the income-signal check off (the same
+    // "quiet moment" guard ReviewScreen.tsx's onAdd applies) before this test gets to assert on it.
+    setPartial({
+      transactions: [],
+      incomeSources: [],
+      dismissedIncomeSignals: [],
+      pots: [],
+      subs: [],
+      debts: [],
+      currentBalance: {
+        amount: 5000,
+        source: 'user-entered',
+        confidence: 'rough',
+        setAt: new Date().toISOString(),
+      },
+    });
+    // 4 monthly credits of the same merchant/amount — clears incomeSignals.ts's own min-occurrence
+    // floor for a 'monthly' cadence, exactly like caughtIncome.test.ts's own monthlyCredits fixture.
+    const rows = Array.from({ length: 4 }, (_, i) =>
+      candidate({
+        merchant: 'Staffline Recruitment',
+        amount: 1800,
+        kind: 'income',
+        date: `2026-0${i + 1}-12`,
+      }),
+    );
+    const result = addStatementAsHistory(rows);
+    expect(result.incomeSignal).toBeDefined();
+    expect(result.incomeSignal?.merchant.toLowerCase()).toContain('staffline');
+  });
+
+  it('does not surface an income signal for a merchant already declared as an income source', () => {
+    setPartial({
+      transactions: [],
+      pots: [],
+      subs: [],
+      debts: [],
+      currentBalance: {
+        amount: 5000,
+        source: 'user-entered',
+        confidence: 'rough',
+        setAt: new Date().toISOString(),
+      },
+      incomeSources: [
+        {
+          id: 'is-staffline',
+          label: 'Staffline Recruitment',
+          cadence: 'monthly',
+          dayOfMonth: 12,
+          amount: 1800,
+          source: 'onboarding',
+        },
+      ],
+      dismissedIncomeSignals: [],
+    });
+    const rows = Array.from({ length: 4 }, (_, i) =>
+      candidate({
+        merchant: 'Staffline Recruitment',
+        amount: 1800,
+        kind: 'income',
+        date: `2026-0${i + 1}-12`,
+      }),
+    );
+    const result = addStatementAsHistory(rows);
+    expect(result.incomeSignal).toBeUndefined();
+  });
+
+  it('surfaces a closingBalanceOffer only when the caller supplies one — never fabricated', () => {
+    setPartial({ transactions: [] });
+    const withOffer = addStatementAsHistory(
+      [candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' })],
+      { amount: 1.96, asOfISO: '2021-03-31' },
+    );
+    expect(withOffer.closingBalanceOffer).toEqual({ amountPence: 196, asOfISO: '2021-03-31' });
+
+    setPartial({ transactions: [] });
+    const withoutOffer = addStatementAsHistory([
+      candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' }),
+    ]);
+    expect(withoutOffer.closingBalanceOffer).toBeUndefined();
+  });
+
+  it('matches the real Monzo-page fixture end to end (14 rows, income category correct, totals honest)', () => {
+    setPartial({ transactions: [], incomeSources: [], dismissedIncomeSignals: [] });
+    // The real gateway response for .claude-session/monzo-small.pdf (2026-07-06 live probe),
+    // mapped into candidate shape — see the READER CLOSING BALANCE task's live-test note in
+    // statementReaderClient.ts's SYSTEM_PROMPT doc for the confirmed closingBalance/closingDate.
+    const monzoPage: CandidateMoneyItem[] = [
+      candidate({
+        merchant: 'FPS, Andrea Nsiah, Andrea Nsiah',
+        amount: 30,
+        kind: 'income',
+        date: '2021-03-03',
+      }),
+      candidate({
+        merchant: 'Card 39, Virgin Media Pymts',
+        amount: -29,
+        kind: 'bill',
+        category: 'Bills & Utilities',
+        date: '2021-03-04',
+      }),
+      candidate({
+        merchant: 'STAFFLINE RECRUITM 396928974',
+        amount: 215.51,
+        kind: 'income',
+        date: '2021-03-12',
+      }),
+      candidate({
+        merchant: 'FPS, Andrea Nsiah, Andrea Nsiah',
+        amount: 250,
+        kind: 'income',
+        date: '2021-03-12',
+      }),
+      candidate({
+        merchant: 'MOB, Mohammed Khan, landlord',
+        amount: -450,
+        kind: 'bill',
+        category: 'Rent',
+        date: '2021-03-12',
+      }),
+      candidate({
+        merchant: 'Card 39, Lycamobile Uk Ltd',
+        amount: -15,
+        kind: 'bill',
+        category: 'Mobile Phone',
+        date: '2021-03-15',
+      }),
+      candidate({
+        merchant: 'FPS, Andrea Nsiah, Andrea Nsiah',
+        amount: 52.5,
+        kind: 'income',
+        date: '2021-03-22',
+      }),
+      candidate({
+        merchant: 'Card 39, Amznmktplace',
+        amount: -52.5,
+        kind: 'spend',
+        category: 'Shopping',
+        date: '2021-03-24',
+      }),
+      candidate({
+        merchant: 'FPS, Ruzvidzo E T, EUGENE',
+        amount: 5,
+        kind: 'income',
+        date: '2021-03-25',
+      }),
+      candidate({
+        merchant: 'Card 39, Amazon Prime*Mu6140Pt4',
+        amount: -7.99,
+        kind: 'subscription',
+        date: '2021-03-25',
+      }),
+      candidate({
+        merchant: 'Card 39, Dropbox',
+        amount: -9.99,
+        kind: 'subscription',
+        date: '2021-03-25',
+      }),
+      candidate({
+        merchant: 'FPS, Edward Chawira, Thanks',
+        amount: 10,
+        kind: 'income',
+        date: '2021-03-29',
+      }),
+      candidate({
+        merchant: 'FPS, Andrea Nsiah, Andrea Nsiah',
+        amount: 453,
+        kind: 'income',
+        date: '2021-03-29',
+      }),
+      candidate({
+        merchant: 'MOB, Mohammed Khan, landlord',
+        amount: -450,
+        kind: 'bill',
+        category: 'Rent',
+        date: '2021-03-29',
+      }),
+    ];
+    const result = addStatementAsHistory(monzoPage, { amount: 1.96, asOfISO: '2021-03-31' });
+
+    expect(result.added).toBe(14);
+    expect(result.dateRange).toEqual({ fromISO: '2021-03-03', toISO: '2021-03-29' });
+    expect(result.closingBalanceOffer).toEqual({ amountPence: 196, asOfISO: '2021-03-31' });
+
+    const txns = getState().transactions;
+    expect(txns.length).toBe(14);
+    // Every income-kind row must be category 'income' — never 'food' (the diagnosed defect).
+    const incomeRows = txns.filter((t) => t.amount > 0);
+    expect(incomeRows.length).toBe(7);
+    expect(incomeRows.every((t) => t.category === 'income')).toBe(true);
   });
 });
 

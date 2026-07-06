@@ -73,7 +73,9 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
 import { applyMemoryToCandidates } from '@/folio/lib/merchantMemory';
+import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import { enqueueReviewItems, getState, queueInputFromCandidates } from '@/folio/store';
+import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import type { Nav } from '@/folio/types';
 
 // One thing Folio found in the pasted text — `id` is the candidate's own identity (the list keys on
@@ -236,6 +238,13 @@ export function PasteSuccessScreen({
 
   const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.success.paste), []);
 
+  // BULK ADD-AS-HISTORY (task): a multi-candidate paste/CSV read (a real statement pasted or
+  // uploaded) swaps the ordinary single-item CTA pair for the bulk landing surface. A
+  // single-candidate read, or a fixture-driven `items` prop, is unchanged — same
+  // enqueue-then-Review path (`candidates` is already [] for an `items` fixture, so
+  // `isBulkStatement` reads false there too).
+  const isBulk = isBulkStatement(candidates.length);
+
   // A hard column issue means the engine could not understand the paste at all (no amount/name
   // column, or empty input) — that IS the "read failed" case, so it resolves to the same calm error
   // doorway below rather than a hollow card. Row-level issues (a single bad amount) are not hard;
@@ -356,53 +365,77 @@ export function PasteSuccessScreen({
           })}
         </View>
 
-        {/* Melo line — the quiet companion, calm mood. MeloLine adds the straight quotes. */}
-        <View style={styles.meloBlock}>
-          <MeloLine mood="calm" text="Use what you have. You choose what counts." />
-        </View>
+        {/* BULK ADD-AS-HISTORY (task): a multi-candidate paste/CSV read (a real statement) swaps
+            the ordinary single-item CTA pair for the bulk landing surface — summary + "Add all as
+            history" / "Review one by one" + the post-import offer sequencer. A single-candidate
+            read is unchanged — same enqueue-then-Review path as before. */}
+        {isBulk ? (
+          <BulkStatementLanding
+            nav={nav}
+            candidates={candidates}
+            onAdded={() => {}}
+            onReviewOneByOne={() => {
+              const { dropped } = enqueueReviewItems(queueInputFromCandidates(candidates, 'csv'));
+              if (dropped > 0) {
+                showToast(
+                  'Showing the newest 60 to check first',
+                  `${dropped} more will follow as you clear them.`,
+                );
+              }
+              nav.go('review');
+            }}
+          />
+        ) : (
+          <>
+            {/* Melo line — the quiet companion, calm mood. MeloLine adds the straight quotes. */}
+            <View style={styles.meloBlock}>
+              <MeloLine mood="calm" text="Use what you have. You choose what counts." />
+            </View>
 
-        {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
-        <View style={styles.spacer} />
+            {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
+            <View style={styles.spacer} />
 
-        {/* Primary CTA — terracotta fill; enqueues what the card showed into the persisted review
-            queue and routes to Review, faithful to the web source (ScreenPasteSuccess.tsx `send`:
-            enqueueReviewItems with source "csv", then nav.go("review")). Review-before-truth holds —
-            queued items are candidates, never posted facts. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Check these"
-          accessibilityHint="Opens the review of what was found"
-          onPress={() => {
-            const { dropped } = enqueueReviewItems(queueInputFromCandidates(candidates, 'csv'));
-            if (dropped > 0) {
-              showToast(
-                'Showing the newest 60 to check first',
-                `${dropped} more will follow as you clear them.`,
-              );
-            }
-            nav.go('review');
-          }}
-          style={({ pressed: isPressed }) => [
-            styles.primary,
-            { backgroundColor: t.calm },
-            isPressed ? styles.pressed : undefined,
-          ]}
-        >
-          <Text style={[styles.primaryLabel, { color: t.inverse }]}>Check these</Text>
-        </Pressable>
+            {/* Primary CTA — terracotta fill; enqueues what the card showed into the persisted review
+                queue and routes to Review, faithful to the web source (ScreenPasteSuccess.tsx `send`:
+                enqueueReviewItems with source "csv", then nav.go("review")). Review-before-truth holds —
+                queued items are candidates, never posted facts. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Check these"
+              accessibilityHint="Opens the review of what was found"
+              onPress={() => {
+                const { dropped } = enqueueReviewItems(queueInputFromCandidates(candidates, 'csv'));
+                if (dropped > 0) {
+                  showToast(
+                    'Showing the newest 60 to check first',
+                    `${dropped} more will follow as you clear them.`,
+                  );
+                }
+                nav.go('review');
+              }}
+              style={({ pressed: isPressed }) => [
+                styles.primary,
+                { backgroundColor: t.calm },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>Check these</Text>
+            </Pressable>
 
-        {/* Secondary CTA — quiet "leave for later" (backs out, nothing added). */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Leave for later"
-          onPress={nav.back}
-          style={({ pressed: isPressed }) => [
-            styles.secondary,
-            isPressed ? styles.pressed : undefined,
-          ]}
-        >
-          <Text style={[styles.secondaryLabel, { color: t.muted }]}>Leave for later</Text>
-        </Pressable>
+            {/* Secondary CTA — quiet "leave for later" (backs out, nothing added). */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Leave for later"
+              onPress={nav.back}
+              style={({ pressed: isPressed }) => [
+                styles.secondary,
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.secondaryLabel, { color: t.muted }]}>Leave for later</Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </Animated.View>
   );
