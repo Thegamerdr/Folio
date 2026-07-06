@@ -19,6 +19,7 @@ import {
   resetAll,
   setIncomeSources,
   setOnboarding,
+  setPartial,
   type IncomeSource,
 } from '../store';
 
@@ -122,6 +123,13 @@ describe('buildMeloSnapshot — other fields unaffected by the rewire', () => {
   });
 
   it('only folds in transactions from the last 14 days', () => {
+    // Clear the demo seed first — resetAll's seedTransactions() dates its rows off the REAL
+    // wall-clock `Date.now()` (not the fixed `NOW` this test uses), and since the store's date-correct
+    // retention sort (`applyTransactionRetention`) now genuinely orders by `when` rather than
+    // insertion, those real-clock-dated seed rows could otherwise outrank/crowd out this test's own
+    // fixed-date fixture in `lastFewTransactions`'s top-8. Isolating to just this test's two rows
+    // keeps the assertion about the 14-day cutoff, not about clock drift.
+    setPartial({ transactions: [] });
     addTransaction({
       merchant: 'Old Shop',
       amount: -50,

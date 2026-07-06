@@ -21,6 +21,7 @@
 //     ENGINES.md §6 "Melo — tool name matching". The four tools' BEHAVIOUR is
 //     byte-for-byte the web original.
 
+import { dedupeKey } from '../local/statementReaderDedup';
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import {
@@ -1766,17 +1767,36 @@ export function removeSubShareOverride(subName: string) {
  *  `addTransactionsBatch` are the two entrances; both funnel through this
  *  helper rather than each rolling its own `.slice(0, N)`, so the cap and the
  *  drop-count accounting can never drift apart between the two call paths.
- *  Newest-first list in, oldest-evicted-first, honest count out. Pure. */
+ *
+ *  DATE-CORRECT ORDERING (task: statement re-import date/cap correctness):
+ *  `merged` is first sorted by `when` DESCENDING (newest first) with a
+ *  STABLE sort, so:
+ *    - the persisted ledger is always date-correct, regardless of which
+ *      order rows were prepended in (a manual add, a batch import, or a
+ *      re-import landing rows out of chronological order all converge on
+ *      the same date-sorted list);
+ *    - ties (identical `when`, e.g. a batch of rows that all default to
+ *      "now") preserve their PRE-SORT relative order — Array#sort is
+ *      guaranteed stable (ES2019+), so passing the list in
+ *      newest-caller-first order (as every call site already does) keeps
+ *      today's existing "last row ends up at the head" ordering contract
+ *      for same-instant rows;
+ *    - the `TRANSACTION_CAP` slice below therefore evicts the OLDEST rows
+ *      BY DATE, not the rows that merely happened to be inserted first —
+ *      an older statement import can no longer evict newer, already-present
+ *      history just because of concatenation order.
+ *  Oldest-evicted-first, honest count out. Pure. */
 function applyTransactionRetention(
   merged: readonly Transaction[],
   priorDroppedCount: number,
 ): { transactions: Transaction[]; droppedTransactionCount: number } {
-  if (merged.length <= TRANSACTION_CAP) {
-    return { transactions: [...merged], droppedTransactionCount: priorDroppedCount };
+  const sorted = [...merged].sort((a, b) => (a.when < b.when ? 1 : a.when > b.when ? -1 : 0));
+  if (sorted.length <= TRANSACTION_CAP) {
+    return { transactions: sorted, droppedTransactionCount: priorDroppedCount };
   }
-  const evicted = merged.length - TRANSACTION_CAP;
+  const evicted = sorted.length - TRANSACTION_CAP;
   return {
-    transactions: merged.slice(0, TRANSACTION_CAP),
+    transactions: sorted.slice(0, TRANSACTION_CAP),
     droppedTransactionCount: priorDroppedCount + evicted,
   };
 }
@@ -1810,10 +1830,14 @@ export function addTransaction(
  *  would have produced (the exact pattern this replaces at its call sites —
  *  `VisualizerScreen.tsx`'s "Add all"): each successive `addTransaction` call
  *  prepends onto the front, so the LAST row in `rows` ends up newest/at the
- *  head and the FIRST row ends up deepest. This function reproduces that by
- *  reversing `fullRows` before prepending, so switching a call site from the
- *  loop to this batch call is a byte-identical ordering change, not just a
- *  perf one.
+ *  head and the FIRST row ends up deepest — for rows sharing the same `when`
+ *  (the common case: no explicit date, all default to "now"). This function
+ *  reproduces that by reversing `fullRows` before prepending. `when`-DESCENDING
+ *  final ordering is then enforced by `applyTransactionRetention` (see its doc)
+ *  so rows carrying a real, distinct statement date always land in the
+ *  chronologically correct position rather than wherever they were
+ *  concatenated — a byte-identical ordering change from the old loop only for
+ *  same-instant rows; a correctness fix for dated rows.
  *
  *  Returns the full rows actually added (with generated ids/whens), in the
  *  same order they were passed in (not the internal reversed prepend order). */
@@ -1893,21 +1917,81 @@ export type AddStatementAsHistoryResult = StatementSummary & {
    *  so the bulk-landing summary can be honest about a big import trimming older on-device history,
    *  never silent. */
   droppedTransactionCount?: number;
+  /** How many of the candidates handed to THIS call were already present in the ledger (by stable
+   *  import id — `importedTransactionId`, an `imp-`-prefixed hash of `statementReaderDedup.ts`'s
+   *  `dedupeKey` policy: date-or-'no-date' + amount + normalised merchant) and were therefore
+   *  skipped rather than double-counted. Task: RE-IMPORT DEDUP — surfaced so the landing summary can
+   *  be honest about a
+   *  re-import ("Added N new · M already in Folio") instead of silently re-adding money that was
+   *  already there. `0` when every candidate was genuinely new (the common case for a first
+   *  import). Optional for shape back-compat with hand-built `AddStatementAsHistoryResult` fixtures
+   *  predating this field (mirrors `droppedTransactionCount?` above); `addStatementAsHistory` always
+   *  populates it. */
+  duplicatesSkipped?: number;
 };
+
+/** Short, deterministic non-cryptographic string hash (32-bit FNV-1a), rendered as an 8-char base-36
+ *  string. Used only to derive a STABLE transaction id from a candidate's `dedupeKey` — defense in
+ *  depth alongside the Set-based skip in `addStatementAsHistory`: even if that pre-filter were ever
+ *  bypassed (a future call site, a refactor), re-adding the exact same candidate twice collides on
+ *  the same `id` rather than silently minting a second row for the same money. Not used for anything
+ *  security-sensitive — collision resistance only needs to be "good enough to not duplicate a
+ *  transaction by accident", not cryptographic. */
+function stableHash(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/** Stable, deterministic transaction id for one imported candidate — `imp-` + a hash of its
+ *  `dedupeKey`. Two imports of the exact same candidate (same date/amount/merchant) always produce
+ *  the same id, so even a duplicate that slipped past the Set-based skip below would overwrite/collide
+ *  with the existing row's id rather than mint a second row. Manual single-entry `addTransaction`
+ *  is untouched — it keeps its existing random `txn-${Date.now()}-...` id, since a manual entry has
+ *  no "candidate" to derive a stable key from and doesn't need re-import defense. */
+function importedTransactionId(candidate: CandidateMoneyItem): string {
+  return `imp-${stableHash(dedupeKey(candidate))}`;
+}
 
 /** Bulk-land a whole statement's candidates as history in ONE user-confirmed action (task: BULK
  *  ADD-AS-HISTORY — the core of the "one confirm populates everything" flow). Composes, in order:
  *
- *   1. Map every candidate to a transaction draft (`candidateToTransactionDraft` — signed amount
- *      verbatim, kind-correct category INCLUDING income; see that module's doc for why this can
- *      never coerce an income row onto a spend bucket).
- *   2. `addTransactionsBatch` — the single retention-aware write path (one `setPartial` for the
- *      whole batch, matches VisualizerScreen's existing "Add all").
- *   3. `syncHistoryCycles()` — so Insights has reconstructed cycles for the newly-landed history
+ *   1. RE-IMPORT DEDUP (task: statement re-import correctness) — drop any candidate whose STABLE
+ *      import id (`importedTransactionId` — `imp-` + a hash of `dedupeKey`'s date/amount/merchant
+ *      key, same normalisation as `statementReaderDedup.ts`'s `dedupeKey`) already matches an
+ *      EXISTING `imp-`-prefixed row id in `state.transactions`. Comparing by id (not by
+ *      reconstructing a natural key from the landed row's `when`, the previous approach) is what
+ *      makes a candidate with no `date` round-trip correctly: both sides hash the same `'no-date'`
+ *      sentinel, instead of comparing that sentinel against the real "now" timestamp
+ *      `candidateToTransactionDraft`/`addTransactionsBatch` stamps onto a date-less row's `when` —
+ *      see `transactionImportKey`'s doc for the bug this replaced. This is deliberately narrower
+ *      than that module's own chunk-merge dedup:
+ *      it only ever suppresses a candidate against what's *already landed in the ledger* — it never
+ *      touches within-import duplicates (two chunks of the SAME read repeating a boundary row),
+ *      which `mergeChunkCandidates` has already resolved upstream before candidates ever reach here.
+ *      A genuine same-day repeat purchase (two identical £3.50 coffees) collides on this key just
+ *      like it would in the chunk-merge case — a known, documented ambiguity, not a new one: the
+ *      user can still add the second one by hand, and review-before-truth means nothing was ever
+ *      silently over-counted, only (rarely) under-counted in a way the user can correct.
+ *   2. Map every SURVIVING candidate to a transaction draft (`candidateToTransactionDraft` — signed
+ *      amount verbatim, kind-correct category INCLUDING income; see that module's doc for why this
+ *      can never coerce an income row onto a spend bucket), stamping a STABLE `imp-`-prefixed id
+ *      (`importedTransactionId`) derived from the same key — defense in depth alongside the dedup
+ *      filter above: even a candidate that somehow slipped past step 1 collides on id with the
+ *      already-landed row instead of duplicating it.
+ *   3. `addTransactionsBatch` — the single retention-aware write path (one `setPartial` for the
+ *      whole batch, matches VisualizerScreen's existing "Add all"). That function's own doc covers
+ *      the DATE-DESCENDING sort + cap-by-date fix layered under this task.
+ *   4. `syncHistoryCycles()` — so Insights has reconstructed cycles for the newly-landed history
  *      instead of staying empty regardless of import volume (this is the fix for the diagnosed
  *      "syncHistoryCycles is only called from VisualizerScreen.commit, never reached with real
- *      candidates" gap).
- *   4. Run the FOUR caught-* detectors ONCE over the full post-landing ledger state (income takes
+ *      candidates" gap). Re-running over the deduped+sorted ledger means a repeat import of an
+ *      identical statement (nothing new survives step 1) reconstructs IDENTICAL cycles, never
+ *      doubled ones.
+ *   5. Run the FOUR caught-* detectors ONCE over the full post-landing ledger state (income takes
  *      precedence per the existing ReviewScreen.tsx onAdd ordering — see that function's comment for
  *      the full income > bill > drift > annual precedence and the overspent quiet-moment gate) and
  *      surface the strongest income signal as an offer. Bills/drift/annual are detected here for
@@ -1920,17 +2004,52 @@ export type AddStatementAsHistoryResult = StatementSummary & {
  * Never fabricated here: omit them and no `closingBalanceOffer` is returned.
  *
  * No-op-safe: an empty `candidates` array adds nothing, runs no detectors, and returns a zeroed
- * summary with no offers — the caller can call this unconditionally without a length guard.
+ * summary with no offers — the caller can call this unconditionally without a length guard. Same for
+ * an ALL-DUPLICATE `candidates` array (a byte-identical re-import of a statement already landed):
+ * nothing new is added, no detectors run (there is nothing new for them to see), and
+ * `duplicatesSkipped` honestly reports every one of them.
  */
 export function addStatementAsHistory(
   candidates: readonly CandidateMoneyItem[],
   closingBalance?: { amount: number; asOfISO: string },
 ): AddStatementAsHistoryResult {
-  const summary = buildStatementSummary(candidates);
-  if (candidates.length === 0) return { ...summary, droppedTransactionCount: 0 };
+  if (candidates.length === 0) {
+    return {
+      ...buildStatementSummary(candidates),
+      droppedTransactionCount: 0,
+      duplicatesSkipped: 0,
+    };
+  }
+
+  // Step 1 — drop candidates already present in the ledger. Compared by STABLE IMPORT ID
+  // (`importedTransactionId`, an `imp-`-prefixed hash of `dedupeKey`) rather than by reconstructing
+  // a natural key from the landed row's `when` (the previous approach): a candidate with no `date`
+  // hashes to `dedupeKey`'s `'no-date'` sentinel on BOTH sides this way, so it round-trips correctly
+  // instead of comparing against the real "now" timestamp `addTransactionsBatch` stamped onto the
+  // landed row (which could never match `'no-date'` and silently defeated dedup for every date-less
+  // candidate — see `transactionImportKey`'s doc). `existingImportIds` is computed once from the
+  // CURRENT persisted ledger, not recomputed per candidate. Only ids carrying the `imp-` prefix are
+  // even candidates for a match (a manual `addTransaction` row's random `txn-...` id never collides).
+  const existingImportIds = new Set(
+    getState()
+      .transactions.map((t) => t.id)
+      .filter((id) => id.startsWith('imp-')),
+  );
+  const newCandidates = candidates.filter((c) => !existingImportIds.has(importedTransactionId(c)));
+  const duplicatesSkipped = candidates.length - newCandidates.length;
+
+  // The honest landing summary reflects what's actually being added, not the raw input length — a
+  // re-import summary line should say "Found 0 transactions" (plus the duplicate count), never claim
+  // it found rows it then silently didn't add.
+  const summary = buildStatementSummary(newCandidates);
+  if (newCandidates.length === 0) {
+    return { ...summary, droppedTransactionCount: 0, duplicatesSkipped };
+  }
 
   const droppedBeforeAdd = getState().droppedTransactionCount ?? 0;
-  addTransactionsBatch(candidates.map(candidateToTransactionDraft));
+  addTransactionsBatch(
+    newCandidates.map((c) => ({ ...candidateToTransactionDraft(c), id: importedTransactionId(c) })),
+  );
   syncHistoryCycles();
 
   const stateAfterAdd = getState();
@@ -1965,6 +2084,7 @@ export function addStatementAsHistory(
   const result: AddStatementAsHistoryResult = {
     ...summary,
     droppedTransactionCount: droppedByThisImport,
+    duplicatesSkipped,
   };
   const strongestIncomeSignal = incomeSignals[0];
   if (strongestIncomeSignal !== undefined) result.incomeSignal = strongestIncomeSignal;

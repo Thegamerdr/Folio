@@ -85,10 +85,22 @@ function shortDateLabel(iso: string): string {
  * fabricated "0 trimmed" disclosure for an import that didn't trim anything. When positive, a
  * second sentence is appended so the calm import headline still tells the whole truth: the app
  * kept things fast by capping on-device history, but the export the statement came from is
- * untouched — nothing is lost, only not all of it is kept ON DEVICE. */
+ * untouched — nothing is lost, only not all of it is kept ON DEVICE.
+ *
+ * RE-IMPORT DEDUP HONESTY (task: statement re-import correctness): `summary.duplicatesSkipped`
+ * (post-add `AddStatementAsHistoryResult` only — see `addStatementAsHistory`'s doc) is read straight
+ * off the summary rather than taking a second parameter, since — unlike the trim count — it's part
+ * of the same landing this headline already describes and every caller already has it in hand. When
+ * positive, the "Found N transactions" count part is followed by an explicit "· M already in Folio"
+ * so a re-import honestly reports what happened instead of silently going quiet about the rows it
+ * chose not to add again. Absent/zero: no change to the existing line. */
 export function bulkSummaryLine(summary: AddStatementAsHistoryResult, droppedCount = 0): string {
   const noun = summary.added === 1 ? 'transaction' : 'transactions';
-  const countPart = `Found ${summary.added} ${noun}`;
+  const duplicatesSkipped = summary.duplicatesSkipped ?? 0;
+  const countPart =
+    duplicatesSkipped > 0
+      ? `Added ${summary.added} new ${noun} · ${duplicatesSkipped} already in Folio`
+      : `Found ${summary.added} ${noun}`;
   const datePart =
     summary.dateRange !== null
       ? ` · ${shortDateLabel(summary.dateRange.fromISO)}–${shortDateLabel(summary.dateRange.toISO)}`

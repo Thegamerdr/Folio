@@ -2101,6 +2101,7 @@ describe('addStatementAsHistory', () => {
       totalInPence: 0,
       totalOutPence: 0,
       droppedTransactionCount: 0,
+      duplicatesSkipped: 0,
     });
   });
 
@@ -2406,6 +2407,135 @@ describe('addStatementAsHistory', () => {
     const incomeRows = txns.filter((t) => t.amount > 0);
     expect(incomeRows.length).toBe(7);
     expect(incomeRows.every((t) => t.category === 'income')).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // RE-IMPORT DEDUP + DATE-ORDER CORRECTNESS (owner: "what if I add more PDFs — does it
+  // adapt & recalc by date"). See addStatementAsHistory's + applyTransactionRetention's docs.
+  // ---------------------------------------------------------------------------
+  describe('re-import correctness', () => {
+    const fixture: CandidateMoneyItem[] = [
+      candidate({ merchant: 'Tesco', amount: -42.1, kind: 'spend', date: '2026-03-03' }),
+      candidate({ merchant: 'Landlord', amount: -450, kind: 'bill', date: '2026-03-12' }),
+      candidate({ merchant: 'Salary', amount: 215.51, kind: 'income', date: '2026-03-25' }),
+    ];
+
+    it('re-importing the exact same statement twice leaves transaction count, cycles, and income UNCHANGED', () => {
+      setPartial({ transactions: [], cycles: [], incomeSources: [], dismissedIncomeSignals: [] });
+
+      const first = addStatementAsHistory(fixture);
+      expect(first.added).toBe(3);
+      expect(first.duplicatesSkipped).toBe(0);
+
+      const afterFirst = getState();
+      const txnCountAfterFirst = afterFirst.transactions.length;
+      const cyclesAfterFirst = afterFirst.cycles;
+      const incomeAfterFirst = afterFirst.transactions
+        .filter((t) => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Re-import the SAME statement — every candidate collides with an already-landed row.
+      const second = addStatementAsHistory(fixture);
+      expect(second.added).toBe(0);
+      expect(second.duplicatesSkipped).toBe(3); // all of them
+
+      const afterSecond = getState();
+      expect(afterSecond.transactions.length).toBe(txnCountAfterFirst); // unchanged
+      expect(afterSecond.cycles).toEqual(cyclesAfterFirst); // unchanged, never doubled
+      const incomeAfterSecond = afterSecond.transactions
+        .filter((t) => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      expect(incomeAfterSecond).toBe(incomeAfterFirst); // unchanged
+    });
+
+    it('a partial-overlap import lands only the genuinely new rows', () => {
+      setPartial({ transactions: [] });
+      addStatementAsHistory(fixture);
+
+      const overlapping: CandidateMoneyItem[] = [
+        // Same as fixture[0] — exact date/amount/merchant match, should be skipped.
+        candidate({ merchant: 'Tesco', amount: -42.1, kind: 'spend', date: '2026-03-03' }),
+        // Genuinely new rows.
+        candidate({ merchant: 'Coffee Shop', amount: -3.5, kind: 'spend', date: '2026-03-27' }),
+        candidate({ merchant: 'Cinema', amount: -12, kind: 'spend', date: '2026-03-28' }),
+      ];
+      const result = addStatementAsHistory(overlapping);
+      expect(result.added).toBe(2);
+      expect(result.duplicatesSkipped).toBe(1);
+
+      const merchants = getState().transactions.map((t) => t.merchant);
+      expect(merchants.filter((m) => m === 'Tesco').length).toBe(1); // never doubled
+      expect(merchants).toContain('Coffee Shop');
+      expect(merchants).toContain('Cinema');
+    });
+
+    it('an OLDER-dated import does not evict newer rows already in the ledger under the cap', () => {
+      // Seed the ledger already at the cap with RECENT dates.
+      setPartial({
+        transactions: Array.from({ length: 2000 }, (_, i) => ({
+          id: `recent-${i}`,
+          when: new Date(2026, 5, 1 + (i % 28)).toISOString(),
+          merchant: `Recent${i}`,
+          amount: -1,
+          category: 'other' as const,
+          source: 'manual' as const,
+        })),
+        droppedTransactionCount: 0,
+      });
+
+      // Import a statement dated well BEFORE anything already in the ledger.
+      const olderRows = Array.from({ length: 5 }, (_, i) =>
+        candidate({
+          merchant: `Ancient${i}`,
+          amount: -1,
+          kind: 'spend',
+          date: `2019-01-0${i + 1}`,
+        }),
+      );
+      const result = addStatementAsHistory(olderRows);
+      expect(result.added).toBe(5);
+      // The 5 new OLDER rows should be exactly what's evicted — not any of the newer, already
+      // present rows. Total is 2005, cap is 2000, so exactly 5 are evicted.
+      expect(result.droppedTransactionCount).toBe(5);
+
+      const txns = getState().transactions;
+      expect(txns.length).toBe(2000);
+      // None of the "Ancient" rows survive — they were the oldest by date, so retention evicted
+      // them first, not the pre-existing "Recent" rows.
+      expect(txns.some((t) => t.merchant.startsWith('Ancient'))).toBe(false);
+      expect(txns.filter((t) => t.merchant.startsWith('Recent')).length).toBe(2000);
+    });
+
+    it('produces a date-correct ledger after mixed out-of-order imports', () => {
+      setPartial({ transactions: [] });
+      // Land a batch out of chronological order on purpose.
+      addStatementAsHistory([
+        candidate({ merchant: 'Mid', amount: -10, date: '2026-02-15' }),
+        candidate({ merchant: 'Newest', amount: -10, date: '2026-03-01' }),
+        candidate({ merchant: 'Oldest', amount: -10, date: '2026-01-01' }),
+      ]);
+      const whens = getState().transactions.map((t) => t.when);
+      const sorted = [...whens].sort().reverse();
+      expect(whens).toEqual(sorted); // newest-first, date-correct regardless of input order
+    });
+
+    it('a manual addTransaction still lands in the correct date position', () => {
+      setPartial({ transactions: [] });
+      addStatementAsHistory([
+        candidate({ merchant: 'Newest', amount: -10, date: '2026-03-20' }),
+        candidate({ merchant: 'Oldest', amount: -10, date: '2026-01-05' }),
+      ]);
+      // A manual entry dated in between the two statement rows.
+      addTransaction({
+        merchant: 'Manual Mid',
+        amount: -5,
+        category: 'other',
+        source: 'manual',
+        when: '2026-02-10T00:00:00.000Z',
+      });
+      const merchants = getState().transactions.map((t) => t.merchant);
+      expect(merchants).toEqual(['Newest', 'Manual Mid', 'Oldest']);
+    });
   });
 });
 

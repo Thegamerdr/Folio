@@ -86,16 +86,20 @@ function monthlyRows(
 
 // A dedicated "sink" merchant — exists purely to absorb findCaughtSubs's one-candidate double-propose
 // exclusion so "Octopus Energy" (the merchant under test in every bill-positive fixture below) is free
-// to surface (see file header note). Its own cadence/amount are irrelevant to the assertions.
-const SINK_ROWS = monthlyRows('Zzz Sink Co', -5, '2026-01-01', 3);
+// to surface (see file header note). Its own cadence/amount are irrelevant to the assertions. Dated
+// AFTER Octopus Energy's batch (2026-04-01 + up to 60 days = 2026-06-01) so it sorts first in
+// `transactions` under the store's date-descending retention order (`applyTransactionRetention`),
+// regardless of which `addTransactionsBatch` call lands first — see `seedOctopusAsBillCandidate`'s doc.
+const SINK_ROWS = monthlyRows('Zzz Sink Co', -5, '2026-07-01', 3);
 
-/** Lands Octopus Energy's recurring-bill batch FIRST, then the sink batch SECOND. Each
- *  `addTransactionsBatch` call prepends its own rows ahead of everything already stored (newest
- *  landing first — see `addTransactionsBatch`'s doc), so the sink — landed LAST — ends up first in
- *  `transactions` and therefore first in `groupByMerchant`'s iteration order, making it
- *  findCaughtSubs's `caught[0]` (the merchant SubCaughtSheet would currently show). The double-propose
- *  guard then excludes the SINK, not Octopus Energy — leaving Octopus Energy free to surface as the
- *  one real bill candidate under test. Call-order here is load-bearing; do not reorder. */
+/** Lands Octopus Energy's recurring-bill batch and the sink batch (call order no longer matters —
+ *  `applyTransactionRetention` sorts the merged ledger by `when` DESCENDING, so `transactions`'
+ *  iteration order reflects real transaction dates, not insertion order). The sink batch's most
+ *  recent charge (2026-08-30, see `SINK_ROWS`) is dated AFTER Octopus Energy's most recent charge
+ *  (2026-05-31), so the sink merchant is guaranteed to sort first in `transactions` and therefore
+ *  first in `groupByMerchant`'s iteration order, making it findCaughtSubs's `caught[0]` (the merchant
+ *  SubCaughtSheet would currently show). The double-propose guard then excludes the SINK, not Octopus
+ *  Energy — leaving Octopus Energy free to surface as the one real bill candidate under test. */
 function seedOctopusAsBillCandidate(): void {
   addTransactionsBatch(monthlyRows('Octopus Energy', -118.4, '2026-04-01', 3));
   addTransactionsBatch(SINK_ROWS);

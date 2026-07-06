@@ -17,8 +17,15 @@ import type { CandidateMoneyItem } from '@/folio/lib/importSheet';
 
 /** Build the natural de-dupe key for one candidate: date (or 'no-date') + amount + a normalised
  *  merchant string (lowercased, whitespace-collapsed) so trivial formatting differences between two
- *  chunks' reads of the same row ("Tesco  " vs "Tesco") still collide. */
-function dedupeKey(candidate: CandidateMoneyItem): string {
+ *  chunks' reads of the same row ("Tesco  " vs "Tesco") still collide.
+ *
+ *  Exported so other de-dupe boundaries (store.ts's `addStatementAsHistory`, landing an import
+ *  against the EXISTING persisted ledger rather than against sibling chunks of the same read) can
+ *  reuse the exact same normalisation instead of re-implementing a second, subtly different key.
+ *  Same known ambiguity applies at every call site: two genuinely identical real-world rows (same
+ *  merchant/amount/day) collide onto the same key and only one survives whichever de-dupe pass reads
+ *  them first — see each caller's own doc for how it lives with that. */
+export function dedupeKey(candidate: CandidateMoneyItem): string {
   const date = candidate.date ?? 'no-date';
   const merchant = candidate.merchant.trim().toLowerCase().replace(/\s+/g, ' ');
   return `${date}|${candidate.amount}|${merchant}`;

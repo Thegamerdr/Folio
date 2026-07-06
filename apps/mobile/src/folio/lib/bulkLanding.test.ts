@@ -114,6 +114,49 @@ describe('bulkSummaryLine', () => {
       '8 older items trimmed to keep things fast — your export keeps everything',
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // Re-import dedup honesty (task: statement re-import correctness) — the summary line reports
+  // duplicatesSkipped when a re-import found rows already in Folio.
+  // ---------------------------------------------------------------------------
+  it('says nothing about duplicates when duplicatesSkipped is absent or zero', () => {
+    const noField: AddStatementAsHistoryResult = {
+      added: 5,
+      dateRange: null,
+      totalInPence: 100,
+      totalOutPence: 0,
+    };
+    expect(bulkSummaryLine(noField)).toBe('Found 5 transactions · £1 in / £0 out');
+
+    const zeroField: AddStatementAsHistoryResult = { ...noField, duplicatesSkipped: 0 };
+    expect(bulkSummaryLine(zeroField)).toBe('Found 5 transactions · £1 in / £0 out');
+  });
+
+  it('honestly reports duplicates already in Folio when duplicatesSkipped is positive', () => {
+    const summary: AddStatementAsHistoryResult = {
+      added: 2,
+      dateRange: { fromISO: '2026-06-01', toISO: '2026-06-02' },
+      totalInPence: 0,
+      totalOutPence: 500,
+      duplicatesSkipped: 3,
+    };
+    expect(bulkSummaryLine(summary)).toBe(
+      'Added 2 new transactions · 3 already in Folio · 1 Jun–2 Jun · £0 in / £5 out',
+    );
+  });
+
+  it('reports zero genuinely-new rows honestly on a full re-import of an already-landed statement', () => {
+    const allDuplicates: AddStatementAsHistoryResult = {
+      added: 0,
+      dateRange: null,
+      totalInPence: 0,
+      totalOutPence: 0,
+      duplicatesSkipped: 14,
+    };
+    expect(bulkSummaryLine(allDuplicates)).toBe(
+      'Added 0 new transactions · 14 already in Folio · £0 in / £0 out',
+    );
+  });
 });
 
 describe('nextBulkLandingOffer', () => {
