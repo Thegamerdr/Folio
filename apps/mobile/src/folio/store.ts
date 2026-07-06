@@ -115,6 +115,14 @@ export type Debt = {
   dueDom: number;
   /** ISO date the debt was added — used only for sorting stability. */
   addedAt: string;
+  /** ACCOUNTS_MODEL.md §2.4 (P2) — present ONLY for a `Debt` row synced from a `kind: 'credit-card'`
+   *  `Account` (see `syncCardDebt`/`addCardPayoffDetails`). Absent for every pure-`Debt` row (seed
+   *  loans/BNPL — ACCOUNTS_MODEL.md §6 open question 4's asymmetry: loans/BNPL never get an `Account`,
+   *  only real credit cards do). When present, this `Debt`'s `balance` is owned by the linked
+   *  account's statement imports/manual balance edits, not by `logDebtPayment`/`addDebt` directly —
+   *  callers should still route balance CHANGES through `setAccountBalance` on the linked account so
+   *  the two stay in sync, rather than editing this `Debt` row's balance in isolation. */
+  linkedAccountId?: string;
 };
 
 /** Household lens state — the shared-bills ledger. Ports the Lovable design's
@@ -1574,13 +1582,96 @@ export function setCurrentBalance(next: Omit<CurrentBalance, 'setAt'>) {
   setPartial({ currentBalance: { ...next, setAt }, accounts: nextAccounts });
 }
 
-/* ---------- Accounts (ACCOUNTS_MODEL.md §2 / §4 P1) ---------- */
+/* ---------- Accounts (ACCOUNTS_MODEL.md §2 / §4 P1-P2) ---------- */
+
+/** ACCOUNTS_MODEL.md §2.4 — stable id for the `Debt` row synced from a credit-card `Account`, so
+ *  find-or-create is idempotent (same accountId always maps to the same Debt row, never a
+ *  duplicate). Not exported — callers never construct this id themselves, only `syncCardDebt`
+ *  does, and readers key off `Debt.linkedAccountId` (below) rather than parsing this string. */
+function cardDebtId(accountId: string): string {
+  return `debt-for-${accountId}`;
+}
+
+/** ACCOUNTS_MODEL.md §2.4 recommendation (a) — sync-on-write: whenever a `kind: 'credit-card'`
+ *  account's balance changes (import or manual), find-or-create a paired `Debt` row so the existing
+ *  debt engine (`debtEngine.summarise`, `weightedApr`, avalanche/snowball ordering — all pure
+ *  functions over `Debt[]`) and every current `state.debts` reader (the Debt strategy, `LogPaymentSheet`,
+ *  `notifyState.ts`) see imported cards alongside seed loans/BNPL with ZERO changes to any of them.
+ *  This is the chosen bridge over reading liability accounts directly from `debtEngine`, because
+ *  `apr`/`minPayment`/`dueDom` have no equivalent on `Account` and the amortisation math needs them —
+ *  a statement import can supply the new balance, but payoff details still need the user to declare
+ *  them once.
+ *
+ *  Behavior:
+ *  - No existing `Debt` row for this account (brand new card, no payoff details declared yet) →
+ *    does NOT create one with invented apr/minPayment (0%/£0 would make `debtEngine.summarise`
+ *    report a false instant/free payoff — ACCOUNTS_MODEL.md §2.4's explicit warning). Returns
+ *    `{ needsPayoffDetails: true }` so the caller can surface an "add payoff details" prompt
+ *    (mirroring `strategies/debt.ts`'s existing empty-state honesty pattern). The account's balance
+ *    itself is still tracked correctly by `selectNetPositionMinor`/`totalDebtMinor` even with no
+ *    linked `Debt` row — only the amortisation VIEW (months-to-payoff) needs the extra fields.
+ *  - An existing linked `Debt` row → updates its `balance` from the account's `balanceMinor`,
+ *    leaving `apr`/`minPayment`/`dueDom`/`name` untouched (those are the user's own declarations,
+ *    never overwritten by a statement import). Returns `{ needsPayoffDetails: false }`.
+ *
+ *  Not exported — `addAccount`/`setAccountBalance` call this internally for any `kind: 'credit-card'`
+ *  account, so every write path that can change a card's balance stays in sync automatically; a
+ *  caller never needs to remember to call this separately. */
+function syncCardDebt(accountId: string, balanceMinor: number): { needsPayoffDetails: boolean } {
+  const debts = state.debts ?? [];
+  const linkedId = cardDebtId(accountId);
+  const existing = debts.find((d) => d.id === linkedId);
+  if (existing === undefined) {
+    return { needsPayoffDetails: true };
+  }
+  setPartial({
+    debts: debts.map((d) => (d.id === linkedId ? { ...d, balance: Math.max(0, balanceMinor) } : d)),
+  });
+  return { needsPayoffDetails: false };
+}
+
+/** ACCOUNTS_MODEL.md §2.4 — declare payoff details (APR/min payment/due day) for a credit-card
+ *  `Account` that has no linked `Debt` row yet (i.e. `syncCardDebt` returned `needsPayoffDetails:
+ *  true`). Creates the linked `Debt` row keyed by `debt-for-${accountId}` with the account's CURRENT
+ *  balance. No-op if the account doesn't exist, isn't a credit card, or already has a linked `Debt`
+ *  row (use `addDebt`/direct edits for a standalone loan/BNPL `Debt` — this is only for the
+ *  account-linked card path). This is the UI seam the "add payoff details" prompt calls. */
+export function addCardPayoffDetails(
+  accountId: string,
+  details: { apr: number; minPayment: number; dueDom: number },
+): Debt | null {
+  const accounts = state.accounts ?? [];
+  const account = accounts.find((a) => a.id === accountId);
+  if (account === undefined || account.kind !== 'credit-card') return null;
+  const debts = state.debts ?? [];
+  const linkedId = cardDebtId(accountId);
+  if (debts.some((d) => d.id === linkedId)) return null;
+  const full: Debt = {
+    id: linkedId,
+    name: account.name,
+    kind: 'card',
+    balance: Math.max(0, account.balanceMinor),
+    apr: details.apr,
+    minPayment: details.minPayment,
+    dueDom: details.dueDom,
+    addedAt: new Date().toISOString(),
+    linkedAccountId: accountId,
+  };
+  setPartial({ debts: [...debts, full] });
+  return full;
+}
 
 /** Add a new named account. `id` auto-generates when omitted; `balance`/`balanceAsOfISO`/`addedAt`
  *  default to 0/now/now for a freshly-declared account with no known balance yet. `isLiability`
  *  defaults `true` for `kind: 'credit-card'` and `false` for every other kind, matching
  *  ACCOUNTS_MODEL.md §2.1's convention — pass it explicitly to override. Account-picker/creator UI is
- *  P3; this is the plumbing it will call. */
+ *  P3; this is the plumbing it will call.
+ *
+ *  ACCOUNTS_MODEL.md §2.4 (P2) — a `kind: 'credit-card'` account with a non-zero starting balance
+ *  attempts `syncCardDebt` immediately (a card can be added with its statement-derived balance already
+ *  known, e.g. from the account-creation flow), so it appears in `totalDebtMinor`/the debt view
+ *  without a separate "now sync it" step. A brand-new card with no linked `Debt` row yet still needs
+ *  `addCardPayoffDetails` before it contributes amortisation math (payoff months) — see `syncCardDebt`. */
 export function addAccount(
   input: Partial<Omit<Account, 'id'>> & Pick<Account, 'name' | 'kind'>,
 ): Account {
@@ -1597,6 +1688,7 @@ export function addAccount(
     ...(input.closed !== undefined ? { closed: input.closed } : {}),
   };
   setPartial({ accounts: [...(state.accounts ?? []), account] });
+  if (account.kind === 'credit-card') syncCardDebt(account.id, account.balanceMinor);
   return account;
 }
 
@@ -1611,16 +1703,23 @@ export function renameAccount(accountId: string, name: string) {
 
 /** ACCOUNTS_MODEL.md §3 step 4 — set a SPECIFIC account's balance (replaces the global
  *  `setCurrentBalance` write for any account-aware caller). Stamps `balanceAsOfISO`. No-op if the
- *  account id doesn't exist (never silently creates one — callers must `addAccount` first). */
+ *  account id doesn't exist (never silently creates one — callers must `addAccount` first).
+ *
+ *  ACCOUNTS_MODEL.md §2.4 (P2) — when the account is `kind: 'credit-card'`, also runs `syncCardDebt`
+ *  so its linked `Debt` row's balance stays current (a statement import's closing balance, or a
+ *  manual edit, both flow through this single write path). See `syncCardDebt`'s doc for the
+ *  find-or-create contract and the `needsPayoffDetails` signal. */
 export function setAccountBalance(accountId: string, amount: number, asOfISO?: string) {
   const accounts = state.accounts ?? [];
-  if (!accounts.some((a) => a.id === accountId)) return;
+  const account = accounts.find((a) => a.id === accountId);
+  if (account === undefined) return;
   const balanceAsOfISO = asOfISO ?? new Date().toISOString();
   setPartial({
     accounts: accounts.map((a) =>
       a.id === accountId ? { ...a, balanceMinor: amount, balanceAsOfISO } : a,
     ),
   });
+  if (account.kind === 'credit-card') syncCardDebt(accountId, amount);
 }
 
 /** ACCOUNTS_MODEL.md §2.4 — sum of non-liability (`bank`/`savings`/`cash`) account balances. This is
@@ -1644,6 +1743,29 @@ export function selectNetPositionMinor(state: AppState): number {
   const accounts = state.accounts ?? [];
   if (accounts.length === 0) return state.currentBalance.amount;
   return accounts.reduce((sum, a) => sum + (a.isLiability ? -a.balanceMinor : a.balanceMinor), 0);
+}
+
+/** ACCOUNTS_MODEL.md §2.4 point 2 — the "total owed" figure the payoff view needs: every
+ *  credit-card `Account`'s balance PLUS every pure-`Debt` row (seed loans/BNPL, and any card `Debt`
+ *  that isn't linked to an `Account`), counted exactly once each.
+ *
+ *  Double-count guard: a `kind: 'credit-card'` `Account` that has been synced (`syncCardDebt`/
+ *  `addCardPayoffDetails`) has BOTH its own `balanceMinor` AND a linked `Debt` row carrying the same
+ *  balance (`Debt.linkedAccountId === account.id`) — summing both blindly would double the card's
+ *  contribution. So this selector sums liability accounts directly, then adds only the `Debt` rows
+ *  that are NOT linked to any account (`d.linkedAccountId === undefined` — pure loans/BNPL, or a
+ *  not-yet-account-linked card `Debt` predating this phase), never a linked `Debt` row's own
+ *  `balance` a second time. */
+export function totalDebtMinor(state: AppState): number {
+  const accounts = state.accounts ?? [];
+  const debts = state.debts ?? [];
+  const cardAccountTotal = accounts
+    .filter((a) => a.isLiability)
+    .reduce((sum, a) => sum + a.balanceMinor, 0);
+  const unlinkedDebtTotal = debts
+    .filter((d) => d.linkedAccountId === undefined)
+    .reduce((sum, d) => sum + d.balance, 0);
+  return cardAccountTotal + unlinkedDebtTotal;
 }
 
 /** Written by ScreenPaydayRitual step 4 — the line for next-you. */
@@ -1970,6 +2092,60 @@ export function undoDebtPayment(id: string, amount: number) {
       d.id === id ? { ...d, balance: d.balance + amount } : d,
     ),
   });
+}
+
+/** ACCOUNTS_MODEL.md §2.4 point 3 — the payment-path seam for a credit-card `Account` linked to a
+ *  `Debt` row (`kind: 'credit-card'`, synced via `syncCardDebt`/`addCardPayoffDetails`). Paying a
+ *  card down from a bank account is a TRANSFER, not two independent edits: it must reduce the card's
+ *  owed amount AND reduce the paying bank account's balance by the same amount, atomically (a single
+ *  `setPartial` call), so `totalDebtMinor`/`selectNetPositionMinor` never observe a half-applied
+ *  state where money has vanished from the bank side without yet landing on the card side (or vice
+ *  versa).
+ *
+ *  This does NOT post a `Transaction` on either account — that's a deliberate scope line for this
+ *  phase (see ACCOUNTS_MODEL.md §2.4 point 3's "leave a clean seam" instruction): a future
+ *  payment-tracking phase can decide whether a card payment should also show up in the ledger as a
+ *  paired transfer pair (bank outflow + card inflow) the way a real transfer would; for now this
+ *  function is the single source of truth for "a card payment happened" and every caller (a future
+ *  "pay my card" UI action) should route through here rather than calling `setAccountBalance` twice
+ *  by hand, which would not be atomic and would not touch the linked `Debt` row.
+ *
+ *  No-op (returns `false`) if: `amount` isn't positive, `bankAccountId` isn't a non-liability
+ *  account, or `cardAccountId` isn't a `kind: 'credit-card'` account. Never overdraws the bank
+ *  account below the amount available is NOT enforced here (mirrors `logDebtPayment`'s existing
+ *  "trust the amount the user typed" contract) — the caller's confirm-sheet is responsible for any
+ *  "you don't have that much" warning copy, this function only does the arithmetic honestly. The
+ *  card's balance is clamped at £0 (can't go negative from overpaying), matching every other
+ *  debt-balance write in this file. */
+export function payCreditCardFromBank(
+  bankAccountId: string,
+  cardAccountId: string,
+  amount: number,
+): boolean {
+  if (!(amount > 0)) return false;
+  const accounts = state.accounts ?? [];
+  const bank = accounts.find((a) => a.id === bankAccountId);
+  const card = accounts.find((a) => a.id === cardAccountId);
+  if (bank === undefined || bank.isLiability) return false;
+  if (card === undefined || card.kind !== 'credit-card') return false;
+
+  const now = new Date().toISOString();
+  const nextCardBalance = Math.max(0, card.balanceMinor - amount);
+  const nextAccounts = accounts.map((a) => {
+    if (a.id === bankAccountId) {
+      return { ...a, balanceMinor: a.balanceMinor - amount, balanceAsOfISO: now };
+    }
+    if (a.id === cardAccountId) {
+      return { ...a, balanceMinor: nextCardBalance, balanceAsOfISO: now };
+    }
+    return a;
+  });
+  const linkedId = cardDebtId(cardAccountId);
+  const debts = (state.debts ?? []).map((d) =>
+    d.id === linkedId ? { ...d, balance: nextCardBalance } : d,
+  );
+  setPartial({ accounts: nextAccounts, debts });
+  return true;
 }
 
 /* ---------- Plans (Planning lens) ---------- */

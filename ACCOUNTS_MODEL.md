@@ -444,3 +444,180 @@ inert by preserving sum-of-one-account math; P2/P3 are where the real re-checks 
    it. Is "closing/archiving an account" in scope for this program, or a later follow-up? If a
    later follow-up, the `closed` field can be added to the type now (cheap) without building any UI
    for it in P1-P4.
+
+---
+
+## 7. GOALS + TONE-GATED GUIDANCE (owner doctrine, memory `melo-modes-goals-tone-doctrine`)
+
+Two more phases, layered on top of P1-P4, not a replacement for them. Binding doctrine repeated
+here because it governs every design choice below: **modes are the product thesis and never get
+simplified away; goals layer ON TOP of the active mode; Melo's tone is a user-owned dial that
+controls guidance intensity; guidance is always a suggestion about the user's OWN money toward A
+GOAL THEY SET — never financial advice, never a product recommendation, never regulated framing.**
+
+### P5 — Goals as first-class store entities
+
+**New type** (store.ts, new section near `Debt`/`Household`, same neighbourhood as the new
+`Account` type from §2.1 — goals reference accounts/debts, so they belong close by):
+
+```ts
+export type GoalKind = 'debt-free' | 'buffer' | 'clear-specific-debt' | 'save-target';
+
+export type Goal = {
+  id: string;
+  kind: GoalKind;
+  label: string; // user-facing, e.g. "Clear the Klarna sofa", "Build a 1-month buffer"
+  targetMinor?: number; // for 'buffer'/'save-target' — the number the user is aiming at
+  targetDateISO?: string; // optional deadline; goals are allowed to have none
+  linkedDebtId?: string; // for 'clear-specific-debt' — Debt.id (store.ts:104-118)
+  linkedAccountId?: string; // for 'buffer'/'save-target' — Account.id (§2.1), the account the
+                            // goal is tracked against (e.g. a savings account balance)
+  createdAt: string; // ISO
+  achievedAt?: string; // ISO — set once, never cleared; achieved goals stay visible as a win,
+                        // not deleted (matches the app's no-shame/honesty posture elsewhere)
+  dismissed?: boolean; // soft-hide without deleting history
+};
+```
+
+`AppState.goals: Goal[]` — new top-level slot, same pattern as `AppState.debts`
+(`store.ts:104-118`) and the new `AppState.accounts` (§2.1). Migration: new installs get
+`goals: []`; no backfill needed since the concept doesn't exist in any prior schema version.
+
+**Progress derivation** (pure selectors, no stored "progress" field — derive, don't duplicate,
+per the store's existing derived-state discipline like `netPosition`/`bankTransactions` in §2.4):
+
+- `kind: 'debt-free'` → progress = trend of `debtEngine.summarise()`'s total balance toward £0.
+  Needs a starting snapshot (balance when the goal was created) to compute "% paid off since you
+  started," not just "current balance" — store `startingBalanceMinor` at goal-creation time
+  (add this field to `Goal` above; omitted from the first draft, flag before implementing) since
+  the debt engine itself has no memory of "balance when the goal began."
+- `kind: 'clear-specific-debt'` → same shape as `debt-free` but scoped to one `Debt.id`
+  (`linkedDebtId`) instead of the whole debt total. Reads `debtEngine`'s per-debt payoff line.
+- `kind: 'buffer'` → progress = `linkedAccountId`'s current balance vs `targetMinor`, where the
+  linked account is expected to be a `kind: 'bank'` or `'savings'` account (§2.1). Uses the same
+  bank-only balance discipline as Safe Zone (§2.4) — a buffer goal must never be satisfied by
+  moving money onto a credit card.
+- `kind: 'save-target'` → identical shape to `buffer` (balance vs `targetMinor`), kept as a
+  separate `kind` only because the copy/framing differs ("build a cushion" vs "save toward X") —
+  the math is the same selector, do not fork the implementation, only the label.
+
+**How a goal gets set — the owner's open item, not yet decided (see §7.3 open questions
+below):** two entry points are both plausible and not mutually exclusive: (a) explicit creation —
+a "set a goal" affordance somewhere in the money hub (§4, P3) or Melo chat; (b) Melo-detected
+offer — when a liability `Account`/`Debt` is created or first synced (P2's sync-on-import,
+§2.4), Melo offers "want to make clearing this a goal?" as a one-tap accept, never auto-created
+silently. Both routes converge on the same `addGoal(...)` store action; build that action once,
+wire both entry points against it independently (P5 core = the action + selectors + the
+Melo-detected offer since it piggybacks directly on P2's existing sync-on-import hook; the
+explicit "set a goal" UI entry point can land in the same phase or slip to a fast-follow — it's
+additive, not blocking).
+
+**Where goals show:** Insights (net-worth-style framing, alongside `netPosition` from §2.4) is
+the natural home for a goals list/progress view; the Today action card (P6 below) is where an
+*active* goal surfaces as a nudge-shaped suggestion when tone permits. Not in scope for P5 itself
+to wire every surface — P5 ships the data model + selectors + the Melo-offer entry point;
+surfacing is P6's job where it's guidance-shaped, and a fast-follow UI item where it's a plain
+list view.
+
+**Proof:** construct a fixture with one `kind: 'credit-card'` liability account (balance owed
+£200) and a `clear-specific-debt` goal linked to its synced `Debt` row with
+`startingBalanceMinor: 30000` (£300). Pay it down to £200 (owed) via a simulated statement
+import/manual edit. Assert the goal's derived progress selector reports one-third paid off
+(£100 of £300). Assert a `buffer` goal linked to a bank account with `targetMinor: 50000` (£500)
+against a bank balance of £320 reports progress without ever reading the credit-card balance.
+
+### P6 — Tone-gated guidance
+
+**Where the tone setting actually lives today — this is the first blocker to fix, not a detail:**
+`Tone` (`'calm' | 'honest' | 'dry' | 'coachy'`) is currently **local `useState` inside
+`MeloChatSheet.tsx`** (`sheets/MeloChatSheet.tsx:83-84,102,112-113,285`), reset to
+`DEFAULT_SETTINGS = { tone: 'calm', share: false }` (line 102) every time the sheet mounts. The
+component's own comment at line 284 (`@rn-engine melo-chat-persistence — wire @folio/storage over
+folio.melo.chat.v1`) already flags this as a known gap for chat transcript persistence; tone needs
+the same treatment, but promoted **out of the chat sheet entirely** and into `AppState`, because
+P6 requires reading it from Today/nudge surfaces that have no relationship to the chat sheet's
+local state.
+
+**Required plumbing change (blocking, do first):**
+
+- Add `AppState.meloTone: Tone` (default `'calm'`, matching today's default) to the store, next to
+  other user-preference scalars.
+- Add a `setMeloTone(tone)` store action.
+- `MeloChatSheet.tsx`'s settings panel (the existing `ToneButton` grid, lines 563-569, 828-875)
+  reads/writes the store value instead of local `useState` — this is a small, mechanical change to
+  an existing, already-built UI; no new tone-picker UI needed.
+- This makes tone a **single global setting** (see open question below on per-surface tone —
+  recommend global-only for the first ship; see §7.3).
+
+**Guidance intensity mapping** — applied at every surface that has Melo "speak" (Today action
+card, `TodayNudges.tsx`'s nudge array, and any future goal-progress nudge from P5):
+
+| Tone | Behavior |
+|---|---|
+| `calm` | Answer-only. Shows numbers/state, no suggested action. If a nudge would normally carry a CTA suggestion, it either doesn't appear or appears as a neutral statement with no imperative verb. |
+| `honest` | States the situation plainly, including uncomfortable numbers (matches the app's existing no-euphemism copy discipline elsewhere), but still no pushed suggestion. |
+| `dry` | Same information as `honest`, terser/deadpan phrasing; still no pushed suggestion — `dry` is a voice change, not an intensity change. |
+| `coachy` | The only tone that surfaces goal-directed suggestions — pulls from the active mode's strategy (`lib/modes/strategies/*.ts`) and any active P5 `Goal`, e.g. "£40 spare — put it toward the Klarna?" (referencing the user's own linked debt/goal, never a third-party product). |
+
+Concretely: `TodayNudges.tsx` (`screens/today/TodayNudges.tsx:146` builds the `nudges: Nudge[]`
+array today with no tone awareness at all) gains a filter/gate — suggestion-shaped nudges
+(anything with an action CTA that recommends WHERE to put spare money, as opposed to a pure
+informational nudge like "3 statements ready to review") only push into the array when
+`meloTone === 'coachy'`. Non-actionable/informational nudges (review queue, payday ritual offer,
+etc.) are unaffected by tone — the gate applies specifically to money-direction suggestions, not
+to the whole nudge system.
+
+**HARD GUARDRAIL — read before writing any Melo copy in this phase:**
+
+Every `coachy`-tier suggestion MUST be:
+- about the user's OWN money (an amount they already have, e.g. "spare"/"tightest point" derived
+  from `storeRoute.ts`), directed at a goal or debt THEY already declared (a P5 `Goal` or an
+  existing `Debt`/liability `Account`) — never a suggestion to acquire new credit, open a new
+  account, or take on new debt.
+- phrased as an observation + optional action on existing money, not advice: "£40 spare — put it
+  toward the Klarna?" is allowed; "you should pay off high-interest debt first" is NOT (that's
+  generic financial advice, not a move on the user's specific numbers).
+- free of any product name, provider, or category recommendation. Banned: refinance, remortgage,
+  switch card, balance transfer, "consider a loan," "consider investing," any named or generic
+  financial product the user doesn't already hold. If a suggestion would require recommending a
+  product to execute it, it is out of scope for Melo — full stop, no exceptions, regardless of
+  tone.
+- never framed as regulated advice language: no "you should," "we recommend," "the best move is."
+  Prefer question-shaped or option-shaped phrasing ("...put it toward the Klarna?") over
+  imperative/prescriptive phrasing ("Pay off the Klarna now").
+
+**Allowed vs banned examples (use these as the litmus test for any new copy in P6):**
+
+| Allowed (coachy) | Banned |
+|---|---|
+| "£40 spare this week — toward the Klarna, or let it sit?" | "You should pay down the Klarna before your other debts." |
+| "Buffer goal is £180 short — want to earmark this month's spare?" | "Consider opening a savings account for this." |
+| "Card balance ticked up £60 since last statement." (informational, any tone) | "You could save on interest by transferring this balance." |
+| "£300 left to your debt-free goal at this pace." | "A personal loan at a lower rate could clear this faster." |
+
+**Proof:** unit-test `TodayNudges` (or its nudge-building function) with `meloTone: 'calm'` and
+assert no money-direction suggestion nudge is present even when a P5 goal + spare money both
+exist; re-run with `meloTone: 'coachy'` and assert the suggestion nudge appears and its copy
+matches the allowed-phrasing pattern (question-shaped, references only the user's own linked
+goal/debt, no product names). Snapshot-test the banned-phrase list against a lint/grep step if
+practical (grep the nudge copy strings for the banned-word list above) so a future edit can't
+silently reintroduce advisory language.
+
+### 7.3 Open questions for the owner (goals + tone)
+
+1. **How are goals created?** Explicit user-initiated ("set a goal" UI, entry point undecided —
+   money hub vs Melo chat vs both) and/or Melo-detected-and-offered (on new liability
+   account/debt creation, "make this a goal?"). Recommend building both since they're additive,
+   but which ships first if only one fits P5's first cut?
+2. **Is tone one global setting or per-surface?** §7 P6 recommends a single `AppState.meloTone`
+   applied everywhere Melo speaks (chat, Today, nudges). Is there ever a reason for the chat sheet
+   itself to run "coachier" than the ambient Today nudges, or vice versa? Recommend global-only
+   for the first ship — per-surface tone is speculative complexity (YAGNI) until a real use case
+   shows up.
+3. **Goal lifecycle copy.** When a goal is achieved (`achievedAt` set), does Melo say anything
+   proactively (a one-time celebratory nudge, tone-gated the same as suggestions?), or does the
+   achieved goal just sit quietly in the goals list until the user looks? Undecided — flag before
+   building the achievement-detection code path in P5/P6.
+4. **`startingBalanceMinor` on `Goal`.** Flagged inline in §7 P5 above — needed for
+   `debt-free`/`clear-specific-debt` progress math but omitted from the first type draft. Confirm
+   before implementation; cheap to add now.

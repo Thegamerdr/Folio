@@ -21,7 +21,9 @@ import {
   DEFAULT_ACCOUNT_ID,
   accountIdOf,
   addAccount,
+  addCardPayoffDetails,
   addCycle,
+  addDebt,
   addIgnoredReviewSig,
   addStatementAsHistory,
   addToPot,
@@ -44,6 +46,7 @@ import {
   hydrateFromBlob,
   isBankTxn,
   matchMeloTool,
+  payCreditCardFromBank,
   pauseMany,
   queueInputFromCandidates,
   rememberMerchantCategory,
@@ -67,6 +70,7 @@ import {
   sweepReviewQueue,
   syncHistoryCycles,
   togglePaused,
+  totalDebtMinor,
   upsertIncomeSource,
 } from './store';
 import type { CandidateMoneyItem } from './lib/importSheet';
@@ -684,6 +688,147 @@ describe('accounts (ACCOUNTS_MODEL.md P1)', () => {
     expect(filtered.some((t) => t.id === cardTxn.id)).toBe(false);
     expect(filtered.length).toBe(state.transactions.length - 1);
     expect(isBankTxn(state, cardTxn)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Credit-cards-as-liabilities (ACCOUNTS_MODEL.md §2.4 / §4 P2) — a credit-card
+// Account is bridged into the existing Debt model (debtEngine reads Debt[]
+// unchanged) via sync-on-write, without double-counting; totalDebtMinor sums
+// card accounts + unlinked pure Debt rows exactly once each; a card import
+// never moves the safe-zone (bank-only) number; a bank→card payment reduces
+// both sides atomically.
+// ---------------------------------------------------------------------------
+describe('credit-cards as liabilities (ACCOUNTS_MODEL.md P2)', () => {
+  it('a brand-new credit-card account with a balance has no linked Debt row until payoff details are declared', () => {
+    resetToEmpty();
+    const card = addAccount({ name: 'Amex Gold', kind: 'credit-card', balanceMinor: 500 });
+
+    const debts = getState().debts ?? [];
+    expect(debts.some((d) => d.linkedAccountId === card.id)).toBe(false);
+    // The account itself still carries the balance correctly (net position sees it) —
+    // only the amortisation VIEW needs payoff details.
+    expect(selectNetPositionMinor(getState())).toBe(-500);
+  });
+
+  it('addCardPayoffDetails creates the linked Debt row from the account balance', () => {
+    resetToEmpty();
+    const card = addAccount({ name: 'Amex Gold', kind: 'credit-card', balanceMinor: 500 });
+    const debt = addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+
+    expect(debt).not.toBeNull();
+    expect(debt?.linkedAccountId).toBe(card.id);
+    expect(debt?.balance).toBe(500);
+    expect(debt?.kind).toBe('card');
+
+    const debts = getState().debts ?? [];
+    expect(debts.filter((d) => d.linkedAccountId === card.id).length).toBe(1);
+  });
+
+  it('addCardPayoffDetails is a no-op for a non-card account, an unknown account, or a card that already has a linked Debt', () => {
+    resetToEmpty();
+    const bank = getState().accounts?.[0]!;
+    expect(addCardPayoffDetails(bank.id, { apr: 0, minPayment: 0, dueDom: 1 })).toBeNull();
+    expect(addCardPayoffDetails('acct-nope', { apr: 0, minPayment: 0, dueDom: 1 })).toBeNull();
+
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 100 });
+    addCardPayoffDetails(card.id, { apr: 20, minPayment: 10, dueDom: 5 });
+    const again = addCardPayoffDetails(card.id, { apr: 999, minPayment: 999, dueDom: 1 });
+    expect(again).toBeNull();
+    expect(getState().debts?.filter((d) => d.linkedAccountId === card.id).length).toBe(1);
+  });
+
+  it('setAccountBalance on a linked credit card updates the Debt balance too, leaving apr/minPayment/dueDom untouched', () => {
+    resetToEmpty();
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 500 });
+    addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+
+    setAccountBalance(card.id, 350, '2026-07-05T00:00:00.000Z');
+
+    const debt = getState().debts?.find((d) => d.linkedAccountId === card.id);
+    expect(debt?.balance).toBe(350);
+    expect(debt?.apr).toBe(22.9);
+    expect(debt?.minPayment).toBe(25);
+    expect(debt?.dueDom).toBe(15);
+  });
+
+  it('a credit-card account (£500 owed) appears in totalDebtMinor and net position (bank − 500), without double-counting once linked', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 1000, '2026-07-05T00:00:00.000Z');
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 500 });
+    addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+
+    expect(totalDebtMinor(getState())).toBe(500);
+    expect(selectNetPositionMinor(getState())).toBe(500); // 1000 - 500
+    expect(selectBankBalanceMinor(getState())).toBe(1000); // bank-only, card excluded
+  });
+
+  it('a pure loan Debt (no linked account) and an imported card both show in totalDebtMinor without double-counting', () => {
+    resetToEmpty();
+    addDebt({
+      name: 'Personal loan',
+      kind: 'loan',
+      balance: 2400,
+      apr: 12.9,
+      minPayment: 120,
+      dueDom: 5,
+    });
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 500 });
+    addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+
+    expect(totalDebtMinor(getState())).toBe(2900); // 2400 loan + 500 card, once each
+    // Sanity: the loan Debt row itself is untouched by the card sync.
+    expect(getState().debts?.find((d) => d.name === 'Personal loan')?.balance).toBe(2400);
+  });
+
+  it('a credit-card statement import (via setAccountBalance) does not change bank-only cashflow/safe-zone reads', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 1000, '2026-07-05T00:00:00.000Z');
+    const bankBefore = selectBankBalanceMinor(getState());
+
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 0 });
+    addTransaction({
+      merchant: 'Netflix',
+      amount: -12.99,
+      category: 'other',
+      source: 'manual',
+      accountId: card.id,
+    });
+    setAccountBalance(card.id, 200, '2026-07-06T00:00:00.000Z'); // card statement closing balance
+
+    // Bank balance / bank-only cashflow are unaffected by the card import.
+    expect(selectBankBalanceMinor(getState())).toBe(bankBefore);
+    const state = getState();
+    expect(bankTransactions(state).some((t) => t.merchant === 'Netflix')).toBe(false);
+  });
+
+  it('payCreditCardFromBank reduces the bank balance and the card owed amount atomically, and updates the linked Debt', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 1000, '2026-07-05T00:00:00.000Z');
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 500 });
+    addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+
+    const ok = payCreditCardFromBank(DEFAULT_ACCOUNT_ID, card.id, 200);
+
+    expect(ok).toBe(true);
+    expect(selectBankBalanceMinor(getState())).toBe(800);
+    expect(getState().accounts?.find((a) => a.id === card.id)?.balanceMinor).toBe(300);
+    expect(getState().debts?.find((d) => d.linkedAccountId === card.id)?.balance).toBe(300);
+  });
+
+  it('payCreditCardFromBank clamps the card balance at £0 on overpayment and is a no-op for invalid inputs', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 1000, '2026-07-05T00:00:00.000Z');
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 100 });
+    addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+
+    expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, card.id, 500)).toBe(true);
+    expect(getState().accounts?.find((a) => a.id === card.id)?.balanceMinor).toBe(0);
+    expect(getState().debts?.find((d) => d.linkedAccountId === card.id)?.balance).toBe(0);
+
+    expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, card.id, 0)).toBe(false);
+    expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, 'acct-nope', 10)).toBe(false);
+    expect(payCreditCardFromBank(card.id, card.id, 10)).toBe(false); // "bank" side is itself a liability
   });
 });
 
