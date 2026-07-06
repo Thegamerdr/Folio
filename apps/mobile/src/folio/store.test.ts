@@ -1163,6 +1163,15 @@ describe('schema migration v7', () => {
     expect(queue[0]!.merchant).toBe('Tesco');
     expect(queue[0]!.source).toBe('pdf');
   });
+
+  it('a blob predating reviewQueueSpillover (phase ⑦) loads with an empty spillover', () => {
+    resetAll();
+    const preSpilloverBlob = { ...getState() } as Record<string, unknown>;
+    delete preSpilloverBlob.reviewQueueSpillover;
+    hydrateFromBlob(JSON.stringify(preSpilloverBlob));
+
+    expect(getState().reviewQueueSpillover).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1530,14 +1539,15 @@ describe('reviewQueue', () => {
     expect(getState().reviewQueue).toEqual([]);
   });
 
-  it('enqueue stamps id + addedAt and returns the fresh items', () => {
+  it('enqueue stamps id + addedAt and returns the fresh items with zero dropped', () => {
     // Arrange + Act
-    const fresh = enqueueReviewItems([input()]);
+    const { fresh, dropped } = enqueueReviewItems([input()]);
 
     // Assert
     expect(fresh.length).toBe(1);
     expect(fresh[0]!.id).toMatch(/^rv-/);
     expect(new Date(fresh[0]!.addedAt).getTime()).not.toBeNaN();
+    expect(dropped).toBe(0);
     const queue = getState().reviewQueue ?? [];
     expect(queue.length).toBe(1);
     expect(queue[0]!.merchant).toBe('Tesco');
@@ -1553,9 +1563,10 @@ describe('reviewQueue', () => {
 
   it('skips duplicates already in the queue (same merchant + amount + date)', () => {
     enqueueReviewItems([input()]);
-    const fresh = enqueueReviewItems([input()]);
+    const { fresh, dropped } = enqueueReviewItems([input()]);
 
     expect(fresh).toEqual([]);
+    expect(dropped).toBe(0);
     expect((getState().reviewQueue ?? []).length).toBe(1);
   });
 
@@ -1568,19 +1579,39 @@ describe('reviewQueue', () => {
 
   it('skips candidates whose signature the user already ignored', () => {
     addIgnoredReviewSig(reviewCandidateSig('Tesco', -42.1, '2026-07-01'));
-    const fresh = enqueueReviewItems([input()]);
+    const { fresh, dropped } = enqueueReviewItems([input()]);
 
     expect(fresh).toEqual([]);
+    expect(dropped).toBe(0);
     expect((getState().reviewQueue ?? []).length).toBe(0);
   });
 
-  it('caps the queue at 60, newest kept', () => {
+  it('caps the queue at 60, spills the rest into reviewQueueSpillover, and reports dropped', () => {
+    const many = Array.from({ length: 70 }, (_, i) =>
+      input({ merchant: `Shop ${i}`, amount: -(i + 1) }),
+    );
+    const { fresh, dropped } = enqueueReviewItems(many);
+
+    expect(fresh.length).toBe(70);
+    expect(dropped).toBe(10);
+    expect((getState().reviewQueue ?? []).length).toBe(60);
+    expect((getState().reviewQueueSpillover ?? []).length).toBe(10);
+  });
+
+  it('spillover holds the tail of a single over-cap call (array order preserved within one call)', () => {
     const many = Array.from({ length: 70 }, (_, i) =>
       input({ merchant: `Shop ${i}`, amount: -(i + 1) }),
     );
     enqueueReviewItems(many);
 
-    expect((getState().reviewQueue ?? []).length).toBe(60);
+    // Within one enqueueReviewItems call every fresh row shares the same `addedAt`, so ties break by
+    // array order (matches the pre-spillover `[...fresh, ...existing]` convention this preserves):
+    // Shop 0 (first in the call) stays visible, Shop 69 (last) is what spills over.
+    const queueMerchants = (getState().reviewQueue ?? []).map((it) => it.merchant);
+    const spilloverMerchants = (getState().reviewQueueSpillover ?? []).map((it) => it.merchant);
+    expect(queueMerchants).toContain('Shop 0');
+    expect(spilloverMerchants).toContain('Shop 69');
+    expect(spilloverMerchants).not.toContain('Shop 0');
   });
 
   it('resolveReviewItem removes exactly the given id; unknown ids are a safe no-op', () => {
@@ -1596,10 +1627,36 @@ describe('reviewQueue', () => {
     expect(after[0]!.merchant).toBe('Boots');
   });
 
-  it('clearReviewQueue drains everything', () => {
-    enqueueReviewItems([input(), input({ merchant: 'Boots', amount: -8.4 })]);
+  it('resolveReviewItem refills the freed slot from reviewQueueSpillover', () => {
+    const many = Array.from({ length: 61 }, (_, i) =>
+      input({ merchant: `Shop ${i}`, amount: -(i + 1) }),
+    );
+    enqueueReviewItems(many);
+    expect((getState().reviewQueue ?? []).length).toBe(60);
+    expect((getState().reviewQueueSpillover ?? []).length).toBe(1);
+    // Shop 60 (last in the call) is the one that spilled over — see the array-order test above.
+    expect((getState().reviewQueueSpillover ?? [])[0]!.merchant).toBe('Shop 60');
+
+    const queue = getState().reviewQueue ?? [];
+    resolveReviewItem(queue[0]!.id);
+
+    expect((getState().reviewQueue ?? []).length).toBe(60);
+    expect((getState().reviewQueueSpillover ?? []).length).toBe(0);
+    // The spillover row (Shop 60) is now in the visible queue.
+    expect((getState().reviewQueue ?? []).some((it) => it.merchant === 'Shop 60')).toBe(true);
+  });
+
+  it('clearReviewQueue drains both the visible queue and the spillover', () => {
+    const many = Array.from({ length: 61 }, (_, i) =>
+      input({ merchant: `Shop ${i}`, amount: -(i + 1) }),
+    );
+    enqueueReviewItems(many);
+    expect((getState().reviewQueueSpillover ?? []).length).toBe(1);
+
     clearReviewQueue();
+
     expect(getState().reviewQueue).toEqual([]);
+    expect(getState().reviewQueueSpillover).toEqual([]);
   });
 
   it('sweepReviewQueue ages out items older than 14 days and keeps fresh ones', () => {
@@ -1620,6 +1677,24 @@ describe('reviewQueue', () => {
     expect(after.length).toBe(1);
   });
 
+  it('sweepReviewQueue ages out stale spillover rows too', () => {
+    const many = Array.from({ length: 61 }, (_, i) =>
+      input({ merchant: `Shop ${i}`, amount: -(i + 1) }),
+    );
+    enqueueReviewItems(many);
+    const spillover = getState().reviewQueueSpillover ?? [];
+    expect(spillover.length).toBe(1);
+    const stale = {
+      ...spillover[0]!,
+      addedAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+    };
+    setPartial({ reviewQueueSpillover: [stale] });
+
+    sweepReviewQueue();
+
+    expect(getState().reviewQueueSpillover).toEqual([]);
+  });
+
   it('persists across a blob round-trip (unlike the transient readerCandidates)', () => {
     enqueueReviewItems([input()]);
     const parsed = JSON.parse(getPersistBlob()) as Record<string, unknown>;
@@ -1629,10 +1704,17 @@ describe('reviewQueue', () => {
     expect((getState().reviewQueue ?? []).length).toBe(1);
   });
 
-  it('resetToEmpty clears the queue', () => {
-    enqueueReviewItems([input()]);
+  it('resetToEmpty clears the queue and the spillover', () => {
+    const many = Array.from({ length: 61 }, (_, i) =>
+      input({ merchant: `Shop ${i}`, amount: -(i + 1) }),
+    );
+    enqueueReviewItems(many);
+    expect((getState().reviewQueueSpillover ?? []).length).toBe(1);
+
     resetToEmpty();
+
     expect(getState().reviewQueue).toEqual([]);
+    expect(getState().reviewQueueSpillover).toEqual([]);
   });
 
   it('queueInputFromCandidates maps reader candidates with date + note riding along', () => {

@@ -79,6 +79,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
   clearReaderCandidates,
@@ -88,10 +89,12 @@ import {
 } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
-// A single thing Folio read from the photo — `merchant` is the display name, `hint` is the voice-
-// approved confidence line, and `amount` is the preformatted signed money string (the reader formats
-// it; the screen renders it).
+// A single thing Folio read from the photo — `id` is the candidate's own identity (the found list
+// keys on THIS, never `merchant`, so two rows for the same merchant never collapse into one — phase
+// ⑦ "preview key collapse" fix). `hint` is the voice-approved confidence line, and `amount` is the
+// preformatted signed money string (the reader formats it; the screen renders it).
 export type FoundItem = {
+  id: string;
   merchant: string;
   hint: string;
   amount: string;
@@ -153,10 +156,13 @@ function formatSignedAmount(amount: number): string {
 }
 
 // Map the engine's CandidateMoneyItem[] (real `parseSheet` output) into this screen's render shape —
-// merchant verbatim, the hint from the per-merchant override (else the kind), the amount from the
-// signed magnitude. Faithful, no new data, candidates only (never auto-counted).
+// id + merchant verbatim, the hint from the per-merchant override (else the kind), the amount from the
+// signed magnitude. Faithful, no new data, candidates only (never auto-counted). Carrying the
+// candidate's own `id` through is what lets the found list key on a stable per-row identity instead of
+// collapsing same-merchant rows (phase ⑦ "preview key collapse" fix).
 function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
   return candidates.map((candidate) => ({
+    id: candidate.id,
     merchant: candidate.merchant,
     hint: SAMPLE_HINTS[candidate.merchant] ?? hintForKind(candidate.kind),
     amount: formatSignedAmount(candidate.amount),
@@ -349,7 +355,7 @@ export function ImageSuccessScreen({
             <Text style={[styles.foundLabel, { color: t.muted }]}>{foundLabel}</Text>
             <View style={styles.foundList}>
               {image.items.map((item) => (
-                <View key={item.merchant} style={styles.foundRow}>
+                <View key={item.id} style={styles.foundRow}>
                   <View style={[styles.dot, { backgroundColor: t.calm }]} />
                   <View style={styles.foundMeta}>
                     <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
@@ -385,7 +391,13 @@ export function ImageSuccessScreen({
           accessibilityHint="Opens the review of what was found"
           onPress={() => {
             if (!imageProp && staged.length > 0) {
-              enqueueReviewItems(queueInputFromCandidates(staged, 'image'));
+              const { dropped } = enqueueReviewItems(queueInputFromCandidates(staged, 'image'));
+              if (dropped > 0) {
+                showToast(
+                  'Showing the newest 60 to check first',
+                  `${dropped} more will follow as you clear them.`,
+                );
+              }
               clearReaderCandidates();
             }
             nav.go('review');

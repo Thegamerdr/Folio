@@ -98,10 +98,16 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import { setReaderCandidates } from '@/folio/store';
 import { showToast } from '@/folio/ui/Toast';
+import * as FileSystem from 'expo-file-system/legacy';
+
 import { pickLocalStatementDocument } from '../../local/nativeDocumentImport';
 import { pickStatementImage } from '../../local/nativeImageIntake';
+import { base64ToBinaryString, planPdfChunks, PAGES_PER_CHUNK } from '../../local/pdfChunkSplitter';
 import {
   extractStatementCandidates,
+  extractStatementCandidatesChunked,
+  MAX_STATEMENT_BYTES,
+  type StatementReaderChunkProgress,
   type StatementReaderKind,
 } from '../../local/statementReaderClient';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
@@ -266,6 +272,15 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // or honestly falls back (→ fallback), and either way clears this state before routing. It is a
   // Melo line, NEVER a spinner — the same "no spinner" hard rule the loading branch obeys.
   const [reading, setReading] = useState(false);
+  // Chunked-read progress (long PDF exports only) — null outside a chunked read. Drives the honest
+  // "reading pages… N of M" line; the single-shot path (small files) never sets this.
+  const [chunkProgress, setChunkProgress] = useState<StatementReaderChunkProgress | null>(null);
+  // Lets the reading moment's "Stop here" affordance cancel an in-flight CHUNKED read. The chunked
+  // reader keeps whatever chunks already succeeded before the abort — see runChunkedReader — so
+  // cancelling still routes to the success preview with a partial, honestly-covered set rather than
+  // discarding work already done. Single-shot reads have no meaningful partial state to keep, so
+  // this affordance only shows during a chunked read (chunkProgress !== null).
+  const [readAbortController, setReadAbortController] = useState<AbortController | null>(null);
 
   const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.title), []);
 
@@ -276,6 +291,10 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // (review-before-truth — they are staged, not counted). On `no-provider` / `error` / an empty read
   // we route to the honest fallback (the file is already saved on-device by the adapter; we never
   // fake a parse). Always clears `reading` before routing.
+  //
+  // A PDF at or above MAX_STATEMENT_BYTES routes to the CHUNKED reader (runChunkedReader) instead —
+  // see extractStatementCandidatesChunked's doc comment for why byte-level page splitting is the
+  // approach that actually works for a long export, measured against the live gateway.
   async function runReader(
     uri: string,
     mediaType: string,
@@ -283,6 +302,14 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     successScreen: ScreenId,
     fallbackScreen: ScreenId,
   ) {
+    if (kind === 'pdf') {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists && typeof info.size === 'number' && info.size > MAX_STATEMENT_BYTES) {
+        await runChunkedReader(uri, mediaType, successScreen, fallbackScreen);
+        return;
+      }
+    }
+
     setReading(true);
     try {
       const result = await extractStatementCandidates({ uri, mediaType, kind });
@@ -301,6 +328,92 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       nav.go(fallbackScreen);
     } finally {
       setReading(false);
+    }
+  }
+
+  // Run the CHUNKED reader over a long PDF export, driving honest per-chunk progress
+  // ("reading pages… N of M") and a "Stop here" cancel that keeps whatever chunks already
+  // succeeded (review-before-truth extended to coverage: the user always knows what range was
+  // actually read). `kind === 'partial'` (some chunks failed, or the user cancelled mid-read) still
+  // routes to the success preview when at least one candidate exists — the coverage gaps are
+  // reported via toast so the user knows which pages weren't read, rather than silently missing
+  // rows. Only a TOTAL failure (kind 'error', or 'ok'/'partial' with zero candidates) falls back.
+  //
+  // PRE-READ SCOPE LINE (phase ⑦): before the first request goes out, plan the chunk split
+  // ourselves (the exact same `planPdfChunks` call `extractStatementCandidatesChunked` makes
+  // internally) so we know `plan.ranges.length` up front and can tell the user honestly how many
+  // parts this is going to take — rather than the per-chunk progress line mid-read being the first
+  // the user hears about scope. Best-effort: if the file can't be planned here (encrypted,
+  // malformed, unreadable), we say nothing and let the real read below surface its own honest error
+  // — this pre-read line is a courtesy heads-up, never a second source of truth for whether the
+  // read can proceed.
+  async function announceChunkedReadScope(uri: string): Promise<void> {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      if (base64.trim().length === 0) return;
+      const plan = planPdfChunks(base64ToBinaryString(base64), PAGES_PER_CHUNK);
+      if (plan.ranges.length > 1) {
+        showToast(
+          'A long export',
+          `Folio will read it in ${plan.ranges.length} parts, a few minutes.`,
+        );
+      }
+    } catch {
+      // Unplannable here — the real read below will report its own honest error if it can't proceed.
+    }
+  }
+
+  async function runChunkedReader(
+    uri: string,
+    mediaType: string,
+    successScreen: ScreenId,
+    fallbackScreen: ScreenId,
+  ) {
+    const controller = new AbortController();
+    setReadAbortController(controller);
+    setReading(true);
+    setChunkProgress(null);
+    try {
+      await announceChunkedReadScope(uri);
+      const result = await extractStatementCandidatesChunked({
+        uri,
+        mediaType,
+        kind: 'pdf',
+        signal: controller.signal,
+        onProgress: setChunkProgress,
+      });
+
+      if (result.kind === 'ok' || result.kind === 'partial') {
+        if (result.candidates.length > 0) {
+          setReaderCandidates(result.candidates);
+          if (result.kind === 'partial') {
+            const failed = result.coverage.filter((outcome) => !outcome.ok);
+            const pages = failed
+              .map((outcome) => `${outcome.startPage}-${outcome.endPage}`)
+              .join(', ');
+            showToast(
+              'Read part of that statement',
+              failed.length > 0
+                ? `Pages ${pages} didn't read — the rest is ready to check.`
+                : 'Reading was stopped early — what came in is ready to check.',
+            );
+          }
+          nav.go(successScreen);
+          return;
+        }
+        nav.go(fallbackScreen);
+        return;
+      }
+      if (result.kind === 'error') {
+        showToast("Couldn't read that", result.message);
+      }
+      nav.go(fallbackScreen);
+    } finally {
+      setReading(false);
+      setChunkProgress(null);
+      setReadAbortController(null);
     }
   }
 
@@ -409,12 +522,35 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // (the same hard rule). Driven by the real in-flight read, not a timer: it resolves the moment the
   // read lands candidates (→ success) or honestly falls back (→ fallback). Curious is the reading
   // mood (MELO_MOODS.md), matching the success screens' own "Folio is reading…" line.
+  //
+  // A CHUNKED read (long PDF export) additionally shows honest per-chunk progress ("reading
+  // pages… N of M") and a "Stop here" affordance — cancelling keeps whatever chunks already
+  // succeeded (runChunkedReader routes to the success preview with that partial set + a toast
+  // naming the gap, rather than discarding the work already done).
   if (reading) {
+    const progressText =
+      chunkProgress !== null
+        ? `Reading pages ${chunkProgress.startPage}-${chunkProgress.endPage} of ${chunkProgress.totalPages} — part ${chunkProgress.chunkIndex + 1} of ${chunkProgress.chunkCount}…`
+        : "Reading what's here…";
     return (
       <View
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
-        <MeloLine mood="curious" text="Reading what's here…" />
+        <MeloLine mood="curious" text={progressText} />
+        {readAbortController !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Stop here and use what's been read so far"
+            onPress={() => readAbortController.abort()}
+            style={({ pressed: isPressed }) => [
+              styles.stopReading,
+              { borderColor: t.hairline },
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.stopReadingLabel, { color: t.muted }]}>Stop here</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   }
@@ -529,6 +665,20 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     paddingHorizontal: gap.xl,
+  },
+  // "Stop here" — a quiet, secondary affordance under the reading Melo line (chunked reads only).
+  // Hairline-bordered, muted text, no fill — visually subordinate to the reading moment itself.
+  stopReading: {
+    alignSelf: 'flex-start',
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.lg,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.sm,
+  },
+  stopReadingLabel: {
+    fontSize: 12.5,
+    fontWeight: '500',
   },
   // flexGrow:1 lets the flex-1 spacer pin the footer to the bottom on tall screens while the list
   // still scrolls on short ones (web overflow-y-auto + flex-1 spacer).

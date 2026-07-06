@@ -457,6 +457,19 @@ export type AppState = {
    *  (mirrors `timelineEvents?` above); `DEFAULTS`/`load()`/`resetToEmpty()`
    *  always populate it ([]). */
   reviewQueue?: ReviewItem[];
+  /** Overflow honesty net for `reviewQueue` (`enqueueReviewItems`'s "silent queue truncation" fix,
+   *  phase ⑦). `reviewQueue` stays visually capped at `REVIEW_QUEUE_CAP` (60) so Review never renders
+   *  a wall of cards, but a bulk import (a 17-chunk statement, say) can easily produce far more
+   *  candidates than that. Rather than silently discarding whatever doesn't fit, the overflow is
+   *  parked here — newest first, capped at `REVIEW_QUEUE_SPILLOVER_CAP` (500) — and
+   *  `refillReviewQueueFromSpillover` drains it back into `reviewQueue` one-for-one as items there are
+   *  resolved, so nothing is ever silently lost short of the outer 500 ceiling (which is itself a
+   *  bound, not a silent drop — same shape as `droppedTransactionCount`'s honesty contract, just
+   *  recoverable instead of merely counted). Same TTL as `reviewQueue` (`REVIEW_TTL_MS`) applies on
+   *  the way in and is re-checked on drain, so a spillover item can still honestly age out before it
+   *  ever surfaces. Optional for shape back-compat with hand-built `AppState` fixtures predating this
+   *  field; `DEFAULTS`/`load()`/`resetToEmpty()` always populate it ([]). */
+  reviewQueueSpillover?: ReviewItem[];
   /** Income-cadence model (`lib/income.ts`) — see `IncomeSource`. Additive:
    *  when empty/absent, every caller (calendarEvents, storeRoute) falls back
    *  BYTE-IDENTICAL to the legacy single-payday derivation off
@@ -693,6 +706,7 @@ const DEFAULTS: AppState = {
   readerCandidates: [],
   ignoredReviewSigs: [],
   reviewQueue: [],
+  reviewQueueSpillover: [],
   moneyMode: 'survival',
   bufferAmount: 100,
   // Two seed debts so the Debt lens has honest numbers on first run, mirroring
@@ -1013,6 +1027,9 @@ function load(): AppState {
       readerCandidates: [],
       ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
       reviewQueue: Array.isArray(migrated.reviewQueue) ? migrated.reviewQueue : [],
+      reviewQueueSpillover: Array.isArray(migrated.reviewQueueSpillover)
+        ? migrated.reviewQueueSpillover
+        : [],
       moneyMode: migrated.moneyMode ?? DEFAULT_MONEY_MODE,
       bufferAmount: migrated.bufferAmount ?? DEFAULT_BUFFER_AMOUNT,
       debts: migrated.debts ?? DEFAULT_DEBTS,
@@ -1966,34 +1983,73 @@ export function unhideReviewSig(sig: string) {
 // Review surface composes `addIgnoredReviewSig` (which also feeds the
 // timeline-verbs log) + `resolveReviewItem`, preserving its existing behaviour.
 
-/** Queue TTL — items older than 14 days age out (design source REVIEW_TTL_MS). */
+/** Queue TTL — items older than 14 days age out (design source REVIEW_TTL_MS). Also applied to
+ *  `reviewQueueSpillover` (same field, same clock) so a spillover row ages out honestly even if it
+ *  never gets a chance to surface. */
 const REVIEW_TTL_MS = 14 * 24 * 3600 * 1000;
-/** Queue cap — newest 60 kept (design source's `.slice(0, 60)`). */
+/** Queue cap — newest 60 kept visible (design source's `.slice(0, 60)`). Anything bumped past this
+ *  by `enqueueReviewItems` goes to `reviewQueueSpillover`, not oblivion — see that field's doc. */
 const REVIEW_QUEUE_CAP = 60;
+/** Spillover cap — the outer bound on how much overflow `enqueueReviewItems` will hold onto beyond
+ *  the visible 60. 500 gives a multi-chunk bulk import (hundreds of candidates) real headroom while
+ *  still keeping persisted state bounded, matching the spirit of `TRANSACTION_CAP`'s sizing. Once
+ *  this outer cap is hit, the OLDEST spillover rows are dropped first (same "newest wins" policy as
+ *  the visible queue) — a bound, not a silent per-call drop: an import this large is already
+ *  surfaced honestly via the enqueue toast, and the outer 500 is a last-resort ceiling, not the
+ *  common case. */
+const REVIEW_QUEUE_SPILLOVER_CAP = 500;
+
+/** Return shape for `enqueueReviewItems` — see that function's doc for what `dropped` counts. */
+export type EnqueueReviewItemsResult = {
+  /** The candidates from THIS call that were actually added (queue or spillover) — same value the
+   *  pre-spillover version of this function returned, preserved for existing callers. */
+  fresh: ReviewItem[];
+  /** How many of `fresh` did NOT make the visible 60-row `reviewQueue` this call — i.e. landed in
+   *  `reviewQueueSpillover` instead (or, in the rare outer-cap case, were dropped entirely). Zero
+   *  means every fresh candidate is visible in Review right now. Callers (the intake success screens)
+   *  surface a toast when this is > 0 so a large import never silently "loses" the tail. */
+  dropped: number;
+};
 
 /** Enqueue candidates from an intake reader. Each candidate becomes one Review
  *  card. `id` and `addedAt` are stamped here so callers can pass minimal input.
- *  Duplicates already in the queue (same merchant + amount + date) are skipped
- *  so re-running a reader on the same file doesn't nag twice. Candidates whose
- *  signature is in `ignoredReviewSigs` are also skipped — the user already said
- *  "not this one" for that exact row (ENGINES.md § 6 "Future intakes skip exact
- *  re-matches"). The suppression signature is this store's `reviewCandidateSig`
- *  (the same key the Review surface's Ignore writes), so the skip and the
- *  writes always agree. */
+ *  Duplicates already in the queue OR spillover (same merchant + amount + date) are skipped so
+ *  re-running a reader on the same file doesn't nag twice. Candidates whose signature is in
+ *  `ignoredReviewSigs` are also skipped — the user already said "not this one" for that exact row
+ *  (ENGINES.md § 6 "Future intakes skip exact re-matches"). The suppression signature is this
+ *  store's `reviewCandidateSig` (the same key the Review surface's Ignore writes), so the skip and
+ *  the writes always agree.
+ *
+ *  SPILLOVER (phase ⑦ "silent queue truncation" fix): the visible `reviewQueue` stays capped at
+ *  `REVIEW_QUEUE_CAP` (60) so Review never renders a wall of cards, but a bulk import can produce far
+ *  more candidates than that in one call. Rather than silently discarding whatever doesn't fit this
+ *  call, anything bumped past the visible cap is combined with the existing spillover, re-sorted
+ *  newest-first, TTL-filtered, and capped at `REVIEW_QUEUE_SPILLOVER_CAP` (500) — see
+ *  `refillReviewQueueFromSpillover` for how it drains back in as the visible queue empties out. */
 export function enqueueReviewItems(
   candidates: Array<Omit<ReviewItem, 'id' | 'addedAt'>>,
-): ReviewItem[] {
-  if (candidates.length === 0) return [];
-  const existing = state.reviewQueue ?? [];
+): EnqueueReviewItemsResult {
+  if (candidates.length === 0) return { fresh: [], dropped: 0 };
+  const existingQueue = state.reviewQueue ?? [];
+  const existingSpillover = state.reviewQueueSpillover ?? [];
   const ignored = new Set(state.ignoredReviewSigs ?? []);
   const now = Date.now();
   const fresh: ReviewItem[] = [];
   for (const c of candidates) {
     if (ignored.has(reviewCandidateSig(c.merchant, c.amount, c.date ?? ''))) continue;
-    const dupe = existing.some(
-      (it) =>
-        it.merchant === c.merchant && it.amount === c.amount && (it.date ?? '') === (c.date ?? ''),
-    );
+    const dupe =
+      existingQueue.some(
+        (it) =>
+          it.merchant === c.merchant &&
+          it.amount === c.amount &&
+          (it.date ?? '') === (c.date ?? ''),
+      ) ||
+      existingSpillover.some(
+        (it) =>
+          it.merchant === c.merchant &&
+          it.amount === c.amount &&
+          (it.date ?? '') === (c.date ?? ''),
+      );
     if (dupe) continue;
     fresh.push({
       ...c,
@@ -2001,13 +2057,46 @@ export function enqueueReviewItems(
       addedAt: new Date(now).toISOString(),
     });
   }
-  if (fresh.length === 0) return [];
-  // Newest first, capped, age-out anything older than TTL.
-  const combined = [...fresh, ...existing]
-    .filter((it) => now - new Date(it.addedAt).getTime() < REVIEW_TTL_MS)
-    .slice(0, REVIEW_QUEUE_CAP);
-  setPartial({ reviewQueue: combined });
-  return fresh;
+  if (fresh.length === 0) return { fresh: [], dropped: 0 };
+
+  // Newest-first, TTL-filtered pool of every row this call needs to place: the fresh candidates plus
+  // everything already visible or already spilled over.
+  const notExpired = (it: ReviewItem) => now - new Date(it.addedAt).getTime() < REVIEW_TTL_MS;
+  const pool = [...fresh, ...existingQueue, ...existingSpillover].filter(notExpired);
+  const nextQueue = pool.slice(0, REVIEW_QUEUE_CAP);
+  const nextSpillover = pool.slice(REVIEW_QUEUE_CAP, REVIEW_QUEUE_CAP + REVIEW_QUEUE_SPILLOVER_CAP);
+
+  setPartial({ reviewQueue: nextQueue, reviewQueueSpillover: nextSpillover });
+
+  const freshIds = new Set(fresh.map((it) => it.id));
+  const freshVisible = nextQueue.filter((it) => freshIds.has(it.id)).length;
+  return { fresh, dropped: fresh.length - freshVisible };
+}
+
+/** Drain `reviewQueueSpillover` back into the visible `reviewQueue` as space frees up — the other
+ *  half of the phase ⑦ spillover fix. Call this anywhere the visible queue shrinks (today: after
+ *  `resolveReviewItem`) so a cleared row is honestly replaced by the oldest-waiting overflow item
+ *  rather than leaving spillover parked forever. Moves at most enough spillover rows to bring
+ *  `reviewQueue` back up to `REVIEW_QUEUE_CAP`; a no-op when the queue isn't under-full or spillover
+ *  is empty. TTL-filters the spillover pool on the way in, same as `enqueueReviewItems`, so a row that
+ *  aged out while parked never resurfaces. */
+export function refillReviewQueueFromSpillover() {
+  const queue = state.reviewQueue ?? [];
+  const spillover = state.reviewQueueSpillover ?? [];
+  const room = REVIEW_QUEUE_CAP - queue.length;
+  if (room <= 0 || spillover.length === 0) return;
+  const now = Date.now();
+  const fresh = spillover.filter((it) => now - new Date(it.addedAt).getTime() < REVIEW_TTL_MS);
+  if (fresh.length === 0) {
+    if (fresh.length !== spillover.length) setPartial({ reviewQueueSpillover: fresh });
+    return;
+  }
+  const toMove = fresh.slice(0, room);
+  const remaining = fresh.slice(room);
+  setPartial({
+    reviewQueue: [...queue, ...toMove],
+    reviewQueueSpillover: remaining,
+  });
 }
 
 /** Map reader candidates (the `readerCandidates` staging shape) into
@@ -2039,25 +2128,41 @@ export function queueInputFromCandidates(
 
 /** Resolve one candidate — user tapped Accept, or Ignored it (the Review
  *  surface records the suppression signature separately via
- *  `addIgnoredReviewSig`). Silent no-op if the id is gone. */
+ *  `addIgnoredReviewSig`). Silent no-op if the id is gone. Refills the now-freed slot from
+ *  `reviewQueueSpillover` (if any) so the visible queue honestly drains the overflow instead of
+ *  leaving it parked once there's room for it. */
 export function resolveReviewItem(id: string) {
   const queue = state.reviewQueue ?? [];
   const next = queue.filter((it) => it.id !== id);
-  if (next.length !== queue.length) setPartial({ reviewQueue: next });
+  if (next.length !== queue.length) {
+    setPartial({ reviewQueue: next });
+    refillReviewQueueFromSpillover();
+  }
 }
 
 /** Drain the whole queue — used when the user explicitly says "clear all"
- *  or when a cycle closes and stale candidates should stop nagging. */
+ *  or when a cycle closes and stale candidates should stop nagging. Also drains the spillover: a
+ *  "clear all" that left the overflow parked would just silently repopulate the queue moments later. */
 export function clearReviewQueue() {
-  if ((state.reviewQueue ?? []).length > 0) setPartial({ reviewQueue: [] });
+  const hadQueue = (state.reviewQueue ?? []).length > 0;
+  const hadSpillover = (state.reviewQueueSpillover ?? []).length > 0;
+  if (hadQueue || hadSpillover) setPartial({ reviewQueue: [], reviewQueueSpillover: [] });
 }
 
-/** Public sweep — call on Today mount to age out expired items. */
+/** Public sweep — call on Today mount to age out expired items in both the visible queue and the
+ *  spillover, then refill any room the sweep opened up. */
 export function sweepReviewQueue() {
   const queue = state.reviewQueue ?? [];
+  const spillover = state.reviewQueueSpillover ?? [];
   const now = Date.now();
-  const next = queue.filter((it) => now - new Date(it.addedAt).getTime() < REVIEW_TTL_MS);
-  if (next.length !== queue.length) setPartial({ reviewQueue: next });
+  const notExpired = (it: ReviewItem) => now - new Date(it.addedAt).getTime() < REVIEW_TTL_MS;
+  const nextQueue = queue.filter(notExpired);
+  const nextSpillover = spillover.filter(notExpired);
+  const changed = nextQueue.length !== queue.length || nextSpillover.length !== spillover.length;
+  if (changed) {
+    setPartial({ reviewQueue: nextQueue, reviewQueueSpillover: nextSpillover });
+    refillReviewQueueFromSpillover();
+  }
 }
 
 /** Nudge a flexible bill (subscription renewal) by `deltaDays`. This is
@@ -2123,6 +2228,7 @@ export function resetToEmpty() {
     readerCandidates: [],
     ignoredReviewSigs: [],
     reviewQueue: [],
+    reviewQueueSpillover: [],
     moneyMode: 'survival',
     bufferAmount: 100,
     dismissedIncomeSignals: [],

@@ -70,14 +70,18 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
 import { applyMemoryToCandidates } from '@/folio/lib/merchantMemory';
 import { enqueueReviewItems, getState, queueInputFromCandidates } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
-// One thing Folio found in the pasted text — `flow` distinguishes money-in from money-out, `amount`
-// is the bare preformatted magnitude (the screen prepends the +/− glyph), `date` is the short date.
+// One thing Folio found in the pasted text — `id` is the candidate's own identity (the list keys on
+// THIS, never `merchant`, so two rows for the same merchant never collapse into one — phase ⑦
+// "preview key collapse" fix). `flow` distinguishes money-in from money-out, `amount` is the bare
+// preformatted magnitude (the screen prepends the +/− glyph), `date` is the short date.
 export type PastedItem = {
+  id: string;
   merchant: string;
   flow: 'in' | 'out';
   amount: string;
@@ -121,8 +125,11 @@ function formatMagnitude(amount: number): string {
 // Map the engine's CandidateMoneyItem[] (the real `parseSheet` output) into this screen's render
 // shape. The sign carries money-in vs money-out; the magnitude is reformatted to the web's exact
 // preformatted string; the short date label is restated from the same day. Faithful, no new data.
+// Carrying the candidate's own `id` through is what lets the list key on a stable per-row identity
+// instead of collapsing same-merchant rows (phase ⑦ "preview key collapse" fix).
 function toPastedItems(candidates: readonly CandidateMoneyItem[]): PastedItem[] {
   return candidates.map((candidate) => ({
+    id: candidate.id,
     merchant: candidate.merchant,
     flow: candidate.amount >= 0 ? 'in' : 'out',
     amount: formatMagnitude(candidate.amount),
@@ -325,7 +332,7 @@ export function PasteSuccessScreen({
             const isIn = item.flow === 'in';
             return (
               <View
-                key={item.merchant}
+                key={item.id}
                 style={[
                   styles.row,
                   index > 0 ? { borderTopColor: t.hairline, ...styles.rowDivider } : undefined,
@@ -366,7 +373,13 @@ export function PasteSuccessScreen({
           accessibilityLabel="Check these"
           accessibilityHint="Opens the review of what was found"
           onPress={() => {
-            enqueueReviewItems(queueInputFromCandidates(candidates, 'csv'));
+            const { dropped } = enqueueReviewItems(queueInputFromCandidates(candidates, 'csv'));
+            if (dropped > 0) {
+              showToast(
+                'Showing the newest 60 to check first',
+                `${dropped} more will follow as you clear them.`,
+              );
+            }
             nav.go('review');
           }}
           style={({ pressed: isPressed }) => [

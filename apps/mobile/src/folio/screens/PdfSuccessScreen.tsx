@@ -107,6 +107,7 @@ import { elevation, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
   clearReaderCandidates,
@@ -117,10 +118,14 @@ import {
 import type { Nav } from '@/folio/types';
 
 // A single thing Folio found in the statement — the eventual shape of one CandidateMoneyItem from the
-// @rn-engine statement-reader. `merchant` is the display name, `hint` is the voice-approved confidence
-// line ('looks like income' / 'looks like a bill' / 'likely spending') — never a raw category code,
-// and `amount` is the preformatted signed money string (the reader formats it; the screen renders it).
+// @rn-engine statement-reader. `id` is the candidate's own identity (falls back to a stable per-index
+// synthetic id for fixture rows that carry none) — the found list keys on THIS, never `merchant`, so
+// two rows for the same merchant (e.g. two Tesco spends in one statement) never collapse into one
+// (phase ⑦ "preview key collapse" fix). `hint` is the voice-approved confidence line ('looks like
+// income' / 'looks like a bill' / 'likely spending') — never a raw category code, and `amount` is the
+// preformatted signed money string (the reader formats it; the screen renders it).
 export type FoundItem = {
+  id: string;
   merchant: string;
   hint: string;
   amount: string;
@@ -188,10 +193,13 @@ function formatSignedAmount(amount: number): string {
 }
 
 // Map the engine's CandidateMoneyItem[] (real `parseSheet` output) into this screen's render shape —
-// merchant verbatim, the hint from the candidate kind, the amount from the signed magnitude. Faithful,
-// no new data, candidates only (never auto-counted).
+// id + merchant verbatim, the hint from the candidate kind, the amount from the signed magnitude.
+// Faithful, no new data, candidates only (never auto-counted). Carrying the candidate's own `id`
+// through (rather than re-deriving a key from `merchant`) is what lets the found list key on a stable
+// per-row identity instead of collapsing same-merchant rows (phase ⑦ "preview key collapse" fix).
 function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
   return candidates.map((candidate) => ({
+    id: candidate.id,
     merchant: candidate.merchant,
     hint: hintForKind(candidate.kind),
     amount: formatSignedAmount(candidate.amount),
@@ -388,7 +396,7 @@ export function PdfSuccessScreen({
             <Text style={[styles.foundLabel, { color: t.muted }]}>{foundLabel}</Text>
             <View style={styles.foundList}>
               {statement.items.map((item) => (
-                <View key={item.merchant} style={styles.foundRow}>
+                <View key={item.id} style={styles.foundRow}>
                   <View style={[styles.dot, { backgroundColor: t.calm }]} />
                   <View style={styles.foundMeta}>
                     <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
@@ -427,7 +435,13 @@ export function PdfSuccessScreen({
         <PressButton
           onPress={() => {
             const showing = statementProp ? [] : staged.length > 0 ? staged : SAMPLE_CANDIDATES;
-            enqueueReviewItems(queueInputFromCandidates(showing, 'pdf'));
+            const { dropped } = enqueueReviewItems(queueInputFromCandidates(showing, 'pdf'));
+            if (dropped > 0) {
+              showToast(
+                'Showing the newest 60 to check first',
+                `${dropped} more will follow as you clear them.`,
+              );
+            }
             if (staged.length > 0) clearReaderCandidates();
             nav.go('review');
           }}

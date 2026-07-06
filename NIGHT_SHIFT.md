@@ -59,7 +59,7 @@ bottom — append one line per shipped phase.
 - [x] Phase ⑥ history-fed forecasts (shipped + OTA 07-06, cooldown/annual-guard/quiet-gate hardened)
       discretionary-spend baselines in projections, bill drift + income drift re-check loops
       (propose-and-confirm "Pay looks different now" sheet), subscription price-rise alerts.
-- [ ] Phase ⑦ chunked long-export reading: the 133-page statement answer — client-side page
+- [x] Phase ⑦ chunked long-export reading (shipped + OTA 07-06, spillover/keys/scope hardened)
       ranging or sequential month-window reads with progress UI; keep the 500KB single-shot
       pre-flight as the fallback message. (Real test PDFs in .claude-session/, git-excluded.)
 - [ ] Phase ⑧ engine-stack consolidation: multiple parallel engine stacks (melo-engine used
