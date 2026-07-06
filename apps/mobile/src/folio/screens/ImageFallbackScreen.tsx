@@ -65,6 +65,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { consumeReaderFallbackReason } from '@/folio/lib/readerFallbackReason';
 import type { Nav } from '@/folio/types';
 
 // What a failed read hands this screen — just the saved image's name. Until the reader lands, the
@@ -148,6 +149,13 @@ export function ImageFallbackScreen({
 
   const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.fallback.image), []);
 
+  // Consumed ONCE on mount — when the reader (IntakeScreen) knew a specific reason the read failed
+  // (long export, timeout, gateway trouble), it carries over here via a module-level handoff (see
+  // readerFallbackReason.ts) rather than being lost once its toast dismisses. `undefined` when the
+  // reader had nothing more specific to say (or on a cold/direct nav here) — the body line below
+  // falls back to the honest generic copy in that case, exactly as before.
+  const [readerReason] = useState(() => consumeReaderFallbackReason());
+
   // empty — n/a in practice; rendered as the calm doorway so the screen never dead-ends.
   if (state === 'empty') {
     return (
@@ -208,7 +216,7 @@ export function ImageFallbackScreen({
             {tail}
           </Text>
           <Text style={[styles.body, { color: t.muted }]}>
-            I could not read it clearly enough to show things to check.
+            {readerReason ?? 'I could not read it clearly enough to show things to check.'}
           </Text>
         </View>
 
@@ -243,7 +251,10 @@ export function ImageFallbackScreen({
 
         {/* Melo line — the quiet companion, calm mood. MeloLine adds the straight quotes. */}
         <View style={styles.meloBlock}>
-          <MeloLine mood="calm" text="Let's try the image again before we ask you to type." />
+          <MeloLine
+            mood="calm"
+            text="Let's give the image one more try before we ask you to type."
+          />
         </View>
 
         {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}

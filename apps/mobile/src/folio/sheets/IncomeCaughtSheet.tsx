@@ -62,7 +62,7 @@ import { gap, magnitude, radius, serif, Sheet, useTheme, type Palette } from '@/
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { copy } from '@/folio/copy/copy';
+import { copy, isKnownStatePayer } from '@/folio/copy/copy';
 import {
   dismissIncomeSignal,
   upsertIncomeSource,
@@ -301,9 +301,17 @@ function IncomeCaughtBody({
     onClose();
   }
 
+  // Benefits/pension credits ARE income — this only swaps the headline phrasing
+  // so a DWP/HMRC/pension-provider merchant string doesn't read like Melo
+  // mistook it for an employer (see isKnownStatePayer in copy/copy.ts).
+  // Detection, confidence, and the write itself are unchanged either way.
   const headParts = isUpdate
     ? splitHead(copy.income.caught.update.head())
-    : splitHead(copy.income.caught.head(candidate.merchant));
+    : splitHead(
+        isKnownStatePayer(candidate.merchant)
+          ? copy.income.caught.headStatePayer(candidate.merchant)
+          : copy.income.caught.head(candidate.merchant),
+      );
   const hedgeBody = isUpdate
     ? isPossible
       ? copy.income.caught.update.body.possible(candidate.merchant, cadenceLabel)

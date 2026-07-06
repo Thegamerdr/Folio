@@ -21,12 +21,15 @@ import type {
   AppState,
   CalendarEvent,
   CycleRecord,
+  DriftCooldownEntry,
+  IncomeSource,
   Pot,
   PotLedgerEntry,
   ReviewItem,
   Sub,
   Transaction,
 } from '../store';
+import type { MerchantCategoryMap } from './merchantMemory';
 
 /**
  * A transaction correction record, per ENGINES §6 "Editing existing
@@ -70,6 +73,10 @@ export const EXPORT_CSV_FILES = [
   'onboarding.csv',
   'balance.csv',
   'settings.csv',
+  'incomeSources.csv',
+  'merchant-categories.csv',
+  'dismissed-signals.csv',
+  'review-spillover.csv',
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -257,6 +264,93 @@ function ignoredReviewCsv(ignoredReviewSigs: readonly string[]): string {
   );
 }
 
+/** Declared income sources (`lib/income.ts` `IncomeSource`, ENGINES §1 income-cadence model) — one row
+ *  per source, in store order. `dayOfMonth` / `anchorISO` are the two cadence-specific fields (only one
+ *  is meaningful per cadence); the unused one renders "" rather than being omitted, so every row has
+ *  the same column set. */
+function incomeSourcesCsv(incomeSources: readonly IncomeSource[]): string {
+  return toCsv(
+    ['id', 'label', 'cadence', 'dayOfMonth', 'anchorISO', 'amount', 'source'],
+    incomeSources.map((s) => [
+      s.id,
+      s.label,
+      s.cadence,
+      s.dayOfMonth ?? '',
+      s.anchorISO ?? '',
+      s.amount,
+      s.source,
+    ]),
+  );
+}
+
+/** Merchant→category memory (`lib/merchantMemory.ts` `MerchantCategoryMap`, DATA_INTELLIGENCE.md
+ *  phase ③) — one row per remembered merchant, keyed by the normalised merchant string already used as
+ *  the map's key. Pending-flip fields (`pendingCategory` / `pendingCount`) render "" / 0 when absent
+ *  rather than being omitted, so every row has the same column set. */
+function merchantCategoriesCsv(merchantCategories: MerchantCategoryMap): string {
+  return toCsv(
+    ['merchant', 'category', 'correctedAt', 'hits', 'pendingCategory', 'pendingCount'],
+    Object.entries(merchantCategories).map(([merchant, entry]) => [
+      merchant,
+      entry.category,
+      entry.correctedAt,
+      entry.hits,
+      entry.pendingCategory ?? '',
+      entry.pendingCount ?? 0,
+    ]),
+  );
+}
+
+/** Dismissed / cooldown signals across every "caught" detector family, unified into ONE file (task:
+ *  "one file, columns family/merchant/at") rather than four near-identical single-column files. Income,
+ *  bill, and annual dismissals (`dismissedIncomeSignals` / `dismissedBillSignals` /
+ *  `dismissedAnnualSignals`) are plain normalised-merchant string lists with no recorded timestamp, so
+ *  their rows carry `at: ""` — honestly absent, never fabricated. Drift dismissals
+ *  (`dismissedDriftSignals`) are the one family that already carries a timestamp
+ *  (`DriftCooldownEntry`, the 45-day re-propose cooldown), so its rows carry the real `at`. Row order:
+ *  income, then bill, then drift, then annual, each in store order — deterministic, no re-sorting. */
+function dismissedSignalsCsv(state: AppState): string {
+  const rows: Array<[string, string, string]> = [
+    ...(state.dismissedIncomeSignals ?? []).map((merchant): [string, string, string] => [
+      'income',
+      merchant,
+      '',
+    ]),
+    ...(state.dismissedBillSignals ?? []).map((merchant): [string, string, string] => [
+      'bill',
+      merchant,
+      '',
+    ]),
+    ...(state.dismissedDriftSignals ?? []).map(
+      (entry: DriftCooldownEntry): [string, string, string] => ['drift', entry.merchant, entry.at],
+    ),
+    ...(state.dismissedAnnualSignals ?? []).map((merchant): [string, string, string] => [
+      'annual',
+      merchant,
+      '',
+    ]),
+  ];
+  return toCsv(['family', 'merchant', 'at'], rows);
+}
+
+/** Overflow review candidates (`reviewQueueSpillover`, ENGINES §7 "silent queue truncation" fix) — the
+ *  same column set as `reviewQueue.csv` (design-source shape) so the two files read as one logical
+ *  list split only by whether a row currently fits the visible cap. */
+function reviewSpilloverCsv(reviewQueueSpillover: readonly ReviewItem[]): string {
+  return toCsv(
+    ['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt'],
+    reviewQueueSpillover.map((r) => [
+      r.id,
+      r.source,
+      r.merchant,
+      r.amount,
+      r.date ?? '',
+      r.hint ?? '',
+      r.addedAt,
+    ]),
+  );
+}
+
 /** Onboarding / payday rule — a single-row CSV. */
 function onboardingCsv(state: AppState): string {
   const o = state.onboarding;
@@ -329,6 +423,10 @@ export function buildExport(state: AppState): ExportBundle {
     'onboarding.csv': onboardingCsv(state),
     'balance.csv': balanceCsv(state),
     'settings.csv': settingsCsv(state),
+    'incomeSources.csv': incomeSourcesCsv(state.incomeSources ?? []),
+    'merchant-categories.csv': merchantCategoriesCsv(state.merchantCategories ?? {}),
+    'dismissed-signals.csv': dismissedSignalsCsv(state),
+    'review-spillover.csv': reviewSpilloverCsv(state.reviewQueueSpillover ?? []),
   };
 
   const edits = readEdits(state);

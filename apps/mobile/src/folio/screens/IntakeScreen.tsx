@@ -97,6 +97,7 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import { setReaderCandidates } from '@/folio/store';
+import { setReaderFallbackReason } from '@/folio/lib/readerFallbackReason';
 import { showToast } from '@/folio/ui/Toast';
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -321,7 +322,10 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       // no-provider / error / empty read → the file is saved, but nothing was read. Honest
       // fallback — and when the reader knows WHY (long export, timeout, gateway trouble), say it:
       // the fallback screen's copy is generic, and the specific guidance ("one month works best")
-      // is the difference between a retry that works and giving up on the feature.
+      // is the difference between a retry that works and giving up on the feature. The toast covers
+      // the in-the-moment read; the module-level handoff below lets the fallback screen itself carry
+      // the same reason once it mounts (see readerFallbackReason.ts).
+      setReaderFallbackReason(result.kind === 'error' ? result.message : undefined);
       if (result.kind === 'error') {
         showToast("Couldn't read that", result.message);
       }
@@ -403,9 +407,11 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           nav.go(successScreen);
           return;
         }
+        setReaderFallbackReason(undefined);
         nav.go(fallbackScreen);
         return;
       }
+      setReaderFallbackReason(result.kind === 'error' ? result.message : undefined);
       if (result.kind === 'error') {
         showToast("Couldn't read that", result.message);
       }
@@ -448,11 +454,14 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           setReaderCandidates(candidates);
           nav.go('pdf-success');
         } else {
+          // The column parser found nothing readable — no reader-side reason to hand over.
+          setReaderFallbackReason(undefined);
           nav.go('pdf-fallback');
         }
       } else if (src.uri !== undefined) {
         await runReader(src.uri, src.mediaType, 'pdf', 'pdf-success', 'pdf-fallback');
       } else {
+        setReaderFallbackReason(undefined);
         nav.go('pdf-fallback');
       }
       return;
@@ -469,6 +478,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         'image-fallback',
       );
     } else if (result.kind === 'picked' || result.kind === 'saved') {
+      setReaderFallbackReason(undefined);
       nav.go('image-fallback');
     }
   }

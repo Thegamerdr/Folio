@@ -6,8 +6,8 @@
 // composed for a doorway / map experience instead of a card wall.
 //
 // Nothing in this file talks to the engine. These are pure presentation primitives
-// the new screens compose. Money values are formatted through the canonical
-// formatMinorAmount so there is no formatting drift with the rest of the app.
+// the new screens compose. Money values are formatted through this kit's own
+// formatMinorAmount (./money.ts) so there is no dependency on the legacy local/ ledger stack.
 //
 // ===========================================================================
 // DARK-MODE PATTERN (the reference every surface sweep follows)
@@ -56,7 +56,6 @@ import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { folioTokens } from '@folio/ui';
 
-import { formatMinorAmount } from '../../local/localLedger';
 import type { ProductScreen } from '../mobileShell';
 import {
   ThemeProvider as ThemeProviderBase,
@@ -67,6 +66,7 @@ import {
   type Palette,
   type ThemeMode,
 } from './kitTheme';
+import { formatMinorAmount } from './money';
 
 // ---------------------------------------------------------------------------
 // Palette + rhythm (mirrors folioTokens; named for the map direction)

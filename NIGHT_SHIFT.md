@@ -66,14 +66,16 @@ bottom — append one line per shipped phase.
       ONLY by notifications; finance/today/calendar/import-engine packages; folio/lib/*) —
       produce a consolidation plan doc + execute the safe parts (retire dead code paths, one
       source of truth per formula). Careful: notifyState imports melo-engine planNotification.
-- [ ] Phase ⑨ backlog burn (see below) + fresh whole-app discovery sweep ("plenty more").
+- [x] Phase ⑨ backlog burn + sweep (shipped + OTA 07-06; chat-context CRITICAL fixed)
 - [ ] Phase ⑩ final: full suites + maestro smoke on device + final OTA + comprehensive owner
       report (what shipped, what's left, deltas vs Lovable) + update memory + this file.
 
 ## BACKLOG (non-blocking accumulator — burn in ⑨)
 - Income drift re-check (discovery ②-2) — folded into ⑥.
 - Benefits/pension credits: income detection is CORRECT behavior; add copy nuance so "pays
-  you" reads right for DWP/pension credits (⑥ or ⑨).
+  you" reads right for DWP/pension credits — DONE (burn-B, isKnownStatePayer + copy.income
+  .caught.headStatePayer in copy/copy.ts, wired in IncomeCaughtSheet.tsx; 15 new tests in
+  copy/statePayerHeuristic.test.ts).
 - Fallback screens: reader errors now toast, but Pdf/Image fallback screens' own copy is
   generic — could carry the specific reason (⑨).
 - Melo notification bridge: journey/milestone/fog notification categories never fire (needs
@@ -81,7 +83,24 @@ bottom — append one line per shipped phase.
 - Timeline 'Ignored' verb unreachable (typed, documented) — fine to leave.
 - Transactions/timeline/store caps: revisit holistic retention policy in ④.
 - RNTL component render tests blocked by vitest/Flow parse on react-native entry — logic
-  tests exist; a vitest-config fix attempt is a ⑨ item, timebox it.
+  tests exist; a vitest-config fix attempt is a ⑨ item, timebox it. TIMEBOXED ATTEMPT (burn-B,
+  30min, abandoned per instructions): tried a Vite `resolve.alias` mapping bare `react-native`
+  to a small manual mock (View/Text/StyleSheet/Animated/AccessibilityInfo) in a separate
+  `vitest.probe.config.ts` project (main suite untouched). The alias works for direct
+  `import ... from 'react-native'` in a test file, but @testing-library/react-native's own
+  dist (`helpers/accessibility.js`, `helpers/map-props.js`, `helpers/pointer-events.js`,
+  `matchers/to-be-visible.js`, `matchers/to-have-style.js`) does `require('react-native')`
+  via CJS `require`, which resolves through Node's real module resolution rather than Vite's
+  `resolve.alias` (a known Vitest/CJS-interop gap — aliases apply cleanly to ESM imports, not
+  reliably to nested CJS `require()` calls inside a dependency). That require() eventually
+  pulls in a real `@flow` file inside react-native's source tree ("Unexpected token 'typeof'"
+  after esbuild's Flow-unaware parse). Next real fix (not attempted, needs its own budget):
+  either (a) a `deps.inline` + `esbuild.jsx`/babel-flow-strip-types transform for the
+  `react-native` package specifically (needs a flow-strip plugin wired into Vite's `optimizeDeps`
+  or a custom esbuild plugin), or (b) swap to `react-native/jest-preset.js`'s own resolved
+  mocks (it already solves this for Jest — would mean adding a second test runner rather than
+  making RNTL work under Vitest). Logic-only tests remain the right call until one of those is
+  actually implemented and time-budgeted.
 - Play-release gates (owner-side, do NOT attempt): package-id naming, Play Console, privacy
   policy hosting — RELEASE_CHECKLIST.md.
 

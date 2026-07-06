@@ -24,6 +24,16 @@ export const SOURCE_VOICE_LINT_FILES: readonly string[] = [
   '../widget/SafeZoneWidget.tsx',
   '../screens/today/TodayNudges.tsx',
   '../screens/PrivacyScreen.tsx',
+  // Widened for the Melo-MVP night-shift batch — the four "caught"-signal confirmation sheets, the
+  // two intake-reader fallback screens, and onboarding's pay-cadence step (all carry inline
+  // user-facing literals, none previously covered by this gate).
+  '../sheets/BillCaughtSheet.tsx',
+  '../sheets/IncomeCaughtSheet.tsx',
+  '../sheets/AnnualCaughtSheet.tsx',
+  '../sheets/DriftCaughtSheet.tsx',
+  '../screens/PdfFallbackScreen.tsx',
+  '../screens/ImageFallbackScreen.tsx',
+  '../sheets/OnboardingSheet.tsx',
 ] as const;
 
 function read(relativePath: string): string {

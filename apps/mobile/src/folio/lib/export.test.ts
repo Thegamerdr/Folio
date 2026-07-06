@@ -22,7 +22,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { AppState, Transaction } from '../store';
+import type { AppState, DriftCooldownEntry, IncomeSource, Transaction } from '../store';
 import { buildExport, EXPORT_CSV_FILES } from './export';
 
 // ---------------------------------------------------------------------------
@@ -130,6 +130,53 @@ function fullState(): AppState {
       },
     ],
     ignoredReviewSigs: ['ATM withdrawal|-2000|2026-06-23'],
+    incomeSources: [
+      {
+        id: 'income-1',
+        label: 'Employer Ltd',
+        cadence: 'monthly',
+        dayOfMonth: 25,
+        amount: 2180,
+        source: 'onboarding',
+      },
+      {
+        id: 'income-2',
+        label: 'Side gig',
+        cadence: 'weekly',
+        anchorISO: '2026-06-05',
+        amount: 60,
+        source: 'inferred',
+      },
+    ],
+    merchantCategories: {
+      tesco: {
+        category: 'food',
+        correctedAt: '2026-06-20T00:00:00.000Z',
+        hits: 3,
+      },
+      spotify: {
+        category: 'subscriptions',
+        correctedAt: '2026-06-15T00:00:00.000Z',
+        hits: 1,
+        pendingCategory: 'entertainment',
+        pendingCount: 1,
+      },
+    },
+    dismissedIncomeSignals: ['old employer'],
+    dismissedBillSignals: ['gym membership'],
+    dismissedAnnualSignals: ['car insurance'],
+    dismissedDriftSignals: [{ merchant: 'netflix', at: '2026-06-22T00:00:00.000Z' }],
+    reviewQueueSpillover: [
+      {
+        id: 'rv-spill-1',
+        source: 'csv',
+        merchant: 'Overflow Merchant',
+        amount: -9.5,
+        date: '2026-06-24',
+        hint: 'looks like a bill',
+        addedAt: '2026-06-27T00:00:00.000Z',
+      },
+    ],
   };
 }
 
@@ -266,6 +313,11 @@ describe('buildExport — per-surface csvs', () => {
     expect(csvs).toHaveProperty('calendarEvents.csv');
     expect(csvs).toHaveProperty('reviewQueue.csv');
     expect(csvs).toHaveProperty('ignored-review.csv');
+    // Tonight's additions — one file per new slice.
+    expect(csvs).toHaveProperty('incomeSources.csv');
+    expect(csvs).toHaveProperty('merchant-categories.csv');
+    expect(csvs).toHaveProperty('dismissed-signals.csv');
+    expect(csvs).toHaveProperty('review-spillover.csv');
   });
 
   it('every category that exists in the store is present in BOTH json and a csv', () => {
@@ -358,6 +410,128 @@ describe('buildExport — per-surface csvs', () => {
     expect(cadenceIdx).toBeGreaterThanOrEqual(0);
     const buffer = rows.find((r) => r[idIdx] === 'buffer');
     expect(buffer?.[cadenceIdx]).toBe('after-payday');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New slices — incomeSources / merchant-categories / dismissed-signals / review-spillover
+// ---------------------------------------------------------------------------
+describe('buildExport — incomeSources.csv', () => {
+  it('carries one row per declared income source, incl. cadence-specific fields', () => {
+    const { csvs } = buildExport(fullState());
+    const rows = parseCsv(csvs['incomeSources.csv'] as string);
+    expect(rows).toHaveLength(3); // header + 2 sources
+    const header = rows[0] as string[];
+    const idIdx = header.indexOf('id');
+    const monthly = rows.find((r) => r[idIdx] === 'income-1');
+    const weekly = rows.find((r) => r[idIdx] === 'income-2');
+    expect(monthly?.[header.indexOf('cadence')]).toBe('monthly');
+    expect(monthly?.[header.indexOf('dayOfMonth')]).toBe('25');
+    expect(monthly?.[header.indexOf('anchorISO')]).toBe('');
+    expect(weekly?.[header.indexOf('cadence')]).toBe('weekly');
+    expect(weekly?.[header.indexOf('anchorISO')]).toBe('2026-06-05');
+    expect(weekly?.[header.indexOf('dayOfMonth')]).toBe('');
+  });
+
+  it('is header-only when no income sources are declared', () => {
+    const { csvs } = buildExport(emptyState());
+    const rows = parseCsv(csvs['incomeSources.csv'] as string);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual([
+      'id',
+      'label',
+      'cadence',
+      'dayOfMonth',
+      'anchorISO',
+      'amount',
+      'source',
+    ]);
+  });
+});
+
+describe('buildExport — merchant-categories.csv', () => {
+  it('carries one row per remembered merchant, incl. pending-flip fields when present', () => {
+    const { csvs } = buildExport(fullState());
+    const rows = parseCsv(csvs['merchant-categories.csv'] as string);
+    expect(rows).toHaveLength(3); // header + 2 merchants
+    const header = rows[0] as string[];
+    const merchantIdx = header.indexOf('merchant');
+    const tesco = rows.find((r) => r[merchantIdx] === 'tesco');
+    const spotify = rows.find((r) => r[merchantIdx] === 'spotify');
+    expect(tesco?.[header.indexOf('category')]).toBe('food');
+    expect(tesco?.[header.indexOf('pendingCategory')]).toBe('');
+    expect(spotify?.[header.indexOf('pendingCategory')]).toBe('entertainment');
+    expect(spotify?.[header.indexOf('pendingCount')]).toBe('1');
+  });
+
+  it('is header-only when no merchant memory exists', () => {
+    const { csvs } = buildExport(emptyState());
+    const rows = parseCsv(csvs['merchant-categories.csv'] as string);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual([
+      'merchant',
+      'category',
+      'correctedAt',
+      'hits',
+      'pendingCategory',
+      'pendingCount',
+    ]);
+  });
+});
+
+describe('buildExport — dismissed-signals.csv', () => {
+  it('unifies income/bill/drift/annual dismissals into one file with family/merchant/at columns', () => {
+    const { csvs } = buildExport(fullState());
+    const rows = parseCsv(csvs['dismissed-signals.csv'] as string);
+    expect(rows[0]).toEqual(['family', 'merchant', 'at']);
+    // header + 1 income + 1 bill + 1 drift + 1 annual = 5
+    expect(rows).toHaveLength(5);
+    const byFamily = (family: string) => rows.filter((r) => r[0] === family);
+    expect(byFamily('income')).toHaveLength(1);
+    expect(byFamily('bill')).toHaveLength(1);
+    expect(byFamily('drift')).toHaveLength(1);
+    expect(byFamily('annual')).toHaveLength(1);
+  });
+
+  it('income/bill/annual rows carry an honestly-empty "at" (no timestamp exists for those families)', () => {
+    const { csvs } = buildExport(fullState());
+    const rows = parseCsv(csvs['dismissed-signals.csv'] as string);
+    const income = rows.find((r) => r[0] === 'income' && r[1] === 'old employer');
+    expect(income?.[2]).toBe('');
+  });
+
+  it('drift rows carry the real cooldown timestamp', () => {
+    const { csvs } = buildExport(fullState());
+    const rows = parseCsv(csvs['dismissed-signals.csv'] as string);
+    const drift = rows.find((r) => r[0] === 'drift' && r[1] === 'netflix');
+    expect(drift?.[2]).toBe('2026-06-22T00:00:00.000Z');
+  });
+
+  it('is header-only when nothing has been dismissed', () => {
+    const { csvs } = buildExport(emptyState());
+    const rows = parseCsv(csvs['dismissed-signals.csv'] as string);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual(['family', 'merchant', 'at']);
+  });
+});
+
+describe('buildExport — review-spillover.csv', () => {
+  it('carries the same column set as reviewQueue.csv (design-source shape)', () => {
+    const { csvs } = buildExport(fullState());
+    const rows = parseCsv(csvs['review-spillover.csv'] as string);
+    expect(rows[0]).toEqual(['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt']);
+    expect(rows).toHaveLength(2); // header + 1 spillover row
+    const header = rows[0] as string[];
+    const row = rows[1] as string[];
+    expect(row[header.indexOf('merchant')]).toBe('Overflow Merchant');
+    expect(row[header.indexOf('source')]).toBe('csv');
+  });
+
+  it('is header-only when nothing has spilled over', () => {
+    const { csvs } = buildExport(emptyState());
+    const rows = parseCsv(csvs['review-spillover.csv'] as string);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual(['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt']);
   });
 });
 
@@ -465,6 +639,10 @@ describe('buildExport — empty state', () => {
       'calendarEvents.csv',
       'reviewQueue.csv',
       'ignored-review.csv',
+      'incomeSources.csv',
+      'merchant-categories.csv',
+      'dismissed-signals.csv',
+      'review-spillover.csv',
     ];
     // Singleton surfaces always carry the one row that describes the scalar.
     const singletons = ['onboarding.csv', 'balance.csv', 'settings.csv'];

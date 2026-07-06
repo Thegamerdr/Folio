@@ -64,6 +64,7 @@ import { copy } from '@/folio/copy/copy';
 import { Melo } from '@/folio/melo/Melo';
 import { applyMeloTool, useAppStore, type Sub, type Transaction } from '@/folio/store';
 import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
+import { buildMeloSnapshot } from '@/folio/lib/meloSnapshot';
 import type { MeloIntent, Nav, Pressure } from '@/folio/types';
 import {
   isMeloAiConfigured,
@@ -95,14 +96,8 @@ const STARTERS: readonly string[] = [
   "How's the month going?",
 ];
 
-// pressureLow — the web's tightPoint-by-pressure table (verbatim). Fed into the snapshot only.
-const PRESSURE_LOW: Record<Pressure, number> = {
-  safe: 612,
-  calm: 325,
-  soft: 184,
-  pressured: 42,
-  overspent: -86,
-};
+// pressureLow (the web's tightPoint-by-pressure table) now lives in lib/meloSnapshot.ts, next to the
+// rest of the pure snapshot-building logic it only ever fed.
 
 const DEFAULT_SETTINGS: Settings = { tone: 'calm', share: false };
 
@@ -110,7 +105,6 @@ const DEFAULT_SETTINGS: Settings = { tone: 'calm', share: false };
 // which is now the canonical 30s (ENGINES §6 D3 >= 30s floor). The prior local 8000 shadowed it
 // and sat below the decided minimum; it is removed so every undo affordance shares one window.
 const PRESS_SCALE = 0.97; // .press — scale 0.97 on :active
-const FOURTEEN_DAYS_MS = 14 * 86_400_000;
 const SHIMMER_MS = 2000; // Melo's-thinking shimmer cycle (web 2s linear infinite)
 const FADE_IN_MS = 260; // message fade-in
 const SCROLL_BOTTOM_EPSILON = 24; // px from the bottom still counted as "at the bottom"
@@ -194,68 +188,28 @@ export type MeloChatSheetProps = {
 export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloChatSheetProps) {
   const reduceMotion = useReduceMotion();
 
-  const pots = useAppStore((s) => s.pots);
+  const state = useAppStore((s) => s);
   const subs = useAppStore((s) => s.subs);
   const subPaused = useAppStore((s) => s.subPaused);
-  const tightPointGoal = useAppStore((s) => s.tightPointGoal);
   const onboarding = useAppStore((s) => s.onboarding);
-  const transactions = useAppStore((s) => s.transactions);
 
   const prefill = intent?.prefill;
   const seedIntent = intent?.seed;
 
-  // Snapshot — only the last 14 days, so the prompt stays small and "recent" means recent.
-  // @rn-engine melo-gateway — daysToPayday is the web prototype's hardcoded 11 (the real cycle/payday
-  // engine is not wired here); preserved verbatim so the snapshot shape matches the gateway persona.
-  const snapshot = useMemo(() => {
-    const cutoff = Date.now() - FOURTEEN_DAYS_MS;
-    const recent = transactions.filter((t) => new Date(t.when).getTime() >= cutoff);
-    const spendByCategory = recent.reduce<Record<string, number>>((acc, t) => {
-      if (t.amount >= 0) return acc;
-      acc[t.category] = (acc[t.category] ?? 0) + Math.abs(t.amount);
-      return acc;
-    }, {});
-    return {
-      name: onboarding.name || null,
-      pressure,
-      tightPoint: PRESSURE_LOW[pressure],
-      tightPointGoal,
-      daysToPayday: 11,
-      monthlyIncome: onboarding.monthlyIncome,
-      pots: pots.map((p) => ({
-        name: p.name,
-        saved: p.saved,
-        goal: p.goal,
-        weeklyPace: p.perWeek,
-      })),
-      subscriptions: subs.map((s) => ({
-        name: s.name,
-        monthly: s.cost,
-        renewsInDays: s.nextRenewalDaysAway,
-        // Usage fields (lastUsedDaysAgo / usesPerMonth) are intentionally NOT shared with the gateway:
-        // bank/seed data proves a charge recurs, not that the product was used
-        // (SUBSCRIPTION_SIGNAL_RESEARCH §2/§5), so Melo is never handed a usage signal she could turn
-        // into an "unused / you should cancel" claim. Only payment facts (cost, renewal, paused) go.
-        paused: !!subPaused[s.name],
-      })),
-      recentSpend: {
-        totalLast14Days: Number(
-          Object.values(spendByCategory)
-            .reduce((s, v) => s + v, 0)
-            .toFixed(2),
-        ),
-        byCategory: Object.fromEntries(
-          Object.entries(spendByCategory).map(([k, v]) => [k, Number(v.toFixed(2))]),
-        ),
-      },
-      lastFewTransactions: recent.slice(0, 8).map((t) => ({
-        when: t.when.slice(0, 10),
-        merchant: t.merchant,
-        amount: t.amount,
-        category: t.category,
-      })),
-    };
-  }, [pressure, pots, subs, subPaused, tightPointGoal, onboarding, transactions]);
+  // Snapshot — the pure builder (lib/meloSnapshot.ts) folds in only the last 14 days of transactions,
+  // so the prompt stays small and "recent" means recent.
+  // @rn-engine melo-gateway — `daysToPayday` and `monthlyIncome` are now the LIVE cycle/payday +
+  // income-cadence engines' own figures (see meloSnapshot.ts's header), not the frozen web-prototype
+  // literals they used to carry — a stale number must never be quoted back at the user as if it were
+  // live. `now` is read fresh on every snapshot build (not memoised across renders) so a chat opened on
+  // a different day gets a current count.
+  const snapshot = useMemo(
+    () => buildMeloSnapshot(state, pressure, new Date()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `state` (the whole store snapshot) is the
+    // only reactive input buildMeloSnapshot reads; `pressure` is a prop. Depending on the whole `state`
+    // (not a slice list) mirrors useRoute's own convention for a store-wide pure builder.
+    [state, pressure],
+  );
 
   // Proactive opener — only when the user opens Melo with no specific intent. Pick the most useful
   // thing to say first, based on real state. Ported as-is from the web autoSeed heuristic.

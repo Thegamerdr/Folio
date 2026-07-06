@@ -9,6 +9,30 @@
 // Grouped by deck section: global, today, ritual, add, pots, subs, insights, onb,
 // short, nudge, err. Keys mirror the deck's dotted keys exactly (e.g. today.verdict.short).
 
+// ---------------------------------------------------------------------------
+// Known-state-payer heuristic (income.caught.head copy nuance) — DWP/HMRC/
+// pension-provider merchant strings read oddly under "{merchant} pays you"
+// ("Melo noticed **DWP** pays you." reads as if DWP were an employer). This
+// is copy nuance ONLY: benefits and pension credits ARE income, detection and
+// write mechanics are unchanged — this only picks which headline phrasing to
+// render. Matching is deliberately loose (substring, case-insensitive) since
+// bank-statement merchant strings for state payers vary a lot in practice
+// (e.g. "DWP UNIVERSAL CREDIT", "HMRC CHILD BENEFIT", "STATE PENSION").
+// ---------------------------------------------------------------------------
+
+const KNOWN_STATE_PAYER_PATTERNS: readonly RegExp[] = [
+  /\bdwp\b/iu,
+  /\bhmrc\b/iu,
+  /universal\s*credit/iu,
+  /\bpension\b/iu,
+];
+
+/** True when `merchant` looks like a state/benefits/pension payer rather than
+ *  an employer — pure, case-insensitive substring match, no I/O. */
+export function isKnownStatePayer(merchant: string): boolean {
+  return KNOWN_STATE_PAYER_PATTERNS.some((pattern) => pattern.test(merchant));
+}
+
 export const copy = {
   // ## Global
   global: {
@@ -162,6 +186,11 @@ export const copy = {
   income: {
     caught: {
       head: (merchant: string): string => `Melo noticed **${merchant}** pays you.`,
+      // Known-state-payer variant (see isKnownStatePayer above) — same
+      // detection, same confidence, just a headline that doesn't read like
+      // Melo mistook a benefits/pension provider for an employer.
+      headStatePayer: (merchant: string): string =>
+        `Melo noticed money arrives from **${merchant}**.`,
       body: {
         strong: (cadence: string): string =>
           `Looks like a ${cadence} payment. Add it so Folio can plan around it?`,

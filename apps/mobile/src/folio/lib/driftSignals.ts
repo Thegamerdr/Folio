@@ -109,8 +109,13 @@ const OCCURRENCES_PER_MONTH: Record<
   'last-working-day': 1,
 };
 
-/** Monthly-equivalent total for a per-occurrence amount at the given cadence. */
-function monthlyEquivalent(
+/** Monthly-equivalent total for a per-occurrence amount at the given cadence.
+ *  Exported so other callers needing an `IncomeSource`-cadence-aware monthly
+ *  footing (e.g. `MeloChatSheet`'s live-snapshot income figure) reuse this
+ *  EXACT table rather than re-deriving a second, potentially-diverging one —
+ *  this is the only cadence table that already covers all five `IncomeSource`
+ *  cadences including `last-working-day`. */
+export function monthlyEquivalent(
   amountPerOccurrence: number,
   cadence: DriftIncomeSource['cadence'] | 'weekly' | 'fortnightly' | 'four-weekly' | 'monthly',
 ): number {
