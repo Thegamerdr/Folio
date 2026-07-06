@@ -26,7 +26,7 @@ import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
-import { selectMonthlyIncome } from '@/folio/lib/income';
+import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle } from '@/folio/lib/chartStyle';
 import { LensRhythm } from '@/folio/ui/LensRhythm';
@@ -64,6 +64,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const currentBalance = useAppStore((st) => st.currentBalance);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
   const monthlyIncome = useAppStore((st) => selectMonthlyIncome(st));
+  const hasRealData = useAppStore((st) => hasAnyUserData(st));
   const { style: chartStyle } = useChartStyle();
   const lens = useLens();
 
@@ -192,7 +193,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           onPress={() => nav.go('paywall')}
           palette={t}
         />
-      ) : !onboarding.done ? (
+      ) : !onboarding.done && !hasRealData ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => nav.openSheet('onboarding')}

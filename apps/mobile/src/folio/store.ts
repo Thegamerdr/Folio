@@ -549,7 +549,36 @@ export type AppState = {
    *  with hand-built `AppState` fixtures predating this field; `DEFAULTS`/
    *  `load()`/`resetToEmpty()` always populate it ({}). */
   merchantCategories?: MerchantCategoryMap;
+  /** Interim import-log — a stopgap ahead of the full accounts/sources model (task: coherence-fix).
+   *  One entry per successful `addStatementAsHistory` call that actually landed at least one new
+   *  transaction (a call whose candidates were all duplicates/empty logs nothing — mirrors
+   *  `duplicatesSkipped`'s "nothing new" semantics). Lets AccountScreen's "Statements & receipts" row
+   *  and footprint grid reflect a REAL import instead of the old `subsCount + potsCount > 0` proxy
+   *  (which was seed-data-shaped and never moved after an actual statement landed). Newest first,
+   *  capped at `STATEMENT_IMPORT_CAP` (200) — mirrors `timelineEvents`'s retention shape. Optional for
+   *  shape back-compat with hand-built `AppState` fixtures predating this field; `DEFAULTS`/`load()`/
+   *  `resetToEmpty()` always populate it ([]). */
+  statementImports?: StatementImportRecord[];
 };
+
+/** One row of `AppState.statementImports` — a single successful bulk statement/receipt landing.
+ *  `source` mirrors `ReviewItem.source`/`Transaction.source` conventions (the intake path that
+ *  produced the candidates); `rowCount` is how many NEW transactions this import actually added
+ *  (post-dedup — never the raw candidate count, matching `addStatementAsHistory`'s own honest-summary
+ *  convention). */
+export type StatementImportRecord = {
+  id: string;
+  /** Which intake path produced it. Best-effort — 'unknown' when the caller doesn't have one handy
+   *  (e.g. a call site that predates this field). */
+  source: 'paste' | 'pdf' | 'image' | 'csv' | 'txt' | 'manual' | 'unknown';
+  /** How many new transactions this import landed (after dedup). */
+  rowCount: number;
+  /** ISO timestamp. */
+  atISO: string;
+};
+
+/** Retention cap for `statementImports` — mirrors `timelineEvents`'s 200-entry cap. */
+export const STATEMENT_IMPORT_CAP = 200;
 
 /** A single unreviewed intake candidate (design source `ReviewItem`, verbatim
  *  shape). Signed pounds — negative = out, positive = in — matches
@@ -730,6 +759,7 @@ const DEFAULTS: AppState = {
   ignoredReviewSigs: [],
   reviewQueue: [],
   reviewQueueSpillover: [],
+  statementImports: [],
   moneyMode: 'survival',
   bufferAmount: 100,
   // Two seed debts so the Debt lens has honest numbers on first run, mirroring
@@ -1054,6 +1084,7 @@ function load(): AppState {
       reviewQueueSpillover: Array.isArray(migrated.reviewQueueSpillover)
         ? migrated.reviewQueueSpillover
         : [],
+      statementImports: Array.isArray(migrated.statementImports) ? migrated.statementImports : [],
       moneyMode: migrated.moneyMode ?? DEFAULT_MONEY_MODE,
       bufferAmount: migrated.bufferAmount ?? DEFAULT_BUFFER_AMOUNT,
       debts: migrated.debts ?? DEFAULT_DEBTS,
@@ -2051,6 +2082,7 @@ export function addStatementAsHistory(
     newCandidates.map((c) => ({ ...candidateToTransactionDraft(c), id: importedTransactionId(c) })),
   );
   syncHistoryCycles();
+  logStatementImport(newCandidates);
 
   const stateAfterAdd = getState();
   const overspent = isOverspentLanding(stateAfterAdd);
@@ -2113,6 +2145,38 @@ function logTimelineEvent(kind: TimelineEventKind, subject: string, note?: strin
   const existing = state.timelineEvents ?? [];
   setPartial({ timelineEvents: [entry, ...existing].slice(0, 200) });
   return entry;
+}
+
+/** `CandidateMoneyItem.source` ('csv' | 'paste' | 'pdf' | 'photo') → `StatementImportRecord.source`
+ *  ('paste' | 'pdf' | 'image' | 'csv' | 'txt' | 'manual' | 'unknown') — only the label differs
+ *  ('photo' -> 'image', matching `ReviewItem.source`'s naming); every other candidate source passes
+ *  through unchanged. */
+function toStatementImportSource(
+  source: CandidateMoneyItem['source'],
+): StatementImportRecord['source'] {
+  return source === 'photo' ? 'image' : source;
+}
+
+/** Interim import-log writer (task: coherence-fix) — the single write path for
+ *  `AppState.statementImports`. Called ONCE per `addStatementAsHistory` call that actually lands at
+ *  least one new transaction (the caller already guards on `newCandidates.length === 0` before
+ *  reaching this, so a byte-identical re-import that adds nothing never logs a phantom row). The
+ *  record's `source` is the first landed candidate's own source — good enough for an honest label on
+ *  a single-import row without a second "was this a mixed-source batch" concept the UI doesn't need
+ *  yet. Newest first, capped at `STATEMENT_IMPORT_CAP` (200), mirroring `logTimelineEvent`'s own
+ *  retention shape. Not exported — `addStatementAsHistory` is the only real caller (every import must
+ *  go through it, so a caller should never log an import without actually landing one). */
+function logStatementImport(newCandidates: readonly CandidateMoneyItem[]): void {
+  if (newCandidates.length === 0) return;
+  const first = newCandidates[0]!;
+  const entry: StatementImportRecord = {
+    id: `imp-log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    source: toStatementImportSource(first.source),
+    rowCount: newCandidates.length,
+    atISO: new Date().toISOString(),
+  };
+  const existing = state.statementImports ?? [];
+  setPartial({ statementImports: [entry, ...existing].slice(0, STATEMENT_IMPORT_CAP) });
 }
 
 /** ENGINES.md §6 "Editing existing transactions — required, never destructive".
@@ -2516,6 +2580,7 @@ export function resetToEmpty() {
     ignoredReviewSigs: [],
     reviewQueue: [],
     reviewQueueSpillover: [],
+    statementImports: [],
     moneyMode: 'survival',
     bufferAmount: 100,
     dismissedIncomeSignals: [],

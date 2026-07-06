@@ -21,6 +21,7 @@ import {
   selectMonthlySpend,
 } from './income';
 import {
+  addStatementAsHistory,
   addTransaction,
   getState,
   resetAll,
@@ -30,6 +31,7 @@ import {
   setOnboarding,
 } from '../store';
 import type { IncomeSource } from '../store';
+import type { CandidateMoneyItem } from './importSheet';
 
 function source(
   partial: Partial<IncomeSource> & Pick<IncomeSource, 'id' | 'cadence'>,
@@ -464,5 +466,74 @@ describe('hasAnyUserData', () => {
     setCurrentBalance({ amount: 1234, source: 'user-entered', confidence: 'corrected' });
 
     expect(hasAnyUserData(getState())).toBe(true);
+  });
+
+  it('is true after a bulk statement import lands real transactions, regardless of onboarding.done', () => {
+    // Regression for the diagnosed coherence gap: TodayStabilityScreen used to gate its sample-numbers
+    // nudge on `!onboarding.done` alone, so it kept nagging a user who had already bulk-imported a
+    // real statement without ever opening the onboarding sheet. `hasAnyUserData` is what all three
+    // Today screens (Survival / mode-parked / Stability) now gate on ALONGSIDE `!onboarding.done`.
+    const candidate: CandidateMoneyItem = {
+      id: 'cand-1',
+      source: 'pdf',
+      kind: 'income',
+      merchant: 'Employer',
+      amount: 1800,
+      confidence: 'high',
+      date: '2026-04-15',
+    };
+    addStatementAsHistory([candidate]);
+
+    expect(hasAnyUserData(getState())).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Today-screen sample-numbers nudge gate — the shared `!onboarding.done && !hasRealData` expression
+// TodayScreen / TodayModeScreen / TodayStabilityScreen all evaluate identically (task: coherence-fix).
+// Modeled here at the data layer since none of the three screens are rendered in this Node-safe test
+// runner (no RTL/DOM harness in this project — see rules/ecc/web/testing.md's DOM-env guidance,
+// which does not apply to these pure `.test.ts` files).
+// ---------------------------------------------------------------------------
+describe('Today sample-numbers nudge gate (!onboarding.done && !hasRealData)', () => {
+  function nudgeVisible(): boolean {
+    const s = getState();
+    return !s.onboarding.done && !hasAnyUserData(s);
+  }
+
+  it('is visible on a fresh, un-onboarded, sample-data store', () => {
+    resetToEmpty();
+    setCurrentBalance({ amount: 0, source: 'sample', confidence: 'sample' });
+    setOnboarding({ done: false });
+
+    expect(nudgeVisible()).toBe(true);
+  });
+
+  it('is suppressed once onboarding.done is true, even with no real data', () => {
+    resetToEmpty();
+    setCurrentBalance({ amount: 0, source: 'sample', confidence: 'sample' });
+    setOnboarding({ done: true });
+
+    expect(nudgeVisible()).toBe(false);
+  });
+
+  it('is suppressed after a real statement import even though onboarding.done stays false — the exact bug TodayStabilityScreen had and its siblings did not', () => {
+    resetToEmpty();
+    setCurrentBalance({ amount: 0, source: 'sample', confidence: 'sample' });
+    setOnboarding({ done: false });
+    expect(nudgeVisible()).toBe(true); // sanity: nudge showing before the import
+
+    const candidate: CandidateMoneyItem = {
+      id: 'cand-2',
+      source: 'pdf',
+      kind: 'spend',
+      merchant: 'Tesco',
+      amount: -42,
+      confidence: 'high',
+      date: '2026-04-15',
+    };
+    addStatementAsHistory([candidate]);
+
+    expect(nudgeVisible()).toBe(false);
   });
 });

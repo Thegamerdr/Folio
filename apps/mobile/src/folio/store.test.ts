@@ -2537,6 +2537,67 @@ describe('addStatementAsHistory', () => {
       expect(merchants).toEqual(['Newest', 'Manual Mid', 'Oldest']);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // statementImports log (task: coherence-fix) — the interim import counter
+  // AccountScreen's "Statements & receipts" row + footprint grid read, ahead of
+  // the full accounts/sources model.
+  // ---------------------------------------------------------------------------
+  describe('statementImports log', () => {
+    it('is empty on a fresh reset', () => {
+      resetToEmpty();
+      expect(getState().statementImports ?? []).toEqual([]);
+    });
+
+    it('bumps by one entry per addStatementAsHistory call that lands new transactions', () => {
+      setPartial({ transactions: [], statementImports: [] });
+      addStatementAsHistory([
+        candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' }),
+        candidate({ merchant: 'Salary', amount: 1800, kind: 'income', date: '2026-03-12' }),
+      ]);
+      expect(getState().statementImports).toHaveLength(1);
+      expect(getState().statementImports?.[0]?.rowCount).toBe(2);
+
+      addStatementAsHistory([
+        candidate({ merchant: 'Coffee Shop', amount: -3.5, date: '2026-03-27' }),
+      ]);
+      expect(getState().statementImports).toHaveLength(2);
+      // Newest first.
+      expect(getState().statementImports?.[0]?.rowCount).toBe(1);
+      expect(getState().statementImports?.[1]?.rowCount).toBe(2);
+    });
+
+    it('does not log an entry for a no-op call (empty candidates, or an all-duplicate re-import)', () => {
+      setPartial({ transactions: [], statementImports: [] });
+      addStatementAsHistory([]);
+      expect(getState().statementImports).toHaveLength(0);
+
+      const fixture = [candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' })];
+      addStatementAsHistory(fixture);
+      expect(getState().statementImports).toHaveLength(1);
+
+      // Re-importing the exact same statement adds nothing new — no phantom second log entry.
+      addStatementAsHistory(fixture);
+      expect(getState().statementImports).toHaveLength(1);
+    });
+
+    it('maps the landed candidate source onto the log entry, translating photo -> image', () => {
+      setPartial({ transactions: [], statementImports: [] });
+      addStatementAsHistory([candidate({ merchant: 'Tesco', amount: -10, source: 'photo' })]);
+      expect(getState().statementImports?.[0]?.source).toBe('image');
+    });
+
+    it('caps the log at STATEMENT_IMPORT_CAP (200), newest first', () => {
+      setPartial({ transactions: [], statementImports: [] });
+      for (let i = 0; i < 205; i++) {
+        addStatementAsHistory([
+          candidate({ merchant: `M${i}`, amount: -1, date: `2026-01-01`, id: `unique-${i}` }),
+        ]);
+      }
+      const log = getState().statementImports ?? [];
+      expect(log.length).toBe(200);
+    });
+  });
 });
 
 // Type-only import smoke — keep Pot referenced so the import isn't pruned.

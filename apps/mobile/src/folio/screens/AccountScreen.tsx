@@ -75,6 +75,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
+import { hasStatementSourceData } from '@/folio/lib/accountSources';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
 import { SignInSheet } from '@/folio/sheets/SignInSheet';
@@ -155,6 +156,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const potsCount = useAppStore((s) => s.pots.length);
   const cyclesCount = useAppStore((s) => s.cycles.length);
   const transactionsCount = useAppStore((s) => s.transactions.length);
+  const statementImportsCount = useAppStore((s) => s.statementImports?.length ?? 0);
   const onboarding = useAppStore((s) => s.onboarding);
   const currentBalance = useAppStore((s) => s.currentBalance);
   const incomeSources = useAppStore((s) => s.incomeSources ?? []);
@@ -228,7 +230,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
       {
         label: 'Statements & receipts',
         hint: 'PDF · image · paste · CSV',
-        state: subsCount + potsCount > 0 ? ('manual' as const) : ('empty' as const),
+        state: hasStatementSourceData(statementImportsCount, transactionsCount)
+          ? ('manual' as const)
+          : ('empty' as const),
         action: () => nav.go('intake'),
       },
       {
@@ -253,7 +257,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         action: () => nav.openSheet('onboarding'),
       },
     ],
-    [subsCount, potsCount, monthlyIncome, incomeLabel, incomeCadenceLabel, nav],
+    [statementImportsCount, transactionsCount, monthlyIncome, incomeLabel, incomeCadenceLabel, nav],
   );
 
   // Export — routes to Privacy, which owns the real export engine (runExport). Avoids a second,
@@ -448,6 +452,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           <Text style={[styles.sectionTitle, { color: t.ink }]}>Your footprint</Text>
           <View style={styles.statsGrid}>
             <Stat n={transactionsCount} label="transactions" />
+            {/* Honest label — imports can be pdf/photo/paste/csv, not only "statements" in the
+                narrow sense (task: coherence-fix stopgap ahead of the full accounts model). */}
+            <Stat n={statementImportsCount} label="statements" />
             <Stat n={subsCount} label="subs" />
             <Stat n={potsCount} label="pots" />
             <Stat n={cyclesCount} label="cycles" />
