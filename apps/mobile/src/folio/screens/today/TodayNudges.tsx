@@ -34,6 +34,7 @@ import { sweepReviewQueue, useAppStore, type IncomeSource, type ReviewItem } fro
 import { useShelf } from '@/folio/lib/shelf';
 import { daysToNextIncome } from '@/folio/lib/income';
 import { resolvePayday } from '@/folio/lib/payday';
+import { latestLivedCycle } from '@/folio/lib/historyCycles';
 import type { Nav } from '@/folio/types';
 
 // Stable empty fallback for the optional store slot — DEFAULTS/load always populate `reviewQueue`,
@@ -254,7 +255,12 @@ export function TodayNudges({
     const nextDate = new Date(`${nextIso}T00:00:00`);
     return Math.round((nextDate.getTime() - now.getTime()) / 86_400_000);
   }, [now, onboarding.done, onboarding.payday, incomeSources]);
-  const lastClosedAt = cycles[0]?.closedAt ?? null;
+  // The ritual-offer gate must key off the last LIVED (ritual-sealed) cycle only — a reconstructed
+  // cycle synthesized from bulk-imported statement history (lib/historyCycles.ts, DATA_INTELLIGENCE.md
+  // phase ④) is a best-effort estimate, never something the user actually walked through, so it must
+  // never suppress or otherwise stand in for the live ritual-offer nudge. `cycles[0]` would be wrong
+  // here whenever a reconstructed month sits ahead in the array (e.g. right after a backfill).
+  const lastClosedAt = latestLivedCycle(cycles)?.closedAt ?? null;
   // Gate logic lives in the pure, independently-tested `shouldOfferRitual` above —
   // see its doc comment for the monthly-cap rationale.
   const offerRitual = useMemo(

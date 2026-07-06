@@ -15,7 +15,7 @@
  * Types come from the data spine: `@/folio/store` (alias `@/*` -> `src/*`),
  * imported relatively as `../store` so the pure-logic test runner resolves it.
  */
-import type { Sub, Onboarding, CalendarEvent, Pot, IncomeSource } from '../store';
+import type { Sub, Onboarding, CalendarEvent, Pot, IncomeSource, Transaction } from '../store';
 import { resolvePayday } from './payday';
 import { resolveNextTopUp } from './potCadence';
 import { projectIncomeEvents } from './income';
@@ -28,7 +28,12 @@ export type DerivedEventSource =
   | 'deadline'
   | 'review'
   | 'manual'
-  | 'pot';
+  | 'pot'
+  // A real past transaction, read-only enrichment for past-month rendering (see
+  // `deriveHistoricalDayEvents` below) — never produced by the forward `deriveCalendarEvents`
+  // projection itself. Deliberately NOT actionable (EventRow's per-event actions block only fires
+  // for 'sub' and manual events; a plain historical fact has nothing to pause/nudge/move).
+  | 'history';
 
 export type DerivedEvent = {
   id: string;
@@ -467,4 +472,59 @@ export function previewSubNudge(args: {
     args.startingSpare,
   );
   return Math.round(next.tightestSpare - base.tightestSpare);
+}
+
+// -----------------------------------------------------------------------------
+// Historical day rendering — DATA_INTELLIGENCE.md phase ④(B), Calendar item.
+//
+// `deriveCalendarEvents` above is a purely FORWARD projection (payday/bills/subs/pots windowed
+// from `now`); it has never read `transactions` at all, so a past month's cells only ever showed
+// forward-projected recurring items — never a bulk-imported statement's actual historical rows
+// (see DATA_INTELLIGENCE.md §5(B), "CalendarScreen ... does NOT read transactions at all"). This is
+// a second, independent derivation for PAST days only: it maps the real ledger onto day cells so
+// past-month navigation shows what actually happened, not a repeat of the forward guess.
+//
+// Read-only enrichment: this never touches deriveCalendarEvents's own events/groups, and it is
+// capped-per-day the same way the Month grid already caps forward events (see MonthView's
+// `evs.slice(0, 3)` + overflow chip) — callers merge this in alongside the existing eventsByDay for
+// dates strictly before `todayIso`, leaving today-and-forward entirely to the existing projection.
+// -----------------------------------------------------------------------------
+
+/** Group a transaction ledger's PAST days (strictly before `todayIso`) into `DerivedEvent`-shaped
+ *  day-cell events — the SAME shape the forward projection uses, so the existing EventRow / day-cell
+ *  rendering can display either kind without a fork. `kind` is 'in'/'out' by sign (never
+ *  'review'/'deadline'/'manual' — those are forward-only concepts); `source: 'history'` marks it as
+ *  a real past fact, never actionable (EventRow's per-event actions block only fires for
+ *  `source === 'sub'` or `manual`, so a historical row renders as a plain, non-interactive line).
+ *
+ *  Never includes today or any future day — those stay exclusively the forward projection's
+ *  territory; mixing an in-progress day's partial actuals with its own forward guess for the same
+ *  day would be misleading (an in-progress day isn't "done" the way a past day is).
+ *
+ *  No per-day cap here — callers apply the SAME overflow-chip convention the forward Month/Week
+ *  views already use for their own events (e.g. `.slice(0, 3)` + a "+N" count), so historical and
+ *  forward events share one display cap policy rather than two different magic numbers.
+ *
+ *  Pure + deterministic: same inputs -> same output, never mutates `transactions`. */
+export function deriveHistoricalDayEvents(
+  transactions: readonly Transaction[],
+  todayIso: string,
+): Record<string, DerivedEvent[]> {
+  const byDay: Record<string, DerivedEvent[]> = {};
+  for (const txn of transactions) {
+    const date = txn.when.slice(0, 10);
+    if (date >= todayIso) continue; // today-and-forward stays the forward projection's territory
+    const bucket = byDay[date];
+    const event: DerivedEvent = {
+      id: `history-${txn.id}`,
+      date,
+      kind: txn.amount >= 0 ? 'in' : 'out',
+      source: 'history',
+      title: txn.merchant,
+      amount: txn.amount,
+    };
+    if (bucket) bucket.push(event);
+    else byDay[date] = [event];
+  }
+  return byDay;
 }

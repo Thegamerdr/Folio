@@ -101,6 +101,7 @@ import { type MeloMood } from '@/folio/melo/Melo';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import {
   deriveCalendarEvents,
+  deriveHistoricalDayEvents,
   groupByDay,
   computeSpareAndTightest,
   formatDayHeader,
@@ -294,6 +295,10 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const manual = useAppStore((st) => st.calendarEvents);
   const focusDate = useAppStore((st) => st.calendarFocusDate);
   const pots = useAppStore((st) => st.pots);
+  // DATA_INTELLIGENCE.md phase ④ — the real ledger, read ONLY for past-day enrichment
+  // (deriveHistoricalDayEvents below). The forward projection (`events`/`groups` above) never reads
+  // this; past-month navigation is the sole consumer.
+  const transactions = useAppStore((st) => st.transactions);
   // Mode-aware jump anchor (web calendarDefaultAnchor(mode)) — Survival/Stability/LowVis land on the
   // tightest day, Debt/Optimizer jump to the next money-OUT, Irregular to the next money-IN,
   // Growth/Household/Planning/Reset to the next payday. Falls back to 'survival' when unset.
@@ -352,11 +357,31 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   );
 
   const groups = useMemo(() => groupByDay(events), [events]);
+
+  // DATA_INTELLIGENCE.md phase ④ — past-month real-data enrichment. `deriveCalendarEvents` above is
+  // a purely FORWARD projection (payday/bills/subs/pots windowed from `today`); it never reads
+  // `transactions`, so before this a past month's cells only ever showed forward-projected recurring
+  // items, never what actually happened (DATA_INTELLIGENCE.md §5(B)). `deriveHistoricalDayEvents` is
+  // a second, independent, read-only derivation over the real ledger for days strictly before today.
+  const historicalByDay = useMemo(
+    () => (today ? deriveHistoricalDayEvents(transactions, isoDay(today)) : {}),
+    [transactions, today],
+  );
+
+  // `eventsByDay` (Week/Month views) merges the forward projection with the historical enrichment —
+  // a past day gets its REAL transactions alongside anything the forward projection still shows for
+  // it (e.g. a recurring bill/sub definition); a today-or-future day is untouched (historicalByDay
+  // never has an entry for those dates). Agenda's `groups` stays forward-only on purpose — Agenda's
+  // 35-day window is inherently forward-looking, so it is not threaded through this merge.
   const eventsByDay = useMemo(() => {
     const map: Record<string, DerivedEvent[]> = {};
     for (const g of groups) map[g.date] = g.events;
+    for (const [date, historicalEvents] of Object.entries(historicalByDay)) {
+      const forward = map[date];
+      map[date] = forward ? [...forward, ...historicalEvents] : historicalEvents;
+    }
     return map;
-  }, [groups]);
+  }, [groups, historicalByDay]);
 
   const { spareByDay, tightestDate, tightestSpare } = useMemo(
     () => computeSpareAndTightest(groups, startingSpare),

@@ -31,6 +31,7 @@ import {
   type MerchantCategoryMemory,
 } from './lib/merchantMemory';
 import { normaliseMerchant } from './lib/subSignals';
+import { synthesizeHistoryCycles } from './lib/historyCycles';
 import { makeWin, hasWin, type TinyWin, type TinyWinKind } from './lib/wins';
 
 /** The element type of the persisted `AppState.edits` slot. It is the engine's
@@ -191,6 +192,15 @@ export type CycleRecord = {
   tightPoint: number;
   setAside: number;
   note: string;
+  /** Present and `true` only for a cycle synthesized from bulk-imported
+   *  transaction history by `lib/historyCycles.ts` (DATA_INTELLIGENCE.md
+   *  phase ④), never for a real, ritual-sealed cycle written by
+   *  `addCycle`/`fastForwardMonth`. Back-compat optional field — absent on
+   *  every pre-existing lived cycle. Screens that mean "the ritual the user
+   *  actually walked through" (e.g. the Today ritual-offer gate) must treat a
+   *  reconstructed cycle as if it doesn't exist — see `lib/historyCycles.ts`'s
+   *  `latestLivedCycle`. */
+  reconstructed?: true;
 };
 
 export type Onboarding = {
@@ -337,8 +347,22 @@ export type AppState = {
   nextYouNote: string;
   /** Floor £ to hold at the tightest point of the month. Set via Melo. */
   tightPointGoal: number | null;
-  /** Newest first. Capped at 200 to keep persisted state small. */
+  /** Newest first. Capped at `TRANSACTION_CAP` (2000) — see that constant's
+   *  doc for the retention policy and why it's higher than the old 200. */
   transactions: Transaction[];
+  /** Retention-policy honesty counter (DATA_INTELLIGENCE.md phase ④(A)): how
+   *  many transactions have ever been silently evicted by the
+   *  `TRANSACTION_CAP` eviction in `addTransaction`/`addTransactionsBatch`.
+   *  Eviction itself is never blocked or surfaced as an error — it's a normal
+   *  part of keeping persisted state bounded — but it must never be SILENT:
+   *  this counter is the durable record a future UI can read to tell the user
+   *  honestly "N older rows have rolled off" rather than pretending nothing
+   *  was ever dropped. Monotonically increasing, never reset by ordinary use
+   *  (only `resetAll`/`resetToEmpty` zero it, same as every other counter).
+   *  Optional for shape back-compat with hand-built `AppState` fixtures
+   *  predating this field; `DEFAULTS`/`load()`/`resetToEmpty()` always
+   *  populate it (0). */
+  droppedTransactionCount?: number;
   /** Immutable correction history — one record per changed field per edit
    *  (ENGINES.md §6 "Editing existing transactions — required, never
    *  destructive"). The original value of any edited field always survives
@@ -508,6 +532,20 @@ const DEFAULT_MONEY_MODE: MoneyMode = 'survival';
 /** Non-optional fallback for `AppState.bufferAmount` — same widening issue. */
 const DEFAULT_BUFFER_AMOUNT = 100;
 
+/** Retention policy for `transactions` (DATA_INTELLIGENCE.md phase ④(A)).
+ *  Raised from the old 200 — 6 months of a moderately active account
+ *  (15-20 txns/week) is 400-500 rows, and a bulk statement import can easily
+ *  push several times that; 200 silently discarded the majority of any real
+ *  backfill with no warning. 2000 gives real headroom for both ordinary daily
+ *  use and a multi-year bulk import while still keeping persisted state
+ *  bounded. Eviction is always oldest-first (`slice(0, TRANSACTION_CAP)` after
+ *  newest-first insertion) and is NEVER silent — see `droppedTransactionCount`
+ *  on `AppState`, incremented by exactly how many rows an eviction drops.
+ *  Both `addTransaction` and `addTransactionsBatch` funnel through the same
+ *  `applyTransactionRetention` helper, so there is one policy with two
+ *  entrances, never two competing cap implementations. */
+const TRANSACTION_CAP = 2000;
+
 /** Non-optional fallback for `AppState.debts` — same widening issue. Empty,
  *  not the DEFAULTS seed data, since this is used by `load()`/`migrate()`
  *  for a genuinely-missing slot on an existing install, not a fresh install
@@ -611,6 +649,7 @@ const DEFAULTS: AppState = {
   nextYouNote: '',
   tightPointGoal: null,
   transactions: [],
+  droppedTransactionCount: 0,
   edits: [],
   calendarEvents: [],
   calendarFocusDate: null,
@@ -909,6 +948,8 @@ function load(): AppState {
       nextYouNote: migrated.nextYouNote ?? '',
       tightPointGoal: migrated.tightPointGoal ?? null,
       transactions: migrated.transactions ?? seedTransactions(),
+      droppedTransactionCount:
+        typeof migrated.droppedTransactionCount === 'number' ? migrated.droppedTransactionCount : 0,
       edits: migrated.edits ?? [],
       calendarEvents: migrated.calendarEvents ?? [],
       calendarFocusDate: null,
@@ -1558,6 +1599,26 @@ export function removeSubShareOverride(subName: string) {
   setPartial({ household: { ...household, subShareOverrides: rest } });
 }
 
+/** Single retention policy for `transactions` — the ONE place that caps the
+ *  list and honestly accounts for any eviction. `addTransaction` and
+ *  `addTransactionsBatch` are the two entrances; both funnel through this
+ *  helper rather than each rolling its own `.slice(0, N)`, so the cap and the
+ *  drop-count accounting can never drift apart between the two call paths.
+ *  Newest-first list in, oldest-evicted-first, honest count out. Pure. */
+function applyTransactionRetention(
+  merged: readonly Transaction[],
+  priorDroppedCount: number,
+): { transactions: Transaction[]; droppedTransactionCount: number } {
+  if (merged.length <= TRANSACTION_CAP) {
+    return { transactions: [...merged], droppedTransactionCount: priorDroppedCount };
+  }
+  const evicted = merged.length - TRANSACTION_CAP;
+  return {
+    transactions: merged.slice(0, TRANSACTION_CAP),
+    droppedTransactionCount: priorDroppedCount + evicted,
+  };
+}
+
 export function addTransaction(
   t: Omit<Transaction, 'id' | 'when'> & { id?: string; when?: string },
 ): Transaction {
@@ -1569,8 +1630,70 @@ export function addTransaction(
     category: t.category,
     source: t.source,
   };
-  setPartial({ transactions: [full, ...state.transactions].slice(0, 200) });
+  const { transactions, droppedTransactionCount } = applyTransactionRetention(
+    [full, ...state.transactions],
+    state.droppedTransactionCount ?? 0,
+  );
+  setPartial({ transactions, droppedTransactionCount });
   return full;
+}
+
+/** Batch import entrance to the same retention policy as `addTransaction` —
+ *  one `setPartial` for the whole batch instead of one per row, so a bulk
+ *  statement import (potentially hundreds of rows) doesn't force hundreds of
+ *  individual full-state reserialize + persist + emit cycles the way a loop
+ *  calling `addTransaction` per row would (DATA_INTELLIGENCE.md §5(A)).
+ *
+ *  Ordering matches what a `for (const row of rows) addTransaction(row)` loop
+ *  would have produced (the exact pattern this replaces at its call sites —
+ *  `VisualizerScreen.tsx`'s "Add all"): each successive `addTransaction` call
+ *  prepends onto the front, so the LAST row in `rows` ends up newest/at the
+ *  head and the FIRST row ends up deepest. This function reproduces that by
+ *  reversing `fullRows` before prepending, so switching a call site from the
+ *  loop to this batch call is a byte-identical ordering change, not just a
+ *  perf one.
+ *
+ *  Returns the full rows actually added (with generated ids/whens), in the
+ *  same order they were passed in (not the internal reversed prepend order). */
+export function addTransactionsBatch(
+  rows: readonly (Omit<Transaction, 'id' | 'when'> & { id?: string; when?: string })[],
+): Transaction[] {
+  if (rows.length === 0) return [];
+  const fullRows: Transaction[] = rows.map((t, i) => ({
+    id: t.id ?? `txn-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+    when: t.when ?? new Date().toISOString(),
+    merchant: t.merchant,
+    amount: t.amount,
+    category: t.category,
+    source: t.source,
+  }));
+  const { transactions, droppedTransactionCount } = applyTransactionRetention(
+    [...fullRows].reverse().concat(state.transactions),
+    state.droppedTransactionCount ?? 0,
+  );
+  setPartial({ transactions, droppedTransactionCount });
+  return fullRows;
+}
+
+/** Run the pure history-cycle synthesizer (`lib/historyCycles.ts`) over the
+ *  live ledger and merge the result into `cycles[]`, per that module's rules:
+ *  a lived (ritual-sealed) cycle for a month is never touched; a
+ *  reconstructed cycle for a month is upserted (never duplicated) as more
+ *  history lands; the current calendar month is never synthesized. Call this
+ *  after a bulk import lands (`addTransactionsBatch`) so Insights has
+ *  something to show for backfilled history instead of staying in its empty
+ *  state regardless of import volume (DATA_INTELLIGENCE.md §5(B)). Safe to
+ *  call at any time — idempotent, and a no-op when there's no qualifying
+ *  history. */
+export function syncHistoryCycles(): void {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const nextCycles = synthesizeHistoryCycles(
+    state.transactions,
+    state.incomeSources ?? DEFAULT_INCOME_SOURCES,
+    state.cycles,
+    todayIso,
+  );
+  setPartial({ cycles: nextCycles });
 }
 
 export function removeTransaction(id: string) {
@@ -1872,6 +1995,7 @@ export function resetToEmpty() {
     nextYouNote: '',
     tightPointGoal: null,
     transactions: [],
+    droppedTransactionCount: 0,
     edits: [],
     calendarEvents: [],
     calendarFocusDate: null,

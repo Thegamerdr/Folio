@@ -78,9 +78,16 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
-import { useAppStore } from '@/folio/store';
+import { useAppStore, type CycleRecord } from '@/folio/store';
 import { getRetrospect, formatDelta } from '@/folio/lib/modes/retrospect';
 import type { Nav } from '@/folio/types';
+
+// DATA_INTELLIGENCE.md phase ④ — true only for a cycle synthesized from bulk-imported statement
+// history (lib/historyCycles.ts), never for a real, ritual-sealed cycle. Local helper so every
+// reconstructed-cycle check in this screen reads identically (chart caption, notes-list filter).
+function isReconstructed(c: CycleRecord): boolean {
+  return c.reconstructed === true;
+}
 
 // ---------------------------------------------------------------------------
 // formatGBP — ported VERBATIM from the web source (spec rnPrimitiveMap):
@@ -165,14 +172,27 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
 
   // Derived aggregates — ported 1:1 from the web body. Summary tiles aggregate ALL cycles; the chart
   // windows to 6; the notes list windows to 4 (spec: three different windows, do not unify).
-  const avgTight = cycles.length
-    ? Math.round(cycles.reduce((acc, c) => acc + c.tightPoint, 0) / cycles.length)
+  //
+  // AVERAGE POLLUTION FIX (DATA_INTELLIGENCE.md phase ④): avgTight / the "Average set aside" tile /
+  // spareDelta are headline FIGURES, not the chart — so they must never blend a reconstructed
+  // month's approximation (setAside hardcoded 0, tightPoint a rough spend-minus-income proxy) into
+  // a number presented as fact. Computed from LIVED cycles only, mirroring the `livedNotes` filter
+  // below. The chart itself is unaffected — it keeps plotting every cycle (already captioned).
+  const livedCycles = useMemo(() => cycles.filter((c) => !isReconstructed(c)), [cycles]);
+  const hasReconstructedInAll = useMemo(() => cycles.some(isReconstructed), [cycles]);
+
+  const avgTight = livedCycles.length
+    ? Math.round(livedCycles.reduce((acc, c) => acc + c.tightPoint, 0) / livedCycles.length)
     : 0;
   const pausedCount = Object.values(subPaused).filter(Boolean).length;
   const potsTotal = pots.reduce((acc, p) => acc + p.saved, 0);
-  const latest = cycles[0];
-  const prior = cycles[1];
-  const spareDelta = latest && prior ? latest.spare - prior.spare : 0;
+  // spareDelta compares the two most recent LIVED cycles — a reconstructed month sitting between
+  // them (or as the latest entry) must never enter this comparison, since its `spare` is derived
+  // from the same honest-estimate approximation as tightPoint/setAside.
+  const latestLived = livedCycles[0];
+  const priorLived = livedCycles[1];
+  const spareDelta = latestLived && priorLived ? latestLived.spare - priorLived.spare : 0;
+  const prior = priorLived;
 
   // Mode-tinted retrospective framing (web `getRetrospect(mode, cycles, potsTotal)`) — the eyebrow,
   // headline, both KPI cards, the trend caption, and the Melo note all vary by moneyMode.
@@ -195,6 +215,13 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
 
   // Tight-point trend: one point per closed cycle, oldest → newest (web: slice(0,6).reverse()).
   const trend = useMemo(() => cycles.slice(0, 6).reverse(), [cycles]);
+
+  // "Notes from past you" — LIVED cycles only (DATA_INTELLIGENCE.md phase ④): a reconstructed month
+  // has no ritual note to show, so it is filtered out entirely rather than rendered with an
+  // empty/placeholder note. `.slice(0,4)` mirrors the original web window, applied AFTER filtering so
+  // four real notes show whenever they exist, instead of the window being padded out by reconstructed
+  // entries that render nothing.
+  const livedNotes = useMemo(() => cycles.filter((c) => !isReconstructed(c)).slice(0, 4), [cycles]);
 
   // slide-in-r — drives the whole screen on both branches. Resolves to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -303,19 +330,32 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
           <StatTile
             label="Average set aside"
             value={formatGBP(
-              cycles.length
-                ? Math.round(cycles.reduce((acc, c) => acc + c.setAside, 0) / cycles.length)
+              livedCycles.length
+                ? Math.round(
+                    livedCycles.reduce((acc, c) => acc + c.setAside, 0) / livedCycles.length,
+                  )
                 : 0,
             )}
             styles={s}
             reduceMotion={reduceMotion}
             countUpValue={
-              cycles.length
-                ? Math.round(cycles.reduce((acc, c) => acc + c.setAside, 0) / cycles.length)
+              livedCycles.length
+                ? Math.round(
+                    livedCycles.reduce((acc, c) => acc + c.setAside, 0) / livedCycles.length,
+                  )
                 : 0
             }
           />
         </View>
+
+        {/* Honest averages caption — shown once, directly under the stat grid, whenever the
+            cycles set contains ANY reconstructed (bulk-import synthesized) month. Mirrors the
+            chart's reconstructed-caption pattern (muted, footnote-weight): discloses that the
+            headline averages above are computed from lived months only, never blended with an
+            approximation. DATA_INTELLIGENCE.md phase ④. */}
+        {hasReconstructedInAll ? (
+          <Text style={s.averagesCaption}>{copy.insights.averages.livedOnlyCaption}</Text>
+        ) : null}
 
         {/* Chart card — the only element with a shadow (shadow-card); tiles use hairline only.
             The trend caption is mode-tinted (web `retro.trendCaption`). */}
@@ -329,9 +369,17 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             {trend.map((c) => (
               <Text key={c.closedAt} numberOfLines={1} style={s.axisTick}>
                 {c.label.slice(0, 3)}
+                {isReconstructed(c) ? '*' : ''}
               </Text>
             ))}
           </View>
+          {/* Honest provenance caption — only rendered when the trend window actually contains a
+              reconstructed (bulk-import synthesized) month, per DATA_INTELLIGENCE.md phase ④. Muted
+              and small so it never competes with the chart itself; the asterisk above ties it to the
+              specific month(s) it applies to. */}
+          {trend.some(isReconstructed) ? (
+            <Text style={s.reconstructedCaption}>{`* ${copy.insights.reconstructed.caption}`}</Text>
+          ) : null}
         </View>
 
         {/* Mode-tinted Melo note (web `retro.meloNote`) — directly under the chart, ahead of the
@@ -381,24 +429,29 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
           </View>
         ) : null}
 
-        {/* Notes from past you — up to 4 closed cycles. */}
-        <View style={s.notesBlock}>
-          <Text style={s.notesEyebrow}>Notes from past you</Text>
-          <View style={s.notesCard}>
-            {cycles.slice(0, 4).map((c, i, arr) => (
-              <View
-                key={c.closedAt}
-                style={[s.noteRow, i < arr.length - 1 ? s.noteRowDivider : undefined]}
-              >
-                <View style={s.noteHead}>
-                  <Text style={s.noteLabel}>{c.label}</Text>
-                  <Text style={s.noteSpare}>{`left over £${c.spare}`}</Text>
+        {/* Notes from past you — up to 4 closed cycles. LIVED-ONLY (DATA_INTELLIGENCE.md phase ④): a
+            reconstructed month has no ritual note to show — its `note` field is the synthesizer's own
+            "estimate" disclosure, not something the user wrote, so it would read as a fabricated diary
+            entry if shown here. Filtered out entirely rather than shown with an empty/placeholder note. */}
+        {livedNotes.length > 0 ? (
+          <View style={s.notesBlock}>
+            <Text style={s.notesEyebrow}>Notes from past you</Text>
+            <View style={s.notesCard}>
+              {livedNotes.map((c, i, arr) => (
+                <View
+                  key={c.closedAt}
+                  style={[s.noteRow, i < arr.length - 1 ? s.noteRowDivider : undefined]}
+                >
+                  <View style={s.noteHead}>
+                    <Text style={s.noteLabel}>{c.label}</Text>
+                    <Text style={s.noteSpare}>{`left over £${c.spare}`}</Text>
+                  </View>
+                  {c.note ? <Text style={s.noteBody}>{`“${c.note}”`}</Text> : null}
                 </View>
-                {c.note ? <Text style={s.noteBody}>{`“${c.note}”`}</Text> : null}
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Optional paused-subs Melo line — the ONLY Melo on the populated branch (cheer). */}
         {pausedCount > 0 ? (
@@ -752,6 +805,24 @@ function makeStyles(t: Palette) {
       flex: 1,
       fontSize: 10,
       textAlign: 'center',
+    },
+    // Honest provenance caption for a chart window that contains a reconstructed (bulk-import
+    // synthesized) month — deliberately smaller/muteder than any other chart text so it reads as a
+    // footnote, never competing with the real figures. DATA_INTELLIGENCE.md phase ④.
+    reconstructedCaption: {
+      color: t.muted,
+      fontSize: 9.5,
+      fontStyle: 'italic',
+      marginTop: gap.xxs,
+      textAlign: 'right',
+    },
+    // Same honest-footnote language, for the stat grid (DATA_INTELLIGENCE.md phase ④'s AVERAGE
+    // POLLUTION fix) — left-aligned since it sits directly under the full-width grid, not a chart.
+    averagesCaption: {
+      color: t.muted,
+      fontSize: 9.5,
+      fontStyle: 'italic',
+      marginTop: gap.xs,
     },
 
     // Mode-tinted Melo note, directly under the chart — mt-4.

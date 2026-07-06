@@ -15,6 +15,9 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { latestLivedCycle } from '../../lib/historyCycles';
+import type { CycleRecord } from '../../store';
+
 const RECENT_CLOSE_WINDOW_MS = 3 * 86_400_000;
 
 // 1:1 restatement of TodayNudges.tsx's exported `shouldOfferRitual` — see that function's doc
@@ -157,5 +160,71 @@ describe('TodayNudges — payday ritual nudge gate', () => {
       }
     }
     expect(offers).toEqual([true, false, false, false]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // DATA_INTELLIGENCE.md phase ④ — the component derives `lastClosedAt` via
+  // `latestLivedCycle(cycles)`, NOT `cycles[0]`, so a reconstructed (bulk-import
+  // synthesized) cycle can never suppress or otherwise stand in for the real
+  // ritual-offer gate. Pinned here (not just in historyCycles.test.ts) because
+  // this is the exact call site the component wires it into.
+  // ---------------------------------------------------------------------------
+  it('a reconstructed cycle sitting ahead of the array does not become lastClosedAt', () => {
+    const livedMay: CycleRecord = {
+      closedAt: '2026-05-25',
+      label: 'May (lived)',
+      spare: 1,
+      tightPoint: 1,
+      setAside: 0,
+      note: 'ritual-sealed',
+    };
+    const reconstructedJune: CycleRecord = {
+      closedAt: '2026-06-30',
+      label: 'June 2026',
+      spare: 0,
+      tightPoint: 0,
+      setAside: 0,
+      note: 'estimate',
+      reconstructed: true,
+    };
+    // Array order mirrors a real post-backfill cycles[]: the reconstructed month sits first.
+    const cycles = [reconstructedJune, livedMay];
+    const lastClosedAt = latestLivedCycle(cycles)?.closedAt ?? null;
+    expect(lastClosedAt).toBe('2026-05-25');
+
+    // And with that honest lastClosedAt, the ritual is offered again once the calendar month
+    // has moved on from the lived close — proving the reconstructed cycle never suppressed it.
+    expect(
+      shouldOfferRitual({
+        onboardingDone: true,
+        daysToPayday: 1,
+        lastClosedAt,
+        now: new Date('2026-07-02T09:00:00'),
+      }),
+    ).toBe(true);
+  });
+
+  it('an all-reconstructed cycles[] (no lived cycle yet) yields a null lastClosedAt', () => {
+    const reconstructed: CycleRecord = {
+      closedAt: '2026-06-30',
+      label: 'June 2026',
+      spare: 0,
+      tightPoint: 0,
+      setAside: 0,
+      note: 'estimate',
+      reconstructed: true,
+    };
+    const lastClosedAt = latestLivedCycle([reconstructed])?.closedAt ?? null;
+    expect(lastClosedAt).toBeNull();
+
+    // With no lived close recorded, the ritual is offered on its own merits (payday-proximity gate).
+    expect(
+      shouldOfferRitual({
+        onboardingDone: true,
+        daysToPayday: 0,
+        lastClosedAt,
+        now: new Date('2026-07-02T09:00:00'),
+      }),
+    ).toBe(true);
   });
 });

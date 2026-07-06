@@ -87,6 +87,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useAppStore, type Transaction } from '@/folio/store';
 import { buildTimelineRows, type TimelineRow, type TimelineVerb } from '@/folio/lib/timelineEvents';
+import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -262,6 +263,11 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
   const transactions = useAppStore((st) => st.transactions);
   const edits = useAppStore((st) => st.edits ?? []);
   const events = useAppStore((st) => st.timelineEvents ?? []);
+  // DATA_INTELLIGENCE.md phase ④(A) — `droppedTransactionCount` is the running total of rows the
+  // live 200-slot retention window has silently evicted (store.ts `applyTransactionRetention`). This
+  // screen is the only one that reads `transactions` directly and shows them as a flat log, so it is
+  // the natural place to disclose the trim honestly rather than let the list simply stop, unexplained.
+  const droppedTransactionCount = useAppStore((st) => st.droppedTransactionCount ?? 0);
 
   // Project once per change. `now` is captured per render so the relative whens stay live without a
   // ticking timer (this is a read projection, not a clock).
@@ -408,6 +414,15 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
             />
           ))}
         </View>
+
+        {/* DATA_INTELLIGENCE.md phase ④(A) — honest disclosure that the list is cut short by the
+            live retention window, so a bulk-imported history's trimmed tail is disclosed rather than
+            silently vanishing. Only rendered once anything has actually been evicted. */}
+        {droppedTransactionCount > 0 ? (
+          <View style={s.trimmedBlock}>
+            <Text style={s.trimmedLine}>{copy.timeline.trimmed}</Text>
+          </View>
+        ) : null}
 
         {/* The quiet companion line — soft (calm-family) Melo, always-on breathe. */}
         <View style={s.meloBlock}>
@@ -709,6 +724,19 @@ function makeStyles(_t: Palette) {
     },
     chipText: {
       fontSize: 10.5,
+    },
+
+    // Trimmed-history disclosure — sits between the list and the bottom Melo line, deliberately
+    // small/muted/centred so it reads as a quiet footnote, never an error or a warning banner.
+    trimmedBlock: {
+      marginTop: gap.lg,
+      paddingHorizontal: gap.md,
+    },
+    trimmedLine: {
+      color: _t.muted,
+      fontSize: 11.5,
+      lineHeight: 16,
+      textAlign: 'center',
     },
 
     // Bottom Melo line — mt-6 mb-8 in the web; the scroll content's bottom padding covers mb-8.

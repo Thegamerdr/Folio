@@ -50,9 +50,7 @@ bottom — append one line per shipped phase.
 - [x] Phase ① income cadence model (shipped + OTA, commit range → 2224ec6)
 - [x] Phase ② salary inference + same-income update guard (shipped + OTA, 5c605d3)
 - [x] Phase ③ merchant→category memory (shipped + OTA 07-06, flip-threshold hardened)
-      uncommitted work + no commit, resume it (scriptPath in the workflows/scripts dir,
-      di-phase3-merchant-memory) or relaunch per DATA_INTELLIGENCE.md §merchant-memory.
-- [ ] Phase ④ historic backfill: synthesize past cycles from imported transactions (income
+- [x] Phase ④ historic backfill (shipped + OTA 07-06, TZ/averages/partial-month/retention hardened)
       anchors → cycle boundaries → per-cycle aggregates feeding InsightsScreen month cards +
       CalendarScreen past months), batch-import API, lift the 200-txn cap for imported history
       (source-aware eviction or separate archive slice). Spec in DATA_INTELLIGENCE.md §backfill.

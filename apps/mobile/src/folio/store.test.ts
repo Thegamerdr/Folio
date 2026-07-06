@@ -21,6 +21,7 @@ import {
   addIgnoredReviewSig,
   addToPot,
   addTransaction,
+  addTransactionsBatch,
   applyMeloTool,
   borrowFromPot,
   clearReaderCandidates,
@@ -50,6 +51,7 @@ import {
   setReaderCandidates,
   setTightPointGoal,
   sweepReviewQueue,
+  syncHistoryCycles,
   togglePaused,
   upsertIncomeSource,
 } from './store';
@@ -719,18 +721,114 @@ describe('fastForwardMonth', () => {
 });
 
 // ---------------------------------------------------------------------------
-// transactions — 200-cap, newest-first
+// transactions — 2000-cap, newest-first, honest drop accounting
+// (DATA_INTELLIGENCE.md phase ④(A) — raised from the old 200)
 // ---------------------------------------------------------------------------
 describe('transactions cap', () => {
-  it('keeps at most 200, newest first', () => {
-    // Add 250 melo-logged spends; the head should be the most recent.
-    for (let i = 0; i < 250; i++) {
+  it('keeps at most 2000, newest first', () => {
+    // Add 2050 melo-logged spends; the head should be the most recent.
+    // Each call round-trips the whole persisted blob (see store.ts `persist()`),
+    // and the cap is 10x the old 200, so this legitimately takes longer under
+    // parallel test-runner load than the default 5s budget — bump it rather
+    // than shrinking the iteration count and losing the over-cap assertion.
+    for (let i = 0; i < 2050; i++) {
       applyMeloTool('log_spend', { merchant: `M${i}`, amount: 1, category: 'other' });
     }
     const txns = getState().transactions;
 
-    expect(txns.length).toBe(200);
-    expect(txns[0]!.merchant).toBe('M249'); // last added is at the head
+    expect(txns.length).toBe(2000);
+    expect(txns[0]!.merchant).toBe('M2049'); // last added is at the head
+  }, 20_000);
+
+  it('increments droppedTransactionCount by exactly how many rows an eviction drops', () => {
+    setPartial({ transactions: [], droppedTransactionCount: 0 });
+    for (let i = 0; i < 2010; i++) {
+      addTransaction({ merchant: `M${i}`, amount: 1, category: 'other', source: 'manual' });
+    }
+    expect(getState().transactions.length).toBe(2000);
+    expect(getState().droppedTransactionCount).toBe(10);
+  }, 20_000);
+
+  it('does not touch droppedTransactionCount while under the cap', () => {
+    setPartial({ transactions: [], droppedTransactionCount: 0 });
+    addTransaction({ merchant: 'Tesco', amount: -5, category: 'food', source: 'manual' });
+    expect(getState().droppedTransactionCount).toBe(0);
+  });
+
+  it('accumulates across repeated eviction events rather than resetting each time', () => {
+    setPartial({ transactions: [], droppedTransactionCount: 0 });
+    for (let i = 0; i < 2005; i++) {
+      addTransaction({ merchant: `A${i}`, amount: 1, category: 'other', source: 'manual' });
+    }
+    expect(getState().droppedTransactionCount).toBe(5);
+    for (let i = 0; i < 5; i++) {
+      addTransaction({ merchant: `B${i}`, amount: 1, category: 'other', source: 'manual' });
+    }
+    expect(getState().droppedTransactionCount).toBe(10);
+  }, 20_000);
+});
+
+// ---------------------------------------------------------------------------
+// addTransactionsBatch — single-write batch entrance, same retention policy
+// ---------------------------------------------------------------------------
+describe('addTransactionsBatch', () => {
+  it('is a no-op on an empty batch', () => {
+    setPartial({ transactions: [] });
+    const result = addTransactionsBatch([]);
+    expect(result).toEqual([]);
+    expect(getState().transactions).toEqual([]);
+  });
+
+  it('matches the ordering a per-row addTransaction loop would produce (last row ends up at the head)', () => {
+    setPartial({ transactions: [] });
+    addTransactionsBatch([
+      { merchant: 'First', amount: -1, category: 'food', source: 'manual' },
+      { merchant: 'Second', amount: -2, category: 'food', source: 'manual' },
+      { merchant: 'Third', amount: -3, category: 'food', source: 'manual' },
+    ]);
+    const merchants = getState().transactions.map((t) => t.merchant);
+    expect(merchants).toEqual(['Third', 'Second', 'First']);
+  });
+
+  it('returns the full rows added, in the same order they were passed in', () => {
+    setPartial({ transactions: [] });
+    const result = addTransactionsBatch([
+      { merchant: 'First', amount: -1, category: 'food', source: 'manual' },
+      { merchant: 'Second', amount: -2, category: 'food', source: 'manual' },
+    ]);
+    expect(result.map((t) => t.merchant)).toEqual(['First', 'Second']);
+    expect(result.every((t) => typeof t.id === 'string' && t.id.length > 0)).toBe(true);
+    expect(result.every((t) => typeof t.when === 'string' && t.when.length > 0)).toBe(true);
+  });
+
+  it('applies the same 2000-cap + drop accounting as addTransaction', () => {
+    setPartial({ transactions: [], droppedTransactionCount: 0 });
+    const rows = Array.from({ length: 2010 }, (_, i) => ({
+      merchant: `M${i}`,
+      amount: 1,
+      category: 'other' as const,
+      source: 'manual' as const,
+    }));
+    addTransactionsBatch(rows);
+    expect(getState().transactions.length).toBe(2000);
+    expect(getState().droppedTransactionCount).toBe(10);
+  });
+
+  it('preserves an explicit when/id per row (statement-dated import)', () => {
+    setPartial({ transactions: [] });
+    addTransactionsBatch([
+      {
+        id: 'fixed-id',
+        when: '2026-01-15T00:00:00.000Z',
+        merchant: 'Tesco',
+        amount: -10,
+        category: 'food',
+        source: 'manual',
+      },
+    ]);
+    const row = getState().transactions[0]!;
+    expect(row.id).toBe('fixed-id');
+    expect(row.when).toBe('2026-01-15T00:00:00.000Z');
   });
 });
 
@@ -1596,6 +1694,185 @@ describe('reviewQueue', () => {
       category: 'other',
     });
     expect('rememberedCategory' in mapped[0]!).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// syncHistoryCycles — wires lib/historyCycles.ts's pure synthesizer to the
+// live store (DATA_INTELLIGENCE.md phase ④(B)).
+// The exhaustive grouping/idempotency/lived-wins/tight-point-approximation
+// coverage lives in `lib/historyCycles.test.ts` against the pure
+// `synthesizeHistoryCycles` function directly (deterministic `todayISO`, no
+// clock dependency). This block only proves the store action's WIRING: it
+// reads live `transactions`/`incomeSources`/`cycles`, calls the synthesizer,
+// and merges the result back in — using `syncHistoryCycles()`'s real
+// `new Date()` "today" against fixture months far enough in the past (well
+// before this test file could plausibly still be running) that "is this
+// month over yet" never flips underfoot.
+describe('syncHistoryCycles', () => {
+  const txn = (
+    when: string,
+    merchant: string,
+    amount: number,
+    over: Partial<Transaction> = {},
+  ): Omit<Transaction, 'id'> => ({
+    when,
+    merchant,
+    amount,
+    category: 'other',
+    source: 'manual',
+    ...over,
+  });
+
+  it('is a no-op when there is no qualifying history', () => {
+    setPartial({ transactions: [], cycles: [] });
+    syncHistoryCycles();
+    expect(getState().cycles).toEqual([]);
+  });
+
+  it('reconstructs a past month with >=5 transactions and tags it reconstructed', () => {
+    setPartial({
+      transactions: [
+        // Starts on the 1st (within the PARTIAL FIRST MONTH grace window — see
+        // lib/historyCycles.ts's FIRST_MONTH_MAX_START_DAY) so this happy-path test exercises a
+        // normal, fully-covered month rather than the mid-month-start edge case.
+        addTransaction(txn('2020-01-01T00:00:00.000Z', 'Tesco', -20)),
+        addTransaction(txn('2020-01-10T00:00:00.000Z', 'Rent', -500)),
+        addTransaction(txn('2020-01-15T00:00:00.000Z', 'Pay', 2000)),
+        addTransaction(txn('2020-01-20T00:00:00.000Z', 'Netflix', -12)),
+        addTransaction(txn('2020-01-25T00:00:00.000Z', 'Coffee', -4)),
+      ],
+      cycles: [],
+    });
+    syncHistoryCycles();
+
+    const cycles = getState().cycles;
+    expect(cycles.length).toBe(1);
+    expect(cycles[0]!.reconstructed).toBe(true);
+    expect(cycles[0]!.label).toBe('January 2020');
+    expect(cycles[0]!.closedAt).toBe('2020-01-31');
+  });
+
+  it('never synthesizes the current calendar month', () => {
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    setPartial({
+      transactions: Array.from({ length: 6 }, (_, i) =>
+        addTransaction(txn(`${thisMonth}-0${(i % 9) + 1}T00:00:00.000Z`, `M${i}`, -10)),
+      ),
+      cycles: [],
+    });
+    syncHistoryCycles();
+    expect(getState().cycles).toEqual([]);
+  });
+
+  it('does not synthesize a month with fewer than 5 transactions', () => {
+    setPartial({
+      transactions: [
+        addTransaction(txn('2020-02-05T00:00:00.000Z', 'Tesco', -20)),
+        addTransaction(txn('2020-02-10T00:00:00.000Z', 'Rent', -500)),
+      ],
+      cycles: [],
+    });
+    syncHistoryCycles();
+    expect(getState().cycles).toEqual([]);
+  });
+
+  it('never overwrites a LIVED cycle for the same month', () => {
+    const livedMarch: CycleRecord = {
+      closedAt: '2020-03-28',
+      label: 'March (lived)',
+      spare: 123,
+      tightPoint: 45,
+      setAside: 10,
+      note: 'ritual-sealed',
+    };
+    setPartial({
+      transactions: Array.from({ length: 6 }, (_, i) =>
+        addTransaction(txn(`2020-03-0${(i % 9) + 1}T00:00:00.000Z`, `M${i}`, -10)),
+      ),
+      cycles: [livedMarch],
+    });
+    syncHistoryCycles();
+
+    const cycles = getState().cycles;
+    expect(cycles).toEqual([livedMarch]); // untouched — no reconstructed duplicate for March
+  });
+
+  it('is idempotent — re-running over the same ledger never duplicates a month', () => {
+    setPartial({
+      transactions: Array.from({ length: 6 }, (_, i) =>
+        addTransaction(txn(`2020-04-0${(i % 9) + 1}T00:00:00.000Z`, `M${i}`, -10)),
+      ),
+      cycles: [],
+    });
+    syncHistoryCycles();
+    const firstRun = getState().cycles;
+    syncHistoryCycles();
+    const secondRun = getState().cycles;
+
+    expect(secondRun.length).toBe(1);
+    expect(secondRun).toEqual(firstRun);
+  });
+
+  it('upserts (refreshes) a reconstructed month as more history lands for it, instead of duplicating', () => {
+    setPartial({
+      transactions: Array.from({ length: 5 }, (_, i) =>
+        addTransaction(txn(`2020-05-0${i + 1}T00:00:00.000Z`, `M${i}`, -10)),
+      ),
+      cycles: [],
+    });
+    syncHistoryCycles();
+    const firstTightPoint = getState().cycles[0]!.tightPoint;
+
+    // More May history lands (a second, larger import).
+    addTransaction(txn('2020-05-20T00:00:00.000Z', 'BigOne', -200));
+    syncHistoryCycles();
+
+    const cycles = getState().cycles;
+    expect(cycles.length).toBe(1); // still exactly one May entry, not two
+    expect(cycles[0]!.tightPoint).toBeGreaterThan(firstTightPoint); // refreshed, not stale
+  });
+
+  // CYCLES RETENTION (DATA_INTELLIGENCE.md phase ④): syncHistoryCycles' merge must cap at 60,
+  // evicting the oldest RECONSTRUCTED entries first, never a lived cycle — see
+  // lib/historyCycles.test.ts's `capMergedCycles` suite for the exhaustive eviction-order coverage.
+  // This block only proves the store action actually applies the cap end-to-end.
+  it('caps merged cycles at 60, never evicting a lived cycle, when a bulk import would otherwise exceed it', () => {
+    // 61 distinct past months of real (>=5 rows each, starting on the 1st so the earliest month
+    // clears the PARTIAL FIRST MONTH guard) transaction history -> the synthesizer would normally
+    // reconstruct all 61; the cap must trim to 60 by evicting the OLDEST reconstructed months, and
+    // a lived June 2026 cycle (seeded directly, no backing transactions needed — lived cycles are
+    // never re-derived) must survive regardless.
+    const monthTxns: ReturnType<typeof txn>[] = [];
+    for (let i = 0; i < 61; i++) {
+      const year = 1965 + Math.floor(i / 12);
+      const month = String((i % 12) + 1).padStart(2, '0');
+      for (let d = 1; d <= 5; d++) {
+        monthTxns.push(txn(`${year}-${month}-0${d}T00:00:00.000Z`, `M${i}-${d}`, -10));
+      }
+    }
+    const lived: CycleRecord = {
+      closedAt: '2026-06-28',
+      label: 'June (lived)',
+      spare: 50,
+      tightPoint: 10,
+      setAside: 20,
+      note: 'ritual-sealed',
+    };
+    setPartial({
+      transactions: monthTxns.map((t) => addTransaction(t)),
+      cycles: [lived],
+    });
+    syncHistoryCycles();
+
+    const cycles = getState().cycles;
+    expect(cycles.length).toBe(60);
+    expect(cycles.some((c) => c.closedAt === lived.closedAt && !c.reconstructed)).toBe(true);
+    // The 60 kept reconstructed months must be the NEWEST 59 of the 61 (plus the 1 lived) — i.e.
+    // the two OLDEST reconstructed months (1965, the earliest) were evicted first.
+    const closedDates = cycles.map((c) => c.closedAt).sort();
+    expect(closedDates[0]).not.toMatch(/^1965-01/);
   });
 });
 

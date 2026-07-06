@@ -169,6 +169,27 @@ export const copy = {
       body: 'Insights need a full payday-to-payday rhythm to mean anything.',
       cta: 'Open the ritual',
     },
+    // DATA_INTELLIGENCE.md phase ④ — the honest provenance caption shown on a cycle card that was
+    // reconstructed from bulk-imported statement history rather than a lived, ritual-sealed month.
+    // Deliberately muted and small (never the same visual weight as a lived cycle's note) so the
+    // distinction reads at a glance, not just to assistive tech.
+    reconstructed: {
+      caption: 'from your statement',
+    },
+    // DATA_INTELLIGENCE.md phase ④ — shown once beneath the summary tiles whenever the cycles
+    // window includes a reconstructed (bulk-import synthesized) month, so the averages disclose
+    // that they are computed from lived months only, not blended with an estimate.
+    averages: {
+      livedOnlyCaption: 'averages use your lived months',
+    },
+  },
+
+  // ## Timeline
+  timeline: {
+    // DATA_INTELLIGENCE.md phase ④(A) — the honest line shown where the list is cut short by the
+    // rolling retention cap, so a bulk-imported history's trimmed tail is disclosed rather than
+    // silently vanishing. Only shown when `droppedTransactionCount > 0`.
+    trimmed: 'Older items were trimmed to keep the app fast — your export keeps everything.',
   },
 
   // ## Onboarding (4 steps)

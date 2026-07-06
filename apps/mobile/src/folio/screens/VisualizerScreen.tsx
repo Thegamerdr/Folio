@@ -7,8 +7,9 @@
 //               multi-select checklist of candidate money items with a live "Add N · ±£X" CTA.
 // @reads        readerCandidates (the store's review-before-truth slot — the Intake reader's staged
 //               PDF / photo / text candidates; the web file's other 14 store imports were all dead)
-// @writes       addTransaction + clearReaderCandidates (only on Accept — the chosen candidates flow
-//               into the money path, then the staged review queue is consumed)
+// @writes       addTransactionsBatch + syncHistoryCycles + clearReaderCandidates (only on Accept —
+//               the chosen candidates flow into the money path as one batch, then the staged review
+//               queue is consumed)
 // @opens-sheet  — (the per-row Fix opens a LOCAL edit sheet, not a shell SheetId; nav stays screen-to-screen)
 // @copy         FROZEN — keyed strings from '@/folio/copy/copy' (add.*); the eyebrow / kicker /
 //               headline / subhead / chips / CTA are the web's inline literals (not in COPY_DECK,
@@ -40,8 +41,8 @@
 //     engine owns the money facts; the UI owns the label); a live read with no matching sample row
 //     degrades to the candidate's own kind/category and a low-confidence "to check" — honest, never
 //     invented. Review-before-truth: nothing mutates the money path until the user taps Add (which
-//     calls addTransaction for each chosen candidate, then clears the staged queue); Fix opens the
-//     edit form.
+//     posts every chosen candidate in one addTransactionsBatch call, then clears the staged queue);
+//     Fix opens the edit form.
 //   • NUMBER FORMATTING is preserved deliberately: rows use toFixed(2) (pence), the CTA uses
 //     toFixed(0) (whole £). The − minus glyph (U+2212) and the '·' middot are kept exactly. Inflows
 //     read positive (green); spend reads ink. tabular figures throughout.
@@ -83,9 +84,10 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import {
-  addTransaction,
+  addTransactionsBatch,
   clearReaderCandidates,
   getState,
+  syncHistoryCycles,
   useReaderCandidates,
   type Transaction,
 } from '@/folio/store';
@@ -332,19 +334,32 @@ export function VisualizerScreen({
   // clean and the same candidates can't be reviewed twice. Then the route is re-drawn on today-after.
   function commit(chosen: readonly CandidateMoneyItem[]) {
     if (chosen.length === 0) return;
-    for (const item of chosen) {
-      // Preserve the statement date the reader captured (whenIso, YYYY-MM-DD) so an imported item lands
-      // on the day it ACTUALLY happened in the timeline + money path — not stamped "today". Falls back
-      // to now only when the reader gave no usable date.
-      const isoDay = item.whenIso && /^\d{4}-\d{2}-\d{2}$/.test(item.whenIso) ? item.whenIso : null;
-      addTransaction({
-        merchant: item.merchant,
-        amount: item.amount,
-        category: categoryFor(item),
-        source: 'manual',
-        ...(isoDay ? { when: new Date(`${isoDay}T00:00:00`).toISOString() } : {}),
-      });
-    }
+    // Single batch write (DATA_INTELLIGENCE.md §5(A)) — was a per-row
+    // `addTransaction` loop; `addTransactionsBatch` reproduces the same final
+    // ordering in one `setPartial` instead of `chosen.length` of them.
+    addTransactionsBatch(
+      chosen.map((item) => {
+        // Preserve the statement date the reader captured (whenIso, YYYY-MM-DD) so an imported item
+        // lands on the day it ACTUALLY happened in the timeline + money path — not stamped "today".
+        // Falls back to now only when the reader gave no usable date.
+        const isoDay =
+          item.whenIso && /^\d{4}-\d{2}-\d{2}$/.test(item.whenIso) ? item.whenIso : null;
+        return {
+          merchant: item.merchant,
+          amount: item.amount,
+          category: categoryFor(item),
+          source: 'manual' as const,
+          // Anchor UTC (not local midnight) so the statement's calendar day is the bucketed day on
+          // any device TZ — a local-midnight parse shifts 1st-of-month rows into the PRIOR month
+          // once the device is east of UTC (e.g. 2026-07-01 local -> 2026-06-30T23:00Z), which then
+          // mis-buckets the row in historyCycles' UTC-sliced `monthKeyOf`.
+          ...(isoDay ? { when: new Date(`${isoDay}T00:00:00Z`).toISOString() } : {}),
+        };
+      }),
+    );
+    // Reconstruct any newly-qualifying past-month cycles now that the batch has
+    // landed (DATA_INTELLIGENCE.md §5(B)) — a no-op when nothing qualifies yet.
+    syncHistoryCycles();
     clearReaderCandidates();
     // Income-signal check (DATA_INTELLIGENCE.md phase ②) — run over the ledger
     // AFTER the batch has landed, so a newly-completed pattern is visible to the
@@ -713,8 +728,8 @@ function EditCandidateSheet({
 
   // Apply the correction to the in-review candidate and hand it back to the screen. This is a LOCAL
   // edit — it updates the row the user sees; only the screen's Add CTA (Accept) writes to the money
-  // path via store.addTransaction. A blank/invalid amount falls back to the candidate's current value
-  // rather than coercing to 0, so an untouched amount field can never silently zero a real figure.
+  // path via store.addTransactionsBatch. A blank/invalid amount falls back to the candidate's current
+  // value rather than coercing to 0, so an untouched amount field can never silently zero a real figure.
   function handleSave() {
     if (!candidate) return;
     const cleaned = amount.replace(/[^0-9.]/g, '');

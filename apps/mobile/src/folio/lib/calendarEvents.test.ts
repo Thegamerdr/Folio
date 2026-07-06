@@ -12,11 +12,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { Sub, Onboarding, CalendarEvent, Pot, IncomeSource } from '../store';
+import type { Sub, Onboarding, CalendarEvent, Pot, IncomeSource, Transaction } from '../store';
 import {
   type DerivedEvent,
   computeSpareAndTightest,
   deriveCalendarEvents,
+  deriveHistoricalDayEvents,
   formatDayHeader,
   groupByDay,
   previewSubNudge,
@@ -432,5 +433,96 @@ describe('deriveCalendarEvents — income-cadence sources', () => {
     // after-payday defaults to the FIRST income event, which is the weekly wage's
     // first in-window occurrence (Jul 3), not a monthly-derived date.
     expect(potTopUp?.date).toBe('2026-07-03');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deriveHistoricalDayEvents — DATA_INTELLIGENCE.md phase ④(B) past-month real-data enrichment.
+// Independent from deriveCalendarEvents's forward projection; grouped separately here.
+// ---------------------------------------------------------------------------
+
+function txn(when: string, merchant: string, amount: number): Transaction {
+  return {
+    id: `t-${when}-${merchant}`,
+    when,
+    merchant,
+    amount,
+    category: 'other',
+    source: 'manual',
+  };
+}
+
+describe('deriveHistoricalDayEvents — past-day real-transaction grouping', () => {
+  const TODAY_ISO = '2026-07-06';
+
+  it('groups past transactions by their calendar day, keyed on the date portion of `when`', () => {
+    const byDay = deriveHistoricalDayEvents(
+      [
+        txn('2026-07-01T09:00:00.000Z', 'Tesco', -42),
+        txn('2026-07-01T18:00:00.000Z', 'Netflix', -8),
+        txn('2026-07-02T00:00:00.000Z', 'Wages', 2000),
+      ],
+      TODAY_ISO,
+    );
+    expect(Object.keys(byDay).sort()).toEqual(['2026-07-01', '2026-07-02']);
+    expect(byDay['2026-07-01']).toHaveLength(2);
+    expect(byDay['2026-07-02']).toHaveLength(1);
+  });
+
+  it("never includes today or any future transaction — those stay the forward projection's territory", () => {
+    const byDay = deriveHistoricalDayEvents(
+      [
+        txn('2026-07-06T09:00:00.000Z', 'Coffee', -3), // today — excluded
+        txn('2026-07-07T09:00:00.000Z', 'Future', -3), // future — excluded
+        txn('2026-07-05T09:00:00.000Z', 'Yesterday', -3), // past — included
+      ],
+      TODAY_ISO,
+    );
+    expect(Object.keys(byDay)).toEqual(['2026-07-05']);
+  });
+
+  it('maps kind by amount sign — negative amount is "out", non-negative is "in"', () => {
+    const byDay = deriveHistoricalDayEvents(
+      [
+        txn('2026-07-01T09:00:00.000Z', 'Rent', -540),
+        txn('2026-07-01T10:00:00.000Z', 'Refund', 20),
+      ],
+      TODAY_ISO,
+    );
+    const day = byDay['2026-07-01']!;
+    expect(day.find((e) => e.title === 'Rent')?.kind).toBe('out');
+    expect(day.find((e) => e.title === 'Refund')?.kind).toBe('in');
+  });
+
+  it('tags every event source: "history" — never actionable like a sub/manual event', () => {
+    const byDay = deriveHistoricalDayEvents(
+      [txn('2026-07-01T09:00:00.000Z', 'Tesco', -42)],
+      TODAY_ISO,
+    );
+    expect(byDay['2026-07-01']![0]!.source).toBe('history');
+  });
+
+  it('preserves the transaction amount and merchant as the event amount/title', () => {
+    const byDay = deriveHistoricalDayEvents(
+      [txn('2026-07-01T09:00:00.000Z', 'Tesco', -42.5)],
+      TODAY_ISO,
+    );
+    const event = byDay['2026-07-01']![0]!;
+    expect(event.amount).toBe(-42.5);
+    expect(event.title).toBe('Tesco');
+  });
+
+  it('returns an empty object when there are no past transactions', () => {
+    expect(deriveHistoricalDayEvents([], TODAY_ISO)).toEqual({});
+    expect(
+      deriveHistoricalDayEvents([txn('2026-07-06T09:00:00.000Z', 'Today', -1)], TODAY_ISO),
+    ).toEqual({});
+  });
+
+  it('is pure — never mutates the input transactions array', () => {
+    const input = [txn('2026-07-01T09:00:00.000Z', 'Tesco', -42)];
+    const snapshot = JSON.parse(JSON.stringify(input));
+    deriveHistoricalDayEvents(input, TODAY_ISO);
+    expect(input).toEqual(snapshot);
   });
 });
