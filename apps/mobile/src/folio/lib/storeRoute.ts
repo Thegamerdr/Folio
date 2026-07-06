@@ -32,7 +32,7 @@ import { deriveCalendarEvents } from './calendarEvents';
 import { resolvePayday } from './payday';
 import { nextIncomeDate, selectMonthlyIncome } from './income';
 import { monthlySpendBaseline } from './historyStats';
-import { useAppStore, type AppState } from '../store';
+import { useAppStore, selectBankBalanceMinor, bankTransactions, type AppState } from '../store';
 import { derivePressure } from '../screens/today/pressure';
 
 /** Fallback day-of-month payday when onboarding hasn't set one. Matches the
@@ -181,19 +181,25 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
     legacyPaydayIso;
 
   // Earmark the already-SAVED pot cash OUT of the start: the path begins at
-  // `currentBalance.amount − Σ pots.saved`, not the full balance — the "saved amount lowers Today's
-  // spare" half of the product rule. This is PAST cash already set aside, a one-off start offset.
-  // It does NOT double-count the pots' FUTURE −perWeek top-up dips: those are different money (cash
-  // about to be saved), already present in `spend` via deriveCalendarEvents, and they "bend the path"
-  // as dated dips. So earmark-at-start AND dated-dips both apply, distinctly. We still pass `pots: []`
-  // (NO flat internal plateau on top of the dips). The double-count to avoid is folding those dated
-  // dips into the start; we don't.
+  // `bankBalance − Σ pots.saved`, not the full balance — the "saved amount lowers Today's spare" half
+  // of the product rule. This is PAST cash already set aside, a one-off start offset. It does NOT
+  // double-count the pots' FUTURE −perWeek top-up dips: those are different money (cash about to be
+  // saved), already present in `spend` via deriveCalendarEvents, and they "bend the path" as dated
+  // dips. So earmark-at-start AND dated-dips both apply, distinctly. We still pass `pots: []` (NO flat
+  // internal plateau on top of the dips). The double-count to avoid is folding those dated dips into
+  // the start; we don't.
+  //
+  // ACCOUNTS_MODEL.md §2.4 — the route's starting balance is BANK-ONLY money (`selectBankBalanceMinor`:
+  // sum of non-liability bank/savings/cash account balances), never a credit card's balance. On a
+  // single-account (migrated) install this is byte-identical to the old `currentBalance.amount` scalar
+  // — pinned by storeRoute.test.ts.
   const sigmaSaved = state.pots.reduce((acc, p) => acc + p.saved, 0);
+  const bankBalance = selectBankBalanceMinor(state);
   const result = computeRoute({
     now: todayIso,
     payday: paydayIso,
     windowDays: ROUTE_WINDOW_DAYS,
-    balance: state.currentBalance.amount - sigmaSaved,
+    balance: bankBalance - sigmaSaved,
     income,
     bills: [],
     subs: [],
@@ -220,11 +226,15 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // numbers become an honest realized-vs-projected picture. Surfaces that render both together
   // should label them accordingly (projected curve vs realized summary) — this module only computes
   // the numbers, not the copy.
+  // Bank-only (ACCOUNTS_MODEL.md §2.4): a credit-card statement's spend is borrowing, not a bank
+  // outflow, so it must never feed the realized "Going out" figure. `bankTransactions` is a no-op
+  // filter on a single-account (migrated) install.
+  const bankTxns = bankTransactions(state);
   const projectedOutgoing = spend.reduce((acc, d) => acc + d.amount, 0);
-  const hasHistory = state.transactions.length > 0;
+  const hasHistory = bankTxns.length > 0;
   const incomingTotal = selectMonthlyIncome(state);
   const outgoingTotal = hasHistory
-    ? monthlySpendBaseline(state.transactions, todayIso).medianMonthlySpend
+    ? monthlySpendBaseline(bankTxns, todayIso).medianMonthlySpend
     : projectedOutgoing;
   return { ...result, incomingTotal, outgoingTotal };
 }

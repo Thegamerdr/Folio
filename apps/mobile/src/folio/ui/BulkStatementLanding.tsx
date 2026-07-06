@@ -4,28 +4,41 @@
 // (a "statement"), per `isBulkStatement` (lib/bulkLanding.ts). Single-candidate reads are UNCHANGED
 // — each screen's existing per-row `enqueueReviewItems` -> Review path still handles those.
 //
-// FLOW (owner spec, task: BULK ADD-AS-HISTORY):
+// FLOW (owner spec, task: BULK ADD-AS-HISTORY; account step per ACCOUNTS_MODEL.md §3 step 1/5):
+//   0. WHICH ACCOUNT — confirm-gated, shown before anything else. Detects a best-effort name/kind
+//      from the candidates (`detectAccountName`, lib/detectAccountName.ts — honestly `null`/'bank'
+//      today, since the reader carries no institution/header text yet; see that module's doc) and
+//      offers: pick an existing `Account`, or name a new one with a bank/credit-card toggle,
+//      defaulting to the detection. "Continue" resolves the accountId (creating the new account via
+//      `addAccount` only on confirm, never speculatively) before the landing card below can render.
+//      A blank new-account name falls through to `DEFAULT_ACCOUNT_ID` ('Main') rather than creating
+//      an unnamed account — the no-choice-made path still lands in Main, per the owner spec.
 //   1. BULK LANDING — a calm summary: 'Found {N} transactions · {from}–{to} · £{in} in / £{out}
 //      out', a short preview list with money-in vs money-out unmistakably distinguished (the same
 //      positiveInk/repairInk convention TodayScreen's "Coming in" / "Going out" uses — reused here,
-//      never re-invented). PRIMARY CTA 'Add all as history' calls `addStatementAsHistory` and
-//      routes to Today (via the offer sequencer below). SECONDARY 'Review one by one' falls back to
-//      the screen's existing per-row enqueue-then-Review path — nobody who wants line-by-line
-//      control loses it.
+//      never re-invented). PRIMARY CTA 'Add all as history' calls `addStatementAsHistory` with the
+//      resolved accountId from step 0 and routes to Today (via the offer sequencer below). SECONDARY
+//      'Review one by one' falls back to the screen's existing per-row enqueue-then-Review path —
+//      nobody who wants line-by-line control loses it (that path does not carry the account choice
+//      through — a P3 concern, see ACCOUNTS_MODEL.md).
 //   2. POST-IMPORT OFFERS — after the add lands, `nextBulkLandingOffer` (lib/bulkLanding.ts) walks
 //      the two named offers ONE AT A TIME, each with its own calm confirm card: closing balance
-//      first ('Your balance looks like £X as of {date} — use it?' -> setCurrentBalance), then an
-//      unmatched income signal (routes to the existing self-deriving IncomeCaughtSheet — it reads
-//      the live post-add ledger itself, so no candidate payload needs threading through). Both are
-//      SKIPPABLE ("Not now") and NEITHER auto-applies — review-before-truth extends past the add
-//      itself, matching the single-item Review card's own confirm-before-truth contract.
+//      first ('Your balance looks like £X as of {date} — use it?' -> "Use it" calls
+//      `setAccountBalance(offer.accountId, ...)`, the SAME account step 0 resolved and
+//      `addStatementAsHistory` tagged the batch's transactions with — never the legacy global
+//      `setCurrentBalance`, so a second account's import can never clobber a different account's
+//      balance), then an unmatched income signal (routes to the existing self-deriving
+//      IncomeCaughtSheet — it reads the live post-add ledger itself, so no candidate payload needs
+//      threading through). Both are SKIPPABLE ("Not now") and NEITHER auto-applies —
+//      review-before-truth extends past the add itself, matching the single-item Review card's own
+//      confirm-before-truth contract.
 //
-// @tokens surface · hairline · calm (accent) · calmSoft · muted · ink · inverse · positiveInk ·
-//         repairInk — all from '@/folio/theme'. No new token, no new colour.
+// @tokens surface · hairline · calm (accent) · calmSoft · inset · muted · ink · inverse ·
+//         positiveInk · repairInk — all from '@/folio/theme'. No new token, no new colour.
 // @motion none of its own — mounts inside the success screens' existing slide-in-r frame.
 
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
@@ -36,10 +49,16 @@ import {
   type BulkLandingOffer,
 } from '@/folio/lib/bulkLanding';
 import { buildStatementSummary } from '@/folio/lib/statementSummary';
+import { detectAccountName } from '@/folio/lib/detectAccountName';
 import type { CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
+  addAccount,
   addStatementAsHistory,
-  setCurrentBalance,
+  DEFAULT_ACCOUNT_ID,
+  setAccountBalance,
+  useAppStore,
+  type Account,
+  type AccountKind,
   type AddStatementAsHistoryResult,
 } from '@/folio/store';
 import type { Nav } from '@/folio/types';
@@ -74,6 +93,10 @@ function formatSignedAmount(amount: number): string {
   return `${sign}£${grouped}`;
 }
 
+// ACCOUNTS_MODEL.md §3 step 1/5 — sentinel value for "create a new account" in the picker below,
+// distinct from any real `Account.id` (which are always `acct-...`).
+const NEW_ACCOUNT_OPTION = '__new__';
+
 export function BulkStatementLanding({
   nav,
   candidates,
@@ -90,6 +113,20 @@ export function BulkStatementLanding({
   // `nextBulkLandingOffer` to walk the sequence exactly once each, never re-showing one.
   const [shownOffers, setShownOffers] = useState<ReadonlySet<BulkLandingOffer>>(new Set());
 
+  // ACCOUNTS_MODEL.md §3 step 1/5 — "Which account is this?" step, shown BEFORE the existing
+  // summary/CTA card, confirm-gated (owner spec). `existingAccounts` reads live so a freshly-created
+  // account from a PRIOR statement in the same session already appears in the picker.
+  const existingAccounts = useAppStore((s) => s.accounts ?? []);
+  const detection = useMemo(() => detectAccountName(candidates), [candidates]);
+  const [accountConfirmed, setAccountConfirmed] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<string>(NEW_ACCOUNT_OPTION);
+  const [newAccountName, setNewAccountName] = useState(detection.name ?? '');
+  const [newAccountKind, setNewAccountKind] = useState<AccountKind>(detection.kind);
+  // The resolved accountId this landing will pass to `addStatementAsHistory` — created lazily on
+  // confirm (a new account is only ever created once the user actually commits to this step, never
+  // speculatively on every render/keystroke).
+  const [resolvedAccountId, setResolvedAccountId] = useState<string | null>(null);
+
   const currentOffer = summary !== null ? nextBulkLandingOffer(summary, shownOffers) : null;
 
   function resolveOffer(offer: BulkLandingOffer) {
@@ -104,8 +141,30 @@ export function BulkStatementLanding({
     }
   }
 
+  // Confirm the account step: either use the selected existing account, or create a new one from the
+  // name/kind fields (defaulting to the detected name/kind when the user didn't change them). A blank
+  // new-account name falls back to Main (DEFAULT_ACCOUNT_ID) rather than creating an unnamed account —
+  // the default path (no account chosen) must still land in Main per the owner spec.
+  function handleConfirmAccount() {
+    if (selectedOption !== NEW_ACCOUNT_OPTION) {
+      setResolvedAccountId(selectedOption);
+      setAccountConfirmed(true);
+      return;
+    }
+    const trimmedName = newAccountName.trim();
+    if (trimmedName.length === 0) {
+      setResolvedAccountId(DEFAULT_ACCOUNT_ID);
+      setAccountConfirmed(true);
+      return;
+    }
+    const account: Account = addAccount({ name: trimmedName, kind: newAccountKind });
+    setResolvedAccountId(account.id);
+    setAccountConfirmed(true);
+  }
+
   function handleAddAll() {
-    const result = addStatementAsHistory(candidates, closingBalance);
+    const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
+    const result = addStatementAsHistory(candidates, closingBalance, accountId);
     setSummary(result);
     onAdded();
     // If neither offer exists, route straight to Today (or to the existing bill/drift/annual
@@ -115,6 +174,119 @@ export function BulkStatementLanding({
     if (nextBulkLandingOffer(result, new Set()) === null) {
       nav.go('today');
     }
+  }
+
+  // ACCOUNTS_MODEL.md §3 step 1/5 — the account-picker step, shown before anything else on a fresh
+  // landing (never re-shown once confirmed, even if the component re-renders for other reasons).
+  if (!accountConfirmed) {
+    return (
+      <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+        <Text style={[styles.offerHead, { color: t.ink }]}>Which account is this?</Text>
+        {detection.name !== null ? (
+          <Text style={[styles.accountHint, { color: t.muted }]}>
+            {`Looks like ${detection.name}`}
+          </Text>
+        ) : null}
+
+        {existingAccounts.length > 0 ? (
+          <View style={styles.accountOptionList}>
+            {existingAccounts.map((account) => {
+              const selected = selectedOption === account.id;
+              return (
+                <Pressable
+                  key={account.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={account.name}
+                  onPress={() => setSelectedOption(account.id)}
+                  style={({ pressed }) => [
+                    styles.accountOption,
+                    { backgroundColor: selected ? t.calmSoft : t.inset },
+                    pressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.accountOptionLabel, { color: t.ink }]}>{account.name}</Text>
+                </Pressable>
+              );
+            })}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: selectedOption === NEW_ACCOUNT_OPTION }}
+              accessibilityLabel="A new account"
+              onPress={() => setSelectedOption(NEW_ACCOUNT_OPTION)}
+              style={({ pressed }) => [
+                styles.accountOption,
+                {
+                  backgroundColor: selectedOption === NEW_ACCOUNT_OPTION ? t.calmSoft : t.inset,
+                },
+                pressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.accountOptionLabel, { color: t.ink }]}>+ New account</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {selectedOption === NEW_ACCOUNT_OPTION ? (
+          <>
+            <TextInput
+              value={newAccountName}
+              onChangeText={setNewAccountName}
+              placeholder="Name this account"
+              placeholderTextColor={t.muted}
+              style={[
+                styles.accountNameInput,
+                { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink },
+              ]}
+              accessibilityLabel="Account name"
+            />
+            <View style={styles.kindToggleRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: newAccountKind === 'bank' }}
+                accessibilityLabel="Bank account"
+                onPress={() => setNewAccountKind('bank')}
+                style={({ pressed }) => [
+                  styles.kindToggle,
+                  { backgroundColor: newAccountKind === 'bank' ? t.calmSoft : t.inset },
+                  pressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.kindToggleLabel, { color: t.ink }]}>Bank</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: newAccountKind === 'credit-card' }}
+                accessibilityLabel="Credit card"
+                onPress={() => setNewAccountKind('credit-card')}
+                style={({ pressed }) => [
+                  styles.kindToggle,
+                  { backgroundColor: newAccountKind === 'credit-card' ? t.calmSoft : t.inset },
+                  pressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.kindToggleLabel, { color: t.ink }]}>Credit card</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+
+        <View style={styles.offerRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Confirm account"
+            onPress={handleConfirmAccount}
+            style={({ pressed }) => [
+              styles.offerPrimary,
+              { backgroundColor: t.calm },
+              pressed ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.offerPrimaryLabel, { color: t.inverse }]}>Continue</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   // Post-import offer sequencer — replaces the landing card once the add has happened AND at
@@ -131,11 +303,17 @@ export function BulkStatementLanding({
             accessibilityRole="button"
             accessibilityLabel="Use this balance"
             onPress={() => {
-              setCurrentBalance({
-                amount: offer.amountPence / 100,
-                source: 'statement',
-                confidence: 'statement-derived',
-              });
+              // ACCOUNTS_MODEL.md §3 step 4 — sets THIS offer's own account (`offer.accountId`,
+              // stamped by `addStatementAsHistory` to match whichever account the batch's
+              // transactions were tagged with), never the legacy global `currentBalance` scalar. A
+              // second account's import can never clobber a different account's balance this way.
+              // Falls back to DEFAULT_ACCOUNT_ID for a hand-built fixture offer predating this field
+              // (see StatementClosingBalanceOffer's own back-compat doc).
+              setAccountBalance(
+                offer.accountId ?? DEFAULT_ACCOUNT_ID,
+                offer.amountPence / 100,
+                offer.asOfISO,
+              );
               resolveOffer('closing-balance');
             }}
             style={({ pressed }) => [
@@ -367,6 +545,49 @@ const styles = StyleSheet.create({
   },
   offerSecondaryLabel: {
     fontSize: 14,
+  },
+  // Account-picker step (ACCOUNTS_MODEL.md §3 step 1/5) — detected-name hint + option list + new-
+  // account name/kind fields, reusing the offer card's head/row/button styles above.
+  accountHint: {
+    fontSize: 12.5,
+    fontStyle: 'italic',
+    marginTop: gap.xs,
+  },
+  accountOptionList: {
+    marginTop: gap.md,
+    rowGap: gap.sm,
+  },
+  accountOption: {
+    borderRadius: radius.md,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm + gap.xxs,
+  },
+  accountOptionLabel: {
+    fontSize: 13.5,
+    fontWeight: '500',
+  },
+  accountNameInput: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    fontSize: 13.5,
+    height: 44,
+    marginTop: gap.md,
+    paddingHorizontal: gap.md,
+  },
+  kindToggleRow: {
+    columnGap: gap.sm,
+    flexDirection: 'row',
+    marginTop: gap.sm,
+  },
+  kindToggle: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flex: 1,
+    paddingVertical: gap.sm,
+  },
+  kindToggleLabel: {
+    fontSize: 12.5,
+    fontWeight: '500',
   },
   pressed: {
     opacity: 0.6,

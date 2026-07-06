@@ -35,6 +35,7 @@ import { useMemo } from 'react';
 
 import {
   useAppStore,
+  bankTransactions,
   type DriftCooldownEntry,
   type IncomeSource,
   type Sub,
@@ -225,12 +226,21 @@ export function findDriftCandidates(
 /** Live drift candidates derived from the current ledger + declared sources + sub catalog, excluding
  *  anything currently cooling down (see `findDriftCandidates`'s cooldown doc). Recomputed only when
  *  those slices change — `now` is read fresh on each computation (module default), same as every
- *  other live-clock caught-* hook in this codebase. */
+ *  other live-clock caught-* hook in this codebase.
+ *
+ *  BANK-ONLY (ACCOUNTS_MODEL.md §2.4): both detectors run over `bankTransactions(state)` — a
+ *  credit-card's income/bill drift shouldn't be caught as a bank-side drift signal. Inert on a
+ *  single-account (migrated) install. */
 export function useCaughtDrift(): DriftCaughtCandidate[] {
-  const transactions = useAppStore((state) => state.transactions);
+  const rawTransactions = useAppStore((state) => state.transactions);
+  const accounts = useAppStore((state) => state.accounts);
   const incomeSources = useAppStore((state) => state.incomeSources ?? []);
   const subs = useAppStore((state) => state.subs);
   const dismissedDriftSignals = useAppStore((state) => state.dismissedDriftSignals ?? []);
+  const transactions = useMemo(
+    () => bankTransactions({ transactions: rawTransactions, accounts }),
+    [rawTransactions, accounts],
+  );
 
   return useMemo(
     () => findDriftCandidates(transactions, incomeSources, subs, dismissedDriftSignals),

@@ -21,6 +21,7 @@ import {
   selectMonthlySpend,
 } from './income';
 import {
+  addAccount,
   addStatementAsHistory,
   addTransaction,
   getState,
@@ -412,6 +413,45 @@ describe('selectMonthlySpend — realized median monthly spend', () => {
 
     // April total = 1200, May total = 1400 -> median of [1200, 1400] = 1300.
     expect(selectMonthlySpend(getState())).toBe(1300);
+  });
+
+  it('excludes credit-card transactions from the realized bank-side spend figure (ACCOUNTS_MODEL.md §2.4)', () => {
+    const card = addAccount({ name: 'Amex Gold', kind: 'credit-card' });
+
+    addTransaction({
+      merchant: 'Rent',
+      amount: -900,
+      category: 'bills',
+      source: 'manual',
+      when: '2026-04-01T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Rent',
+      amount: -900,
+      category: 'bills',
+      source: 'manual',
+      when: '2026-05-01T00:00:00.000Z',
+    });
+    // Card spend in the same months — must not inflate the bank-only median.
+    addTransaction({
+      merchant: 'Netflix',
+      amount: -5000,
+      category: 'other',
+      source: 'manual',
+      when: '2026-04-20T00:00:00.000Z',
+      accountId: card.id,
+    });
+    addTransaction({
+      merchant: 'Netflix',
+      amount: -5000,
+      category: 'other',
+      source: 'manual',
+      when: '2026-05-20T00:00:00.000Z',
+      accountId: card.id,
+    });
+
+    // Bank-only median: [900, 900] -> 900, not [5900, 5900] -> 5900.
+    expect(selectMonthlySpend(getState())).toBe(900);
   });
 });
 

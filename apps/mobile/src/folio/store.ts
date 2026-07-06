@@ -299,7 +299,99 @@ export type Transaction = {
   category: 'food' | 'transport' | 'fun' | 'bills' | 'shopping' | 'income' | 'other';
   /** Where it came from — manual entry, Melo-logged, or seed/demo. */
   source: 'manual' | 'melo' | 'seed';
+  /** Which `Account` this transaction belongs to (see `Account` below and ACCOUNTS_MODEL.md §2.2).
+   *  OPTIONAL and defaults to `'acct-main'` via `accountIdOf()` — this is a deliberate LOW-RISK
+   *  choice: making this required would force a mass fixture migration across every existing test
+   *  and seed-data call site. Every pre-existing transaction (and every fixture that never sets it)
+   *  is treated as belonging to the single default bank account. New write paths should still stamp
+   *  a real `accountId` where the caller knows one (multi-account UI, P3), but omitting it is always
+   *  safe and never crashes a reader — always go through `accountIdOf()`, never read this field raw
+   *  when you need "the effective account". */
+  accountId?: string;
 };
+
+/** ACCOUNTS_MODEL.md §2.1 — a single named account (bank, credit card, savings, or cash). Phase 1
+ *  (this pass) only ever creates the synthesized `'acct-main'` bank account via migration; the
+ *  account picker/creator UI (multi-account, credit-card-as-liability wiring into the debt engine)
+ *  is P2/P3 — see ACCOUNTS_MODEL.md. `balance` is a signed £ float (NOT minor units/pence) to match
+ *  the rest of the store's existing convention (`Debt.balance`, `CurrentBalance.amount`) — see
+ *  ACCOUNTS_MODEL.md §2.5's explicit "match existing convention" call for P1, rather than introducing
+ *  a second minor-units convention alongside 30+ existing float-pound fields. */
+export type AccountKind = 'bank' | 'credit-card' | 'savings' | 'cash';
+
+export type Account = {
+  id: string;
+  /** User-facing label, e.g. "Monzo Current", "Amex Gold". */
+  name: string;
+  kind: AccountKind;
+  /** True only for `kind: 'credit-card'` in this phase — a liability account's `balance` represents
+   *  amount OWED, mirroring `Debt.balance`'s "never negative, always owed" convention. Non-liability
+   *  kinds (`bank`/`savings`/`cash`) represent money the user actually holds. */
+  isLiability: boolean;
+  /** Current balance, signed £ float. For a liability account this is the amount owed (positive). */
+  balanceMinor: number;
+  /** ISO 4217 currency code. Optional — GBP-only assumption for the foreseeable future
+   *  (ACCOUNTS_MODEL.md §6 open question 1); omit rather than half-build FX conversion nobody asked
+   *  for. Absent means GBP. */
+  currency?: string;
+  /** ISO timestamp this account's balance was last set/confirmed by an import or manual entry. */
+  balanceAsOfISO: string;
+  /** ISO timestamp the account was created — sort stability / "added N days ago" copy only. */
+  addedAt: string;
+  /** Soft-delete flag. Closing/archiving an account is out of scope for this phase
+   *  (ACCOUNTS_MODEL.md §6 open question 5) — the field exists so a later phase can add it cheaply
+   *  without another shape change, but nothing sets or reads it yet. */
+  closed?: boolean;
+};
+
+/** The id every pre-existing install's data is synthesized under (see `synthesizeDefaultAccount`
+ *  below) — the implicit "whole ledger is one account" bank account this codebase always had before
+ *  `AppState.accounts` existed. */
+export const DEFAULT_ACCOUNT_ID = 'acct-main';
+
+/** Effective account for a transaction — defaults to `DEFAULT_ACCOUNT_ID` when `accountId` is absent
+ *  (every existing transaction, every fixture that predates this field). Always read a transaction's
+ *  account through this helper rather than `t.accountId` directly, so "which account" logic never has
+ *  to special-case the back-compat gap. */
+export function accountIdOf(t: Pick<Transaction, 'accountId'>): string {
+  return t.accountId ?? DEFAULT_ACCOUNT_ID;
+}
+
+/** ACCOUNTS_MODEL.md §2.4 — true when `txn` belongs to a NON-liability account (bank/savings/cash),
+ *  i.e. its spend/income is real bank cashflow, not credit-card borrowing. Every reader that computes
+ *  bank-side money movement (Safe Zone, the route curve, monthly spend/income baselines, the caught-*
+ *  detectors) must filter through this (or `bankTransactions` below) instead of reading
+ *  `state.transactions` raw, so a card statement's spend never double-counts against bank cashflow.
+ *  Falls back to `true` when `accounts` is absent/empty OR the transaction's account isn't found
+ *  (every pre-existing fixture/install, and `DEFAULT_ACCOUNT_ID` itself, are bank accounts by
+ *  construction) — so this predicate is always safe to call and never silently drops a pre-accounts
+ *  transaction. */
+export function isBankTxn(
+  state: { accounts?: Account[] | undefined },
+  txn: Pick<Transaction, 'accountId'>,
+): boolean {
+  const accounts = state.accounts ?? [];
+  if (accounts.length === 0) return true;
+  const account = accounts.find((a) => a.id === accountIdOf(txn));
+  if (account === undefined) return true;
+  return !account.isLiability;
+}
+
+/** ACCOUNTS_MODEL.md §2.4 — `state.transactions` filtered to bank/savings/cash accounts only (excludes
+ *  every credit-card account's rows). THE one filter point every bank-cashflow reader should call
+ *  instead of re-implementing the `isBankTxn` filter locally (`historyStats.ts`'s monthly spend/income
+ *  series, `income.ts`'s `selectMonthlySpend`, the `caught*` detectors, `storeRoute.ts`'s realized
+ *  spend read). On a single-account (migrated) install this returns the SAME array reference-equal
+ *  content as `state.transactions` (nothing is a liability account), so every existing fixture is
+ *  unaffected. */
+export function bankTransactions(state: {
+  accounts?: Account[] | undefined;
+  transactions: Transaction[];
+}): Transaction[] {
+  const accounts = state.accounts ?? [];
+  if (accounts.length === 0) return state.transactions;
+  return state.transactions.filter((t) => isBankTxn(state, t));
+}
 
 /** @rn-engine timeline-verbs — the missing event log the web's ScreenTimeline demo stubbed with 8
  *  hardcoded rows. This is the REAL engine: an append-only log of the verb-state moments the web
@@ -559,6 +651,14 @@ export type AppState = {
    *  shape back-compat with hand-built `AppState` fixtures predating this field; `DEFAULTS`/`load()`/
    *  `resetToEmpty()` always populate it ([]). */
   statementImports?: StatementImportRecord[];
+  /** ACCOUNTS_MODEL.md §2 — named accounts (bank/credit-card/savings/cash), replacing the single
+   *  implicit "the whole ledger is one account" model. OPTIONAL for shape back-compat: every existing
+   *  install has this absent until `load()`'s `synthesizeDefaultAccount` backfills exactly one `'Main'`
+   *  bank account mirroring the legacy `currentBalance` scalar (see that function's doc). `DEFAULTS`/
+   *  `load()`/`resetToEmpty()` always populate it with at least the one synthesized/seed account — a
+   *  reader should still treat an absent/empty array defensively (fall back to reading `currentBalance`
+   *  directly), since hand-built `AppState` fixtures predating this field are still valid. */
+  accounts?: Account[];
 };
 
 /** One row of `AppState.statementImports` — a single successful bulk statement/receipt landing.
@@ -575,6 +675,17 @@ export type StatementImportRecord = {
   rowCount: number;
   /** ISO timestamp. */
   atISO: string;
+  /** ACCOUNTS_MODEL.md §2.3 — which `Account` this import landed into. OPTIONAL for shape back-compat
+   *  with every pre-existing logged import (and any hand-built fixture); treat an absent value as
+   *  `DEFAULT_ACCOUNT_ID` (mirrors `accountIdOf()`'s contract for `Transaction`). `logStatementImport`
+   *  always stamps a real value going forward. */
+  accountId?: string;
+  /** Best-effort filename from the file picker, if the intake path had one. Optional — most intake
+   *  paths (paste, manual) never have a filename. */
+  filename?: string;
+  /** The closing balance this import reported, if any (mirrors `StatementClosingBalanceOffer`).
+   *  Optional — not every statement/reader supplies one. Signed £ float, matching `Account.balance`. */
+  closingBalanceMinor?: number;
 };
 
 /** Retention cap for `statementImports` — mirrors `timelineEvents`'s 200-entry cap. */
@@ -707,6 +818,27 @@ const EMPTY_BALANCE: Omit<CurrentBalance, 'setAt'> = {
   confidence: 'rough',
 };
 
+/** ACCOUNTS_MODEL.md §2.1 migration — synthesize the ONE default bank `Account` every existing
+ *  install implicitly had (the whole ledger was always "one account" via `currentBalance`), so a
+ *  user who never touches the new multi-account UI sees no behaviour change at all. Mirrors
+ *  `currentBalance`'s `amount`/`setAt` exactly (`balance === currentBalance.amount`,
+ *  `balanceAsOfISO === currentBalance.setAt`) — this is what makes `selectBankBalanceMinor` on a
+ *  single-account (migrated) install byte-identical to the old scalar (pinned by
+ *  store.test.ts). `addedAt` uses `currentBalance.setAt` too, since there's no better "when was this
+ *  install's implicit account first known" timestamp available at migration time. Pure — never reads
+ *  or writes the live store. */
+function synthesizeDefaultAccount(currentBalance: CurrentBalance): Account {
+  return {
+    id: DEFAULT_ACCOUNT_ID,
+    name: 'Main',
+    kind: 'bank',
+    isLiability: false,
+    balanceMinor: currentBalance.amount,
+    balanceAsOfISO: currentBalance.setAt,
+    addedAt: currentBalance.setAt,
+  };
+}
+
 const DEFAULTS: AppState = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   pots: [
@@ -745,6 +877,7 @@ const DEFAULTS: AppState = {
   ],
   onboarding: { done: false, name: '', payday: 25, monthlyIncome: 2180 },
   currentBalance: SAMPLE_BALANCE,
+  accounts: [synthesizeDefaultAccount(SAMPLE_BALANCE)],
   potLedger: [],
   nextYouNote: '',
   tightPointGoal: null,
@@ -1056,6 +1189,9 @@ function load(): AppState {
     // Deep-clone the persisted blob so migrate/load never mutate the stored copy.
     const parsedRaw = JSON.parse(JSON.stringify(persistedBlob)) as Record<string, unknown>;
     const migrated = migrate(parsedRaw) as Partial<AppState>;
+    // Resolved once so `accounts` (below) can synthesize the default account from the SAME balance
+    // this load is about to publish — never a stale/different one.
+    const resolvedCurrentBalance = migrated.currentBalance ?? SAMPLE_BALANCE;
     const loaded: AppState = {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       pots: migrated.pots ?? DEFAULTS.pots,
@@ -1064,7 +1200,14 @@ function load(): AppState {
       subOverrides: migrated.subOverrides ?? {},
       cycles: migrated.cycles ?? DEFAULTS.cycles,
       onboarding: { ...DEFAULTS.onboarding, ...(migrated.onboarding ?? {}) },
-      currentBalance: migrated.currentBalance ?? SAMPLE_BALANCE,
+      currentBalance: resolvedCurrentBalance,
+      // ACCOUNTS_MODEL.md §2.1 migration: an install that already has `accounts` keeps them
+      // untouched; one that doesn't (every pre-existing install) gets exactly one synthesized
+      // `'Main'` bank account mirroring `resolvedCurrentBalance` — see `synthesizeDefaultAccount`.
+      accounts:
+        Array.isArray(migrated.accounts) && migrated.accounts.length > 0
+          ? migrated.accounts
+          : [synthesizeDefaultAccount(resolvedCurrentBalance)],
       potLedger: migrated.potLedger ?? [],
       nextYouNote: migrated.nextYouNote ?? '',
       tightPointGoal: migrated.tightPointGoal ?? null,
@@ -1411,7 +1554,96 @@ export function setOnboarding(o: Partial<Onboarding>) {
  *  write path for the user's current account position. Always stamps
  *  `setAt` so the source label can show "you set this 2 days ago" later. */
 export function setCurrentBalance(next: Omit<CurrentBalance, 'setAt'>) {
-  setPartial({ currentBalance: { ...next, setAt: new Date().toISOString() } });
+  const setAt = new Date().toISOString();
+  // ACCOUNTS_MODEL.md §3 — `setCurrentBalance` is still the ONLY write path every screen uses today
+  // (the account-picker/creator UI + `setAccountBalance` migration is P3, not yet wired into
+  // BulkStatementLanding/GuidedCheckInScreen/OnboardingSheet). Until that migration lands, this
+  // legacy path must keep the synthesized default bank account (`DEFAULT_ACCOUNT_ID`) in sync —
+  // otherwise `selectBankBalanceMinor`/`bankTransactions` (read by Safe Zone, the route curve, and
+  // every bank-cashflow selector) would silently go stale the moment a user's balance changes,
+  // even though there is still only ONE real account. Only the default account is touched, and only
+  // when it's a non-liability (bank) account — a user who has already added a second account via P3
+  // is expected to use `setAccountBalance` going forward, but this keeps every pre-P3 install
+  // correct with zero behavior change (single-account sum-of-one stays byte-identical).
+  const accounts = state.accounts ?? [];
+  const nextAccounts = accounts.map((a) =>
+    a.id === DEFAULT_ACCOUNT_ID && !a.isLiability
+      ? { ...a, balanceMinor: next.amount, balanceAsOfISO: setAt }
+      : a,
+  );
+  setPartial({ currentBalance: { ...next, setAt }, accounts: nextAccounts });
+}
+
+/* ---------- Accounts (ACCOUNTS_MODEL.md §2 / §4 P1) ---------- */
+
+/** Add a new named account. `id` auto-generates when omitted; `balance`/`balanceAsOfISO`/`addedAt`
+ *  default to 0/now/now for a freshly-declared account with no known balance yet. `isLiability`
+ *  defaults `true` for `kind: 'credit-card'` and `false` for every other kind, matching
+ *  ACCOUNTS_MODEL.md §2.1's convention — pass it explicitly to override. Account-picker/creator UI is
+ *  P3; this is the plumbing it will call. */
+export function addAccount(
+  input: Partial<Omit<Account, 'id'>> & Pick<Account, 'name' | 'kind'>,
+): Account {
+  const now = new Date().toISOString();
+  const account: Account = {
+    id: `acct-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: input.name,
+    kind: input.kind,
+    isLiability: input.isLiability ?? input.kind === 'credit-card',
+    balanceMinor: input.balanceMinor ?? 0,
+    balanceAsOfISO: input.balanceAsOfISO ?? now,
+    addedAt: input.addedAt ?? now,
+    ...(input.currency !== undefined ? { currency: input.currency } : {}),
+    ...(input.closed !== undefined ? { closed: input.closed } : {}),
+  };
+  setPartial({ accounts: [...(state.accounts ?? []), account] });
+  return account;
+}
+
+/** Rename an existing account. No-op if the id doesn't exist. */
+export function renameAccount(accountId: string, name: string) {
+  const accounts = state.accounts ?? [];
+  if (!accounts.some((a) => a.id === accountId)) return;
+  setPartial({
+    accounts: accounts.map((a) => (a.id === accountId ? { ...a, name } : a)),
+  });
+}
+
+/** ACCOUNTS_MODEL.md §3 step 4 — set a SPECIFIC account's balance (replaces the global
+ *  `setCurrentBalance` write for any account-aware caller). Stamps `balanceAsOfISO`. No-op if the
+ *  account id doesn't exist (never silently creates one — callers must `addAccount` first). */
+export function setAccountBalance(accountId: string, amount: number, asOfISO?: string) {
+  const accounts = state.accounts ?? [];
+  if (!accounts.some((a) => a.id === accountId)) return;
+  const balanceAsOfISO = asOfISO ?? new Date().toISOString();
+  setPartial({
+    accounts: accounts.map((a) =>
+      a.id === accountId ? { ...a, balanceMinor: amount, balanceAsOfISO } : a,
+    ),
+  });
+}
+
+/** ACCOUNTS_MODEL.md §2.4 — sum of non-liability (`bank`/`savings`/`cash`) account balances. This is
+ *  "how much spendable money exists" — Safe Zone / day-to-day spend safety must read THIS, never a
+ *  credit card's balance (borrowing, not bank money). On a single-account (migrated) install this is
+ *  byte-identical to the old `state.currentBalance.amount` scalar — pinned by store.test.ts, since
+ *  `synthesizeDefaultAccount` mirrors `currentBalance` exactly and there is exactly one bank account.
+ *  Falls back to `state.currentBalance.amount` when `accounts` is absent/empty (hand-built fixtures
+ *  predating this field), so this selector is always safe to call. */
+export function selectBankBalanceMinor(state: AppState): number {
+  const accounts = state.accounts ?? [];
+  if (accounts.length === 0) return state.currentBalance.amount;
+  return accounts.filter((a) => !a.isLiability).reduce((sum, a) => sum + a.balanceMinor, 0);
+}
+
+/** ACCOUNTS_MODEL.md §2.4 — net position: Σ(non-liability balances) − Σ(liability balances). This is
+ *  the "are we solvent" number (net-worth-style framing), DISTINCT from `selectBankBalanceMinor` /
+ *  Safe Zone (bank-only, day-to-day spend safety). Falls back to `state.currentBalance.amount` when
+ *  `accounts` is absent/empty, matching `selectBankBalanceMinor`'s back-compat contract. */
+export function selectNetPositionMinor(state: AppState): number {
+  const accounts = state.accounts ?? [];
+  if (accounts.length === 0) return state.currentBalance.amount;
+  return accounts.reduce((sum, a) => sum + (a.isLiability ? -a.balanceMinor : a.balanceMinor), 0);
 }
 
 /** Written by ScreenPaydayRitual step 4 — the line for next-you. */
@@ -1842,6 +2074,7 @@ export function addTransaction(
     amount: t.amount,
     category: t.category,
     source: t.source,
+    ...(t.accountId !== undefined ? { accountId: t.accountId } : {}),
   };
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
     [full, ...state.transactions],
@@ -1883,6 +2116,7 @@ export function addTransactionsBatch(
     amount: t.amount,
     category: t.category,
     source: t.source,
+    ...(t.accountId !== undefined ? { accountId: t.accountId } : {}),
   }));
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
     [...fullRows].reverse().concat(state.transactions),
@@ -1921,9 +2155,21 @@ export function removeTransaction(id: string) {
 
 /** A closing-balance offer surfaced by `addStatementAsHistory` when the reader supplied one — never
  *  fabricated (see `statementReaderParse.ts` / `statementReaderClient.ts`'s closing-balance fields).
- *  The caller (the bulk-landing screen) offers this as a ONE-TAP confirm; nothing here writes
- *  `currentBalance` itself. */
-export type StatementClosingBalanceOffer = { amountPence: number; asOfISO: string };
+ *  The caller (the bulk-landing screen) offers this as a ONE-TAP confirm; nothing here writes a
+ *  balance itself — review-before-truth means the write only happens on the user's explicit "Use it"
+ *  tap. `accountId` (ACCOUNTS_MODEL.md §3 step 4) is the account THIS offer's balance belongs to
+ *  (the same one `addStatementAsHistory` tagged the batch's transactions with) — the confirm button
+ *  should call `setAccountBalance(accountId, ...)`, never the legacy global `setCurrentBalance`, so a
+ *  second account's import can never clobber a different account's balance. Optional for shape
+ *  back-compat with hand-built `AddStatementAsHistoryResult` fixtures predating this field (mirrors
+ *  `droppedTransactionCount?`/`duplicatesSkipped?`'s own back-compat contract on the parent type) —
+ *  `addStatementAsHistory` itself always populates it; a caller reading an offer with `accountId`
+ *  absent should fall back to `DEFAULT_ACCOUNT_ID`. */
+export type StatementClosingBalanceOffer = {
+  amountPence: number;
+  asOfISO: string;
+  accountId?: string;
+};
 
 /** What `addStatementAsHistory` hands back to the bulk-landing screen — one honest summary of a
  *  whole-statement "add all" landing, plus the two follow-on offers the owner spec calls for: the
@@ -2039,10 +2285,21 @@ function importedTransactionId(candidate: CandidateMoneyItem): string {
  * an ALL-DUPLICATE `candidates` array (a byte-identical re-import of a statement already landed):
  * nothing new is added, no detectors run (there is nothing new for them to see), and
  * `duplicatesSkipped` honestly reports every one of them.
+ *
+ * `accountId` (ACCOUNTS_MODEL.md §3 step 3/4) — OPTIONAL, trailing, defaults to `DEFAULT_ACCOUNT_ID`
+ * so every existing call site (all 3 UI call sites + every test in this file) keeps working
+ * unchanged. When supplied, every landed transaction is tagged with it
+ * (`candidateToTransactionDraft`) and, if the caller ALSO supplied `closingBalance`,
+ * `result.closingBalanceOffer` carries THIS `accountId` so the caller's confirm tap can call
+ * `setAccountBalance(accountId, ...)` on THAT account — never the global `currentBalance` scalar,
+ * and never written by this function itself (review-before-truth: the offer is surfaced, not
+ * auto-applied, matching the caller's existing "Use it" / "Not now" confirm gate — see
+ * `StatementClosingBalanceOffer`'s doc).
  */
 export function addStatementAsHistory(
   candidates: readonly CandidateMoneyItem[],
   closingBalance?: { amount: number; asOfISO: string },
+  accountId: string = DEFAULT_ACCOUNT_ID,
 ): AddStatementAsHistoryResult {
   if (candidates.length === 0) {
     return {
@@ -2079,10 +2336,13 @@ export function addStatementAsHistory(
 
   const droppedBeforeAdd = getState().droppedTransactionCount ?? 0;
   addTransactionsBatch(
-    newCandidates.map((c) => ({ ...candidateToTransactionDraft(c), id: importedTransactionId(c) })),
+    newCandidates.map((c) => ({
+      ...candidateToTransactionDraft(c, accountId),
+      id: importedTransactionId(c),
+    })),
   );
   syncHistoryCycles();
-  logStatementImport(newCandidates);
+  logStatementImport(newCandidates, accountId);
 
   const stateAfterAdd = getState();
   const overspent = isOverspentLanding(stateAfterAdd);
@@ -2124,6 +2384,7 @@ export function addStatementAsHistory(
     result.closingBalanceOffer = {
       amountPence: Math.round(closingBalance.amount * 100),
       asOfISO: closingBalance.asOfISO,
+      accountId,
     };
   }
   return result;
@@ -2165,8 +2426,16 @@ function toStatementImportSource(
  *  a single-import row without a second "was this a mixed-source batch" concept the UI doesn't need
  *  yet. Newest first, capped at `STATEMENT_IMPORT_CAP` (200), mirroring `logTimelineEvent`'s own
  *  retention shape. Not exported — `addStatementAsHistory` is the only real caller (every import must
- *  go through it, so a caller should never log an import without actually landing one). */
-function logStatementImport(newCandidates: readonly CandidateMoneyItem[]): void {
+ *  go through it, so a caller should never log an import without actually landing one).
+ *
+ *  `accountId` defaults to `DEFAULT_ACCOUNT_ID` when omitted, mirroring `accountIdOf`'s own back-compat
+ *  contract — `addStatementAsHistory` now passes through whatever account the caller resolved (a
+ *  named account from BulkStatementLanding's picker, or the default when the caller didn't resolve
+ *  one), so this log entry always matches which account the batch's transactions were tagged with. */
+function logStatementImport(
+  newCandidates: readonly CandidateMoneyItem[],
+  accountId?: string,
+): void {
   if (newCandidates.length === 0) return;
   const first = newCandidates[0]!;
   const entry: StatementImportRecord = {
@@ -2174,6 +2443,7 @@ function logStatementImport(newCandidates: readonly CandidateMoneyItem[]): void 
     source: toStatementImportSource(first.source),
     rowCount: newCandidates.length,
     atISO: new Date().toISOString(),
+    accountId: accountId ?? DEFAULT_ACCOUNT_ID,
   };
   const existing = state.statementImports ?? [];
   setPartial({ statementImports: [entry, ...existing].slice(0, STATEMENT_IMPORT_CAP) });
@@ -2557,6 +2827,7 @@ export function resetAll() {
  *  through the same migration contract. Pure + immutable — builds a brand-new
  *  state object, never mutates the previous one. */
 export function resetToEmpty() {
+  const emptyBalance: CurrentBalance = { ...EMPTY_BALANCE, setAt: new Date().toISOString() };
   const empty: AppState = {
     schemaVersion: state.schemaVersion,
     pots: [],
@@ -2565,7 +2836,10 @@ export function resetToEmpty() {
     subOverrides: {},
     cycles: [],
     onboarding: { ...state.onboarding, done: true },
-    currentBalance: { ...EMPTY_BALANCE, setAt: new Date().toISOString() },
+    currentBalance: emptyBalance,
+    // Mirrors `currentBalance` exactly, same as every other load/reset path — a clean-empty reset
+    // still has exactly one (empty) default bank account, never zero accounts.
+    accounts: [synthesizeDefaultAccount(emptyBalance)],
     potLedger: [],
     nextYouNote: '',
     tightPointGoal: null,

@@ -106,7 +106,11 @@ describe('post-import offer gating', () => {
       amount: 196,
       asOfISO: '2026-06-30',
     });
-    expect(withBalance.closingBalanceOffer).toEqual({ amountPence: 19600, asOfISO: '2026-06-30' });
+    expect(withBalance.closingBalanceOffer).toEqual({
+      amountPence: 19600,
+      asOfISO: '2026-06-30',
+      accountId: 'acct-main',
+    });
     expect(nextBulkLandingOffer(withBalance, new Set())).toBe('closing-balance');
   });
 

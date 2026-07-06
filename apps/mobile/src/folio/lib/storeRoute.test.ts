@@ -34,10 +34,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { isOverspentLanding, routeFromStore } from './storeRoute';
 import { deriveCalendarEvents, groupByDay, computeSpareAndTightest } from './calendarEvents';
 import {
+  addAccount,
   addTransaction,
   getState,
   resetAll,
   resetToEmpty,
+  selectBankBalanceMinor,
+  setAccountBalance,
   setCurrentBalance,
   setIncomeSources,
   setOnboarding,
@@ -454,5 +457,85 @@ describe('routeFromStore — incomingTotal/outgoingTotal read realized history',
 
     // Median of realized past-month credits [1800, 2200] = 2000 — an honest estimate, never £0.
     expect(route.incomingTotal).toBe(2000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ACCOUNTS_MODEL.md §2.4 — bank-only balance + realized spend. A credit card's
+// balance/spend must never feed the route's starting balance or the realized
+// "Going out" figure; only bank/savings/cash accounts do.
+// ---------------------------------------------------------------------------
+describe('routeFromStore — bank-only balance and realized spend (ACCOUNTS_MODEL.md §2.4)', () => {
+  beforeEach(() => {
+    resetToEmpty();
+  });
+
+  it('single-account (migrated) install: route balance is byte-identical to the old currentBalance scalar', () => {
+    setCurrentBalance({ amount: 500, source: 'user-entered', confidence: 'statement-derived' });
+    const state = getState();
+    // No accounts.length > 1 change — sum-of-one-account === the scalar.
+    expect(selectBankBalanceMinor(state)).toBe(state.currentBalance.amount);
+    const route = routeFromStore(state, NOW);
+    const sigmaSaved = state.pots.reduce((acc, p) => acc + p.saved, 0);
+    expect(route.points[0]!.y).toBe(state.currentBalance.amount - sigmaSaved);
+  });
+
+  it("a credit-card account's balance is excluded from the route's starting bank balance", () => {
+    setCurrentBalance({ amount: 500, source: 'user-entered', confidence: 'statement-derived' });
+    const card = addAccount({ name: 'Amex Gold', kind: 'credit-card' });
+    setAccountBalance(card.id, 200);
+
+    const state = getState();
+    // Bank-only sum ignores the card's £200 owed — still just the £500 bank balance.
+    expect(selectBankBalanceMinor(state)).toBe(500);
+
+    const route = routeFromStore(state, NOW);
+    const sigmaSaved = state.pots.reduce((acc, p) => acc + p.saved, 0);
+    expect(route.points[0]!.y).toBe(500 - sigmaSaved);
+  });
+
+  it('a transaction posted to a credit-card account is excluded from realized outgoingTotal (bank-only)', () => {
+    setOnboarding({ monthlyIncome: 2200, payday: 25 });
+    const card = addAccount({ name: 'Amex Gold', kind: 'credit-card' });
+
+    // Two PAST full months of BANK spend (default account) — the baseline the realized figure
+    // should reflect.
+    addTransaction({
+      merchant: 'Rent',
+      amount: -900,
+      category: 'bills',
+      source: 'manual',
+      when: '2026-04-01T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Rent',
+      amount: -900,
+      category: 'bills',
+      source: 'manual',
+      when: '2026-05-01T00:00:00.000Z',
+    });
+    // A large card-account charge in the SAME months — must NOT inflate the bank-side realized
+    // spend figure (it's borrowing, not a bank outflow).
+    addTransaction({
+      merchant: 'Netflix',
+      amount: -5000,
+      category: 'other',
+      source: 'manual',
+      when: '2026-04-15T00:00:00.000Z',
+      accountId: card.id,
+    });
+    addTransaction({
+      merchant: 'Netflix',
+      amount: -5000,
+      category: 'other',
+      source: 'manual',
+      when: '2026-05-15T00:00:00.000Z',
+      accountId: card.id,
+    });
+
+    const route = routeFromStore(getState(), NOW);
+    // April bank total 900, May bank total 900 -> median 900 — the card's £5000/month never
+    // leaks into this figure.
+    expect(route.outgoingTotal).toBe(900);
   });
 });

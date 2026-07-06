@@ -35,7 +35,7 @@
  * resolves it.
  */
 
-import type { AppState, IncomeSource } from '../store';
+import { bankTransactions, type AppState, type IncomeSource } from '../store';
 import { isBusinessDay, resolvePayday } from './payday';
 import { monthlyEquivalent } from './driftSignals';
 import { monthlySpendBaseline, monthlyIncomeSeries, percentile } from './historyStats';
@@ -370,7 +370,12 @@ export function daysToNextIncome(
  * or re-sum `incomeSources` directly, so behaviour never drifts between screens.
  *
  * Pure: reads only `state.incomeSources`, `state.onboarding.monthlyIncome`, and
- * (only when both of those are empty/zero) `state.transactions`.
+ * (only when both of those are empty/zero) the ledger.
+ *
+ * BANK-ONLY (ACCOUNTS_MODEL.md §2.4): the history fallback reads `bankTransactions(state)`, not
+ * `state.transactions` raw — a credit-card statement's "salary" — like large credits (refunds,
+ * transfers) must never inflate the bank-side income estimate. Inert on a single-account (migrated)
+ * install (no liability accounts to exclude).
  */
 export function selectMonthlyIncome(state: AppState): number {
   const incomeSources = state.incomeSources ?? [];
@@ -382,19 +387,22 @@ export function selectMonthlyIncome(state: AppState): number {
   // No declared income at all — estimate from realized history rather than
   // reporting a hard, misleading £0 when the ledger clearly shows credits.
   const todayIso = new Date().toISOString().slice(0, 10);
-  const series = monthlyIncomeSeries(state.transactions, todayIso);
+  const series = monthlyIncomeSeries(bankTransactions(state), todayIso);
   return percentile(series, 50);
 }
 
 /**
  * THE canonical monthly realized-spend figure: the median past-month debit
- * total across `state.transactions` (`historyStats.ts`'s `monthlySpendBaseline`,
- * scoped to ALL categories). `0` when there is no spend history yet — callers
- * must treat that as "no data", not "no spending". Pure.
+ * total across the ledger (`historyStats.ts`'s `monthlySpendBaseline`, scoped to ALL categories). `0`
+ * when there is no spend history yet — callers must treat that as "no data", not "no spending". Pure.
+ *
+ * BANK-ONLY (ACCOUNTS_MODEL.md §2.4): reads `bankTransactions(state)` — a credit-card's spend is
+ * borrowing, not bank outflow, and must never inflate this figure. Inert on a single-account
+ * (migrated) install.
  */
 export function selectMonthlySpend(state: AppState): number {
   const todayIso = new Date().toISOString().slice(0, 10);
-  return monthlySpendBaseline(state.transactions, todayIso).medianMonthlySpend;
+  return monthlySpendBaseline(bankTransactions(state), todayIso).medianMonthlySpend;
 }
 
 /**

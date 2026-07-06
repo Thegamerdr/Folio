@@ -99,14 +99,22 @@ export type StatementTransactionDraft = Pick<Transaction, 'merchant' | 'amount' 
   /** Preserves the candidate's own date when present, so the landed row's `when` reflects the real
    *  transaction date rather than "now" — `addTransactionsBatch` only defaults `when` when omitted. */
   when?: string;
+  /** ACCOUNTS_MODEL.md §2.2/§3 step 3 — which `Account` this row belongs to. Optional for shape
+   *  back-compat (mirrors `Transaction.accountId`'s own back-compat contract) — omitted means the
+   *  caller didn't resolve an account (pre-P1 call sites), and `addTransactionsBatch`/`accountIdOf`
+   *  both treat that as `DEFAULT_ACCOUNT_ID`. */
+  accountId?: string;
 };
 
 /** Map one candidate into a transaction draft ready for `addTransactionsBatch`. Pure — never reads
  *  or writes the store. `source: 'manual'` matches every other confirmed-by-the-user landing path
  *  (ReviewScreen.tsx's onAdd) — a bulk "add all" is still a user-confirmed action, not a background
- *  sync. */
+ *  sync. `accountId` is optional (ACCOUNTS_MODEL.md §3 step 3) — pass the resolved account id from
+ *  the caller (`addStatementAsHistory`) so every landed row is tagged; omit it and the row falls
+ *  back to `DEFAULT_ACCOUNT_ID` via `accountIdOf`. */
 export function candidateToTransactionDraft(
   candidate: CandidateMoneyItem,
+  accountId?: string,
 ): StatementTransactionDraft {
   const draft: StatementTransactionDraft = {
     merchant: candidate.merchant.trim() || 'Unnamed',
@@ -116,6 +124,9 @@ export function candidateToTransactionDraft(
   };
   if (candidate.date !== undefined) {
     draft.when = `${candidate.date}T00:00:00.000Z`;
+  }
+  if (accountId !== undefined) {
+    draft.accountId = accountId;
   }
   return draft;
 }

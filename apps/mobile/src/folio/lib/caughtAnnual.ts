@@ -36,7 +36,7 @@
 
 import { useMemo } from 'react';
 
-import { useAppStore, type Transaction } from '../store';
+import { useAppStore, bankTransactions, type Transaction } from '../store';
 import { detectAnnualCandidates, type AnnualCandidate } from './historyStats';
 
 // ---------------------------------------------------------------------------
@@ -126,11 +126,20 @@ export function findCaughtAnnual(
 
 /** Live annual candidates derived from the current ledger, excluding anything already dismissed OR
  *  already in the subs catalog (see module header "ANNUAL-SUBS GUARD"). Recomputed only when
- *  transactions/dismissedAnnualSignals/subs change. */
+ *  transactions/dismissedAnnualSignals/subs change.
+ *
+ *  BANK-ONLY (ACCOUNTS_MODEL.md §2.4): detection runs over `bankTransactions(state)` — a credit-card's
+ *  annual-cadence charge shouldn't be caught as a bank-side annual bill. Inert on a single-account
+ *  (migrated) install. */
 export function useCaughtAnnual(): AnnualCaughtCandidate[] {
-  const transactions = useAppStore((state) => state.transactions);
+  const rawTransactions = useAppStore((state) => state.transactions);
+  const accounts = useAppStore((state) => state.accounts);
   const dismissedAnnualSignals = useAppStore((state) => state.dismissedAnnualSignals ?? []);
   const subs = useAppStore((state) => state.subs);
+  const transactions = useMemo(
+    () => bankTransactions({ transactions: rawTransactions, accounts }),
+    [rawTransactions, accounts],
+  );
 
   return useMemo(
     () =>

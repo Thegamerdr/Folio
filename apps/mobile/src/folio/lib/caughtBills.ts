@@ -40,7 +40,7 @@
 
 import { useMemo } from 'react';
 
-import { useAppStore, type Transaction } from '../store';
+import { useAppStore, bankTransactions, type Transaction } from '../store';
 import { detectRecurring, type Cadence, type Charge, type RecurringSignal } from './subSignals';
 import { findCaughtSubs } from './caughtSubs';
 
@@ -192,11 +192,20 @@ export function findCaughtBills(
  * merchant already in the subscription catalog, the one merchant currently
  * offered as a sub candidate, or already dismissed. Recomputed only when
  * transactions/subs/dismissedBillSignals change.
+ *
+ * BANK-ONLY (ACCOUNTS_MODEL.md §2.4): detection runs over `bankTransactions(state)` — a card
+ * statement's recurring merchant pattern shouldn't be caught as a bank-side recurring bill. Inert on
+ * a single-account (migrated) install.
  */
 export function useCaughtBills(): CaughtBillCandidate[] {
-  const transactions = useAppStore((state) => state.transactions);
+  const rawTransactions = useAppStore((state) => state.transactions);
+  const accounts = useAppStore((state) => state.accounts);
   const subs = useAppStore((state) => state.subs);
   const dismissedBillSignals = useAppStore((state) => state.dismissedBillSignals ?? []);
+  const transactions = useMemo(
+    () => bankTransactions({ transactions: rawTransactions, accounts }),
+    [rawTransactions, accounts],
+  );
 
   return useMemo(
     () =>

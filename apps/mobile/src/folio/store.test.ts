@@ -13,10 +13,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  type Account,
   type CycleRecord,
   type IncomeSource,
   type Pot,
   type Transaction,
+  DEFAULT_ACCOUNT_ID,
+  accountIdOf,
+  addAccount,
   addCycle,
   addIgnoredReviewSig,
   addStatementAsHistory,
@@ -24,6 +28,7 @@ import {
   addTransaction,
   addTransactionsBatch,
   applyMeloTool,
+  bankTransactions,
   borrowFromPot,
   clearReaderCandidates,
   clearReviewQueue,
@@ -37,15 +42,21 @@ import {
   getState,
   hasAnyUserData,
   hydrateFromBlob,
+  isBankTxn,
   matchMeloTool,
   pauseMany,
   queueInputFromCandidates,
   rememberMerchantCategory,
   removeIncomeSource,
+  renameAccount,
   resetAll,
   resetToEmpty,
   resolveReviewItem,
   reviewCandidateSig,
+  selectBankBalanceMinor,
+  selectNetPositionMinor,
+  setAccountBalance,
+  setCurrentBalance,
   setIncomeSources,
   setPartial,
   setPotAllowNegative,
@@ -486,6 +497,193 @@ describe('hasAnyUserData', () => {
     expect(hasAnyUserData(getState())).toBe(false);
     addTransaction({ merchant: 'Tesco', amount: -42.1, category: 'food', source: 'manual' });
     expect(hasAnyUserData(getState())).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Accounts (ACCOUNTS_MODEL.md P1) — migration synthesizes exactly one default
+// bank account mirroring the legacy `currentBalance` scalar; accountIdOf
+// defaults; multi-account bank-only sum excludes credit cards; net position
+// subtracts liabilities. The single-account (migrated) case must be BEHAVIOR-
+// PRESERVING: selectBankBalanceMinor() === the old currentBalance.amount,
+// byte-for-byte.
+// ---------------------------------------------------------------------------
+describe('accounts (ACCOUNTS_MODEL.md P1)', () => {
+  it('a fresh install (DEFAULTS/resetAll) has exactly one synthesized Main bank account', () => {
+    resetAll();
+    const accounts = getState().accounts ?? [];
+    expect(accounts.length).toBe(1);
+    expect(accounts[0]).toMatchObject({
+      id: DEFAULT_ACCOUNT_ID,
+      name: 'Main',
+      kind: 'bank',
+      isLiability: false,
+    });
+  });
+
+  it('migration: a persisted blob predating `accounts` synthesizes one Main account mirroring currentBalance exactly', () => {
+    resetAll();
+    setCurrentBalance({ amount: 456.78, source: 'user-entered', confidence: 'rough' });
+    const beforeBalance = getState().currentBalance;
+    const preAccountsBlob = { ...getState() } as Record<string, unknown>;
+    delete preAccountsBlob.accounts;
+    hydrateFromBlob(JSON.stringify(preAccountsBlob));
+
+    const accounts = getState().accounts ?? [];
+    expect(accounts.length).toBe(1);
+    expect(accounts[0]?.id).toBe(DEFAULT_ACCOUNT_ID);
+    expect(accounts[0]?.balanceMinor).toBe(beforeBalance.amount);
+    expect(accounts[0]?.balanceAsOfISO).toBe(beforeBalance.setAt);
+  });
+
+  it('migration preserves the EXACT prior balance — selectBankBalanceMinor equals the old currentBalance.amount byte-for-byte', () => {
+    resetAll();
+    setCurrentBalance({ amount: 1234.56, source: 'statement', confidence: 'statement-derived' });
+    const expectedAmount = getState().currentBalance.amount;
+    const preAccountsBlob = { ...getState() } as Record<string, unknown>;
+    delete preAccountsBlob.accounts;
+    hydrateFromBlob(JSON.stringify(preAccountsBlob));
+
+    expect(selectBankBalanceMinor(getState())).toBe(expectedAmount);
+  });
+
+  it('a blob that already carries accounts keeps them intact across load (not re-synthesized)', () => {
+    resetAll();
+    const existing: Account[] = [
+      {
+        id: 'acct-custom',
+        name: 'Monzo Current',
+        kind: 'bank',
+        isLiability: false,
+        balanceMinor: 999,
+        balanceAsOfISO: '2026-07-01T00:00:00.000Z',
+        addedAt: '2026-07-01T00:00:00.000Z',
+      },
+    ];
+    setPartial({ accounts: existing });
+    const blob = getPersistBlob();
+    resetAll();
+    hydrateFromBlob(blob);
+
+    expect(getState().accounts).toEqual(existing);
+  });
+
+  it('resetToEmpty synthesizes one (empty-balance) Main account, never zero accounts', () => {
+    resetToEmpty();
+    const accounts = getState().accounts ?? [];
+    expect(accounts.length).toBe(1);
+    expect(accounts[0]?.id).toBe(DEFAULT_ACCOUNT_ID);
+    expect(accounts[0]?.balanceMinor).toBe(0);
+  });
+
+  it('accountIdOf defaults to DEFAULT_ACCOUNT_ID when a transaction has no accountId', () => {
+    expect(accountIdOf({})).toBe(DEFAULT_ACCOUNT_ID);
+  });
+
+  it('accountIdOf returns the explicit accountId when set', () => {
+    expect(accountIdOf({ accountId: 'acct-other' })).toBe('acct-other');
+  });
+
+  it('addAccount adds a new account and defaults isLiability from kind', () => {
+    resetAll();
+    const card = addAccount({ name: 'Amex Gold', kind: 'credit-card', balanceMinor: 200 });
+    expect(card.isLiability).toBe(true);
+    expect(card.balanceMinor).toBe(200);
+
+    const savings = addAccount({ name: 'Savings pot', kind: 'savings' });
+    expect(savings.isLiability).toBe(false);
+    expect(savings.balanceMinor).toBe(0);
+
+    const accounts = getState().accounts ?? [];
+    expect(accounts.length).toBe(3); // Main + card + savings
+  });
+
+  it('renameAccount updates the name and is a no-op for an unknown id', () => {
+    resetAll();
+    renameAccount(DEFAULT_ACCOUNT_ID, 'Monzo Current');
+    expect(getState().accounts?.find((a) => a.id === DEFAULT_ACCOUNT_ID)?.name).toBe(
+      'Monzo Current',
+    );
+
+    const before = getState().accounts;
+    renameAccount('acct-does-not-exist', 'Whatever');
+    expect(getState().accounts).toEqual(before);
+  });
+
+  it('setAccountBalance updates balance + balanceAsOfISO and is a no-op for an unknown id', () => {
+    resetAll();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 555, '2026-07-05T00:00:00.000Z');
+    const main = getState().accounts?.find((a) => a.id === DEFAULT_ACCOUNT_ID);
+    expect(main?.balanceMinor).toBe(555);
+    expect(main?.balanceAsOfISO).toBe('2026-07-05T00:00:00.000Z');
+
+    const before = getState().accounts;
+    setAccountBalance('acct-does-not-exist', 1, '2026-07-05T00:00:00.000Z');
+    expect(getState().accounts).toEqual(before);
+  });
+
+  it('selectBankBalanceMinor sums only bank/savings/cash accounts, excluding credit cards', () => {
+    resetAll();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 500, '2026-07-05T00:00:00.000Z');
+    addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 300 });
+    addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 200 });
+
+    expect(selectBankBalanceMinor(getState())).toBe(800); // 500 + 300, card excluded
+  });
+
+  it('selectNetPositionMinor subtracts liability (credit-card) balances', () => {
+    resetAll();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 500, '2026-07-05T00:00:00.000Z');
+    addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 200 });
+
+    expect(selectNetPositionMinor(getState())).toBe(300); // 500 - 200
+  });
+
+  it('selectBankBalanceMinor and selectNetPositionMinor fall back to currentBalance.amount when accounts is empty/absent', () => {
+    resetAll();
+    setPartial({ accounts: [] });
+    setCurrentBalance({ amount: 42, source: 'user-entered', confidence: 'rough' });
+
+    expect(selectBankBalanceMinor(getState())).toBe(42);
+    expect(selectNetPositionMinor(getState())).toBe(42);
+  });
+
+  it('setCurrentBalance keeps the default bank account in sync (legacy write path stays correct)', () => {
+    resetAll();
+    setCurrentBalance({ amount: 900, source: 'user-entered', confidence: 'statement-derived' });
+    const main = getState().accounts?.find((a) => a.id === DEFAULT_ACCOUNT_ID);
+    expect(main?.balanceMinor).toBe(900);
+    expect(selectBankBalanceMinor(getState())).toBe(900);
+  });
+
+  it('bankTransactions/isBankTxn: single-account (migrated) install returns every transaction unchanged', () => {
+    resetToEmpty();
+    addTransaction({ merchant: 'Rent', amount: -900, category: 'bills', source: 'manual' });
+    addTransaction({ merchant: 'Pay', amount: 2000, category: 'income', source: 'manual' });
+
+    const state = getState();
+    expect(bankTransactions(state)).toEqual(state.transactions);
+    expect(state.transactions.every((t) => isBankTxn(state, t))).toBe(true);
+  });
+
+  it('bankTransactions excludes a transaction posted to a credit-card account', () => {
+    resetToEmpty();
+    const card = addAccount({ name: 'Amex Gold', kind: 'credit-card' });
+
+    addTransaction({ merchant: 'Rent', amount: -900, category: 'bills', source: 'manual' });
+    const cardTxn = addTransaction({
+      merchant: 'Netflix',
+      amount: -50,
+      category: 'other',
+      source: 'manual',
+      accountId: card.id,
+    });
+
+    const state = getState();
+    const filtered = bankTransactions(state);
+    expect(filtered.some((t) => t.id === cardTxn.id)).toBe(false);
+    expect(filtered.length).toBe(state.transactions.length - 1);
+    expect(isBankTxn(state, cardTxn)).toBe(false);
   });
 });
 
@@ -2250,7 +2448,11 @@ describe('addStatementAsHistory', () => {
       [candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' })],
       { amount: 1.96, asOfISO: '2021-03-31' },
     );
-    expect(withOffer.closingBalanceOffer).toEqual({ amountPence: 196, asOfISO: '2021-03-31' });
+    expect(withOffer.closingBalanceOffer).toEqual({
+      amountPence: 196,
+      asOfISO: '2021-03-31',
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
 
     setPartial({ transactions: [] });
     const withoutOffer = addStatementAsHistory([
@@ -2399,7 +2601,11 @@ describe('addStatementAsHistory', () => {
 
     expect(result.added).toBe(14);
     expect(result.dateRange).toEqual({ fromISO: '2021-03-03', toISO: '2021-03-29' });
-    expect(result.closingBalanceOffer).toEqual({ amountPence: 196, asOfISO: '2021-03-31' });
+    expect(result.closingBalanceOffer).toEqual({
+      amountPence: 196,
+      asOfISO: '2021-03-31',
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
 
     const txns = getState().transactions;
     expect(txns.length).toBe(14);
@@ -2535,6 +2741,108 @@ describe('addStatementAsHistory', () => {
       });
       const merchants = getState().transactions.map((t) => t.merchant);
       expect(merchants).toEqual(['Newest', 'Manual Mid', 'Oldest']);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // accountId param (ACCOUNTS_MODEL.md §3/§4 P1) — import-assigns-account lane.
+  // ---------------------------------------------------------------------------
+  describe('addStatementAsHistory — accountId param', () => {
+    it('defaults every landed transaction to DEFAULT_ACCOUNT_ID when accountId is omitted', () => {
+      setPartial({ transactions: [] });
+      addStatementAsHistory([candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' })]);
+      const txns = getState().transactions;
+      expect(txns.length).toBe(1);
+      expect(txns[0]?.accountId).toBe(DEFAULT_ACCOUNT_ID);
+    });
+
+    it('tags every landed transaction with an explicitly-passed accountId', () => {
+      setPartial({ transactions: [] });
+      const card = addAccount({ name: 'Amex Gold', kind: 'credit-card' });
+      addStatementAsHistory(
+        [
+          candidate({ merchant: 'Restaurant', amount: -40, date: '2026-03-03' }),
+          candidate({
+            merchant: 'Payment received',
+            amount: 200,
+            kind: 'income',
+            date: '2026-03-10',
+          }),
+        ],
+        undefined,
+        card.id,
+      );
+      const txns = getState().transactions;
+      expect(txns.length).toBe(2);
+      expect(txns.every((t) => t.accountId === card.id)).toBe(true);
+    });
+
+    it('sets the named account balance via the closing-balance offer, never the global currentBalance', () => {
+      setPartial({ transactions: [] });
+      const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 0 });
+      const beforeGlobalBalance = getState().currentBalance;
+      const result = addStatementAsHistory(
+        [candidate({ merchant: 'Interest', amount: 5, kind: 'income', date: '2026-03-03' })],
+        { amount: 305, asOfISO: '2026-03-31' },
+        savings.id,
+      );
+      // The offer carries the resolved accountId — never auto-applied by addStatementAsHistory
+      // itself (review-before-truth: the caller's confirm tap performs the write).
+      expect(result.closingBalanceOffer).toEqual({
+        amountPence: 30500,
+        asOfISO: '2026-03-31',
+        accountId: savings.id,
+      });
+      expect(getState().currentBalance).toEqual(beforeGlobalBalance);
+      // Simulate the confirm tap (BulkStatementLanding's "Use it" button).
+      setAccountBalance(savings.id, 305, '2026-03-31');
+      const account = getState().accounts?.find((a) => a.id === savings.id);
+      expect(account?.balanceMinor).toBe(305);
+      expect(account?.balanceAsOfISO).toBe('2026-03-31');
+      // The global scalar is untouched by this whole flow.
+      expect(getState().currentBalance).toEqual(beforeGlobalBalance);
+    });
+
+    it('a second import into a DIFFERENT account stays separate from the first', () => {
+      setPartial({ transactions: [] });
+      const main = DEFAULT_ACCOUNT_ID;
+      const card = addAccount({ name: 'Amex Gold', kind: 'credit-card' });
+
+      addStatementAsHistory(
+        [candidate({ merchant: 'Salary', amount: 2000, kind: 'income', date: '2026-03-01' })],
+        { amount: 500, asOfISO: '2026-03-31' },
+        main,
+      );
+      addStatementAsHistory(
+        [candidate({ merchant: 'Groceries', amount: -60, date: '2026-03-05' })],
+        { amount: 120, asOfISO: '2026-03-31' },
+        card.id,
+      );
+
+      const txns = getState().transactions;
+      const mainTxns = txns.filter((t) => t.accountId === main);
+      const cardTxns = txns.filter((t) => t.accountId === card.id);
+      expect(mainTxns.length).toBe(1);
+      expect(mainTxns[0]?.merchant).toBe('Salary');
+      expect(cardTxns.length).toBe(1);
+      expect(cardTxns[0]?.merchant).toBe('Groceries');
+
+      // Each import's closing-balance offer names its OWN account — never the other one.
+      const importsLog = getState().statementImports ?? [];
+      expect(importsLog.length).toBe(2);
+      expect(importsLog.some((i) => i.accountId === main)).toBe(true);
+      expect(importsLog.some((i) => i.accountId === card.id)).toBe(true);
+    });
+
+    it('the default no-account-chosen path still lands in Main', () => {
+      setPartial({ transactions: [] });
+      addStatementAsHistory([candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' })]);
+      const txns = getState().transactions;
+      expect(txns.every((t) => (t.accountId ?? DEFAULT_ACCOUNT_ID) === DEFAULT_ACCOUNT_ID)).toBe(
+        true,
+      );
+      const importsLog = getState().statementImports ?? [];
+      expect(importsLog[0]?.accountId).toBe(DEFAULT_ACCOUNT_ID);
     });
   });
 

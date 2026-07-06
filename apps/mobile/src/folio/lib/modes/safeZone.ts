@@ -19,6 +19,15 @@
  *
  * Never returns NaN. Missing inputs collapse to £0 lines, not hidden ones —
  * the user should see a zero-line rather than wonder where the money went.
+ *
+ * BANK-ONLY CONTRACT (ACCOUNTS_MODEL.md §2.4): `inputs.currentBalance.amount` MUST be the caller's
+ * bank-only balance sum (`selectBankBalanceMinor(state)` — bank/savings/cash accounts, never a
+ * credit-card balance). A card statement's spend is borrowing, not a bank outflow, and must never
+ * reduce the number that answers "can I afford this today out of my own money." This module never
+ * reads the store itself (pure, `ModeInputs` in), so the bank-only filtering happens at the call site
+ * that builds `ModeInputs` — this contract note exists so that call site (and any future one) never
+ * regresses back to passing the raw multi-account/global scalar. On a single-account (migrated)
+ * install `selectBankBalanceMinor` is byte-identical to the old scalar, so this is inert today.
  */
 import type { ModeInputs } from './types';
 

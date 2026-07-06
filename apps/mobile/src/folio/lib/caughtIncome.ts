@@ -17,7 +17,7 @@
 
 import { useMemo } from 'react';
 
-import { useAppStore, type IncomeSource, type Transaction } from '../store';
+import { useAppStore, bankTransactions, type IncomeSource, type Transaction } from '../store';
 import { detectIncomeSources, type IncomeSignal, type IncomeCadence } from './incomeSignals';
 
 // ---------------------------------------------------------------------------
@@ -195,11 +195,20 @@ export function findCaughtIncome(
  * any merchant already declared as an income source or already dismissed.
  * Recomputed only when transactions/incomeSources/dismissedIncomeSignals
  * change (so re-renders don't re-run detection).
+ *
+ * BANK-ONLY (ACCOUNTS_MODEL.md §2.4): detection runs over `bankTransactions(state)`, not
+ * `state.transactions` raw — a credit-card refund/transfer must never be caught as bank-side income.
+ * Inert on a single-account (migrated) install.
  */
 export function useCaughtIncome(): IncomeCaughtCandidate[] {
-  const transactions = useAppStore((state) => state.transactions);
+  const rawTransactions = useAppStore((state) => state.transactions);
+  const accounts = useAppStore((state) => state.accounts);
   const incomeSources = useAppStore((state) => state.incomeSources ?? []);
   const dismissedIncomeSignals = useAppStore((state) => state.dismissedIncomeSignals ?? []);
+  const transactions = useMemo(
+    () => bankTransactions({ transactions: rawTransactions, accounts }),
+    [rawTransactions, accounts],
+  );
 
   return useMemo(
     () => findCaughtIncome(transactions, incomeSources, dismissedIncomeSignals),
