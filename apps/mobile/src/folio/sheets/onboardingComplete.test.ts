@@ -34,6 +34,7 @@ import {
   setOnboarding,
   setPots,
 } from '../store';
+import { monthlyEquivalent } from '../lib/driftSignals';
 
 // Reset to the demo seed before each test so we always start in the PRE-ONBOARDING regime that
 // finishing onboarding must transition out of (resetAll seeds demo pots/subs/cycles/transactions +
@@ -57,6 +58,13 @@ function dayOfMonthFromIso(iso: string): number {
 // the user entered. Kept byte-faithful to the component so the test tracks the real contract.
 // `cadence`/`anchorISO` default to the legacy monthly-only path so every pre-existing test in this
 // file (which predates the cadence step) keeps exercising byte-identical behaviour.
+//
+// `input.monthlyIncome` is the PER-OCCURRENCE amount the user entered at their declared cadence
+// (matching the component's `income` slider state — see OnboardingSheet.tsx step 5's per-cadence
+// range) — never a pre-converted monthly figure. `done()` converts it via `monthlyEquivalent`
+// before writing the legacy `onboarding.monthlyIncome` slot, exactly as this helper now does, so a
+// monthly earner's byte-identical £2400 stays £2400 (monthlyEquivalent is a no-op at cadence
+// 'monthly') while a weekly earner's per-week figure is correctly scaled up.
 function completeOnboarding(input: {
   name: string;
   payday: number;
@@ -82,7 +90,7 @@ function completeOnboarding(input: {
   setOnboarding({
     name: input.name,
     payday: legacyPayday,
-    monthlyIncome: input.monthlyIncome,
+    monthlyIncome: monthlyEquivalent(input.monthlyIncome, cadence),
     done: true,
   });
 
@@ -273,6 +281,9 @@ describe('OnboardingSheet cadence step → incomeSources + legacy payday equival
     expect(source.anchorISO).toBeUndefined();
     expect(source.amount).toBe(2400);
     expect(source.source).toBe('onboarding');
+    // Monthly cadence: monthlyEquivalent is a no-op, so the legacy slot matches the entered figure
+    // byte-for-byte — pre-existing monthly-earner behaviour is unchanged by the cadence-aware write.
+    expect(s.onboarding.monthlyIncome).toBe(2400);
   });
 
   it('weekly writes an anchorISO-based incomeSource and derives the legacy day-of-month from the anchor', () => {
@@ -295,36 +306,65 @@ describe('OnboardingSheet cadence step → incomeSources + legacy payday equival
     expect(s.onboarding.payday).toBe(5);
   });
 
-  it('fortnightly writes an anchorISO-based incomeSource', () => {
+  // THE regression this program exists to fix: a weekly earner's PER-WEEK figure must not be
+  // written verbatim into a slot several surfaces still read as "monthly income" (onboarding step 5
+  // hardcoded '/ month' regardless of declared cadence — see OnboardingSheet.tsx doc-comment above
+  // `monthlyIncomeEquivalent`). A £299/week earner is really earning ~£1,296.66/month
+  // (299 * 4.334524), not £299/month — the ~4x understatement the owner's real Staffline data
+  // exposed.
+  it("a weekly earner's legacy monthlyIncome is the monthly-equivalent, not the raw per-week figure", () => {
     completeOnboarding({
       name: 'Ada',
       payday: 25,
-      monthlyIncome: 1800,
+      monthlyIncome: 299, // per-week, matching the step-5 slider's weekly range
+      balance: 0,
+      pickedPots: [],
+      cadence: 'weekly',
+      anchorISO: '2026-06-05',
+    });
+    const s = getState();
+    // incomeSources[0].amount stays the per-occurrence figure — engines that read it (lib/income.ts)
+    // are already cadence-correct and must keep receiving the per-week amount, not a converted one.
+    expect(s.incomeSources![0]!.amount).toBe(299);
+    // The legacy slot, however, must be the monthly-equivalent — never 4x understated.
+    expect(s.onboarding.monthlyIncome).toBeCloseTo(monthlyEquivalent(299, 'weekly'), 5);
+    expect(s.onboarding.monthlyIncome).toBeGreaterThan(1000); // sanity: nowhere near the raw £299
+  });
+
+  it('fortnightly writes an anchorISO-based incomeSource and a monthly-equivalent legacy income', () => {
+    completeOnboarding({
+      name: 'Ada',
+      payday: 25,
+      monthlyIncome: 900, // per-fortnight
       balance: 0,
       pickedPots: [],
       cadence: 'fortnightly',
       anchorISO: '2026-06-18',
     });
-    const source = getState().incomeSources![0]!;
+    const s = getState();
+    const source = s.incomeSources![0]!;
     expect(source.cadence).toBe('fortnightly');
     expect(source.anchorISO).toBe('2026-06-18');
-    expect(getState().onboarding.payday).toBe(18);
+    expect(s.onboarding.payday).toBe(18);
+    expect(s.onboarding.monthlyIncome).toBeCloseTo(monthlyEquivalent(900, 'fortnightly'), 5);
   });
 
-  it('four-weekly writes an anchorISO-based incomeSource', () => {
+  it('four-weekly writes an anchorISO-based incomeSource and a monthly-equivalent legacy income', () => {
     completeOnboarding({
       name: 'Ada',
       payday: 25,
-      monthlyIncome: 1800,
+      monthlyIncome: 1800, // per-4-weeks
       balance: 0,
       pickedPots: [],
       cadence: 'four-weekly',
       anchorISO: '2026-06-11',
     });
-    const source = getState().incomeSources![0]!;
+    const s = getState();
+    const source = s.incomeSources![0]!;
     expect(source.cadence).toBe('four-weekly');
     expect(source.anchorISO).toBe('2026-06-11');
-    expect(getState().onboarding.payday).toBe(11);
+    expect(s.onboarding.payday).toBe(11);
+    expect(s.onboarding.monthlyIncome).toBeCloseTo(monthlyEquivalent(1800, 'four-weekly'), 5);
   });
 
   it('last-working-day writes a dayOfMonth/anchorISO-free incomeSource and a resolved legacy day-of-month', () => {

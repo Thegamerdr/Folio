@@ -16,6 +16,22 @@
  */
 import type { ModeInputs, MoneyMode } from './types';
 import { MODE_LABEL } from './types';
+import { monthlyEquivalent } from '../driftSignals';
+
+/**
+ * The cadence-correct monthly income figure, computed from `ModeInputs` alone (no full `AppState`
+ * available here, so this can't call `selectMonthlyIncome` directly — same fallback order though:
+ * declared `incomeSources` summed via their real cadence, else the legacy onboarding lump). Fixes the
+ * ~4x-wrong figure a weekly earner without a monthly onboarding lump used to get from
+ * `onboarding.monthlyIncome || 0` alone.
+ */
+function monthlyIncomeFrom(inputs: ModeInputs): number {
+  const sources = inputs.incomeSources ?? [];
+  if (sources.length > 0) {
+    return sources.reduce((sum, src) => sum + monthlyEquivalent(src.amount, src.cadence), 0);
+  }
+  return inputs.onboarding.monthlyIncome || 0;
+}
 
 export type ModeSuggestion = {
   mode: MoneyMode;
@@ -24,8 +40,8 @@ export type ModeSuggestion = {
 } | null;
 
 export function suggestMode(current: MoneyMode, inputs: ModeInputs): ModeSuggestion {
-  const { tightestSpare, onboarding, subs, subPaused, pots, currentBalance } = inputs;
-  const income = onboarding.monthlyIncome || 0;
+  const { tightestSpare, subs, subPaused, pots, currentBalance } = inputs;
+  const income = monthlyIncomeFrom(inputs);
   const balance = currentBalance.amount;
   const liveSubs = subs.filter((s) => !subPaused[s.name]);
   const leakySubs = liveSubs.filter((s) => s.usesPerMonth === 0 || s.lastUsedDaysAgo > 21);

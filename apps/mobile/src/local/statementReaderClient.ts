@@ -127,11 +127,13 @@ export type StatementReadChunkedResult =
       kind: 'ok';
       candidates: CandidateMoneyItem[];
       coverage: StatementReaderChunkOutcome[];
+      closingBalance: StatementClosingBalance | null;
     }>
   | Readonly<{
       kind: 'partial';
       candidates: CandidateMoneyItem[];
       coverage: StatementReaderChunkOutcome[];
+      closingBalance: StatementClosingBalance | null;
     }>
   | Readonly<{ kind: 'no-provider' }>
   | Readonly<{ kind: 'error'; message: string }>;
@@ -232,10 +234,10 @@ type UserContentPart = TextContentPart | ImageContentPart | FileContentPart;
 /** Same discriminated shape as StatementReadResult, minus 'no-provider' (the caller checks
  *  configuration once, before ever calling this). Shared by the single-shot and per-chunk paths so
  *  both apply the exact same request, timeout, and response-parsing rules. Carries the closing
- *  balance too (see StatementReadResult's doc) — per-chunk reads also parse it, though only the
- *  single-shot caller surfaces it today (a chunked, multi-page read has no single obvious chunk to
- *  trust for a whole-statement closing balance, so extractStatementCandidatesChunked intentionally
- *  does not thread it through — see that function's own doc). */
+ *  balance too (see StatementReadResult's doc) — per-chunk reads also parse it, and
+ *  extractStatementCandidatesChunked now threads through the LAST chunk (by page order) that
+ *  returned one, on the reasoning that the most-recent pages of a statement carry the current
+ *  running balance (see that function's own doc for the "last chunk with a balance wins" rule). */
 type SingleRequestResult =
   | Readonly<{
       kind: 'ok';
@@ -459,6 +461,17 @@ export async function extractStatementCandidates(
  * does NOT abort — it keeps reading the remaining chunks and returns `kind: 'partial'` with a
  * `coverage` list naming exactly which page ranges succeeded and which didn't, so the caller can
  * tell the user honestly what was read instead of silently missing a month's worth of rows.
+ *
+ * CLOSING BALANCE — LAST CHUNK WITH A BALANCE WINS. Each chunk's read can independently return a
+ * closing balance when the model spots one on that page range (see SYSTEM_PROMPT's per-request
+ * `closingBalance`/`closingDate` fields) — most chunks won't (a closing balance line typically only
+ * appears once, near the end of a statement), but when more than one does, the chunk covering the
+ * LATEST page range is the trustworthy one: a bank statement's running/closing balance only makes
+ * sense as of its most recent page, so an earlier chunk's balance is stale by construction the
+ * moment a later chunk supplies its own. Chunks are read strictly in page order (see SEQUENTIAL
+ * above), so "last chunk (by page order) that returned a balance" is simply "last one seen while
+ * iterating" — no separate sort/compare needed. Never fabricated: `closingBalance` is `null` when no
+ * chunk returned one.
  */
 export async function extractStatementCandidatesChunked(
   input: StatementReaderChunkedInput,
@@ -503,6 +516,10 @@ export async function extractStatementCandidatesChunked(
 
   const chunkCandidates: CandidateMoneyItem[][] = [];
   const coverage: StatementReaderChunkOutcome[] = [];
+  // "Last chunk (by page order) that returned a balance wins" — see this function's doc. Chunks are
+  // iterated strictly in page order below, so overwriting on every `ok` chunk that has one naturally
+  // keeps the LATEST such chunk by the time the loop ends.
+  let closingBalance: StatementClosingBalance | null = null;
   // Tracks whether every planned range was actually attempted. A caller-triggered cancel
   // (input.signal) breaks the loop early — the chunks attempted so far may ALL have individually
   // succeeded, but that must still surface as 'partial' (not 'ok'), because the un-attempted pages
@@ -545,6 +562,7 @@ export async function extractStatementCandidatesChunked(
     if (chunkResult.kind === 'ok') {
       chunkCandidates.push(chunkResult.candidates);
       coverage.push({ startPage: range.startPage, endPage: range.endPage, ok: true });
+      if (chunkResult.closingBalance !== null) closingBalance = chunkResult.closingBalance;
     } else {
       coverage.push({
         startPage: range.startPage,
@@ -579,7 +597,7 @@ export async function extractStatementCandidatesChunked(
     };
   }
 
-  return { kind: allOk ? 'ok' : 'partial', candidates, coverage };
+  return { kind: allOk ? 'ok' : 'partial', candidates, coverage, closingBalance };
 }
 
 // ---------------------------------------------------------------------------

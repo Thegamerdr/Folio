@@ -35,8 +35,10 @@
  * resolves it.
  */
 
-import type { IncomeSource } from '../store';
+import type { AppState, IncomeSource } from '../store';
 import { isBusinessDay, resolvePayday } from './payday';
+import { monthlyEquivalent } from './driftSignals';
+import { monthlySpendBaseline, monthlyIncomeSeries, percentile } from './historyStats';
 
 const ISO_DATE_LENGTH = 10; // "YYYY-MM-DD"
 const MILLIS_PER_DAY = 86_400_000;
@@ -344,4 +346,69 @@ export function daysToNextIncome(
   const todayMs = utcMillis(parseIsoDate(todayIso));
   const nextMs = utcMillis(parseIsoDate(next));
   return Math.round((nextMs - todayMs) / MILLIS_PER_DAY);
+}
+
+// ---------------------------------------------------------------------------
+// Canonical income/spend selectors (task: SURFACE SELECTOR PROMOTION).
+//
+// THE monthly income figure every surface must read — promoted here (out of
+// `lib/meloSnapshot.ts`, which now just re-exports `liveMonthlyIncome` for
+// back-compat) so it lives beside the cadence engine it depends on, with zero
+// new folio runtime imports (this module already imports `AppState` type-only
+// + `driftSignals`' `monthlyEquivalent`, which has no folio imports itself).
+// ---------------------------------------------------------------------------
+
+/**
+ * THE canonical monthly-equivalent income figure: summed across every declared
+ * `IncomeSource` (cadence-normalised via `monthlyEquivalent`) when the user has
+ * declared sources; otherwise falls back to the legacy `onboarding.monthlyIncome`
+ * lump. When NEITHER exists (no declared sources AND the legacy lump is 0/unset)
+ * but real transaction history is present, falls back further to the MEDIAN of
+ * `monthlyIncomeSeries` (past-month realized credits) — an honest estimate
+ * grounded in the ledger rather than a hard zero. Every surface that needs "the
+ * user's monthly income" must call this — never re-read `onboarding.monthlyIncome`
+ * or re-sum `incomeSources` directly, so behaviour never drifts between screens.
+ *
+ * Pure: reads only `state.incomeSources`, `state.onboarding.monthlyIncome`, and
+ * (only when both of those are empty/zero) `state.transactions`.
+ */
+export function selectMonthlyIncome(state: AppState): number {
+  const incomeSources = state.incomeSources ?? [];
+  if (incomeSources.length > 0) {
+    return incomeSources.reduce((sum, src) => sum + monthlyEquivalent(src.amount, src.cadence), 0);
+  }
+  if (state.onboarding.monthlyIncome > 0) return state.onboarding.monthlyIncome;
+
+  // No declared income at all — estimate from realized history rather than
+  // reporting a hard, misleading £0 when the ledger clearly shows credits.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const series = monthlyIncomeSeries(state.transactions, todayIso);
+  return percentile(series, 50);
+}
+
+/**
+ * THE canonical monthly realized-spend figure: the median past-month debit
+ * total across `state.transactions` (`historyStats.ts`'s `monthlySpendBaseline`,
+ * scoped to ALL categories). `0` when there is no spend history yet — callers
+ * must treat that as "no data", not "no spending". Pure.
+ */
+export function selectMonthlySpend(state: AppState): number {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  return monthlySpendBaseline(state.transactions, todayIso).medianMonthlySpend;
+}
+
+/**
+ * Whether the user has entered ANY real data — imported transactions, declared income sources, or a
+ * non-sample balance. Distinct from `onboarding.done` (the onboarding-sheet completion flag): a user
+ * who bulk-imports a statement without ever opening onboarding has real data but `onboarding.done` is
+ * still `false`, so gating the "sample numbers" nudge on `!onboarding.done` alone nags someone who
+ * already imported 2000 transactions. Every "is this still sample data?" check should use this
+ * instead of (or alongside) `onboarding.done`. Pure.
+ */
+export function hasAnyUserData(state: AppState): boolean {
+  return (
+    state.transactions.length > 0 ||
+    (state.incomeSources?.length ?? 0) > 0 ||
+    state.currentBalance.source !== 'sample'
+  );
 }

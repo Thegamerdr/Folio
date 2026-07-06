@@ -34,8 +34,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { isOverspentLanding, routeFromStore } from './storeRoute';
 import { deriveCalendarEvents, groupByDay, computeSpareAndTightest } from './calendarEvents';
 import {
+  addTransaction,
   getState,
   resetAll,
+  resetToEmpty,
   setCurrentBalance,
   setIncomeSources,
   setOnboarding,
@@ -358,5 +360,99 @@ describe('isOverspentLanding', () => {
     const state = getState();
     const overspentByRoute = routeFromStore(state, NOW).tightPoint.amount < 0;
     expect(isOverspentLanding(state, NOW)).toBe(overspentByRoute);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// incomingTotal / outgoingTotal — REALIZED over PROJECTED once real history exists
+// (task: ROUTE READS ACTUALS). Before this fix, `routeFromStore` reported £0 outgoing for
+// anyone without declared subs/bills — even a user with months of real spend in the ledger —
+// because these two fields were summed purely from the forward-projected calendar timeline.
+// ---------------------------------------------------------------------------
+describe('routeFromStore — incomingTotal/outgoingTotal read realized history', () => {
+  beforeEach(() => {
+    resetToEmpty(); // no seeded demo transactions/subs/bills — a genuinely clean ledger
+  });
+
+  it('are non-zero and sane over a populated store (never a blind £0 outgoing next to real spend)', () => {
+    setOnboarding({ monthlyIncome: 2200, payday: 25 });
+    // Two PAST full months of realized spend so monthlySpendBaseline has a median to report.
+    addTransaction({
+      merchant: 'Rent',
+      amount: -900,
+      category: 'bills',
+      source: 'manual',
+      when: '2026-04-01T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Groceries',
+      amount: -300,
+      category: 'shopping',
+      source: 'manual',
+      when: '2026-04-10T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Rent',
+      amount: -900,
+      category: 'bills',
+      source: 'manual',
+      when: '2026-05-01T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Groceries',
+      amount: -500,
+      category: 'shopping',
+      source: 'manual',
+      when: '2026-05-10T00:00:00.000Z',
+    });
+
+    const route = routeFromStore(getState(), NOW);
+
+    // Cadence-correct declared income (single monthly source via onboarding.monthlyIncome).
+    expect(route.incomingTotal).toBe(2200);
+    // April total 1200, May total 1400 -> median 1300 — realized, not the forward-projected
+    // £0 a subs/bills-free store would otherwise report.
+    expect(route.outgoingTotal).toBe(1300);
+    expect(route.outgoingTotal).toBeGreaterThan(0);
+  });
+
+  it('falls back to the forward-projected bills/subs sum when the ledger has no history yet', () => {
+    setOnboarding({ monthlyIncome: 2200, payday: 25 });
+    setSubs(() => [
+      {
+        name: 'Streaming',
+        cost: 12,
+        nextRenewalDaysAway: 5,
+        lastUsedDaysAgo: 0,
+        usesPerMonth: 4,
+      },
+    ]);
+    // No transactions at all — resetToEmpty() already cleared them.
+    const route = routeFromStore(getState(), NOW);
+
+    expect(route.outgoingTotal).toBe(12); // the one projected sub renewal inside the 35-day window
+  });
+
+  it('estimates incomingTotal from realized history when no income is declared at all', () => {
+    setOnboarding({ monthlyIncome: 0 });
+    addTransaction({
+      merchant: 'Employer',
+      amount: 1800,
+      category: 'income',
+      source: 'manual',
+      when: '2026-04-15T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Employer',
+      amount: 2200,
+      category: 'income',
+      source: 'manual',
+      when: '2026-05-15T00:00:00.000Z',
+    });
+
+    const route = routeFromStore(getState(), NOW);
+
+    // Median of realized past-month credits [1800, 2200] = 2000 — an honest estimate, never £0.
+    expect(route.incomingTotal).toBe(2000);
   });
 });

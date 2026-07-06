@@ -18,7 +18,7 @@
 //     to the old behaviour in that legacy case.
 
 import { routeFromStore } from './storeRoute';
-import { monthlyEquivalent } from './driftSignals';
+import { selectMonthlyIncome } from './income';
 import type { AppState } from '../store';
 import type { Pressure } from '../types';
 
@@ -59,14 +59,13 @@ export type MeloSnapshot = {
   }>;
 };
 
-/** The live monthly-equivalent income figure: summed across every declared `IncomeSource`
- *  (cadence-normalised) when sources exist, else the legacy onboarding lump. Exported separately so a
- *  caller that only needs this figure (not the full snapshot) doesn't have to build the whole object. */
-export function liveMonthlyIncome(state: AppState): number {
-  const incomeSources = state.incomeSources ?? [];
-  if (incomeSources.length === 0) return state.onboarding.monthlyIncome;
-  return incomeSources.reduce((sum, src) => sum + monthlyEquivalent(src.amount, src.cadence), 0);
-}
+/** @deprecated Back-compat alias — the canonical selector is `selectMonthlyIncome` in
+ *  `./income.ts` (task: SURFACE SELECTOR PROMOTION). Every NEW caller should import
+ *  `selectMonthlyIncome` directly; this re-export exists only so existing call sites don't need to
+ *  change their import path. NOTE: `selectMonthlyIncome` extends the original behaviour with one
+ *  more fallback rung (a history-derived median when there is no declared income AND no onboarding
+ *  lump) — every case this function used to handle is unchanged, byte-identical. */
+export const liveMonthlyIncome = selectMonthlyIncome;
 
 /**
  * Build the Melo chat snapshot from the full app state + the caller's "now" and current landing

@@ -10,9 +10,25 @@
 //   nextIncomeDate(sources, todayIso) -> ISO date | null
 //   daysToNextIncome(sources, todayIso) -> number | null
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { daysToNextIncome, nextIncomeDate, projectIncomeEvents } from './income';
+import {
+  daysToNextIncome,
+  hasAnyUserData,
+  nextIncomeDate,
+  projectIncomeEvents,
+  selectMonthlyIncome,
+  selectMonthlySpend,
+} from './income';
+import {
+  addTransaction,
+  getState,
+  resetAll,
+  resetToEmpty,
+  setCurrentBalance,
+  setIncomeSources,
+  setOnboarding,
+} from '../store';
 import type { IncomeSource } from '../store';
 
 function source(
@@ -274,5 +290,179 @@ describe('projectIncomeEvents — determinism', () => {
     const a = projectIncomeEvents([s], '2026-06-01', 30);
     const b = projectIncomeEvents([s], '2026-06-01', 30);
     expect(a).toEqual(b);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// selectMonthlyIncome / selectMonthlySpend — the canonical selectors
+// (task: SURFACE SELECTOR PROMOTION). Uses the real store singleton, same
+// pattern as meloSnapshot.test.ts, since these selectors read `AppState`
+// directly rather than plain arrays.
+// ---------------------------------------------------------------------------
+describe('selectMonthlyIncome — cadence correctness', () => {
+  beforeEach(() => {
+    resetAll();
+  });
+
+  it('cadence-normalises a weekly £299 earner to ~£1295/mo, not the raw weekly figure', () => {
+    setIncomeSources([
+      {
+        id: 'staffline',
+        label: 'Staffline',
+        cadence: 'weekly',
+        anchorISO: '2026-06-05',
+        amount: 299,
+        source: 'inferred',
+      },
+    ]);
+
+    const monthly = selectMonthlyIncome(getState());
+
+    // 299 * 4.33 (driftSignals.ts's OCCURRENCES_PER_MONTH.weekly) = 1294.67.
+    expect(monthly).toBeCloseTo(299 * 4.33, 2);
+    expect(monthly).toBeGreaterThan(1290);
+    expect(monthly).toBeLessThan(1300);
+    // Must not be mistaken for a monthly-sized figure equal to the raw weekly amount.
+    expect(monthly).not.toBe(299);
+  });
+
+  it('falls back to onboarding.monthlyIncome when no incomeSources are declared', () => {
+    setOnboarding({ monthlyIncome: 2500 });
+    setIncomeSources([]);
+
+    expect(selectMonthlyIncome(getState())).toBe(2500);
+  });
+
+  it('falls back to the median of realized monthlyIncomeSeries when nothing is declared at all', () => {
+    resetToEmpty(); // no seeded demo transactions — a genuinely clean ledger
+    setOnboarding({ monthlyIncome: 0 });
+    setIncomeSources([]);
+    // Two PAST full months of credits; the current in-progress month must be excluded from the
+    // median per historyStats.ts's monthlyIncomeSeries contract.
+    addTransaction({
+      merchant: 'Employer',
+      amount: 1800,
+      category: 'income',
+      source: 'manual',
+      when: '2026-04-15T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Employer',
+      amount: 2200,
+      category: 'income',
+      source: 'manual',
+      when: '2026-05-15T00:00:00.000Z',
+    });
+
+    const monthly = selectMonthlyIncome(getState());
+
+    // Median of [1800, 2200] = 2000 — an honest history-derived estimate, never a hard £0.
+    expect(monthly).toBe(2000);
+  });
+
+  it('returns 0 when there are no declared sources, no onboarding lump, and no history', () => {
+    resetToEmpty(); // no seeded demo transactions — a genuinely clean ledger
+    setOnboarding({ monthlyIncome: 0 });
+    setIncomeSources([]);
+
+    expect(selectMonthlyIncome(getState())).toBe(0);
+  });
+});
+
+describe('selectMonthlySpend — realized median monthly spend', () => {
+  beforeEach(() => {
+    resetToEmpty(); // no seeded demo transactions — a genuinely clean ledger
+  });
+
+  it('returns 0 when there is no transaction history', () => {
+    expect(selectMonthlySpend(getState())).toBe(0);
+  });
+
+  it('returns the median PAST-month debit total across the ledger', () => {
+    addTransaction({
+      merchant: 'Rent',
+      amount: -900,
+      category: 'bills',
+      source: 'manual',
+      when: '2026-04-01T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Groceries',
+      amount: -300,
+      category: 'shopping',
+      source: 'manual',
+      when: '2026-04-10T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Rent',
+      amount: -900,
+      category: 'bills',
+      source: 'manual',
+      when: '2026-05-01T00:00:00.000Z',
+    });
+    addTransaction({
+      merchant: 'Groceries',
+      amount: -500,
+      category: 'shopping',
+      source: 'manual',
+      when: '2026-05-10T00:00:00.000Z',
+    });
+
+    // April total = 1200, May total = 1400 -> median of [1200, 1400] = 1300.
+    expect(selectMonthlySpend(getState())).toBe(1300);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hasAnyUserData — the sample-numbers-nudge gate (task: consume-income + empties).
+// Distinct from `onboarding.done`: a user who bulk-imports a statement without
+// ever opening the onboarding sheet has real data even though `onboarding.done`
+// stays false.
+// ---------------------------------------------------------------------------
+describe('hasAnyUserData', () => {
+  beforeEach(() => {
+    // resetToEmpty() itself sets a non-sample ('user-entered') EMPTY_BALANCE, so every check here
+    // pins the balance back to 'sample' explicitly to model a genuinely untouched, sample-data store
+    // (the actual pre-any-action shape `hasAnyUserData` needs to read as "no real data yet").
+    resetToEmpty();
+    setCurrentBalance({ amount: 0, source: 'sample', confidence: 'sample' });
+  });
+
+  it('is false on a genuinely clean, sample-balance store', () => {
+    expect(hasAnyUserData(getState())).toBe(false);
+  });
+
+  it('is true once a transaction has been imported, regardless of onboarding.done', () => {
+    addTransaction({
+      merchant: 'Employer',
+      amount: 1800,
+      category: 'income',
+      source: 'manual',
+      when: '2026-04-15T00:00:00.000Z',
+    });
+
+    expect(hasAnyUserData(getState())).toBe(true);
+  });
+
+  it('is true once an income source is declared', () => {
+    setIncomeSources([
+      {
+        id: 'staffline',
+        label: 'Staffline',
+        cadence: 'weekly',
+        anchorISO: '2026-06-05',
+        amount: 299,
+        source: 'inferred',
+      },
+    ]);
+
+    expect(hasAnyUserData(getState())).toBe(true);
+  });
+
+  it('is true once the balance source is no longer sample', () => {
+    // Only currentBalance flips away from 'sample' — no transactions, no income sources.
+    setCurrentBalance({ amount: 1234, source: 'user-entered', confidence: 'corrected' });
+
+    expect(hasAnyUserData(getState())).toBe(true);
   });
 });

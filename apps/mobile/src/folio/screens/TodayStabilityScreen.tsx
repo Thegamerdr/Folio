@@ -26,6 +26,7 @@ import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle } from '@/folio/lib/chartStyle';
 import { LensRhythm } from '@/folio/ui/LensRhythm';
@@ -62,6 +63,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const pots = useAppStore((st) => st.pots);
   const currentBalance = useAppStore((st) => st.currentBalance);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
+  const monthlyIncome = useAppStore((st) => selectMonthlyIncome(st));
   const { style: chartStyle } = useChartStyle();
   const lens = useLens();
 
@@ -135,7 +137,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
 
   const balanceSourceLabel = BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'sample data';
 
-  const monthlyIn = onboarding.monthlyIncome || 0;
+  const monthlyIn = monthlyIncome;
   const monthlyOut = subs
     .filter((sub) => !subPaused[sub.name])
     .reduce((sum, sub) => sum + sub.cost, 0);

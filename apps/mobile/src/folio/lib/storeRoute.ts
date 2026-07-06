@@ -30,7 +30,8 @@ import { useMemo } from 'react';
 import { computeRoute, type DatedAmount, type RouteResult } from './moneyPath';
 import { deriveCalendarEvents } from './calendarEvents';
 import { resolvePayday } from './payday';
-import { nextIncomeDate } from './income';
+import { nextIncomeDate, selectMonthlyIncome } from './income';
+import { monthlySpendBaseline } from './historyStats';
 import { useAppStore, type AppState } from '../store';
 import { derivePressure } from '../screens/today/pressure';
 
@@ -201,11 +202,30 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
     pots: [],
     openBorrows: 0,
   });
-  // Window income/outflow totals for the Today summary ("Coming in" / "Going out"), summed from the
-  // SAME derived events the curve uses — so the trio agrees with the path. Replaces the old hardcoded
-  // £2,180 / £1,095 figures.
-  const incomingTotal = income.reduce((acc, d) => acc + d.amount, 0);
-  const outgoingTotal = spend.reduce((acc, d) => acc + d.amount, 0);
+  // Window income/outflow totals for the Today summary ("Coming in" / "Going out").
+  //
+  // REALIZED-OVER-PROJECTED (task: ROUTE READS ACTUALS): when the user has actual transaction
+  // history, the summary must reflect what has REALLY happened, not just the forward-projected
+  // calendar (which reports £0 outgoing for anyone without declared subs/bills, even when their own
+  // ledger clearly shows spend). `incomingTotal` is the canonical monthly income figure
+  // (`selectMonthlyIncome` — cadence-correct declared income, or a history-derived median when
+  // nothing is declared); `outgoingTotal` is the median realized monthly spend
+  // (`monthlySpendBaseline`) when the ledger has any history, else the forward-projected bills/subs
+  // sum from the SAME derived events the curve uses (the pre-existing behaviour, kept for a
+  // brand-new/empty ledger where there is nothing realized to report yet).
+  //
+  // This intentionally diverges the Today summary trio's "in/out" figures from the forward
+  // `spend`/`income` buckets that feed `computeRoute` above — the tight-point CURVE stays the
+  // Calendar's forward-looking ladder (payday shape), while the headline "Coming in / Going out"
+  // numbers become an honest realized-vs-projected picture. Surfaces that render both together
+  // should label them accordingly (projected curve vs realized summary) — this module only computes
+  // the numbers, not the copy.
+  const projectedOutgoing = spend.reduce((acc, d) => acc + d.amount, 0);
+  const hasHistory = state.transactions.length > 0;
+  const incomingTotal = selectMonthlyIncome(state);
+  const outgoingTotal = hasHistory
+    ? monthlySpendBaseline(state.transactions, todayIso).medianMonthlySpend
+    : projectedOutgoing;
   return { ...result, incomingTotal, outgoingTotal };
 }
 
@@ -249,6 +269,9 @@ export function useRoute(now: Date | string): RouteResult {
     // `nowKey` so a fresh Date at the same instant doesn't churn the memo).
     // Depending on the slices, not the whole `state`, keeps unrelated writes
     // (e.g. cycles, calendar focus) from recomputing the curve.
+    // `incomeSources` (feeds selectMonthlyIncome + the payday/pot-anchor timeline) and
+    // `calendarEvents` (manual events folded into the same derived timeline) were previously
+    // missing from this list — a write to either silently served a stale memoised route.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       state.currentBalance,
@@ -258,6 +281,8 @@ export function useRoute(now: Date | string): RouteResult {
       state.subOverrides,
       state.transactions,
       state.pots,
+      state.incomeSources,
+      state.calendarEvents,
       nowKey,
     ],
   );

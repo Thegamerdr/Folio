@@ -393,11 +393,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       if (result.kind === 'ok' || result.kind === 'partial') {
         if (result.candidates.length > 0) {
           setReaderCandidates(result.candidates);
-          // The chunked reader intentionally never surfaces a whole-statement closing balance
-          // (see SingleRequestResult's doc in statementReaderClient.ts — no single chunk is a
-          // trustworthy source for it), so explicitly clear any balance staged by a prior
-          // single-shot read rather than letting it leak into this landing.
-          setReaderClosingBalance(null);
+          // The chunked reader now threads through a closing balance when any chunk returned one —
+          // the LAST such chunk by page order (see extractStatementCandidatesChunked's doc for the
+          // "last chunk with a balance wins" rule). Pass it straight through the same way the
+          // single-shot path does; `null` when no chunk supplied one, which also correctly clears
+          // any balance staged by a prior single-shot read rather than letting it leak in.
+          setReaderClosingBalance(result.closingBalance);
           if (result.kind === 'partial') {
             const failed = result.coverage.filter((outcome) => !outcome.ok);
             const pages = failed

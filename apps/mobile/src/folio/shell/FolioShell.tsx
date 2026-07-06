@@ -159,9 +159,14 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
 // The screens that nest under the More tab — every leaf reachable from the More hub. Faithful to
 // the web TabBar's `moreSubtree` (TabBar.tsx): each of these lights the More tab. The RN union also
 // carries `shortfall` (a More-reachable leaf in this port), so it is included here too.
+//
+// `timeline` is deliberately NOT in this set even though the More hub still links to it (MoreScreen's
+// "Timeline" row) — it is now the Review tab's persistent destination (see activeTabForScreen below),
+// so reaching it via More correctly lights the Review tab, not More. `activeTabForScreen` resolves
+// `timeline` explicitly before ever consulting this set, so this omission is load-bearing, not an
+// oversight.
 const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'more',
-  'timeline',
   'calendar',
   'plans',
   'paywall',
@@ -178,23 +183,35 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'account',
 ]);
 
-// Which bottom-tab lights up for a given screen. Faithful to the web TabBar's active-state map:
-// Today lights for `today` + `today-after`; the Review tab (kit id `import`) lights for `visualizer`
-// + `review`; Melo for `melo`; the whole More subtree lights the More tab. Anything else falls back
-// to Today (the home anchor).
+// Which bottom-tab lights up for a given screen. Faithful to the web TabBar's active-state map, with
+// one deliberate RN deviation: Today lights for `today` + `today-after`; the Review tab (kit id
+// `import`) lights for `timeline` (the persistent ledger the tab now opens) as well as `visualizer` +
+// `review` (the transient post-import preview / single-candidate flows, still reachable via Intake so
+// the tab reads lit while the user is mid-review); Melo for `melo`; the whole More subtree lights the
+// More tab. Anything else falls back to Today (the home anchor).
+//
+// Why the deviation: `visualizer` reads the store's transient `readerCandidates` staging slot, which
+// is emptied the moment a batch is accepted (see VisualizerScreen's @writes). A bottom tab must show
+// something real on every press, not "add a statement first" the instant there is nothing staged — so
+// the persistent Review tab destination is `timeline` (reads `state.transactions` directly, faithful
+// ledger of what was actually added). `visualizer`/`review` remain reachable screens (Intake's
+// PdfSuccess flow still routes to `visualizer` for its one-shot preview) — this only changes what the
+// TAB itself opens.
 function activeTabForScreen(screen: ScreenId): ProductScreen {
   if (screen === 'today' || screen === 'today-after') return 'today';
-  if (screen === 'visualizer' || screen === 'review') return 'import';
+  if (screen === 'timeline' || screen === 'visualizer' || screen === 'review') return 'import';
   if (screen === 'melo') return 'melo';
   if (MORE_SUBTREE.has(screen)) return 'more';
   return 'today';
 }
 
-// The screen a bottom-tab press navigates to. Faithful to the web TabBar, whose "Review" tab has
-// id `visualizer` and navigates to `visualizer` (the multi-candidate check), NOT the single-candidate
-// `review` screen. The kit's Review tab carries the id `import`, so `import` -> `visualizer`.
+// The screen a bottom-tab press navigates to. The kit's Review tab (id `import`) now opens `timeline`
+// — the persistent, real ledger of every transaction the user has added or left, newest first (see
+// the activeTabForScreen comment above for why `visualizer`'s transient staged-candidates screen is
+// not a fit for a permanent tab destination). `visualizer` stays reachable from the Intake / PdfSuccess
+// one-shot import-preview flow; it is simply no longer what the bottom tab opens.
 function screenForTab(tab: ProductScreen): ScreenId {
-  if (tab === 'import') return 'visualizer';
+  if (tab === 'import') return 'timeline';
   if (tab === 'melo') return 'melo';
   if (tab === 'more') return 'more';
   return 'today';

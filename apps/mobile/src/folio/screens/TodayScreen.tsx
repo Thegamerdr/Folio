@@ -73,6 +73,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, setRouteFocusDate, sweepSubOverrides } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { hasAnyUserData } from '@/folio/lib/income';
 import { resolveNextTopUp } from '@/folio/lib/potCadence';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
 import { useLens } from '@/folio/lib/lens';
@@ -141,6 +142,7 @@ export function TodayScreen({
   const subPaused = useAppStore((st) => st.subPaused);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const hasRealData = useAppStore((st) => hasAnyUserData(st));
   const lens = useLens();
 
   // Mount-gate (kept from the web to avoid a flash of the fallback before the engine computes; on
@@ -536,7 +538,7 @@ export function TodayScreen({
             onPress={() => nav.go('paywall')}
             palette={t}
           />
-        ) : !onboarding.done ? (
+        ) : !onboarding.done && !hasRealData ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="The numbers on this screen are sample data — tap to make them yours"

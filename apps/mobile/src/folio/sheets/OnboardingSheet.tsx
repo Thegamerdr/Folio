@@ -77,6 +77,7 @@ import {
 } from '@/folio/store';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 import { isBusinessDay } from '@/folio/lib/payday';
+import { monthlyEquivalent } from '@/folio/lib/driftSignals';
 
 // ---------------------------------------------------------------------------
 // Intent picker + mode-specific extra question (BREAKS-PARITY fix) — web
@@ -269,12 +270,26 @@ const POT_TEMPLATES: readonly PotTemplate[] = [
 const PAYDAY_MIN = 1;
 const PAYDAY_MAX = 31;
 const PAYDAY_STEP = 1;
-const INCOME_MIN = 500;
-const INCOME_MAX = 8000;
-const INCOME_STEP = 20;
 const BALANCE_MIN = 0;
 const BALANCE_MAX = 5000;
 const BALANCE_STEP = 10;
+
+// Income-per-occurrence slider range/unit, branched on the declared cadence (step 3, STEP_CADENCE)
+// — a monthly range (£500-£8000) is honest for a monthly earner but 4x-wrong for a weekly one, so
+// the captured value must stay "the per-occurrence amount for that cadence", never a monthly-sized
+// number mislabelled. Mirrors the cadence branching already used at STEP_PAYDAY just above. Ranges
+// are per-occurrence guesses, not derived — weekly/fortnightly/four-weekly scale roughly with the
+// monthly range divided by the cadence's OCCURRENCES_PER_MONTH (driftSignals.ts), rounded to a calm
+// step size; monthly/last-working-day keep the original range unchanged.
+type IncomeRange = { min: number; max: number; step: number; unit: string };
+
+const INCOME_RANGE_BY_CADENCE: Record<PayCadence, IncomeRange> = {
+  monthly: { min: 500, max: 8000, step: 20, unit: '/ month' },
+  'last-working-day': { min: 500, max: 8000, step: 20, unit: '/ month' },
+  weekly: { min: 25, max: 2000, step: 5, unit: '/ week' },
+  fortnightly: { min: 50, max: 4000, step: 10, unit: '/ 2 weeks' },
+  'four-weekly': { min: 100, max: 7500, step: 20, unit: '/ 4 weeks' },
+};
 
 const STEP_SLIDE_MS = 360; // doc-block "slide between steps"
 const STAMP_MS = 600; // doc-block "stamp on completion"
@@ -456,6 +471,17 @@ function OnboardingFlow({
   // Pay cadence (new step, ahead of the day picker) — see lib/income.ts. Monthly is the honest
   // default: it matches every existing user's behaviour byte-for-byte until they say otherwise.
   const [cadence, setCadence] = useState<PayCadence>('monthly');
+  // The income slider's range/unit branches on the declared cadence — a weekly earner's
+  // per-occurrence figure lives on a much smaller scale than a monthly one (see
+  // INCOME_RANGE_BY_CADENCE above). Recomputed, not stored, so it always tracks `cadence`.
+  const incomeRange = useMemo(() => INCOME_RANGE_BY_CADENCE[cadence], [cadence]);
+  // When the user changes cadence AFTER already having moved the income slider, clamp the captured
+  // value into the new range rather than leaving a stale out-of-range number (e.g. £2400 surviving
+  // a switch to weekly, where the max is £2000) — the slider itself only clamps at drag-time, so a
+  // cadence change with no further drag would otherwise leave an invisible out-of-range value.
+  useEffect(() => {
+    setIncome((prev) => Math.min(incomeRange.max, Math.max(incomeRange.min, prev)));
+  }, [incomeRange]);
   // Anchor date for the three week-based cadences — "when did pay last arrive?" Defaults to today so
   // the date picker never opens on a blank/undefined value.
   const [anchorISO, setAnchorISO] = useState<string>(todayIso());
@@ -510,10 +536,25 @@ function OnboardingFlow({
           ? lastWorkingDayOfMonthNumber()
           : dayOfMonthFromIso(anchorISO);
 
+    // Legacy monthly-equivalent — `onboarding.monthlyIncome` is read by name as a MONTHLY figure by
+    // several surfaces that haven't yet migrated to `selectMonthlyIncome`/`incomeSources` (see
+    // lib/income.ts doc-block). `income` above is the per-occurrence amount at the declared cadence
+    // (e.g. a weekly earner's per-week figure), so writing it verbatim into a slot named
+    // "monthlyIncome" would understate a weekly/fortnightly/four-weekly earner's real monthly total
+    // by ~4x/2x/etc. `monthlyEquivalent` (driftSignals.ts) puts it on the correct monthly footing —
+    // the same cadence table `selectMonthlyIncome` and the drift-detection engine already use, so
+    // this legacy slot and the modern selector never diverge.
+    const monthlyIncomeEquivalent = monthlyEquivalent(income, cadence);
+
     // The user's real onboarding identity, written over the clean state. `resetToEmpty` preserved the
     // prior (still-blank) onboarding fields and flipped done→true; this overwrites name/payday/income
     // with what they entered while keeping done true.
-    setOnboarding({ name, payday: legacyPayday, monthlyIncome: income, done: true });
+    setOnboarding({
+      name,
+      payday: legacyPayday,
+      monthlyIncome: monthlyIncomeEquivalent,
+      done: true,
+    });
 
     // The income-cadence model (lib/income.ts) — the FIRST declared source, correctly cadenced. Every
     // caller downstream (calendarEvents, storeRoute, notifications, the widget) reads this instead of
@@ -844,16 +885,16 @@ function OnboardingFlow({
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{poundsTabular(income)}</Text>
-              <Text style={s.unit}>/ month</Text>
+              <Text style={s.unit}>{incomeRange.unit}</Text>
             </View>
             <FolioSlider
-              min={INCOME_MIN}
-              max={INCOME_MAX}
-              step={INCOME_STEP}
+              min={incomeRange.min}
+              max={incomeRange.max}
+              step={incomeRange.step}
               value={income}
               onChange={setIncome}
               palette={t}
-              accessibilityLabel="Rough monthly income"
+              accessibilityLabel={`Rough income${incomeRange.unit}`}
             />
             <Text style={s.help}>Doesn't need to be exact. Folio adjusts as you go.</Text>
           </View>

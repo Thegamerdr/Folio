@@ -93,6 +93,7 @@ import {
   type Sub,
 } from '@/folio/store';
 import { routeFromStore } from '@/folio/lib/storeRoute';
+import { selectMonthlyIncome } from '@/folio/lib/income';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import type { Nav } from '@/folio/types';
 import type { MoneyMode } from '@/folio/lib/modes/types';
@@ -397,7 +398,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // `tightPoint < 0` ("closed in the red"), counted from the most recent cycle backwards. Same
   // definition the web uses to decide "wasRed" (store.ts `recordCycleHardness`), just computed from
   // history rather than carried as separate state.
-  const onboarding = useAppStore((st) => st.onboarding);
+  const monthlyIncome = useAppStore((st) => selectMonthlyIncome(st));
   const cycles = useAppStore((st) => st.cycles);
   const hardCyclesInARow = useMemo(() => {
     let streak = 0;
@@ -414,7 +415,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         .reduce((sum, sub) => sum + sub.cost, 0),
     [appState.subs, appState.subPaused],
   );
-  const doesntFit = onboarding.monthlyIncome > 0 && monthlyBills > onboarding.monthlyIncome;
+  const doesntFit = monthlyIncome > 0 && monthlyBills > monthlyIncome;
   const signpostReal = doesntFit || hardCyclesInARow >= 2;
 
   // Mount-gate (same as TodayScreen): defer `new Date()` so nothing reads the clock during render and

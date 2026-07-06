@@ -75,6 +75,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
+import { selectMonthlyIncome } from '@/folio/lib/income';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
 import { SignInSheet } from '@/folio/sheets/SignInSheet';
 import type { Nav } from '@/folio/types';
@@ -113,6 +114,26 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
+// Honest balance-source caption (ENGINES.md §6) — matches TodayStabilityScreen/TodayScreen's own
+// map so the same balance reads the same everywhere.
+const BALANCE_SOURCE_LABEL: Record<string, string> = {
+  'user-entered': 'you set this',
+  statement: 'from your last statement',
+  'pdf-derived': 'from a statement you added',
+  'ocr-derived': 'from a photo you added',
+  corrected: 'you corrected this',
+  sample: 'sample data',
+};
+
+// Cadence display labels for the detected income source.
+const CADENCE_LABEL: Record<string, string> = {
+  monthly: 'monthly',
+  weekly: 'weekly',
+  fortnightly: 'fortnightly',
+  'four-weekly': 'every 4 weeks',
+  'last-working-day': 'last working day of the month',
+};
+
 // The three tiers at a glance — copy sourced from the web's inline literals.
 const TIERS: readonly {
   key: 'free' | 'plus' | 'pro';
@@ -133,8 +154,23 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const subsCount = useAppStore((s) => s.subs.length);
   const potsCount = useAppStore((s) => s.pots.length);
   const cyclesCount = useAppStore((s) => s.cycles.length);
+  const transactionsCount = useAppStore((s) => s.transactions.length);
   const onboarding = useAppStore((s) => s.onboarding);
+  const currentBalance = useAppStore((s) => s.currentBalance);
+  const incomeSources = useAppStore((s) => s.incomeSources ?? []);
+  const monthlyIncome = useAppStore((s) => selectMonthlyIncome(s));
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
+
+  // The detected income's label + cadence — from the first declared source when the user has one
+  // (the honest, named figure), falling back to the generic "Income" / "monthly" shape for the
+  // legacy onboarding-lump or history-derived-median cases where there's no named source to show.
+  const primaryIncomeSource = incomeSources[0];
+  const incomeLabel = primaryIncomeSource?.label || 'Income';
+  const incomeCadenceLabel = primaryIncomeSource
+    ? CADENCE_LABEL[primaryIncomeSource.cadence]
+    : 'monthly';
+
+  const balanceSourceLabel = BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'sample data';
 
   // Sign-in is entirely optional (see clerkAuth.ts). Evaluated once per render, not via a hook, so
   // this branch stays safe whether or not a ClerkProvider ancestor exists — Clerk's own hooks only
@@ -210,14 +246,14 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
       {
         label: 'Payday & income',
         hint:
-          onboarding.monthlyIncome > 0
-            ? `£${onboarding.monthlyIncome.toLocaleString()} / mo · payday ${onboarding.payday}`
+          monthlyIncome > 0
+            ? `${incomeLabel} · £${Math.round(monthlyIncome).toLocaleString()} ${incomeCadenceLabel}`
             : 'not set yet — tap to add',
-        state: onboarding.monthlyIncome > 0 ? ('manual' as const) : ('empty' as const),
+        state: monthlyIncome > 0 ? ('manual' as const) : ('empty' as const),
         action: () => nav.openSheet('onboarding'),
       },
     ],
-    [subsCount, potsCount, onboarding, nav],
+    [subsCount, potsCount, monthlyIncome, incomeLabel, incomeCadenceLabel, nav],
   );
 
   // Export — routes to Privacy, which owns the real export engine (runExport). Avoids a second,
@@ -361,6 +397,18 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           })}
         </View>
 
+        {/* Balance — the real, honest current-balance read (ENGINES.md §6): every balance shows where
+            it came from, so this screen is never blank after a statement import. */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>Your balance</Text>
+          <Surface style={[styles.card, styles.balanceCard, { borderColor: t.hairline }]}>
+            <Text style={[styles.balanceValue, { color: t.ink }]}>
+              £{Math.round(currentBalance.amount).toLocaleString('en-GB')}
+            </Text>
+            <Text style={[styles.balanceHint, { color: t.muted }]}>{balanceSourceLabel}</Text>
+          </Surface>
+        </View>
+
         {/* Sources. */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
@@ -399,6 +447,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: t.ink }]}>Your footprint</Text>
           <View style={styles.statsGrid}>
+            <Stat n={transactionsCount} label="transactions" />
             <Stat n={subsCount} label="subs" />
             <Stat n={potsCount} label="pots" />
             <Stat n={cyclesCount} label="cycles" />
@@ -416,8 +465,8 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           <AccountRow
             label="Payday & income"
             hint={
-              onboarding.monthlyIncome > 0
-                ? `£${onboarding.monthlyIncome.toLocaleString()} / mo · payday ${onboarding.payday}`
+              monthlyIncome > 0
+                ? `${incomeLabel} · £${Math.round(monthlyIncome).toLocaleString()} ${incomeCadenceLabel}`
                 : 'not set yet'
             }
             onPress={() => nav.openSheet('onboarding')}
@@ -706,6 +755,20 @@ const styles = StyleSheet.create({
   },
   leversCard: {
     marginTop: gap.xl,
+  },
+  balanceCard: {
+    alignItems: 'flex-start',
+    padding: gap.lg,
+  },
+  balanceValue: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    fontVariant: ['tabular-nums'],
+  },
+  balanceHint: {
+    fontFamily: serif.displayItalic,
+    fontSize: 11.5,
+    marginTop: gap.xs,
   },
   wipeCard: {
     marginTop: gap.md,

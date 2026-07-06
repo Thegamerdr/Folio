@@ -110,6 +110,7 @@ import {
   type DerivedEvent,
 } from '@/folio/lib/calendarEvents';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { selectMonthlyIncome } from '@/folio/lib/income';
 import {
   calendarDefaultAnchor,
   calendarAnchorLabel,
@@ -292,6 +293,8 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const subPaused = useAppStore((st) => st.subPaused);
   const subOverrides = useAppStore((st) => st.subOverrides);
   const onboarding = useAppStore((st) => st.onboarding);
+  const monthlyIncome = useAppStore((st) => selectMonthlyIncome(st));
+  const incomeSourcesCount = useAppStore((st) => (st.incomeSources ?? []).length);
   const manual = useAppStore((st) => st.calendarEvents);
   const focusDate = useAppStore((st) => st.calendarFocusDate);
   const pots = useAppStore((st) => st.pots);
@@ -512,7 +515,11 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   }
 
   const isEmpty = events.length === 0;
-  const missingPayday = !onboarding.payday || !onboarding.monthlyIncome;
+  // Truthy gate fix: a user who has declared cadenced income sources (or a realized-history-derived
+  // estimate via selectMonthlyIncome) has real income data even when the legacy onboarding lump is
+  // unset — don't tell them "no payday set yet" when Folio already knows their payday.
+  const hasIncomeDeclared = incomeSourcesCount > 0 || monthlyIncome > 0;
+  const missingPayday = !onboarding.payday || !hasIncomeDeclared;
   const missingBills = subs.length === 0;
   const missingPots = pots.length === 0 || pots.every((p) => !(p.perWeek > 0));
 

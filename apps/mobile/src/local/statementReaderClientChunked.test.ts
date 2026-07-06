@@ -273,6 +273,113 @@ describe('extractStatementCandidatesChunked — partial-failure coverage reporti
   });
 });
 
+describe('extractStatementCandidatesChunked — closing balance (last chunk with a balance wins)', () => {
+  it('returns null when no chunk supplies a closing balance', async () => {
+    readAsStringAsync.mockResolvedValue(buildFixturePdfBase64(9)); // -> 2 chunks: 1-8, 9-9
+    const fetchMock = vi.fn(async () => chatResponse(ITEMS_RESPONSE('X', -1, '2026-01-01')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await extractStatementCandidatesChunked({
+      uri: 'file://statement.pdf',
+      mediaType: 'application/pdf',
+      kind: 'pdf',
+    });
+
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') throw new Error('expected ok');
+    expect(result.closingBalance).toBeNull();
+  });
+
+  it('surfaces the ONLY chunk that returns a closing balance', async () => {
+    readAsStringAsync.mockResolvedValue(buildFixturePdfBase64(9)); // -> 2 chunks: 1-8, 9-9
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      call += 1;
+      const body =
+        call === 1
+          ? { items: [{ date: '2026-01-01', merchant: 'X', amount: -1, category: null }] }
+          : {
+              items: [{ date: '2026-01-09', merchant: 'Y', amount: -2, category: null }],
+              closingBalance: 42.5,
+              closingDate: '2026-01-09',
+            };
+      return chatResponse(JSON.stringify(body));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await extractStatementCandidatesChunked({
+      uri: 'file://statement.pdf',
+      mediaType: 'application/pdf',
+      kind: 'pdf',
+    });
+
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') throw new Error('expected ok');
+    expect(result.closingBalance).toEqual({ amount: 42.5, asOfISO: '2026-01-09' });
+  });
+
+  it('when MULTIPLE chunks return a balance, the LAST one by page order wins', async () => {
+    readAsStringAsync.mockResolvedValue(buildFixturePdfBase64(24)); // -> 3 chunks: 1-8, 9-16, 17-24
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      call += 1;
+      const balanceByCall: Record<number, { amount: number; date: string }> = {
+        1: { amount: 10, date: '2026-01-08' },
+        2: { amount: 20, date: '2026-01-16' },
+        3: { amount: 30, date: '2026-01-24' },
+      };
+      const balance = balanceByCall[call];
+      const body = {
+        items: [{ date: '2026-01-01', merchant: `M${call}`, amount: -call, category: null }],
+        closingBalance: balance?.amount ?? null,
+        closingDate: balance?.date ?? null,
+      };
+      return chatResponse(JSON.stringify(body));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await extractStatementCandidatesChunked({
+      uri: 'file://statement.pdf',
+      mediaType: 'application/pdf',
+      kind: 'pdf',
+    });
+
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') throw new Error('expected ok');
+    // Chunk 3 (pages 17-24, the LAST/most-recent range) wins over chunks 1 and 2's balances.
+    expect(result.closingBalance).toEqual({ amount: 30, asOfISO: '2026-01-24' });
+  });
+
+  it("a failed later chunk does not erase an earlier chunk's successfully-read balance", async () => {
+    readAsStringAsync.mockResolvedValue(buildFixturePdfBase64(16)); // -> 2 chunks: 1-8, 9-16
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      call += 1;
+      if (call === 1) {
+        return chatResponse(
+          JSON.stringify({
+            items: [{ date: '2026-01-01', merchant: 'M1', amount: -1, category: null }],
+            closingBalance: 99.99,
+            closingDate: '2026-01-08',
+          }),
+        );
+      }
+      return { ok: false, status: 500, json: async () => ({}) } as unknown as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await extractStatementCandidatesChunked({
+      uri: 'file://statement.pdf',
+      mediaType: 'application/pdf',
+      kind: 'pdf',
+    });
+
+    expect(result.kind).toBe('partial');
+    if (result.kind !== 'partial') throw new Error('expected partial');
+    expect(result.closingBalance).toEqual({ amount: 99.99, asOfISO: '2026-01-08' });
+  });
+});
+
 describe('extractStatementCandidatesChunked — de-dupe across chunk boundaries', () => {
   it('merges candidates from all chunks and drops an exact duplicate row across chunks', async () => {
     readAsStringAsync.mockResolvedValue(buildFixturePdfBase64(16)); // -> 2 chunks: 1-8, 9-16

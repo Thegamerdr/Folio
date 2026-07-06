@@ -28,6 +28,7 @@ import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle, type ChartStyle } from '@/folio/lib/chartStyle';
 import { LensProgress } from '@/folio/ui/LensProgress';
@@ -799,8 +800,10 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   const household = useAppStore((st) => st.household);
   const plans = useAppStore((st) => st.plans ?? []);
   const subPaused = useAppStore((st) => st.subPaused);
+  const monthlyIncome = useAppStore((st) => selectMonthlyIncome(st));
   const { style: chartStyle } = useChartStyle();
   const lens = useLens();
+  const hasRealData = useAppStore((st) => hasAnyUserData(st));
 
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => setNow(new Date()), []);
@@ -876,7 +879,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   const [accentWord, ...restVerdict] = modeState.verdict.split(' ');
   const verdictTail = restVerdict.join(' ');
 
-  const monthlyIn = onboarding.monthlyIncome || 0;
+  const monthlyIn = monthlyIncome;
   const monthlyOut = subs
     .filter((sub) => !subPaused[sub.name])
     .reduce((sum, sub) => sum + sub.cost, 0);
@@ -1015,7 +1018,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
           onPress={() => nav.go('paywall')}
           palette={t}
         />
-      ) : !onboarding.done ? (
+      ) : !onboarding.done && !hasRealData ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => nav.openSheet('onboarding')}
