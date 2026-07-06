@@ -71,8 +71,22 @@ function shortDateLabel(iso: string): string {
  *  entirely rather than showing a fabricated range — honest-minimal, matching
  *  `buildStatementSummary`'s own "never invented" discipline for `dateRange`. Singular/plural on
  *  "transaction" mirrors every other count label in this codebase (PdfSuccessScreen's
- *  `foundLabel`, etc). */
-export function bulkSummaryLine(summary: AddStatementAsHistoryResult): string {
+ *  `foundLabel`, etc).
+ *
+ * HISTORY-TRIM HONESTY (task: HISTORY TRIM HONESTY): `droppedCount` is the number of OLDER
+ * transactions THIS specific import caused `TRANSACTION_CAP` retention (store.ts) to evict — a
+ * caller with a post-add `AddStatementAsHistoryResult` in hand should pass
+ * `result.droppedTransactionCount ?? 0` (that field is already the correct per-import delta, see
+ * `addStatementAsHistory`'s doc — never the store's running lifetime total, which would
+ * double-count every prior import's drops on every subsequent summary line). A pre-add PREVIEW
+ * summary (`buildStatementSummary` alone, before anything has landed) has no such field yet —
+ * omit the argument there; nothing has been trimmed by an import that hasn't happened. Omitting it
+ * (or passing `0`) makes the line read exactly as before, with no trailing sentence — never a
+ * fabricated "0 trimmed" disclosure for an import that didn't trim anything. When positive, a
+ * second sentence is appended so the calm import headline still tells the whole truth: the app
+ * kept things fast by capping on-device history, but the export the statement came from is
+ * untouched — nothing is lost, only not all of it is kept ON DEVICE. */
+export function bulkSummaryLine(summary: AddStatementAsHistoryResult, droppedCount = 0): string {
   const noun = summary.added === 1 ? 'transaction' : 'transactions';
   const countPart = `Found ${summary.added} ${noun}`;
   const datePart =
@@ -80,7 +94,11 @@ export function bulkSummaryLine(summary: AddStatementAsHistoryResult): string {
       ? ` · ${shortDateLabel(summary.dateRange.fromISO)}–${shortDateLabel(summary.dateRange.toISO)}`
       : '';
   const moneyPart = ` · £${poundsFromPence(summary.totalInPence)} in / £${poundsFromPence(summary.totalOutPence)} out`;
-  return `${countPart}${datePart}${moneyPart}`;
+  const trimPart =
+    droppedCount > 0
+      ? ` · ${droppedCount} older ${droppedCount === 1 ? 'item' : 'items'} trimmed to keep things fast — your export keeps everything`
+      : '';
+  return `${countPart}${datePart}${moneyPart}${trimPart}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -219,4 +219,125 @@ describe('detectIncomeSources', () => {
       ].sort(),
     );
   });
+
+  // -------------------------------------------------------------------------
+  // Cadence-first clustering — the real-world Staffline-shaped agency-payroll
+  // case (proven problem this rework fixes): weekly-ish dates, amount varying
+  // WAY beyond AMOUNT_SPLIT_FACTOR (£112-£856, a ~7.6x spread). The old
+  // amount-clustering-first approach fragmented this below MIN_OCCURRENCES;
+  // cadence-first must catch it as ONE weekly signal.
+  // -------------------------------------------------------------------------
+  it('Staffline-shaped fixture: 62 weekly credits ranging £112-£856 -> ONE weekly possible signal', () => {
+    // Real cached-statement shape (see monzo-133-candidates.json): mostly
+    // 7-day gaps with the occasional missed/doubled week, amount tracking
+    // hours worked. Built here as a clean weekly series (with a couple of
+    // deliberately wide amount swings) so the fixture is self-contained and
+    // doesn't depend on the external cache file.
+    const amounts = [
+      403.35, 232.01, 119.15, 236.27, 386.62, 112.67, 112.49, 227.93, 299.8, 299.0, 299.8, 223.45,
+      299.42, 374.75, 223.57, 231.47, 383.69, 308.97, 386.85, 308.97, 231.27, 145.71, 230.68,
+      230.71, 230.68, 496.58, 309.43, 388.92, 498.79, 388.05, 311.08, 228.86, 238.36, 399.95,
+      403.94, 396.97, 403.74, 396.01, 336.49, 422.74, 335.28, 659.99, 590.95, 721.18, 742.01,
+      249.33, 248.33, 856.0, 537.87, 334.53, 327.97, 247.85, 246.73, 415.41, 330.27, 417.99, 378.97,
+    ];
+    const start = new Date('2021-02-19T00:00:00Z');
+    const transactions: IncomeTransaction[] = amounts.map((amount, i) => {
+      const d = new Date(start.getTime() + i * 7 * 86_400_000);
+      return tx('STAFFLINE RECRUITM (Direct Credit)', amount, d.toISOString().slice(0, 10));
+    });
+
+    const result = detectIncomeSources(transactions);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.cadence).toBe('weekly');
+    expect(result[0]?.occurrences).toBe(amounts.length);
+    expect(result[0]?.confidence).toBe('possible'); // amount varies way outside the strong band
+    expect(result[0]?.medianAmount).toBeGreaterThan(INCOME_MIN_MEDIAN_TEST_FLOOR);
+  });
+
+  it('cadence-first still separates two genuinely different jobs paid on different days each month', () => {
+    // Same fixture as "splits two distinct amount tiers" but proves the
+    // cadence-first PASS 1 correctly declines to merge them (their combined
+    // dates don't hold ANY single cadence) and PASS 2's amount-cluster
+    // fallback still produces two clean signals.
+    const transactions: IncomeTransaction[] = [
+      tx('Two Jobs Ltd', 500, '2026-01-25'),
+      tx('Two Jobs Ltd', 500, '2026-02-25'),
+      tx('Two Jobs Ltd', 500, '2026-03-25'),
+      tx('Two Jobs Ltd', 2000, '2026-01-28'),
+      tx('Two Jobs Ltd', 2000, '2026-02-28'),
+      tx('Two Jobs Ltd', 2000, '2026-03-28'),
+    ];
+    const result = detectIncomeSources(transactions);
+    expect(result).toHaveLength(2);
+    const amounts = result.map((s) => s.medianAmount).sort((a, b) => a - b);
+    expect(amounts).toEqual([500, 2000]);
+  });
+
+  // -------------------------------------------------------------------------
+  // Round-up / savings-automation false-positive guards.
+  // -------------------------------------------------------------------------
+  it('a high-frequency tiny round-up credit is NOT offered as income (below the median floor)', () => {
+    const transactions: IncomeTransaction[] = [];
+    const start = new Date('2026-01-01T00:00:00Z');
+    for (let i = 0; i < 60; i += 1) {
+      const d = new Date(start.getTime() + i * 1 * 86_400_000);
+      transactions.push(tx('Deposit (round up)', 0.1, d.toISOString().slice(0, 10)));
+    }
+    expect(detectIncomeSources(transactions)).toEqual([]);
+  });
+
+  it('a merchant name containing "round up" is excluded from income candidacy even at a large amount', () => {
+    const transactions: IncomeTransaction[] = [
+      tx('Round Up Transfer', 500, '2026-01-25'),
+      tx('Round Up Transfer', 500, '2026-02-25'),
+      tx('Round Up Transfer', 500, '2026-03-25'),
+    ];
+    expect(detectIncomeSources(transactions)).toEqual([]);
+  });
+
+  it('a merchant name containing "savings" or "pot" is excluded from income candidacy', () => {
+    const transactions: IncomeTransaction[] = [
+      tx('Savings Pot Transfer', 400, '2026-01-25'),
+      tx('Savings Pot Transfer', 400, '2026-02-25'),
+      tx('Savings Pot Transfer', 400, '2026-03-25'),
+      tx('Move to Pot', 300, '2026-01-25'),
+      tx('Move to Pot', 300, '2026-02-25'),
+      tx('Move to Pot', 300, '2026-03-25'),
+    ];
+    expect(detectIncomeSources(transactions)).toEqual([]);
+  });
+
+  it('a below-floor median (e.g. £10 recurring credit) is not offered even with a clean cadence', () => {
+    const transactions: IncomeTransaction[] = [
+      tx('Tiny Recurring Co', 10, '2026-01-25'),
+      tx('Tiny Recurring Co', 10, '2026-02-25'),
+      tx('Tiny Recurring Co', 10, '2026-03-25'),
+      tx('Tiny Recurring Co', 10, '2026-04-25'),
+    ];
+    expect(detectIncomeSources(transactions)).toEqual([]);
+  });
+
+  // -------------------------------------------------------------------------
+  // Ranking — real pay must outrank noise as the OFFERED signal.
+  // -------------------------------------------------------------------------
+  it('ranks signals by median amount, largest first, so real pay outranks any noise that slips through', () => {
+    const transactions: IncomeTransaction[] = [
+      // Small but still-above-floor recurring credit (e.g. a tiny side gig).
+      tx('Small Side Co', 40, '2026-01-25'),
+      tx('Small Side Co', 40, '2026-02-25'),
+      tx('Small Side Co', 40, '2026-03-25'),
+      // Real payroll — much larger median.
+      tx('Big Employer Ltd', 2200, '2026-01-25'),
+      tx('Big Employer Ltd', 2200, '2026-02-25'),
+      tx('Big Employer Ltd', 2200, '2026-03-25'),
+    ];
+    const result = detectIncomeSources(transactions);
+    expect(result).toHaveLength(2);
+    expect(result[0]?.merchant).toBe('Big Employer Ltd');
+    expect(result[1]?.merchant).toBe('Small Side Co');
+  });
 });
+
+/** Sanity constant used only to phrase the Staffline-fixture assertion above
+ *  without a magic number in the test body. */
+const INCOME_MIN_MEDIAN_TEST_FLOOR = 25;

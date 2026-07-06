@@ -91,8 +91,40 @@ const MIN_OCCURRENCES: Record<IncomeCadence, number> = {
  * this factor of the smaller. Wider than subSignals.ts's bill tolerance
  * (1.5x) because wages vary with hours/overtime — the brief calls for ±25%
  * tolerance, which as a same-vs-smaller ratio is 1.25/0.75 ≈ 1.667.
+ *
+ * Only consulted by the AMOUNT-CLUSTER FALLBACK path now (see
+ * `detectIncomeSources`'s two-pass doc) — the primary, cadence-first pass
+ * does not pre-split by amount at all, since doing so BEFORE cadence
+ * detection is exactly what used to fragment variable-amount agency payroll
+ * (e.g. Staffline-style weekly credits ranging ~£112-£856) below
+ * `MIN_OCCURRENCES` and miss it entirely.
  */
 const AMOUNT_SPLIT_FACTOR = 1.667;
+
+/**
+ * GUARD 2(a) — income-candidacy floor. A credit cluster/run whose median is
+ * below this amount never becomes an income signal, full stop, regardless of
+ * occurrence count or cadence tightness. This exists specifically to kill the
+ * "round-up change" false positive: bank apps' round-up-to-savings feature
+ * generates dozens of tiny credits (e.g. Monzo's "Deposit (round up)", often
+ * single pence to a few pounds) that can otherwise look like a hyper-reliable
+ * "income" by sheer occurrence count. £25 is comfortably below any real UK
+ * wage payment (even a single part-time shift clears this) and comfortably
+ * above round-up change, which is bounded by the size of one transaction's
+ * rounding (never more than 99p per round-up).
+ */
+const INCOME_MIN_MEDIAN = 25;
+
+/**
+ * GUARD 2(b) — merchant-name exclusion for the bank's own savings-automation
+ * features. These are transfers to the user's own pot/savings space, not pay
+ * from a third party, and some (round-ups on card spend) can rack up higher
+ * occurrence counts than real wages. Matched case-insensitively as a
+ * substring of the normalised merchant name. Deliberately narrow: only the
+ * bank-automation vocabulary itself, never a real employer name that happens
+ * to contain an unrelated word.
+ */
+const SAVINGS_AUTOMATION_MERCHANT_PATTERNS = [/round.?up/, /savings?/, /\bpot\b/];
 
 /**
  * `strong` confidence requires at least this many occurrences AND every
@@ -195,6 +227,32 @@ type Group = {
  * array and its elements are never mutated; the same input yields the same
  * output.
  *
+ * TWO-PASS PER MERCHANT (cadence-first, amount-cluster fallback):
+ *
+ *   PASS 1 — CADENCE-FIRST. Run date-gap cadence detection
+ *   (`longestInToleranceRun`) over the merchant's WHOLE credit set, sorted by
+ *   date, BEFORE looking at amount at all. If a qualifying run comes out of
+ *   that (>= `MIN_OCCURRENCES` for the cadence it lands on), that run becomes
+ *   the signal — amount variance across the run only ever DOWNGRADES
+ *   confidence (`computeConfidence`), it never excludes. This is what lets a
+ *   real agency-payroll pattern (dates land reliably ~weekly, amount tracks
+ *   hours worked and can range 4x between a short week and a long one) get
+ *   caught as ONE income signal instead of being fragmented into several
+ *   amount-tier clusters each below the occurrence floor — the exact failure
+ *   this two-pass design replaces (see module header + git history for the
+ *   Staffline-shaped real-statement case this was diagnosed against).
+ *
+ *   PASS 2 — AMOUNT-CLUSTER FALLBACK. Only reached when PASS 1 found no
+ *   qualifying run (the merchant's credit dates don't hold a single cadence
+ *   at all — e.g. two genuinely different jobs paid on different days each
+ *   month). Falls back to the original `clusterByAmount` -> per-cluster
+ *   cadence approach so two distinct pay tiers still separate into two
+ *   signals rather than being forced into one.
+ *
+ * Every candidate signal, from either pass, must still clear the two
+ * standalone income-candidacy guards below (`INCOME_MIN_MEDIAN` floor +
+ * savings-automation merchant exclusion) before it is returned.
+ *
  * @param transactions accepted/imported money movements (manual rows excluded upstream)
  */
 export function detectIncomeSources(transactions: readonly IncomeTransaction[]): IncomeSignal[] {
@@ -206,16 +264,147 @@ export function detectIncomeSources(transactions: readonly IncomeTransaction[]):
   for (const group of groups) {
     if (group.credits.length < 2) continue;
     if (isLikelySelfTransfer(group)) continue;
+    if (isSavingsAutomationMerchant(group.key)) continue;
 
-    const clusters = clusterByAmount(group.credits);
     const label = displayName(group.rawNames);
+    const cadenceFirstSignal = detectCadenceFirstSignal(group.credits, label);
+
+    if (cadenceFirstSignal !== null) {
+      if (passesIncomeCandidacyGuards(cadenceFirstSignal)) signals.push(cadenceFirstSignal);
+      continue;
+    }
+
+    // PASS 2 fallback: cadence-first found nothing over the whole group —
+    // split by amount tier first, then re-run cadence detection per cluster
+    // (the original approach), so genuinely distinct pay tiers still
+    // separate into their own signals.
+    const clusters = clusterByAmount(group.credits);
     for (const cluster of clusters) {
       const signal = buildSignalForCluster(cluster, label);
-      if (signal !== null) signals.push(signal);
+      if (signal !== null && passesIncomeCandidacyGuards(signal)) signals.push(signal);
     }
   }
 
-  return signals;
+  return rankBySignificance(signals);
+}
+
+/** Case-insensitive substring match against the bank's own savings-automation
+ *  vocabulary (round-ups, savings pots) — see `SAVINGS_AUTOMATION_MERCHANT_PATTERNS`.
+ *  `key` is already the normalised (lowercased, punctuation-collapsed)
+ *  merchant key from `groupByMerchant`, so no re-normalisation is needed here. */
+function isSavingsAutomationMerchant(normalisedKey: string): boolean {
+  return SAVINGS_AUTOMATION_MERCHANT_PATTERNS.some((pattern) => pattern.test(normalisedKey));
+}
+
+/** GUARD 2(a) applied at the signal level: below-floor median never
+ *  qualifies as income candidacy, regardless of which pass produced it. */
+function passesIncomeCandidacyGuards(signal: IncomeSignal): boolean {
+  return signal.medianAmount >= INCOME_MIN_MEDIAN;
+}
+
+/**
+ * PASS 1 (cadence-first): try every candidate cadence's `longestInToleranceRun`
+ * over the WHOLE credit set (sorted by date, amount ignored), and keep the
+ * best-qualifying run — "qualifying" meaning it clears that cadence's own
+ * `MIN_OCCURRENCES` floor. When more than one cadence qualifies, the longest
+ * run wins (most evidence); a tie is broken by preferring the cadence
+ * `classifyCadence` would have picked from the run's own median gap, which
+ * keeps the choice deterministic without adding a second scoring pass.
+ * Returns `null` when no cadence produces a qualifying run at all — the
+ * signal for "fall back to amount-clustering" (PASS 2).
+ */
+function detectCadenceFirstSignal(
+  credits: readonly IncomeTransaction[],
+  label: string,
+): IncomeSignal | null {
+  const sortedByDate = [...credits].sort((a, b) => toMs(a.date) - toMs(b.date));
+  const cadences: IncomeCadence[] = ['weekly', 'fortnightly', 'four-weekly', 'monthly'];
+  // The cadence `classifyCadence` would pick from the WHOLE group's own median
+  // gap — consulted only to break ties between cadences whose tolerance bands
+  // overlap (e.g. a ~30-day gap sits inside both four-weekly's and monthly's
+  // RUN_TOLERANCE_DAYS band, so both can produce a same-length qualifying
+  // run). Using the group's natural median-gap cadence as the tiebreaker
+  // keeps the choice deterministic and matches what a human would call this
+  // pattern, without adding a second scoring pass over the runs themselves.
+  const naturalCadence = classifyCadence(medianGapOf(sortedByDate));
+
+  let bestRun: IncomeTransaction[] | null = null;
+  let bestCadence: IncomeCadence | null = null;
+
+  for (const cadence of cadences) {
+    const run = longestInToleranceRun(sortedByDate, cadence);
+    if (run.length < MIN_OCCURRENCES[cadence]) continue;
+    const isLonger = bestRun === null || run.length > bestRun.length;
+    const isTieButMoreNatural =
+      bestRun !== null && run.length === bestRun.length && cadence === naturalCadence;
+    if (isLonger || isTieButMoreNatural) {
+      bestRun = run;
+      bestCadence = cadence;
+    }
+  }
+
+  if (bestRun === null || bestCadence === null) return null;
+  return buildSignalFromRun(bestRun, bestCadence, label);
+}
+
+/** Median date-gap (calendar days) across a date-sorted credit list — the
+ *  same computation `buildSignalForCluster` does inline, extracted so
+ *  `detectCadenceFirstSignal`'s tiebreak can reuse it without duplicating the
+ *  gap-collection loop. */
+function medianGapOf(sortedByDate: readonly IncomeTransaction[]): number {
+  if (sortedByDate.length < 2) return 0;
+  const gaps: number[] = [];
+  for (let i = 1; i < sortedByDate.length; i += 1) {
+    gaps.push(
+      calendarDaysBetween(
+        (sortedByDate[i - 1] as IncomeTransaction).date,
+        (sortedByDate[i] as IncomeTransaction).date,
+      ),
+    );
+  }
+  return median([...gaps].sort((a, b) => a - b));
+}
+
+/** Build a signal directly from an already-qualifying date-cadence run (PASS
+ *  1) — amount variance across the run is a CONFIDENCE signal only, handled
+ *  entirely by `computeConfidence`; it is never grounds to exclude or split
+ *  the run. Mirrors the tail half of `buildSignalForCluster` (median amount +
+ *  confidence + shape), just skipping that function's own amount-clustering
+ *  and per-cluster cadence re-detection, since PASS 1 already has both. */
+function buildSignalFromRun(
+  run: readonly IncomeTransaction[],
+  cadence: IncomeCadence,
+  label: string,
+): IncomeSignal | null {
+  const occurrences = run.length;
+  const amounts = run.map((t) => t.amount).sort((a, b) => a - b);
+  const medianAmount = median(amounts);
+  const lastSeenISO = (run[run.length - 1] as IncomeTransaction).date;
+  const confidence = computeConfidence(run, cadence, occurrences);
+
+  return {
+    merchant: label,
+    cadence,
+    medianAmount,
+    occurrences,
+    lastSeenISO,
+    anchorISO: lastSeenISO,
+    confidence,
+  };
+}
+
+/**
+ * Rank OFFERED signals by significance = median amount, largest first — real
+ * pay is virtually always a materially larger sum than any noise that slips
+ * past the guards above, so ordering by amount (rather than by occurrence
+ * count, which round-up-style noise can win on sheer frequency) ensures a
+ * caller that takes `signals[0]` as "the" strongest candidate (see
+ * `addStatementAsHistory`'s `incomeSignal = signals[0]` in store.ts) always
+ * gets the real income, never the highest-frequency noise. Stable for equal
+ * medians (JS `Array.sort` is a stable sort).
+ */
+function rankBySignificance(signals: readonly IncomeSignal[]): IncomeSignal[] {
+  return [...signals].sort((a, b) => b.medianAmount - a.medianAmount);
 }
 
 function groupByMerchant(transactions: readonly IncomeTransaction[]): Group[] {

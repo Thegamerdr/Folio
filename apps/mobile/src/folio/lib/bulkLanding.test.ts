@@ -53,6 +53,67 @@ describe('bulkSummaryLine', () => {
     };
     expect(bulkSummaryLine(summary)).toBe('Found 3 transactions · £0 in / £10 out');
   });
+
+  // ---------------------------------------------------------------------------
+  // History-trim honesty (task: HISTORY TRIM HONESTY) — the trim sentence only
+  // appears when something was actually dropped, and never fires on the
+  // default/omitted-argument call sites the pre-add preview screen uses.
+  // ---------------------------------------------------------------------------
+  it('says nothing about trimming when droppedCount is omitted', () => {
+    const summary: AddStatementAsHistoryResult = {
+      added: 5,
+      dateRange: null,
+      totalInPence: 100,
+      totalOutPence: 0,
+    };
+    expect(bulkSummaryLine(summary)).toBe('Found 5 transactions · £1 in / £0 out');
+  });
+
+  it('says nothing about trimming when droppedCount is explicitly 0', () => {
+    const summary: AddStatementAsHistoryResult = {
+      added: 5,
+      dateRange: null,
+      totalInPence: 100,
+      totalOutPence: 0,
+    };
+    expect(bulkSummaryLine(summary, 0)).toBe('Found 5 transactions · £1 in / £0 out');
+  });
+
+  it('appends the trim sentence, plural, when droppedCount is positive', () => {
+    const summary: AddStatementAsHistoryResult = {
+      added: 50,
+      dateRange: null,
+      totalInPence: 100,
+      totalOutPence: 0,
+    };
+    expect(bulkSummaryLine(summary, 12)).toBe(
+      'Found 50 transactions · £1 in / £0 out · 12 older items trimmed to keep things fast — your export keeps everything',
+    );
+  });
+
+  it('uses singular "item" when exactly one row was trimmed', () => {
+    const summary: AddStatementAsHistoryResult = {
+      added: 50,
+      dateRange: null,
+      totalInPence: 100,
+      totalOutPence: 0,
+    };
+    expect(bulkSummaryLine(summary, 1)).toContain('1 older item trimmed');
+    expect(bulkSummaryLine(summary, 1)).not.toContain('1 older items trimmed');
+  });
+
+  it('reads the trim delta straight off a post-add AddStatementAsHistoryResult', () => {
+    const postAdd: AddStatementAsHistoryResult = {
+      added: 10,
+      dateRange: { fromISO: '2026-06-01', toISO: '2026-06-10' },
+      totalInPence: 0,
+      totalOutPence: 500,
+      droppedTransactionCount: 8,
+    };
+    expect(bulkSummaryLine(postAdd, postAdd.droppedTransactionCount ?? 0)).toContain(
+      '8 older items trimmed to keep things fast — your export keeps everything',
+    );
+  });
 });
 
 describe('nextBulkLandingOffer', () => {

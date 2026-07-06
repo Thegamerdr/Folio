@@ -1884,6 +1884,15 @@ export type AddStatementAsHistoryResult = StatementSummary & {
   /** Present only when the caller supplied a closing balance alongside the candidates (i.e. the
    *  reader actually returned one) — never invented here. */
   closingBalanceOffer?: StatementClosingBalanceOffer;
+  /** How many OLDER transactions THIS import caused `TRANSACTION_CAP` retention to evict — the
+   *  delta of `droppedTransactionCount` across this call, never the store's running lifetime total
+   *  (see `bulkSummaryLine`'s doc for why that distinction matters). `0`/absent when this import
+   *  didn't push the ledger over the cap, or for a pre-add preview summary that hasn't landed yet
+   *  (`buildStatementSummary` alone never sets this field — only `addStatementAsHistory`, which
+   *  actually performs the write, can know what it evicted). Task: HISTORY TRIM HONESTY — surfaced
+   *  so the bulk-landing summary can be honest about a big import trimming older on-device history,
+   *  never silent. */
+  droppedTransactionCount?: number;
 };
 
 /** Bulk-land a whole statement's candidates as history in ONE user-confirmed action (task: BULK
@@ -1918,13 +1927,15 @@ export function addStatementAsHistory(
   closingBalance?: { amount: number; asOfISO: string },
 ): AddStatementAsHistoryResult {
   const summary = buildStatementSummary(candidates);
-  if (candidates.length === 0) return summary;
+  if (candidates.length === 0) return { ...summary, droppedTransactionCount: 0 };
 
+  const droppedBeforeAdd = getState().droppedTransactionCount ?? 0;
   addTransactionsBatch(candidates.map(candidateToTransactionDraft));
   syncHistoryCycles();
 
   const stateAfterAdd = getState();
   const overspent = isOverspentLanding(stateAfterAdd);
+  const droppedByThisImport = (stateAfterAdd.droppedTransactionCount ?? 0) - droppedBeforeAdd;
 
   // Same precedence ordering as ReviewScreen.tsx's onAdd (income > bill > drift > annual, gated off
   // entirely when the landing is overspent) — computed here for parity even though only the income
@@ -1951,7 +1962,10 @@ export function addStatementAsHistory(
     );
   }
 
-  const result: AddStatementAsHistoryResult = { ...summary };
+  const result: AddStatementAsHistoryResult = {
+    ...summary,
+    droppedTransactionCount: droppedByThisImport,
+  };
   const strongestIncomeSignal = incomeSignals[0];
   if (strongestIncomeSignal !== undefined) result.incomeSignal = strongestIncomeSignal;
   if (closingBalance !== undefined) {

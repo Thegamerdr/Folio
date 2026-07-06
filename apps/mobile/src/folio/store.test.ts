@@ -2095,7 +2095,13 @@ describe('addStatementAsHistory', () => {
     const before = getState().transactions.length;
     const result = addStatementAsHistory([]);
     expect(getState().transactions.length).toBe(before);
-    expect(result).toEqual({ added: 0, dateRange: null, totalInPence: 0, totalOutPence: 0 });
+    expect(result).toEqual({
+      added: 0,
+      dateRange: null,
+      totalInPence: 0,
+      totalOutPence: 0,
+      droppedTransactionCount: 0,
+    });
   });
 
   it('lands every candidate as a transaction, signed amount verbatim', () => {
@@ -2250,6 +2256,46 @@ describe('addStatementAsHistory', () => {
       candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' }),
     ]);
     expect(withoutOffer.closingBalanceOffer).toBeUndefined();
+  });
+
+  // ---------------------------------------------------------------------------
+  // droppedTransactionCount — task: HISTORY TRIM HONESTY. Reports the PER-IMPORT
+  // delta this call caused, never the store's running lifetime total.
+  // ---------------------------------------------------------------------------
+  it('reports droppedTransactionCount 0 when the import does not push the ledger over the cap', () => {
+    setPartial({ transactions: [], droppedTransactionCount: 0 });
+    const result = addStatementAsHistory([
+      candidate({ merchant: 'Tesco', amount: -10, date: '2026-03-03' }),
+    ]);
+    expect(result.droppedTransactionCount).toBe(0);
+    expect(getState().droppedTransactionCount).toBe(0);
+  });
+
+  it('reports the PER-IMPORT eviction delta, not the ledger-wide lifetime total', () => {
+    // Seed the ledger already carrying a prior lifetime drop count, so this test proves the
+    // returned number is this call's OWN delta, not `getState().droppedTransactionCount` verbatim.
+    setPartial({
+      transactions: Array.from({ length: 1995 }, (_, i) => ({
+        id: `seed-${i}`,
+        when: new Date(2020, 0, 1 + i).toISOString(),
+        merchant: `Seed${i}`,
+        amount: -1,
+        category: 'other' as const,
+        source: 'manual' as const,
+      })),
+      droppedTransactionCount: 37, // some unrelated prior lifetime total
+    });
+    // 10 new rows pushes 1995+10=2005 over the 2000 cap -> evicts exactly 5.
+    const rows = Array.from({ length: 10 }, (_, i) =>
+      candidate({
+        merchant: `New${i}`,
+        amount: -1,
+        date: `2026-04-${String(i + 1).padStart(2, '0')}`,
+      }),
+    );
+    const result = addStatementAsHistory(rows);
+    expect(result.droppedTransactionCount).toBe(5); // this import's own delta
+    expect(getState().droppedTransactionCount).toBe(42); // 37 prior + 5 new — lifetime total unaffected
   });
 
   it('matches the real Monzo-page fixture end to end (14 rows, income category correct, totals honest)', () => {
