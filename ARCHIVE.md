@@ -143,6 +143,51 @@ Verification: `./node_modules/.bin/tsc -b apps/mobile --pretty false` → zero e
 failure is `folio/copy/sourceVoiceLint.test.ts` (new file, see below) correctly catching a real
 pre-existing "try again" violation in `sheets/SignInSheet.tsx`, a file outside this lane's scope.
 
+## 07-06 night audit: duplicate recurring-charge detector retired (dead pair, DATA_INTELLIGENCE.md §6)
+
+Confirmed the second duplicate-detector pairing DATA_INTELLIGENCE.md flagged
+(§6, phase ⑤) was already fully dead — its only production consumer had zero
+import sites of its own, so both sides of the pair were provably unreachable
+from any live entry point (`apps/mobile/app/*`, `src/folio/**`, the widget task
+handler). Deleted outright, no move; recoverable via git history on
+`claude/melo-mvp`:
+
+- `apps/mobile/src/local/recurringChargeDetection.ts` (+ its
+  `recurringChargeDetection.test.ts`) — the simpler, monthly-only detector
+  (`MIN_MONTHLY_GAP_DAYS`/`MAX_MONTHLY_GAP_DAYS`, `detectRecurringChargeCandidate`).
+  Confirmed zero import sites anywhere outside its own test and its one
+  consumer below (`grep -rln "recurringChargeDetection" apps/mobile/src`).
+- `apps/mobile/src/surfaces/pressureMap/sheets/subCaught.tsx` — the
+  `recurringChargeDetection` consumer (`RecurringChargeCandidate` type +
+  `formatMinorAmount` from `localLedger.ts`). Part of the legacy
+  `pressureMap/sheets/*` tree left behind after `app/home.tsx` (the route that
+  used to reach it) was deleted in an earlier pass (see "Deleted — parallel
+  Melo surface removal" above). No barrel/index re-export of it exists
+  (`pressureMap/sheets/` has no `index.ts`), and no other file imports it.
+
+The live recurring-detection path is untouched and was never at risk:
+`apps/mobile/src/folio/lib/subSignals.ts`'s `detectRecurring` → `caughtSubs.ts`
+/ `caughtBills.ts` / `caughtIncome.ts` / `caughtAnnual.ts` / `caughtDrift.ts` →
+`SubCaughtSheet.tsx` / `BillCaughtSheet.tsx` / `IncomeCaughtSheet.tsx` /
+`AnnualCaughtSheet.tsx` / `DriftCaughtSheet.tsx` (all live, wired off
+`app/index.tsx` → `FolioShell` → `VisualizerScreen`/`ReviewScreen`). This is
+the detector DATA_INTELLIGENCE.md §5/§6 already confirmed as the one true
+implementation — the deleted pair was pure tech debt, never extended.
+
+Verification: `./node_modules/.bin/tsc -b apps/mobile --pretty false` → zero
+errors. `./node_modules/.bin/vitest run apps/mobile` → 120 files, 1335 tests,
+all green (down from 1344 — the 9-test delta is `recurringChargeDetection.test.ts`
+itself, deleted alongside its subject).
+`./node_modules/.bin/vitest run packages/melo-engine` → 18 files, 357 tests,
+unchanged (package untouched).
+
+Everything else DATA_INTELLIGENCE.md flagged as a "second stack"
+(`melo-engine`, `finance-engine`, `today-engine`, `calendar-engine`,
+`import-engine`, `storage`, plus the much larger `mobileShell.tsx`/legacy
+`pressureMap/*` surface tree discovered live tonight) was **not** touched —
+see `CONSOLIDATION.md` (new, this pass) for the full import-map evidence on
+why each of those stayed reference-only rather than deleted or merged.
+
 ## Added — `folio/copy/sourceVoiceLint.test.ts`
 
 New source-level voice-lint test covering the 5 shipped-today user-facing files (`ui/Toast.tsx`,

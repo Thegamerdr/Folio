@@ -62,7 +62,7 @@ bottom — append one line per shipped phase.
 - [x] Phase ⑦ chunked long-export reading (shipped + OTA 07-06, spillover/keys/scope hardened)
       ranging or sequential month-window reads with progress UI; keep the 500KB single-shot
       pre-flight as the fallback message. (Real test PDFs in .claude-session/, git-excluded.)
-- [ ] Phase ⑧ engine-stack consolidation: multiple parallel engine stacks (melo-engine used
+- [x] Phase ⑧ consolidation (shipped 07-06: dead detector pair archived, CONSOLIDATION.md maps the rest)
       ONLY by notifications; finance/today/calendar/import-engine packages; folio/lib/*) —
       produce a consolidation plan doc + execute the safe parts (retire dead code paths, one
       source of truth per formula). Careful: notifyState imports melo-engine planNotification.
