@@ -131,7 +131,30 @@ export const copy = {
     paused: 'Paused',
     caught: {
       head: (name: string): string => `Folio spotted **${name}.**`,
-      body: 'Looks like a monthly charge. Add it to subscriptions so Folio can plan around it?',
+      // Cadence-aware (DATA_INTELLIGENCE.md phase ⑤(A) "weekly-cadence unlock") — mirrors
+      // income.caught.body's cadence param exactly so the two sibling sheets read consistently.
+      // Defaults to 'monthly' when omitted so every existing call site (and its copy/fixture
+      // tests) keeps its exact prior string, byte-for-byte.
+      body: (cadence: string = 'monthly'): string =>
+        `Looks like a ${cadence} charge. Add it to subscriptions so Folio can plan around it?`,
+    },
+  },
+
+  // ## Bills (bill-signal detection, DATA_INTELLIGENCE.md phase ⑤(B))
+  // Same catalog write target as subs (`setSubs` — see lib/caughtBills.ts's module-header decision
+  // note: there is no separate bill entity in the live spine, so a caught bill also becomes a Sub).
+  // Distinct copy voice from subs.caught: "Melo noticed X going out" (money leaving) vs "Folio
+  // spotted X" (a subscription-shaped charge) — the two sheets read as siblings, not duplicates.
+  bills: {
+    empty: {
+      head: 'No bills **caught yet.**',
+      body: 'Melo will spot recurring money going out as you add statements.',
+      cta: 'Not yet',
+    },
+    caught: {
+      head: (merchant: string): string => `Melo noticed **${merchant}** going out.`,
+      body: (cadence: string): string =>
+        `Looks like a ${cadence} bill. Add it so Folio can plan around it?`,
     },
   },
 

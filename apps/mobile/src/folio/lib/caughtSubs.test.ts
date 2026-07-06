@@ -90,9 +90,9 @@ describe('findCaughtSubs — catches real, non-catalog recurring charges', () =>
 });
 
 // ---------------------------------------------------------------------------
-// Threshold + scope — only CONFIRMED monthly series surface to this sheet.
+// Threshold + scope — only CONFIRMED series in SHEET_CADENCES surface here.
 // ---------------------------------------------------------------------------
-describe('findCaughtSubs — only confirmed monthly series surface', () => {
+describe('findCaughtSubs — only confirmed in-scope-cadence series surface', () => {
   it('2 monthly charges (below the ≥3 monthly minimum) → not caught', () => {
     const txns = monthly('Sound+ Studio', 6.99, '2026-04-01', 2);
     expect(findCaughtSubs(txns, [])).toHaveLength(0);
@@ -106,15 +106,49 @@ describe('findCaughtSubs — only confirmed monthly series surface', () => {
     expect(findCaughtSubs([], ['Spotify'])).toEqual([]);
   });
 
-  it("a non-monthly confirmed series (weekly) is out of this sheet's monthly framing", () => {
-    // 8 weekly charges → a confirmed WEEKLY series, not surfaced here.
+  // DATA_INTELLIGENCE.md phase ⑤(A) "weekly-cadence unlock": weekly/fortnightly confirmed series
+  // were previously thrown away by SHEET_CADENCE hardcoding 'monthly'. They must now surface, tagged
+  // with their real cadence (never re-labelled monthly).
+  it('a confirmed WEEKLY series (≥8 occurrences) → caught, tagged cadence: weekly', () => {
     const rows: Transaction[] = [];
     const start = new Date('2026-01-05T00:00:00Z');
     for (let i = 0; i < 8; i += 1) {
       const d = new Date(start.getTime() + i * 7 * 86_400_000);
       rows.push(spend('Coffee Club', 3.5, d.toISOString().slice(0, 10)));
     }
-    expect(byName(findCaughtSubs(rows, []), 'Coffee Club')).toBeUndefined();
+    const sig = byName(findCaughtSubs(rows, []), 'Coffee Club');
+    expect(sig).toBeDefined();
+    expect(sig?.cadence).toBe('weekly');
+  });
+
+  it('a confirmed FORTNIGHTLY series (≥6 occurrences) → caught, tagged cadence: fortnightly', () => {
+    const rows: Transaction[] = [];
+    const start = new Date('2026-01-05T00:00:00Z');
+    for (let i = 0; i < 6; i += 1) {
+      const d = new Date(start.getTime() + i * 14 * 86_400_000);
+      rows.push(spend('Gardener', 20, d.toISOString().slice(0, 10)));
+    }
+    const sig = byName(findCaughtSubs(rows, []), 'Gardener');
+    expect(sig).toBeDefined();
+    expect(sig?.cadence).toBe('fortnightly');
+  });
+
+  it('a confirmed monthly series is tagged cadence: monthly', () => {
+    const txns = monthly('Sound+ Studio', 6.99, '2026-04-01', 3);
+    const sig = byName(findCaughtSubs(txns, []), 'Sound+ Studio');
+    expect(sig?.cadence).toBe('monthly');
+  });
+
+  it("a confirmed QUARTERLY series stays out of this sheet's cadence scope", () => {
+    // 4 quarterly charges (≥4 is the engine's own quarterly minimum) → confirmed series, but
+    // quarterly/yearly are a different mental bucket (see SHEET_CADENCES doc) — not surfaced here.
+    const rows: Transaction[] = [];
+    const start = new Date('2026-01-05T00:00:00Z');
+    for (let i = 0; i < 4; i += 1) {
+      const d = new Date(start.getTime() + i * 91 * 86_400_000);
+      rows.push(spend('Insurance Co', 120, d.toISOString().slice(0, 10)));
+    }
+    expect(byName(findCaughtSubs(rows, []), 'Insurance Co')).toBeUndefined();
   });
 });
 
@@ -136,7 +170,15 @@ describe('findCaughtSubs — purity + honesty guarantee', () => {
     const sig = byName(caught, 'Sound+ Studio');
     expect(sig).toBeDefined();
 
-    const allowed = new Set(['name', 'amount', 'seen', 'lastDate', 'category']);
+    const allowed = new Set([
+      'name',
+      'amount',
+      'seen',
+      'lastDate',
+      'lastDateIso',
+      'category',
+      'cadence',
+    ]);
     for (const k of Object.keys(sig as object)) {
       expect(allowed.has(k)).toBe(true);
     }

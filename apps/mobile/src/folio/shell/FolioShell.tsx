@@ -85,6 +85,7 @@ import { AddPlanSheet } from '@/folio/sheets/AddPlanSheet';
 import { AddDebtSheet } from '@/folio/sheets/AddDebtSheet';
 import { LogPaymentSheet } from '@/folio/sheets/LogPaymentSheet';
 import { HouseholdSetupSheet } from '@/folio/sheets/HouseholdSetupSheet';
+import { BillCaughtSheet } from '@/folio/sheets/BillCaughtSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
 import { useAppStore } from '@/folio/store';
@@ -405,6 +406,7 @@ export function FolioShell() {
       {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
       {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
       {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
+      {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
       {sheet === 'add-event' && (
         <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
       )}
@@ -487,6 +489,7 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'log-spend',
   'sub-caught',
   'income-caught',
+  'bill-caught',
   'add-event',
   'calendar-export',
   'calendar-connect',
@@ -702,6 +705,7 @@ const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {
   'household-setup': 'Household',
   'sub-caught': 'A recurring charge',
   'income-caught': 'A recurring payment',
+  'bill-caught': 'A recurring bill',
   'add-event': 'Add to your calendar',
   'calendar-export': 'Export your calendar',
   'calendar-connect': 'Connect your calendar',

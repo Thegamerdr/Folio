@@ -96,6 +96,7 @@ import {
 } from '@/folio/store';
 import { reviewDateToIso, reviewMatch, reviewMatchSubline } from '@/folio/lib/reviewDedupe';
 import { findCaughtIncome } from '@/folio/lib/caughtIncome';
+import { findCaughtBills } from '@/folio/lib/caughtBills';
 import type { Nav } from '@/folio/types';
 
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
@@ -474,14 +475,35 @@ export function ReviewScreen({
     // sheet after the stamp's dwell, it never writes an IncomeSource itself.
     // No-op when nothing qualifies, so the ordinary Today dwell-route is
     // unaffected for the common case.
+    //
+    // Bill-signal check (DATA_INTELLIGENCE.md phase ⑤(B)) runs the same way, but income takes
+    // precedence when BOTH fire on the same landing — only one caught-sheet opens per landing; a
+    // qualifying bill simply re-evaluates fresh next time a batch lands (see VisualizerScreen.commit
+    // for the identical ordering + rationale).
     const stateAfterAdd = getState();
-    const signals = findCaughtIncome(
+    const incomeSignals = findCaughtIncome(
       stateAfterAdd.transactions,
       stateAfterAdd.incomeSources ?? [],
       stateAfterAdd.dismissedIncomeSignals ?? [],
     );
+    const billSignals =
+      incomeSignals.length > 0
+        ? []
+        : findCaughtBills(
+            stateAfterAdd.transactions,
+            stateAfterAdd.subs.map((s) => s.name),
+            stateAfterAdd.dismissedBillSignals ?? [],
+          );
     dwellRef.current = setTimeout(
-      () => (signals.length > 0 ? nav.openSheet('income-caught') : nav.go('today')),
+      () => {
+        if (incomeSignals.length > 0) {
+          nav.openSheet('income-caught');
+        } else if (billSignals.length > 0) {
+          nav.openSheet('bill-caught');
+        } else {
+          nav.go('today');
+        }
+      },
       reduceMotion ? 0 : ADD_DWELL_MS,
     );
   }

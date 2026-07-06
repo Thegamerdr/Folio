@@ -72,6 +72,7 @@ export type SheetId =
   | 'household-setup'
   | 'sub-caught'
   | 'income-caught'
+  | 'bill-caught'
   | 'add-event'
   | 'calendar-export'
   | 'calendar-connect'

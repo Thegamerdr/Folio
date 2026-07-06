@@ -97,6 +97,7 @@ import {
   type ColumnIssue,
 } from '@/folio/lib/importSheet';
 import { findCaughtIncome } from '@/folio/lib/caughtIncome';
+import { findCaughtBills } from '@/folio/lib/caughtBills';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -366,14 +367,28 @@ export function VisualizerScreen({
     // detector. Propose-and-confirm only: this opens the sheet, it never writes
     // an IncomeSource itself. No-op when nothing qualifies (no signal, already
     // declared, or already dismissed) — the "Add all" flow never blocks on it.
+    //
+    // Bill-signal check (DATA_INTELLIGENCE.md phase ⑤(B)) runs the same way, but income takes
+    // precedence when BOTH fire on the same landing: only one caught-sheet opens per landing (never
+    // stack two), and a qualifying bill simply waits — it re-evaluates fresh next time a batch lands,
+    // so nothing is lost, just deferred. Simplest honest ordering; documented here deliberately.
     const state = getState();
-    const signals = findCaughtIncome(
+    const incomeSignals = findCaughtIncome(
       state.transactions,
       state.incomeSources ?? [],
       state.dismissedIncomeSignals ?? [],
     );
-    if (signals.length > 0) {
+    if (incomeSignals.length > 0) {
       nav.openSheet('income-caught');
+      return;
+    }
+    const billSignals = findCaughtBills(
+      state.transactions,
+      state.subs.map((s) => s.name),
+      state.dismissedBillSignals ?? [],
+    );
+    if (billSignals.length > 0) {
+      nav.openSheet('bill-caught');
       return;
     }
     nav.go('today-after');

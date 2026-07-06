@@ -19,6 +19,9 @@
 //               the sheet closes); removeSub is NOT called here. "Not this one" writes nothing.
 // @copy         FROZEN — never claims certainty. subs.caught.head / subs.caught.body verbatim from
 //               COPY_DECK via '@/folio/copy/copy'; the **name.** accent renders terracotta + upright.
+//               subs.caught.body is cadence-parameterised (DATA_INTELLIGENCE.md phase ⑤(A) — "weekly-
+//               cadence unlock") so a weekly/fortnightly catch reads "a weekly/fortnightly charge"
+//               instead of always claiming monthly; the confirm mechanics are unchanged.
 // @tokens       --surface (sheet body) · --inset (candidate card) · --hairline (card border + divider)
 //               · --accent (t.calm — accent name, amount, confirm fill) · --ink / --muted (text)
 // @motion       sheet-rise + scrim-in (inherited from Sheet) · gentle scale-in on the candidate card
@@ -58,6 +61,8 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { setSubs, useAppStore, type Sub } from '@/folio/store';
 import { useCaughtSubs } from '@/folio/lib/caughtSubs';
+import { nextRenewalDaysAwayFrom } from '@/folio/lib/renewalMath';
+import type { Cadence } from '@/folio/lib/subSignals';
 
 // ---------------------------------------------------------------------------
 // Candidate — the recurring charge the detector flags.
@@ -65,13 +70,19 @@ import { useCaughtSubs } from '@/folio/lib/caughtSubs';
 
 // The detector's output. `amount` is whole-or-fractional £ (mirrors the web candidate's `amount`);
 // the RN Sub it becomes stores this as `cost`. `seen` = how many cycles it has appeared; `lastDate`
-// is the human last-seen label; `category` is carried for the (future) Sub categorisation.
+// is the human last-seen label; `category` is carried for the (future) Sub categorisation. `cadence`
+// (DATA_INTELLIGENCE.md phase ⑤(A)) is the detected recurrence — weekly/fortnightly/monthly — used
+// only to pick cadence-aware copy, never to change the confirm mechanics.
 export type SubCandidate = {
   name: string;
   amount: number;
   seen: number; // how many cycles seen
   lastDate: string;
+  /** ISO `YYYY-MM-DD` of the last confirmed charge, unformatted — see caughtSubs.ts's
+   *  CaughtSubCandidate for why this is carried alongside the display `lastDate` label. */
+  lastDateIso: string;
   category: string;
+  cadence: Cadence;
 };
 
 // The web `formatGBP` rounds to whole pounds (maximumFractionDigits: 0), so £6.99 shows as "£7".
@@ -80,6 +91,28 @@ export type SubCandidate = {
 function candidateAmountLabel(amount: number): string {
   return magnitude(Math.round(amount) * 100);
 }
+
+// Cadence display label — plain English for the hedge copy + "Seen N <unit> in a row" meta line.
+// Mirrors IncomeCaughtSheet's CADENCE_LABEL convention (that sheet's sibling engine, `Cadence` here
+// vs `IncomeCadence` there — different unions, same idea) so the two sheets read consistently.
+const CADENCE_LABEL: Record<Cadence, string> = {
+  weekly: 'weekly',
+  fortnightly: 'fortnightly',
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+  yearly: 'yearly',
+};
+
+// The unit word for "Seen N <unit> in a row" — weekly/fortnightly count in weeks/fortnights, not
+// months, so a weekly-charged sub doesn't misreport its own recurrence in the very card that caught
+// it. Falls back to 'months' for quarterly/yearly (out of SHEET_CADENCES today, kept for exhaustiveness).
+const CADENCE_UNIT: Record<Cadence, string> = {
+  weekly: 'weeks',
+  fortnightly: 'fortnights',
+  monthly: 'months',
+  quarterly: 'quarters',
+  yearly: 'years',
+};
 
 // ---------------------------------------------------------------------------
 // Public API — self-hosting sheet (mirrors EditItemSheet / LogSpendSheet): owns its own Sheet host
@@ -220,12 +253,19 @@ function SubCaughtBody({
         (existing) => existing.name.trim().toLowerCase() === candidate.name.trim().toLowerCase(),
       );
       if (!already) {
+        const todayIso = new Date().toISOString().slice(0, 10);
         const newSub: Sub = {
           name: candidate.name,
           cost: candidate.amount,
-          // Sensible first-cycle defaults — the detector flags by recurrence, not by renewal date,
-          // so the renewal/usage fields start neutral and the engine refines them later.
-          nextRenewalDaysAway: 30,
+          // Honest renewal estimate derived from the SAME facts the detector caught (cadence +
+          // last-charged date) — never a hardcoded constant (lib/renewalMath.ts; see that module's
+          // header for the money-safety bug this replaced). Usage fields start neutral; the engine
+          // refines them later.
+          nextRenewalDaysAway: nextRenewalDaysAwayFrom(
+            candidate.cadence,
+            candidate.lastDateIso,
+            todayIso,
+          ),
           lastUsedDaysAgo: 0,
           usesPerMonth: 0,
         };
@@ -263,14 +303,18 @@ function SubCaughtBody({
           <Text style={s.cardAmount}>{candidateAmountLabel(candidate.amount)}</Text>
         </View>
         <View style={s.cardMetaRow}>
-          <Text style={s.cardMeta}>Seen {candidate.seen} months in a row</Text>
+          <Text style={s.cardMeta}>
+            Seen {candidate.seen} {CADENCE_UNIT[candidate.cadence]} in a row
+          </Text>
           <View style={s.divider} />
           <Text style={s.cardMeta}>Last: {candidate.lastDate}</Text>
         </View>
       </Animated.View>
 
-      {/* Hedged explanation — never "is", always "Looks like" (subs.caught.body, FROZEN). */}
-      <Text style={s.hedge}>{copy.subs.caught.body}</Text>
+      {/* Hedged explanation — never "is", always "Looks like" (subs.caught.body, FROZEN deck string,
+          now cadence-parameterised per DATA_INTELLIGENCE.md phase ⑤(A) — same mechanism as
+          income.caught.body's cadence param, confirm mechanics untouched). */}
+      <Text style={s.hedge}>{copy.subs.caught.body(CADENCE_LABEL[candidate.cadence])}</Text>
 
       {/* Error path — honest, non-dismissing. Only after a failed add. */}
       {status === 'error' ? (

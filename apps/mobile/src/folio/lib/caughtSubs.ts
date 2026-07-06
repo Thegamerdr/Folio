@@ -38,14 +38,26 @@ export type CaughtSubCandidate = {
   amount: number;
   seen: number;
   lastDate: string;
+  /** ISO `YYYY-MM-DD` of the last confirmed charge (`RecurringSignal.lastSeen`, unformatted).
+   *  Carried alongside the human `lastDate` label so the confirm path can derive an honest
+   *  `nextRenewalDaysAway` from the real cadence + last-charge date (lib/renewalMath.ts) instead
+   *  of a hardcoded constant — `lastDate` alone ("12 Jun") is display-only and not parseable. */
+  lastDateIso: string;
   category: string;
+  /** The detected cadence (DATA_INTELLIGENCE.md phase ⑤ "weekly-cadence unlock") —
+   *  a payment fact, carried so the sheet can render cadence-aware copy ("Looks
+   *  like a weekly charge") instead of always assuming monthly. */
+  cadence: Cadence;
 };
 
-// The cadence each catalog-equivalent sheet card describes as "monthly". The
-// SubCaught copy ("Looks like a monthly charge") is monthly-framed, and the
-// store's `Sub` shape models a monthly renewal, so we surface monthly series.
-// Other cadences are real signals but out of scope for THIS sheet's framing.
-const SHEET_CADENCE: Cadence = 'monthly';
+// The cadences this sheet surfaces. Previously hardcoded to 'monthly' only —
+// DATA_INTELLIGENCE.md phase ⑤(A) "un-hardcode SHEET_CADENCE": `detectRecurring`
+// already classifies weekly/fortnightly confirmed series correctly, but they
+// were silently thrown away at this filter. Quarterly/yearly stay excluded —
+// a different mental bucket (annual renewals read more like a bill/subscription
+// review moment than a "spotted a recurring charge" catch, and the sheet's
+// copy/framing isn't built for that cadence yet).
+const SHEET_CADENCES: ReadonlySet<Cadence> = new Set<Cadence>(['weekly', 'fortnightly', 'monthly']);
 
 const MINOR = 100;
 
@@ -99,8 +111,10 @@ function toCandidate(signal: RecurringSignal): CaughtSubCandidate {
     amount: candidateAmountPounds(signal),
     seen: signal.occurrences,
     lastDate: shortDateLabel(signal.lastSeen),
+    lastDateIso: signal.lastSeen,
     // Neutral by construction — detection never classifies usage or value.
     category: 'other',
+    cadence: signal.cadence,
   };
 }
 
@@ -117,8 +131,9 @@ function toCharge(txn: Transaction): Charge {
 
 /**
  * Run the recurring-charge detector over the ledger and return the CONFIRMED
- * monthly series whose merchant is NOT already in the subscription catalog,
- * mapped to the SubCaught candidate shape.
+ * series (weekly/fortnightly/monthly — see SHEET_CADENCES) whose merchant is
+ * NOT already in the subscription catalog, mapped to the SubCaught candidate
+ * shape.
  *
  * Pure + deterministic: never mutates the inputs, same inputs → same output.
  * Payment facts only (see module header) — no usage/value/cancel/decay.
@@ -142,8 +157,8 @@ export function findCaughtSubs(
 
   return (
     signals
-      // Only confirmed series, only the monthly framing this sheet describes.
-      .filter((s) => s.status === 'series' && s.cadence === SHEET_CADENCE)
+      // Only confirmed series, only the cadences this sheet is framed for.
+      .filter((s) => s.status === 'series' && SHEET_CADENCES.has(s.cadence))
       // Drop anything already in the catalog (case/space-insensitive).
       .filter((s) => !known.has(normaliseName(s.merchant)))
       .map(toCandidate)

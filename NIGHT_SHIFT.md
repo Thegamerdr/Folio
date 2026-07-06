@@ -54,7 +54,7 @@ bottom — append one line per shipped phase.
       anchors → cycle boundaries → per-cycle aggregates feeding InsightsScreen month cards +
       CalendarScreen past months), batch-import API, lift the 200-txn cap for imported history
       (source-aware eviction or separate archive slice). Spec in DATA_INTELLIGENCE.md §backfill.
-- [ ] Phase ⑤ caught-bills + weekly-cadence unlock: mirror caughtSubs for BILLS, remove the
+- [x] Phase ⑤ caught-bills + weekly unlock (shipped + OTA 07-06, renewal-math hardened)
       monthly-only SHEET_CADENCE filter, confirm-sheet per the SubCaught/IncomeCaught pattern.
 - [ ] Phase ⑥ history-fed forecasts: irregular-mode income percentiles (p20-style floor),
       discretionary-spend baselines in projections, bill drift + income drift re-check loops
@@ -96,3 +96,5 @@ bottom — append one line per shipped phase.
 - Update memory (`C:\Users\User\.claude\projects\C--dev\memory\melo-blueprint-prototype.md`,
   the DI PROGRAM entry) when a phase ships, so even memory-only recovery works.
 - When ALL boxes are checked: final report to the owner, mark this file CLOSED at the top.
+- Transfer-type rent (person-to-person) detection coverage + amount-band pollution near sub tiers (⑤ discovery #2/#5) — ⑨.
+- Council-tax 10-month re-catch + annual-bill radar (⑤ discovery #3/#4) — folded into ⑥ scope.

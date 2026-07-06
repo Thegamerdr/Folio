@@ -26,6 +26,7 @@ import {
   borrowFromPot,
   clearReaderCandidates,
   clearReviewQueue,
+  dismissBillSignal,
   dismissIncomeSignal,
   editTransaction,
   enqueueReviewItems,
@@ -1315,6 +1316,36 @@ describe('dismissIncomeSignal', () => {
     dismissIncomeSignal('Alpha Co');
     dismissIncomeSignal('Beta Co');
     expect(getState().dismissedIncomeSignals).toEqual(['beta co', 'alpha co']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// dismissBillSignal — BillCaughtSheet's "Not this one" suppression list
+// (DATA_INTELLIGENCE.md phase ⑤(B); identical contract to dismissIncomeSignal).
+// ---------------------------------------------------------------------------
+describe('dismissBillSignal', () => {
+  it('records the merchant, normalised (trimmed + lowercased)', () => {
+    dismissBillSignal('  Octopus Energy  ');
+    expect(getState().dismissedBillSignals).toEqual(['octopus energy']);
+  });
+
+  it('is idempotent — a repeat call for the same merchant does not duplicate it', () => {
+    dismissBillSignal('Octopus Energy');
+    dismissBillSignal('octopus energy'); // same merchant, different case
+    expect(getState().dismissedBillSignals).toEqual(['octopus energy']);
+  });
+
+  it('prepends new dismissals so the most recent is first', () => {
+    dismissBillSignal('Council Tax');
+    dismissBillSignal('BT Broadband');
+    expect(getState().dismissedBillSignals).toEqual(['bt broadband', 'council tax']);
+  });
+
+  it('is independent of dismissedIncomeSignals — dismissing a bill does not touch income dismissals', () => {
+    dismissIncomeSignal('Stafflink Payroll');
+    dismissBillSignal('Octopus Energy');
+    expect(getState().dismissedIncomeSignals).toEqual(['stafflink payroll']);
+    expect(getState().dismissedBillSignals).toEqual(['octopus energy']);
   });
 });
 

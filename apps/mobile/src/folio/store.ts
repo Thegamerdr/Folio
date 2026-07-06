@@ -468,6 +468,14 @@ export type AppState = {
    *  `AppState` fixtures predating this field; `DEFAULTS`/`load()`/
    *  `resetToEmpty()` always populate it ([]). */
   dismissedIncomeSignals?: string[];
+  /** Bill-signal (`lib/caughtBills.ts`) merchants the user tapped "Not this one"
+   *  on in `BillCaughtSheet` — DATA_INTELLIGENCE.md phase ⑤(B). Recorded by
+   *  normalised merchant key so a future detection pass on the same merchant is
+   *  suppressed rather than nagging again, mirroring `dismissedIncomeSignals`'s
+   *  "dismissed once, quiet after that" contract exactly. Optional for shape
+   *  back-compat with hand-built `AppState` fixtures predating this field;
+   *  `DEFAULTS`/`load()`/`resetToEmpty()` always populate it ([]). */
+  dismissedBillSignals?: string[];
   /** Merchant→category memory (`lib/merchantMemory.ts`) — DATA_INTELLIGENCE.md
    *  phase ③. Keyed by normalised merchant (`normaliseMerchant`,
    *  `lib/subSignals.ts`); each entry is the user's most-recently-confirmed
@@ -716,6 +724,7 @@ const DEFAULTS: AppState = {
   // existing install) populates this list.
   incomeSources: [],
   dismissedIncomeSignals: [],
+  dismissedBillSignals: [],
   merchantCategories: DEFAULT_MERCHANT_CATEGORIES,
 };
 
@@ -970,6 +979,7 @@ function load(): AppState {
       timelineEvents: migrated.timelineEvents ?? DEFAULT_TIMELINE_EVENTS,
       incomeSources: migrated.incomeSources ?? DEFAULT_INCOME_SOURCES,
       dismissedIncomeSignals: migrated.dismissedIncomeSignals ?? [],
+      dismissedBillSignals: migrated.dismissedBillSignals ?? [],
       merchantCategories: migrated.merchantCategories ?? DEFAULT_MERCHANT_CATEGORIES,
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
@@ -1337,6 +1347,20 @@ export function dismissIncomeSignal(merchant: string) {
   const current = state.dismissedIncomeSignals ?? [];
   if (current.includes(key)) return;
   setPartial({ dismissedIncomeSignals: [key, ...current] });
+}
+
+/* ---------- Bill signals (`lib/caughtBills.ts`) — DATA_INTELLIGENCE.md phase ⑤(B) ---------- */
+
+/** Record a detected bill-signal merchant as dismissed (`BillCaughtSheet`'s
+ *  "Not this one"). A future detection pass over the same merchant is
+ *  suppressed rather than surfacing the sheet again — mirrors
+ *  `dismissIncomeSignal`'s "said no once, stays quiet" contract exactly.
+ *  Idempotent. */
+export function dismissBillSignal(merchant: string) {
+  const key = normaliseIncomeSignalKey(merchant);
+  const current = state.dismissedBillSignals ?? [];
+  if (current.includes(key)) return;
+  setPartial({ dismissedBillSignals: [key, ...current] });
 }
 
 /* ---------- Merchant→category memory (`lib/merchantMemory.ts`) ---------- */
@@ -2006,6 +2030,7 @@ export function resetToEmpty() {
     moneyMode: 'survival',
     bufferAmount: 100,
     dismissedIncomeSignals: [],
+    dismissedBillSignals: [],
     debts: [],
     household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
     plans: [],
