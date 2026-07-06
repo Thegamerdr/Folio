@@ -88,6 +88,37 @@ you can't afford it). One subscription covers a household.
 
 ---
 
+## 2b. PRICING STRUCTURE — one-time + metered (RECOMMENDED, owner-steered 2026-07-06)
+
+Owner's instinct: a one-time "buy the app" fee, keep free meaningful, paywall some features. The
+principle that makes it safe: **separate zero-marginal-cost software (ownable, one-time) from
+per-use cost (AI reads, live sync — must stay metered/recurring because the COST recurs).** A pure
+one-time fee with unlimited AI is an unbounded-cost trap; this split avoids it while giving the
+"own it forever" feeling.
+
+Three ways to hold the app:
+- **FREE** — safety + fit-free modes + debt-free date + on-device OCR + a small monthly AI-read
+  allowance. Genuinely valuable, the mission tier.
+- **FULL — one-time (~£29.99, "yours forever")** — unlocks ALL software features (multi-account,
+  full leaks/insights engine, goals + payoff-planner depth, every mode, cosmetics). Zero marginal
+  cost, so safe to sell once. AI reading = on-device OCR + a fair monthly allowance (e.g. 10/mo) so
+  an owner is never an unbounded AI liability.
+- **LIVE — optional light sub (~£2.99/mo) or consumable credit packs** — unlimited AI statement
+  reads + open-banking live sync. The ONLY genuinely-recurring-cost features, so the ONLY recurring
+  price. Most users never need it; power/daily users pay it happily. Open-banking aggregators charge
+  per-active-connection/mo (see OPEN_BANKING_PLAN.md), so live sync is inherently recurring-cost →
+  correctly a sub, not a one-time unlock.
+- **Optional all-in-one:** a single recurring "Plus" (= Full + Live bundled) for people who prefer
+  one sub over a one-time + add-on. Offer both doors; don't force the choice.
+
+Why it works: **recurring price attaches ONLY to recurring cost.** Sub-haters buy Full and own it.
+Free stays honest (split by cost, not crippled). The one unbounded cost (unlimited AI) sits behind
+the one light recurring gate. Billing: expo-iap already supports non-consumable (Full), subscription
+(Live/Plus), and consumables (credit packs) — no new plumbing.
+
+Supersedes the flat Plus/Pro-only framing in §2 (kept there for the feature-allocation detail —
+map those Plus features onto FULL, and the unlimited-AI/live items onto LIVE).
+
 ## 3. The two hard decisions (my recommendation, your call)
 
 ### Decision A — Where does debt help sit, free or paid?
@@ -152,12 +183,17 @@ Name this honestly: with these ethics, **subscription + cosmetics is the model**
 free-tier cost is capped (§4) and retention is real (§5).
 
 ## 7. Open questions for the owner
-1. Decision A (debt help free/paid) — recommend free-visibility + paid-depth. Confirm?
-2. Decision B (which modes free) — recommend fit-free/depth-paid, needs the mode-by-mode audit. Confirm?
-3. Free AI-read allowance number (2/mo? 3? 5?) — trades acquisition vs cost.
-4. Prices: keep £4.99/£8.99? Annual discount depth? (Blueprint had £39.99/£69.99/yr.)
-5. Is on-device OCR worth building as the free cheap path, or accept the AI-read cap alone?
-6. B2B2C — on the roadmap or explicitly parked?
+1. Decision A (debt help free/paid) — CONFIRMED 2026-07-06: free visibility + debt-free date; paid depth.
+2. Decision B (which modes free) — CONFIRMED: fit-free/depth-paid. Still needs the mode-by-mode audit
+   (which specific modes land free vs Full) — a build-time task, not a blocker.
+3. Structure — CONFIRMED direction: Free / Full (one-time) / Live (metered). Remaining numbers:
+   - FULL one-time price (~£29.99? higher/lower?).
+   - Free monthly AI-read allowance (2? 3? 5?) — acquisition vs cost.
+   - LIVE = light sub (~£2.99/mo) vs credit packs vs both.
+   - Keep an all-in-one recurring "Plus" (=Full+Live) door too, or one-time+add-on only?
+4. On-device OCR: build it as the free/owner cheap path (recommended — gives the unbuilt native OCR a
+   business purpose + caps AI cost), or rely on the AI-read allowance alone?
+5. B2B2C (employers/unions/charities) — roadmap or explicitly parked?
 
 ## 8. Status
 - Written 2026-07-06 from measured session costs + the doctrine. No code. Feeds the goals/paywall
