@@ -16,6 +16,9 @@ import type {
   CandidateMoneyItem,
   CandidateSource,
 } from '../folio/lib/importSheet';
+// Pure display-name cleaner (no RN/expo imports) — strips bank transaction-type codes + reference
+// junk from raw merchant strings so imported rows read like a human wrote them.
+import { cleanMerchantName } from '../folio/lib/merchantCleaner';
 
 /** Model-extracted candidates are tentative by definition — always the lowest confidence so the
  *  Review screen makes the user confirm each one. */
@@ -26,7 +29,17 @@ const READER_CONFIDENCE: CandidateConfidence = 'low';
  *  (whatever the model reported, verbatim); `asOfISO` is the date that balance is as-of. Both are
  *  required together — a closing balance with no date (or vice versa) is not useful enough to act on
  *  honestly, so the pair is dropped rather than kept half-populated. */
-export type StatementClosingBalance = { amount: number; asOfISO: string };
+export type StatementClosingBalance = {
+  amount: number;
+  asOfISO: string;
+  /** Optional reconciliation figures the statement may ALSO print (all POUNDS; the stated totals are
+   *  UNSIGNED magnitudes). Captured so `reconcileStatement` can verify the extracted rows add up to
+   *  the statement's own arithmetic. Omitted (never fabricated) when the model didn't return a usable
+   *  value — reconciliation degrades to 'unverified' in that case. */
+  openingAmount?: number;
+  statedTotalDebits?: number;
+  statedTotalCredits?: number;
+};
 
 /** Result of parsing a model reply: the item candidates PLUS the optional closing-balance fact.
  *  `closingBalance` is `null` when the model didn't return one (or returned an unusable shape) — the
@@ -100,12 +113,30 @@ export function parseStatementReaderResult(
  *  nothing. Reuses `normaliseDate` so the date passes the exact same real-calendar-date validation
  *  every item date does. */
 function toClosingBalance(parsed: object): StatementClosingBalance | null {
-  const row = parsed as { closingBalance?: unknown; closingDate?: unknown };
+  const row = parsed as {
+    closingBalance?: unknown;
+    closingDate?: unknown;
+    openingBalance?: unknown;
+    statedTotalDebits?: unknown;
+    statedTotalCredits?: unknown;
+  };
   const amount = row.closingBalance;
   if (typeof amount !== 'number' || !Number.isFinite(amount)) return null;
   const asOfISO = normaliseDate(row.closingDate);
   if (asOfISO === null) return null;
-  return { amount, asOfISO };
+  const balance: StatementClosingBalance = { amount, asOfISO };
+  // Optional reconciliation figures — set only when the model returned a usable number (never
+  // fabricated; exactOptionalPropertyTypes: never assign `undefined`).
+  if (typeof row.openingBalance === 'number' && Number.isFinite(row.openingBalance)) {
+    balance.openingAmount = row.openingBalance;
+  }
+  if (typeof row.statedTotalDebits === 'number' && Number.isFinite(row.statedTotalDebits)) {
+    balance.statedTotalDebits = row.statedTotalDebits;
+  }
+  if (typeof row.statedTotalCredits === 'number' && Number.isFinite(row.statedTotalCredits)) {
+    balance.statedTotalCredits = row.statedTotalCredits;
+  }
+  return balance;
 }
 
 /** Remove a wrapping ```json … ``` (or bare ``` … ```) fence if the model added one. */
@@ -131,7 +162,7 @@ function toCandidate(
     category?: unknown;
   };
 
-  const merchant = typeof row.merchant === 'string' ? row.merchant.trim() : '';
+  const merchant = typeof row.merchant === 'string' ? cleanMerchantName(row.merchant) : '';
   if (merchant.length === 0) return null;
 
   // The model signs the amount: spend negative, income positive. Keep its sign verbatim.

@@ -2604,7 +2604,7 @@ describe('addStatementAsHistory', () => {
     const before = getState().transactions.length;
     const result = addStatementAsHistory([]);
     expect(getState().transactions.length).toBe(before);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       added: 0,
       dateRange: null,
       totalInPence: 0,
@@ -2612,6 +2612,8 @@ describe('addStatementAsHistory', () => {
       droppedTransactionCount: 0,
       duplicatesSkipped: 0,
     });
+    // No rows and no statement totals to check against → reconciliation is honestly 'unverified'.
+    expect(result.reconciliation?.status).toBe('unverified');
   });
 
   it('lands every candidate as a transaction, signed amount verbatim', () => {

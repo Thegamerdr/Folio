@@ -49,6 +49,7 @@ import {
   type BulkLandingOffer,
 } from '@/folio/lib/bulkLanding';
 import { buildStatementSummary } from '@/folio/lib/statementSummary';
+import { reconcileStatement, statementTotalsFrom } from '@/folio/lib/reconcileStatement';
 import { detectAccountName } from '@/folio/lib/detectAccountName';
 import type { CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
@@ -60,6 +61,7 @@ import {
   type Account,
   type AccountKind,
   type AddStatementAsHistoryResult,
+  type ReaderClosingBalance,
 } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
@@ -70,8 +72,9 @@ export type BulkStatementLandingProps = {
    *  ONE money-path write; nothing lands before that tap). */
   candidates: readonly CandidateMoneyItem[];
   /** Passed straight through to `addStatementAsHistory` when the reader supplied a closing balance
-   *  (see that function's doc) — omit when it didn't. Never fabricated by this component. */
-  closingBalance?: { amount: number; asOfISO: string };
+   *  (see that function's doc) — omit when it didn't. Never fabricated by this component. Carries the
+   *  optional reconciliation figures (opening balance + stated totals) too, verbatim. */
+  closingBalance?: ReaderClosingBalance;
   /** Fires once "Add all as history" has actually landed the batch — the caller clears whatever
    *  staging slot it used (e.g. `clearReaderCandidates`), since that slot differs per reader path.
    *  Fired exactly once, before the post-import offers (if any) are shown. */
@@ -387,12 +390,27 @@ export function BulkStatementLanding({
   // happens, so the pre-add and post-add headlines read byte-identical.
   const previewSummary: AddStatementAsHistoryResult = buildStatementSummary(candidates);
 
+  // Reconciliation self-check for the PRE-add preview — proves (or honestly flags) that the extracted
+  // rows add up to the statement's own balance/totals BEFORE the user commits (review-before-truth).
+  // Same pure math `addStatementAsHistory` runs internally, so pre-add and post-add agree. Silent when
+  // 'unverified' (the statement didn't print enough to check) — no noise, no false reassurance.
+  const previewReconciliation = reconcileStatement(candidates, statementTotalsFrom(closingBalance));
+
   // The bulk landing card itself — summary line + preview list + the two CTAs. Hidden once
   // `summary` is set and there's nothing left to offer (nav.go('today') has already fired by then).
   return (
     <>
       <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
         <Text style={[styles.summary, { color: t.ink }]}>{bulkSummaryLine(previewSummary)}</Text>
+        {previewReconciliation.status === 'ok' ? (
+          <Text style={[styles.reconcileOk, { color: t.positiveInk }]}>
+            ✓ These rows add up to your statement.
+          </Text>
+        ) : previewReconciliation.status === 'mismatch' ? (
+          <Text style={[styles.reconcileWarn, { color: t.repairInk }]}>
+            {previewReconciliation.message}
+          </Text>
+        ) : null}
         <View style={styles.list}>
           {candidates.slice(0, 6).map((row) => {
             const isIn = row.amount >= 0;
@@ -457,6 +475,16 @@ const styles = StyleSheet.create({
     fontFamily: serif.display,
     fontSize: 17,
     lineHeight: 22,
+  },
+  reconcileOk: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: gap.xs,
+  },
+  reconcileWarn: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: gap.xs,
   },
   list: {
     marginTop: gap.lg,

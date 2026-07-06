@@ -39,6 +39,11 @@ import {
   candidateToTransactionDraft,
   type StatementSummary,
 } from './lib/statementSummary';
+import {
+  reconcileStatement,
+  statementTotalsFrom,
+  type ReconciliationResult,
+} from './lib/reconcileStatement';
 import { findCaughtIncome, type IncomeCaughtCandidate } from './lib/caughtIncome';
 import { findCaughtBills } from './lib/caughtBills';
 import { findCaughtAnnual } from './lib/caughtAnnual';
@@ -515,7 +520,7 @@ export type AppState = {
    *  Optional for shape back-compat with hand-built `AppState` fixtures
    *  predating this field; `DEFAULTS`/`load()`/`resetToEmpty()` always
    *  populate it (null). */
-  readerClosingBalance?: { amount: number; asOfISO: string } | null;
+  readerClosingBalance?: ReaderClosingBalance | null;
   /** ENGINES.md §6 "Ignored review items: suppressed in main flow, visible in
    *  Hidden list." A Review candidate the user tapped "Ignore" on is recorded
    *  here by signature (`merchant|amountCents|date`, matching the design
@@ -2536,6 +2541,12 @@ export type AddStatementAsHistoryResult = StatementSummary & {
    *  predating this field (mirrors `droppedTransactionCount?` above); `addStatementAsHistory` always
    *  populates it. */
   duplicatesSkipped?: number;
+  /** Reconciliation self-check: did the extracted rows add up to the statement's OWN opening/closing
+   *  balance + stated totals? `'ok'` = every figure lines up; `'mismatch'` = some rows are likely
+   *  missing/misread (surfaced as a warning, never auto-blocked — review-before-truth); `'unverified'`
+   *  = the statement didn't print enough to check. Always present (computed over the reader's full
+   *  extraction, before dedup). See `reconcileStatement`. */
+  reconciliation?: ReconciliationResult;
 };
 
 /** Short, deterministic non-cryptographic string hash (32-bit FNV-1a), rendered as an 8-char base-36
@@ -2629,14 +2640,19 @@ function importedTransactionId(candidate: CandidateMoneyItem): string {
  */
 export function addStatementAsHistory(
   candidates: readonly CandidateMoneyItem[],
-  closingBalance?: { amount: number; asOfISO: string },
+  closingBalance?: ReaderClosingBalance,
   accountId: string = DEFAULT_ACCOUNT_ID,
 ): AddStatementAsHistoryResult {
+  // Reconciliation self-check over the reader's FULL extraction (before dedup) — the statement's own
+  // opening/closing balance + stated totals describe the whole statement, not just the new rows.
+  const reconciliation = reconcileStatement(candidates, statementTotalsFrom(closingBalance));
+
   if (candidates.length === 0) {
     return {
       ...buildStatementSummary(candidates),
       droppedTransactionCount: 0,
       duplicatesSkipped: 0,
+      reconciliation,
     };
   }
 
@@ -2670,7 +2686,7 @@ export function addStatementAsHistory(
   // it found rows it then silently didn't add.
   const summary = buildStatementSummary(newCandidates);
   if (newCandidates.length === 0) {
-    return { ...summary, droppedTransactionCount: 0, duplicatesSkipped };
+    return { ...summary, droppedTransactionCount: 0, duplicatesSkipped, reconciliation };
   }
 
   const droppedBeforeAdd = getState().droppedTransactionCount ?? 0;
@@ -2716,6 +2732,7 @@ export function addStatementAsHistory(
     ...summary,
     droppedTransactionCount: droppedByThisImport,
     duplicatesSkipped,
+    reconciliation,
   };
   const strongestIncomeSignal = incomeSignals[0];
   if (strongestIncomeSignal !== undefined) result.incomeSignal = strongestIncomeSignal;
@@ -2873,9 +2890,21 @@ export function setReaderCandidates(items: CandidateMoneyItem[]) {
  *  `BulkStatementLanding` via `useReaderClosingBalance()`. Same review-before-
  *  truth lifecycle as `readerCandidates`: excluded from `getPersistBlob`, reset
  *  by `load()`, and cleared alongside it by `clearReaderCandidates()`. */
-export function setReaderClosingBalance(
-  closingBalance: { amount: number; asOfISO: string } | null,
-) {
+/** The closing-balance fact the statement reader stages, plus the OPTIONAL reconciliation figures
+ *  (opening balance + the statement's own stated totals) it may also capture — threaded verbatim
+ *  reader → `setReaderClosingBalance` → success screen → `BulkStatementLanding` →
+ *  `addStatementAsHistory` so the reconciliation self-check has everything the statement printed.
+ *  Widening every seam to this ONE type is deliberate: a narrower seam would silently drop the
+ *  reconciliation figures (the exact class of bug that dropped the closing balance before). */
+export type ReaderClosingBalance = {
+  amount: number;
+  asOfISO: string;
+  openingAmount?: number;
+  statedTotalDebits?: number;
+  statedTotalCredits?: number;
+};
+
+export function setReaderClosingBalance(closingBalance: ReaderClosingBalance | null) {
   setPartial({ readerClosingBalance: closingBalance });
 }
 
@@ -2901,7 +2930,7 @@ export function useReaderCandidates(): CandidateMoneyItem[] {
  *  `null` literal per call, though `null` needs no identity guard) so
  *  `BulkStatementLandingProps.closingBalance` gets `undefined`/`null`
  *  consistently rather than a fabricated object. */
-export function useReaderClosingBalance(): { amount: number; asOfISO: string } | null {
+export function useReaderClosingBalance(): ReaderClosingBalance | null {
   return useAppStore((s) => s.readerClosingBalance ?? null);
 }
 
