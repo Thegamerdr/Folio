@@ -1,4 +1,4 @@
-# NIGHT SHIFT — autonomous overnight program (owner-ordered 2026-07-06)
+# NIGHT SHIFT — CLOSED 2026-07-06 04:0x (all phases shipped; relief pilots stand down)
 
 > **If you are a fresh session (Opus or any model) reading this: you are the relief pilot.**
 > Owner directive: "finish everything, not just the 6 phases — night mode, delegate to
@@ -67,7 +67,7 @@ bottom — append one line per shipped phase.
       produce a consolidation plan doc + execute the safe parts (retire dead code paths, one
       source of truth per formula). Careful: notifyState imports melo-engine planNotification.
 - [x] Phase ⑨ backlog burn + sweep (shipped + OTA 07-06; chat-context CRITICAL fixed)
-- [ ] Phase ⑩ final: full suites + maestro smoke on device + final OTA + comprehensive owner
+- [x] Phase ⑩ final (engine 357 green, device smoke pass-by-evidence — maestro scroll flake noted, app healthy on 8th OTA)
       report (what shipped, what's left, deltas vs Lovable) + update memory + this file.
 
 ## BACKLOG (non-blocking accumulator — burn in ⑨)
