@@ -1269,8 +1269,17 @@ export function stripSeedData(s: AppState): AppState {
   return {
     ...s,
     transactions: s.transactions.filter((t) => t.source !== 'seed'),
-    debts: (s.debts ?? []).filter((d) => !isShippedSeedRecord(d, DEFAULTS.debts ?? [])),
-    plans: (s.plans ?? []).filter((p) => !isShippedSeedRecord(p, DEFAULTS.plans ?? [])),
+    // Debts/plans strip by the unambiguous `seed-*` id marker (robust even if a
+    // seed row was later modified — e.g. a field added by another engine — which
+    // a field-for-field match would miss), OR a full shipped-seed match. SAFE:
+    // a real debt/plan never carries a `seed-*` id (addDebt→`debt-*`, addPlan→
+    // `plan-*`, card payoff→`debt-for-*`), so this only ever removes seed rows.
+    debts: (s.debts ?? []).filter(
+      (d) => !(d.id.startsWith('seed-') || isShippedSeedRecord(d, DEFAULTS.debts ?? [])),
+    ),
+    plans: (s.plans ?? []).filter(
+      (p) => !(p.id.startsWith('seed-') || isShippedSeedRecord(p, DEFAULTS.plans ?? [])),
+    ),
     pots: s.pots.filter((p) => !isShippedSeedRecord(p, DEFAULTS.pots)),
     subs: s.subs.filter((sub) => !strippedSubNames.has(sub.name)),
     subPaused: dropStrippedSubs(s.subPaused),

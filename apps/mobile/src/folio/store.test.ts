@@ -1685,6 +1685,41 @@ describe('demo/seed containment', () => {
     expect(stripSeedData(getState()).pots).toEqual(onboardingPots);
   });
 
+  it('strips a seed debt even after another engine modified a field (matched by seed-* id), keeps real debts', () => {
+    resetAll();
+    // Simulate an engine having touched the seed loan (changed balance + added a
+    // linked field), so it no longer field-matches DEFAULTS.debts. It must STILL
+    // be stripped — by its unambiguous `seed-*` id — while a real card is kept.
+    const modifiedSeedDebt = {
+      id: 'seed-loan',
+      name: 'Personal loan',
+      kind: 'loan' as const,
+      balance: 999,
+      apr: 12.9,
+      minPayment: 120,
+      dueDom: 5,
+      addedAt: '2026-03-01T00:00:00.000Z',
+      linkedAccountId: 'acct-x',
+    };
+    const realDebt = {
+      id: 'debt-real-1',
+      name: 'My real loan',
+      kind: 'loan' as const,
+      balance: 100,
+      apr: 20,
+      minPayment: 10,
+      dueDom: 1,
+      addedAt: '2026-07-01T00:00:00.000Z',
+    };
+    setPartial({
+      onboarding: { ...getState().onboarding, done: true },
+      debts: [modifiedSeedDebt, realDebt],
+    });
+    const stripped = stripSeedData(getState());
+    expect((stripped.debts ?? []).some((d) => d.id.startsWith('seed-'))).toBe(false);
+    expect((stripped.debts ?? []).find((d) => d.id === 'debt-real-1')).toBeTruthy();
+  });
+
   it('purgeSeedIfReal is a reference-equal no-op on a demo state, and strips on a real one', () => {
     resetAll();
     const demo = getState();
