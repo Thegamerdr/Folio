@@ -7,7 +7,17 @@
  * This file is intentionally tiny and dependency-free so the store, the
  * strategies, and the UI can all import from it without a cycle.
  */
-import type { Sub, Pot, Onboarding, CurrentBalance, Debt, Household, Plan } from '../../store';
+import type {
+  Sub,
+  Pot,
+  Onboarding,
+  CurrentBalance,
+  Debt,
+  Household,
+  Plan,
+  Transaction,
+  IncomeSource,
+} from '../../store';
 import type { MeloMood, MeloPose } from '../../melo/Melo';
 
 /** RN's canonical Melo has no `MeloWeather` type yet — the source design's
@@ -96,6 +106,23 @@ export type ModeInputs = {
   /** Planning lens plans. Read by the Planning strategy + planEngine.
    *  Absent for users off the lens. */
   plans?: Plan[];
+  /** The ledger (store `transactions`) — DATA_INTELLIGENCE.md phase ⑥.
+   *  Read by the Irregular strategy's history-fed income floor
+   *  (`historyStats.monthlyIncomeSeries`). Absent/empty falls back to the
+   *  strategy's pre-history behaviour unchanged (see irregular.ts). Optional
+   *  so every existing call site (none of which currently threads history)
+   *  keeps compiling untouched. */
+  transactions?: Transaction[];
+  /** Declared income sources (store `incomeSources`) — read alongside
+   *  `transactions` by the Irregular strategy so its history-fed floor can
+   *  tell how many full months of income history actually exist. Optional,
+   *  same reasoning as `transactions`. */
+  incomeSources?: IncomeSource[];
+  /** "Today" as an ISO "YYYY-MM-DD", for the strategy's history window
+   *  (current in-progress month is always excluded from any history-fed
+   *  math — see historyStats.ts). Optional; a strategy without history
+   *  input has no use for it. */
+  todayISO?: string;
 };
 
 /** What a Safe Zone number means in this mode. `formula` is a plain-English

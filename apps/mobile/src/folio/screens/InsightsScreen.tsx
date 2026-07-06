@@ -80,6 +80,7 @@ import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, type CycleRecord } from '@/folio/store';
 import { getRetrospect, formatDelta } from '@/folio/lib/modes/retrospect';
+import { expectedMonthLabel, useCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import type { Nav } from '@/folio/types';
 
 // DATA_INTELLIGENCE.md phase ④ — true only for a cycle synthesized from bulk-imported statement
@@ -169,6 +170,13 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const transactions = useAppStore((st) => st.transactions);
   const tinyWins = useAppStore((st) => st.tinyWins ?? []);
+
+  // Annual-radar candidates (DATA_INTELLIGENCE.md phase ⑥ item 5) — NOT part of the frozen web
+  // source; see the quiet card below (and lib/caughtAnnual.ts's own "SURFACE CHOICE" note) for why
+  // this lives here rather than on CalendarScreen. Only the first candidate is surfaced (a single
+  // quiet row, never a list) — mirrors every "caught" sheet's own caught[0] convention.
+  const annualCandidates = useCaughtAnnual();
+  const annualCandidate = annualCandidates[0];
 
   // Derived aggregates — ported 1:1 from the web body. Summary tiles aggregate ALL cycles; the chart
   // windows to 6; the notes list windows to 4 (spec: three different windows, do not unify).
@@ -426,6 +434,35 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
                 </View>
               ))}
             </View>
+          </View>
+        ) : null}
+
+        {/* Annual radar — a single quiet card, NOT part of the frozen web source (DATA_INTELLIGENCE.md
+            phase ⑥ item 5; see lib/caughtAnnual.ts's "SURFACE CHOICE" note for why this lives here
+            rather than on CalendarScreen). Only renders when a candidate exists — never an empty-state
+            placeholder, matching the tiny-wins block's own "nothing to show -> render nothing" guard.
+            Tapping opens the confirm-gated AnnualCaughtSheet; nothing is added to the calendar from
+            this tap alone (review-before-truth). */}
+        {annualCandidate ? (
+          <View style={s.annualBlock}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${annualCandidate.merchant}, roughly once a year`}
+              onPress={() => nav.openSheet('annual-caught')}
+              style={({ pressed }) => [s.annualCard, pressed ? s.pressed : undefined]}
+            >
+              <Text style={s.annualEyebrow}>{copy.annual.card.eyebrow}</Text>
+              <View style={s.annualRow}>
+                <Text style={s.annualMerchant}>{annualCandidate.merchant}</Text>
+                <Text style={s.annualAmount}>{formatGBP(Math.round(annualCandidate.amount))}</Text>
+              </View>
+              <Text style={s.annualCaption}>
+                {copy.annual.card.body(
+                  formatGBP(Math.round(annualCandidate.amount)),
+                  expectedMonthLabel(annualCandidate.lastSeen),
+                )}
+              </Text>
+            </Pressable>
           </View>
         ) : null}
 
@@ -865,6 +902,48 @@ function makeStyles(t: Palette) {
       fontSize: 18,
       fontVariant: ['tabular-nums'],
       fontWeight: '700',
+      marginTop: gap.xxs,
+    },
+
+    // Annual radar card — NOT part of the frozen web source (DATA_INTELLIGENCE.md phase ⑥ item 5).
+    // Mirrors weeklyCard's surface/hairline/radius treatment so it reads as a sibling of the other
+    // non-frozen cards on this screen, not a bolted-on afterthought.
+    annualBlock: {
+      marginTop: gap.lg + gap.xs,
+    },
+    annualCard: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.xxl,
+      borderWidth: StyleSheet.hairlineWidth,
+      padding: gap.lg,
+    },
+    annualEyebrow: {
+      color: t.muted,
+      fontSize: 10.5,
+      letterSpacing: 10.5 * 0.12, // tracking-[0.12em]
+      textTransform: 'uppercase',
+    },
+    annualRow: {
+      alignItems: 'baseline',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: gap.xs,
+    },
+    annualMerchant: {
+      color: t.ink,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    annualAmount: {
+      color: t.calm,
+      fontFamily: serif.display,
+      fontSize: 18,
+      fontVariant: ['tabular-nums'],
+    },
+    annualCaption: {
+      color: t.muted,
+      fontSize: 11.5,
       marginTop: gap.xxs,
     },
 

@@ -73,6 +73,8 @@ export type SheetId =
   | 'sub-caught'
   | 'income-caught'
   | 'bill-caught'
+  | 'drift-caught'
+  | 'annual-caught'
   | 'add-event'
   | 'calendar-export'
   | 'calendar-connect'

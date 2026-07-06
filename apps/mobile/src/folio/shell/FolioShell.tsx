@@ -86,6 +86,8 @@ import { AddDebtSheet } from '@/folio/sheets/AddDebtSheet';
 import { LogPaymentSheet } from '@/folio/sheets/LogPaymentSheet';
 import { HouseholdSetupSheet } from '@/folio/sheets/HouseholdSetupSheet';
 import { BillCaughtSheet } from '@/folio/sheets/BillCaughtSheet';
+import { DriftCaughtSheet } from '@/folio/sheets/DriftCaughtSheet';
+import { AnnualCaughtSheet } from '@/folio/sheets/AnnualCaughtSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
 import { useAppStore } from '@/folio/store';
@@ -407,6 +409,8 @@ export function FolioShell() {
       {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
       {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
       {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
+      {sheet === 'drift-caught' && <DriftCaughtSheet visible onClose={closeSheet} />}
+      {sheet === 'annual-caught' && <AnnualCaughtSheet visible onClose={closeSheet} />}
       {sheet === 'add-event' && (
         <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
       )}
@@ -490,6 +494,8 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'sub-caught',
   'income-caught',
   'bill-caught',
+  'drift-caught',
+  'annual-caught',
   'add-event',
   'calendar-export',
   'calendar-connect',
@@ -706,6 +712,8 @@ const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {
   'sub-caught': 'A recurring charge',
   'income-caught': 'A recurring payment',
   'bill-caught': 'A recurring bill',
+  'drift-caught': 'A number that moved',
+  'annual-caught': 'Once a year',
   'add-event': 'Add to your calendar',
   'calendar-export': 'Export your calendar',
   'calendar-connect': 'Connect your calendar',

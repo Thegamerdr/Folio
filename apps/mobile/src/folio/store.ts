@@ -42,6 +42,11 @@ import { makeWin, hasWin, type TinyWin, type TinyWinKind } from './lib/wins';
  *  always full `TxnEdit`s; the relaxation is purely a structural-compat seam. */
 export type StoredTxnEdit = Omit<TxnEdit, 'id'> & { id?: string };
 
+/** One cooldown record on `AppState.dismissedDriftSignals` — see that field's doc for the full
+ *  "drift thrash" fix. `merchant` is the normalised key (`normaliseIncomeSignalKey`); `at` is the ISO
+ *  timestamp of the confirm-or-dismiss action that started the cooldown window. */
+export type DriftCooldownEntry = { merchant: string; at: string };
+
 /** Per-pot top-up cadence. Per ENGINES.md § 6 "Pot top-up cadence":
  *  default is `after-payday`. `weekly` is the legacy/prototype shape that
  *  the calendar engine still uses as a fallback for unmigrated pots. */
@@ -476,6 +481,29 @@ export type AppState = {
    *  back-compat with hand-built `AppState` fixtures predating this field;
    *  `DEFAULTS`/`load()`/`resetToEmpty()` always populate it ([]). */
   dismissedBillSignals?: string[];
+  /** Drift-signal (`lib/driftSignals.ts`) COOLDOWN log — DATA_INTELLIGENCE.md phase ⑥ (history-fed
+   *  forecasts, income/bill drift), extended with a per-merchant re-propose cooldown (task: "drift
+   *  thrash" fix). One shared list for BOTH drift flavours (income-amount/cadence drift and
+   *  bill/price-rise drift) and for BOTH actions the sheet offers (confirm OR dismiss) — either action
+   *  means the same thing for re-proposing: "I just dealt with this merchant's drift, don't ask again
+   *  immediately." Each entry is `{ merchant, at }` (normalised merchant key + ISO timestamp of the
+   *  action), NOT a bare merchant string — this is the back-compat-breaking shape change the cooldown
+   *  needs (a plain dismissed-list has no notion of "how long ago"). Loaded tolerantly by `load()`
+   *  (see its own migration note) since this store is uncommitted/in-memory-only right now, so there is
+   *  no real persisted-blob back-compat burden — but the loader still degrades any stray legacy
+   *  string-array shape to `[]` rather than crashing, in case a prior in-memory session's blob is still
+   *  parked. `findDriftCandidates` (`lib/caughtDrift.ts`) is the sole reader: it suppresses a merchant
+   *  for `DRIFT_COOLDOWN_DAYS` (45) after the most recent entry UNLESS the new deviation exceeds
+   *  `DRIFT_COOLDOWN_BREAKTHROUGH_FRACTION` (30%) — a big real change still breaks through immediately.
+   *  Optional for shape back-compat; `DEFAULTS`/`load()`/`resetToEmpty()` always populate it ([]). */
+  dismissedDriftSignals?: DriftCooldownEntry[];
+  /** Annual-candidate (`lib/historyStats.ts` `detectAnnualCandidates`) merchants
+   *  the user tapped "Not this one" on in `AnnualCaughtSheet` — DATA_INTELLIGENCE.md
+   *  phase ⑥ item 5 ("annual-bill radar"). Recorded by normalised merchant key,
+   *  identical "dismissed once, quiet after that" contract to
+   *  `dismissedBillSignals`. Optional for shape back-compat; `DEFAULTS`/
+   *  `load()`/`resetToEmpty()` always populate it ([]). */
+  dismissedAnnualSignals?: string[];
   /** Merchant→category memory (`lib/merchantMemory.ts`) — DATA_INTELLIGENCE.md
    *  phase ③. Keyed by normalised merchant (`normaliseMerchant`,
    *  `lib/subSignals.ts`); each entry is the user's most-recently-confirmed
@@ -725,6 +753,8 @@ const DEFAULTS: AppState = {
   incomeSources: [],
   dismissedIncomeSignals: [],
   dismissedBillSignals: [],
+  dismissedDriftSignals: [],
+  dismissedAnnualSignals: [],
   merchantCategories: DEFAULT_MERCHANT_CATEGORIES,
 };
 
@@ -927,6 +957,21 @@ function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
   return current;
 }
 
+/** Tolerant loader for `AppState.dismissedDriftSignals` — see that field's doc for the shape change
+ *  (`string[]` -> `DriftCooldownEntry[]`). This store is uncommitted/in-memory-only, so there is no
+ *  real persisted-blob back-compat burden, but a stray legacy string-array shape (from a prior
+ *  in-memory session's parked blob) degrades to `[]` rather than crashing or silently misreading a
+ *  bare string as `{ merchant, at }`. Anything already shaped as entries passes through unfiltered. */
+function normaliseDriftCooldownEntries(raw: unknown): DriftCooldownEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const isEntry = (v: unknown): v is DriftCooldownEntry =>
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as Record<string, unknown>).merchant === 'string' &&
+    typeof (v as Record<string, unknown>).at === 'string';
+  return raw.every(isEntry) ? raw : [];
+}
+
 // ---------- In-memory persistence (replaces window.localStorage) ----------
 // `persistedBlob` is the single in-memory record the web original kept in
 // localStorage under `KEY`. `null` = nothing persisted yet (first run).
@@ -980,6 +1025,8 @@ function load(): AppState {
       incomeSources: migrated.incomeSources ?? DEFAULT_INCOME_SOURCES,
       dismissedIncomeSignals: migrated.dismissedIncomeSignals ?? [],
       dismissedBillSignals: migrated.dismissedBillSignals ?? [],
+      dismissedDriftSignals: normaliseDriftCooldownEntries(migrated.dismissedDriftSignals),
+      dismissedAnnualSignals: migrated.dismissedAnnualSignals ?? [],
       merchantCategories: migrated.merchantCategories ?? DEFAULT_MERCHANT_CATEGORIES,
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
@@ -1361,6 +1408,55 @@ export function dismissBillSignal(merchant: string) {
   const current = state.dismissedBillSignals ?? [];
   if (current.includes(key)) return;
   setPartial({ dismissedBillSignals: [key, ...current] });
+}
+
+/* ---------- Drift signals (`lib/driftSignals.ts`) — DATA_INTELLIGENCE.md phase ⑥ ---------- */
+/* ---------- + per-merchant re-propose COOLDOWN (task: "drift thrash" fix) ---------- */
+
+/** Shared writer for both drift actions below — records (or refreshes) this merchant's cooldown
+ *  entry with `at` = now, replacing any prior entry for the SAME merchant (never accumulating one row
+ *  per re-trigger) so `findDriftCandidates`'s cooldown check always reads the MOST RECENT action. */
+function recordDriftCooldown(merchant: string) {
+  const key = normaliseIncomeSignalKey(merchant);
+  const current = state.dismissedDriftSignals ?? [];
+  const rest = current.filter((entry) => entry.merchant !== key);
+  setPartial({
+    dismissedDriftSignals: [{ merchant: key, at: new Date().toISOString() }, ...rest],
+  });
+}
+
+/** Record a detected drift-signal merchant as DISMISSED (`DriftCaughtSheet`'s "Not this one", either
+ *  flavour — income drift or bill drift share one list, see `AppState.dismissedDriftSignals`'s doc for
+ *  why). Starts/refreshes this merchant's `DRIFT_COOLDOWN_DAYS` (45) re-propose cooldown — a future
+ *  detection pass over the same merchant is suppressed until the cooldown lapses UNLESS the new
+ *  deviation exceeds the cooldown's `DRIFT_COOLDOWN_BREAKTHROUGH_FRACTION` (30%) break-through, per
+ *  `lib/caughtDrift.ts`'s `findDriftCandidates`. */
+export function dismissDriftSignal(merchant: string) {
+  recordDriftCooldown(merchant);
+}
+
+/** Record a detected drift-signal merchant as CONFIRMED (`DriftCaughtSheet`'s "Yes, update it", either
+ *  flavour). A confirmed drift is now the entity's honest current value — but the SAME merchant can
+ *  still drift again later (a bill can rise twice), so this is a cooldown, not a permanent silence: it
+ *  starts/refreshes the identical `DRIFT_COOLDOWN_DAYS` (45) window `dismissDriftSignal` does, quieting
+ *  small re-detections of the number that was JUST corrected (classic thrash source — noisy pay ±10-14%
+ *  re-triggering every landing) while still letting a genuinely new >30% deviation break through. */
+export function confirmDriftSignal(merchant: string) {
+  recordDriftCooldown(merchant);
+}
+
+/* ---------- Annual candidates (`lib/historyStats.ts` detectAnnualCandidates) ---------- */
+
+/** Record a detected annual-candidate merchant as dismissed (`AnnualCaughtSheet`'s
+ *  "Not this one"). A future detection pass over the same merchant is
+ *  suppressed rather than surfacing the sheet again — mirrors
+ *  `dismissBillSignal`'s "said no once, stays quiet" contract exactly.
+ *  Idempotent. */
+export function dismissAnnualSignal(merchant: string) {
+  const key = normaliseIncomeSignalKey(merchant);
+  const current = state.dismissedAnnualSignals ?? [];
+  if (current.includes(key)) return;
+  setPartial({ dismissedAnnualSignals: [key, ...current] });
 }
 
 /* ---------- Merchant→category memory (`lib/merchantMemory.ts`) ---------- */
@@ -2031,6 +2127,8 @@ export function resetToEmpty() {
     bufferAmount: 100,
     dismissedIncomeSignals: [],
     dismissedBillSignals: [],
+    dismissedDriftSignals: [],
+    dismissedAnnualSignals: [],
     debts: [],
     household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
     plans: [],

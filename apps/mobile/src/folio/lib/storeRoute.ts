@@ -32,6 +32,7 @@ import { deriveCalendarEvents } from './calendarEvents';
 import { resolvePayday } from './payday';
 import { nextIncomeDate } from './income';
 import { useAppStore, type AppState } from '../store';
+import { derivePressure } from '../screens/today/pressure';
 
 /** Fallback day-of-month payday when onboarding hasn't set one. Matches the
  *  literal TodayScreen used inline (`onboarding.payday || 25`). */
@@ -206,6 +207,29 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   const incomingTotal = income.reduce((acc, d) => acc + d.amount, 0);
   const outgoingTotal = spend.reduce((acc, d) => acc + d.amount, 0);
   return { ...result, incomingTotal, outgoingTotal };
+}
+
+/**
+ * QUIET-MOMENT GATE (task: never-pressure-during-danger spirit) — whether the CURRENT landing state is
+ * `overspent`, the one band where the app's own tone (Melo's mood, the verdict line) already reads
+ * "something has to move" (see `screens/today/pressure.ts` pressureLine.overspent). Reuses the EXACT
+ * same derivation FolioShell.tsx uses for its app-wide `activePressure` band — `routeFromStore`'s
+ * tightest projected spare through `derivePressure` — gated by the SAME honest `hasMoneyPicture` check
+ * (a balance the user actually set, or logged activity) so a fresh/unconfigured £0 app never reads as
+ * "overspent" the way an actually-negative tightest spare does.
+ *
+ * Pure (state + injected `now`), so it is unit-testable and callable from a plain event handler (not
+ * just a render) — the two landing call sites (`ReviewScreen.onAdd`, `VisualizerScreen.commit`) run
+ * this right before deciding whether to open a proposal sheet, and skip every caught-* sheet when it
+ * returns true. A suppressed proposal is deferred, not lost: the SAME caught-* checks already
+ * re-evaluate fresh on the next landing (see those call sites' own "deferred, not lost" ordering
+ * comments), so nothing here needs to remember what it skipped.
+ */
+export function isOverspentLanding(state: AppState, now: Date | string = new Date()): boolean {
+  const hasMoneyPicture = state.transactions.length > 0 || state.currentBalance.amount > 0;
+  if (!hasMoneyPicture) return false;
+  const route = routeFromStore(state, now);
+  return derivePressure(Math.round(route.tightPoint.amount)) === 'overspent';
 }
 
 /**

@@ -31,13 +31,15 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { routeFromStore } from './storeRoute';
+import { isOverspentLanding, routeFromStore } from './storeRoute';
 import { deriveCalendarEvents, groupByDay, computeSpareAndTightest } from './calendarEvents';
 import {
   getState,
   resetAll,
+  setCurrentBalance,
   setIncomeSources,
   setOnboarding,
+  setSubs,
   type AppState,
   type IncomeSource,
 } from '../store';
@@ -293,5 +295,68 @@ describe('routeFromStore — income sources', () => {
     const sourceRoute = routeFromStore(getState(), NOW);
     expect(sourceRoute.daysToPayday).toBe(legacyRoute.daysToPayday);
     expect(sourceRoute.tightPoint).toEqual(legacyRoute.tightPoint);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isOverspentLanding — the QUIET-MOMENT GATE the two landing call sites (ReviewScreen.onAdd,
+// VisualizerScreen.commit) use to suppress every caught-* proposal sheet while the money state is
+// overspent. Reuses routeFromStore + derivePressure, gated by the SAME hasMoneyPicture honesty check
+// FolioShell.tsx uses for its app-wide pressure band (never read a fresh £0 app as "overspent").
+// ---------------------------------------------------------------------------
+describe('isOverspentLanding', () => {
+  it('a fresh/unconfigured £0 state (no balance set, no transactions) is NEVER overspent', () => {
+    // resetToEmpty-equivalent: no transactions, currentBalance.amount === 0 — hasMoneyPicture is false,
+    // so the gate must stay honestly neutral rather than reading an unconfigured app as overspent.
+    setSubs(() => []);
+    setCurrentBalance({ amount: 0, source: 'user-entered', confidence: 'rough' });
+    const state = { ...getState(), transactions: [] };
+    expect(isOverspentLanding(state, NOW)).toBe(false);
+  });
+
+  it('agrees with derivePressure on the seed state (whichever way that resolves)', () => {
+    // The seed state's tight point is honestly negative (see the "routeFromStore — seed state" suite
+    // above: −£484 once pots are earmarked), so the seed itself IS the overspent band under
+    // `derivePressure`. Pinning this against the route directly (rather than a hardcoded boolean) keeps
+    // this test truthful to whatever the seed numbers are, while still proving the gate agrees with the
+    // route instead of drifting to a second, hand-picked notion of "overspent".
+    const state = seedState();
+    const overspentByRoute = routeFromStore(state, NOW).tightPoint.amount < 0;
+    expect(isOverspentLanding(state, NOW)).toBe(overspentByRoute);
+    expect(isOverspentLanding(state, NOW)).toBe(true); // pinned: the documented seed tight point is negative
+  });
+
+  it('a real negative tightest-projected-spare state IS overspent', () => {
+    // A tiny declared balance with no income source before payday and a big weekly outflow drives the
+    // tightest point below zero well within the 35-day window.
+    setCurrentBalance({ amount: 20, source: 'user-entered', confidence: 'rough' });
+    setSubs(() => [
+      {
+        name: 'Big Weekly Bill',
+        cost: 200,
+        nextRenewalDaysAway: 2,
+        lastUsedDaysAgo: 0,
+        usesPerMonth: 4,
+      },
+    ]);
+    const state = getState();
+    expect(routeFromStore(state, NOW).tightPoint.amount).toBeLessThan(0);
+    expect(isOverspentLanding(state, NOW)).toBe(true);
+  });
+
+  it('agrees with derivePressure/routeFromStore — never a second, diverging notion of "overspent"', () => {
+    setCurrentBalance({ amount: 20, source: 'user-entered', confidence: 'rough' });
+    setSubs(() => [
+      {
+        name: 'Big Weekly Bill',
+        cost: 200,
+        nextRenewalDaysAway: 2,
+        lastUsedDaysAgo: 0,
+        usesPerMonth: 4,
+      },
+    ]);
+    const state = getState();
+    const overspentByRoute = routeFromStore(state, NOW).tightPoint.amount < 0;
+    expect(isOverspentLanding(state, NOW)).toBe(overspentByRoute);
   });
 });

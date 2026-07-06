@@ -56,7 +56,7 @@ bottom — append one line per shipped phase.
       (source-aware eviction or separate archive slice). Spec in DATA_INTELLIGENCE.md §backfill.
 - [x] Phase ⑤ caught-bills + weekly unlock (shipped + OTA 07-06, renewal-math hardened)
       monthly-only SHEET_CADENCE filter, confirm-sheet per the SubCaught/IncomeCaught pattern.
-- [ ] Phase ⑥ history-fed forecasts: irregular-mode income percentiles (p20-style floor),
+- [x] Phase ⑥ history-fed forecasts (shipped + OTA 07-06, cooldown/annual-guard/quiet-gate hardened)
       discretionary-spend baselines in projections, bill drift + income drift re-check loops
       (propose-and-confirm "Pay looks different now" sheet), subscription price-rise alerts.
 - [ ] Phase ⑦ chunked long-export reading: the 133-page statement answer — client-side page

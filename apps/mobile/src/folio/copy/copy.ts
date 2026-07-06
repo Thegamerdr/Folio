@@ -185,6 +185,46 @@ export const copy = {
     },
   },
 
+  // ## Drift (income/bill drift-signal detection, DATA_INTELLIGENCE.md phase ⑥)
+  // One generic pattern, two flavours (task brief). Every string hedges — "around", "usually",
+  // "lately" — never a bare number presented as settled fact, since a drift observation is a
+  // history-fed ESTIMATE (see lib/historyStats.ts / lib/driftSignals.ts module headers).
+  drift: {
+    caught: {
+      income: {
+        head: (): string => `Pay looks **different.**`,
+        body: (merchant: string, amount: string, cadence: string): string =>
+          `Pay looks different — ${merchant} has been arriving around ${amount} ${cadence} lately; update?`,
+      },
+      bill: {
+        head: (merchant: string): string => `**${merchant}** looks higher.`,
+        body: (merchant: string, amount: string): string =>
+          `${merchant} looks higher lately — around ${amount}; update the stored amount?`,
+      },
+      cta: 'Yes, update it',
+    },
+  },
+
+  // ## Annual radar (annual-candidate detection, DATA_INTELLIGENCE.md phase ⑥ item 5)
+  annual: {
+    card: {
+      // eyebrow shown on the Insights quiet card that opens the confirm sheet.
+      eyebrow: 'Once a year',
+      head: (merchant: string): string => `**${merchant}** — once a year.`,
+      body: (amount: string, month: string): string => `Around ${amount}, usually ${month}.`,
+    },
+    caught: {
+      head: (merchant: string): string => `**${merchant}** — once a year.`,
+      body: (amount: string, month: string): string =>
+        `Melo noticed this most years — around ${amount}, usually ${month}. Add it to your calendar?`,
+    },
+    empty: {
+      head: 'Nothing yearly **spotted yet.**',
+      body: 'When Melo notices a bill that repeats about once a year, it shows up here.',
+      cta: 'Not yet',
+    },
+  },
+
   // ## Insights
   insights: {
     empty: {

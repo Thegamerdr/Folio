@@ -97,6 +97,9 @@ import {
 import { reviewDateToIso, reviewMatch, reviewMatchSubline } from '@/folio/lib/reviewDedupe';
 import { findCaughtIncome } from '@/folio/lib/caughtIncome';
 import { findCaughtBills } from '@/folio/lib/caughtBills';
+import { findDriftCandidates } from '@/folio/lib/caughtDrift';
+import { findCaughtAnnual } from '@/folio/lib/caughtAnnual';
+import { isOverspentLanding } from '@/folio/lib/storeRoute';
 import type { Nav } from '@/folio/types';
 
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
@@ -480,19 +483,51 @@ export function ReviewScreen({
     // precedence when BOTH fire on the same landing — only one caught-sheet opens per landing; a
     // qualifying bill simply re-evaluates fresh next time a batch lands (see VisualizerScreen.commit
     // for the identical ordering + rationale).
+    //
+    // Drift + annual-radar checks (DATA_INTELLIGENCE.md phase ⑥) extend the SAME ordering, ranked
+    // BELOW income-caught and bill-caught (see VisualizerScreen.commit's identical extended ordering
+    // comment) — each only evaluated when nothing higher in the order already qualified, so at most
+    // one of the four ever computes past the first hit.
+    //
+    // QUIET-MOMENT GATE (task: never-pressure-during-danger spirit): none of the four proposal checks
+    // even run when this landing's money state is overspent — Melo asking "update your pay?" or
+    // "spotted a recurring bill?" while the verdict line is already "something has to move" would work
+    // against the app's own tone. A suppressed proposal is DEFERRED, not lost: every check below is
+    // already re-evaluated fresh on the NEXT landing (see the ordering comment above), so whatever
+    // would have qualified here simply gets its turn once the user is out of the danger band.
     const stateAfterAdd = getState();
-    const incomeSignals = findCaughtIncome(
-      stateAfterAdd.transactions,
-      stateAfterAdd.incomeSources ?? [],
-      stateAfterAdd.dismissedIncomeSignals ?? [],
-    );
+    const overspent = isOverspentLanding(stateAfterAdd);
+    const incomeSignals = overspent
+      ? []
+      : findCaughtIncome(
+          stateAfterAdd.transactions,
+          stateAfterAdd.incomeSources ?? [],
+          stateAfterAdd.dismissedIncomeSignals ?? [],
+        );
     const billSignals =
-      incomeSignals.length > 0
+      overspent || incomeSignals.length > 0
         ? []
         : findCaughtBills(
             stateAfterAdd.transactions,
             stateAfterAdd.subs.map((s) => s.name),
             stateAfterAdd.dismissedBillSignals ?? [],
+          );
+    const driftSignals =
+      overspent || incomeSignals.length > 0 || billSignals.length > 0
+        ? []
+        : findDriftCandidates(
+            stateAfterAdd.transactions,
+            stateAfterAdd.incomeSources ?? [],
+            stateAfterAdd.subs,
+            stateAfterAdd.dismissedDriftSignals ?? [],
+          );
+    const annualSignals =
+      overspent || incomeSignals.length > 0 || billSignals.length > 0 || driftSignals.length > 0
+        ? []
+        : findCaughtAnnual(
+            stateAfterAdd.transactions,
+            stateAfterAdd.dismissedAnnualSignals ?? [],
+            stateAfterAdd.subs.map((s) => s.name),
           );
     dwellRef.current = setTimeout(
       () => {
@@ -500,6 +535,10 @@ export function ReviewScreen({
           nav.openSheet('income-caught');
         } else if (billSignals.length > 0) {
           nav.openSheet('bill-caught');
+        } else if (driftSignals.length > 0) {
+          nav.openSheet('drift-caught');
+        } else if (annualSignals.length > 0) {
+          nav.openSheet('annual-caught');
         } else {
           nav.go('today');
         }

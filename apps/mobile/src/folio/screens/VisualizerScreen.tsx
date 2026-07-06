@@ -98,6 +98,9 @@ import {
 } from '@/folio/lib/importSheet';
 import { findCaughtIncome } from '@/folio/lib/caughtIncome';
 import { findCaughtBills } from '@/folio/lib/caughtBills';
+import { findDriftCandidates } from '@/folio/lib/caughtDrift';
+import { findCaughtAnnual } from '@/folio/lib/caughtAnnual';
+import { isOverspentLanding } from '@/folio/lib/storeRoute';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -372,7 +375,23 @@ export function VisualizerScreen({
     // precedence when BOTH fire on the same landing: only one caught-sheet opens per landing (never
     // stack two), and a qualifying bill simply waits — it re-evaluates fresh next time a batch lands,
     // so nothing is lost, just deferred. Simplest honest ordering; documented here deliberately.
+    //
+    // Drift + annual-radar checks (DATA_INTELLIGENCE.md phase ⑥) extend the SAME one-sheet-per-landing
+    // ordering, ranked BELOW income-caught and bill-caught: a fresh catch (a brand-new recurring
+    // payment/bill) is more valuable than a drift correction on something already known, and an
+    // annual radar hit is the gentlest, least time-sensitive of the four. Each deferred check simply
+    // re-evaluates fresh next time a batch lands — nothing is lost, just deferred.
+    //
+    // QUIET-MOMENT GATE (task: never-pressure-during-danger spirit): skip the ENTIRE cascade when this
+    // landing's money state is overspent — none of the four proposal sheets is worth opening while the
+    // app's own tone is already "something has to move". Deferred, not lost: every check below already
+    // re-evaluates fresh on the NEXT landing (see the ordering comment above), so a real candidate here
+    // simply waits for a landing that isn't in the danger band.
     const state = getState();
+    if (isOverspentLanding(state)) {
+      nav.go('today-after');
+      return;
+    }
     const incomeSignals = findCaughtIncome(
       state.transactions,
       state.incomeSources ?? [],
@@ -389,6 +408,25 @@ export function VisualizerScreen({
     );
     if (billSignals.length > 0) {
       nav.openSheet('bill-caught');
+      return;
+    }
+    const driftSignals = findDriftCandidates(
+      state.transactions,
+      state.incomeSources ?? [],
+      state.subs,
+      state.dismissedDriftSignals ?? [],
+    );
+    if (driftSignals.length > 0) {
+      nav.openSheet('drift-caught');
+      return;
+    }
+    const annualSignals = findCaughtAnnual(
+      state.transactions,
+      state.dismissedAnnualSignals ?? [],
+      state.subs.map((s) => s.name),
+    );
+    if (annualSignals.length > 0) {
+      nav.openSheet('annual-caught');
       return;
     }
     nav.go('today-after');
