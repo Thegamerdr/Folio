@@ -143,6 +143,9 @@ export function TodayScreen({
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const hasRealData = useAppStore((st) => hasAnyUserData(st));
+  // Real count of unreviewed intake items (was a hardcoded "2 things" — a fake
+  // count that showed even on a clean/empty ledger). Hidden entirely at zero.
+  const pendingReview = useAppStore((st) => st.reviewQueue?.length ?? 0);
   const lens = useLens();
 
   // Mount-gate (kept from the web to avoid a flash of the fallback before the engine computes; on
@@ -890,9 +893,12 @@ export function TodayScreen({
           <View style={styles.meloPromptBody}>
             <Text style={[styles.meloPromptLine, { color: t.ink }]}>&ldquo;{line}&rdquo;</Text>
             <View style={styles.meloPromptMeta}>
-              <Text style={[styles.meloPromptMetaText, { color: t.muted }]}>
-                2 things still waiting to be checked.
-              </Text>
+              {pendingReview > 0 ? (
+                <Text style={[styles.meloPromptMetaText, { color: t.muted }]}>
+                  {pendingReview} {pendingReview === 1 ? 'thing' : 'things'} still waiting to be
+                  checked.
+                </Text>
+              ) : null}
               <Text style={[styles.meloPromptCta, { color: t.calm }]}>Ask Melo →</Text>
             </View>
           </View>

@@ -1188,11 +1188,146 @@ function normaliseDriftCooldownEntries(raw: unknown): DriftCooldownEntry[] {
 let persistedBlob: Record<string, unknown> | null = null;
 const futureBlobs: Record<string, Record<string, unknown>> = {};
 
+// ---------- Demo/seed containment (owner rule 2026-07-06) ----------
+// The app ships demo/seed data so a fresh DEV build has something to render.
+// It must NEVER be shown as a real user's own money: a released build starts
+// clean (real data required to use the app), and any demo data that already
+// leaked onto a real user's device is stripped on load. These helpers are the
+// single source of truth for WHAT counts as seed and HOW it is safely removed.
+
+/** True when a flat record equals one of the SHIPPED seed records (`seeds`)
+ *  FIELD-FOR-FIELD. Matching the whole object — not just an id — is what makes
+ *  the strip safe against id collisions: onboarding legitimately reuses the seed
+ *  pot ids ('holiday'/'buffer'/'christmas'), but a real onboarded pot has
+ *  `saved: 0` and the user's own goal, so it never equals the seed pot
+ *  (`saved: 420`, …) and is never stripped. A record is removed only if EVERY
+ *  field matches a shipped seed exactly. All seed records are flat (primitive
+ *  values only), so a key-count + strict-equal-per-key check is complete
+ *  deep-equality here. */
+function isShippedSeedRecord(rec: unknown, seeds: readonly unknown[]): boolean {
+  if (rec === null || typeof rec !== 'object') return false;
+  const r = rec as Record<string, unknown>;
+  const rKeys = Object.keys(r);
+  return seeds.some((seed) => {
+    const sd = seed as Record<string, unknown>;
+    const sKeys = Object.keys(sd);
+    return rKeys.length === sKeys.length && rKeys.every((k) => r[k] === sd[k]);
+  });
+}
+
+/** TRUE only in a dev/Metro build (`__DEV__`). A released app ALWAYS starts
+ *  clean — no demo data (owner rule). `typeof` guard so it is safe under
+ *  vitest/Node where `__DEV__` is undefined (→ treated as a release → clean). */
+const SEED_ON_FIRST_RUN = typeof __DEV__ !== 'undefined' && __DEV__ === true;
+
+/** True when the state shows ANY sign of real use, so demo data must never sit
+ *  alongside it: onboarding done, a non-`sample` balance, any non-seed
+ *  transaction, or any logged statement import. A state matching NONE of these
+ *  is an untouched demo/preview (e.g. after the Privacy "Reset to the demo"),
+ *  whose demo data is intentional and left.
+ *
+ *  NOTE: `incomeSources` is deliberately NOT a signal — the v7→v8 migration
+ *  synthesizes one "Pay" source for EVERY install (including a demo one, from
+ *  the seed onboarding.payday/monthlyIncome), so its presence would falsely
+ *  flag a migrated demo/preview state as a real user and strip its demo data. */
+export function isRealUser(s: AppState): boolean {
+  return (
+    s.onboarding.done === true ||
+    s.currentBalance.source !== 'sample' ||
+    s.transactions.some((t) => t.source !== 'seed') ||
+    (s.statementImports?.length ?? 0) > 0
+  );
+}
+
+/** Remove every shipped demo/seed record from a state. SAFE BY CONSTRUCTION:
+ *  transactions and the balance are stripped by their unambiguous marker
+ *  (`source:'seed'` / `source:'sample'`); pots, subs, debts, plans, and cycles
+ *  are stripped ONLY when they equal a shipped seed record field-for-field
+ *  (`isShippedSeedRecord`), so a record the user created or funded — even one
+ *  that reuses a seed id or name (onboarding pots reuse 'holiday'/'buffer'/
+ *  'christmas'; a real "Spotify") — is NEVER deleted. Pure + idempotent. */
+export function stripSeedData(s: AppState): AppState {
+  const now = new Date().toISOString();
+
+  // Subs stripped by whole-record field-match; also drop their paused/override
+  // map entries (keyed by sub name) for exactly the subs that were stripped.
+  const strippedSubNames = new Set(
+    s.subs.filter((sub) => isShippedSeedRecord(sub, DEFAULT_SUBS)).map((sub) => sub.name),
+  );
+  const dropStrippedSubs = <T>(m: Record<string, T>): Record<string, T> =>
+    Object.fromEntries(Object.entries(m).filter(([name]) => !strippedSubNames.has(name)));
+
+  const balanceIsSample = s.currentBalance.source === 'sample';
+  const currentBalance: CurrentBalance = balanceIsSample
+    ? { ...EMPTY_BALANCE, setAt: now }
+    : s.currentBalance;
+
+  // Only override `accounts` when we actually remap it (sample balance reset);
+  // otherwise inherit it untouched from `...s` so its optional type is preserved
+  // (an explicit `undefined` would break `exactOptionalPropertyTypes`).
+  const remapAccounts = balanceIsSample && Array.isArray(s.accounts);
+  return {
+    ...s,
+    transactions: s.transactions.filter((t) => t.source !== 'seed'),
+    debts: (s.debts ?? []).filter((d) => !isShippedSeedRecord(d, DEFAULTS.debts ?? [])),
+    plans: (s.plans ?? []).filter((p) => !isShippedSeedRecord(p, DEFAULTS.plans ?? [])),
+    pots: s.pots.filter((p) => !isShippedSeedRecord(p, DEFAULTS.pots)),
+    subs: s.subs.filter((sub) => !strippedSubNames.has(sub.name)),
+    subPaused: dropStrippedSubs(s.subPaused),
+    subOverrides: dropStrippedSubs(s.subOverrides),
+    cycles: s.cycles.filter((c) => !isShippedSeedRecord(c, DEFAULTS.cycles)),
+    currentBalance,
+    ...(remapAccounts
+      ? {
+          accounts: (s.accounts ?? []).map((a) =>
+            a.id === DEFAULT_ACCOUNT_ID && !a.isLiability
+              ? { ...a, balanceMinor: currentBalance.amount, balanceAsOfISO: now }
+              : a,
+          ),
+        }
+      : {}),
+  };
+}
+
+/** OTA-safe cleanup: strip demo data IFF this is a real user's state. Idempotent
+ *  and a no-op for genuine demo/preview states. This is what removes demo data
+ *  that already leaked onto a real device — first-run seeding changes alone
+ *  cannot, because the demo data is already persisted in the blob. */
+export function purgeSeedIfReal(s: AppState): AppState {
+  return isRealUser(s) ? stripSeedData(s) : s;
+}
+
+/** The state a FIRST run lands on. Dev/Metro seeds the demo set; a released
+ *  build starts genuinely empty (onboarding still runs — `onboarding.done`
+ *  stays false — and leads the user to add real data). */
+function firstRunState(): AppState {
+  if (SEED_ON_FIRST_RUN) {
+    return { ...DEFAULTS, transactions: seedTransactions() };
+  }
+  const emptyBalance: CurrentBalance = { ...EMPTY_BALANCE, setAt: new Date().toISOString() };
+  return {
+    ...DEFAULTS,
+    pots: [],
+    subs: [],
+    subPaused: {},
+    subOverrides: {},
+    cycles: [],
+    debts: [],
+    plans: [],
+    currentBalance: emptyBalance,
+    accounts: [synthesizeDefaultAccount(emptyBalance)],
+    transactions: [],
+    incomeSources: [],
+  };
+}
+
 function load(): AppState {
   try {
     if (!persistedBlob) {
-      // First run on this device — seed transactions now.
-      return { ...DEFAULTS, transactions: seedTransactions() };
+      // First run on this device. A RELEASED build starts CLEAN (owner rule
+      // 2026-07-06: real data required to use the app — no demo data shipped);
+      // only a dev/Metro build seeds the demo set. See `firstRunState`.
+      return firstRunState();
     }
     // Deep-clone the persisted blob so migrate/load never mutate the stored copy.
     const parsedRaw = JSON.parse(JSON.stringify(persistedBlob)) as Record<string, unknown>;
@@ -1219,7 +1354,11 @@ function load(): AppState {
       potLedger: migrated.potLedger ?? [],
       nextYouNote: migrated.nextYouNote ?? '',
       tightPointGoal: migrated.tightPointGoal ?? null,
-      transactions: migrated.transactions ?? seedTransactions(),
+      // NEVER silently re-seed an existing install: a persisted blob that
+      // somehow lacks its transactions list starts empty, not with demo rows
+      // (a real user would otherwise see fake Pret/Tesco rows appear — the
+      // exact contamination this whole change removes).
+      transactions: migrated.transactions ?? [],
       droppedTransactionCount:
         typeof migrated.droppedTransactionCount === 'number' ? migrated.droppedTransactionCount : 0,
       edits: migrated.edits ?? [],
@@ -1255,7 +1394,14 @@ function load(): AppState {
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
     // § 6 "sub-nudge clears the day after nudgedDate".
-    return { ...loaded, subOverrides: sweepStaleOverrides(loaded.subs, loaded.subOverrides) };
+    // OTA cleanup: strip any demo/seed data that leaked onto a REAL user's
+    // device (idempotent; a no-op for genuine demo/preview states). This is the
+    // step that cleans an already-contaminated install — first-run seeding
+    // changes cannot, since the demo data is already persisted in the blob.
+    return purgeSeedIfReal({
+      ...loaded,
+      subOverrides: sweepStaleOverrides(loaded.subs, loaded.subOverrides),
+    });
   } catch {
     return DEFAULTS;
   }
@@ -2483,6 +2629,14 @@ export function addStatementAsHistory(
       droppedTransactionCount: 0,
       duplicatesSkipped: 0,
     };
+  }
+
+  // Demo→real transition (belt for any path that bypassed onboarding's wipe): an
+  // import IS real data, so clear any lingering demo/seed set first — the
+  // imported rows must never mix with seed rows in the same session. No-op once
+  // the user is already real (`isRealUser`), so a normal re-import is untouched.
+  if (!isRealUser(getState())) {
+    setPartial(stripSeedData(getState()));
   }
 
   // Step 1 — drop candidates already present in the ledger. Compared by STABLE IMPORT ID

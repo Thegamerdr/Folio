@@ -66,6 +66,10 @@ describe('persist blob round-trip', () => {
   });
 
   it('preserves transactions and pots across the round-trip', () => {
+    // Use REAL (user-created) pots, not the untouched seed set: this is a real
+    // user (the `rt-1` transaction has a non-seed source), so the demo-strip on
+    // load would legitimately clear the seed pots. A real pot set is what a
+    // persistence round-trip must actually preserve.
     setPartial({
       transactions: [
         {
@@ -77,6 +81,9 @@ describe('persist blob round-trip', () => {
           source: 'manual',
         },
       ],
+      pots: [
+        { id: 'rt-pot', name: 'Round Trip Pot', saved: 50, goal: 200, perWeek: 10, accent: false },
+      ],
     });
     const blob = getPersistBlob();
     const potsBefore = getState().pots.length;
@@ -87,6 +94,7 @@ describe('persist blob round-trip', () => {
     const s = getState();
     expect(s.transactions.find((t) => t.id === 'rt-1')?.merchant).toBe('Round Trip');
     expect(s.pots.length).toBe(potsBefore);
+    expect(s.pots.find((p) => p.id === 'rt-pot')?.name).toBe('Round Trip Pot');
   });
 
   it('drops the ephemeral focus bridges (never persisted)', () => {

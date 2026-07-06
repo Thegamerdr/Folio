@@ -97,8 +97,12 @@ one-time fee with unlimited AI is an unbounded-cost trap; this split avoids it w
 "own it forever" feeling.
 
 Three ways to hold the app:
-- **FREE** — safety + fit-free modes + debt-free date + on-device OCR + a small monthly AI-read
-  allowance. Genuinely valuable, the mission tier.
+- **FREE** — safety + fit-free modes + debt-free date + a small monthly allowance of the SAME
+  ACCURATE AI reader paid users get (capped by QUANTITY, never degraded in QUALITY). On-device OCR
+  is only ever an OPTIONAL OFFLINE fallback, never the thing that produces numbers people trust.
+  **ACCURACY IS NEVER THE FREE/PAID LINE — QUANTITY IS.** (Owner, 2026-07-06: a free tier that gives
+  wrong numbers is worse than no free tier; the mission demands free be correct.) A few accurate
+  reads/mo costs cents, so cost was never a reason to degrade free.
 - **FULL — one-time (~£29.99, "yours forever")** — unlocks ALL software features (multi-account,
   full leaks/insights engine, goals + payoff-planner depth, every mode, cosmetics). Zero marginal
   cost, so safe to sell once. AI reading = on-device OCR + a fair monthly allowance (e.g. 10/mo) so

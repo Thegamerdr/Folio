@@ -45,7 +45,10 @@ import {
   hasAnyUserData,
   hydrateFromBlob,
   isBankTxn,
+  isRealUser,
   matchMeloTool,
+  purgeSeedIfReal,
+  stripSeedData,
   payCreditCardFromBank,
   pauseMany,
   queueInputFromCandidates,
@@ -1604,6 +1607,134 @@ describe('schema migration v7', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Demo/seed containment (owner rule 2026-07-06): shipped demo data must NEVER
+// be shown as a real user's own money. A real user's state is cleaned of seed
+// records on load (OTA cleanup for already-contaminated devices), and an import
+// atomically replaces any lingering demo set — real + demo never coexist. Seed
+// records are stripped ONLY by unambiguous marker; a real sub the user owns
+// (even one named like a seed sub) is never fuzzy-deleted.
+// ---------------------------------------------------------------------------
+describe('demo/seed containment', () => {
+  function candidate(over: Partial<CandidateMoneyItem> = {}): CandidateMoneyItem {
+    return {
+      id: `cand-${Math.random().toString(36).slice(2)}`,
+      source: 'pdf',
+      kind: 'spend',
+      merchant: 'Tesco',
+      amount: -10,
+      confidence: 'low',
+      ...over,
+    };
+  }
+
+  it('isRealUser is false for the untouched demo/preview state, true once real data exists', () => {
+    resetAll(); // seeds the full demo set
+    expect(isRealUser(getState())).toBe(false);
+    setPartial({ onboarding: { ...getState().onboarding, done: true } });
+    expect(isRealUser(getState())).toBe(true);
+  });
+
+  it('stripSeedData removes every seed-marked record and is idempotent', () => {
+    resetAll();
+    const stripped = stripSeedData(getState());
+    expect(stripped.transactions.some((t) => t.source === 'seed')).toBe(false);
+    expect((stripped.debts ?? []).some((d) => d.id === 'seed-klarna' || d.id === 'seed-loan')).toBe(
+      false,
+    );
+    expect((stripped.plans ?? []).some((p) => p.id === 'seed-macbook')).toBe(false);
+    expect(stripped.currentBalance.source).not.toBe('sample');
+    expect(stripped.pots).toEqual([]); // untouched seed pot set → cleared
+    expect(stripped.subs).toEqual([]); // untouched default sub set → cleared
+    // Idempotent — running it again changes nothing.
+    expect(stripSeedData(stripped)).toEqual(stripped);
+  });
+
+  it('stripSeedData NEVER deletes a real sub the user owns (even one named like a seed sub)', () => {
+    resetAll();
+    // A modified sub set (not the untouched default) — e.g. the user's own Spotify only.
+    const realSpotify = {
+      name: 'Spotify',
+      cost: 9.99,
+      nextRenewalDaysAway: 5,
+      lastUsedDaysAgo: 0,
+      usesPerMonth: 30,
+    };
+    setPartial({ subs: [realSpotify] });
+    expect(stripSeedData(getState()).subs).toEqual([realSpotify]);
+  });
+
+  it('stripSeedData does NOT delete real onboarding pots that reuse seed pot ids', () => {
+    resetAll();
+    // OnboardingSheet builds real pots with the SAME ids as the seed pots, but
+    // saved:0 and the user's own goals — they are NOT the shipped seed objects
+    // and MUST survive. Regression for the id-collision review finding: keying
+    // the strip on ids alone would wipe these real, user-created pots.
+    const onboardingPots = [
+      {
+        id: 'holiday',
+        name: 'Holiday · September',
+        saved: 0,
+        goal: 1200,
+        perWeek: 35,
+        accent: true,
+      },
+      { id: 'buffer', name: 'Buffer', saved: 0, goal: 500, perWeek: 20, accent: false },
+      { id: 'christmas', name: 'Christmas', saved: 0, goal: 300, perWeek: 15, accent: false },
+    ];
+    setPartial({ onboarding: { ...getState().onboarding, done: true }, pots: onboardingPots });
+    expect(stripSeedData(getState()).pots).toEqual(onboardingPots);
+  });
+
+  it('purgeSeedIfReal is a reference-equal no-op on a demo state, and strips on a real one', () => {
+    resetAll();
+    const demo = getState();
+    expect(purgeSeedIfReal(demo)).toBe(demo); // isRealUser false → untouched
+    setPartial({ onboarding: { ...getState().onboarding, done: true } });
+    expect(purgeSeedIfReal(getState()).transactions.some((t) => t.source === 'seed')).toBe(false);
+  });
+
+  it('OTA cleanup: a REAL user blob with leaked demo data is cleaned on load; real data survives', () => {
+    // The owner-device scenario: a real, onboarded user whose ledger ALSO holds
+    // shipped demo records (seed txns + Klarna/loan + MacBook) — exactly what
+    // leaked past onboarding. Persist + hydrate == the OTA build reloading the
+    // device blob.
+    resetAll();
+    const realTxn: Transaction = {
+      id: 'imp-real-1',
+      when: '2026-03-03T00:00:00.000Z',
+      merchant: 'Real Shop',
+      amount: -12.5,
+      category: 'food',
+      source: 'manual', // a real (non-seed) row — how imported/added rows land
+    };
+    setPartial({
+      onboarding: { ...getState().onboarding, done: true },
+      transactions: [realTxn, ...getState().transactions], // real + seed mixed
+    });
+    hydrateFromBlob(getPersistBlob());
+
+    const s = getState();
+    expect(s.transactions.some((t) => t.source === 'seed')).toBe(false);
+    expect((s.debts ?? []).some((d) => d.id === 'seed-klarna' || d.id === 'seed-loan')).toBe(false);
+    expect((s.plans ?? []).some((p) => p.id === 'seed-macbook')).toBe(false);
+    expect(s.transactions.find((t) => t.id === 'imp-real-1')).toBeTruthy(); // real data intact
+  });
+
+  it('an import into a still-demo state atomically replaces the demo set (no mixing)', () => {
+    resetAll(); // demo: seed txns + Klarna/loan + MacBook + £720 sample balance
+    expect(isRealUser(getState())).toBe(false);
+    addStatementAsHistory([candidate({ merchant: 'Real Co', amount: -20, date: '2026-03-03' })]);
+
+    const s = getState();
+    expect(s.transactions.some((t) => t.source === 'seed')).toBe(false); // demo txns gone
+    expect(s.transactions.some((t) => t.merchant === 'Real Co')).toBe(true); // real landed
+    expect((s.debts ?? []).some((d) => d.id === 'seed-klarna')).toBe(false); // demo debt gone
+    expect((s.plans ?? []).some((p) => p.id === 'seed-macbook')).toBe(false); // demo plan gone
+    expect(s.currentBalance.source).not.toBe('sample');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // schema migration — v7 → v8 introduces the income-cadence model
 // (`incomeSources`, see lib/income.ts). Every pre-v8 install synthesizes
 // exactly ONE monthly source ("Pay") from its legacy onboarding.payday +
@@ -2923,7 +3054,10 @@ describe('addStatementAsHistory', () => {
     });
 
     it('sets the named account balance via the closing-balance offer, never the global currentBalance', () => {
-      setPartial({ transactions: [] });
+      // A user creating a named account + importing is a REAL user (already past
+      // onboarding's demo wipe), so addStatementAsHistory's demo-purge guard is a
+      // no-op here — this test isolates account-balance-vs-global-balance only.
+      setPartial({ transactions: [], onboarding: { ...getState().onboarding, done: true } });
       const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 0 });
       const beforeGlobalBalance = getState().currentBalance;
       const result = addStatementAsHistory(
