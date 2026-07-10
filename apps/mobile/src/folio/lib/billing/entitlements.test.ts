@@ -70,7 +70,7 @@ describe('reconcileEntitlements', () => {
     expect(lens().plusUnlocked).toBe(false);
   });
 
-  it('re-sets plusUnlocked when a store Plus entitlement is active but the flag was lost', async () => {
+  it('repairs the Full unlock (both legacy flags) from a legacy store Plus entitlement — grandfather rule', async () => {
     getInfoAsync.mockResolvedValue({ exists: true });
     readAsStringAsync.mockResolvedValue(
       JSON.stringify({ v: 1, record: { source: 'store', tier: 'plus' } }),
@@ -79,11 +79,13 @@ describe('reconcileEntitlements', () => {
 
     await reconcileEntitlements();
 
+    // Free/Full/Live restructure: Full is written through setLensFullUnlocked, which sets BOTH
+    // legacy persisted flags — a legacy Plus purchaser owns Full outright.
     expect(lens().plusUnlocked).toBe(true);
-    expect(lens().proUnlocked).toBe(false);
+    expect(lens().proUnlocked).toBe(true);
   });
 
-  it('re-sets proUnlocked (and implies plusUnlocked) when a store Pro entitlement is active but lost', async () => {
+  it('repairs the Full unlock from a legacy store Pro entitlement — grandfather rule', async () => {
     getInfoAsync.mockResolvedValue({ exists: true });
     readAsStringAsync.mockResolvedValue(
       JSON.stringify({ v: 1, record: { source: 'store', tier: 'pro' } }),
@@ -94,6 +96,32 @@ describe('reconcileEntitlements', () => {
 
     expect(lens().proUnlocked).toBe(true);
     expect(lens().plusUnlocked).toBe(true);
+  });
+
+  it('repairs the Full unlock from a store Full entitlement', async () => {
+    getInfoAsync.mockResolvedValue({ exists: true });
+    readAsStringAsync.mockResolvedValue(
+      JSON.stringify({ v: 1, record: { source: 'store', tier: 'full' } }),
+    );
+    setPartial({ lens: { ...lens(), plusUnlocked: false, proUnlocked: false } });
+
+    await reconcileEntitlements();
+
+    expect(lens().plusUnlocked).toBe(true);
+    expect(lens().proUnlocked).toBe(true);
+  });
+
+  it('never touches lens flags for a Live entitlement — Live gates AI quantity, not lenses', async () => {
+    getInfoAsync.mockResolvedValue({ exists: true });
+    readAsStringAsync.mockResolvedValue(
+      JSON.stringify({ v: 1, record: { source: 'store', tier: 'live' } }),
+    );
+    setPartial({ lens: { ...lens(), plusUnlocked: false, proUnlocked: false } });
+
+    await reconcileEntitlements();
+
+    expect(lens().plusUnlocked).toBe(false);
+    expect(lens().proUnlocked).toBe(false);
   });
 
   it('does nothing when the flag already matches the entitlement (idempotent)', async () => {

@@ -1,55 +1,39 @@
-// PaywallScreen — the faithful 1:1 React Native port of the web pricing surface
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPaywall.tsx).
+// PaywallScreen — the pricing surface, restructured 2026-07-10 to the Free/Full/Live money model
+// (MONEY_MODEL.md §2b). This SUPERSEDES the web port's Free/Plus/Pro subscription shape — the web
+// screen (folio-melo ScreenPaywall.tsx) still shows the old model; this screen is now the source
+// of truth for pricing until the web catches up.
 //
 // @rn-screen    PaywallScreen
 // @rn-stack     More > Paywall
-// @purpose      The real pricing surface. Three tiers (Free / Melo Plus / Melo Pro), a monthly/yearly
-//               cadence toggle, a compare-at-a-glance matrix, a ten-lens rail, and a REAL one-cycle
-//               trial CTA for Plus/Pro — wired to the app's actual lens/entitlement engine
-//               (`@/folio/lib/lens`, `@/folio/store` LensState), not a static "coming soon" stub.
-// @reads        moneyMode, lens.plusUnlocked, lens.proUnlocked, lens.trialCycleId, currentBalance,
-//               pots, subs, subPaused, onboarding, melo.quietMode — via useLens()/useAppStore().
-// @writes       startTrial() (via useLens()) on the Plus/Pro trial CTA.
-// @copy         FROZEN — ported verbatim from the web literals (the web JSX strings are the frozen
-//               source, same convention every folio screen uses for its own inline literals).
+// @purpose      Three doors: FREE (safety + fit-free lenses, always), FULL (one-time purchase —
+//               every lens and all software, yours forever), LIVE (small monthly sub — the only
+//               recurring price, attached to the only recurring cost: unlimited AI statement
+//               reads, live sync when it ships). Compare matrix, ten-lens rail, and a REAL
+//               one-cycle trial CTA for Full — wired to the actual lens/entitlement engine.
+// @reads        moneyMode, lens (via useLens(): fullUnlocked/trialCycleId/trialEndedCycleId/
+//               trialDaysLeft/tierFor), currentBalance, pots, subs, subPaused, onboarding,
+//               melo.quietMode, incomeSources.
+// @writes       startTrial() (Full trial CTA) · setLensFullUnlocked + saveEntitlement (real
+//               purchase/restore paths, only reachable once billing is live).
 // @tokens       canvas · surface · inset · ink · calm (accent) · calmSoft · positive · caution ·
 //               hairline · muted — all from the kit. Fraunces headlines · tabular money.
 //
-// FIDELITY DECISIONS (superseding the prior build's "no lens engine exists" note — it does now):
-//   • Lens/trial engine: `@/folio/lib/lens`'s `useLens()` is REAL (plusUnlocked / proUnlocked /
-//     trialCycleId / trialDaysLeft / startTrial / tierFor / canAccess), confirmed against
-//     `@/folio/store`'s `LensState` + `startLensTrial`/`setLensPlusUnlocked`/`setLensProUnlocked`
-//     mutators. This port wires it directly — the Plus CTA calls the real `startTrial()`, and the
-//     current-tier strip / CTA / lens rail all read the real entitlement state instead of a static
-//     "Free" placeholder.
-//   • canShowUpsell: `@/folio/lib/lensPaywall`'s `canShowUpsell`/`upsellSuppressionReason` are REAL
-//     ports of the web's five-signal guard (weather, recovery, safe-zone, quiet-mode). Weather comes
-//     from `deriveModeState(moneyMode, inputs).weather` (the same mode engine every other screen
-//     uses); `recoveryActive` = `moneyMode === 'reset'` (mirrors the web's own derivation);
-//     `quietMode` reads the real `melo.quietMode` slice (added to the store alongside this round —
-//     see MeloScreen.tsx / store.ts). All five suppression reasons + their distinct copy are ported.
-//   • Ten-lens rail: `FREE_LENSES` / `PLUS_LENSES` / `PRO_LENSES` / `MODE_LABEL` / `tierFor` /
-//     `canAccess` all come from the real `@/folio/lib/lens` + `@/folio/lib/modes` modules — the rail
-//     is wired live (Active / Free / locked-with-tier-badge / unlocked states), not dropped.
-//   • Tier bullet "live" flags: corrected to match the web's frozen `TIER_COPY` exactly — Plus's
-//     "Growth, Reset, Optimizer, Planning lenses" and Pro's "Irregular income · Debt / BNPL" /
-//     "Low-visibility lens" are `live: true` (the underlying mode strategies are real and shipped in
-//     this app's `@/folio/lib/modes/strategies/*` — confirmed all ten exist), matching the compare
-//     matrix's corresponding rows.
-//   • Restore: kept as an honest `Alert.alert` stub (RN's established toast-replacement convention),
-//     but now branches on the REAL `proUnlocked`/`plusUnlocked` state (mirrors the web's `handleRestore`
-//     three-way branch) instead of always claiming "no purchase found".
-//   • Accent word "your": web `<em class="not-italic text-accent">your</em>`. RN has no inline `<em>`,
-//     so the headline is three Text runs and the accent run is a nested UPRIGHT terracotta span (the
-//     StartScreen / MeloScreen / AccountScreen pattern).
-//   • slide-in-r: translateX 28->0 + fade over 360ms ease-out-expo, gated to final state under
-//     reduce-motion (MoreScreen / MeloScreen / AccountScreen precedent).
-//   • STATES: populated-only per the SPEC convention (offline = populated; no async dependency). All
-//     five branches are rendered for completeness.
+// MODEL RULES this screen enforces (MONEY_MODEL.md, owner-confirmed 2026-07-06):
+//   • Free is never quality-degraded — it includes the fit-free lenses (money-shape lenses:
+//     Survival, Stability, Debt, Irregular, Reset, Low-visibility) and the full safety layer.
+//     Depth/planning lenses (Growth, Optimizer, Planning, Household) are the Full unlock.
+//   • Full is ONE-TIME. Software has zero marginal cost, so it never rents. No cadence applies.
+//   • Live is the only subscription, priced at the metered cost it covers (AI reads; live bank
+//     sync when built). The cadence toggle applies to Live alone.
+//   • canShowUpsell guard (weather/recovery/safe-zone/quiet-mode) — never sell on a bad money
+//     moment. Unchanged from the prior build; all five suppression reasons render.
+//   • One-cycle trial (payday-anchored, 21-day floor, one ever) unlocks the Full lenses; it never
+//     grants Live — Live meters a real recurring cost, there is nothing to trial offline.
+//   • Legacy Plus/Pro purchasers grandfather into Full (lens.ts/entitlements.ts own that rule).
 //
-// HONEST CLAIMS: no privacy/security assertion is made. Every CTA does exactly what it claims — the
-// trial CTA really starts a trial, the guard really suppresses selling on a bad money moment. No
-// banned product vocabulary appears in any visible string. Every row/button is a >=44px tap target.
+// HONEST CLAIMS: prices are prototype numbers until the Play listing exists (footer says so). The
+// trial CTA really starts a trial; the guard really suppresses selling; purchase/restore only
+// render once probeAvailability() proves the store is reachable. Every row/button ≥44px.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -67,8 +51,8 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
-import { setLensPlusUnlocked, setLensProUnlocked } from '@/folio/store';
-import { useLens, trialEndIsoFor, FREE_LENSES, PLUS_LENSES, PRO_LENSES } from '@/folio/lib/lens';
+import { setLensFullUnlocked } from '@/folio/store';
+import { useLens, trialEndIsoFor, FREE_LENSES, FULL_LENSES } from '@/folio/lib/lens';
 import { canShowUpsell, upsellSuppressionReason } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
 import { useRoute } from '@/folio/lib/storeRoute';
@@ -81,7 +65,11 @@ import {
   tierForProductId,
   type BillingCadence,
 } from '@/folio/lib/billing/iap';
-import { saveEntitlement, type EntitlementRecord } from '@/folio/lib/billing/entitlements';
+import {
+  loadActiveEntitlement,
+  saveEntitlement,
+  type EntitlementRecord,
+} from '@/folio/lib/billing/entitlements';
 import { resolveCtaMode } from '@/folio/lib/billing/ctaMode';
 import { showToast } from '@/folio/ui/Toast';
 import type { Nav } from '@/folio/types';
@@ -93,14 +81,15 @@ export type PaywallScreenProps = {
   state?: PaywallScreenState;
 };
 
-type TierKey = 'free' | 'plus' | 'pro';
+type TierKey = 'free' | 'full' | 'live';
 type Cadence = 'monthly' | 'yearly';
 
-// Prototype prices — real billing is a future engine; the lens/trial state itself is real.
-const PLUS_MONTHLY = 4.99;
-const PLUS_YEARLY = 39.99;
-const PRO_MONTHLY = 8.99;
-const PRO_YEARLY = 69.99;
+// Prototype prices — owner sign-off pending (MONEY_MODEL.md §7 open numbers). Full is one-time
+// (software never rents); Live is the only recurring price. The cadence toggle applies to Live
+// alone.
+const FULL_ONE_TIME = 29.99;
+const LIVE_MONTHLY = 2.99;
+const LIVE_YEARLY = 24.99;
 
 // Frozen lens one-liners — verbatim from the web's `LENS_ONE_LINER`.
 const LENS_ONE_LINER: Record<MoneyMode, string> = {
@@ -116,71 +105,62 @@ const LENS_ONE_LINER: Record<MoneyMode, string> = {
   lowVis: 'Not enough to say yet.',
 };
 
-// Tier copy — corrected to match the web's frozen TIER_COPY `live` flags exactly (see FIDELITY
-// DECISIONS above: Plus's four lenses + Pro's Irregular/Debt/Low-vis lenses are all shipped
-// strategies in this app, so they are `live`, not `soon`).
+// Tier copy — Free/Full/Live doors (MONEY_MODEL.md §2b). `live: false` renders a "soon" tag, so
+// every flag is a truth claim about TODAY's build:
+//   • The six fit-free lenses + safety layer are shipped → live.
+//   • The four Full lenses (Growth/Optimizer/Planning/Household strategies) are shipped → live.
+//   • AI-read allowances are `soon` until the metering gate ships (next tranche — flip then).
+//   • Wardrobe gating, widgets, briefings, bank sync are not built → soon.
 const TIER_COPY: Record<
   TierKey,
   { name: string; tagline: string; bullets: { label: string; live: boolean }[] }
 > = {
   free: {
     name: 'Free',
-    tagline: 'Basic money weather.',
+    tagline: 'The safety layer. Always.',
     bullets: [
       { label: 'Will my money last to payday?', live: true },
-      { label: 'Survival + Stability lenses', live: true },
-      { label: 'Safe Zone, Recovery, Reset', live: true },
-      { label: '1 goal · 3 spend checks / week', live: false },
+      { label: 'Six money-shape lenses — Survival to Low-vis', live: true },
+      { label: 'Safe Zone · Recovery · Bill shield · Calendar', live: true },
+      { label: 'A few AI statement reads each month', live: false },
     ],
   },
-  plus: {
-    name: 'Melo Plus',
-    tagline: 'Full daily clarity.',
+  full: {
+    name: 'Melo Full',
+    tagline: 'Every lens. One payment. Yours for good.',
     bullets: [
       { label: 'Everything in Free', live: true },
-      { label: 'Growth, Reset, Optimizer, Planning lenses', live: true },
-      { label: 'Unlimited spend checks', live: false },
-      // Truth pass (2026-07-10): "What changed" has no standing surface yet (only event-driven
-      // caught-sheets), so it may not be sold as live. Bill shield + Calendar are real and shown.
-      { label: 'Bill shield · Calendar', live: true },
+      { label: 'Growth, Optimizer, Planning, Household lenses', live: true },
+      { label: 'Bigger AI read allowance', live: false },
       { label: "'What changed' briefing", live: false },
       { label: 'Widgets · Leak detection', live: false },
-      // Truth pass (2026-07-10): the wardrobe's Plus items are not entitlement-gated in code (a
-      // free user can equip them today), so this may not be sold as a live Plus exclusive. Also
-      // pending the owner's wardrobe decision (MELO_ALIGNMENT_AUDIT.md D6).
       { label: 'Premium Fenice customisation', live: false },
     ],
   },
-  pro: {
-    name: 'Melo Pro',
-    tagline: 'Advanced forecasting + shared money.',
+  live: {
+    name: 'Melo Live',
+    tagline: 'The always-on lane — pay only while you use it.',
     bullets: [
-      { label: 'Everything in Plus', live: true },
-      { label: 'Irregular income · Debt / BNPL', live: true },
-      { label: 'Low-visibility lens', live: true },
-      { label: 'Household (shared setup)', live: false },
-      { label: 'Money Time Machine', live: false },
-      { label: 'Custom rules · Exports', live: false },
+      { label: 'Unlimited AI statement reads', live: false },
+      { label: 'Live bank sync', live: false },
+      { label: 'Cancel any month — the app keeps working', live: true },
     ],
   },
 };
 
 type MatrixCell = 'live' | 'soon' | 'no';
-const MATRIX: readonly { label: string; free: MatrixCell; plus: MatrixCell; pro: MatrixCell }[] = [
-  { label: 'Will my money last to payday?', free: 'live', plus: 'live', pro: 'live' },
-  { label: 'Safe Zone · Recovery · Reset', free: 'live', plus: 'live', pro: 'live' },
-  { label: 'Growth · Optimizer · Planning', free: 'no', plus: 'live', pro: 'live' },
-  // Truth pass (2026-07-10): the Bills Shield line (Safe Zone math) and the Calendar are not
-  // entitlement-gated anywhere in code — a free user has both today, so 'no' was a false claim.
-  { label: 'Bill shield · Calendar', free: 'live', plus: 'live', pro: 'live' },
-  // Truth pass (2026-07-10): wardrobe gating is not enforced in code — 'soon', not 'live'.
-  { label: 'Premium Fenice looks', free: 'no', plus: 'soon', pro: 'soon' },
-  { label: 'Widgets · Leak detection', free: 'no', plus: 'soon', pro: 'soon' },
-  { label: 'Low visibility lens', free: 'no', plus: 'no', pro: 'live' },
-  { label: 'Irregular income · runway', free: 'no', plus: 'no', pro: 'live' },
-  { label: 'Debt / BNPL payoff', free: 'no', plus: 'no', pro: 'live' },
-  { label: 'Household (shared money)', free: 'no', plus: 'no', pro: 'soon' },
-  { label: 'Money Time Machine', free: 'no', plus: 'no', pro: 'soon' },
+const MATRIX: readonly { label: string; free: MatrixCell; full: MatrixCell; live: MatrixCell }[] = [
+  { label: 'Will my money last to payday?', free: 'live', full: 'live', live: 'live' },
+  { label: 'Safe Zone · Recovery · Reset', free: 'live', full: 'live', live: 'live' },
+  { label: 'Six money-shape lenses', free: 'live', full: 'live', live: 'live' },
+  { label: 'Growth · Optimizer · Planning · Household', free: 'no', full: 'live', live: 'no' },
+  { label: 'Bill shield · Calendar', free: 'live', full: 'live', live: 'live' },
+  { label: 'Unlimited AI reads', free: 'no', full: 'no', live: 'soon' },
+  { label: 'Live bank sync', free: 'no', full: 'no', live: 'soon' },
+  { label: "'What changed' briefing", free: 'no', full: 'soon', live: 'no' },
+  { label: 'Widgets · Leak detection', free: 'no', full: 'soon', live: 'no' },
+  { label: 'Premium Fenice looks', free: 'no', full: 'soon', live: 'no' },
+  { label: 'Money Time Machine', free: 'no', full: 'soon', live: 'no' },
 ];
 
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
@@ -216,18 +196,24 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const onboarding = useAppStore((s) => s.onboarding);
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
 
-  const {
-    plusUnlocked,
-    proUnlocked,
-    trialCycleId,
-    trialEndedCycleId,
-    trialDaysLeft,
-    startTrial,
-    tierFor,
-  } = useLens();
+  const { fullUnlocked, trialCycleId, trialEndedCycleId, trialDaysLeft, startTrial, tierFor } =
+    useLens();
 
-  const [cadence, setCadence] = useState<Cadence>('yearly');
-  const [selected, setSelected] = useState<TierKey>('plus');
+  const [cadence, setCadence] = useState<Cadence>('monthly');
+  const [selected, setSelected] = useState<TierKey>('full');
+
+  // Live subscription state — read from the entitlement record (the lens store never carries
+  // Live; it gates AI quantity, not lenses). False until a real store purchase writes it.
+  const [liveActive, setLiveActive] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void loadActiveEntitlement().then((record) => {
+      if (mounted && record?.tier === 'live') setLiveActive(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Real-billing availability — false in every build until a Play listing exists (no store, no
   // client, no fake success). Probed once per screen mount; never blocks first paint since the
@@ -287,8 +273,8 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
     selected,
     canSell,
     billingAvailable,
-    plusUnlocked,
-    proUnlocked,
+    fullUnlocked,
+    liveActive,
     trialCycleId,
     trialEndedCycleId,
   });
@@ -335,11 +321,10 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
     tier: TierKey,
   ): { price: number; per: string; perMonth?: number; strike?: number } => {
     if (tier === 'free') return { price: 0, per: '' };
-    const m = tier === 'plus' ? PLUS_MONTHLY : PRO_MONTHLY;
-    const y = tier === 'plus' ? PLUS_YEARLY : PRO_YEARLY;
+    if (tier === 'full') return { price: FULL_ONE_TIME, per: 'one-time' };
     return cadence === 'yearly'
-      ? { price: y, per: 'year', perMonth: y / 12, strike: m }
-      : { price: m, per: 'month' };
+      ? { price: LIVE_YEARLY, per: 'year', perMonth: LIVE_YEARLY / 12, strike: LIVE_MONTHLY }
+      : { price: LIVE_MONTHLY, per: 'month' };
   };
 
   const handleStartTrial = () => {
@@ -357,10 +342,10 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   };
 
   // Real purchase — only reachable when billingAvailable is true (a Play listing exists and our
-  // SKUs resolved). Writes both the real lens unlock (what useLens()/PaywallScreen/every other
-  // upsell surface actually reads) and the entitlement record (./entitlements — records WHERE the
-  // unlock came from) so the two never drift apart.
-  const handlePurchase = async (tier: 'plus' | 'pro') => {
+  // SKUs resolved). Full writes the real lens unlock (what useLens()/every upsell surface reads);
+  // Live only writes the entitlement record — it gates AI quantity, never lenses. Both write the
+  // record so the billing layer always knows where an entitlement came from.
+  const handlePurchase = async (tier: 'full' | 'live') => {
     if (!canSell || purchasing) return;
     setPurchasing(tier);
     try {
@@ -369,13 +354,15 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       if (outcome.status === 'purchased') {
         await finishPurchase(outcome.purchase);
         const resolvedTier = tierForProductId(outcome.purchase.productId) ?? tier;
-        if (resolvedTier === 'pro') setLensProUnlocked(true);
-        else setLensPlusUnlocked(true);
+        if (resolvedTier === 'full') setLensFullUnlocked(true);
+        else setLiveActive(true);
         const record: EntitlementRecord = { source: 'store', tier: resolvedTier };
         await saveEntitlement(record);
         Alert.alert(
-          resolvedTier === 'pro' ? 'Melo Pro is on' : 'Melo Plus is on',
-          'Thanks — every lens for this tier is unlocked.',
+          resolvedTier === 'live' ? 'Melo Live is on' : 'Melo Full is yours',
+          resolvedTier === 'live'
+            ? 'Unlimited reads while it runs — cancel any month.'
+            : 'Every lens unlocked. One payment — nothing renews.',
           [{ text: 'OK', style: 'cancel' }],
         );
         nav.back();
@@ -389,19 +376,16 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   };
 
   const handleRestore = async () => {
-    if (proUnlocked) {
-      Alert.alert('Melo Pro is active on this device', undefined, [
-        { text: 'OK', style: 'cancel' },
-      ]);
-      return;
-    }
-    if (plusUnlocked) {
-      Alert.alert('Melo Plus is active on this device', undefined, [
-        { text: 'OK', style: 'cancel' },
-      ]);
-      return;
-    }
     if (!billingAvailable) {
+      // No store to query. Report what this device already holds, honestly.
+      if (fullUnlocked || liveActive) {
+        const owned =
+          fullUnlocked && liveActive ? 'Full + Live are' : fullUnlocked ? 'Full is' : 'Live is';
+        Alert.alert(`Melo ${owned} active on this device`, undefined, [
+          { text: 'OK', style: 'cancel' },
+        ]);
+        return;
+      }
       Alert.alert(
         'No purchase found on this device',
         'This is the current build — real restore ships with a future update.',
@@ -410,23 +394,43 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       return;
     }
     const restored = await restorePurchases();
-    const restoredTier =
-      restored
-        .map((p) => tierForProductId(p.productId))
-        .sort((a, b) => (a === 'pro' ? -1 : b === 'pro' ? 1 : 0))[0] ?? null;
-    if (restoredTier === null) {
+    const tiers = new Set(
+      restored.map((p) => tierForProductId(p.productId)).filter((tier) => tier !== null),
+    );
+    if (tiers.size === 0) {
       Alert.alert('No purchase found on this device', undefined, [{ text: 'OK', style: 'cancel' }]);
       return;
     }
-    if (restoredTier === 'pro') setLensProUnlocked(true);
-    else setLensPlusUnlocked(true);
-    await saveEntitlement({ source: 'store', tier: restoredTier });
-    Alert.alert(restoredTier === 'pro' ? 'Melo Pro restored' : 'Melo Plus restored', undefined, [
-      { text: 'OK', style: 'cancel' },
-    ]);
+    // Full (incl. grandfathered legacy subs) repairs the lens flag; Live repairs the record. When
+    // both restore, the record holds 'live' (its expiry matters) — the lens store is already the
+    // durable source of truth for Full.
+    if (tiers.has('full')) setLensFullUnlocked(true);
+    if (tiers.has('live')) {
+      setLiveActive(true);
+      await saveEntitlement({ source: 'store', tier: 'live' });
+    } else {
+      await saveEntitlement({ source: 'store', tier: 'full' });
+    }
+    const label =
+      tiers.has('full') && tiers.has('live')
+        ? 'Melo Full + Live restored'
+        : tiers.has('live')
+          ? 'Melo Live restored'
+          : 'Melo Full restored';
+    Alert.alert(label, undefined, [{ text: 'OK', style: 'cancel' }]);
   };
 
-  const currentTier: TierKey = proUnlocked ? 'pro' : plusUnlocked ? 'plus' : 'free';
+  // Ownership per door — Full and Live are independent (not a ladder), so "current" is per-tier.
+  const ownsTier = (tier: TierKey): boolean =>
+    tier === 'full' ? fullUnlocked : tier === 'live' ? liveActive : !fullUnlocked && !liveActive;
+  const currentPlanLabel =
+    fullUnlocked && liveActive
+      ? 'Melo Full + Live'
+      : fullUnlocked
+        ? 'Melo Full'
+        : liveActive
+          ? 'Melo Live'
+          : 'Free';
 
   // empty / error — the calm EmptyState doorway (n/a in practice; rendered for completeness).
   if (state === 'empty' || state === 'error') {
@@ -491,18 +495,13 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           <View
             style={[
               styles.tierDot,
-              {
-                backgroundColor:
-                  currentTier === 'pro' ? t.calm : currentTier === 'plus' ? t.calmSoft : t.positive,
-              },
+              { backgroundColor: fullUnlocked || liveActive ? t.calm : t.positive },
             ]}
           />
           <Text style={[styles.tierStripText, { color: t.muted }]}>
             {"You're on "}
-            <Text style={[styles.tierStripCurrent, { color: t.ink }]}>
-              {currentTier === 'pro' ? 'Melo Pro' : currentTier === 'plus' ? 'Melo Plus' : 'Free'}
-            </Text>
-            {trialCycleId && !plusUnlocked && !proUnlocked ? (
+            <Text style={[styles.tierStripCurrent, { color: t.ink }]}>{currentPlanLabel}</Text>
+            {trialCycleId && !fullUnlocked ? (
               <Text style={styles.tierStripTrial}>{` · trial · ends ${trialEndLabel}`}</Text>
             ) : null}
           </Text>
@@ -510,15 +509,16 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
 
         {/* Title block. */}
         <View style={styles.titleBlock}>
-          <Text style={[styles.kicker, { color: t.muted }]}>Pick what fits this month</Text>
+          <Text style={[styles.kicker, { color: t.muted }]}>Pick what fits</Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
             {'Look at your money '}
             <Text style={[styles.headlineAccent, { color: t.calm }]}>your</Text>
             {' way.'}
           </Text>
           <Text style={[styles.intro, { color: t.muted }]}>
-            Folio always answers &quot;will my money last to payday?&quot; for free. Plus adds
-            everyday clarity. Pro handles the harder shapes — irregular income, debt, shared money.
+            Folio always answers &quot;will my money last to payday?&quot; for free. Full unlocks
+            every lens with one payment — yours for good. Live is the only subscription: unlimited
+            AI reads, bank sync when it lands.
           </Text>
         </View>
 
@@ -542,55 +542,64 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           </Surface>
         ) : null}
 
-        {/* Cadence toggle. */}
-        <View style={[styles.cadenceToggle, { backgroundColor: t.inset, borderColor: t.hairline }]}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setCadence('monthly')}
-            style={[
-              styles.cadenceButton,
-              { backgroundColor: cadence === 'monthly' ? t.surface : 'transparent' },
-            ]}
+        {/* Cadence toggle — applies to Live alone (Full is one-time; Free has no price). Only
+            rendered while the Live door is selected so it can't read as renting Full. */}
+        {selected === 'live' ? (
+          <View
+            style={[styles.cadenceToggle, { backgroundColor: t.inset, borderColor: t.hairline }]}
           >
-            <Text style={[styles.cadenceLabel, { color: cadence === 'monthly' ? t.ink : t.muted }]}>
-              Monthly
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setCadence('yearly')}
-            style={[
-              styles.cadenceButton,
-              styles.cadenceButtonYearly,
-              { backgroundColor: cadence === 'yearly' ? t.surface : 'transparent' },
-            ]}
-          >
-            <Text style={[styles.cadenceLabel, { color: cadence === 'yearly' ? t.ink : t.muted }]}>
-              Yearly
-            </Text>
-            <View
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setCadence('monthly')}
               style={[
-                styles.saveChip,
-                { backgroundColor: cadence === 'yearly' ? t.calmSoft : 'transparent' },
+                styles.cadenceButton,
+                { backgroundColor: cadence === 'monthly' ? t.surface : 'transparent' },
               ]}
             >
               <Text
-                style={[styles.saveChipLabel, { color: cadence === 'yearly' ? t.calm : t.muted }]}
+                style={[styles.cadenceLabel, { color: cadence === 'monthly' ? t.ink : t.muted }]}
               >
-                save ~33%
+                Monthly
               </Text>
-            </View>
-          </Pressable>
-        </View>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setCadence('yearly')}
+              style={[
+                styles.cadenceButton,
+                styles.cadenceButtonYearly,
+                { backgroundColor: cadence === 'yearly' ? t.surface : 'transparent' },
+              ]}
+            >
+              <Text
+                style={[styles.cadenceLabel, { color: cadence === 'yearly' ? t.ink : t.muted }]}
+              >
+                Yearly
+              </Text>
+              <View
+                style={[
+                  styles.saveChip,
+                  { backgroundColor: cadence === 'yearly' ? t.calmSoft : 'transparent' },
+                ]}
+              >
+                <Text
+                  style={[styles.saveChipLabel, { color: cadence === 'yearly' ? t.calm : t.muted }]}
+                >
+                  save ~30%
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Tier cards. */}
         <View style={styles.tierCards}>
-          {(['free', 'plus', 'pro'] as TierKey[]).map((tier) => {
+          {(['free', 'full', 'live'] as TierKey[]).map((tier) => {
             const tc = TIER_COPY[tier];
             const p = priceFor(tier);
             const isSelected = selected === tier;
-            const isCurrent = currentTier === tier;
-            const isRecommended = tier === 'plus';
+            const isCurrent = ownsTier(tier);
+            const isRecommended = tier === 'full';
             return (
               <Pressable
                 accessibilityRole="button"
@@ -631,9 +640,9 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                           <Text style={[styles.tierPrice, { color: t.ink }]}>
                             {`£${p.price.toFixed(2)}`}
                           </Text>
-                          <Text
-                            style={[styles.tierPricePer, { color: t.muted }]}
-                          >{` / ${p.per}`}</Text>
+                          <Text style={[styles.tierPricePer, { color: t.muted }]}>
+                            {p.per === 'one-time' ? ' one-time' : ` / ${p.per}`}
+                          </Text>
                         </View>
                         {p.perMonth != null && p.strike != null ? (
                           <Text style={[styles.tierPriceSub, { color: t.muted }]}>
@@ -674,12 +683,12 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         <Surface style={[styles.matrixCard, { borderColor: t.hairline }]}>
           <View style={[styles.matrixHeaderRow, { backgroundColor: t.inset }]}>
             <Text style={[styles.matrixHeaderLabel, { color: t.muted }]}>Compare</Text>
-            {(['free', 'plus', 'pro'] as TierKey[]).map((tk) => (
+            {(['free', 'full', 'live'] as TierKey[]).map((tk) => (
               <Text
                 key={tk}
-                style={[styles.matrixHeaderCol, { color: currentTier === tk ? t.calm : t.muted }]}
+                style={[styles.matrixHeaderCol, { color: ownsTier(tk) ? t.calm : t.muted }]}
               >
-                {tk === 'free' ? 'Free' : tk === 'plus' ? 'Plus' : 'Pro'}
+                {tk === 'free' ? 'Free' : tk === 'full' ? 'Full' : 'Live'}
               </Text>
             ))}
           </View>
@@ -697,8 +706,8 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 {row.label}
               </Text>
               <MatrixCellView cell={row.free} />
-              <MatrixCellView cell={row.plus} />
-              <MatrixCellView cell={row.pro} />
+              <MatrixCellView cell={row.full} />
+              <MatrixCellView cell={row.live} />
             </View>
           ))}
         </Surface>
@@ -734,10 +743,12 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               style={[styles.ctaNote, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
             >
               <Text style={[styles.ctaStateEyebrow, { color: t.positive }]}>
-                {selected === 'pro' ? 'Pro is on' : 'Plus is on'}
+                {selected === 'live' ? 'Live is on' : 'Full is yours'}
               </Text>
               <Text style={[styles.ctaStateBody, { color: t.muted }]}>
-                {selected === 'pro' ? 'Every lens is unlocked.' : 'Every Plus lens is unlocked.'}
+                {selected === 'live'
+                  ? 'Unlimited reads while it runs.'
+                  : 'Every lens is unlocked — for good.'}
               </Text>
             </Surface>
           ) : ctaMode === 'trial-active' ? (
@@ -757,7 +768,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               <Pressable
                 accessibilityRole="button"
                 disabled={purchasing !== null}
-                onPress={() => void handlePurchase(selected as 'plus' | 'pro')}
+                onPress={() => void handlePurchase(selected as 'full' | 'live')}
                 style={({ pressed: isPressed }) => [
                   styles.ctaButton,
                   { backgroundColor: t.calm, opacity: purchasing !== null ? 0.6 : 1 },
@@ -767,11 +778,15 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 <Text style={[styles.ctaButtonLabel, { color: t.inverse }]}>
                   {purchasing === selected
                     ? 'Processing…'
-                    : `Get ${selected === 'pro' ? 'Pro' : 'Plus'} — £${priceFor(selected).price.toFixed(2)} / ${priceFor(selected).per}`}
+                    : selected === 'full'
+                      ? `Get Full — £${priceFor('full').price.toFixed(2)} one-time`
+                      : `Get Live — £${priceFor('live').price.toFixed(2)} / ${priceFor('live').per}`}
                 </Text>
               </Pressable>
               <Text style={[styles.ctaFootnote, { color: t.muted }]}>
-                Charged by Google Play · cancel anytime in your subscriptions.
+                {selected === 'full'
+                  ? 'Charged once by Google Play. Nothing renews.'
+                  : 'Charged by Google Play · cancel anytime in your subscriptions.'}
               </Text>
             </>
           ) : ctaMode === 'trial' ? (
@@ -786,9 +801,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 ]}
               >
                 <Text style={[styles.ctaButtonLabel, { color: t.inverse }]}>
-                  {selected === 'pro'
-                    ? `Try Pro free — ends ${prospectiveTrialEndLabel}`
-                    : `Try Plus free — ends ${prospectiveTrialEndLabel}`}
+                  {`Try Full free — ends ${prospectiveTrialEndLabel}`}
                 </Text>
               </Pressable>
               <Text style={[styles.ctaFootnote, { color: t.muted }]}>
@@ -801,15 +814,12 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         {/* Lens rail — the ten in one glance, by tier, wired to the real lens engine. */}
         <View style={styles.lensRailBlock}>
           <Text style={[styles.lensRailEyebrow, { color: t.muted }]}>
-            {`Ten lenses · ${FREE_LENSES.length} free · ${PLUS_LENSES.length} plus · ${PRO_LENSES.length} pro`}
+            {`Ten lenses · ${FREE_LENSES.length} free · ${FULL_LENSES.length} in Full`}
           </Text>
           <Surface style={[styles.lensRailCard, { borderColor: t.hairline }]}>
-            {[...FREE_LENSES, ...PLUS_LENSES, ...PRO_LENSES].map((m, index) => {
+            {[...FREE_LENSES, ...FULL_LENSES].map((m, index) => {
               const tier = tierFor(m);
-              const unlocked =
-                tier === 'free' ||
-                (tier === 'plus' && (plusUnlocked || proUnlocked || !!trialCycleId)) ||
-                (tier === 'pro' && (proUnlocked || !!trialCycleId));
+              const unlocked = tier === 'free' || fullUnlocked || !!trialCycleId;
               return (
                 <View key={m}>
                   {index > 0 ? (
@@ -838,13 +848,9 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                     ) : tier === 'free' ? (
                       <Text style={[styles.lensRailState, { color: t.muted }]}>Free</Text>
                     ) : !unlocked ? (
-                      <Text style={[styles.lensRailState, { color: t.muted }]}>
-                        {`🔒 ${tier === 'pro' ? 'Pro' : 'Plus'}`}
-                      </Text>
+                      <Text style={[styles.lensRailState, { color: t.muted }]}>🔒 Full</Text>
                     ) : (
-                      <Text style={[styles.lensRailState, { color: t.calm }]}>
-                        {tier === 'pro' ? 'Pro' : 'Plus'}
-                      </Text>
+                      <Text style={[styles.lensRailState, { color: t.calm }]}>Full</Text>
                     )}
                   </View>
                 </View>
@@ -875,7 +881,8 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         </Surface>
 
         <Text style={[styles.footer, { color: t.muted }]}>
-          Prototype pricing — real billing ships with a future update.
+          Want both? A Full + Live bundle arrives with real billing.{'\n'}Prototype pricing — real
+          billing ships with a future update.
         </Text>
       </ScrollView>
     </Animated.View>

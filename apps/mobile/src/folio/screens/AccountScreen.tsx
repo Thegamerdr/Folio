@@ -3,10 +3,11 @@
 //
 // @rn-screen    AccountScreen
 // @rn-stack     MainTabs > More > Account
-// @purpose      A calm read of who you are to Folio — current lens tier (Free / Plus / Pro / trial),
-//               connected money sources, your footprint, and the quiet levers (sign in, restore
-//               purchase, manage plan, export, wipe).
-// @reads        lens.plusUnlocked / lens.proUnlocked / lens.trialCycleId (via useLens()),
+// @purpose      A calm read of who you are to Folio — current tier (Free / Full / trial; the
+//               Free/Full/Live restructure, MONEY_MODEL.md §2b), connected money sources, your
+//               footprint, and the quiet levers (sign in, restore purchase, manage plan, export,
+//               wipe).
+// @reads        fullUnlocked / trialCycleId / trialDaysLeft (via useLens()),
 //               subs.length, pots.length, cycles.length, onboarding.monthlyIncome/payday,
 //               melo.quietMode
 // @writes       — none directly. "Wipe this device" routes to the gated Privacy reset (see
@@ -19,12 +20,11 @@
 // @motion       slide-in-r on mount · press 0.97 on every row/button.
 //
 // FIDELITY DECISIONS (each grounded in the SPEC + confirmed kit/store source):
-//   • Lens tier: `@/folio/lib/lens`'s `useLens()` is a REAL engine (confirmed: `LensState` —
-//     plusUnlocked/proUnlocked/trialCycleId/trialEndedCycleId/trialEndAcknowledged — lives on
-//     `@/folio/store`, with `startLensTrial`/`setLensPlusUnlocked`/`setLensProUnlocked` mutators).
-//     This port wires it directly: tier renders as Pro / Plus / trial / Free exactly like the web,
-//     with the matching hint copy and CTA per tier ("See plans" / "Upgrade to Pro" / "Manage plan"),
-//     and the trial days-left chip uses the real `trialDaysLeft` from `useLens()`.
+//   • Lens tier: `@/folio/lib/lens`'s `useLens()` is a REAL engine (`fullUnlocked` derives from
+//     the store's legacy plus/pro flag pair; `setLensFullUnlocked` is the mutator). Tier renders
+//     as Full / trial / Free with matching hint copy and CTA ("See plans" / "Manage plan"), and
+//     the trial days-left chip uses the real `trialDaysLeft` from `useLens()`. This diverges
+//     deliberately from the web's Free/Plus/Pro — the RN paywall is pricing source of truth now.
 //   • Quiet mode: `melo?.quietMode` is a REAL store field now (added alongside this round — see
 //     MeloScreen.tsx / store.ts `MeloState`). The "Melo & quiet mode" row hint reads it live, exactly
 //     like the web ("quiet mode on — Melo won't chime in" vs "how Melo speaks, and when").
@@ -135,16 +135,30 @@ const CADENCE_LABEL: Record<string, string> = {
   'last-working-day': 'last working day of the month',
 };
 
-// The three tiers at a glance — copy sourced from the web's inline literals.
+// The three doors at a glance — Free/Full/Live (MONEY_MODEL.md §2b). Prices are the paywall's
+// prototype numbers (owner sign-off pending).
 const TIERS: readonly {
-  key: 'free' | 'plus' | 'pro';
+  key: 'free' | 'full' | 'live';
   name: string;
   price: string;
+  priceSuffix: string;
   hint: string;
 }[] = [
-  { key: 'free', name: 'Free', price: '£0', hint: 'Survival + Stability' },
-  { key: 'plus', name: 'Melo Plus', price: '£4.99', hint: 'Daily clarity · 4 lenses' },
-  { key: 'pro', name: 'Melo Pro', price: '£8.99', hint: 'Advanced · shared money' },
+  { key: 'free', name: 'Free', price: '£0', priceSuffix: '', hint: 'Six lenses · safety layer' },
+  {
+    key: 'full',
+    name: 'Melo Full',
+    price: '£29.99',
+    priceSuffix: 'one-time',
+    hint: 'Every lens · yours for good',
+  },
+  {
+    key: 'live',
+    name: 'Melo Live',
+    price: '£2.99',
+    priceSuffix: '/mo',
+    hint: 'Unlimited AI reads · sync',
+  },
 ];
 
 export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) {
@@ -181,31 +195,20 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const clerkConfigured = isClerkConfigured();
   const [signInVisible, setSignInVisible] = useState(false);
 
-  // Tier — the real lens engine. Renders Pro / Plus / trial / Free, matching the web exactly.
-  const { plusUnlocked, proUnlocked, trialCycleId, trialDaysLeft } = useLens();
-  const tier: 'pro' | 'plus' | 'trial' | 'free' = proUnlocked
-    ? 'pro'
-    : plusUnlocked
-      ? 'plus'
-      : trialCycleId
-        ? 'trial'
-        : 'free';
+  // Tier — the real lens engine, Free/Full/Live vocabulary. (Live ownership lives in the billing
+  // entitlement record, not the lens store — this card reads lens state only, so a Live-only
+  // subscriber shows Free here until the paywall's fuller read is lifted; acceptable while Live
+  // cannot be purchased at all.)
+  const { fullUnlocked, trialCycleId, trialDaysLeft } = useLens();
+  const tier: 'full' | 'trial' | 'free' = fullUnlocked ? 'full' : trialCycleId ? 'trial' : 'free';
   const tierLabel =
-    tier === 'pro'
-      ? 'Melo Pro'
-      : tier === 'plus'
-        ? 'Melo Plus'
-        : tier === 'trial'
-          ? 'All lenses · trial'
-          : 'Free';
+    tier === 'full' ? 'Melo Full' : tier === 'trial' ? 'All lenses · trial' : 'Free';
   const tierHint =
-    tier === 'pro'
-      ? 'Every lens, advanced forecasting, household mode.'
-      : tier === 'plus'
-        ? 'Four extra lenses. Renews on payday.'
-        : tier === 'trial'
-          ? 'Trying every paid lens for one cycle.'
-          : 'Survival and Stability, always yours.';
+    tier === 'full'
+      ? 'Every lens, one payment — nothing renews.'
+      : tier === 'trial'
+        ? 'Trying every Full lens for one cycle.'
+        : 'Six lenses and the safety layer, always yours.';
 
   // slide-in-r — drives the whole screen.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -357,7 +360,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
               ]}
             >
               <Text style={[styles.tierCtaLabel, { color: t.inverse }]}>
-                {tier === 'free' ? 'See plans' : tier === 'plus' ? 'Upgrade to Pro' : 'Manage plan'}
+                {tier === 'free' ? 'See plans' : 'Manage plan'}
               </Text>
             </Pressable>
             <Pressable
@@ -377,10 +380,17 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         {/* Three-tier at a glance. */}
         <View style={styles.tiersGrid}>
           {TIERS.map((p) => {
-            const isCurrent = p.key === tier || (p.key === 'plus' && tier === 'trial');
+            const isCurrent =
+              p.key === 'full' ? tier === 'full' || tier === 'trial' : p.key === tier;
+            const priceAria =
+              p.key === 'full'
+                ? `${p.price} one-time`
+                : p.key === 'live'
+                  ? `${p.price} per month`
+                  : p.price;
             return (
               <Pressable
-                accessibilityLabel={`${p.name} — ${p.price} per month. Tap for details.`}
+                accessibilityLabel={`${p.name} — ${priceAria}. Tap for details.`}
                 accessibilityRole="button"
                 key={p.key}
                 onPress={() => nav.go('paywall')}
@@ -391,7 +401,12 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 ]}
               >
                 <Text style={[styles.tierGridName, { color: t.ink }]}>{p.name}</Text>
-                <Text style={[styles.tierGridPrice, { color: t.ink }]}>{p.price}</Text>
+                <Text style={[styles.tierGridPrice, { color: t.ink }]}>
+                  {p.price}
+                  {p.priceSuffix ? (
+                    <Text style={[styles.tierGridHint, { color: t.muted }]}> {p.priceSuffix}</Text>
+                  ) : null}
+                </Text>
                 <Text style={[styles.tierGridHint, { color: t.muted }]}>{p.hint}</Text>
                 {isCurrent ? (
                   <Text style={[styles.tierGridCurrent, { color: t.calm }]}>Current</Text>

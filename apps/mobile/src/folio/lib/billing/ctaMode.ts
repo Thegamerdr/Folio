@@ -17,11 +17,14 @@ export type CtaMode =
   | 'none'; // upsell suppressed (storm/recovery/etc.) and nothing else applies.
 
 export type CtaModeInputs = {
-  selected: 'free' | 'plus' | 'pro';
+  /** Tier vocabulary since the Free/Full/Live restructure (MONEY_MODEL.md §2b). */
+  selected: 'free' | 'full' | 'live';
   canSell: boolean;
   billingAvailable: boolean;
-  plusUnlocked: boolean;
-  proUnlocked: boolean;
+  /** Owns the one-time Full purchase (or a grandfathered legacy Plus/Pro sub). */
+  fullUnlocked: boolean;
+  /** Has an active Live subscription (metered AI reads). Lens trials never grant this. */
+  liveActive: boolean;
   trialCycleId: string | null;
   /** The ended-trial anchor (`lens.trialEndedCycleId`). A spent trial must never resolve back to
    *  the 'trial' CTA — the store refuses a second `startLensTrial` anyway, so offering one would
@@ -31,12 +34,16 @@ export type CtaModeInputs = {
 
 export function resolveCtaMode(i: CtaModeInputs): CtaMode {
   if (i.selected === 'free') return 'free-note';
-  if (i.selected === 'plus' && i.plusUnlocked) return 'unlocked';
-  if (i.selected === 'pro' && i.proUnlocked) return 'unlocked';
-  if (i.trialCycleId) return 'trial-active';
+  if (i.selected === 'full' && i.fullUnlocked) return 'unlocked';
+  if (i.selected === 'live' && i.liveActive) return 'unlocked';
+  if (i.selected === 'full' && i.trialCycleId) return 'trial-active';
   if (!i.canSell) return 'none';
   // canSell is true past this point.
   if (i.billingAvailable) return 'purchase';
+  // No billing (today's reality — no Play listing). The one-cycle trial is a LENS trial, so it is
+  // only an honest fallback for the Full door; Live meters a real recurring cost and has no
+  // offline equivalent to offer.
+  if (i.selected === 'live') return 'none';
   if (i.trialEndedCycleId) return 'none'; // trial spent + no billing — nothing honest to offer.
   return 'trial';
 }

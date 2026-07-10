@@ -2,33 +2,39 @@
 // (today's reality — no Play listing yet), the resolved mode is always one of the pre-existing
 // preview branches, never 'purchase'. This is what PaywallScreen.tsx's `ctaMode` const asserts
 // against for its render branches (see lib/billing/ctaMode.ts header comment).
+//
+// Tier vocabulary since the Free/Full/Live restructure (MONEY_MODEL.md §2b): 'full' is the
+// one-time purchase (lens trial applies), 'live' is the metered subscription (NO trial — it
+// meters a real recurring cost, so without billing the Live door has nothing honest to offer).
 
 import { describe, expect, it } from 'vitest';
 
 import { ctaBranchFor, resolveCtaMode, type CtaMode, type CtaModeInputs } from './ctaMode';
 
 const base: CtaModeInputs = {
-  selected: 'plus',
+  selected: 'full',
   canSell: true,
   billingAvailable: false,
-  plusUnlocked: false,
-  proUnlocked: false,
+  fullUnlocked: false,
+  liveActive: false,
   trialCycleId: null,
 };
 
 describe('resolveCtaMode — availability-false path leaves preview behavior intact', () => {
-  it('falls back to the existing trial CTA for Plus when billing is unavailable', () => {
-    expect(resolveCtaMode({ ...base, selected: 'plus', billingAvailable: false })).toBe('trial');
+  it('falls back to the existing trial CTA for Full when billing is unavailable', () => {
+    expect(resolveCtaMode({ ...base, selected: 'full', billingAvailable: false })).toBe('trial');
   });
 
-  it('falls back to the existing trial CTA for Pro when billing is unavailable', () => {
-    expect(resolveCtaMode({ ...base, selected: 'pro', billingAvailable: false })).toBe('trial');
+  it('resolves to none (never trial) for Live when billing is unavailable — nothing honest to offer', () => {
+    expect(resolveCtaMode({ ...base, selected: 'live', billingAvailable: false })).toBe('none');
   });
 
   it('never resolves to purchase when billing is unavailable, regardless of canSell', () => {
     for (const canSell of [true, false]) {
-      const mode = resolveCtaMode({ ...base, billingAvailable: false, canSell });
-      expect(mode).not.toBe('purchase');
+      for (const selected of ['full', 'live'] as const) {
+        const mode = resolveCtaMode({ ...base, selected, billingAvailable: false, canSell });
+        expect(mode).not.toBe('purchase');
+      }
     }
   });
 
@@ -60,12 +66,12 @@ describe('resolveCtaMode — a spent trial never re-offers the trial CTA', () =>
 });
 
 describe('resolveCtaMode — availability-true path', () => {
-  it('resolves to purchase for Plus once billing is available and upsell is allowed', () => {
-    expect(resolveCtaMode({ ...base, selected: 'plus', billingAvailable: true })).toBe('purchase');
+  it('resolves to purchase for Full once billing is available and upsell is allowed', () => {
+    expect(resolveCtaMode({ ...base, selected: 'full', billingAvailable: true })).toBe('purchase');
   });
 
-  it('resolves to purchase for Pro once billing is available and upsell is allowed', () => {
-    expect(resolveCtaMode({ ...base, selected: 'pro', billingAvailable: true })).toBe('purchase');
+  it('resolves to purchase for Live once billing is available and upsell is allowed', () => {
+    expect(resolveCtaMode({ ...base, selected: 'live', billingAvailable: true })).toBe('purchase');
   });
 
   it('does not resolve to purchase when upsell is suppressed, even if billing is available', () => {
@@ -80,36 +86,53 @@ describe('resolveCtaMode — ownership and trial precedence (unaffected by billi
     }
   });
 
-  it('resolves to unlocked when the user already owns Plus', () => {
+  it('resolves to unlocked when the user already owns Full', () => {
     for (const billingAvailable of [true, false]) {
       expect(
-        resolveCtaMode({ ...base, selected: 'plus', plusUnlocked: true, billingAvailable }),
+        resolveCtaMode({ ...base, selected: 'full', fullUnlocked: true, billingAvailable }),
       ).toBe('unlocked');
     }
   });
 
-  it('resolves to unlocked when the user already owns Pro', () => {
+  it('resolves to unlocked when the user has an active Live subscription', () => {
     for (const billingAvailable of [true, false]) {
       expect(
-        resolveCtaMode({ ...base, selected: 'pro', proUnlocked: true, billingAvailable }),
+        resolveCtaMode({ ...base, selected: 'live', liveActive: true, billingAvailable }),
       ).toBe('unlocked');
     }
   });
 
-  it('an active trial takes precedence over both purchase and the trial-start CTA', () => {
+  it('owning Full does not mark the Live door unlocked (independent doors, not a ladder)', () => {
+    expect(
+      resolveCtaMode({ ...base, selected: 'live', fullUnlocked: true, billingAvailable: true }),
+    ).toBe('purchase');
+  });
+
+  it('an active trial takes precedence over both purchase and the trial-start CTA on the Full door', () => {
     for (const billingAvailable of [true, false]) {
-      expect(resolveCtaMode({ ...base, trialCycleId: '2026-07-01', billingAvailable })).toBe(
-        'trial-active',
-      );
+      expect(
+        resolveCtaMode({ ...base, selected: 'full', trialCycleId: '2026-07-01', billingAvailable }),
+      ).toBe('trial-active');
     }
+  });
+
+  it('an active lens trial never blocks buying Live — the trial grants lenses, not reads', () => {
+    expect(
+      resolveCtaMode({
+        ...base,
+        selected: 'live',
+        trialCycleId: '2026-07-01',
+        billingAvailable: true,
+      }),
+    ).toBe('purchase');
   });
 
   it('ownership takes precedence over an active trial', () => {
     expect(
       resolveCtaMode({
         ...base,
-        selected: 'plus',
-        plusUnlocked: true,
+        selected: 'full',
+        fullUnlocked: true,
         trialCycleId: '2026-07-01',
         billingAvailable: true,
       }),

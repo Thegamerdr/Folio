@@ -179,14 +179,15 @@ export type MoneyMode =
   | 'reset'
   | 'lowVis';
 
-/** Lens / Plus-Pro entitlement state. Ports the Lovable design's `lens`
- *  slice 1:1 (folio-melo `src/lib/store.ts`). `plusUnlocked` = paid Plus;
- *  `proUnlocked` = paid Pro (implies Plus — see `setLensProUnlocked`).
- *  `trialCycleId` marks the cycle the user activated a one-cycle free
- *  trial in (unlocks every paid lens together); cleared at cycle close.
- *  `trialEndedCycleId` captures the just-closed trial cycle so Today can
- *  surface a soft "trial ended" prompt exactly once; `trialEndAcknowledged`
- *  flips true after the user taps the prompt or dismisses it. */
+/** Lens entitlement state. Field NAMES are the legacy Plus/Pro shape (persisted blobs +
+ *  entitlement records carry them — no migration needed); their MEANING since the 2026-07-10
+ *  Free/Full/Live restructure (MONEY_MODEL.md §2b): EITHER `plusUnlocked` or `proUnlocked`
+ *  true = the user owns FULL (the one-time tier) — legacy purchasers grandfather in. New writes
+ *  go through `setLensFullUnlocked`. `trialCycleId` marks the cycle the user activated a
+ *  one-cycle free trial in (unlocks every Full lens); cleared when its end date passes
+ *  (`lib/lens.ts` `endLensTrialIfExpired`). `trialEndedCycleId` captures the ended trial so
+ *  Today can surface a soft "trial ended" prompt once and the trial can never be re-armed;
+ *  `trialEndAcknowledged` flips true after the user dismisses that prompt. */
 export type LensState = {
   plusUnlocked: boolean;
   proUnlocked: boolean;
@@ -2220,23 +2221,23 @@ export function setModeExtra(mode: MoneyMode, amount: number) {
   setPartial({ modeExtras: { ...current, [mode]: Math.max(0, Math.round(amount)) } });
 }
 
-/** Plus-tier entitlement setter. */
-export function setLensPlusUnlocked(unlocked: boolean) {
+/** FULL (one-time tier) entitlement setter — the write path since the Free/Full/Live
+ *  restructure. Sets BOTH legacy flags so every persisted-shape reader (old blobs, the
+ *  entitlement record, `useLens`'s grandfather rule) agrees. */
+export function setLensFullUnlocked(unlocked: boolean) {
   const lens: LensState = state.lens ?? DEFAULT_LENS;
-  setPartial({ lens: { ...lens, plusUnlocked: unlocked } });
+  setPartial({ lens: { ...lens, plusUnlocked: unlocked, proUnlocked: unlocked } });
 }
 
-/** Pro-tier entitlement setter. Pro implies Plus — flipping `proUnlocked` on
- *  also lifts `plusUnlocked` so downstream `canAccess(plusLens)` stays true. */
+/** @deprecated Legacy Plus setter — kept for the entitlement reconciler's back-compat path only.
+ *  A legacy Plus entitlement now means Full (see `LensState`). */
+export function setLensPlusUnlocked(unlocked: boolean) {
+  setLensFullUnlocked(unlocked);
+}
+
+/** @deprecated Legacy Pro setter — same back-compat rule as `setLensPlusUnlocked`. */
 export function setLensProUnlocked(unlocked: boolean) {
-  const lens: LensState = state.lens ?? DEFAULT_LENS;
-  setPartial({
-    lens: {
-      ...lens,
-      proUnlocked: unlocked,
-      plusUnlocked: unlocked ? true : lens.plusUnlocked,
-    },
-  });
+  setLensFullUnlocked(unlocked);
 }
 
 /** Start a one-cycle free trial that unlocks every paid lens together.

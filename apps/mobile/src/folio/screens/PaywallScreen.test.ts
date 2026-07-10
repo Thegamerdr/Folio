@@ -5,13 +5,13 @@
 // reads. This test pins the specific promise this lane cares about: with `billingAvailable=true` (a
 // real Play listing resolved) the screen's `ctaMode` resolves to `'purchase'` — the branch that
 // renders the real buy Pressable — and with `billingAvailable=false` (today's default state, no
-// listing) it resolves to `'trial'` — the branch that renders the existing free-trial CTA — for the
-// screen's actual default selections (`selected: 'plus'` on mount, `canSell: true` baseline, no
-// existing entitlement or active trial). lib/billing/ctaMode.test.ts already exhaustively covers
-// `resolveCtaMode`'s own precedence table; this file instead pins that PaywallScreen's specific
-// default inputs land on the two branches this lane was asked to verify, plus the pro selection,
-// using `ctaBranchFor` to state the assertion in terms of the actual rendered branch name rather
-// than the raw CtaMode value.
+// listing) it resolves to `'trial'` for the Full door and `'none'` for the Live door — for the
+// screen's actual default selections (`selected: 'full'` on mount since the Free/Full/Live
+// restructure, `canSell: true` baseline, no existing entitlement or active trial).
+// lib/billing/ctaMode.test.ts already exhaustively covers `resolveCtaMode`'s own precedence table;
+// this file instead pins that PaywallScreen's specific default inputs land on the expected
+// branches, using `ctaBranchFor` to state the assertion in terms of the actual rendered branch
+// name rather than the raw CtaMode value.
 //
 // Node-safe by design: PaywallScreen.tsx imports react-native, react-native-reanimated,
 // react-native-safe-area-context, and JSX, so it cannot load under the Node test runner (the repo's
@@ -28,45 +28,45 @@ import { describe, expect, it } from 'vitest';
 import { ctaBranchFor, resolveCtaMode, type CtaModeInputs } from '../lib/billing/ctaMode';
 
 // PaywallScreen's actual mount-time defaults relevant to the CTA switch:
-//   - `selected` starts at 'plus' (useState<TierKey>('plus'))
-//   - no existing entitlement: plusUnlocked/proUnlocked both false
+//   - `selected` starts at 'full' (useState<TierKey>('full') — the recommended door)
+//   - no existing entitlement: fullUnlocked/liveActive both false
 //   - no active trial: trialCycleId null
 //   - `canSell` true is the common case (canShowUpsell only false during storm/recovery/quiet-mode/
 //     safe-zone-negative/weather-fog, each covered by its own guard test elsewhere)
 const screenDefaults: CtaModeInputs = {
-  selected: 'plus',
+  selected: 'full',
   canSell: true,
   billingAvailable: false,
-  plusUnlocked: false,
-  proUnlocked: false,
+  fullUnlocked: false,
+  liveActive: false,
   trialCycleId: null,
 };
 
 describe('PaywallScreen — purchase button renders once billing is available', () => {
-  it("resolves to the 'purchase' branch for the default Plus selection when billingAvailable is true", () => {
+  it("resolves to the 'purchase' branch for the default Full selection when billingAvailable is true", () => {
     const mode = resolveCtaMode({ ...screenDefaults, billingAvailable: true });
     expect(mode).toBe('purchase');
     expect(ctaBranchFor(mode)).toBe('purchase');
   });
 
-  it("resolves to the 'purchase' branch for Pro selected, when billingAvailable is true", () => {
-    const mode = resolveCtaMode({ ...screenDefaults, selected: 'pro', billingAvailable: true });
+  it("resolves to the 'purchase' branch for Live selected, when billingAvailable is true", () => {
+    const mode = resolveCtaMode({ ...screenDefaults, selected: 'live', billingAvailable: true });
     expect(mode).toBe('purchase');
     expect(ctaBranchFor(mode)).toBe('purchase');
   });
 });
 
-describe('PaywallScreen — trial CTA renders while billing is unavailable', () => {
-  it("resolves to the 'trial' branch for the default Plus selection when billingAvailable is false", () => {
+describe('PaywallScreen — honest fallbacks while billing is unavailable', () => {
+  it("resolves to the 'trial' branch for the default Full selection when billingAvailable is false", () => {
     const mode = resolveCtaMode({ ...screenDefaults, billingAvailable: false });
     expect(mode).toBe('trial');
     expect(ctaBranchFor(mode)).toBe('trial');
   });
 
-  it("resolves to the 'trial' branch for Pro selected, when billingAvailable is false", () => {
-    const mode = resolveCtaMode({ ...screenDefaults, selected: 'pro', billingAvailable: false });
-    expect(mode).toBe('trial');
-    expect(ctaBranchFor(mode)).toBe('trial');
+  it("resolves to the 'none' branch for Live selected when billingAvailable is false — Live has no offline trial", () => {
+    const mode = resolveCtaMode({ ...screenDefaults, selected: 'live', billingAvailable: false });
+    expect(mode).toBe('none');
+    expect(ctaBranchFor(mode)).toBe('none');
   });
 
   it('matches the screen mount default exactly: billingAvailable starts false until the probe resolves', () => {
@@ -79,16 +79,25 @@ describe('PaywallScreen — trial CTA renders while billing is unavailable', () 
 });
 
 describe('PaywallScreen — billingAvailable alone flips the branch, other defaults held constant', () => {
-  it('flips purchase <-> trial purely on billingAvailable for both paid tiers', () => {
-    for (const selected of ['plus', 'pro'] as const) {
-      const withBilling = resolveCtaMode({ ...screenDefaults, selected, billingAvailable: true });
-      const withoutBilling = resolveCtaMode({
-        ...screenDefaults,
-        selected,
-        billingAvailable: false,
-      });
-      expect(withBilling).toBe('purchase');
-      expect(withoutBilling).toBe('trial');
-    }
+  it('flips purchase <-> trial purely on billingAvailable for the Full door', () => {
+    const withBilling = resolveCtaMode({ ...screenDefaults, billingAvailable: true });
+    const withoutBilling = resolveCtaMode({ ...screenDefaults, billingAvailable: false });
+    expect(withBilling).toBe('purchase');
+    expect(withoutBilling).toBe('trial');
+  });
+
+  it('flips purchase <-> none purely on billingAvailable for the Live door', () => {
+    const withBilling = resolveCtaMode({
+      ...screenDefaults,
+      selected: 'live',
+      billingAvailable: true,
+    });
+    const withoutBilling = resolveCtaMode({
+      ...screenDefaults,
+      selected: 'live',
+      billingAvailable: false,
+    });
+    expect(withBilling).toBe('purchase');
+    expect(withoutBilling).toBe('none');
   });
 });

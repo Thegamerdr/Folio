@@ -18,9 +18,15 @@
 
 export type EntitlementSource = 'preview' | 'store';
 
+/** Tier vocabulary since the 2026-07-10 Free/Full/Live restructure (MONEY_MODEL.md §2b):
+ *  'full' = the one-time purchase, 'live' = the metered AI/sync subscription. 'plus'/'pro' are
+ *  LEGACY record values still parsed from disk — the reconciler maps them to Full (grandfather
+ *  rule); new records never write them. */
+export type EntitlementTier = 'full' | 'live' | 'plus' | 'pro';
+
 export type EntitlementRecord = {
   source: EntitlementSource;
-  tier: 'plus' | 'pro';
+  tier: EntitlementTier;
   /** ISO date-time. Present for a time-boxed store subscription once expo-iap surfaces an expiry;
    *  absent for preview/trial entitlements (those are governed by lens.trialCycleId instead). */
   expiresAt?: string;
@@ -59,7 +65,7 @@ function normalizeRecord(value: unknown): EntitlementRecord | null {
   if (value === null || typeof value !== 'object') return null;
   const r = value as Partial<EntitlementRecord>;
   if (r.source !== 'preview' && r.source !== 'store') return null;
-  if (r.tier !== 'plus' && r.tier !== 'pro') return null;
+  if (r.tier !== 'full' && r.tier !== 'live' && r.tier !== 'plus' && r.tier !== 'pro') return null;
   if (r.expiresAt !== undefined && typeof r.expiresAt !== 'string') return null;
   return r.expiresAt !== undefined
     ? { source: r.source, tier: r.tier, expiresAt: r.expiresAt }

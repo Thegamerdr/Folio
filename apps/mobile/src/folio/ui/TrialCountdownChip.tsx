@@ -5,7 +5,7 @@
 // @purpose      Ambient "N days left of trial" chip. Renders only while a one-cycle trial is
 //               active AND the user hasn't upgraded. Tap -> paywall so the user can convert
 //               without hunting.
-// @reads        useLens (trialDaysLeft, trialCycleId, plusUnlocked, proUnlocked)
+// @reads        useLens (trialDaysLeft, trialCycleId, fullUnlocked)
 // @writes       — (nav only)
 // @copy         FROZEN. "N days left · trial" / "Last day · trial".
 // @tokens       surface · hairline · calm (accent) · calmSoft · muted-ink (muted)
@@ -23,13 +23,14 @@
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { LensState } from '@/folio/store';
 import { gap, pressed, radius, type Palette, useTheme } from '@/folio/theme';
 
-export type TrialCountdownChipLensState = Pick<
-  LensState,
-  'trialCycleId' | 'plusUnlocked' | 'proUnlocked'
-> & {
+// Free/Full/Live restructure (2026-07-10): callers pass useLens()'s derived `fullUnlocked`
+// instead of the store's legacy plus/pro flag pair — the chip only ever needed "owns the paid
+// tier", never which legacy door bought it.
+export type TrialCountdownChipLensState = {
+  trialCycleId: string | null;
+  fullUnlocked: boolean;
   /** Days remaining in the trial. See FIDELITY DECISION above — not yet derivable from the store
    *  alone; pass the computed value from the caller. */
   trialDaysLeft: number | null;
@@ -47,7 +48,7 @@ export function TrialCountdownChip({ lens, onPress }: TrialCountdownChipProps) {
   const t = useTheme();
   const s = makeStyles(t);
 
-  if (!lens.trialCycleId || lens.plusUnlocked || lens.proUnlocked) return null;
+  if (!lens.trialCycleId || lens.fullUnlocked) return null;
   if (lens.trialDaysLeft === null) return null;
 
   const label =
@@ -59,7 +60,7 @@ export function TrialCountdownChip({ lens, onPress }: TrialCountdownChipProps) {
 
   // Truth pass (2026-07-10): the relock enforces this chip's own countdown end date
   // (payday-anchored with a 21-day floor) — "at payday" over-promised for weekly earners.
-  const coverage = 'Every paid lens (Plus + Pro) unlocked. Locks itself when the countdown ends.';
+  const coverage = 'Every Full lens unlocked. Locks itself when the countdown ends.';
 
   return (
     <Pressable

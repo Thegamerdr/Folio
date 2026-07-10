@@ -13,7 +13,7 @@ import {
 
 describe('entitlement record round-trip', () => {
   it('serializes then parses a preview-tier record faithfully', () => {
-    const record: EntitlementRecord = { source: 'preview', tier: 'plus' };
+    const record: EntitlementRecord = { source: 'preview', tier: 'full' };
     const blob = serializeEntitlement(record);
     expect(parseEntitlement(blob)).toEqual(record);
   });
@@ -21,11 +21,18 @@ describe('entitlement record round-trip', () => {
   it('serializes then parses a store-tier record with an expiry faithfully', () => {
     const record: EntitlementRecord = {
       source: 'store',
-      tier: 'pro',
+      tier: 'live',
       expiresAt: '2026-08-01T00:00:00.000Z',
     };
     const blob = serializeEntitlement(record);
     expect(parseEntitlement(blob)).toEqual(record);
+  });
+
+  it('still parses legacy plus/pro records from disk (grandfather rule reads them as-is)', () => {
+    for (const tier of ['plus', 'pro'] as const) {
+      const record: EntitlementRecord = { source: 'store', tier };
+      expect(parseEntitlement(serializeEntitlement(record))).toEqual(record);
+    }
   });
 
   it('serializes then parses "no entitlement" (null) faithfully', () => {

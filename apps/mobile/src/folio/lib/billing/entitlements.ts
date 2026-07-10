@@ -9,7 +9,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 
-import { getState, setLensPlusUnlocked, setLensProUnlocked } from '../../store';
+import { getState, setLensFullUnlocked } from '../../store';
 import {
   isEntitlementActive,
   parseEntitlement,
@@ -17,7 +17,7 @@ import {
   type EntitlementRecord,
 } from './entitlementsLogic';
 
-export type { EntitlementRecord, EntitlementSource } from './entitlementsLogic';
+export type { EntitlementRecord, EntitlementSource, EntitlementTier } from './entitlementsLogic';
 
 const ENTITLEMENT_FILENAME = 'folio.entitlement.v1.json';
 
@@ -87,13 +87,13 @@ export async function reconcileEntitlements(): Promise<void> {
   // record — trials are governed entirely by lens.trialCycleId, not this record.
 
   // `lens` is optional on AppState for shape-migration reasons (see store.ts DEFAULT_LENS);
-  // `?? false` mirrors how useLens() reads these same flags.
+  // `?? false` mirrors how useLens() reads these same flags. Tier mapping since the Free/Full/
+  // Live restructure: 'full' AND the legacy 'plus'/'pro' records all repair the Full unlock
+  // (grandfather rule — a paid legacy sub owns Full). 'live' never touches lens flags — it
+  // gates AI quantity, not lenses; its consumer is the read-allowance layer.
   const lens = getState().lens;
-  const plusUnlocked = lens?.plusUnlocked ?? false;
-  const proUnlocked = lens?.proUnlocked ?? false;
-  if (active.tier === 'pro' && !proUnlocked) {
-    setLensProUnlocked(true);
-  } else if (active.tier === 'plus' && !plusUnlocked) {
-    setLensPlusUnlocked(true);
+  const fullUnlocked = (lens?.plusUnlocked ?? false) || (lens?.proUnlocked ?? false);
+  if (active.tier !== 'live' && !fullUnlocked) {
+    setLensFullUnlocked(true);
   }
 }

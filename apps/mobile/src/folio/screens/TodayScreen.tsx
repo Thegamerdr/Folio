@@ -206,8 +206,7 @@ export function TodayScreen({
     [currentBalance, onboarding, pots, subs, subPaused, tight, bufferAmount],
   );
   const lensLocked = !lens.canAccess(moneyMode);
-  const lockedAfterTrial =
-    Boolean(lens.trialEndedCycleId) && !lens.plusUnlocked && !lens.proUnlocked;
+  const lockedAfterTrial = Boolean(lens.trialEndedCycleId) && !lens.fullUnlocked;
 
   // Honest balance-source caption (ENGINES.md §6) — every balance shows where it came from.
   const balanceSourceLabel = useMemo(() => {
@@ -492,8 +491,7 @@ export function TodayScreen({
             <TrialCountdownChip
               lens={{
                 trialCycleId: lens.trialCycleId,
-                plusUnlocked: lens.plusUnlocked,
-                proUnlocked: lens.proUnlocked,
+                fullUnlocked: lens.fullUnlocked,
                 trialDaysLeft: lens.trialDaysLeft,
               }}
               onPress={() => nav.go('paywall')}
@@ -537,7 +535,6 @@ export function TodayScreen({
         {lensLocked ? (
           <LensLockChip
             moneyMode={moneyMode}
-            tierFor={lens.tierFor}
             lockedAfterTrial={lockedAfterTrial}
             onPress={() => nav.go('paywall')}
             palette={t}
@@ -975,18 +972,17 @@ function ErrorBanner({ palette }: { palette: Palette }) {
 // that just closed, so users are never confused why a lens re-locked (PARITY_GAPS.md Group 1).
 function LensLockChip({
   moneyMode,
-  tierFor,
   lockedAfterTrial,
   onPress,
   palette,
 }: {
   moneyMode: MoneyMode;
-  tierFor: (m: MoneyMode) => 'free' | 'plus' | 'pro';
   lockedAfterTrial: boolean;
   onPress: () => void;
   palette: Palette;
 }) {
-  const lockedTier = tierFor(moneyMode) === 'pro' ? 'Pro' : 'Plus';
+  // Every locked lens is a Full lens since the Free/Full/Live restructure — no tier lookup left.
+  const lockedTier = 'Full';
   const label = lockedAfterTrial
     ? `Trial ended · ${moneyMode} back to Survival`
     : `${moneyMode} is a ${lockedTier} lens · Survival for now`;

@@ -987,8 +987,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
           <TrialCountdownChip
             lens={{
               trialCycleId: lens.trialCycleId,
-              plusUnlocked: lens.plusUnlocked,
-              proUnlocked: lens.proUnlocked,
+              fullUnlocked: lens.fullUnlocked,
               trialDaysLeft: lens.trialDaysLeft,
             }}
             onPress={() => nav.go('paywall')}
@@ -1011,10 +1010,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
       {!lens.canAccess(moneyMode) ? (
         <LensLockChip
           moneyMode={moneyMode}
-          tierFor={lens.tierFor}
-          lockedAfterTrial={
-            Boolean(lens.trialEndedCycleId) && !lens.plusUnlocked && !lens.proUnlocked
-          }
+          lockedAfterTrial={Boolean(lens.trialEndedCycleId) && !lens.fullUnlocked}
           onPress={() => nav.go('paywall')}
           palette={t}
         />
@@ -1115,18 +1111,17 @@ function capFirst(str: string): string {
 // explainer when the lock was caused by a trial that just closed (PARITY_GAPS.md Group 1).
 function LensLockChip({
   moneyMode,
-  tierFor,
   lockedAfterTrial,
   onPress,
   palette,
 }: {
   moneyMode: MoneyMode;
-  tierFor: (m: MoneyMode) => 'free' | 'plus' | 'pro';
   lockedAfterTrial: boolean;
   onPress: () => void;
   palette: Palette;
 }) {
-  const lockedTier = tierFor(moneyMode) === 'pro' ? 'Pro' : 'Plus';
+  // Every locked lens is a Full lens since the Free/Full/Live restructure — no tier lookup left.
+  const lockedTier = 'Full';
   const label = lockedAfterTrial
     ? `Trial ended · ${moneyMode} back to Survival`
     : `${moneyMode} is a ${lockedTier} lens · Survival for now`;

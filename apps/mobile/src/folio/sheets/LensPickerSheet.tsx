@@ -1,8 +1,8 @@
 // @rn-sheet     LensPickerSheet
-// @purpose      First-class lens switcher. Ten lenses, one tap. Locked Plus / Pro lenses show a
-//               small badge and route to Paywall instead of switching; a first-time free user gets
+// @purpose      First-class lens switcher. Ten lenses, one tap. Locked Full lenses show a small
+//               badge and route to Paywall instead of switching; a first-time free user gets
 //               the one-cycle trial inline instead.
-// @reads        moneyMode, lens.plusUnlocked, lens.proUnlocked, lens.trialCycleId (via useLens())
+// @reads        moneyMode, fullUnlocked, trialCycleId (via useLens())
 // @writes       setMoneyMode (via the store), startLensTrial (via useLens().startTrial)
 // @copy         FROZEN — calm labels only, ported verbatim from the web ONE_LINE deck.
 // @tokens       --surface --hairline --accent --accent-soft --muted-ink (mapped to t.surface /
@@ -19,7 +19,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { gap, radius, Sheet, serif, useTheme, type Palette } from '@/folio/theme';
 import { setMoneyMode } from '@/folio/store';
 import { MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
-import { FREE_LENSES, PLUS_LENSES, PRO_LENSES, useLens } from '@/folio/lib/lens';
+import { FREE_LENSES, FULL_LENSES, useLens } from '@/folio/lib/lens';
 import type { Nav } from '@/folio/types';
 
 export type LensPickerSheetProps = {
@@ -63,8 +63,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
     tierFor,
     trialCycleId,
     trialDaysLeft,
-    plusUnlocked,
-    proUnlocked,
+    fullUnlocked,
     canOfferTrial,
     startTrial,
   } = useLens();
@@ -78,7 +77,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
             Pick a <Text style={s.accentWord}>lens</Text>.
           </Text>
           <Text style={s.tierCounts}>
-            {FREE_LENSES.length} free · {PLUS_LENSES.length} plus · {PRO_LENSES.length} pro
+            {FREE_LENSES.length} free · {FULL_LENSES.length} in full
           </Text>
         </View>
         <Text style={s.subline}>
@@ -90,23 +89,9 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
             const isActive = m === active;
             const tier = tierFor(m);
             const locked = !canAccess(m);
-            const onTrial =
-              trialCycleId !== null &&
-              ((tier === 'plus' && !plusUnlocked) || (tier === 'pro' && !proUnlocked));
+            const onTrial = trialCycleId !== null && tier === 'full' && !fullUnlocked;
             const badgeLabel =
-              tier === 'free'
-                ? 'Free'
-                : locked
-                  ? tier === 'pro'
-                    ? 'Pro'
-                    : 'Plus'
-                  : onTrial
-                    ? tier === 'pro'
-                      ? 'Pro · trial'
-                      : 'Plus · trial'
-                    : tier === 'pro'
-                      ? 'Pro'
-                      : 'Plus';
+              tier === 'free' ? 'Free' : locked ? 'Full' : onTrial ? 'Full · trial' : 'Full';
             const badgeActive = tier !== 'free' && !locked;
 
             return (
@@ -115,7 +100,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
                 accessibilityRole="button"
                 accessibilityLabel={
                   locked
-                    ? `${MODE_LABEL[m]} — ${tier === 'pro' ? 'Pro' : 'Plus'} lens, ${
+                    ? `${MODE_LABEL[m]} — Full lens, ${
                         canOfferTrial ? 'tap to start free trial' : 'tap to see plans'
                       }`
                     : `Switch to ${MODE_LABEL[m]}`
@@ -169,13 +154,12 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
           <View style={[s.footer, { backgroundColor: t.calmSoft }]}>
             <Text style={s.footerTitle}>Trial started · one cycle</Text>
             <Text style={s.footerBody}>
-              Every paid lens (Plus + Pro) unlocked for one cycle. Locks itself when the countdown
-              on Today ends.
+              Every Full lens unlocked for one cycle. Locks itself when the countdown on Today ends.
             </Text>
           </View>
         ) : null}
 
-        {trialCycleId && !plusUnlocked && !proUnlocked ? (
+        {trialCycleId && !fullUnlocked ? (
           <View style={[s.footer, { backgroundColor: t.calmSoft }]}>
             <View style={s.footerRow}>
               <View style={s.footerTextCol}>

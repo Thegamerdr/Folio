@@ -2,22 +2,29 @@
  * @rn-lib
  * Lens system — user-facing framing of the Money Modes engine.
  *
- * RN port of folio-melo (design-main) `src/lib/lens/index.ts`, verbatim
- * engine logic. Three tiers:
- *   Free  — Survival + Stability. Always yours.
- *   Plus  — Growth, Reset, Optimizer, Planning. Everyday clarity.
- *   Pro   — Low visibility, Irregular income, Debt/BNPL, Household.
- *           Advanced forecasting + shared money.
+ * TIER MODEL (MONEY_MODEL.md §2b, owner-confirmed 2026-07-06; restructured 2026-07-10):
+ *   FREE — the FIT is free (Decision B: "make the fit free, sell the depth"). Six lenses cover
+ *          the mental models of the people the mission is for: Survival, Stability, Debt,
+ *          Irregular income, Reset (crisis — safety is free forever), Low visibility (the
+ *          lowest-signal entry fit).
+ *   FULL — one-time purchase ("yours forever"): the four optimizing lenses (Growth, Optimizer,
+ *          Planning, Household) + every software depth feature. Zero marginal cost → safe to
+ *          sell once.
+ *   LIVE — the metered tier (unlimited AI reads, live sync when built) is NOT a lens gate at all;
+ *          it never touches this module. Recurring price attaches only to recurring cost.
  *
- * `proUnlocked` implies Plus is also unlocked (Pro is a superset). A single
- * one-cycle trial unlocks every paid lens across both tiers — no separate
- * Pro trial to avoid two upsell surfaces during the same week.
+ * Persistence compat: the store's `LensState` keeps its legacy `plusUnlocked`/`proUnlocked`
+ * field NAMES (no migration, restore-safe); EITHER flag now means "owns Full" — legacy Plus/Pro
+ * purchasers are grandfathered into Full. Write path: `setLensFullUnlocked` (store.ts).
  *
- * Rules (see `./lens/paywall.ts`):
+ * A single one-cycle trial unlocks every Full lens.
+ *
+ * Rules (see `./lensPaywall.ts`):
  *   - Every upsell / paid lock / trial CTA MUST gate on `canShowUpsell`.
- *   - The trial is one cycle. `lens.trialCycleId` is cleared at cycle close.
- *   - `canAccess(lens)` = true for free lenses, for the tier the user paid
- *     for, and for every paid lens during an active trial cycle.
+ *   - The trial is one cycle. `lens.trialCycleId` is cleared when its end date passes
+ *     (`endLensTrialIfExpired`).
+ *   - `canAccess(lens)` = true for free lenses, for a Full owner, and for every lens during an
+ *     active trial cycle.
  *
  * Platform adaptation: the design source computed `trialDaysLeft` via a
  * `nextPayday(from, dayOfMonth) -> Date` helper in its web-only
@@ -56,7 +63,7 @@ import { resolvePayday } from './payday';
 import { projectIncomeEvents } from './income';
 import type { IncomeSource } from '../store';
 
-export type LensTier = 'free' | 'plus' | 'pro';
+export type LensTier = 'free' | 'full';
 
 /** The trial promise is roughly a month; see the file header's "21-day trial
  *  floor" note for why this exists and why 21 (≈3 weeks — clears a weekly
@@ -170,32 +177,31 @@ export function endLensTrialIfExpired(now: Date = new Date()): boolean {
   }
 }
 
-// The two baselines Folio answers for everyone.
-export const FREE_LENSES: readonly MoneyMode[] = ['survival', 'stability'] as const;
-// Everyday clarity lenses — the £4.99 tier.
-export const PLUS_LENSES: readonly MoneyMode[] = [
-  'growth',
+// The FIT is free (MONEY_MODEL.md Decision B, confirmed): the six lenses covering the mental
+// models of people who often can't pay — crisis (Survival, Reset), baseline (Stability), the
+// mission realities (Debt, Irregular income), and the lowest-signal entry fit (Low visibility).
+export const FREE_LENSES: readonly MoneyMode[] = [
+  'survival',
+  'stability',
+  'debt',
+  'irregular',
   'reset',
+  'lowVis',
+] as const;
+// The DEPTH is paid: the four optimizing lenses, for people optimizing — who can afford to pay.
+// Unlocked by the one-time Full purchase (never a recurring price — zero marginal cost).
+export const FULL_LENSES: readonly MoneyMode[] = [
+  'growth',
   'optimizer',
   'planning',
-] as const;
-// Advanced / shared / structural lenses — the £8.99 tier.
-export const PRO_LENSES: readonly MoneyMode[] = [
-  'lowVis',
-  'irregular',
-  'debt',
   'household',
 ] as const;
 
 /** Same string values as MODE_LABEL — a lens-vocabulary alias. */
 export const LENS_LABEL = MODE_LABEL;
 
-export function isPlusLens(m: MoneyMode): boolean {
-  return PLUS_LENSES.includes(m);
-}
-
-export function isProLens(m: MoneyMode): boolean {
-  return PRO_LENSES.includes(m);
+export function isFullLens(m: MoneyMode): boolean {
+  return FULL_LENSES.includes(m);
 }
 
 export function isFreeLens(m: MoneyMode): boolean {
@@ -203,9 +209,7 @@ export function isFreeLens(m: MoneyMode): boolean {
 }
 
 export function tierOf(m: MoneyMode): LensTier {
-  if (isFreeLens(m)) return 'free';
-  if (isProLens(m)) return 'pro';
-  return 'plus';
+  return isFreeLens(m) ? 'free' : 'full';
 }
 
 /** Yield the pad-2 string form of a 1-based month/day for a "YYYY-MM"
@@ -245,20 +249,21 @@ export function useLens() {
   const paydayDom = useAppStore((s) => s.onboarding.payday);
   const incomeSources = useAppStore((s) => s.incomeSources ?? EMPTY_INCOME_SOURCES);
 
+  // Either legacy flag means "owns Full" — Plus/Pro purchasers grandfather into the one-time
+  // tier (see the file header's persistence-compat note).
+  const fullUnlocked = plusUnlocked || proUnlocked;
+
   const canAccess = (lens: MoneyMode): boolean => {
-    const t = tierOf(lens);
-    if (t === 'free') return true;
+    if (tierOf(lens) === 'free') return true;
     if (trialCycleId) return true;
-    if (proUnlocked) return true;
-    if (t === 'plus') return plusUnlocked;
-    return false; // Pro-tier lens without Pro / trial
+    return fullUnlocked;
   };
 
   /** Which tier does a given lens sit in — for badge rendering. */
   const tierFor = tierOf;
 
-  /** Highest tier the user currently has access to (ignoring trial). */
-  const paidTier: LensTier = proUnlocked ? 'pro' : plusUnlocked ? 'plus' : 'free';
+  /** The tier the user currently owns (ignoring trial). */
+  const paidTier: LensTier = fullUnlocked ? 'full' : 'free';
 
   /** Start a one-cycle trial using the user's payday DOM to anchor the
    *  cycle id. No-op if a trial is already active. */
@@ -297,12 +302,10 @@ export function useLens() {
 
   return {
     active,
-    isPlus: isPlusLens(active),
-    isPro: isProLens(active),
+    isFull: isFullLens(active),
     tier: tierOf(active),
     paidTier,
-    plusUnlocked,
-    proUnlocked,
+    fullUnlocked,
     trialCycleId,
     trialEndedCycleId,
     trialDaysLeft,
