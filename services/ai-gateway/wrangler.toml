@@ -17,6 +17,19 @@ compatibility_date = "2025-06-01"
 [vars]
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "google/gemini-2.5-flash"
+# Metering caps (only enforced when METER_KV below is bound). Abuse backstops, deliberately above
+# the app's own per-tier allowances — see src/index.ts Env docs.
+READS_PER_MONTH_CAP = "40"
+GLOBAL_DAILY_READ_CAP = "500"
+GLOBAL_DAILY_CHAT_CAP = "2000"
+
+# OPTIONAL metering store. Without this binding the gateway runs exactly as before (no metering).
+# To enable:
+#   1. wrangler kv namespace create METER_KV
+#   2. Paste the returned id below and uncomment:
+# [[kv_namespaces]]
+# binding = "METER_KV"
+# id = "<paste the namespace id here>"
 
 # Observability is handy for spotting abuse + errors. Safe to keep on.
 [observability]

@@ -53,14 +53,39 @@ which the RN client already knows how to parse.
 
 ## Environment variables
 
-| Name                  | Kind            | Default                        | Notes                                                            |
-| --------------------- | --------------- | ------------------------------ | ---------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`  | **secret**      | _(required)_                   | Set with `wrangler secret put`. Never a literal, never logged.   |
-| `OPENROUTER_BASE_URL` | var             | `https://openrouter.ai/api/v1` | Override to point at another OpenAI-compatible base.             |
-| `OPENROUTER_MODEL`    | var             | `google/gemini-2.5-flash`      | Default model injected when the request omits `model`.           |
-| `GATEWAY_TOKEN`       | secret (or var) | _(unset)_                      | When set, requests must send a matching `x-folio-gateway-token`. |
+| Name                    | Kind            | Default                        | Notes                                                            |
+| ----------------------- | --------------- | ------------------------------ | ---------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`    | **secret**      | _(required)_                   | Set with `wrangler secret put`. Never a literal, never logged.   |
+| `OPENROUTER_BASE_URL`   | var             | `https://openrouter.ai/api/v1` | Override to point at another OpenAI-compatible base.             |
+| `OPENROUTER_MODEL`      | var             | `google/gemini-2.5-flash`      | Default model injected when the request omits `model`.           |
+| `GATEWAY_TOKEN`         | secret (or var) | _(unset)_                      | When set, requests must send a matching `x-folio-gateway-token`. |
+| `METER_KV`              | KV binding      | _(unbound)_                    | OPTIONAL — binds the metering store; unbound = no metering.      |
+| `READS_PER_MONTH_CAP`   | var             | `40`                           | Per-device statement reads per calendar month (abuse backstop).  |
+| `GLOBAL_DAILY_READ_CAP` | var             | `500`                          | All devices' statement reads per UTC day.                        |
+| `GLOBAL_DAILY_CHAT_CAP` | var             | `2000`                         | All devices' chat requests per UTC day.                          |
 
 The non-secret vars are declared in `wrangler.toml`. The secrets are set with the CLI below.
+
+## Metering (optional, recommended before wide dogfood)
+
+With `METER_KV` bound the Worker enforces three **abuse backstops** (429 with an honest message
+when exceeded): a per-device monthly cap on statement reads (requests whose messages carry
+`file`/`image_url` parts), a global daily read cap, and a global daily chat cap. Devices are
+keyed by the app's anonymous install id (`x-folio-device`, minted client-side in
+`apps/mobile/src/local/deviceId.ts`); a client that strips the header is keyed by IP instead of
+being exempt. The per-device cap is deliberately **above** the app's own product allowances
+(Free 3 / Full 10 per month, `lib/billing/readAllowance.ts`) — the app enforces the product
+tier, the Worker bounds tampering. KV failures fail **open**: metering must never take the
+product down; the OpenRouter spend cap stays the hard financial floor.
+
+Enable it:
+
+```bash
+cd services/ai-gateway
+wrangler kv namespace create METER_KV
+# paste the printed id into wrangler.toml's commented [[kv_namespaces]] block, uncomment, then:
+wrangler deploy
+```
 
 ## Deploy
 

@@ -268,6 +268,16 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
   if (config.token !== undefined) {
     headers['x-folio-gateway-token'] = config.token;
   }
+  // Anonymous install id for the gateway's abuse metering. Lazily imported so this module stays
+  // Node-safe for its tests (deviceId pulls expo modules); any failure omits the header and the
+  // gateway falls back to its coarser IP backstop.
+  try {
+    const { getDeviceId } = await import('./deviceId');
+    const deviceId = await getDeviceId();
+    if (deviceId !== null) headers['x-folio-device'] = deviceId;
+  } catch {
+    /* header omitted. */
+  }
 
   try {
     const response = await fetch(`${config.gatewayUrl}/chat/completions`, {

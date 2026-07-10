@@ -37,6 +37,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import type { CandidateMoneyItem, CandidateSource } from '@/folio/lib/importSheet';
 
+import { getDeviceId } from './deviceId';
 import { isMeloAiConfigured, resolveMeloAiProviderConfig } from './meloAiClient';
 import {
   PAGES_PER_CHUNK,
@@ -284,6 +285,12 @@ async function sendStatementReadRequest(args: {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (args.token !== undefined) {
       headers['x-folio-gateway-token'] = args.token;
+    }
+    // Anonymous install id — the gateway's per-device abuse metering keys on it (absent is fine;
+    // the gateway falls back to its coarser IP backstop). See src/local/deviceId.ts.
+    const deviceId = await getDeviceId();
+    if (deviceId !== null) {
+      headers['x-folio-device'] = deviceId;
     }
 
     const response = await fetch(`${args.gatewayUrl}/chat/completions`, {
