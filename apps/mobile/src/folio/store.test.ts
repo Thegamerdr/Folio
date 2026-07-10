@@ -37,6 +37,7 @@ import {
   dismissBillSignal,
   dismissIncomeSignal,
   editTransaction,
+  endLensTrial,
   enqueueReviewItems,
   fastForwardMonth,
   forgetMerchantCategory,
@@ -67,6 +68,7 @@ import {
   setPartial,
   setPotAllowNegative,
   setPots,
+  startLensTrial,
   setReaderCandidates,
   setReaderClosingBalance,
   setTightPointGoal,
@@ -627,6 +629,55 @@ describe('accounts (ACCOUNTS_MODEL.md P1)', () => {
     const before = getState().accounts;
     setAccountBalance('acct-does-not-exist', 1, '2026-07-05T00:00:00.000Z');
     expect(getState().accounts).toEqual(before);
+  });
+
+  it('setAccountBalance on a bank account syncs the legacy currentBalance scalar (two-way sync invariant)', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 555, '2026-07-05T00:00:00.000Z', {
+      source: 'statement',
+      confidence: 'statement-derived',
+    });
+
+    const cb = getState().currentBalance;
+    expect(cb.amount).toBe(555);
+    expect(cb.source).toBe('statement');
+    expect(cb.confidence).toBe('statement-derived');
+    expect(cb.setAt).toBe('2026-07-05T00:00:00.000Z');
+  });
+
+  it('setAccountBalance scalar sync uses the bank-only SUM across accounts, defaulting provenance to corrected', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 700, '2026-07-05T00:00:00.000Z');
+    const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 0 });
+    setAccountBalance(savings.id, 300, '2026-07-06T00:00:00.000Z');
+
+    const cb = getState().currentBalance;
+    expect(cb.amount).toBe(1000); // 700 + 300 — the same figure selectBankBalanceMinor reports
+    expect(cb.amount).toBe(selectBankBalanceMinor(getState()));
+    expect(cb.source).toBe('corrected');
+  });
+
+  it('setAccountBalance on a credit card never touches the currentBalance scalar (borrowing is not bank money)', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 1000, '2026-07-05T00:00:00.000Z');
+    const cbBefore = getState().currentBalance;
+
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 0 });
+    setAccountBalance(card.id, 400, '2026-07-06T00:00:00.000Z');
+
+    expect(getState().currentBalance).toEqual(cbBefore);
+  });
+
+  it('payCreditCardFromBank moves the currentBalance scalar with the bank side in the same write', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 1000, '2026-07-05T00:00:00.000Z');
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 500 });
+    addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+
+    payCreditCardFromBank(DEFAULT_ACCOUNT_ID, card.id, 200);
+
+    expect(getState().currentBalance.amount).toBe(800);
+    expect(getState().currentBalance.amount).toBe(selectBankBalanceMinor(getState()));
   });
 
   it('selectBankBalanceMinor sums only bank/savings/cash accounts, excluding credit cards', () => {
@@ -3090,7 +3141,7 @@ describe('addStatementAsHistory', () => {
       expect(txns.every((t) => t.accountId === card.id)).toBe(true);
     });
 
-    it('sets the named account balance via the closing-balance offer, never the global currentBalance', () => {
+    it('sets the named account balance via the closing-balance offer; the global scalar follows the bank sum on confirm', () => {
       // A user creating a named account + importing is a REAL user (already past
       // onboarding's demo wipe), so addStatementAsHistory's demo-purge guard is a
       // no-op here — this test isolates account-balance-vs-global-balance only.
@@ -3115,8 +3166,13 @@ describe('addStatementAsHistory', () => {
       const account = getState().accounts?.find((a) => a.id === savings.id);
       expect(account?.balanceMinor).toBe(305);
       expect(account?.balanceAsOfISO).toBe('2026-03-31');
-      // The global scalar is untouched by this whole flow.
-      expect(getState().currentBalance).toEqual(beforeGlobalBalance);
+      // Two-way sync invariant (the 07-10 split-brain fix): the confirm tap moves the legacy
+      // scalar to the bank-only SUM across accounts, so every remaining currentBalance reader
+      // (Calendar ladder, Account, DayDetail, Paywall, Review) agrees with the route. This test
+      // previously pinned the scalar as UNTOUCHED — that was the audited coherence bug, not the
+      // contract.
+      expect(getState().currentBalance.amount).toBe(selectBankBalanceMinor(getState()));
+      expect(getState().currentBalance.amount).toBe(beforeGlobalBalance.amount + 305);
     });
 
     it('a second import into a DIFFERENT account stays separate from the first', () => {

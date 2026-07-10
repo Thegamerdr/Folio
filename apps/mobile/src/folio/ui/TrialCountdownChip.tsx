@@ -57,7 +57,9 @@ export function TrialCountdownChip({ lens, onPress }: TrialCountdownChipProps) {
         ? '1 day left · trial'
         : `${lens.trialDaysLeft} days left · trial`;
 
-  const coverage = 'Every paid lens (Plus + Pro) unlocked. Auto-locks at payday.';
+  // Truth pass (2026-07-10): the relock enforces this chip's own countdown end date
+  // (payday-anchored with a 21-day floor) — "at payday" over-promised for weekly earners.
+  const coverage = 'Every paid lens (Plus + Pro) unlocked. Locks itself when the countdown ends.';
 
   return (
     <Pressable

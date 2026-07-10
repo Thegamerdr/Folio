@@ -18,7 +18,16 @@
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  AppState,
+  BackHandler,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import {
   BottomNav,
@@ -27,6 +36,7 @@ import {
   Muted,
   PressureScreen,
   PrimaryAction,
+  useTheme,
 } from '@/surfaces/pressureMap/kit';
 import type { ProductScreen } from '@/surfaces/mobileShell';
 import { Sheet } from '@/surfaces/pressureMap/Sheet';
@@ -92,6 +102,8 @@ import { UndoProvider } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { endLensTrialIfExpired, useLens } from '@/folio/lib/lens';
+import { getHydrationOutcome, type HydrationOutcome } from '@/folio/lib/persist';
 import { derivePressure } from '@/folio/screens/today/pressure';
 import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from '@/folio/types';
 
@@ -319,10 +331,12 @@ export function FolioShell() {
 
   const back = useCallback(() => {
     // Pop the current screen off the trail and return to the previous one — a faithful port of the
-    // web nav.back (historyRef.pop() then setScreen to the new top). When the trail empties, fall
-    // back to the home anchor, Today. Back also closes any open sheet and clears a pending intent,
-    // matching go's "a navigation supersedes a transient sheet" contract.
-    historyRef.current.pop();
+    // web nav.back (historyRef.pop() then setScreen to the new top). Back also closes any open
+    // sheet and clears a pending intent, matching go's "a navigation supersedes a transient sheet"
+    // contract. The 'today' seed is never popped: UI Back buttons call this directly (no depth
+    // guard like the hardware handler), and popping the seed would leave the NEXT go() as a
+    // length-1 stack whose hardware back exits the app from a non-root screen.
+    if (historyRef.current.length > 1) historyRef.current.pop();
     const prev = historyRef.current[historyRef.current.length - 1] ?? 'today';
     setSheet(null);
     setMeloIntent(undefined);
@@ -368,6 +382,40 @@ export function FolioShell() {
     [go, back, openSheet, openMelo],
   );
 
+  // Android hardware back — bridged to the shell's own nav machine, in UI-stack order: an open
+  // sheet closes first, then the back-history pops, and only at the root (Today, empty trail) does
+  // the event fall through to the OS so back can background the app. Without this the system back
+  // exited the app from ANY depth (expo-router only ever sees one route; the shell's history lived
+  // in component state the OS knew nothing about).
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sheet !== null) {
+        closeSheet();
+        return true;
+      }
+      if (historyRef.current.length > 1) {
+        back();
+        return true;
+      }
+      return false; // at the root — let the OS handle it.
+    });
+    return () => subscription.remove();
+  }, [sheet, back, closeSheet]);
+
+  // Lens-trial relock — the enforcement behind the "Auto-locks" trial copy. Checked once at mount
+  // (the shell mounts only after the store hydrates, see app/index.tsx) and again every time the
+  // app returns to the foreground, so a trial whose end date passed while the app was closed locks
+  // on the next open rather than living forever. Date math lives in lib/lens.ts
+  // (`endLensTrialIfExpired` — same end date the countdown chip displays).
+  useEffect(() => {
+    endLensTrialIfExpired();
+    const subscription = AppState.addEventListener('change', (status) => {
+      if (status === 'active') endLensTrialIfExpired();
+    });
+    return () => subscription.remove();
+  }, []);
+
   // Onboarding gate — byte-faithful to the web index: the first time the user reaches Today while
   // onboarding is not done, offer the onboarding sheet once, after a short settle delay. `offered`
   // latches so it never re-fires; the timeout is cleaned up on unmount / dep change.
@@ -395,6 +443,10 @@ export function FolioShell() {
     // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
     // (ENGINES §6) via useUndo(); its snackbar host renders above the screen + bottom nav.
     <UndoProvider>
+      {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
+          unreadable, say so ONCE, visibly, instead of booting an empty app that reads as a fresh
+          install (silence must never look identical to success). */}
+      <HydrationNotice />
       {/* Every screen renders inside the error boundary so one screen throwing renders a calm
           fallback instead of taking down the whole shell (faithful to the web HeroPhone, which wraps
           its screen switch in ScreenErrorBoundary). `screenLabel` resets the boundary when the screen
@@ -491,6 +543,70 @@ export function FolioShell() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Hydration notice — the visible face of lib/persist.ts's do-not-destroy contract. Reads the
+// hydration outcome once at mount (it is set before the shell renders — app/index.tsx awaits
+// loadPersisted before flipping `ready`) and shows a calm, dismissible card for the two loss
+// states. 'ok' / 'first-run' render nothing.
+// ---------------------------------------------------------------------------
+
+const HYDRATION_NOTICE_COPY: Partial<Record<HydrationOutcome, { title: string; body: string }>> = {
+  unreadable: {
+    title: 'Your saved numbers could not be read',
+    body:
+      'The saved file on this device could not be opened, so the app has started with a blank ' +
+      'slate. The original file was kept exactly as it was — nothing was deleted or written ' +
+      'over. New numbers you add will save normally.',
+  },
+  'recovered-backup': {
+    title: 'Restored from the last good save',
+    body:
+      'The newest saved file could not be read, so this picture comes from the previous good ' +
+      'save. The unreadable file was kept, not deleted. Anything added after that save may be ' +
+      'missing — worth a quick look at your balance.',
+  },
+};
+
+function HydrationNotice() {
+  const t = useTheme();
+  const [outcome] = useState<HydrationOutcome>(() => getHydrationOutcome());
+  const [dismissed, setDismissed] = useState(false);
+  const copy = HYDRATION_NOTICE_COPY[outcome];
+  if (dismissed || copy === undefined) return null;
+  return (
+    <View
+      accessibilityRole="alert"
+      style={[noticeStyles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}
+    >
+      <Text style={[noticeStyles.title, { color: t.ink }]}>{copy.title}</Text>
+      <Text style={[noticeStyles.body, { color: t.muted }]}>{copy.body}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss this notice"
+        onPress={() => setDismissed(true)}
+        style={({ pressed }) => [noticeStyles.dismiss, pressed ? noticeStyles.pressed : undefined]}
+      >
+        <Text style={[noticeStyles.dismissLabel, { color: t.calm }]}>OK</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const noticeStyles = StyleSheet.create({
+  card: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+  },
+  title: { fontSize: 13.5, fontWeight: '600' },
+  body: { fontSize: 12, lineHeight: 17, marginTop: 4 },
+  dismiss: { alignSelf: 'flex-end', marginTop: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  dismissLabel: { fontSize: 12.5, fontWeight: '500' },
+  pressed: { opacity: 0.6 },
+});
+
 // Local-date YYYY-MM-DD fallback for a cold-opened day-detail sheet (no payload threaded). Scoped to
 // the shell so it never collides with a screen/sheet's own todayIso() helper.
 function todayIsoForDayDetail(): string {
@@ -542,8 +658,15 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
 
 function TodayByMode({ nav, pressure }: { nav: Nav; pressure: Pressure }) {
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
-  if (moneyMode === 'survival') return <TodayScreen nav={nav} pressure={pressure} />;
-  if (moneyMode === 'stability') return <TodayStabilityScreen nav={nav} />;
+  const lens = useLens();
+  // Enforcement half of the lens lock (the web's `effectiveMode` gate, restored): a lens the user
+  // can no longer access — trial ended, never unlocked — must not keep rendering its paid hero.
+  // Falling back to Survival is what makes the LensLockChip's "Survival for now" / "back to
+  // Survival" copy TRUE (TodayScreen shows that chip when the STORE mode is a locked paid lens),
+  // and what makes the trial relock mean anything at all.
+  const effectiveMode = lens.canAccess(moneyMode) ? moneyMode : 'survival';
+  if (effectiveMode === 'survival') return <TodayScreen nav={nav} pressure={pressure} />;
+  if (effectiveMode === 'stability') return <TodayStabilityScreen nav={nav} />;
   return <TodayModeScreen nav={nav} />;
 }
 

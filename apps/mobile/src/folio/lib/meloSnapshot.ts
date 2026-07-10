@@ -24,19 +24,15 @@ import type { Pressure } from '../types';
 
 const FOURTEEN_DAYS_MS = 14 * 86_400_000;
 
-/** The web's tightPoint-by-pressure table (verbatim) — fed into the snapshot only. */
-export const PRESSURE_LOW: Record<Pressure, number> = {
-  safe: 612,
-  calm: 325,
-  soft: 184,
-  pressured: 42,
-  overspent: -86,
-};
-
 export type MeloSnapshot = {
   name: string | null;
   pressure: Pressure;
-  tightPoint: number;
+  /** The REAL projected low of the user's route (routeFromStore's own tight point, rounded), or
+   *  null when the app holds no current money picture (no balance set, nothing logged) — the
+   *  gateway persona is told "treat as ground truth", so an unknown must read as null, never as an
+   *  invented figure. Replaces the web prototype's quantized per-pressure table (612/325/184/42/
+   *  −86), which handed Melo a fabricated number she could quote back at the user as fact. */
+  tightPoint: number | null;
   tightPointGoal: number | null;
   daysToPayday: number;
   monthlyIncome: number;
@@ -79,8 +75,13 @@ export function buildMeloSnapshot(
   pressure: Pressure,
   now: Date | string = new Date(),
 ): MeloSnapshot {
-  const daysToPayday = routeFromStore(state, now).daysToPayday;
+  const route = routeFromStore(state, now);
+  const daysToPayday = route.daysToPayday;
   const monthlyIncome = liveMonthlyIncome(state);
+  // Same current-money-picture gate as the shell's pressure derivation (FolioShell): a balance the
+  // user actually set, or logged activity. Without it, an empty app's route projects from £0 and
+  // the persona would be told a "ground truth" tight point of 0 that the user never entered.
+  const hasMoneyPicture = state.transactions.length > 0 || state.currentBalance.amount > 0;
 
   const nowMs = typeof now === 'string' ? new Date(`${now}T00:00:00`).getTime() : now.getTime();
   const cutoff = nowMs - FOURTEEN_DAYS_MS;
@@ -94,7 +95,7 @@ export function buildMeloSnapshot(
   return {
     name: state.onboarding.name || null,
     pressure,
-    tightPoint: PRESSURE_LOW[pressure],
+    tightPoint: hasMoneyPicture ? Math.round(route.tightPoint.amount) : null,
     tightPointGoal: state.tightPointGoal,
     daysToPayday,
     monthlyIncome,

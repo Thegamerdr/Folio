@@ -1055,6 +1055,17 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
           <StubDisclaimer mode={moneyMode} balance={currentBalance} />
 
           <View style={s.calendarCtaRow}>
+            {/* Before-you-spend door — the afford-check sheet had no opener anywhere in the app
+                (2026-07-10 audit P0-4). Mode-agnostic: the check reads the generic Safe Zone math,
+                which holds under every lens. */}
+            <HeroCta
+              label="Before you spend →"
+              tone={t.inset}
+              textColor={t.calm}
+              bordered
+              small
+              onPress={() => nav.openSheet('afford-check')}
+            />
             <HeroCta
               label="Calendar →"
               tone={t.inset}
@@ -1410,7 +1421,12 @@ function makeStyles(t: Palette) {
     spareLabel: { fontFamily: serif.displayItalic, fontSize: 15 },
     verdict: { marginTop: gap.sm, fontFamily: serif.displayItalic, fontSize: 15 },
     formula: { marginTop: 4, fontSize: 10.5, opacity: 0.7 },
-    calendarCtaRow: { marginTop: gap.md, alignItems: 'center' },
+    calendarCtaRow: {
+      marginTop: gap.md,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: gap.sm,
+    },
     meloPrompt: {
       marginHorizontal: gap.lg,
       marginTop: gap.md,

@@ -37,6 +37,28 @@ describe('resolveCtaMode — availability-false path leaves preview behavior int
   });
 });
 
+describe('resolveCtaMode — a spent trial never re-offers the trial CTA', () => {
+  it('resolves to none (not trial) when the trial has ended and billing is unavailable', () => {
+    const mode = resolveCtaMode({
+      ...base,
+      billingAvailable: false,
+      trialCycleId: null,
+      trialEndedCycleId: '2026-06-01',
+    });
+    expect(mode).toBe('none');
+  });
+
+  it('still resolves to purchase after a spent trial once billing is available', () => {
+    const mode = resolveCtaMode({
+      ...base,
+      billingAvailable: true,
+      trialCycleId: null,
+      trialEndedCycleId: '2026-06-01',
+    });
+    expect(mode).toBe('purchase');
+  });
+});
+
 describe('resolveCtaMode — availability-true path', () => {
   it('resolves to purchase for Plus once billing is available and upsell is allowed', () => {
     expect(resolveCtaMode({ ...base, selected: 'plus', billingAvailable: true })).toBe('purchase');

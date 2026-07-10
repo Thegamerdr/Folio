@@ -68,7 +68,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore } from '@/folio/store';
 import { setLensPlusUnlocked, setLensProUnlocked } from '@/folio/store';
-import { useLens, FREE_LENSES, PLUS_LENSES, PRO_LENSES } from '@/folio/lib/lens';
+import { useLens, trialEndIsoFor, FREE_LENSES, PLUS_LENSES, PRO_LENSES } from '@/folio/lib/lens';
 import { canShowUpsell, upsellSuppressionReason } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
 import { useRoute } from '@/folio/lib/storeRoute';
@@ -140,9 +140,15 @@ const TIER_COPY: Record<
       { label: 'Everything in Free', live: true },
       { label: 'Growth, Reset, Optimizer, Planning lenses', live: true },
       { label: 'Unlimited spend checks', live: false },
-      { label: 'Bill shield · Calendar · What changed', live: true },
+      // Truth pass (2026-07-10): "What changed" has no standing surface yet (only event-driven
+      // caught-sheets), so it may not be sold as live. Bill shield + Calendar are real and shown.
+      { label: 'Bill shield · Calendar', live: true },
+      { label: "'What changed' briefing", live: false },
       { label: 'Widgets · Leak detection', live: false },
-      { label: 'Premium Fenice customisation', live: true },
+      // Truth pass (2026-07-10): the wardrobe's Plus items are not entitlement-gated in code (a
+      // free user can equip them today), so this may not be sold as a live Plus exclusive. Also
+      // pending the owner's wardrobe decision (MELO_ALIGNMENT_AUDIT.md D6).
+      { label: 'Premium Fenice customisation', live: false },
     ],
   },
   pro: {
@@ -164,8 +170,11 @@ const MATRIX: readonly { label: string; free: MatrixCell; plus: MatrixCell; pro:
   { label: 'Will my money last to payday?', free: 'live', plus: 'live', pro: 'live' },
   { label: 'Safe Zone · Recovery · Reset', free: 'live', plus: 'live', pro: 'live' },
   { label: 'Growth · Optimizer · Planning', free: 'no', plus: 'live', pro: 'live' },
-  { label: 'Bill shield · Calendar', free: 'no', plus: 'live', pro: 'live' },
-  { label: 'Premium Fenice looks', free: 'no', plus: 'live', pro: 'live' },
+  // Truth pass (2026-07-10): the Bills Shield line (Safe Zone math) and the Calendar are not
+  // entitlement-gated anywhere in code — a free user has both today, so 'no' was a false claim.
+  { label: 'Bill shield · Calendar', free: 'live', plus: 'live', pro: 'live' },
+  // Truth pass (2026-07-10): wardrobe gating is not enforced in code — 'soon', not 'live'.
+  { label: 'Premium Fenice looks', free: 'no', plus: 'soon', pro: 'soon' },
   { label: 'Widgets · Leak detection', free: 'no', plus: 'soon', pro: 'soon' },
   { label: 'Low visibility lens', free: 'no', plus: 'no', pro: 'live' },
   { label: 'Irregular income · runway', free: 'no', plus: 'no', pro: 'live' },
@@ -207,7 +216,15 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const onboarding = useAppStore((s) => s.onboarding);
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
 
-  const { plusUnlocked, proUnlocked, trialCycleId, trialDaysLeft, startTrial, tierFor } = useLens();
+  const {
+    plusUnlocked,
+    proUnlocked,
+    trialCycleId,
+    trialEndedCycleId,
+    trialDaysLeft,
+    startTrial,
+    tierFor,
+  } = useLens();
 
   const [cadence, setCadence] = useState<Cadence>('yearly');
   const [selected, setSelected] = useState<TierKey>('plus');
@@ -273,6 +290,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
     plusUnlocked,
     proUnlocked,
     trialCycleId,
+    trialEndedCycleId,
   });
 
   // Trial end label — the real trialDaysLeft from useLens(), rendered as a plain day count (the
@@ -284,6 +302,20 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         ? 'tomorrow'
         : `in ${trialDaysLeft} days`
       : 'at payday';
+
+  // The PROSPECTIVE end date for a trial started right now — used by the start-trial CTA and its
+  // toast, where `trialDaysLeft` is still null in this render's closure (the trial hasn't been
+  // written yet). Computed from the SAME `trialEndIsoFor` the relock enforces, so what the button
+  // promises is the day access actually ends — the old 'at payday' fallback misstated the lock
+  // date whenever the 21-day floor pushed the end past the next payday.
+  const incomeSources = useAppStore((s) => s.incomeSources);
+  const prospectiveTrialEndLabel = useMemo(() => {
+    const startIso = new Date().toISOString().slice(0, 10); // same anchor form startTrial writes.
+    const endIso = trialEndIsoFor(startIso, incomeSources ?? [], onboarding.payday || 25);
+    const end = new Date(`${endIso}T00:00:00`);
+    if (Number.isNaN(end.getTime())) return 'when the cycle ends';
+    return end.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  }, [incomeSources, onboarding.payday]);
 
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
@@ -313,14 +345,13 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const handleStartTrial = () => {
     if (!canSell) return;
     startTrial();
-    // Web parity: ScreenPaywall.tsx's toast("Trial started · one cycle", { description: ... }) —
-    // copy ported verbatim (web's trialEndLabel already reads "at payday" as a full phrase, e.g.
-    // "until at payday" would be wrong — this RN trialEndLabel is a bare day count/"at payday", so
-    // the same "until "-prefix rendering the web uses is kept exactly for the day-count case, and the
-    // "at payday" case reads as its own full phrase, matching the web's calendar-date equivalent).
+    // Truth pass (2026-07-10): "Auto-locks at payday" was false while `endLensTrial` had no
+    // callers, and stays imprecise now that the relock enforces the countdown's own end date
+    // (payday-anchored with a 21-day floor — a weekly earner locks ~4 cycles out, not next
+    // payday). The toast now points at the countdown it actually enforces.
     showToast(
       'Trial started · one cycle',
-      `Every paid lens unlocked ${trialEndLabel === 'at payday' ? trialEndLabel : `until ${trialEndLabel}`}. Auto-locks at payday.`,
+      `Every paid lens unlocked until ${prospectiveTrialEndLabel}. Locks itself then — nothing renews.`,
     );
     nav.back();
   };
@@ -718,7 +749,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 {`Every lens unlocked ${trialEndLabel === 'at payday' ? 'until payday' : trialEndLabel}.`}
               </Text>
               <Text style={[styles.ctaFootnote, { color: t.muted }]}>
-                No auto-renew — we&apos;ll ask again at payday.
+                No auto-renew — we&apos;ll ask when the trial ends.
               </Text>
             </Surface>
           ) : ctaMode === 'purchase' ? (
@@ -756,8 +787,8 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               >
                 <Text style={[styles.ctaButtonLabel, { color: t.inverse }]}>
                   {selected === 'pro'
-                    ? `Try Pro free — ends ${trialEndLabel}`
-                    : `Try Plus free — ends ${trialEndLabel}`}
+                    ? `Try Pro free — ends ${prospectiveTrialEndLabel}`
+                    : `Try Plus free — ends ${prospectiveTrialEndLabel}`}
                 </Text>
               </Pressable>
               <Text style={[styles.ctaFootnote, { color: t.muted }]}>
@@ -838,7 +869,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               · No upsell during a storm, in Recovery, or when your spare is under zero.
             </Text>
             <Text style={[styles.promiseLine, { color: t.ink }]}>
-              · No auto-charge after a trial. We ask again at payday.
+              · No auto-charge after a trial. It simply locks when it ends.
             </Text>
           </View>
         </Surface>

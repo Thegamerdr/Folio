@@ -8,7 +8,8 @@
  * @reads        pressure (mood band), pots/subs/transactions/onboarding/cycles/currentBalance/
  *               routeFocusDate (via the store + child components)
  * @writes       setRouteFocusDate(null) (consume-once) · sweepSubOverrides() (mount) · removeTransaction (child)
- * @opens-sheet  onboarding, log-spend, melo-chat (via nav.openSheet / nav.openMelo)
+ * @opens-sheet  onboarding, log-spend, melo-chat (via nav.openSheet / nav.openMelo), afford-check +
+ *               safe-zone (the flagship-check doors under the hero)
  * @copy         FROZEN — every visible string ships verbatim (pressureLine / copy deck).
  * @tokens       paper(canvas) · surface · inset · ink · muted · hairline · calm(accent) ·
  *               calmSoft(accent-soft) · positive · caution · repair(negative) · Fraunces headlines ·
@@ -589,6 +590,36 @@ export function TodayScreen({
           </Text>
         </View>
 
+        {/* Doors to the two flagship checks — the sheets existed but had no opener anywhere in the
+            app (2026-07-10 audit): a built Safe Zone / afford check the user can't reach is a
+            promise the product doesn't keep. */}
+        <View style={styles.checksRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Before you spend — check a spend against your Safe Zone"
+            onPress={() => nav.openSheet('afford-check')}
+            style={({ pressed: p }) => [
+              styles.checkPill,
+              { backgroundColor: t.inset },
+              p ? pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.checkPillLabel, { color: t.calm }]}>Before you spend →</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Your Safe Zone — how the truly-spendable number is made"
+            onPress={() => nav.openSheet('safe-zone')}
+            style={({ pressed: p }) => [
+              styles.checkPill,
+              { backgroundColor: t.inset },
+              p ? pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.checkPillLabel, { color: t.calm }]}>Your Safe Zone →</Text>
+          </Pressable>
+        </View>
+
         <TodayNudges nav={nav} tightestSpare={isLoading ? null : tightestSpare} />
         <TodaySpendStrip nav={nav} />
         <TodayRecentTxns nav={nav} />
@@ -1087,6 +1118,20 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     marginTop: 4,
   },
+  checksRow: {
+    paddingHorizontal: 28,
+    marginTop: gap.sm,
+    flexDirection: 'row',
+    gap: gap.sm,
+  },
+  checkPill: {
+    height: 28,
+    paddingHorizontal: gap.md,
+    borderRadius: 999,
+    justifyContent: 'center',
+  },
+  checkPillLabel: { fontSize: 10.5, letterSpacing: 0.6, textTransform: 'uppercase' },
+
   heroSource: {
     fontSize: 10.5,
     marginTop: 4,

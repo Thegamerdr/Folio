@@ -342,8 +342,8 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <Text style={[styles.tierTrialChip, { color: t.muted }]}>
               <Text style={{ color: t.calm }}>{trialDaysLeft}</Text>
               {trialDaysLeft === 1
-                ? " day left · we'll ask again at payday"
-                : " days left · we'll ask again at payday"}
+                ? " day left · we'll ask when it ends"
+                : " days left · we'll ask when it ends"}
             </Text>
           ) : null}
           <View style={styles.tierActions}>

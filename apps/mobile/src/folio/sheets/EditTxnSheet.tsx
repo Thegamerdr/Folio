@@ -11,8 +11,8 @@
 //   merchant name "Tesco" edited the wrong row. That is fixed at the source: nav.openSheet now carries
 //   an optional `{ id }` payload (types.ts), the shell parks it in `editTxnTarget` and threads it here
 //   as `target`, and ReviewScreen passes the candidate's real subject id. With NO target (cold open)
-//   the sheet keeps a safe inert fallback — it shows the frozen sample and Save just closes, so it
-//   never edits a random row.
+//   the sheet renders an honest empty state (InertFallback: "Nothing to edit here" + how to reach a
+//   real row) — no sample/fabricated transaction is ever shown, and nothing can be edited from it.
 //
 // EditTxnSheet — the faithful 1:1 React Native port of the web edit-transaction sheet
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetEditTxn.tsx).

@@ -316,6 +316,9 @@ export function BulkStatementLanding({
                 offer.accountId ?? DEFAULT_ACCOUNT_ID,
                 offer.amountPence / 100,
                 offer.asOfISO,
+                // Provenance for the synced legacy scalar: this figure came off the statement,
+                // so the balance-source caption must say so, not "corrected" or "user-entered".
+                { source: 'statement', confidence: 'statement-derived' },
               );
               resolveOffer('closing-balance');
             }}

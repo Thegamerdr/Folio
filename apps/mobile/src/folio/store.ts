@@ -1847,7 +1847,27 @@ export function addAccount(
     ...(input.currency !== undefined ? { currency: input.currency } : {}),
     ...(input.closed !== undefined ? { closed: input.closed } : {}),
   };
-  setPartial({ accounts: [...(state.accounts ?? []), account] });
+  const nextAccounts = [...(state.accounts ?? []), account];
+  if (!account.isLiability && account.balanceMinor !== 0) {
+    // Same two-way sync invariant as `setAccountBalance`: a new bank account arriving WITH an
+    // opening balance moves bank money, so the legacy scalar follows the bank sum in the same
+    // write. (The current UI creates accounts at £0 and sets the balance later, so this is a
+    // guard for the API contract, not a behavior change for any live flow.)
+    const bankTotal = nextAccounts
+      .filter((a) => !a.isLiability)
+      .reduce((sum, a) => sum + a.balanceMinor, 0);
+    setPartial({
+      accounts: nextAccounts,
+      currentBalance: {
+        amount: bankTotal,
+        source: 'corrected',
+        confidence: 'corrected',
+        setAt: account.balanceAsOfISO,
+      },
+    });
+  } else {
+    setPartial({ accounts: nextAccounts });
+  }
   if (account.kind === 'credit-card') syncCardDebt(account.id, account.balanceMinor);
   return account;
 }
@@ -1865,20 +1885,48 @@ export function renameAccount(accountId: string, name: string) {
  *  `setCurrentBalance` write for any account-aware caller). Stamps `balanceAsOfISO`. No-op if the
  *  account id doesn't exist (never silently creates one — callers must `addAccount` first).
  *
+ *  Two-way sync invariant: `setCurrentBalance` (legacy path) mirrors into the default account, and
+ *  this path mirrors back into the legacy `currentBalance` scalar for any NON-liability write —
+ *  the scalar becomes the bank-only sum (`selectBankBalanceMinor` over the updated accounts).
+ *  Without the reverse sync, every remaining `currentBalance` reader (Calendar ladder, Account,
+ *  DayDetail, Paywall, Review, the mode-input builders) keeps showing the pre-import balance while
+ *  the route shows the new one. `provenance` labels the scalar honestly (a statement-derived write
+ *  must not masquerade as user-entered); it defaults to a manual correction. Liability (card)
+ *  writes never touch the scalar — borrowing is not bank money.
+ *
  *  ACCOUNTS_MODEL.md §2.4 (P2) — when the account is `kind: 'credit-card'`, also runs `syncCardDebt`
  *  so its linked `Debt` row's balance stays current (a statement import's closing balance, or a
  *  manual edit, both flow through this single write path). See `syncCardDebt`'s doc for the
  *  find-or-create contract and the `needsPayoffDetails` signal. */
-export function setAccountBalance(accountId: string, amount: number, asOfISO?: string) {
+export function setAccountBalance(
+  accountId: string,
+  amount: number,
+  asOfISO?: string,
+  provenance?: { source: BalanceSource; confidence: BalanceConfidence },
+) {
   const accounts = state.accounts ?? [];
   const account = accounts.find((a) => a.id === accountId);
   if (account === undefined) return;
   const balanceAsOfISO = asOfISO ?? new Date().toISOString();
-  setPartial({
-    accounts: accounts.map((a) =>
-      a.id === accountId ? { ...a, balanceMinor: amount, balanceAsOfISO } : a,
-    ),
-  });
+  const nextAccounts = accounts.map((a) =>
+    a.id === accountId ? { ...a, balanceMinor: amount, balanceAsOfISO } : a,
+  );
+  if (account.isLiability) {
+    setPartial({ accounts: nextAccounts });
+  } else {
+    const bankTotal = nextAccounts
+      .filter((a) => !a.isLiability)
+      .reduce((sum, a) => sum + a.balanceMinor, 0);
+    setPartial({
+      accounts: nextAccounts,
+      currentBalance: {
+        amount: bankTotal,
+        source: provenance?.source ?? 'corrected',
+        confidence: provenance?.confidence ?? 'corrected',
+        setAt: balanceAsOfISO,
+      },
+    });
+  }
   if (account.kind === 'credit-card') syncCardDebt(accountId, amount);
 }
 
@@ -2176,24 +2224,41 @@ export function setLensProUnlocked(unlocked: boolean) {
 }
 
 /** Start a one-cycle free trial that unlocks every paid lens together.
- *  `cycleId` is the anchor date (see `lib/lens.ts` `useLens().startTrial`). */
+ *  `cycleId` is the anchor date (see `lib/lens.ts` `useLens().startTrial`).
+ *
+ *  ONE trial, ever — enforced here, not just in the UI: an ended trial leaves its anchor in
+ *  `trialEndedCycleId`, and a second start would wipe it (re-arming `canOfferTrial` and every
+ *  trial CTA) — an infinite re-trial loop through any surface that forgets to check. No-op while
+ *  a trial is active OR after one has ended. */
 export function startLensTrial(cycleId: string) {
   const lens: LensState = state.lens ?? DEFAULT_LENS;
+  if (lens.trialCycleId !== null || lens.trialEndedCycleId !== null) return;
   setPartial({
     lens: {
       ...lens,
       trialCycleId: cycleId,
-      // A fresh trial supersedes any lingering ack state from the last one.
       trialEndedCycleId: null,
       trialEndAcknowledged: true,
     },
   });
 }
 
-/** End the active trial (called by the Payday Ritual at cycle close). */
+/** End the active trial. Called by `lib/lens.ts`'s `endLensTrialIfExpired` (boot / foreground /
+ *  ritual close, once the trial's end date has passed). Moves the anchor into `trialEndedCycleId`
+ *  and clears the ack flag so Today's one-time "trial ended" prompt can actually fire — leaving
+ *  `trialEndedCycleId` unset would relock silently AND make `canOfferTrial` true, i.e. an
+ *  infinitely restartable trial. No-op when no trial is active. */
 export function endLensTrial() {
   const lens: LensState = state.lens ?? DEFAULT_LENS;
-  setPartial({ lens: { ...lens, trialCycleId: null } });
+  if (lens.trialCycleId === null) return;
+  setPartial({
+    lens: {
+      ...lens,
+      trialCycleId: null,
+      trialEndedCycleId: lens.trialCycleId,
+      trialEndAcknowledged: false,
+    },
+  });
 }
 
 /** User has seen the "trial ended" prompt on Today — don't show it again. */
@@ -2304,7 +2369,17 @@ export function payCreditCardFromBank(
   const debts = (state.debts ?? []).map((d) =>
     d.id === linkedId ? { ...d, balance: nextCardBalance } : d,
   );
-  setPartial({ accounts: nextAccounts, debts });
+  // Same two-way sync invariant as `setAccountBalance`: the bank side moved, so the legacy
+  // `currentBalance` scalar must move with it in the SAME atomic write — its readers would
+  // otherwise show the pre-payment bank balance.
+  const bankTotal = nextAccounts
+    .filter((a) => !a.isLiability)
+    .reduce((sum, a) => sum + a.balanceMinor, 0);
+  setPartial({
+    accounts: nextAccounts,
+    debts,
+    currentBalance: { amount: bankTotal, source: 'corrected', confidence: 'corrected', setAt: now },
+  });
   return true;
 }
 

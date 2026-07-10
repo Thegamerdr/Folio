@@ -169,7 +169,8 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
           <View style={[s.footer, { backgroundColor: t.calmSoft }]}>
             <Text style={s.footerTitle}>Trial started · one cycle</Text>
             <Text style={s.footerBody}>
-              Every paid lens (Plus + Pro) unlocked until your next payday. Auto-locks then.
+              Every paid lens (Plus + Pro) unlocked for one cycle. Locks itself when the countdown
+              on Today ends.
             </Text>
           </View>
         ) : null}
@@ -189,7 +190,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
                         : `${trialDaysLeft} days left`}
                   </Text>
                 </Text>
-                <Text style={s.footerBody}>Every paid lens unlocked until your next payday.</Text>
+                <Text style={s.footerBody}>Every paid lens unlocked until the trial ends.</Text>
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -211,7 +212,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
               <View style={s.footerTextCol}>
                 <Text style={s.footerTitle}>Try every lens · one cycle</Text>
                 <Text style={s.footerBody}>
-                  No card. Auto-locks at payday. Never a silent renewal.
+                  No card. Locks itself at the end of the cycle. Never a silent renewal.
                 </Text>
               </View>
               <Pressable

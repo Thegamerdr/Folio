@@ -34,6 +34,19 @@ export const SOURCE_VOICE_LINT_FILES: readonly string[] = [
   '../screens/PdfFallbackScreen.tsx',
   '../screens/ImageFallbackScreen.tsx',
   '../sheets/OnboardingSheet.tsx',
+  // Widened for the Phase-0 stabilization batch (2026-07-10) — the files that gained new
+  // user-facing literals: the flagship-check doors, the trial truth-pass copy, and the
+  // edit-transaction sheet. Two deliberate exclusions: FolioShell (its pre-existing
+  // error-boundary copy uses the banned word "again" in the standard retry button — widening to
+  // the shell needs an owner call on whether the blunt ban covers retry copy) and TodayScreen
+  // (its SVG path template literals — `${PLOT.x1}` etc. — false-positive the shouting-caps
+  // pattern; the literal extractor can't tell chart geometry from copy).
+  '../screens/TodayStabilityScreen.tsx',
+  '../screens/TodayModeScreen.tsx',
+  '../screens/PaywallScreen.tsx',
+  '../sheets/LensPickerSheet.tsx',
+  '../sheets/EditTxnSheet.tsx',
+  '../ui/TrialCountdownChip.tsx',
 ] as const;
 
 function read(relativePath: string): string {

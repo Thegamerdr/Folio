@@ -1,7 +1,8 @@
 // @rn-sheet     SafeZoneSheet
 // @purpose      Decomposition of the Safe Zone number — what makes it up, what's editable, and a
 //               "something's off" jump to Melo.
-// @reads        currentBalance, onboarding, pots, subs, subPaused, bufferAmount (via safeZoneMath)
+// @reads        currentBalance, onboarding, pots, subs, subPaused, bufferAmount + the route bridge
+//               (tightest point figure/date — via safeZoneMath, same inputs AffordCheckSheet builds)
 // @writes       setBufferAmount (via the inline ± stepper)
 // @copy         FROZEN — plain, honest, never predictive. Ported verbatim from the web deck.
 // @tokens       --surface --hairline --accent --positive --negative (mapped to t.surface /
@@ -10,11 +11,12 @@
 // Faithful 1:1 RN port of the web design source
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetSafeZone.tsx).
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { useAppStore, setBufferAmount } from '@/folio/store';
+import { useRoute } from '@/folio/lib/storeRoute';
 import { safeZoneMath } from '@/folio/lib/modes/safeZone';
 import type { Nav } from '@/folio/types';
 
@@ -35,20 +37,38 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
   const subPaused = useAppStore((st) => st.subPaused);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
 
+  // The sheet mounts fresh per open (FolioShell renders it only while active), so this is the
+  // open moment — no module-scope clock that goes stale across midnight.
+  const [now] = useState(() => new Date());
+  const route = useRoute(now);
+
   const zone = useMemo(
     () =>
+      // Route-fed tightest point, the SAME inputs AffordCheckSheet builds. With `tightestDate:
+      // null` (the old hardcoded value) `shieldedBills` returns 0, so the sheet showed a total
+      // WITHOUT the Bills Shield — a decomposition that contradicted the Today/Stability numbers
+      // it now opens from.
       safeZoneMath({
         currentBalance,
         onboarding,
         pots,
         subs,
         subPaused,
-        tightestSpare: 0,
-        tightestDate: null,
+        tightestSpare: route.tightPoint.amount,
+        tightestDate: route.tightPoint.date,
         ritualCompletedRecently: false,
         bufferAmount,
       }),
-    [currentBalance, onboarding, pots, subs, subPaused, bufferAmount],
+    [
+      currentBalance,
+      onboarding,
+      pots,
+      subs,
+      subPaused,
+      route.tightPoint.amount,
+      route.tightPoint.date,
+      bufferAmount,
+    ],
   );
 
   return (

@@ -11,7 +11,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { buildMeloSnapshot, liveMonthlyIncome, PRESSURE_LOW } from './meloSnapshot';
+import { buildMeloSnapshot, liveMonthlyIncome } from './meloSnapshot';
 import { routeFromStore } from './storeRoute';
 import {
   addTransaction,
@@ -114,12 +114,28 @@ describe('buildMeloSnapshot — monthlyIncome', () => {
   });
 });
 
-describe('buildMeloSnapshot — other fields unaffected by the rewire', () => {
-  it('still resolves tightPoint from the pressure table and carries the pressure through', () => {
-    const snapshot = buildMeloSnapshot(getState(), 'pressured', NOW);
+describe('buildMeloSnapshot — tightPoint is the real route low, never a quantized table', () => {
+  it('equals routeFromStore(state, now).tightPoint.amount (rounded) when a money picture exists', () => {
+    const state = getState(); // seeded state carries a balance + transactions — a real picture.
+    const snapshot = buildMeloSnapshot(state, 'pressured', NOW);
+    const route = routeFromStore(state, NOW);
 
     expect(snapshot.pressure).toBe('pressured');
-    expect(snapshot.tightPoint).toBe(PRESSURE_LOW.pressured);
+    expect(snapshot.tightPoint).toBe(Math.round(route.tightPoint.amount));
+    // The old per-pressure table handed the persona 42 for every 'pressured' user — the real
+    // route figure must be what ships, whatever it is, so pin only that it is a number here.
+    expect(typeof snapshot.tightPoint).toBe('number');
+  });
+
+  it('is null when the app holds no current money picture (nothing set, nothing logged)', () => {
+    setPartial({
+      transactions: [],
+      currentBalance: { amount: 0, source: 'sample', confidence: 'sample', setAt: NOW },
+    });
+
+    const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
+
+    expect(snapshot.tightPoint).toBeNull();
   });
 
   it('only folds in transactions from the last 14 days', () => {

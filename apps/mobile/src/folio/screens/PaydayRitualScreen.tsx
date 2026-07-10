@@ -98,6 +98,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { ModeFramingBanner } from '@/folio/ui/ModeFramingBanner';
 import { type MeloMood } from '@/folio/melo/Melo';
 import { addCycle, repayToPot, setNextYouNote, useAppStore, type AppState } from '@/folio/store';
+import { endLensTrialIfExpired } from '@/folio/lib/lens';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
@@ -885,6 +886,11 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       setAside: actuals.setAside,
       note: note.trim() || NO_NOTE,
     });
+
+    // Cycle close is a trial-relock checkpoint (alongside shell mount + app-foreground): the trial
+    // ends by DATE, so this only locks when the end date has actually passed — a ritual run early
+    // never cuts the promised "roughly a month" short.
+    endLensTrialIfExpired(closedNow);
 
     // The seal stamps in (gated to final state under reduce-motion).
     if (!reduceMotion) {

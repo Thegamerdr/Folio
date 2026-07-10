@@ -49,7 +49,7 @@
  * nearly every case, and on the rare short month it still only pushes the
  * trial out to the FOLLOWING occurrence (never shortens it).
  */
-import { useAppStore, startLensTrial, acknowledgeTrialEnd } from '../store';
+import { useAppStore, getState, startLensTrial, endLensTrial, acknowledgeTrialEnd } from '../store';
 import type { MoneyMode } from './modes/types';
 import { MODE_LABEL } from './modes/types';
 import { resolvePayday } from './payday';
@@ -89,6 +89,86 @@ export function trialEndDate(sources: readonly IncomeSource[], startIso: string)
 // Stable empty fallback for the optional store slot — never mint a fresh [] per
 // call (useAppStore/useSyncExternalStore snapshot stability).
 const EMPTY_INCOME_SOURCES: IncomeSource[] = [];
+
+/**
+ * The one canonical trial-end date, anchored on the trial's START (`lens.trialCycleId` — an ISO
+ * date, see `startTrial`). Both the countdown (`trialDaysLeft`) and the relock
+ * (`endLensTrialIfExpired`) read THIS, so what the chip counts down to and the day access actually
+ * ends can never disagree. Cadenced earners get the income-engine end with the 21-day floor;
+ * legacy DOM-only users get the next payday after the floor (so a trial started two days before
+ * payday still honours the "roughly a month" promise instead of ending in 48 hours). An
+ * unparseable anchor returns the anchor itself — i.e. reads as already expired — because a trial
+ * whose start can't be read must fail closed, not stay unlocked forever.
+ */
+export function trialEndIsoFor(
+  trialStartIso: string,
+  sources: readonly IncomeSource[],
+  paydayDom: number,
+): string {
+  const start = new Date(`${trialStartIso}T00:00:00`);
+  // Unparseable anchor FIRST, before the income engine sees it: `projectIncomeEvents`'
+  // `parseIsoDate` throws on a malformed date, and this runs inside mount effects and render
+  // (useLens) — a corrupt persisted anchor must fail closed, never crash boot.
+  if (Number.isNaN(start.getTime())) return trialStartIso;
+  // A malformed income SOURCE (e.g. a weekly source missing its anchor after blob tampering) can
+  // also throw inside the engine — fall back to the DOM path rather than crash.
+  const cadenced = (() => {
+    try {
+      return trialEndDate(sources, trialStartIso);
+    } catch {
+      return null;
+    }
+  })();
+  if (cadenced !== null) return cadenced;
+  const minMs = start.getTime() + TRIAL_MIN_DAYS * 86_400_000;
+  let end = nextPaydayDate(start, paydayDom || 25);
+  // Bounded walk: at most 2 extra months clears the 21-day floor for any day-of-month rule.
+  for (let hops = 0; end.getTime() < minMs && hops < 3; hops += 1) {
+    end = nextPaydayDate(new Date(end.getTime() + 86_400_000), paydayDom || 25);
+  }
+  const y = end.getFullYear();
+  const m = String(end.getMonth() + 1).padStart(2, '0');
+  const d = String(end.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Relock the trial once its end date has passed — the enforcement half of the "Auto-locks" copy.
+ * Callable from anywhere (boot, app-foreground, ritual close): reads the store directly, no hook.
+ * Returns true when it actually ended a trial. Same-day-or-later ISO comparison: the trial is live
+ * through the day BEFORE its end date and locks on the end date itself.
+ */
+export function endLensTrialIfExpired(now: Date = new Date()): boolean {
+  const s = getState();
+  const trialStartIso = s.lens?.trialCycleId ?? null;
+  if (trialStartIso === null) return false;
+  try {
+    const endIso = trialEndIsoFor(
+      trialStartIso,
+      s.incomeSources ?? EMPTY_INCOME_SOURCES,
+      s.onboarding.payday || 25,
+    );
+    // Fail CLOSED on a corrupt end date: a lexicographic `todayIso >= endIso` alone would compare
+    // a real date against garbage and never fire (letters sort after digits — fail-open, unlocked
+    // forever). An end date that doesn't parse means the anchor was unreadable; the trial ends now.
+    const endParsed = new Date(`${endIso}T00:00:00`);
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayIso = `${y}-${m}-${d}`;
+    if (Number.isNaN(endParsed.getTime()) || todayIso >= endIso) {
+      endLensTrial();
+      return true;
+    }
+    return false;
+  } catch {
+    // Any unexpected engine throw on trial state = the same fail-closed rule. This runs at boot
+    // and app-foreground; it must never crash the shell, and it must never leave a trial that
+    // can't be evaluated unlocked forever.
+    endLensTrial();
+    return true;
+  }
+}
 
 // The two baselines Folio answers for everyone.
 export const FREE_LENSES: readonly MoneyMode[] = ['survival', 'stability'] as const;
@@ -188,26 +268,19 @@ export function useLens() {
     startLensTrial(today.toISOString().slice(0, 10));
   };
 
-  /** Days remaining in the active trial — computed against the next
-   *  payday (which is when the cycle closes and the trial ends). Returns
-   *  null when no trial is active. Never negative. */
+  /** Days remaining in the active trial. Anchored on the trial's START (`trialCycleId`) via
+   *  `trialEndIsoFor` — the SAME end date `endLensTrialIfExpired` enforces, so the countdown and
+   *  the relock can never disagree. (The previous version re-derived the end from TODAY on every
+   *  read, so the end date rolled forward daily and the countdown could never reach 0 — one half
+   *  of the never-relocking-trial bug.) Returns null when no trial is active. Never negative. */
   const trialDaysLeft: number | null = (() => {
     if (!trialCycleId) return null;
     const today = new Date();
-    const todayIso = today.toISOString().slice(0, 10);
-    // Prefer the multi-cadence income engine when sources exist — correct for
-    // weekly/fortnightly/four-weekly/last-working-day earners, not just monthly
-    // day-of-month. Falls back to the legacy DOM-only adapter for users who
-    // haven't been migrated onto `incomeSources` yet. `trialEndDate` applies the
-    // 21-day floor (see file header) so a weekly earner's trial reads as ~a
-    // month, not ~a week.
-    const endIso = trialEndDate(incomeSources, todayIso);
-    if (endIso !== null) {
-      const end = new Date(`${endIso}T00:00:00`);
-      const ms = end.getTime() - today.getTime();
-      return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
-    }
-    const end = nextPaydayDate(today, paydayDom || 25);
+    const endIso = trialEndIsoFor(trialCycleId, incomeSources, paydayDom || 25);
+    const end = new Date(`${endIso}T00:00:00`);
+    // Corrupt anchor → unparseable end → the relock treats the trial as already over; the chip
+    // must read "last day", never "NaN days left".
+    if (Number.isNaN(end.getTime())) return 0;
     const ms = end.getTime() - today.getTime();
     return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
   })();

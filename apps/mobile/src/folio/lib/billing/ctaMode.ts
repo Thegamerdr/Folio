@@ -23,6 +23,10 @@ export type CtaModeInputs = {
   plusUnlocked: boolean;
   proUnlocked: boolean;
   trialCycleId: string | null;
+  /** The ended-trial anchor (`lens.trialEndedCycleId`). A spent trial must never resolve back to
+   *  the 'trial' CTA — the store refuses a second `startLensTrial` anyway, so offering one would
+   *  be a dead button wearing a live promise. */
+  trialEndedCycleId?: string | null;
 };
 
 export function resolveCtaMode(i: CtaModeInputs): CtaMode {
@@ -33,6 +37,7 @@ export function resolveCtaMode(i: CtaModeInputs): CtaMode {
   if (!i.canSell) return 'none';
   // canSell is true past this point.
   if (i.billingAvailable) return 'purchase';
+  if (i.trialEndedCycleId) return 'none'; // trial spent + no billing — nothing honest to offer.
   return 'trial';
 }
 

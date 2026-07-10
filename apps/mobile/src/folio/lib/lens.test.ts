@@ -8,9 +8,10 @@
 //   trialEndDate(sources, startIso) -> ISO date | null
 //     = the FIRST income occurrence at least 21 days after startIso.
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { trialEndDate } from './lens';
+import { endLensTrialIfExpired, trialEndDate, trialEndIsoFor } from './lens';
+import { getState, resetAll, setIncomeSources, setOnboarding, startLensTrial } from '../store';
 import type { IncomeSource } from '../store';
 
 function source(
@@ -84,5 +85,101 @@ describe('trialEndDate', () => {
       const daysOut = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
       expect(daysOut).toBeGreaterThanOrEqual(21);
     }
+  });
+});
+
+describe('trialEndIsoFor — the one canonical end date (countdown + relock read the same value)', () => {
+  it('prefers the cadenced income-engine end when sources exist', () => {
+    const s = source({ id: 'w1', cadence: 'weekly', anchorISO: '2026-06-05' });
+    expect(trialEndIsoFor('2026-06-01', [s], 25)).toBe('2026-06-26');
+  });
+
+  it('legacy DOM fallback: a start well before payday ends at that payday', () => {
+    // 2026-06-01 -> payday 25th = 2026-06-25 (24 days out, clears the 21-day floor; a Thursday,
+    // so no weekend shift).
+    expect(trialEndIsoFor('2026-06-01', [], 25)).toBe('2026-06-25');
+  });
+
+  it('legacy DOM fallback honours the 21-day floor — a trial started just before payday is not a 5-day trial', () => {
+    // 2026-06-20 -> the 25th is only 5 days out, so the end walks to the FOLLOWING payday.
+    // 2026-07-25 is a Saturday; the payday engine's weekend rule shifts to Friday 2026-07-24.
+    expect(trialEndIsoFor('2026-06-20', [], 25)).toBe('2026-07-24');
+  });
+
+  it('an unparseable anchor reads as already expired (fails closed, never unlocked forever)', () => {
+    expect(trialEndIsoFor('not-a-date', [], 25)).toBe('not-a-date');
+  });
+});
+
+describe('endLensTrialIfExpired — the relock half of the trial promise', () => {
+  beforeEach(() => {
+    resetAll();
+    setOnboarding({ payday: 25 });
+    setIncomeSources([]);
+  });
+
+  it('returns false and leaves the trial intact before the end date', () => {
+    startLensTrial('2026-06-01');
+    const ended = endLensTrialIfExpired(new Date('2026-06-10T09:00:00'));
+
+    expect(ended).toBe(false);
+    expect(getState().lens?.trialCycleId).toBe('2026-06-01');
+  });
+
+  it('relocks on the end date: trial anchor moves to trialEndedCycleId and the prompt is un-acknowledged', () => {
+    startLensTrial('2026-06-01');
+    const ended = endLensTrialIfExpired(new Date('2026-06-25T09:00:00'));
+
+    expect(ended).toBe(true);
+    const lens = getState().lens;
+    expect(lens?.trialCycleId).toBeNull();
+    expect(lens?.trialEndedCycleId).toBe('2026-06-01');
+    expect(lens?.trialEndAcknowledged).toBe(false);
+  });
+
+  it('is a no-op when no trial is active', () => {
+    expect(endLensTrialIfExpired(new Date('2026-06-25T09:00:00'))).toBe(false);
+    expect(getState().lens?.trialEndedCycleId ?? null).toBeNull();
+  });
+
+  it('fails CLOSED on a corrupt trial anchor — relocks immediately, never unlocked forever', () => {
+    // A lexicographic date compare against a garbage end string never fires ('n' sorts after
+    // '2'), which would leave the trial permanently unlocked — the relock must parse-validate.
+    startLensTrial('not-a-date');
+    const ended = endLensTrialIfExpired(new Date('2026-06-10T09:00:00'));
+
+    expect(ended).toBe(true);
+    expect(getState().lens?.trialCycleId).toBeNull();
+  });
+
+  it('fails CLOSED (no crash) on a corrupt anchor even when income sources exist', () => {
+    // With sources present the cadenced path runs first, and the income engine THROWS on a
+    // malformed date — this runs in mount effects and render, so it must relock, not crash.
+    setIncomeSources([
+      {
+        id: 'w1',
+        label: 'Pay',
+        cadence: 'weekly',
+        anchorISO: '2026-06-05',
+        amount: 500,
+        source: 'manual',
+      },
+    ]);
+    startLensTrial('not-a-date');
+
+    expect(() => endLensTrialIfExpired(new Date('2026-06-10T09:00:00'))).not.toThrow();
+    expect(getState().lens?.trialCycleId).toBeNull();
+  });
+
+  it('one trial EVER: a second startLensTrial after a relock is a no-op (no re-trial loop)', () => {
+    startLensTrial('2026-06-01');
+    endLensTrialIfExpired(new Date('2026-06-25T09:00:00'));
+    expect(getState().lens?.trialEndedCycleId).toBe('2026-06-01');
+
+    startLensTrial('2026-07-01'); // must NOT wipe the ended-trial anchor or re-unlock.
+
+    const lens = getState().lens;
+    expect(lens?.trialCycleId).toBeNull();
+    expect(lens?.trialEndedCycleId).toBe('2026-06-01');
   });
 });

@@ -9,7 +9,9 @@
  * @reads        bufferAmount, currentBalance, pots, subs, onboarding, cycles (via the store + the
  *               real modes engine)
  * @writes       — (nav + sheet opens only)
- * @opens-sheet  log-spend, melo-chat, onboarding, lens-picker
+ * @opens-sheet  log-spend, melo-chat, onboarding, lens-picker, safe-zone + afford-check (the
+ *               flagship-check doors in the CTA row — NOT the hero: see the hero comment for why
+ *               its number must not claim the generic decomposition)
  * @copy         mode-specific — verdict/spare-label come from `deriveModeState('stability', ...)`
  * @tokens       paper · surface · inset · ink · calm(accent) · positive · hairline · muted ·
  *               Fraunces headlines · tabular money
@@ -212,6 +214,12 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             <Text style={[s.modeLabel, { color: t.muted }]}>Stability Mode</Text>
           </View>
 
+          {/* The hero stays non-interactive: its number is the STABILITY strategy's own accounting
+              (balance − pots earmarked − 30-day bills − buffer) which the generic SafeZoneSheet
+              does NOT decompose — a "see the math" tap here would open a sheet asserting a
+              different total than the figure it claims to explain. The Safe Zone door lives in
+              the CTA row below, labelled as its own destination. Unifying the two accountings is
+              a mode-engine change, deliberately out of Phase-0 scope. */}
           <Text style={[s.headline, { color: t.muted }]}>Your safe zone</Text>
           <View style={s.numberRow}>
             <Text style={[s.number, { color: t.ink }]}>
@@ -281,6 +289,22 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           </Text>
 
           <View style={s.calendarCtaRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Before you spend — check a spend against your Safe Zone"
+              onPress={() => nav.openSheet('afford-check')}
+              style={[s.calendarCta, { backgroundColor: t.inset }]}
+            >
+              <Text style={[s.calendarCtaLabel, { color: t.calm }]}>Before you spend →</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Your Safe Zone — the decomposition, with an editable buffer"
+              onPress={() => nav.openSheet('safe-zone')}
+              style={[s.calendarCta, { backgroundColor: t.inset }]}
+            >
+              <Text style={[s.calendarCtaLabel, { color: t.calm }]}>Your Safe Zone →</Text>
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               onPress={() => nav.go('calendar')}
@@ -469,7 +493,13 @@ function makeStyles(t: Palette) {
       fontVariant: ['tabular-nums'],
     },
     balanceCaption: { marginTop: gap.md, fontSize: 10.5, opacity: 0.7, textAlign: 'center' },
-    calendarCtaRow: { marginTop: gap.md, alignItems: 'center' },
+    calendarCtaRow: {
+      marginTop: gap.md,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      gap: gap.sm,
+    },
     calendarCta: {
       height: 28,
       paddingHorizontal: gap.md,
