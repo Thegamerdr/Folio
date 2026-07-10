@@ -1,5 +1,17 @@
 # Folio — Handoff
 
+> **⛔ STALE BELOW THIS BANNER (kept as history). Current state, 2026-07-10:** the live product is
+> the **Melo MVP** on branch **`claude/melo-mvp`** (worktree
+> `.claude/worktrees/melo-mvp`) — the Lovable-ported folio surface (`apps/mobile/src/folio/**`)
+> with the 10-lens mode engine and the locked Fenice phoenix. The parallel `/melo` dogfood surface
+> was archived (`ARCHIVE.md`), Accounts P1/P2 + statement-reader hardening landed (07-05/06), and
+> the whole-app alignment audit + Phase-0 stabilization shipped 07-10
+> (**`MELO_ALIGNMENT_AUDIT.md`** — read it first: app map, P0 fixes done at `bc50cad`, phases,
+> owner decisions D1–D7). Phase-0 verified by on-device smoke (emulator + the owner's Galaxy S9;
+> phone builds sign with `debug.keystore` — see the alignment-audit memory for the gradle
+> override). Everything below this banner describes the pre-melo `claude/folio-rn-faithful-port`
+> era and its branch/commit pointers are outdated.
+
 _Last updated after the web→RN parity build + Melo AI gateway._
 
 **Updated 2026-06-30 (evening) — commits `eb6e0a0` / `3783c9c` / `a3f81c9`** (branch

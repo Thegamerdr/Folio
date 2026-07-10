@@ -1,5 +1,24 @@
 # MELO — Product Blueprint
 
+> **⚠️ PARTIALLY SUPERSEDED (2026-07-10 — see `MELO_ALIGNMENT_AUDIT.md`).** This blueprint
+> (07-02) predates the Lovable port that became the shipping app, and four of its pillars no
+> longer bind:
+> 1. **Mascot (§3.3–§3.4, §8.2 roster lines, §15 Phase 7):** the paid character-roster/IP-expansion
+>    plan is dead. The brand is ONE locked phoenix/fenice companion (`apps/mobile/src/folio/melo/
+>    Melo.tsx`, "the owner's LOCKED brand mascot") — no mascot farm, ever.
+> 2. **Monetization (§8):** superseded twice — first by the shipped Plus/Pro lens tiers, then by
+>    the owner-confirmed **Free / Full one-time / Live metered** structure in `MONEY_MODEL.md`
+>    §2b, which is the binding money model. §8's ethics rules (suppressed-state upsell ban,
+>    safety-free-forever) DO still bind and are enforced in code (`lib/lensPaywall.ts`).
+> 3. **Product thesis (§1):** "payday-survival-first" is now one MODE of ten, not the product.
+>    The product is premium adaptive money clarity (safe / risky / changed / next) across
+>    Survival, Stability, Growth, Debt, Irregular, Household, Planning, Optimizer, Reset,
+>    Low Visibility — all shipped as lens strategies.
+> 4. **No mode system exists in this doc** — the 10-lens engine, the audit's phase plan, and the
+>    open owner decisions (D1–D7) live in `MELO_ALIGNMENT_AUDIT.md`.
+> Everything else (state machine, copy law + banned list, weather vocabulary, screens-as-briefs,
+> retention loops, risks) remains valuable reference.
+
 **The emotional interface for personal finance.**
 Version 1.0 · 2026-07-02 · Full product concept, UX system, retention system, brand system, monetization system, and execution blueprint.
 

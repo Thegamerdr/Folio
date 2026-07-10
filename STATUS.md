@@ -1,5 +1,13 @@
 # Folio V2 Greenfield Status
 
+> **⛔ STALE BELOW THIS BANNER (kept as history). Current state, 2026-07-10:** the live product is
+> the **Melo MVP** on branch **`claude/melo-mvp`**. Start at **`MELO_ALIGNMENT_AUDIT.md`** (the
+> whole-app audit + phase plan; Phase 0 shipped at `bc50cad`, first Phase-1 tranche at `4b67d96`),
+> then `MONEY_MODEL.md` (§2b confirmed money model), `ACCOUNTS_MODEL.md` (P3–P6 specs), and
+> `ARCHIVE.md`/`CONSOLIDATION.md` (what was deleted vs. what is dead-but-present). The 15-phase
+> greenfield program described below is the PRE-MELO era: its branch pointers, blocker lists, and
+> evidence paths are historical.
+
 > Updated 2026-06-30 (evening) — commits eb6e0a0/3783c9c/a3f81c9 (+ 7147884 AUDIT.md) on branch
 > `claude/folio-rn-faithful-port`: sample/placeholder-data purge (charts, summary trio, calendar
 > agenda, reader/edit sheets now plot real route data or show honest empty doorways, demo data gated
