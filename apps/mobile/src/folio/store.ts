@@ -566,6 +566,12 @@ export type AppState = {
    *  the encrypted persist blob. PERSISTED. Optional for shape back-compat; `DEFAULTS`/`load()`
    *  always populate it. */
   aiReadCache?: Record<string, AiReadCacheEntry>;
+  /** What-Changed baseline — the ISO moment the user last opened the standing What-Changed row
+   *  (ui/WhatChangedRow.tsx; summary maths in lib/whatChanged.ts). `null` = no baseline yet (the
+   *  row stamps its first baseline silently on first mount). PERSISTED — a restart must not
+   *  re-announce changes the user has seen. Optional for shape back-compat; `DEFAULTS`/`load()`
+   *  always populate it (null). */
+  whatChangedSeenISO?: string | null;
   /** User-declared outstanding debts. Read by the Debt lens strategy +
    *  amortisation engine (`lib/modes/debtEngine.ts`) to produce payoff
    *  month, weighted APR, and next-due callouts. Empty when the user has
@@ -936,6 +942,7 @@ const DEFAULTS: AppState = {
   // first recorded read stamps the real month.
   aiReads: { monthKey: '', used: 0 },
   aiReadCache: {},
+  whatChangedSeenISO: null,
   // Two seed debts so the Debt lens has honest numbers on first run, mirroring
   // the Lovable design's DEFAULTS. Klarna is interest-free; the loan is a
   // mid-APR personal loan. Balances are rough — the user replaces via a
@@ -1422,6 +1429,7 @@ function load(): AppState {
       modeExtras: migrated.modeExtras ?? {},
       aiReads: migrated.aiReads ?? { monthKey: '', used: 0 },
       aiReadCache: migrated.aiReadCache ?? {},
+      whatChangedSeenISO: migrated.whatChangedSeenISO ?? null,
       debts: migrated.debts ?? DEFAULT_DEBTS,
       household: migrated.household ?? DEFAULT_HOUSEHOLD,
       plans: migrated.plans ?? DEFAULT_PLANS,
@@ -3052,6 +3060,12 @@ export function getCachedAiRead(key: string): AiReadCacheEntry | null {
   return state.aiReadCache?.[key] ?? null;
 }
 
+/** Stamp the What-Changed baseline (see `AppState.whatChangedSeenISO`). Called by
+ *  ui/WhatChangedRow.tsx on its silent first-mount baseline and on every tap-through. */
+export function markWhatChangedSeen(nowISO: string) {
+  setPartial({ whatChangedSeenISO: nowISO });
+}
+
 export function setReaderClosingBalance(closingBalance: ReaderClosingBalance | null) {
   setPartial({ readerClosingBalance: closingBalance });
 }
@@ -3376,6 +3390,7 @@ export function resetToEmpty() {
     modeExtras: {},
     aiReads: { monthKey: '', used: 0 },
     aiReadCache: {},
+    whatChangedSeenISO: null,
     dismissedIncomeSignals: [],
     dismissedBillSignals: [],
     dismissedDriftSignals: [],

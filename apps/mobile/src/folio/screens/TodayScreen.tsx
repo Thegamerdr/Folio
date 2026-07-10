@@ -81,6 +81,7 @@ import { useLens } from '@/folio/lib/lens';
 import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
+import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
 
 import { pressureLine, pressureLow, pressureMood } from './today/pressure';
@@ -555,6 +556,10 @@ export function TodayScreen({
             <Text style={[styles.chipText, { color: t.calm }]}>make them yours →</Text>
           </Pressable>
         ) : null}
+
+        {/* Standing What-Changed row — renders only when something changed since the last look
+            (lib/whatChanged.ts); tap opens the Timeline and stamps the baseline. */}
+        <WhatChangedRow nav={nav} />
 
         {/* Hero */}
         <View style={styles.hero}>

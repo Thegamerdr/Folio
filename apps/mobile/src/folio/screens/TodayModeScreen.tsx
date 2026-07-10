@@ -35,6 +35,7 @@ import { LensProgress } from '@/folio/ui/LensProgress';
 import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
+import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import { StubDisclaimer } from '@/folio/ui/StubDisclaimer';
 import { useLens } from '@/folio/lib/lens';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
@@ -1025,6 +1026,10 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
           <Text style={[s.sampleText, { color: t.calm }]}>make them yours →</Text>
         </Pressable>
       ) : null}
+
+      {/* Standing What-Changed row — renders only when something changed since the last look
+          (lib/whatChanged.ts); tap opens the Timeline and stamps the baseline. */}
+      <WhatChangedRow nav={nav} />
 
       <View style={s.card}>
         <View style={[s.cardInner, { backgroundColor: t.surface, borderColor: t.hairline }]}>
