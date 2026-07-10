@@ -202,3 +202,20 @@ free-tier cost is capped (§4) and retention is real (§5).
 ## 8. Status
 - Written 2026-07-06 from measured session costs + the doctrine. No code. Feeds the goals/paywall
   phases (P5/P6 in ACCOUNTS_MODEL.md) and the existing lensPaywall.ts.
+- **IMPLEMENTED 2026-07-10** (commits `2f25918` + `b2418f4`, branch claude/melo-mvp) — §2b is now
+  the app's real shape:
+  - Tier engine: `lib/lens.ts` LensTier free|full (6 fit-free lenses: Survival, Stability, Debt,
+    Irregular, Reset, Low-vis; 4 Full: Growth, Optimizer, Planning, Household — the §7.2
+    mode-by-mode call, made as a build decision, revisable). Legacy plus/pro flags = grandfather
+    into Full, no migration.
+  - Billing seam: `folio.full` one-time non-consumable + `folio.live.monthly/yearly` subs; legacy
+    SKUs restore→Full. Entitlement record knows full|live (+legacy read).
+  - Paywall: three doors — Full £29.99 one-time, Live £2.99/mo / £24.99/yr (PROTOTYPE numbers,
+    §7.3 sign-off pending), Live-only cadence toggle, suppressed-state guard kept, one-cycle Full
+    trial kept (never grants Live).
+  - AI-read allowance (client-side v1): Free 3/mo · Full 10/mo · Live unlimited
+    (`lib/billing/readAllowance.ts` + IntakeScreen gate). Only candidate-yielding reads count;
+    repeat files served from an on-device content-hash cache for free; lens trial doesn't raise
+    the allowance. Server-side metering at the gateway = the hardening step with accounts.
+  - Open per §7: exact numbers (Full price, Free allowance 2-5, Live sub vs packs), bundle door,
+    on-device OCR path, B2B2C.
