@@ -22,6 +22,7 @@
 //     byte-for-byte the web original.
 
 import { dedupeKey } from '../local/statementReaderDedup';
+import { readCacheEvictions, READ_CACHE_MAX_CANDIDATES } from './lib/billing/readAllowance';
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import {
@@ -551,6 +552,20 @@ export type AppState = {
    *  mode so re-running onboarding with a different intent never wipes another mode's answer.
    *  Optional for shape back-compat; `DEFAULTS`/`load()` always populate it. */
   modeExtras?: Partial<Record<MoneyMode, number>>;
+  /** AI statement-read allowance counter (MONEY_MODEL.md §2b: tiers differ in read QUANTITY,
+   *  never quality). Lazy monthly reset — a counter whose `monthKey` isn't the current month
+   *  reads as 0 (see lib/billing/readAllowance.ts, which owns all the tier maths). Only reads
+   *  that actually yielded candidates count; cached repeats never count. PERSISTED (a restart
+   *  must not refill the allowance). Optional for shape back-compat; `DEFAULTS`/`load()` always
+   *  populate it. */
+  aiReads?: { monthKey: string; used: number };
+  /** On-device cache of successful statement reads, keyed by file-content hash
+   *  (lib/billing/readAllowance.ts `statementCacheKey`). Re-picking a file Folio has read before
+   *  serves this instead of a gateway call — costs nothing, burns no allowance. Small by design
+   *  (READ_CACHE_MAX_ENTRIES, oldest evicted) because entries carry full candidate lists inside
+   *  the encrypted persist blob. PERSISTED. Optional for shape back-compat; `DEFAULTS`/`load()`
+   *  always populate it. */
+  aiReadCache?: Record<string, AiReadCacheEntry>;
   /** User-declared outstanding debts. Read by the Debt lens strategy +
    *  amortisation engine (`lib/modes/debtEngine.ts`) to produce payoff
    *  month, weighted APR, and next-due callouts. Empty when the user has
@@ -917,6 +932,10 @@ const DEFAULTS: AppState = {
   moneyMode: 'survival',
   bufferAmount: 100,
   modeExtras: {},
+  // Sentinel monthKey '' never matches a real month, so the counter reads as 0 used until the
+  // first recorded read stamps the real month.
+  aiReads: { monthKey: '', used: 0 },
+  aiReadCache: {},
   // Two seed debts so the Debt lens has honest numbers on first run, mirroring
   // the Lovable design's DEFAULTS. Klarna is interest-free; the loan is a
   // mid-APR personal loan. Balances are rough — the user replaces via a
@@ -1401,6 +1420,8 @@ function load(): AppState {
       moneyMode: migrated.moneyMode ?? DEFAULT_MONEY_MODE,
       bufferAmount: migrated.bufferAmount ?? DEFAULT_BUFFER_AMOUNT,
       modeExtras: migrated.modeExtras ?? {},
+      aiReads: migrated.aiReads ?? { monthKey: '', used: 0 },
+      aiReadCache: migrated.aiReadCache ?? {},
       debts: migrated.debts ?? DEFAULT_DEBTS,
       household: migrated.household ?? DEFAULT_HOUSEHOLD,
       plans: migrated.plans ?? DEFAULT_PLANS,
@@ -2996,6 +3017,41 @@ export type ReaderClosingBalance = {
   statedTotalCredits?: number;
 };
 
+/** One cached statement read (see `AppState.aiReadCache`): the full candidate set + closing
+ *  balance a successful read produced, so re-picking the same file replays it for free. `at` is
+ *  the ISO write time — the eviction order. */
+export type AiReadCacheEntry = {
+  candidates: CandidateMoneyItem[];
+  closingBalance: ReaderClosingBalance | null;
+  at: string;
+};
+
+/** Count one AI statement read against the current month. `monthKey` comes from the caller
+ *  (lib/billing/readAllowance.ts `monthKeyOf`) so this stays clock-free and Node-testable; a key
+ *  change rolls the counter over to 1 (lazy monthly reset). */
+export function recordAiRead(monthKey: string) {
+  const current = state.aiReads;
+  const used = current && current.monthKey === monthKey ? current.used + 1 : 1;
+  setPartial({ aiReads: { monthKey, used } });
+}
+
+/** Cache a successful statement read by file-content key. Oversized reads are not cached (they
+ *  would tax every subsequent persist write more than the saved gateway call is worth); the
+ *  oldest entries are evicted so the cache never exceeds READ_CACHE_MAX_ENTRIES. */
+export function cacheAiRead(key: string, entry: AiReadCacheEntry) {
+  if (entry.candidates.length > READ_CACHE_MAX_CANDIDATES) return;
+  const current = state.aiReadCache ?? {};
+  const drops = readCacheEvictions(current);
+  const kept = Object.fromEntries(Object.entries(current).filter(([k]) => !drops.includes(k)));
+  setPartial({ aiReadCache: { ...kept, [key]: entry } });
+}
+
+/** The cached read for a file-content key, or null. Pure read — no expiry (a statement's content
+ *  never changes; the cache is only bounded by entry-count eviction). */
+export function getCachedAiRead(key: string): AiReadCacheEntry | null {
+  return state.aiReadCache?.[key] ?? null;
+}
+
 export function setReaderClosingBalance(closingBalance: ReaderClosingBalance | null) {
   setPartial({ readerClosingBalance: closingBalance });
 }
@@ -3318,6 +3374,8 @@ export function resetToEmpty() {
     moneyMode: 'survival',
     bufferAmount: 100,
     modeExtras: {},
+    aiReads: { monthKey: '', used: 0 },
+    aiReadCache: {},
     dismissedIncomeSignals: [],
     dismissedBillSignals: [],
     dismissedDriftSignals: [],

@@ -96,7 +96,26 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
-import { setReaderCandidates, setReaderClosingBalance } from '@/folio/store';
+import {
+  cacheAiRead,
+  getCachedAiRead,
+  getState,
+  recordAiRead,
+  setReaderCandidates,
+  setReaderClosingBalance,
+  useAppStore,
+} from '@/folio/store';
+import { useLens } from '@/folio/lib/lens';
+import { loadActiveEntitlement } from '@/folio/lib/billing/entitlements';
+import {
+  allowanceFor,
+  canReadNow,
+  monthKeyOf,
+  READ_ALLOWANCE,
+  readsLeft,
+  statementCacheKey,
+  type ReadTier,
+} from '@/folio/lib/billing/readAllowance';
 import { setReaderFallbackReason } from '@/folio/lib/readerFallbackReason';
 import { showToast } from '@/folio/ui/Toast';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -283,7 +302,90 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // this affordance only shows during a chunked read (chunkProgress !== null).
   const [readAbortController, setReadAbortController] = useState<AbortController | null>(null);
 
+  // AI-read allowance (MONEY_MODEL.md §2b — tiers differ in read QUANTITY, never quality; all the
+  // maths live in lib/billing/readAllowance.ts). Tier resolves from real ownership: Live from the
+  // billing entitlement record, Full from the lens store. The one-cycle lens TRIAL does not raise
+  // the allowance — it trials software (zero marginal cost); reads cost real money per use.
+  const { fullUnlocked } = useLens();
+  const [liveActive, setLiveActive] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void loadActiveEntitlement().then((record) => {
+      if (mounted && record?.tier === 'live') setLiveActive(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+  const readTier: ReadTier = liveActive ? 'live' : fullUnlocked ? 'full' : 'free';
+  const aiReads = useAppStore((s) => s.aiReads);
+  const readAllowance = allowanceFor(readTier);
+  const readsRemaining = readsLeft(aiReads, readTier, monthKeyOf(new Date()));
+
   const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.title), []);
+
+  // Pre-read gate, shared by the single-shot and chunked paths. Three outcomes:
+  //  • 'cached' — Folio has read this exact file before: the cached candidates are staged and the
+  //    success screen is already routed to. No gateway call, no allowance burned.
+  //  • 'blocked' — this month's allowance is spent: an honest toast says so and the fallback
+  //    screen (manual paths) is routed to. Nothing was read.
+  //  • 'allowed' — proceed with a real read; `key` (when computable) is the cache key to write
+  //    back on success so the NEXT pick of this file is free.
+  async function gateAiRead(
+    uri: string,
+    successScreen: ScreenId,
+    fallbackScreen: ScreenId,
+  ): Promise<{ kind: 'cached' | 'blocked' } | { kind: 'allowed'; key: string | null }> {
+    let key: string | null = null;
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      if (base64.trim().length > 0) key = statementCacheKey(base64);
+    } catch {
+      // Unreadable here — the reader itself will surface its own honest error; the gate only
+      // loses the cache shortcut, never blocks on a hashing failure.
+    }
+    if (key !== null) {
+      const cached = getCachedAiRead(key);
+      if (cached !== null) {
+        setReaderCandidates(cached.candidates);
+        setReaderClosingBalance(cached.closingBalance);
+        showToast('Read from memory', 'Folio has read this exact file — no read used.');
+        nav.go(successScreen);
+        return { kind: 'cached' };
+      }
+    }
+    const monthKey = monthKeyOf(new Date());
+    if (!canReadNow(getState().aiReads, readTier, monthKey)) {
+      const body =
+        readTier === 'full'
+          ? `Full includes ${READ_ALLOWANCE.full} AI statement reads a month. Live makes them unlimited.`
+          : `Free includes ${READ_ALLOWANCE.free} AI statement reads a month. Full raises it to ${READ_ALLOWANCE.full} — Live makes them unlimited.`;
+      showToast('Monthly reads used', body);
+      setReaderFallbackReason(
+        'This month’s AI reads are used. The manual paths below still work — the allowance resets next month.',
+      );
+      nav.go(fallbackScreen);
+      return { kind: 'blocked' };
+    }
+    return { kind: 'allowed', key };
+  }
+
+  // Success bookkeeping for a real (non-cached) read that yielded candidates: count it against
+  // this month and cache it by file content so re-picking the same file is free. Failed/empty
+  // reads never reach here — they burn no allowance (see readAllowance.ts's rules).
+  function settleAiRead(
+    key: string | null,
+    candidates: CandidateMoneyItem[],
+    closingBalance: Parameters<typeof setReaderClosingBalance>[0],
+    cacheable: boolean,
+  ) {
+    recordAiRead(monthKeyOf(new Date()));
+    if (key !== null && cacheable) {
+      cacheAiRead(key, { candidates, closingBalance, at: new Date().toISOString() });
+    }
+  }
 
   // Run the LLM reader over a picked PDF / photo and route honestly. The picked file's `uri` +
   // `mediaType` go to `extractStatementCandidates` (the gateway vision model). While the call is in
@@ -303,10 +405,15 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     successScreen: ScreenId,
     fallbackScreen: ScreenId,
   ) {
+    // Allowance + cache gate BEFORE any read path (single-shot or chunked): a cached repeat is
+    // served instantly and free; a spent allowance stops honestly before the spinnerless wait.
+    const gate = await gateAiRead(uri, successScreen, fallbackScreen);
+    if (gate.kind !== 'allowed') return;
+
     if (kind === 'pdf') {
       const info = await FileSystem.getInfoAsync(uri);
       if (info.exists && typeof info.size === 'number' && info.size > MAX_STATEMENT_BYTES) {
-        await runChunkedReader(uri, mediaType, successScreen, fallbackScreen);
+        await runChunkedReader(uri, mediaType, successScreen, fallbackScreen, gate.key);
         return;
       }
     }
@@ -317,6 +424,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       if (result.kind === 'ok' && result.candidates.length > 0) {
         setReaderCandidates(result.candidates);
         setReaderClosingBalance(result.closingBalance);
+        settleAiRead(gate.key, result.candidates, result.closingBalance, true);
         nav.go(successScreen);
         return;
       }
@@ -375,6 +483,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     mediaType: string,
     successScreen: ScreenId,
     fallbackScreen: ScreenId,
+    cacheKey: string | null,
   ) {
     const controller = new AbortController();
     setReadAbortController(controller);
@@ -399,6 +508,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           // single-shot path does; `null` when no chunk supplied one, which also correctly clears
           // any balance staged by a prior single-shot read rather than letting it leak in.
           setReaderClosingBalance(result.closingBalance);
+          // One statement = ONE read against the allowance, however many chunks it took. Only a
+          // FULL-coverage read is cached — caching a partial forever would keep serving the gaps.
+          settleAiRead(cacheKey, result.candidates, result.closingBalance, result.kind === 'ok');
           if (result.kind === 'partial') {
             const failed = result.coverage.filter((outcome) => !outcome.ok);
             const pages = failed
@@ -623,6 +735,16 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           ))}
         </View>
 
+        {/* AI-read allowance line — honest quantity read (MONEY_MODEL.md §2b). Only the PDF/photo
+            rows use an AI read; paste/CSV/manual are always free. Hidden on Live (unlimited). */}
+        {readAllowance !== null && readsRemaining !== null ? (
+          <Text style={[styles.allowanceLine, { color: t.muted }]}>
+            {readsRemaining === 0
+              ? 'AI reads for this month are used · paste, CSV and manual entry stay open'
+              : `${readsRemaining} of ${readAllowance} AI statement reads left this month`}
+          </Text>
+        ) : null}
+
         {/* Melo reassurance — the only Melo on this screen, calm mood (the resting state, not the
             curious reading state). The quote is a @copy FROZEN inline literal; MeloLine adds the
             straight quotes, so we pass the raw text. */}
@@ -752,6 +874,11 @@ const styles = StyleSheet.create({
   options: {
     gap: gap.md,
     marginTop: gap.xl,
+  },
+  allowanceLine: {
+    fontSize: 11,
+    marginTop: gap.sm,
+    textAlign: 'center',
   },
   // bg-surface · hairline border · rounded-xl (radius.md = 12) · px-4 py-4 (16) · row · gap-4 (16).
   row: {

@@ -109,7 +109,9 @@ const LENS_ONE_LINER: Record<MoneyMode, string> = {
 // every flag is a truth claim about TODAY's build:
 //   • The six fit-free lenses + safety layer are shipped → live.
 //   • The four Full lenses (Growth/Optimizer/Planning/Household strategies) are shipped → live.
-//   • AI-read allowances are `soon` until the metering gate ships (next tranche — flip then).
+//   • AI-read allowances are LIVE — the client-side metering gate ships with this build
+//     (lib/billing/readAllowance.ts + IntakeScreen's gate). Live's UNLIMITED stays `soon`
+//     until Live itself can be bought.
 //   • Wardrobe gating, widgets, briefings, bank sync are not built → soon.
 const TIER_COPY: Record<
   TierKey,
@@ -122,7 +124,7 @@ const TIER_COPY: Record<
       { label: 'Will my money last to payday?', live: true },
       { label: 'Six money-shape lenses — Survival to Low-vis', live: true },
       { label: 'Safe Zone · Recovery · Bill shield · Calendar', live: true },
-      { label: 'A few AI statement reads each month', live: false },
+      { label: 'A few AI statement reads each month', live: true },
     ],
   },
   full: {
@@ -131,7 +133,7 @@ const TIER_COPY: Record<
     bullets: [
       { label: 'Everything in Free', live: true },
       { label: 'Growth, Optimizer, Planning, Household lenses', live: true },
-      { label: 'Bigger AI read allowance', live: false },
+      { label: 'Bigger AI read allowance', live: true },
       { label: "'What changed' briefing", live: false },
       { label: 'Widgets · Leak detection', live: false },
       { label: 'Premium Fenice customisation', live: false },
@@ -155,6 +157,7 @@ const MATRIX: readonly { label: string; free: MatrixCell; full: MatrixCell; live
   { label: 'Six money-shape lenses', free: 'live', full: 'live', live: 'live' },
   { label: 'Growth · Optimizer · Planning · Household', free: 'no', full: 'live', live: 'no' },
   { label: 'Bill shield · Calendar', free: 'live', full: 'live', live: 'live' },
+  { label: 'AI reads — monthly allowance', free: 'live', full: 'live', live: 'live' },
   { label: 'Unlimited AI reads', free: 'no', full: 'no', live: 'soon' },
   { label: 'Live bank sync', free: 'no', full: 'no', live: 'soon' },
   { label: "'What changed' briefing", free: 'no', full: 'soon', live: 'no' },
