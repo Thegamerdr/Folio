@@ -65,6 +65,7 @@ import {
   setAccountBalance,
   setCurrentBalance,
   setIncomeSources,
+  setModeExtra,
   setPartial,
   setPotAllowNegative,
   setPots,
@@ -379,6 +380,41 @@ describe('borrowFromPot', () => {
     const applied = borrowFromPot('holiday', 30, 'shortfall-borrow'); // the correct call shape
     expect(applied).toBe(true);
     expect(getState().pots.find((p) => p.id === 'holiday')!.saved).toBe(before - 30);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// modeExtras — onboarding follow-up answers persist per mode (2026-07-10 audit fix: 8 of 10
+// modes' answers were captured on-screen and then silently dropped).
+// ---------------------------------------------------------------------------
+describe('setModeExtra', () => {
+  it('records the answer per mode without touching other modes, rounding and flooring at 0', () => {
+    resetAll();
+    setModeExtra('debt', 12_400.6);
+    setModeExtra('growth', 250);
+    setModeExtra('reset', -10);
+
+    expect(getState().modeExtras).toEqual({ debt: 12_401, growth: 250, reset: 0 });
+  });
+
+  it('re-answering one mode never wipes another mode’s declaration', () => {
+    resetAll();
+    setModeExtra('debt', 5000);
+    setModeExtra('debt', 6000);
+
+    expect(getState().modeExtras).toEqual({ debt: 6000 });
+  });
+
+  it('round-trips through the persistence blob', () => {
+    resetAll();
+    setModeExtra('planning', 8000);
+    const blob = getPersistBlob();
+
+    resetToEmpty();
+    expect(getState().modeExtras).toEqual({});
+
+    hydrateFromBlob(blob);
+    expect(getState().modeExtras).toEqual({ planning: 8000 });
   });
 });
 

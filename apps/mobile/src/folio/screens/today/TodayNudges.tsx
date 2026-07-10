@@ -11,12 +11,12 @@
 //               with the headline). shelf via lib/shelf.ts useShelf() (STORE-SEAM DEVIATION, see
 //               that file's header — store.ts has no shelf slot and is outside this batch's file list).
 // @writes       sweepReviewQueue (mount only — the queue's 14-day age-out, web parity)
-// @opens-sheet  onboarding, shelf, melo-chat (via nav.openMelo)
+// @opens-sheet  onboarding, shelf, lens-picker (mode suggestion), melo-chat (via nav.openMelo)
 // @copy         FROZEN — verbatim from the deck.
 // @tokens       calm (accent) · calmSoft (accent-soft) · surface · ink · muted · hairline · inset
 // @notes        Proactive — collapses to ONE visible chip always (web parity). Order: shortfall >
-//               onboarding > review-queue > shelf > melo > ritual > insights. Renders nothing when 0
-//               nudges (empty branch).
+//               onboarding > review-queue > shelf > melo > ritual > insights > mode-suggestion.
+//               Renders nothing when 0 nudges (empty branch).
 //
 // STORE-SEAM NOTE (updated): the persisted `reviewQueue` (web store.ts v8 seam) now EXISTS on RN
 // (store.ts v7 migration) — the intake success screens enqueue into it and the Review screen drains
@@ -35,6 +35,7 @@ import { useShelf } from '@/folio/lib/shelf';
 import { daysToNextIncome } from '@/folio/lib/income';
 import { resolvePayday } from '@/folio/lib/payday';
 import { latestLivedCycle } from '@/folio/lib/historyCycles';
+import { suggestMode } from '@/folio/lib/modes/suggest';
 import type { Nav } from '@/folio/types';
 
 // Stable empty fallback for the optional store slot — DEFAULTS/load always populate `reviewQueue`,
@@ -119,6 +120,10 @@ export function TodayNudges({
   const tightPointGoal = useAppStore((st) => st.tightPointGoal);
   const reviewQueue = useAppStore((st) => st.reviewQueue ?? EMPTY_REVIEW_QUEUE);
   const incomeSources = useAppStore((st) => st.incomeSources ?? EMPTY_INCOME_SOURCES);
+  const pots = useAppStore((st) => st.pots);
+  const currentBalance = useAppStore((st) => st.currentBalance);
+  const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
+  const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const shelf = useShelf();
 
   // Age out expired queue items once on mount (web: `sweepReviewQueue()` in the mount effect).
@@ -287,6 +292,36 @@ export function TodayNudges({
       label: `${cycles.length} ${cycles.length === 1 ? 'month' : 'months'} done · see how they've looked`,
       cta: 'Open',
       onPress: () => nav.go('insights'),
+    });
+  }
+
+  // Mode suggestion — the honest auto-detect (lib/modes/suggest.ts) finally wired to a surface
+  // (2026-07-10 alignment-audit fix: the engine was exported, tested, and imported by nothing).
+  // LOWEST priority on purpose: it only leads the chip when nothing more urgent exists, and the
+  // tap opens the LENS PICKER — per the engine's own contract, the suggestion never switches the
+  // mode itself; the switch is always a deliberate user tap on the picker row.
+  const suggestion =
+    onboarding.done && tightestSpare !== null
+      ? suggestMode(moneyMode, {
+          currentBalance,
+          onboarding,
+          pots,
+          subs,
+          subPaused,
+          tightestSpare,
+          tightestDate: null,
+          ritualCompletedRecently: false,
+          bufferAmount,
+          incomeSources,
+        })
+      : null;
+  if (suggestion) {
+    nudges.push({
+      key: 'mode-suggest',
+      tone: 'melo',
+      label: suggestion.reason,
+      cta: `Try ${suggestion.label} →`,
+      onPress: () => nav.openSheet('lens-picker'),
     });
   }
 

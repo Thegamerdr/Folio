@@ -106,3 +106,29 @@ function addIsoDays(iso: string, days: number): string {
   const d = new Date(ms);
   return isoOfYmd({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() });
 }
+
+/**
+ * Days from `todayIso` until the NEXT occurrence of a day-of-month — for seeding a freshly
+ * declared monthly bill's `nextRenewalDaysAway` from the user's "on the 12th" answer.
+ *
+ * BUG THIS FIXES (found in the 2026-07-10 Phase-0 device smoke): AddEntryScreen seeded
+ * `nextRenewalDaysAway` with the day-of-month LITERAL — "12th" became "due in 12 days"
+ * (a phantom date that also happened to sit exactly on the route's tight point), so the bill
+ * landed on the wrong calendar day everywhere downstream (route, calendar, Bills Shield).
+ *
+ * Semantics: today's occurrence counts as due today (0) — matching the codebase-wide
+ * `nextRenewalDaysAway <= 0` = "due" convention. A day that doesn't exist in the current month
+ * (31st in February, the "Last day" option's 31) clamps to that month's last day, same
+ * calendar-correct rule `addCalendarMonths` uses.
+ */
+export function daysUntilDayOfMonth(dayOfMonth: number, todayIso: string): number {
+  const today = parseIsoDate(todayIso);
+  const wanted = Math.max(1, Math.min(31, Math.round(dayOfMonth)));
+  const lastDayThisMonth = new Date(Date.UTC(today.year, today.month, 0)).getUTCDate();
+  const clampedThisMonth = Math.min(wanted, lastDayThisMonth);
+  if (clampedThisMonth >= today.day) {
+    return clampedThisMonth - today.day;
+  }
+  const next = addCalendarMonths({ year: today.year, month: today.month, day: wanted }, 1);
+  return daysBetween(todayIso, isoOfYmd(next));
+}

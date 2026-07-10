@@ -76,7 +76,11 @@ function shieldedBills(inputs: ModeInputs): number {
   const daysToPayday = (() => {
     if (!inputs.tightestDate) return 0;
     const ms = new Date(inputs.tightestDate).getTime() - Date.now();
-    return Math.max(0, Math.round(ms / 86_400_000));
+    // ceil, not round (2026-07-10 device-smoke fix): `tightestDate` is a midnight ISO date while
+    // `Date.now()` is mid-day, so the fraction rounds DOWN and a bill landing exactly ON the
+    // tight date fell out of the window — the sheet showed Bills Shield £0 while the route
+    // visibly dipped by that bill. The shield must cover through the tight day itself.
+    return Math.max(0, Math.ceil(ms / 86_400_000));
   })();
   if (daysToPayday <= 0) return 0;
   return inputs.subs.reduce((sum, s) => {

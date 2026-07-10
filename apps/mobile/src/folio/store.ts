@@ -543,6 +543,13 @@ export type AppState = {
    *  this; £100 default per the Lovable design's MONEY_MODES.md § 2.2.
    *  Optional for shape back-compat; `DEFAULTS`/`load()` always populate it. */
   bufferAmount?: number;
+  /** Onboarding mode-extra answers (£), keyed by mode. Survival/Stability's answer ALSO lands in
+   *  `bufferAmount` (their engines read it); every other mode's declaration is preserved HERE so
+   *  it survives restarts until that mode's engine grows a real input for it — the answers used to
+   *  be captured on-screen and then silently dropped (2026-07-10 alignment-audit fix). Keyed per
+   *  mode so re-running onboarding with a different intent never wipes another mode's answer.
+   *  Optional for shape back-compat; `DEFAULTS`/`load()` always populate it. */
+  modeExtras?: Partial<Record<MoneyMode, number>>;
   /** User-declared outstanding debts. Read by the Debt lens strategy +
    *  amortisation engine (`lib/modes/debtEngine.ts`) to produce payoff
    *  month, weighted APR, and next-due callouts. Empty when the user has
@@ -908,6 +915,7 @@ const DEFAULTS: AppState = {
   statementImports: [],
   moneyMode: 'survival',
   bufferAmount: 100,
+  modeExtras: {},
   // Two seed debts so the Debt lens has honest numbers on first run, mirroring
   // the Lovable design's DEFAULTS. Klarna is interest-free; the loan is a
   // mid-APR personal loan. Balances are rough — the user replaces via a
@@ -1391,6 +1399,7 @@ function load(): AppState {
       statementImports: Array.isArray(migrated.statementImports) ? migrated.statementImports : [],
       moneyMode: migrated.moneyMode ?? DEFAULT_MONEY_MODE,
       bufferAmount: migrated.bufferAmount ?? DEFAULT_BUFFER_AMOUNT,
+      modeExtras: migrated.modeExtras ?? {},
       debts: migrated.debts ?? DEFAULT_DEBTS,
       household: migrated.household ?? DEFAULT_HOUSEHOLD,
       plans: migrated.plans ?? DEFAULT_PLANS,
@@ -2202,6 +2211,13 @@ export function setMoneyMode(mode: MoneyMode) {
 /** User-declared safety buffer for Stability + other buffer-aware lenses. */
 export function setBufferAmount(amount: number) {
   setPartial({ bufferAmount: Math.max(0, Math.round(amount)) });
+}
+
+/** Record a mode's onboarding follow-up answer (£). Merged per mode — re-running onboarding with a
+ *  different intent never wipes another mode's declaration. See `AppState.modeExtras`. */
+export function setModeExtra(mode: MoneyMode, amount: number) {
+  const current = state.modeExtras ?? {};
+  setPartial({ modeExtras: { ...current, [mode]: Math.max(0, Math.round(amount)) } });
 }
 
 /** Plus-tier entitlement setter. */
@@ -3300,6 +3316,7 @@ export function resetToEmpty() {
     statementImports: [],
     moneyMode: 'survival',
     bufferAmount: 100,
+    modeExtras: {},
     dismissedIncomeSignals: [],
     dismissedBillSignals: [],
     dismissedDriftSignals: [],

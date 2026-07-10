@@ -1,7 +1,7 @@
 // @rn-sheet     OnboardingSheet
 // @purpose      Seven-step onboarding — name, intent picker (→ Money Mode), mode-specific extra
 //               question, payday, income, balance, pot picker.
-// @writes       setOnboarding, setMoneyMode, setBufferAmount, setCurrentBalance, setPots
+// @writes       setOnboarding, setMoneyMode, setModeExtra, setBufferAmount, setCurrentBalance, setPots
 // @copy         FROZEN (verbatim from '@/folio/copy/copy' + the spec's inline strings)
 // @tokens       --paper (Sheet) · --accent (t.calm) · --accent-soft (t.calmSoft) ·
 //               --inset (t.inset) · --hairline (t.hairline) · --ink (t.ink) · --muted-ink (t.muted)
@@ -69,6 +69,7 @@ import {
   setBufferAmount,
   setCurrentBalance,
   setIncomeSources,
+  setModeExtra as persistModeExtra,
   setMoneyMode,
   setOnboarding,
   setPots as storeSetPots,
@@ -105,9 +106,10 @@ const INTENT_OPTIONS: readonly IntentOption[] = [
   { label: 'Understand where my money goes', mode: 'lowVis', modeLabel: 'Low visibility' },
 ];
 
-// Mode-specific follow-up step (inserted after the intent step). Only Survival/Stability's captured
-// value is persisted today (their engines read `bufferAmount`); the other modes still capture the
-// answer visibly and label it honestly as "for when the mode ships fully" — never silently dropped.
+// Mode-specific follow-up step (inserted after the intent step). EVERY mode's answer persists to
+// the store's `modeExtras` slice (Survival/Stability's also lands in `bufferAmount`, the input
+// their engines read today); the hints say "saved" honestly — the mode engines adopt the value as
+// each deepens, and re-asking a question the user already answered is banned by that promise.
 type ModeExtra = {
   eyebrow: string;
   headLead: string;
@@ -148,7 +150,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 1500,
     step: 25,
-    hint: 'A pace, not a promise. Captured for when Growth mode ships fully.',
+    hint: 'A pace, not a promise. Saved for Growth mode.',
   },
   debt: {
     eyebrow: 'The number',
@@ -158,7 +160,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 30000,
     step: 100,
-    hint: 'Ballpark. Captured for when Debt mode ships fully.',
+    hint: 'Ballpark. Saved — declare each debt properly whenever you like.',
   },
   optimizer: {
     eyebrow: 'Target',
@@ -168,7 +170,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 300,
     step: 5,
-    hint: "Per month. Captured for when Optimizer's leak tracking ships fully.",
+    hint: 'Per month. Saved for the Optimizer lens.',
   },
   reset: {
     eyebrow: 'Essentials',
@@ -178,7 +180,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 400,
     step: 10,
-    hint: 'Food, transport, non-negotiables. Captured for when Reset mode ships fully.',
+    hint: 'Food, transport, non-negotiables. Saved for Reset mode.',
   },
   irregular: {
     eyebrow: 'Floor',
@@ -188,7 +190,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 5000,
     step: 50,
-    hint: 'Captured for when Irregular income runway ships fully.',
+    hint: 'Saved for the Irregular income runway.',
   },
   planning: {
     eyebrow: 'Target',
@@ -198,7 +200,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 20000,
     step: 100,
-    hint: 'Captured for when Planning mode ships fully.',
+    hint: 'Saved for Planning mode.',
   },
   household: {
     eyebrow: 'Your share',
@@ -208,7 +210,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 3000,
     step: 25,
-    hint: 'Captured for when Household mode ships fully.',
+    hint: 'Saved for Household mode.',
   },
   lowVis: {
     eyebrow: 'Start rough',
@@ -488,7 +490,7 @@ function OnboardingFlow({
   const [showAnchorPicker, setShowAnchorPicker] = useState(false);
   // Intent picker + mode-extra (BREAKS-PARITY fix) — MONEY_MODES.md § 3 — user-declared intent maps
   // to a Money Mode, stored explicitly (never silently switched later). `modeExtra` is the mode's
-  // follow-up captured value; only Survival/Stability's is persisted today (see `done()` below).
+  // follow-up captured value; EVERY mode's answer persists to `modeExtras` on done() (see there).
   const [intentMode, setIntentMode] = useState<MoneyMode>(savedMode);
   const [modeExtra, setModeExtra] = useState<number>(savedBuffer);
   // Pre-seed from the existing balance unless it's still the sample, in which case start blank so the
@@ -573,10 +575,12 @@ function OnboardingFlow({
 
     // The user's declared intent → Money Mode (BREAKS-PARITY fix — the root cause: without this,
     // every RN user onboarded into the default mode and no mode-driven copy anywhere in the app
-    // could ever show correctly). Persist the mode-extra value only for the modes whose engines
-    // actually read it today (Survival/Stability read `bufferAmount`); other modes still capture the
-    // answer on-screen so the copy stays honest, but nothing is written for them yet.
+    // could ever show correctly). EVERY mode's follow-up answer persists to `modeExtras` (it used
+    // to be captured on-screen and then silently dropped for 8 of 10 modes — 2026-07-10
+    // alignment-audit fix); Survival/Stability's answer ALSO lands in `bufferAmount`, the input
+    // their engines read today. AFTER resetToEmpty, so the clean-slate wipe never eats it.
     setMoneyMode(intentMode);
+    persistModeExtra(intentMode, modeExtra);
     if (intentMode === 'survival' || intentMode === 'stability') {
       setBufferAmount(modeExtra);
     }
