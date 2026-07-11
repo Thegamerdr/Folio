@@ -40,6 +40,7 @@ import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import { StubDisclaimer } from '@/folio/ui/StubDisclaimer';
 import { useLens } from '@/folio/lib/lens';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
+import { headerLineFor } from '@/folio/lib/modes/headerFraming';
 import { computeLeaks, type OptimizerLeak } from '@/folio/lib/modes/strategies/optimizer';
 import { resetEssentialsPerDay } from '@/folio/lib/modes/strategies/reset';
 import * as debtEngine from '@/folio/lib/modes/debtEngine';
@@ -992,7 +993,9 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
         <View>
           <Text style={[s.headerDate, { color: t.muted }]}>Today</Text>
           <Pressable accessibilityRole="button" onPress={() => nav.go('ritual')}>
-            <Text style={[s.headerDays, { color: t.muted }]}>{daysToPayday} days to payday →</Text>
+            <Text style={[s.headerDays, { color: t.muted }]}>
+              {headerLineFor(moneyMode, daysToPayday)}
+            </Text>
           </Pressable>
         </View>
         <View style={s.headerRight}>

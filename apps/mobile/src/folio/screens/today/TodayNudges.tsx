@@ -154,11 +154,24 @@ export function TodayNudges({
   // door. Web gates on nav.pressure === 'overspent'; RN derives the identical band from the
   // threaded tightestSpare (pressure.ts: tightSpare < 0 → 'overspent') so the nudge and the
   // hero number can never disagree.
+  //
+  // The diagnosis sentence is mode-aware (Plan 108, D2 reframe) — survival/debt/reset anchor
+  // on payday (their VOICE contracts allow it), stability.ts's voice explicitly bans "make it"
+  // (and "run out"/"survive"/"tight"), and every other mode's voice bans payday framing
+  // entirely (irregular: runway not days; growth/optimizer/planning/household: cadence not
+  // payday). The "three calm moves" CTA sentence is unaffected by any voice ban, so it stays
+  // common across every mode.
   if (tightestSpare !== null && tightestSpare < 0) {
+    const shortfallDiagnosis =
+      moneyMode === 'stability'
+        ? 'The plan does not hold to payday as things stand.'
+        : moneyMode === 'survival' || moneyMode === 'debt' || moneyMode === 'reset'
+          ? "You won't make it to payday as things stand."
+          : 'The next stretch does not hold as things stand.';
     nudges.push({
       key: 'shortfall',
       tone: 'accent',
-      label: "You won't make it to payday as things stand. Let's look at three calm moves.",
+      label: `${shortfallDiagnosis} Let's look at three calm moves.`,
       cta: 'Open →',
       onPress: () => nav.go('shortfall'),
     });
