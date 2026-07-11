@@ -23,25 +23,12 @@ const ALL_STATES: readonly MeloState[] = [
   'melo_reduced_motion',
 ];
 
-const coreScreens: Readonly<Record<string, string>> = {
-  start: read('../startScreen.tsx'),
-  guidedInput: read('../roughFirstAnswer.tsx'),
-  review: read('../reviewDecision.tsx'),
-  today: read('../todayPath.tsx'),
-  fileWorkbench: read('../fileWorkbench.tsx'),
-};
+// (The old 'appears across the core slice' scan of the Gen-2 screens was removed with those
+// screens in plan 112 — the live folio/ screens carry their own Melo presence guards.)
 const presence = read('./MeloPresence.tsx');
 const figure = read('./MeloFigure.tsx');
 
 describe('Melo — core product asset', () => {
-  it('appears across the core slice', () => {
-    for (const [name, src] of Object.entries(coreScreens)) {
-      // Melo appears either as the inline MeloPresence or as the secondary-surface MeloLine (both
-      // render the figure + her voice) — Lovable's Start uses the MeloLine form.
-      expect(src, name).toMatch(/MeloPresence|MeloLine/);
-    }
-  });
-
   it('has state-based copy + mood for every state', () => {
     for (const state of ALL_STATES) {
       expect(MELO_COPY[state].primary.length).toBeGreaterThan(0);

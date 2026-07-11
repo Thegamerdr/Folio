@@ -56,7 +56,7 @@ import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { folioTokens } from '@folio/ui';
 
-import type { ProductScreen } from '../mobileShell';
+import type { ProductScreen } from './productScreen';
 import {
   ThemeProvider as ThemeProviderBase,
   paperDark,

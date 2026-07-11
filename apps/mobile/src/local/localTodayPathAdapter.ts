@@ -17,10 +17,11 @@ import type { LocalLedgerState, LocalLedgerTransaction, LocalRouteSummary } from
 import type { LocalSubscriptionsModel } from './localSubscriptionsAdapter';
 import type {
   TodayGoalSignal,
+  TodayNextCharge,
   TodayPathSummary,
+  TodayTightPoint,
   TodayTransaction,
 } from '../surfaces/pressureMap/todayTypes';
-import type { TodayNextCharge, TodayTightPoint } from '../surfaces/pressureMap/todayWeekTiles';
 
 const MS_PER_DAY = 86_400_000;
 

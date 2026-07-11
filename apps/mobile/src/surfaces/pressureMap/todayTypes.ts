@@ -41,3 +41,21 @@ export type TodayGoalSignal = Readonly<{
   tightPointGoalMinor: number | null;
   breachesGoal: boolean;
 }>;
+
+/**
+ * Re-homed from todayWeekTiles.tsx (dead Gen-2 surface, deleted in plan 112 stage 1) — the
+ * held-back localTodayPathAdapter still derives these two shapes.
+ */
+
+/** The next upcoming charge Today surfaces on the week tiles, in minor units. */
+export type TodayNextCharge = Readonly<{
+  name: string;
+  costMinor: number;
+  daysAway: number;
+}>;
+
+/** The tightest day on the visible route (label + spare at that point, minor units). */
+export type TodayTightPoint = Readonly<{
+  dayLabel: string;
+  spareMinor: number;
+}>;

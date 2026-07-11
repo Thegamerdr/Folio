@@ -29,9 +29,9 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | 108 | De-payday mode-aware headers + shortfall nudge (D2) | P2 | M | B | 106, 107 | DONE (reviewed) |
 | 105 | Reconciliation warning on closing-balance offer | P3 | S | B | — (disjoint file) | DONE (reviewed) |
 | 109 | Root error boundary + Sentry capture + lane catches | P1 | S | C (shell) | — | DONE (reviewed) |
-| 110 | Durable ProGuard rules + drop biometric permission | P2 | M | C | — | DONE (reviewed; commit a2ef35d; R8 merged-config verified; boot check rides the post-112 phone build) |
+| 110 | Durable ProGuard rules + drop biometric permission | P2 | M | C | — | DONE (reviewed; commit a2ef35d; R8 merged-config verified; release APK boot-checked clean on emulator-5554) |
 | 111 | Release-docs refresh (store declarations etc.) | P2 | S | D (docs) | — | DONE (reviewed) |
-| 112 | Dead-code excision stage 1 (~39k lines, enumerated) | P2 | M | E (last) | ALL above merged | TODO |
+| 112 | Dead-code excision stage 1 (~39k lines, enumerated) | P2 | M | E (last) | ALL above merged | DONE (executor died mid-run; reviewer completed Steps 5–7; 2 unpredicted type-only edges resolved — see commit) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale)
 

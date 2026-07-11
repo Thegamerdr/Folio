@@ -1,6 +1,6 @@
-// Default route (`/`) — the self-contained nav shell for the faithful RN Folio port. This is now
-// what the app shows on launch. The legacy pressure-map app moved to app/home.tsx (reachable at
-// /home); everything under src/surfaces/pressureMap is untouched. ThemeProvider is mounted once at
+// Default route (`/`) — the self-contained nav shell for the faithful RN Folio port. This is the
+// only route; the legacy Gen-1/Gen-2 surfaces were excised (plan 112, 2026-07-11) and only the
+// live kit primitives remain under src/surfaces/pressureMap. ThemeProvider is mounted once at
 // the app root (app/_layout.tsx); this route reads the active palette for the canvas ground.
 //
 // Splash: app/_layout.tsx calls preventAutoHideAsync(); this route hides it once mounted so the

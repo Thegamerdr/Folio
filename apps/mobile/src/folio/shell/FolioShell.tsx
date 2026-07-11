@@ -41,7 +41,7 @@ import {
   PrimaryAction,
   useTheme,
 } from '@/surfaces/pressureMap/kit';
-import type { ProductScreen } from '@/surfaces/mobileShell';
+import type { ProductScreen } from '@/surfaces/pressureMap/productScreen';
 import { Sheet } from '@/surfaces/pressureMap/Sheet';
 
 import { StartScreen } from '@/folio/screens/StartScreen';
