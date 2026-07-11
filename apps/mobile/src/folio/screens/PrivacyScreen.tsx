@@ -312,10 +312,11 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       }
       const { summary, raw, fileName } = picked;
       const who = summary.name !== null ? ` for ${summary.name}` : '';
+      const counted = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
       // Gate 1 — what the file holds + what loading it does, before anything changes.
       Alert.alert(
         'Restore from this export?',
-        `${fileName} holds ${summary.transactions} transactions, ${summary.subs} subscriptions and ${summary.pots} pots${who}. Loading it replaces everything currently in the app — export your current data first if you want to keep it.`,
+        `${fileName} holds ${counted(summary.transactions, 'transaction')}, ${counted(summary.subs, 'subscription')} and ${counted(summary.pots, 'pot')}${who}. Loading it replaces everything currently in the app — export your current data first if you want to keep it.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -664,6 +665,9 @@ const styles = StyleSheet.create({
     width: 20,
   },
   claimText: {
+    // flex:1 so a long claim wraps inside the row instead of running off the right edge
+    // (seen live on the second claim during the 2026-07-11 dark-mode sweep).
+    flex: 1,
     fontSize: 13.5,
   },
   // mt-8 (32px) = gap.xxl; full-width terracotta CTA, rounded-2xl (radius.xl = 24), with the warm glow.

@@ -32,7 +32,7 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | 110 | Durable ProGuard rules + drop biometric permission | P2 | M | C | — | DONE (reviewed; commit a2ef35d; R8 merged-config verified; release APK boot-checked clean on emulator-5554) |
 | 111 | Release-docs refresh (store declarations etc.) | P2 | S | D (docs) | — | DONE (reviewed) |
 | 112 | Dead-code excision stage 1 (~39k lines, enumerated) | P2 | M | E (last) | ALL above merged | DONE (executor died mid-run; reviewer completed Steps 5–7; 2 unpredicted type-only edges resolved — see commit) |
-| 113 | Restore from a Folio export (afternoon wave) | P1 | M | A/B | — | DONE (reviewer-executed; round-trip unit-proven; emulator UI drill rides the next build) |
+| 113 | Restore from a Folio export (afternoon wave) | P1 | M | A/B | — | DONE (reviewer-executed; round-trip unit-proven AND emulator UI drill passed 2026-07-11: picker→summary confirm→replace→restored state rendered on Today; dark-mode sweep of Today/Review/Melo/More/Privacy clean — 2 nits fixed, "Folio" wordmark question logged for owner) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale)
 
@@ -52,8 +52,12 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rational
 - **Four safe-zone accountings unification** (route vs safeZoneMath vs stability-hero vs
   paywall): REAL but L-effort and owner-taste on which number wins — DEFERRED to owner.
   Plan 107 fixes the paywall-guard input (the trust-critical piece) only.
-- **Widget receiver `exported="false"`** (Android 12+ APPWIDGET_UPDATE delivery): library
-  default, MED confidence — verify on-device during the next dogfood pass, not a code plan.
+- **Widget receiver `exported="false"`** (Android 12+ APPWIDGET_UPDATE delivery): CONFIRMED in
+  the shipped APK's merged manifest (2026-07-11, aapt: receiver "Folio — Safe Zone"
+  exported=false + APPWIDGET_UPDATE filter). This is the framework-documented-safe config —
+  system broadcasts bypass the exported flag. Residual owner check (30s, definitive): place
+  the Safe Zone widget on the home screen, confirm it renders numbers and updates after a
+  change in the app.
 - **Melo chat length caps / schema validation / timeouts** (legacy backlog 05–07): the
   Melo client was rebuilt since; re-audit before planning.
 
@@ -67,7 +71,7 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rational
 | 02 | Reallocation sheet primes state during render (pressureMap — ARCHIVED) | correctness | S | superseded |
 | 03 | Buffer-pot regex on pot name (pressureMap — ARCHIVED) | product | M | superseded |
 | 04 | Insights SVG a11y (pressureMap — ARCHIVED) | a11y | M | superseded |
-| 05–07 | Melo chat hardening (client since rebuilt — re-audit) | security | S | re-audit |
-| 08 | meloAiClient tests (partially superseded — meloAiClient.test.ts exists now) | tests | L | re-audit |
-| 09 | Two no-op Melo suggestions | product | M | re-audit |
+| 05–07 | Melo chat hardening (client since rebuilt — re-audit) | security | S | RE-AUDITED 2026-07-11: abort/snapshot-gating/inbound-validation already present; the two real gaps (no default timeout, unbounded outbound history) FIXED in `c299c26` |
+| 08 | meloAiClient tests (partially superseded — meloAiClient.test.ts exists now) | tests | L | 13 tests now cover the pure seams (+4 windowing in `c299c26`); `sendMeloChat` fetch-mock coverage remains nice-to-have |
+| 09 | Two no-op Melo suggestions | product | M | SUPERSEDED: the surfaces carrying them (meloSurface/meloCompanion) were excised in plan 112; MeloChatSheet suggestions run applyMeloTool with confirm+undo (real actions) |
 | 10–13 | Token/key/empty-state polish (pressureMap — ARCHIVED) | polish | S | superseded |
