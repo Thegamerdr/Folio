@@ -3451,7 +3451,10 @@ export function resetToEmpty() {
     subPaused: {},
     subOverrides: {},
     cycles: [],
-    onboarding: { ...state.onboarding, done: true },
+    // Keeps `done` (no forced re-onboarding) and the name (a preference, not money data), but
+    // ZEROES the income figure: it feeds every "coming in" read, and surviving a clear-to-empty
+    // it kept telling the owner their old income on a supposedly blank app (2026-07-11).
+    onboarding: { ...state.onboarding, done: true, monthlyIncome: 0 },
     currentBalance: emptyBalance,
     // Mirrors `currentBalance` exactly, same as every other load/reset path — a clean-empty reset
     // still has exactly one (empty) default bank account, never zero accounts.

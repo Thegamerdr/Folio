@@ -232,7 +232,7 @@ type Move = {
   id: string;
   /** The card's small uppercase kind label (e.g. "Pause a sub"). */
   kind: string;
-  /** The headline of the move (e.g. "Pause Disney+ for a month"). */
+  /** The headline of the move (e.g. "Pause <the user's real sub> for a month"). */
   title: string;
   /** The signed-figure delta line (e.g. "+£12 this month"). */
   delta: string;
@@ -264,13 +264,14 @@ export type RecoveryScreenProps = {
 // Module-level so its identity never churns. (Same pattern as TodayScreen's EPOCH.)
 const EPOCH = new Date(0);
 
-// The web source's fallback shortfall — used ONLY when the real route shows no overspend (tight point
-// ≥ 0), so the screen — only reached from an overspent verdict upstream — still renders coherently
-// rather than a £0 gap. Mirrors ShortfallScreen's SYNTHETIC_GAP fallback. @rn-engine money-path.
-const FALLBACK_SHORTFALL = 94;
+// When the real route shows no overspend (tight point ≥ 0) the shortfall is £0 — shown as-is.
+// The web source faked £94 here ("so the screen renders coherently"), but this screen is reachable
+// from the More hub at any time, not only from an overspent verdict, and a fabricated shortfall
+// broke the no-demo-data rule on the owner's own device (2026-07-11). Honest £0 replaces it.
+const FALLBACK_SHORTFALL = 0;
 
-// The "Move a bill" slides Octopus later in the cycle — +5 days, the same nudge the commit applies,
-// so the previewed lift and the committed move are the SAME route change.
+// The "Move a bill" slides the user's REAL flexible bill later in the cycle — +5 days, the same
+// nudge the commit applies, so the previewed lift and the committed move are the SAME route change.
 const BILL_NUDGE_DAYS = 5;
 
 // The "Set a hold" length in days — a 3-day soft pause on discretionary spend (matches the card copy).
@@ -332,8 +333,9 @@ function useReduceMotion(): boolean {
 // Pick a live sub to offer as the "Pause a sub" move, by PAYMENT TIMING — the active (not-paused) sub
 // whose renewal lands soonest, so pausing it drops the nearest upcoming charge before the low point.
 // This is a money-timing choice, NOT a usage / "quiet" / "unused" verdict: banking or seed data proves
-// a charge recurs, it cannot prove a product was used (SUBSCRIPTION_SIGNAL_RESEARCH §5). Falls back to
-// the web sample (Disney+) shape when there is nothing live. @rn-engine money-path will rank later.
+// a charge recurs, it cannot prove a product was used (SUBSCRIPTION_SIGNAL_RESEARCH §5). Returns
+// undefined when nothing is live — the caller DROPS the card (no fabricated fallback).
+// @rn-engine money-path will rank later.
 function pausableSub(subs: Sub[], subPaused: Record<string, boolean>): Sub | undefined {
   const candidates = subs.filter((s) => !subPaused[s.name]);
   if (candidates.length === 0) return undefined;
@@ -449,7 +451,6 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
 
     const pausable = pausableSub(subs, subPaused);
     const bill = flexibleBill(subs, subPaused);
-    const subTitle = pausable ? `Pause ${pausable.name} for a month` : 'Pause Disney+ for a month';
 
     // Move a bill: slide the flexible bill BILL_NUDGE_DAYS later, on a hypothetical copy, and diff.
     const billLift = bill
@@ -485,38 +486,45 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
       Math.round(avgDailyDiscretionary(appState, routeNow.getTime()) * HOLD_DAYS),
     );
 
-    return [
-      {
-        id: 'move-bill',
-        kind: 'Move a bill',
-        title: 'Move Octopus to the 12th',
-        delta: `+£${billLift} this week`,
-        deltaValue: billLift,
-        body: 'Pushes Octopus from the 7th to the 12th. Lands two days after payday instead of two before.',
-        cost: 'no fee · supplier allows it',
-        melo: 'Quietest move. Same money, kinder timing.',
-        // Slide the flexible bill later in the cycle — the real "what if I move this?" write.
-        commit: () => {
-          if (bill) nudgeSub(bill.name, BILL_NUDGE_DAYS);
-        },
-      },
-      {
-        id: 'pause-sub',
-        kind: 'Pause a sub',
-        title: subTitle,
-        delta: `+£${subLift} this month`,
-        deltaValue: subLift,
-        body: 'Nothing comes out of your account for one month. Resumes automatically unless you cancel.',
-        cost: pausable
-          ? `£${pausable.cost.toFixed(2)}/mo back · resumes automatically`
-          : '£8.99/mo back · resumes automatically',
-        melo: 'Small experiment. You can resume any time.',
-        ...(pausable ? { subName: pausable.name } : {}),
-        // Pause the chosen sub (nearest renewal) — the real store write.
-        commit: () => {
-          if (pausable) togglePaused(pausable.name, true);
-        },
-      },
+    // Cards exist ONLY when their real target exists. The web demo's fabricated fallback cards
+    // (a named energy bill to move, a named streaming sub to pause, an invented monthly figure)
+    // rendered to real users with zero subs — seen live on the owner's cleared device
+    // (2026-07-11). A user with no subs now gets only the hold card (whose figure derives from
+    // their real logged spend, £0 included). Guarded by noFabricatedContent.test.ts.
+    const built: (Move | null)[] = [
+      bill
+        ? {
+            id: 'move-bill',
+            kind: 'Move a bill',
+            title: `Move ${bill.name} ${BILL_NUDGE_DAYS} days later`,
+            delta: `+£${billLift} this week`,
+            deltaValue: billLift,
+            body: `Pushes ${bill.name}'s next charge ${BILL_NUDGE_DAYS} days later in the cycle — past the tight point instead of before it.`,
+            cost: 'no fee — check the supplier is flexible',
+            melo: 'Quietest move. Same money, kinder timing.',
+            // Slide the flexible bill later in the cycle — the real "what if I move this?" write.
+            commit: () => {
+              nudgeSub(bill.name, BILL_NUDGE_DAYS);
+            },
+          }
+        : null,
+      pausable
+        ? {
+            id: 'pause-sub',
+            kind: 'Pause a sub',
+            title: `Pause ${pausable.name} for a month`,
+            delta: `+£${subLift} this month`,
+            deltaValue: subLift,
+            body: 'Nothing comes out of your account for one month. Resumes automatically unless you cancel.',
+            cost: `£${pausable.cost.toFixed(2)}/mo back · resumes automatically`,
+            melo: 'Small experiment. You can resume any time.',
+            subName: pausable.name,
+            // Pause the chosen sub (nearest renewal) — the real store write.
+            commit: () => {
+              togglePaused(pausable.name, true);
+            },
+          }
+        : null,
       {
         id: 'hold-spend',
         kind: 'Set a hold',
@@ -530,6 +538,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         commit: () => setTightPointGoal(HOLD_FLOOR),
       },
     ];
+    return built.filter((m): m is Move => m !== null);
   }, [appState, baseTight, routeNow]);
 
   const pickedMove = moves.find((m) => m.id === picked);

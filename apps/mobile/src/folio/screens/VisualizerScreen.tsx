@@ -151,13 +151,22 @@ const SAMPLE_ROW_META: Readonly<Record<string, RowMeta>> = {
 function toRenderCandidates(candidates: readonly SheetCandidate[]): CandidateMoneyItem[] {
   return candidates.map((candidate) => {
     const meta = SAMPLE_ROW_META[candidate.merchant];
+    // REAL candidate data wins; the sample metadata is a FALLBACK for the demo paste only
+    // (whose candidates carry no date/category). The old precedence let a real statement
+    // containing e.g. "Octopus Energy" pick up the demo's fake "24 Jun" label.
     return {
       merchant: candidate.merchant,
-      date: meta?.date ?? candidate.date ?? '',
+      date: candidate.date ?? meta?.date ?? '',
       amount: candidate.amount,
-      type: meta?.type ?? candidate.category ?? 'Unknown',
-      // No web-supplied flag (a real paste): a low-confidence read "wants a glance".
-      status: meta?.status ?? (candidate.confidence === 'low' ? 'check' : 'ok'),
+      type: candidate.category ?? meta?.type ?? 'Unknown',
+      // A real read's confidence drives the "wants a glance" flag; the demo rows (no
+      // confidence field) fall back to the web's hand-written flags.
+      status:
+        candidate.confidence !== undefined
+          ? candidate.confidence === 'low'
+            ? 'check'
+            : 'ok'
+          : (meta?.status ?? 'ok'),
       // Carry the real ISO statement date through to Accept (exactOptionalPropertyTypes: omit when absent).
       ...(candidate.date ? { whenIso: candidate.date } : {}),
     };

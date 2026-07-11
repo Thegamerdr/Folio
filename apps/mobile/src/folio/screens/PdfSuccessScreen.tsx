@@ -108,7 +108,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
-import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
+import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
 import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import {
   clearReaderCandidates,
@@ -134,8 +134,8 @@ export type FoundItem = {
   amount: string;
 };
 
-// What a completed read hands this screen. Until the reader lands, the shell passes the SAMPLE_FOUND
-// below (the web source's exact three items), so the screen renders honestly off real-shaped data.
+// What a completed read hands this screen. With nothing staged the screen renders its EmptyState —
+// there is no sample fallback (no-demo-data rule).
 export type FoundStatement = {
   fileName: string;
   pageCount: number;
@@ -151,18 +151,15 @@ export type PdfSuccessScreenProps = {
   state?: PdfSuccessState;
 };
 
-// The web prototype's three items, restated VERBATIM as statement text so the real `parseSheet`
-// engine — not a hand-built array — produces the rendered candidates. Tab-separated with a header the
-// engine auto-detects; the `type` column lets the engine sign + classify each amount. Merchants and
-// magnitudes are the web source's exact three items (no fabricated merchants/numbers); the salary name
-// keeps its em-dash (U+2014). The whole-pound magnitudes (2180 / 118 / 42) are restated as the same
-// integers the web hand-wrote, so the formatter below re-emits the byte-exact strings.
-const SAMPLE_STATEMENT_TEXT: string = [
-  'merchant\tamount\ttype',
-  'Salary — Whitstone Ltd\t2180\tincome',
-  'Octopus Energy\t118\tbill',
-  'Tesco\t42\tspend',
-].join('\n');
+// A cold open with no staged read renders the honest EmptyState below — NEVER fabricated
+// content. The web prototype's three-row sample statement used to render here as a fallback,
+// and its "Add all" CTA could enqueue those fabricated rows into a REAL user's review queue
+// (no-demo-data rule; removed 2026-07-11; guarded by noFabricatedContent.test.ts).
+const EMPTY_FOUND: FoundStatement = {
+  fileName: '',
+  pageCount: 0,
+  items: [],
+};
 
 // Map the engine's candidate `kind` → the voice-approved confidence hint the web hand-wrote. Never a
 // raw category code (banned). Income/bill/spend cover the sample; anything else degrades to the calm
@@ -208,18 +205,6 @@ function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
     amount: formatSignedAmount(candidate.amount),
   }));
 }
-
-// The found list, derived once from the real engine over the sample statement text. The file name +
-// page count are the eventual reader's metadata (kept as the web source's sample until a live read
-// threads them in). The clean sample parses with zero issues. The raw candidates are kept so the
-// primary CTA can enqueue exactly what the card showed (web parity — ScreenPdfSuccess enqueues its
-// sample rows too), never a re-derived list.
-const SAMPLE_CANDIDATES = parseSheet(SAMPLE_STATEMENT_TEXT, { source: 'csv' }).candidates;
-const SAMPLE_FOUND: FoundStatement = {
-  fileName: 'Statement_June_2025.pdf',
-  pageCount: 8,
-  items: toFoundItems(SAMPLE_CANDIDATES),
-};
 
 // The honest file label for a LIVE read: the reader stages the money movements, not the file's name
 // or page count, so we never invent a filename or a page total. A single calm line tells the truth
@@ -287,16 +272,12 @@ export function PdfSuccessScreen({
   // meaningful for the REAL staged read, never for the fixture sample below.
   const stagedClosingBalance = useReaderClosingBalance();
   const statement: FoundStatement =
-    statementProp ?? (staged.length > 0 ? liveStatementFrom(staged) : SAMPLE_FOUND);
+    statementProp ?? (staged.length > 0 ? liveStatementFrom(staged) : EMPTY_FOUND);
 
   // The raw candidates this screen would enqueue/land — a fixture-driven `statement` prop carries
-  // none (tests only); otherwise the real staged read, falling back to the sample so the bulk
-  // landing still renders honestly off real-shaped data on a cold/dev open.
-  const rawCandidates: readonly CandidateMoneyItem[] = statementProp
-    ? []
-    : staged.length > 0
-      ? staged
-      : SAMPLE_CANDIDATES;
+  // none (tests only); otherwise the real staged read. NO sample fallback: a cold open with no
+  // staged read renders the EmptyState below and can never enqueue fabricated rows.
+  const rawCandidates: readonly CandidateMoneyItem[] = statementProp ? [] : staged;
 
   // Mirrors `rawCandidates`' fixture guard: a fixture-driven `statement` prop (tests only) never
   // carries a real reader-staged balance through to the landing.
@@ -487,7 +468,7 @@ export function PdfSuccessScreen({
                 `statement` prop carries no raw candidates, so it enqueues nothing (tests only). */}
             <PressButton
               onPress={() => {
-                const showing = statementProp ? [] : staged.length > 0 ? staged : SAMPLE_CANDIDATES;
+                const showing = statementProp ? [] : staged;
                 const { dropped } = enqueueReviewItems(queueInputFromCandidates(showing, 'pdf'));
                 if (dropped > 0) {
                   showToast(

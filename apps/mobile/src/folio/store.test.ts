@@ -510,6 +510,18 @@ describe('resetToEmpty', () => {
     expect(getState().onboarding.done).toBe(true);
   });
 
+  it('zeroes the onboarding income figure — no "coming in" survives a clear-to-empty', () => {
+    // Live regression (owner's phone, 2026-07-11): after "Clear to empty" the Today screen
+    // still showed the old monthly income as "coming in" — onboarding.monthlyIncome survived
+    // the wipe. Name (a preference) and payday (a rhythm) may stay; the money figure may not.
+    setPartial({ onboarding: { done: true, name: 'Ada', payday: 25, monthlyIncome: 2533 } });
+    resetToEmpty();
+    const onboarding = getState().onboarding;
+    expect(onboarding.monthlyIncome).toBe(0);
+    expect(onboarding.name).toBe('Ada');
+    expect(getState().incomeSources).toEqual([]);
+  });
+
   it('preserves schemaVersion', () => {
     const before = getState().schemaVersion;
     resetToEmpty();
