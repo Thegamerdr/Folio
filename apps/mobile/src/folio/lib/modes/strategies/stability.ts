@@ -106,11 +106,16 @@ function derive(inputs: ModeInputs): ModeState {
   // Verdict — mode-specific copy. One accent word per headline, marked by
   // the caller (ScreenToday renders the em). Include the word in `verdict`
   // as plain text; consumers pick the accent word by convention.
+  // Storm has two distinct causes; the verdict must name the true one. A buffer
+  // breach with zero near-term bills used to claim "Bill collision this week"
+  // (seen live: balance £0, 0 bills scheduled, buffer £100 → storm).
   const verdict =
     weather === 'fog'
       ? 'Not enough to say yet — add a statement to sharpen this.'
       : weather === 'storm'
-        ? 'Bill collision this week. One small move covers it.'
+        ? collision
+          ? 'Bill collision this week. One small move covers it.'
+          : 'Buffer not covered right now. The month needs a look.'
         : weather === 'cloudy'
           ? "Bills covered. Buffer's a little thin."
           : 'Bills covered. The month holds.';
@@ -120,7 +125,12 @@ function derive(inputs: ModeInputs): ModeState {
     safeZone: {
       amount,
       priority: "protect this month's bills",
-      formula: 'safe to spend this month',
+      // The strategy owns the whole caption (the screen renders it bare) so the
+      // buffer claim can only ever match the accounting above: "protected" was
+      // previously hardcoded on the screen and shown even mid-breach.
+      formula: bufferIntact
+        ? `safe to spend this month · buffer £${buffer} protected`
+        : `safe to spend this month · buffer £${buffer} not fully covered`,
       confidence:
         currentBalance.source === 'sample'
           ? 'low'

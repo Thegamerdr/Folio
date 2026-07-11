@@ -233,9 +233,9 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           <Text style={[s.verdict, { color: t.ink }]}>
             <Text style={{ color: t.positive, fontWeight: '600' }}>{accentWord}</Text> {verdictTail}
           </Text>
-          <Text style={[s.formula, { color: t.muted }]}>
-            {modeState.safeZone.formula} · buffer £{bufferAmount} protected
-          </Text>
+          {/* The strategy owns the whole caption (incl. the buffer claim) so it can never
+              contradict its own accounting — see stability.ts `formula`. */}
+          <Text style={[s.formula, { color: t.muted }]}>{modeState.safeZone.formula}</Text>
 
           <View style={s.rhythmBlock}>
             <View style={s.rhythmHeaderRow}>

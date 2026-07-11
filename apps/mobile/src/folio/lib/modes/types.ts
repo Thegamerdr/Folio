@@ -129,7 +129,8 @@ export type ModeInputs = {
  *  caption ("safe to spend this month"). `priority` is the underlying
  *  commitment the number protects. */
 export type SafeZone = {
-  /** Signed £. Negative = the priority isn't currently protected. */
+  /** £, floored at 0 by every strategy (notifyState.ts depends on this —
+   *  `weather`/`verdict` carry any breach, never a negative number here). */
   amount: number;
   /** e.g. "reach payday", "protect this month's bills", "hit the goal". */
   priority: string;
