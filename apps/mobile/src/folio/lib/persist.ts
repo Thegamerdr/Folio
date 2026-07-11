@@ -26,6 +26,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import {
   applyMeloImportIfEmpty,
+  consumeLoadDegraded,
   getPersistBlob,
   getState,
   hasAnyUserData,
@@ -144,6 +145,7 @@ async function tryHydrateFile(uri: string): Promise<boolean> {
     const plain = await decodeBlob(raw);
     if (plain === null || !isHydratable(plain)) return false;
     hydrateFromBlob(plain);
+    if (consumeLoadDegraded()) return false; // load() threw internally — treat as unreadable.
     return true;
   } catch {
     return false;
@@ -211,7 +213,13 @@ export async function loadPersisted(): Promise<void> {
       // DEFAULTS, so a blob that decrypts and parses but breaks migration would read as "ok" here
       // — and copying THAT main file over the backup would clobber the last good generation with
       // a bad one. Gating on hasAnyUserData means a degraded-to-defaults hydrate never overwrites
-      // the backup (a genuinely-empty new install has nothing worth backing up anyway).
+      // the backup (a genuinely-empty new install has nothing worth backing up anyway). The
+      // consumeLoadDegraded() check above tryHydrateFile's `return true` closes the remaining
+      // hole: seeded DEFAULTS passes hasAnyUserData (its demo pots/subs/cycles/transactions are
+      // non-empty), so without that check a throwing load() would still look like a healthy 'ok'
+      // hydrate here and overwrite the backup with the just-corrupted main file. Now a throwing
+      // load() makes tryHydrateFile return false before this block ever runs, so it falls through
+      // to the park-main + restore-backup path below instead.
       try {
         if (hasAnyUserData(getState())) {
           await FileSystem.copyAsync({ from: uri, to: backupUri });

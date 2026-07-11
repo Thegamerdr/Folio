@@ -34,6 +34,7 @@ import {
   borrowFromPot,
   clearReaderCandidates,
   clearReviewQueue,
+  consumeLoadDegraded,
   dismissBillSignal,
   dismissIncomeSignal,
   editTransaction,
@@ -1477,6 +1478,54 @@ describe('persist blob round-trip', () => {
     setPartial({ tightPointGoal: 99 });
     hydrateFromBlob('not valid json');
     expect(getState().tightPointGoal).toBe(99);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// load() degraded-path hardening (Plan 101). Before this plan, a present-but-
+// wrong-shaped array field (e.g. `subs` persisted as a string) threw inside
+// load()'s try block, and the catch swallowed it into the seeded `DEFAULTS` —
+// which `hasAnyUserData` reads as TRUE, so persist.ts's backup-refresh gate
+// would copy that just-corrupted blob over the last-good backup. The
+// Array.isArray guards added to every array field close the throw itself;
+// `consumeLoadDegraded()` is the escape hatch for persist.ts to detect a
+// throw that happens anyway (e.g. from a field this suite cannot reach
+// through the public hydrateFromBlob API) and treat the source file as
+// unreadable instead of trusting the degraded state.
+// ---------------------------------------------------------------------------
+describe('load() degraded-path hardening', () => {
+  it('a wrong-shaped subs field (string instead of array) degrades that field to its default instead of throwing', () => {
+    const blob = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    blob.subs = 'corrupt';
+    hydrateFromBlob(JSON.stringify(blob));
+
+    // The Array.isArray guard (Step 1) means this shape no longer reaches
+    // load()'s catch at all — the flag stays unset.
+    expect(consumeLoadDegraded()).toBe(false);
+    expect(Array.isArray(getState().subs)).toBe(true);
+  });
+
+  it('consumeLoadDegraded reads false after a clean hydrate and is read-once (consuming it clears it)', () => {
+    hydrateFromBlob(getPersistBlob());
+
+    // A healthy hydrate never sets the flag...
+    expect(consumeLoadDegraded()).toBe(false);
+    // ...and it does not leak `true` from some earlier degraded load in this
+    // file — every read consumes/resets it, and load() also resets it at the
+    // top of its own try block on every call.
+    expect(consumeLoadDegraded()).toBe(false);
+
+    // NOTE ON COVERAGE: with every array field in load() now Array.isArray-
+    // guarded (Step 1), this suite cannot craft a blob that throws THROUGH
+    // the public hydrateFromBlob API — every malformed shape this store
+    // recognises degrades to a default instead of reaching load()'s catch.
+    // The flag's actual throw path (persist.ts's tryHydrateFile treating
+    // consumeLoadDegraded()===true as "unreadable" so it falls through to
+    // the park-main + restore-backup path instead of refreshing the backup
+    // from a just-degraded blob) is Step 3 of plan 101 and is exercised
+    // end-to-end by Plan 102's persist recovery-matrix suite
+    // (lib/persistRecovery.test.ts) — this file has no filesystem to drive
+    // tryHydrateFile through.
   });
 });
 

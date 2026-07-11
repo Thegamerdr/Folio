@@ -1381,8 +1381,19 @@ function firstRunState(): AppState {
   };
 }
 
+/** True when the LAST load()'s pipeline threw and the state degraded to defaults —
+ *  persist.ts reads this (consumeLoadDegraded) to treat the source file as unreadable
+ *  and run the designed park-and-recover path instead of trusting the degraded state. */
+let loadDegraded = false;
+export function consumeLoadDegraded(): boolean {
+  const was = loadDegraded;
+  loadDegraded = false;
+  return was;
+}
+
 function load(): AppState {
   try {
+    loadDegraded = false;
     if (!persistedBlob) {
       // First run on this device. A RELEASED build starts CLEAN (owner rule
       // 2026-07-06: real data required to use the app — no demo data shipped);
@@ -1397,15 +1408,17 @@ function load(): AppState {
     const resolvedCurrentBalance = migrated.currentBalance ?? SAMPLE_BALANCE;
     const loaded: AppState = {
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      pots: migrated.pots ?? DEFAULTS.pots,
+      pots: Array.isArray(migrated.pots) ? migrated.pots : DEFAULTS.pots,
       // Date-anchor re-derivation (lib/renewalMath.ts): every hydration recomputes each sub's
       // relative day count from its persisted date anchor (synthesizing anchors for legacy
       // subs), so `nextRenewalDaysAway` can never rot between sessions.
-      subs: reanchorRenewals(migrated.subs ?? DEFAULTS.subs, new Date().toISOString().slice(0, 10))
-        .items,
+      subs: reanchorRenewals(
+        Array.isArray(migrated.subs) ? migrated.subs : DEFAULTS.subs,
+        new Date().toISOString().slice(0, 10),
+      ).items,
       subPaused: migrated.subPaused ?? {},
       subOverrides: migrated.subOverrides ?? {},
-      cycles: migrated.cycles ?? DEFAULTS.cycles,
+      cycles: Array.isArray(migrated.cycles) ? migrated.cycles : DEFAULTS.cycles,
       onboarding: { ...DEFAULTS.onboarding, ...(migrated.onboarding ?? {}) },
       currentBalance: resolvedCurrentBalance,
       // ACCOUNTS_MODEL.md §2.1 migration: an install that already has `accounts` keeps them
@@ -1422,11 +1435,11 @@ function load(): AppState {
       // somehow lacks its transactions list starts empty, not with demo rows
       // (a real user would otherwise see fake Pret/Tesco rows appear — the
       // exact contamination this whole change removes).
-      transactions: migrated.transactions ?? [],
+      transactions: Array.isArray(migrated.transactions) ? migrated.transactions : [],
       droppedTransactionCount:
         typeof migrated.droppedTransactionCount === 'number' ? migrated.droppedTransactionCount : 0,
-      edits: migrated.edits ?? [],
-      calendarEvents: migrated.calendarEvents ?? [],
+      edits: Array.isArray(migrated.edits) ? migrated.edits : [],
+      calendarEvents: Array.isArray(migrated.calendarEvents) ? migrated.calendarEvents : [],
       calendarFocusDate: null,
       routeFocusDate: null,
       // Transient review queue — never restored from a persisted blob (it is
@@ -1445,18 +1458,28 @@ function load(): AppState {
       aiReads: migrated.aiReads ?? { monthKey: '', used: 0 },
       aiReadCache: migrated.aiReadCache ?? {},
       whatChangedSeenISO: migrated.whatChangedSeenISO ?? null,
-      debts: migrated.debts ?? DEFAULT_DEBTS,
+      debts: Array.isArray(migrated.debts) ? migrated.debts : DEFAULT_DEBTS,
       household: migrated.household ?? DEFAULT_HOUSEHOLD,
-      plans: migrated.plans ?? DEFAULT_PLANS,
+      plans: Array.isArray(migrated.plans) ? migrated.plans : DEFAULT_PLANS,
       lens: migrated.lens ?? DEFAULT_LENS,
       melo: migrated.melo ?? DEFAULT_MELO,
-      tinyWins: migrated.tinyWins ?? [],
-      timelineEvents: migrated.timelineEvents ?? DEFAULT_TIMELINE_EVENTS,
-      incomeSources: migrated.incomeSources ?? DEFAULT_INCOME_SOURCES,
-      dismissedIncomeSignals: migrated.dismissedIncomeSignals ?? [],
-      dismissedBillSignals: migrated.dismissedBillSignals ?? [],
+      tinyWins: Array.isArray(migrated.tinyWins) ? migrated.tinyWins : [],
+      timelineEvents: Array.isArray(migrated.timelineEvents)
+        ? migrated.timelineEvents
+        : DEFAULT_TIMELINE_EVENTS,
+      incomeSources: Array.isArray(migrated.incomeSources)
+        ? migrated.incomeSources
+        : DEFAULT_INCOME_SOURCES,
+      dismissedIncomeSignals: Array.isArray(migrated.dismissedIncomeSignals)
+        ? migrated.dismissedIncomeSignals
+        : [],
+      dismissedBillSignals: Array.isArray(migrated.dismissedBillSignals)
+        ? migrated.dismissedBillSignals
+        : [],
       dismissedDriftSignals: normaliseDriftCooldownEntries(migrated.dismissedDriftSignals),
-      dismissedAnnualSignals: migrated.dismissedAnnualSignals ?? [],
+      dismissedAnnualSignals: Array.isArray(migrated.dismissedAnnualSignals)
+        ? migrated.dismissedAnnualSignals
+        : [],
       merchantCategories: migrated.merchantCategories ?? DEFAULT_MERCHANT_CATEGORIES,
     };
     // Sweep stale sub-nudges on load — an override whose nudged renewal
@@ -1471,6 +1494,7 @@ function load(): AppState {
       subOverrides: sweepStaleOverrides(loaded.subs, loaded.subOverrides),
     });
   } catch {
+    loadDegraded = true;
     return DEFAULTS;
   }
 }
