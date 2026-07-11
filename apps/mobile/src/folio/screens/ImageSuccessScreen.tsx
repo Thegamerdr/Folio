@@ -359,7 +359,7 @@ export function ImageSuccessScreen({
               <Text numberOfLines={1} style={[styles.imageName, { color: t.ink }]}>
                 {image.imageName}
               </Text>
-              <Text style={[styles.imageSub, { color: t.muted }]}>saved in Folio</Text>
+              <Text style={[styles.imageSub, { color: t.muted }]}>saved in Melo</Text>
             </View>
           </View>
 
@@ -429,7 +429,7 @@ export function ImageSuccessScreen({
                 enqueues nothing (tests only). */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Check what Folio found"
+              accessibilityLabel="Check what Melo found"
               accessibilityHint="Opens the review of what was found"
               onPress={() => {
                 if (!imageProp && staged.length > 0) {

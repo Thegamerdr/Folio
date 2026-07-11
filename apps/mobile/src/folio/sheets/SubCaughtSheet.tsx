@@ -10,7 +10,7 @@
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetSubCaught.tsx).
 //
 // @rn-sheet     SubCaughtSheet
-// @purpose      Folio spotted a likely recurring charge. Confirm to add it as a subscription, or
+// @purpose      Melo spotted a likely recurring charge. Confirm to add it as a subscription, or
 //               dismiss this one. Hedged language throughout — "Looks like", never "is".
 // @reads        subs (REAL — to skip a duplicate add + keep the empty branch honest); candidate is
 //               the first REAL caught sub from useCaughtSubs() (detector over the live ledger), and
@@ -294,7 +294,7 @@ function SubCaughtBody({
         <Melo size={32} mood="curious" />
         <View style={s.headerText}>
           <Text style={s.eyebrow}>I noticed</Text>
-          {/* "Folio spotted <name.>" — the name + period render terracotta, upright (never italic),
+          {/* "Melo spotted <name.>" — the name + period render terracotta, upright (never italic),
               exactly as the web <em className="not-italic text-accent">. The accent run is the
               {name}. portion of subs.caught.head, the lead is everything before it. */}
           <Text accessibilityRole="header" style={s.headline}>
@@ -366,7 +366,7 @@ function SubCaughtBody({
 }
 
 // ---------------------------------------------------------------------------
-// Headline accent split — subs.caught.head is "Folio spotted **{name}.**". The deck wraps the accent
+// Headline accent split — subs.caught.head is "Melo spotted **{name}.**". The deck wraps the accent
 // run in ** **; this splits the finished string into the plain lead and the accent run so the render
 // layer can colour only the {name}. portion terracotta (matching the web <em>). If for any reason the
 // markers are absent, the whole string becomes the accent (never lost), with no lead.
@@ -413,7 +413,7 @@ function makeStyles(t: Palette) {
       fontSize: 13,
       fontStyle: 'italic',
     },
-    // "Folio spotted …" — Fraunces 24px, tight leading, mt-0.5 (web font-display text-[24px]).
+    // "Melo spotted …" — Fraunces 24px, tight leading, mt-0.5 (web font-display text-[24px]).
     headline: {
       color: t.ink,
       fontFamily: serif.display,

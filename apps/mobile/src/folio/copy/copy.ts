@@ -122,11 +122,11 @@ export const copy = {
     },
   },
 
-  // ## Hidden — the un-hide list for Review candidates the user told Folio to ignore
+  // ## Hidden — the un-hide list for Review candidates the user told Melo to ignore
   // (SheetHiddenReview / HiddenReviewSheet). Plain "Hidden", never "ignored"/"blacklisted".
   hidden: {
     title: 'Hidden **from Review.**',
-    body: "Items you told Folio to ignore. Future intakes with the exact same merchant, amount, and date won't nag you. Un-hide to let them surface again.",
+    body: "Items you told Melo to ignore. Future intakes with the exact same merchant, amount, and date won't nag you. Un-hide to let them surface again.",
     empty: 'Nothing hidden yet.',
     unhide: 'Un-hide',
     done: 'Done',
@@ -164,14 +164,14 @@ export const copy = {
       // Defaults to 'monthly' when omitted so every existing call site (and its copy/fixture
       // tests) keeps its exact prior string, byte-for-byte.
       body: (cadence: string = 'monthly'): string =>
-        `Looks like a ${cadence} charge. Add it to subscriptions so Folio can plan around it?`,
+        `Looks like a ${cadence} charge. Add it to subscriptions so Melo can plan around it?`,
     },
   },
 
   // ## Bills (bill-signal detection, DATA_INTELLIGENCE.md phase ⑤(B))
   // Same catalog write target as subs (`setSubs` — see lib/caughtBills.ts's module-header decision
   // note: there is no separate bill entity in the live spine, so a caught bill also becomes a Sub).
-  // Distinct copy voice from subs.caught: "Melo noticed X going out" (money leaving) vs "Folio
+  // Distinct copy voice from subs.caught: "Melo noticed X going out" (money leaving) vs "Melo
   // spotted X" (a subscription-shaped charge) — the two sheets read as siblings, not duplicates.
   bills: {
     empty: {
@@ -182,7 +182,7 @@ export const copy = {
     caught: {
       head: (merchant: string): string => `Melo noticed **${merchant}** going out.`,
       body: (cadence: string): string =>
-        `Looks like a ${cadence} bill. Add it so Folio can plan around it?`,
+        `Looks like a ${cadence} bill. Add it so Melo can plan around it?`,
     },
   },
 
@@ -197,7 +197,7 @@ export const copy = {
         `Melo noticed money arrives from **${merchant}**.`,
       body: {
         strong: (cadence: string): string =>
-          `Looks like a ${cadence} payment. Add it so Folio can plan around it?`,
+          `Looks like a ${cadence} payment. Add it so Melo can plan around it?`,
         possible: (cadence: string): string =>
           `Looks like a ${cadence} payment — amounts vary, so check this before adding it.`,
       },
@@ -342,7 +342,7 @@ export const copy = {
 
   // ## Errors / empty network
   err: {
-    offline: "No connection. Folio works without one — try again when you're back.",
+    offline: "No connection. Melo works without one — try again when you're back.",
     generic: "Something didn't catch. Try once more?",
     statement: {
       unreadable: "Melo couldn't read this one. Saved as a note.",

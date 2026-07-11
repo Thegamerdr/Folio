@@ -72,7 +72,7 @@ export function SafeZoneWidget({ snapshot }: SafeZoneWidgetProps) {
         clickAction="OPEN_APP"
       >
         <TextWidget
-          text="Open Folio to set up"
+          text="Open Melo to set up"
           style={{ fontSize: 14, color: INK, textAlign: 'center', fontWeight: '600' }}
         />
       </FlexWidget>

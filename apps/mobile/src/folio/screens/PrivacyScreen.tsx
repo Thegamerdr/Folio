@@ -304,7 +304,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       if (picked.status === 'invalid') {
         Alert.alert(
           'Couldn’t read that file',
-          'That file doesn’t look like a Folio export. Pick the folio-export.json from an export.',
+          'That file doesn’t look like a Melo export. Pick the folio-export.json from an export.',
           [{ text: 'OK', style: 'cancel' }],
           { cancelable: true },
         );

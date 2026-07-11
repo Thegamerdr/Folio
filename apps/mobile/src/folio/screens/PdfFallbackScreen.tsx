@@ -221,7 +221,7 @@ export function PdfFallbackScreen({
           </Text>
         </View>
 
-        {/* File card — icon chip + truncating filename + "saved in Folio" + a quiet View. */}
+        {/* File card — icon chip + truncating filename + "saved in Melo" + a quiet View. */}
         <View style={[styles.fileCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <View style={[styles.iconChip, { backgroundColor: t.inset }]}>
             <FileGlyph color={t.ink} />
@@ -230,7 +230,7 @@ export function PdfFallbackScreen({
             <Text numberOfLines={1} style={[styles.fileName, { color: t.ink }]}>
               {file.fileName}
             </Text>
-            <Text style={[styles.fileSub, { color: t.muted }]}>saved in Folio</Text>
+            <Text style={[styles.fileSub, { color: t.muted }]}>saved in Melo</Text>
           </View>
           <Pressable
             accessibilityRole="button"

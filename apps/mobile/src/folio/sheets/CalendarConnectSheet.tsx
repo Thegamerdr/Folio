@@ -79,7 +79,7 @@ const WOULD_ADD: readonly { id: string; label: string; tone: AddTone }[] = [
 
 const STAYS_OUT: readonly string[] = [
   'Spend, amounts on each event, and your spare figure.',
-  'Anything from your Google calendar — Folio never reads it.',
+  'Anything from your Google calendar — Melo never reads it.',
 ] as const;
 
 // Web --positive/--negative/--caution/--accent → the active palette. The dot colour carries meaning,

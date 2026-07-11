@@ -181,7 +181,7 @@ export function TodayNudges({
     nudges.push({
       key: 'onboard',
       tone: 'accent',
-      label: 'Tell Folio your rhythm — 30 seconds, then numbers feel like yours.',
+      label: 'Tell Melo your rhythm — 30 seconds, then numbers feel like yours.',
       cta: 'Begin',
       onPress: () => nav.openSheet('onboarding'),
     });

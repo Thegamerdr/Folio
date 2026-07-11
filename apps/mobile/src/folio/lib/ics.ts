@@ -54,11 +54,13 @@ export function eventsToIcs(events: DerivedEvent[]): string {
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
+    // PRODID is a technical producer identifier — stable on purpose. The two X-WR-* fields are
+    // what calendar apps SHOW the user, so they carry the Melo brand.
     'PRODID:-//Folio//Money Path//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    "X-WR-CALNAME:Folio · what's coming",
-    'X-WR-CALDESC:The dates that move your money. From Folio.',
+    "X-WR-CALNAME:Melo · what's coming",
+    'X-WR-CALDESC:The dates that move your money. From Melo.',
   ];
   for (const e of events) {
     const d = dateOnly(e.date);

@@ -530,7 +530,7 @@ export function VisualizerScreen({
       <View style={styles.intro}>
         <Text style={styles.kicker}>From your statement</Text>
         <Text accessibilityRole="header" style={styles.headline}>
-          {'Check what Folio '}
+          {'Check what Melo '}
           <Text style={styles.headlineAccent}>found.</Text>
         </Text>
         <Text style={styles.subhead}>Nothing is added until you choose.</Text>
@@ -555,7 +555,7 @@ export function VisualizerScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Add all ${items.length}`}
-            accessibilityHint="Adds everything Folio found at once. You can still add them one by one instead."
+            accessibilityHint="Adds everything Melo found at once. You can still add them one by one instead."
             accessibilityState={{ disabled: items.length === 0 }}
             disabled={items.length === 0}
             hitSlop={10}

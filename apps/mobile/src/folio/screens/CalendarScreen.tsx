@@ -814,10 +814,10 @@ function CalendarEmptyState({
   let line = 'Add a payday or a bill below to start the picture.';
   if (missingPayday) {
     head = 'No payday set yet.';
-    line = 'Add your payday so Folio knows when money lands.';
+    line = 'Add your payday so Melo knows when money lands.';
   } else if (missingBills) {
     head = 'Nothing leaving yet.';
-    line = "Add a bill or two so Folio knows what's leaving.";
+    line = "Add a bill or two so Melo knows what's leaving.";
   } else if (missingPots) {
     head = 'No saving rhythm yet.';
     line = 'Add a pot below to see how weekly savings shape your dips.';

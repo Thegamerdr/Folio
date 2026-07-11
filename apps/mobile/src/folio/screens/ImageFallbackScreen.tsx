@@ -220,7 +220,7 @@ export function ImageFallbackScreen({
           </Text>
         </View>
 
-        {/* Image card — thumb + truncating name + "saved in Folio" + a quiet View. */}
+        {/* Image card — thumb + truncating name + "saved in Melo" + a quiet View. */}
         <View style={[styles.imageCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <View style={[styles.thumb, { backgroundColor: t.inset, borderColor: t.hairline }]}>
             <Text style={[styles.thumbCaption, { color: t.muted }]}>photo</Text>
@@ -229,7 +229,7 @@ export function ImageFallbackScreen({
             <Text numberOfLines={1} style={[styles.imageName, { color: t.ink }]}>
               {image.imageName}
             </Text>
-            <Text style={[styles.imageSub, { color: t.muted }]}>saved in Folio</Text>
+            <Text style={[styles.imageSub, { color: t.muted }]}>saved in Melo</Text>
           </View>
           <Pressable
             accessibilityRole="button"

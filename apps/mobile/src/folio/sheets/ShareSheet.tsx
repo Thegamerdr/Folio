@@ -313,7 +313,7 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
           />
         </Svg>
 
-        {/* Brand chip row — accent dot + 'Folio' (app.name from the deck). */}
+        {/* Brand chip row — accent dot + the app name from the deck ('Melo'). */}
         <View style={s.brandRow}>
           <View style={s.brandDot} />
           <Text style={s.brandLabel}>{copy.global.app.name}</Text>

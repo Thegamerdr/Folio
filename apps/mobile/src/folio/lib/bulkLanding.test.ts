@@ -141,7 +141,7 @@ describe('bulkSummaryLine', () => {
       duplicatesSkipped: 3,
     };
     expect(bulkSummaryLine(summary)).toBe(
-      'Added 2 new transactions · 3 already in Folio · 1 Jun–2 Jun · £0 in / £5 out',
+      'Added 2 new transactions · 3 already in Melo · 1 Jun–2 Jun · £0 in / £5 out',
     );
   });
 
@@ -154,7 +154,7 @@ describe('bulkSummaryLine', () => {
       duplicatesSkipped: 14,
     };
     expect(bulkSummaryLine(allDuplicates)).toBe(
-      'Added 0 new transactions · 14 already in Folio · £0 in / £0 out',
+      'Added 0 new transactions · 14 already in Melo · £0 in / £0 out',
     );
   });
 });

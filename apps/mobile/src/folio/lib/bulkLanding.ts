@@ -99,7 +99,7 @@ export function bulkSummaryLine(summary: AddStatementAsHistoryResult, droppedCou
   const duplicatesSkipped = summary.duplicatesSkipped ?? 0;
   const countPart =
     duplicatesSkipped > 0
-      ? `Added ${summary.added} new ${noun} · ${duplicatesSkipped} already in Folio`
+      ? `Added ${summary.added} new ${noun} · ${duplicatesSkipped} already in Melo`
       : `Found ${summary.added} ${noun}`;
   const datePart =
     summary.dateRange !== null

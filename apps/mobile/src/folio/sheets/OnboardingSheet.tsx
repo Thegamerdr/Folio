@@ -972,7 +972,7 @@ function OnboardingFlow({
         <Text style={s.skipLabel}>Skip for now</Text>
       </Pressable>
       <Text style={s.footer}>
-        Skipping keeps sample numbers on Today. Folio works honestly once these are yours.
+        Skipping keeps sample numbers on Today. Melo works honestly once these are yours.
       </Text>
     </View>
   );

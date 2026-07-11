@@ -274,7 +274,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   // empty / error — the calm EmptyState doorway (n/a in practice; rendered for completeness).
   if (state === 'empty' || state === 'error') {
     const headline = state === 'error' ? copy.err.generic : 'Your plan, plainly.';
-    const body = state === 'error' ? undefined : 'Who you are to Folio — back in a moment.';
+    const body = state === 'error' ? undefined : 'Who you are to Melo — back in a moment.';
     return (
       <EmptyState
         mood="calm"

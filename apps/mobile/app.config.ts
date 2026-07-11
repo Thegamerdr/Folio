@@ -2,7 +2,10 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'Folio',
+  // The app IS Melo (owner D4; brand sweep completed 2026-07-11). The slug (EAS project),
+  // scheme (existing deep links) and Android package id (com.folio.v2.greenfield — changing it
+  // would orphan every installed device) deliberately keep the folio name.
+  name: 'Melo',
   slug: 'folio-v2-greenfield',
   scheme: 'folio',
   version: '0.0.1',
@@ -31,7 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: 'com.folio.v2.greenfield',
     infoPlist: {
       ...config.ios?.infoPlist,
-      NSFaceIDUsageDescription: 'Folio uses device authentication to lock local money data.',
+      NSFaceIDUsageDescription: 'Melo uses device authentication to lock local money data.',
     },
     supportsTablet: false,
   },
@@ -102,7 +105,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         widgets: [
           {
             name: 'SafeZoneWidget', // must match SAFE_ZONE_WIDGET_NAME in widget/widgetSnapshotWriter.tsx
-            label: 'Folio — Safe Zone',
+            label: 'Melo — Safe Zone',
             description: 'See how much you can safely spend today, at a glance.',
             minWidth: '110dp',
             minHeight: '40dp',
@@ -136,9 +139,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         // truth: nothing is added to the user's money until they confirm it. (Was "Images stay on this
         // device", which contradicted the Intake reader flow — IntakeScreen.runReader → gateway.)
         photosPermission:
-          'Folio uses a photo only to read a statement you pick. Reading it sends the image to Folio’s reader service; nothing is added to your money until you review it.',
+          'Melo uses a photo only to read a statement you pick. Reading it sends the image to Melo’s reader service; nothing is added to your money until you review it.',
         cameraPermission:
-          'Folio uses the camera only to capture a statement you choose. Reading it sends the image to Folio’s reader service; nothing is added until you review it.',
+          'Melo uses the camera only to capture a statement you choose. Reading it sends the image to Melo’s reader service; nothing is added until you review it.',
       },
     ],
     'expo-sharing',

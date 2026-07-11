@@ -358,10 +358,10 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           },
         ]}
       >
-        {/* Header — "Folio" wordmark (font-display italic 14px) + a 20px balance spacer (web
-            `<span className="font-display italic text-[14px]">Folio</span>`; not a button). */}
+        {/* Header — the app wordmark (font-display italic 14px, from the deck so the brand renames
+            in ONE place) + a 20px balance spacer (web wordmark span; not a button). */}
         <View style={styles.header}>
-          <Text style={[styles.wordmark, { color: t.ink }]}>Folio</Text>
+          <Text style={[styles.wordmark, { color: t.ink }]}>{copy.global.app.name}</Text>
           <View style={styles.balanceSpacer} />
         </View>
 

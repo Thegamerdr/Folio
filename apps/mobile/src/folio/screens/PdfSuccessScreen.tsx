@@ -479,7 +479,7 @@ export function PdfSuccessScreen({
                 if (staged.length > 0) clearReaderCandidates();
                 nav.go('review');
               }}
-              accessibilityLabel="Check what Folio found"
+              accessibilityLabel="Check what Melo found"
               accessibilityHint="Opens the review of what was found"
               style={[styles.primary, elevation.cta, { backgroundColor: t.calm }]}
             >
