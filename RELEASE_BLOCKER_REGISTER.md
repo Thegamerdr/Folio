@@ -34,8 +34,10 @@ but do not satisfy any evidence requirement in the tables below:
   unrelated to the gate evidence and is documented in `AUDIT.md` §0.
 
 Still open after tonight (owner/QA, not RN bugs): exhaustive per-screen dark-mode + cross-device visual
-pass on an emulator; iOS (needs a Mac/EAS — unbuildable on the Windows dev box); the gateway redeploy +
-an OpenRouter spend cap.
+pass on an emulator; iOS (needs a Mac/EAS — unbuildable on the Windows dev box). Gateway status
+(2026-07-11): redeploy DONE with metering live (model allow-list to the two cheap Gemini tiers,
+per-device 40 reads/mo backstop, global 500 reads/day + 2,000 chats/day) — the remaining piece is the
+key-level spend limit in the OpenRouter dashboard, which only the owner can set (credentials).
 
 ### 2026-07-11 update — night run landed; dogfood rows re-scoped to the SHIPPED persistence stack
 

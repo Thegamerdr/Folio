@@ -13,7 +13,13 @@ vi.mock('expo-constants', () => ({ default: { expoConfig: { extra: {} } } }));
 
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
-import { buildMeloSystemPrompt, resolveNamedTarget, type NamedTarget } from './meloAiClient';
+import {
+  buildMeloSystemPrompt,
+  resolveNamedTarget,
+  windowChatHistory,
+  type MeloChatMessage,
+  type NamedTarget,
+} from './meloAiClient';
 
 const subs: readonly NamedTarget[] = [
   { id: 'sub_1', name: 'Netflix' },
@@ -90,5 +96,39 @@ describe('buildMeloSystemPrompt — names reach the model', () => {
   it('tells the model it has no money data when given no snapshot', () => {
     const prompt = buildMeloSystemPrompt('calm');
     expect(prompt).toContain('do not have access');
+  });
+});
+
+describe('windowChatHistory — outbound cost bound', () => {
+  const msg = (id: number, text: string): MeloChatMessage => ({
+    id: `m-${id}`,
+    role: id % 2 === 0 ? 'user' : 'assistant',
+    text,
+  });
+
+  it('passes a short thread through untouched', () => {
+    const thread = [msg(1, 'hello'), msg(2, 'hi there')];
+    expect(windowChatHistory(thread)).toEqual(thread);
+  });
+
+  it('keeps only the newest 24 messages of a long thread', () => {
+    const thread = Array.from({ length: 60 }, (_, i) => msg(i, `turn ${i}`));
+    const windowed = windowChatHistory(thread);
+    expect(windowed).toHaveLength(24);
+    expect(windowed[0]!.text).toBe('turn 36'); // oldest kept = 60 - 24
+    expect(windowed[23]!.text).toBe('turn 59'); // newest always survives
+  });
+
+  it('caps one pasted wall of text at 4,000 chars, keeping the tail', () => {
+    const wall = `${'x'.repeat(5_000)}what should I do?`;
+    const [windowed] = windowChatHistory([msg(0, wall)]);
+    expect(windowed!.text).toHaveLength(4_000);
+    expect(windowed!.text.endsWith('what should I do?')).toBe(true);
+  });
+
+  it('never mutates the caller’s messages', () => {
+    const wall = msg(0, 'y'.repeat(5_000));
+    windowChatHistory([wall]);
+    expect(wall.text).toHaveLength(5_000);
   });
 });

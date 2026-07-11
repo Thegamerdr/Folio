@@ -238,6 +238,32 @@ function describeSnapshotNames(snapshot: MeloLocalFinancialSnapshot): string | u
 
 type OpenAiChatMessage = Readonly<{ role: 'system' | 'user' | 'assistant'; content: string }>;
 
+/** Hard ceiling on one turn's wait. The sheet has a Stop button, but a hung gateway must
+ *  not spin forever when the user simply waits — 30s is far above any healthy completion. */
+const DEFAULT_TIMEOUT_MS = 30_000;
+/** Outbound history window: the newest N thread messages (system prompt excluded). Every turn
+ *  used to resend the WHOLE visible thread, so a long session's cost grew per turn until the
+ *  model context blew — the window bounds both. 24 messages = 12 full exchanges of context. */
+const HISTORY_WINDOW = 24;
+/** Per-message outbound character cap. One pasted wall of text must not ride the request
+ *  unbounded; 4,000 chars is far above anything typed by hand. */
+const MESSAGE_CHAR_CAP = 4_000;
+
+/** Bound the outbound thread: newest HISTORY_WINDOW messages, each capped to
+ *  MESSAGE_CHAR_CAP chars (newest-end kept — the tail of a long message is
+ *  usually the actual question). Pure + exported for tests. */
+export function windowChatHistory(
+  messages: readonly MeloChatMessage[],
+): readonly MeloChatMessage[] {
+  return messages
+    .slice(-HISTORY_WINDOW)
+    .map((message) =>
+      message.text.length <= MESSAGE_CHAR_CAP
+        ? message
+        : { ...message, text: message.text.slice(-MESSAGE_CHAR_CAP) },
+    );
+}
+
 /** Send one chat turn through Folio's Melo gateway. Returns a discriminated result — never throws
  *  for the expected failure modes (no gateway configured, network/HTTP error). The gateway holds
  *  the real provider key; this client sends only the shared token (when configured). */
@@ -253,7 +279,7 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
 
   const payloadMessages: OpenAiChatMessage[] = [
     { role: 'system', content: buildMeloSystemPrompt(request.tone, request.snapshot) },
-    ...request.messages.map<OpenAiChatMessage>((message) => ({
+    ...windowChatHistory(request.messages).map<OpenAiChatMessage>((message) => ({
       role: message.role,
       content: message.text,
     })),
@@ -279,6 +305,23 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
     /* header omitted. */
   }
 
+  // Timeout + caller-cancel share one controller (Hermes has no AbortSignal.any/timeout):
+  // our controller drives the fetch; the timer aborts it on DEFAULT_TIMEOUT_MS, the caller's
+  // signal aborts it on Stop/unmount. `timedOut` disambiguates the two so the user reads the
+  // honest cause — a timeout is Melo's failure, a cancel is their own action.
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, DEFAULT_TIMEOUT_MS);
+  const callerSignal = request.signal;
+  const onCallerAbort = () => controller.abort();
+  if (callerSignal !== undefined) {
+    if (callerSignal.aborted) controller.abort();
+    else callerSignal.addEventListener('abort', onCallerAbort);
+  }
+
   try {
     const response = await fetch(`${config.gatewayUrl}/chat/completions`, {
       method: 'POST',
@@ -289,7 +332,7 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
         temperature: 0.6,
         stream: false,
       }),
-      ...(request.signal ? { signal: request.signal } : {}),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -310,9 +353,14 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
     return { status: 'ok', reply: prose, suggestions };
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      return { status: 'error', message: 'Cancelled.' };
+      return timedOut
+        ? { status: 'error', message: 'Melo took too long to answer. Try again.' }
+        : { status: 'error', message: 'Cancelled.' };
     }
     return { status: 'error', message: `Couldn't reach Melo just now. ${errorMessage(error)}` };
+  } finally {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
   }
 }
 
