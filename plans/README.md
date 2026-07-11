@@ -21,7 +21,7 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | Plan | Title | Priority | Effort | Lane | Depends on | Status |
 |------|-------|----------|--------|------|------------|--------|
 | 101 | Hydration degraded path recovers from backup | P1 | M | A (store) | — | DONE (reviewed; commit c2e2d06) |
-| 102 | Persist recovery-matrix tests | P1 | M | A | 101 | TODO |
+| 102 | Persist recovery-matrix tests | P1 | M | A | 101 | DONE (reviewed) |
 | 103 | Linked-debt payment/account sync | P2 | S | A | not-concurrent-with 101/104 | DONE (reviewed) |
 | 104 | setCurrentBalance recomputes bank total | P2 | S | A | not-concurrent-with 101/103 | DONE (reviewed) |
 | 106 | Trial-ended acknowledgement row | P1 | S | B (UI) | — | DONE (reviewed) |
