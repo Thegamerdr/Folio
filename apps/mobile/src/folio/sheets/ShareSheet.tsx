@@ -100,7 +100,7 @@ const FROZEN = {
   sharingLabel: 'Sharing…',
   copyLabel: 'Copy',
   dismiss: 'Not now',
-  shareTitle: 'Folio · cycle closed',
+  shareTitle: 'Melo · cycle closed',
   // Melo's quiet line while the native dialog is opening (loading is Melo + line, never a spinner).
   sharingLine: 'Sending your quiet win…',
 } as const;

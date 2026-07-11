@@ -456,7 +456,7 @@ export function VisualizerScreen({
       <EmptyState
         mood="calm"
         headline="Add a statement first."
-        body="When Folio reads one, what it finds shows up here for you to check — before any of it counts."
+        body="When Melo reads one, what it finds shows up here for you to check — before any of it counts."
         cta={{ label: copy.add.option.statement, onPress: () => nav.go('intake') }}
       />
     );

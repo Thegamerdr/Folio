@@ -274,7 +274,7 @@ export function PasteSuccessScreen({
       <EmptyState
         mood="calm"
         headline="Nothing to check."
-        body="Folio didn't find money in this one. Paste a bit more, or add one thing yourself."
+        body="Melo didn't find money in this one. Paste a bit more, or add one thing yourself."
         cta={{ label: 'Paste again', onPress: () => nav.go('intake') }}
       />
     );
@@ -286,7 +286,7 @@ export function PasteSuccessScreen({
       <View
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
-        <MeloLine mood="curious" text="Folio is reading…" />
+        <MeloLine mood="curious" text="Melo is reading…" />
       </View>
     );
   }

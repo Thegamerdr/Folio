@@ -174,7 +174,7 @@ export function PdfFallbackScreen({
       <View
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
-        <MeloLine mood="curious" text="Folio is reading…" />
+        <MeloLine mood="curious" text="Melo is reading…" />
       </View>
     );
   }

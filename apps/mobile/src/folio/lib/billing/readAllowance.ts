@@ -24,8 +24,8 @@
 /** Read-allowance tier. Mirrors the paywall's doors: 'live' = unlimited reads. */
 export type ReadTier = 'free' | 'full' | 'live';
 
-/** Monthly read allowances — PROTOTYPE numbers pending owner sign-off (MONEY_MODEL.md §7 lists
- *  2-5/mo Free as the open range; Full's multiplier is a product call). One place to change. */
+/** Monthly read allowances — OWNER-CONFIRMED 2026-07-11 ("do all" sign-off on the batched
+ *  numbers pack: Free 3 · Full 10; MONEY_MODEL.md §7.3 closed). One place to change. */
 export const READ_ALLOWANCE: Readonly<Record<'free' | 'full', number>> = {
   free: 3,
   full: 10,

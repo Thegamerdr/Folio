@@ -315,17 +315,31 @@ Gates: Phase 1 needs owner decisions D1–D4 below; Phase 3 needs D5–D6.
     the old identity; renaming without the owner re-anchoring copy risks drift the other
     way (losing the honest bluntness that works).
 
-## 9. Owner decisions needed before/during Phase 1
+## 9. Owner decisions — CLOSED 2026-07-11 (owner: "do all" on the batched pack)
 
-- **D1**: `optimizer` mode — kill (9-mode canon) or keep (10th lens)?
-- **D2**: "Survival" mode naming/framing under the new positioning (rename vs reframe).
-- **D3**: Ratify the free-mode line in code per MONEY_MODEL Decision B (which modes free).
-- **D4**: App identity — app name (Melo? Melo Fenice?) vs companion name; settles
-  privacy policy + store listing copy too.
-- **D5**: Full one-time price + Live metering numbers (MONEY_MODEL §7.3 open items).
-- **D6**: Wardrobe — remove outright, or replace with earned-only non-cosmetic
-  treatment (blueprint's earned/unbuyable idea, de-childed)?
-- **D7**: Weather vocabulary — 5-state MVP or the 8-word blueprint set.
+The owner delegated the calls wholesale; each was taken as the least-churn option consistent
+with the direction docs, implemented same-day, and is one commit to overturn:
+
+- **D1 — KEEP `optimizer`** as the 10th lens (a Full/depth lens). It's a shipped, distinct
+  strategy ("Trim the quiet leaks"); killing it removes paid value for no gain.
+- **D2 — REFRAME, don't rename, "Survival"** — per this file's own risk #10 (renaming without
+  owner re-anchored copy loses the honest bluntness that works). No code change; the framing
+  work lands with the de-payday header pass.
+- **D3 — RATIFIED**: free line = Survival · Stability · Debt · Irregular · Reset · Low-vis
+  (fit-free); Full = Growth · Optimizer · Planning · Household (depth). As implemented in
+  lib/lens.ts since `2f25918`.
+- **D4 — The app is "Melo".** Chrome sweep done (deck `app.name`, paywall eyebrow/intro,
+  intake/reader/pots/privacy/share/toast copy, Android launcher label → "Melo"). 'Folio'
+  survives only in code identifiers/paths and the Android package id
+  (`com.folio.v2.greenfield` — changing it would orphan installed devices). Store listing +
+  privacy policy copy inherit "Melo" when those are written.
+- **D5 — NUMBERS LOCKED**: Full £29.99 one-time · Live £2.99/mo / £24.99/yr · reads 3/mo Free ·
+  10/mo Full (server abuse backstop 40/mo). MONEY_MODEL §7.3 closed.
+- **D6 — Wardrobe is EARNED-ONLY (unbuyable)** — the blueprint's de-childed treatment. Earned
+  things are never for sale, so it was removed from the paywall (bullet + matrix row); the
+  in-app wardrobe itself is unchanged.
+- **D7 — 5-state weather MVP stands.** The 8-word blueprint set stays superseded with the rest
+  of the blueprint.
 
 ---
 

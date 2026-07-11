@@ -345,7 +345,7 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
             <EmptyState
               mood="calm"
               headline={copy.pots.empty.head}
-              body="A pot is a small set-aside for one thing — a holiday, a buffer, Christmas. Add the first one and Folio will quietly set it aside from what's left over."
+              body="A pot is a small set-aside for one thing — a holiday, a buffer, Christmas. Add the first one and Melo will quietly set it aside from what's left over."
               cta={{ label: copy.pots.empty.cta, onPress: () => nav.go('ritual') }}
             />
           </View>

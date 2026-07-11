@@ -84,9 +84,9 @@ export type PaywallScreenProps = {
 type TierKey = 'free' | 'full' | 'live';
 type Cadence = 'monthly' | 'yearly';
 
-// Prototype prices — owner sign-off pending (MONEY_MODEL.md §7 open numbers). Full is one-time
-// (software never rents); Live is the only recurring price. The cadence toggle applies to Live
-// alone.
+// Prices — OWNER-CONFIRMED 2026-07-11 ("do all" sign-off; MONEY_MODEL.md §7.3 closed). Full is
+// one-time (software never rents); Live is the only recurring price. The cadence toggle applies
+// to Live alone.
 const FULL_ONE_TIME = 29.99;
 const LIVE_MONTHLY = 2.99;
 const LIVE_YEARLY = 24.99;
@@ -136,7 +136,8 @@ const TIER_COPY: Record<
       { label: 'Bigger AI read allowance', live: true },
       { label: "'What changed' briefing", live: false },
       { label: 'Widgets · Leak detection', live: false },
-      { label: 'Premium Fenice customisation', live: false },
+      // D6 (owner "do all", 2026-07-11): wardrobe is EARNED-ONLY (the blueprint's unbuyable
+      // treatment) — earned things are never for sale, so it left the paywall entirely.
     ],
   },
   live: {
@@ -162,7 +163,6 @@ const MATRIX: readonly { label: string; free: MatrixCell; full: MatrixCell; live
   { label: 'Live bank sync', free: 'no', full: 'no', live: 'soon' },
   { label: "'What changed' briefing", free: 'no', full: 'soon', live: 'no' },
   { label: 'Widgets · Leak detection', free: 'no', full: 'soon', live: 'no' },
-  { label: 'Premium Fenice looks', free: 'no', full: 'soon', live: 'no' },
   { label: 'Money Time Machine', free: 'no', full: 'soon', live: 'no' },
 ];
 
@@ -469,7 +469,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxl },
         ]}
       >
-        {/* Header — back glyph · "Folio plans" eyebrow · Restore. */}
+        {/* Header — back glyph · "Melo plans" eyebrow · Restore. */}
         <View style={styles.header}>
           <Pressable
             accessibilityHint="Goes back."
@@ -481,7 +481,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           >
             <Text style={[styles.backGlyph, { color: t.muted }]}>←</Text>
           </Pressable>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>Folio plans</Text>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>Melo plans</Text>
           <Pressable
             accessibilityLabel="Restore a previous purchase"
             accessibilityRole="button"
@@ -519,7 +519,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
             {' way.'}
           </Text>
           <Text style={[styles.intro, { color: t.muted }]}>
-            Folio always answers &quot;will my money last to payday?&quot; for free. Full unlocks
+            Melo always answers &quot;will my money last to payday?&quot; for free. Full unlocks
             every lens with one payment — yours for good. Live is the only subscription: unlimited
             AI reads, bank sync when it lands.
           </Text>
@@ -884,8 +884,8 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         </Surface>
 
         <Text style={[styles.footer, { color: t.muted }]}>
-          Want both? A Full + Live bundle arrives with real billing.{'\n'}Prototype pricing — real
-          billing ships with a future update.
+          Want both? A Full + Live bundle arrives with real billing.{'\n'}Real billing ships with a
+          future update.
         </Text>
       </ScrollView>
     </Animated.View>

@@ -332,7 +332,7 @@ export function PdfSuccessScreen({
       <EmptyState
         mood="calm"
         headline="File saved."
-        body="Folio couldn't read this one. It's saved as a note — try a different file."
+        body="Melo couldn't read this one. It's saved as a note — try a different file."
         cta={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
       />
     );
@@ -346,7 +346,7 @@ export function PdfSuccessScreen({
       <EmptyState
         mood="calm"
         headline="Nothing to add."
-        body="Folio didn't find money items in this one. Try a different file."
+        body="Melo didn't find money items in this one. Try a different file."
         cta={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
       />
     );
@@ -359,7 +359,7 @@ export function PdfSuccessScreen({
       <View
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
-        <MeloLine mood="curious" text="Folio is reading…" />
+        <MeloLine mood="curious" text="Melo is reading…" />
       </View>
     );
   }

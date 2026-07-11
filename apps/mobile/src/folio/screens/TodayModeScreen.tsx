@@ -372,7 +372,7 @@ const HERO: Record<
           <View style={heroStyles.block}>
             <View style={[heroStyles.noticeBox, { backgroundColor: t.inset }]}>
               <Text style={[heroStyles.noticeText, { color: t.muted }]}>
-                No shared bills in the next 30 days. Add bills as regular subs — Folio will show the
+                No shared bills in the next 30 days. Add bills as regular subs — Melo will show the
                 split here.
               </Text>
             </View>

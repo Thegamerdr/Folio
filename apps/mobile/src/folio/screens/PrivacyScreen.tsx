@@ -309,7 +309,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     const body =
       state === 'error'
         ? undefined
-        : "Folio shows you what's saved, lets you export it, and wipes it when you say so.";
+        : "Melo shows you what's saved, lets you export it, and wipes it when you say so.";
     return (
       <EmptyState
         mood="calm"
@@ -380,7 +380,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
             <Text style={[styles.headlineAccent, { color: t.calm }]}>your call.</Text>
           </Text>
           <Text style={[styles.body, { color: t.muted }]}>
-            Folio shows you what&apos;s saved, lets you export it, and wipes it when you say so.
+            Melo shows you what&apos;s saved, lets you export it, and wipes it when you say so.
           </Text>
         </View>
 

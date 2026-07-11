@@ -130,7 +130,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 500,
     step: 10,
-    hint: 'Folio warns before the balance dips below this.',
+    hint: 'Melo warns before the balance dips below this.',
   },
   stability: {
     eyebrow: 'Comfort line',

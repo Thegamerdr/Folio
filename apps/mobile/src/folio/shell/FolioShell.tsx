@@ -157,7 +157,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   more: 'More',
   privacy: 'Privacy',
   melo: 'Melo',
-  paywall: 'Folio plans',
+  paywall: 'Melo plans',
   account: 'Account',
 };
 
@@ -816,8 +816,8 @@ class ScreenErrorBoundary extends Component<ScreenErrorBoundaryProps, ScreenErro
           <Muted style={errorStyles.eyebrow}>A small slip</Muted>
           <Headline accent="This screen tripped." style={errorStyles.headline} />
           <Body style={errorStyles.body}>
-            Nothing was lost. The rest of Folio is still here — try the screen again, or head back
-            to Today.
+            Nothing was lost. The rest of Melo is still here — try the screen again, or head back to
+            Today.
           </Body>
           <View style={errorStyles.action}>
             <PrimaryAction label="Try again" onPress={this.handleReset} />

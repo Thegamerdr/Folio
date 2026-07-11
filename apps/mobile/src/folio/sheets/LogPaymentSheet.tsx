@@ -145,7 +145,7 @@ export function LogPaymentSheet({ visible, onClose }: LogPaymentSheetProps) {
           </View>
           {selected && amt > selected.balance ? (
             <Text style={s.warnLine}>
-              That's more than the balance — Folio will only pay off the £
+              That's more than the balance — Melo will only pay off the £
               {selected.balance.toLocaleString('en-GB')} left.
             </Text>
           ) : null}

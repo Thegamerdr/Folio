@@ -205,7 +205,7 @@ function CalendarConnectBody({
       <EmptyState
         mood="calm"
         headline="Nothing to send yet."
-        body="Folio sends paydays, bills and deadlines to your calendar. Add a statement and the dates show up here."
+        body="Melo sends paydays, bills and deadlines to your calendar. Add a statement and the dates show up here."
         cta={{ label: 'Not now', onPress: onClose }}
       />
     );

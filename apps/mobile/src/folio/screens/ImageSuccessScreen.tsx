@@ -277,7 +277,7 @@ export function ImageSuccessScreen({
       <EmptyState
         mood="calm"
         headline="Image saved."
-        body="Folio couldn't read this one clearly. Try a different image."
+        body="Melo couldn't read this one clearly. Try a different image."
         cta={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
       />
     );
@@ -290,7 +290,7 @@ export function ImageSuccessScreen({
       <EmptyState
         mood="calm"
         headline="Nothing to add."
-        body="Folio didn't find money items in this one. Try a different image."
+        body="Melo didn't find money items in this one. Try a different image."
         cta={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
       />
     );
@@ -302,7 +302,7 @@ export function ImageSuccessScreen({
       <View
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
-        <MeloLine mood="curious" text="Folio is reading…" />
+        <MeloLine mood="curious" text="Melo is reading…" />
       </View>
     );
   }

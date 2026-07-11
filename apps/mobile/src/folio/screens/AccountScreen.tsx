@@ -136,7 +136,7 @@ const CADENCE_LABEL: Record<string, string> = {
 };
 
 // The three doors at a glance — Free/Full/Live (MONEY_MODEL.md §2b). Prices are the paywall's
-// prototype numbers (owner sign-off pending).
+// numbers, owner-confirmed 2026-07-11.
 const TIERS: readonly {
   key: 'free' | 'full' | 'live';
   name: string;
@@ -523,7 +523,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         </Surface>
 
         <View style={styles.closing}>
-          <MeloLine text="Nothing here is guessed. You'll only see what you added or what Folio read from a statement." />
+          <MeloLine text="Nothing here is guessed. You'll only see what you added or what Melo read from a statement." />
         </View>
 
         <Text style={[styles.footer, { color: t.muted }]}>

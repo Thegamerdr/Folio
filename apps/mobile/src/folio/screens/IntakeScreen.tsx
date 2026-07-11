@@ -351,7 +351,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       if (cached !== null) {
         setReaderCandidates(cached.candidates);
         setReaderClosingBalance(cached.closingBalance);
-        showToast('Read from memory', 'Folio has read this exact file — no read used.');
+        showToast('Read from memory', 'Melo has read this exact file — no read used.');
         nav.go(successScreen);
         return { kind: 'cached' };
       }
@@ -470,7 +470,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       if (plan.ranges.length > 1) {
         showToast(
           'A long export',
-          `Folio will read it in ${plan.ranges.length} parts, a few minutes.`,
+          `Melo will read it in ${plan.ranges.length} parts, a few minutes.`,
         );
       }
     } catch {
@@ -628,7 +628,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   if (state === 'empty' || state === 'error') {
     const headline = state === 'error' ? copy.err.generic : 'Add what you have.';
     const body =
-      state === 'error' ? undefined : 'Folio shows what it finds before anything is added.';
+      state === 'error' ? undefined : 'Melo shows what it finds before anything is added.';
     return (
       <EmptyState
         mood="calm"
@@ -724,7 +724,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             {tail}
           </Text>
           <Text style={[styles.subhead, { color: t.muted }]}>
-            Folio shows what it finds before anything is added.
+            Melo shows what it finds before anything is added.
           </Text>
         </View>
 

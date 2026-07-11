@@ -37,7 +37,11 @@ export const copy = {
   // ## Global
   global: {
     app: {
-      name: 'Folio',
+      // D4 (owner "do all", 2026-07-11): the app IS Melo — the phoenix, the paywall tiers, and
+      // the direction docs already said so; the chrome now agrees. 'Folio' survives only in
+      // code identifiers/paths and the Android package id (com.folio.v2.greenfield — changing
+      // that would orphan installed devices).
+      name: 'Melo',
       tag: 'Will my money last to payday?',
     },
     melo: {
@@ -83,7 +87,7 @@ export const copy = {
     },
     done: {
       head: 'Sealed.',
-      body: 'Folio remembers.',
+      body: 'Melo remembers.',
     },
   },
 
@@ -97,8 +101,8 @@ export const copy = {
       manual: 'Type it in',
     },
     success: {
-      pdf: 'Folio **read** your statement.',
-      image: 'Folio **read** your image.',
+      pdf: 'Melo **read** your statement.',
+      image: 'Melo **read** your image.',
       paste: 'Things to **check.**',
     },
     fallback: {
@@ -149,12 +153,12 @@ export const copy = {
     title: 'Subscriptions',
     empty: {
       head: 'No subs **yet.**',
-      body: 'Folio will spot recurring charges as you add statements.',
+      body: 'Melo will spot recurring charges as you add statements.',
       cta: 'Add a subscription',
     },
     paused: 'Paused',
     caught: {
-      head: (name: string): string => `Folio spotted **${name}.**`,
+      head: (name: string): string => `Melo spotted **${name}.**`,
       // Cadence-aware (DATA_INTELLIGENCE.md phase ⑤(A) "weekly-cadence unlock") — mirrors
       // income.caught.body's cadence param exactly so the two sibling sheets read consistently.
       // Defaults to 'monthly' when omitted so every existing call site (and its copy/fixture
@@ -303,7 +307,7 @@ export const copy = {
     },
     done: {
       head: 'Ready.',
-      body: 'Folio will get quieter as it learns you.',
+      body: 'Melo will get quieter as it learns you.',
     },
   },
 
@@ -329,7 +333,7 @@ export const copy = {
       due: 'Payday landed. Ready when you are.',
     },
     sub: {
-      caught: 'Folio spotted a recurring charge.',
+      caught: 'Melo spotted a recurring charge.',
     },
     pot: {
       filled: (pot: string): string => `${pot} is full.`,
@@ -341,7 +345,7 @@ export const copy = {
     offline: "No connection. Folio works without one — try again when you're back.",
     generic: "Something didn't catch. Try once more?",
     statement: {
-      unreadable: "Folio couldn't read this one. Saved as a note.",
+      unreadable: "Melo couldn't read this one. Saved as a note.",
     },
   },
 } as const;
