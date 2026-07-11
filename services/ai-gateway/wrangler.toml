@@ -23,13 +23,11 @@ READS_PER_MONTH_CAP = "40"
 GLOBAL_DAILY_READ_CAP = "500"
 GLOBAL_DAILY_CHAT_CAP = "2000"
 
-# OPTIONAL metering store. Without this binding the gateway runs exactly as before (no metering).
-# To enable:
-#   1. wrangler kv namespace create METER_KV
-#   2. Paste the returned id below and uncomment:
-# [[kv_namespaces]]
-# binding = "METER_KV"
-# id = "<paste the namespace id here>"
+# Metering store — created + bound 2026-07-11 (owner "do all"). Remove this block to switch
+# metering off entirely; the worker degrades gracefully without it.
+[[kv_namespaces]]
+binding = "METER_KV"
+id = "aacebf9d340b45e2807b982182bd6d08"
 
 # Observability is handy for spotting abuse + errors. Safe to keep on.
 [observability]
