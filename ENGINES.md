@@ -362,6 +362,9 @@ not Open Banking.)_
 
 **Affected code.** No engine code today — this is a decision + an entitlement seam constraint. The
 exact free/paid mapping stays open in `27_DECISION_LOG` ("precise free/paid entitlement mapping").
+_(Update 2026-07-11: the guardrail now has real implementation behind it — billing/entitlements
+shipped in `apps/mobile/src/folio/lib/billing/{iap,entitlements,entitlementsLogic,ctaMode,
+readAllowance}.ts` + PaywallScreen, with prices locked; see `MONEY_MODEL.md §8` for current status.)_
 
 ## **Status.** decided. _(No implementation pending — guardrail only; do not invent prices.)_
 

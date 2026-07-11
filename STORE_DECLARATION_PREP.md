@@ -10,12 +10,12 @@ Do not submit store declarations from this file. This is a preparation checklist
 | data stored locally          | ready for internal dogfood | Local canonical ledger and exports exist; public declaration needs binary review.                                      |
 | data exported by user        | ready for internal dogfood | User export and dogfood diagnostic export are separate paths.                                                          |
 | diagnostics                  | ready for internal dogfood | Dogfood diagnostics are redacted/local-only; external sharing policy needs review.                                     |
-| crash logs                   | decision needed            | No production crash reporting route is declared in this pass.                                                          |
+| crash logs                   | live — Sentry               | Production crash reporting is live: Sentry (privacy-tuned init; DSN read from `app.config.ts`) shipped in commit `147c226`. (updated 2026-07-11) |
 | account requirement          | not applicable yet         | No account/auth requirement for local dogfood.                                                                         |
 | cloud sync status            | not applicable yet         | Cloud sync is not built in this pass.                                                                                  |
-| AI usage status              | not applicable yet         | AI gateway/final runtime is not built in this pass.                                                                    |
+| AI usage status              | live — declare data egress  | AI gateway is deployed and metered (`services/ai-gateway`; worker live at `folio-ai-gateway.tgdroppin.workers.dev`). Statement photos/PDFs leave the device to this gateway when the user initiates a read; disclosed in-app on PrivacyScreen. Data Safety Form must declare this egress. (updated 2026-07-11) |
 | Open Banking status          | not applicable yet         | Open Banking is not built in this pass.                                                                                |
-| subscriptions/billing status | not ready                  | Billing implementation and store credentials are intentionally absent.                                                 |
+| subscriptions/billing status | implemented, store listing pending | Billing/entitlements implemented (`lib/billing/{iap,entitlements,entitlementsLogic,ctaMode,readAllowance}.ts` + PaywallScreen); deliberately non-completable until a Play listing exists. Prices owner-confirmed 2026-07-11: Full £29.99 one-time, Live £2.99/mo–£24.99/yr. (updated 2026-07-11) |
 | financial advice boundary    | requires legal review      | Product boundary says clarity, not financial advice. Legal wording must approve.                                       |
 | support/contact requirement  | decision needed            | Owner dogfood uses local bug template; external beta/public need official support path.                                |
 | privacy policy requirement   | requires legal review      | Privacy policy URL/content not final.                                                                                  |
@@ -31,3 +31,5 @@ Do not submit store declarations from this file. This is a preparation checklist
 4. Approve privacy policy and processor list.
 5. Confirm financial advice boundary wording.
 6. Keep billing and account deletion declarations blocked until those systems exist.
+7. Update this doc in the same PR as any change to data egress, telemetry, or billing scope.
+   (added 2026-07-11)

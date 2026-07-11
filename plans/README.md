@@ -30,7 +30,7 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | 105 | Reconciliation warning on closing-balance offer | P3 | S | B | — (disjoint file) | TODO |
 | 109 | Root error boundary + Sentry capture + lane catches | P1 | S | C (shell) | — | DONE (reviewed) |
 | 110 | Durable ProGuard rules + drop biometric permission | P2 | M | C | — | TODO |
-| 111 | Release-docs refresh (store declarations etc.) | P2 | S | D (docs) | — | TODO |
+| 111 | Release-docs refresh (store declarations etc.) | P2 | S | D (docs) | — | DONE (reviewed) |
 | 112 | Dead-code excision stage 1 (~39k lines, enumerated) | P2 | M | E (last) | ALL above merged | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale)

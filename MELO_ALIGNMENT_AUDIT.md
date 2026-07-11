@@ -99,9 +99,9 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
 | System | Status | Evidence |
 |---|---|---|
 | Money Weather | PARTIAL | Per-mode weather engine complete (8-word vocab in `modes\types.ts`); UI = 12px glyph in the lens pill + widget word. No weather surface/forecast. |
-| Safe Zone | BUILT, DOOR MISSING | `modes\safeZone.ts` math + Stability/Mode heroes render it; `SafeZoneSheet` (decomposition + buffer stepper) has **zero openers**; the hero number is not tappable. |
-| Bill Shield | ENGINE-ONLY | `shieldedBills()` line inside safeZoneMath + paywall copy. No surface; only visible via the unreachable SafeZoneSheet. |
-| Before You Spend | BUILT, DOOR MISSING | `affordCheck.ts` (safe/tight/not-now/safe-later) + `AffordCheckSheet` — **zero openers**. |
+| Safe Zone | BUILT, DOOR MISSING — **FIXED 2026-07-11** | `modes\safeZone.ts` math + Stability/Mode heroes render it; `SafeZoneSheet` (decomposition + buffer stepper) has **zero openers**; the hero number is not tappable. **FIXED (2026-07-11, per plan 111):** wired since `bc50cad` — `TodayScreen.tsx:616` and `TodayStabilityScreen.tsx:306` both call `nav.openSheet('safe-zone')`; the hero is tappable. |
+| Bill Shield | ENGINE-ONLY | `shieldedBills()` line inside safeZoneMath + paywall copy. No surface; only visible via the unreachable SafeZoneSheet. _(Note 2026-07-11: SafeZoneSheet is no longer unreachable — see Safe Zone row — but Bill Shield still has no standing surface of its own; this row is otherwise unchanged.)_ |
+| Before You Spend | BUILT, DOOR MISSING — **FIXED 2026-07-11** | `affordCheck.ts` (safe/tight/not-now/safe-later) + `AffordCheckSheet` — **zero openers**. **FIXED (2026-07-11, per plan 111):** wired since `bc50cad` — `TodayScreen.tsx:604`, `TodayStabilityScreen.tsx:298`, and `TodayModeScreen.tsx:1070` all call `nav.openSheet('afford-check')`. |
 | What Changed | PARTIAL | Detection engines strong (drift/caught-*), `TodayAfterScreen` after user actions. No standing "since you last looked" briefing on home. |
 | Next Best Action | PARTIAL | `TodayNudges` = real prioritised single chip, framed as chores; per-mode action copy in `modes\action.ts`; no unified named system. |
 | Recovery Mode | BUILT (as screen) | `RecoveryScreen` is real; "Recovery" is a screen, not a mode — naming/IA reconciliation with the reset lens needed. |
@@ -148,6 +148,8 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
 **D. Fake certainty (violates the core promise).**
 - Melo chat is fed a **fabricated tight point** — hardcoded per-band table
   (612/325/184/42/−86) instead of the real route number (`lib\meloSnapshot.ts:27-34,97`).
+  **FIXED (2026-07-11, per plan 111):** `meloSnapshot.ts:98` now derives `tightPoint` from
+  `route.tightPoint.amount` (the real route number), not the hardcoded band table.
 - Survival verdict asserts "The middle of next week is the squeeze" purely off a ratio,
   regardless of the actual tight date (`strategies\survival.ts:76`).
 - Irregular hero invents an invoice (`typicalInvoice = monthlyIn * 0.5`); Reset shows a
@@ -191,7 +193,10 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
 ## 4. What is missing (output 4)
 
 1. **Doors to built systems**: `openSheet('safe-zone')` + `openSheet('afford-check')`
-   call sites; a Bill Shield surface; a tappable Safe Zone hero.
+   call sites; a Bill Shield surface; a tappable Safe Zone hero. **PARTLY FIXED (2026-07-11,
+   per plan 111):** the `openSheet('safe-zone')`/`openSheet('afford-check')` call sites and
+   the tappable Safe Zone hero landed (see §2 annotations); a standalone Bill Shield surface
+   is still missing.
 2. **Standing What-Changed briefing** on home ("since you last looked") — detection
    engines exist; only the after-action surface renders.
 3. **Named Next Best Action slot** on home (reframe TodayNudges from chores to
@@ -234,9 +239,12 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
    paywall copy lies and all monetization data is meaningless.
 4. **Wire the two orphaned sheets** — tap-target on the Safe Zone hero → `SafeZoneSheet`;
    a "Before you spend" entry on Today → `AffordCheckSheet`. Hours of work; unlocks two
-   of the ten flagship systems and the only view of Bill Shield.
+   of the ten flagship systems and the only view of Bill Shield. **FIXED (2026-07-11, per
+   plan 111)** — see §2 annotations; both sheets are wired from all Today surfaces since
+   `bc50cad`.
 5. **Android BackHandler** bridged to the shell's `historyRef`.
-6. **Melo chat fabricated tightPoint** — pass the real route number.
+6. **Melo chat fabricated tightPoint** — pass the real route number. **FIXED (2026-07-11,
+   per plan 111)** — see §3.D annotation.
 7. **EditTxnSheet fake cold-open row** — empty/error state instead of fabricated money.
 8. **Paywall truth pass** — flip "Bill shield / What changed" to `live:false` until
    surfaced; fix "Auto-locks at payday" copy or make it true (see 3).
