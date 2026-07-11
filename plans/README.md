@@ -24,7 +24,7 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | 102 | Persist recovery-matrix tests | P1 | M | A | 101 | TODO |
 | 103 | Linked-debt payment/account sync | P2 | S | A | not-concurrent-with 101/104 | TODO |
 | 104 | setCurrentBalance recomputes bank total | P2 | S | A | not-concurrent-with 101/103 | TODO |
-| 106 | Trial-ended acknowledgement row | P1 | S | B (UI) | — | TODO |
+| 106 | Trial-ended acknowledgement row | P1 | S | B (UI) | — | DONE (reviewed) |
 | 107 | Truth micro-fixes (reset caption, rounding, guard formula, safeZone input) | P2 | S | B | 106 | TODO |
 | 108 | De-payday mode-aware headers + shortfall nudge (D2) | P2 | M | B | 106, 107 | TODO |
 | 105 | Reconciliation warning on closing-balance offer | P3 | S | B | — (disjoint file) | TODO |

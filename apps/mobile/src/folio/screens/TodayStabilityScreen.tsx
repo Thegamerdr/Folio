@@ -35,6 +35,7 @@ import { LensRhythm } from '@/folio/ui/LensRhythm';
 import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
+import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
 import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
 import { useLens } from '@/folio/lib/lens';
@@ -207,6 +208,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
       {/* Standing What-Changed row — renders only when something changed since the last look
           (lib/whatChanged.ts); tap opens the Timeline and stamps the baseline. */}
       <WhatChangedRow nav={nav} />
+      <TrialEndedRow nav={nav} />
 
       <View style={s.card}>
         <View style={[s.cardInner, { backgroundColor: t.surface, borderColor: t.hairline }]}>
