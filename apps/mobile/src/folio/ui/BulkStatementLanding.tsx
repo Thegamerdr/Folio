@@ -301,6 +301,11 @@ export function BulkStatementLanding({
     return (
       <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
         <Text style={[styles.offerHead, { color: t.ink }]}>{closingBalanceOfferLine(offer)}</Text>
+        {summary?.reconciliation?.status === 'mismatch' ? (
+          <Text style={[styles.reconcileWarn, { color: t.repairInk }]}>
+            {summary.reconciliation.message}
+          </Text>
+        ) : null}
         <View style={styles.offerRow}>
           <Pressable
             accessibilityRole="button"
