@@ -1,58 +1,70 @@
-# Improve backlog — `claude/folio-web-parity` branch audit
+# Implementation Plans
 
-Written against commit `e52de55`. Branch audit (`/improve branch`) of the full web→RN parity
-work (88 files, +11.9k). All findings are **introduced** by this branch unless tagged otherwise.
-Verification gates for every item: `pnpm --filter @folio/mobile run typecheck` and
-`pnpm --filter @folio/mobile exec vitest run` (suite currently 441 green).
+Two backlogs live here:
 
-## Already fixed in this branch (not plans — done)
+1. **Night-mode backlog (ACTIVE)** — plans `101+`, written 2026-07-11 against commit
+   `5cea944` on `claude/melo-mvp` by the improve skill (full audit: product-logic truth,
+   data-model truth, launch readiness, dead-code map). Execute in the order below.
+2. **Legacy parity backlog (historical)** — the `01–13` table further down, written against
+   `e52de55` on the old `claude/folio-web-parity` branch. Most of it audits the archived
+   pressureMap surface; treat as record, not work queue, until reconciled.
 
-- **Melo privacy copy was false** — the "Let Melo see my money" toggle said _"Stays on this
-  device"_ while it sends the snapshot to an external AI provider, and defaulted ON.
-  Fixed in `e52de55`: default OFF (opt-in), honest copy, and the `apiKey` comment corrected
-  (`EXPO_PUBLIC_*` is inlined into the bundle, not "never bundled").
+Each executor: read the plan fully before starting, honor its STOP conditions, and do NOT
+update this index (the reviewer maintains it).
 
-## Audit verdict
+## Night-mode execution order & status
 
-The engine layer (Pots/Subscriptions/Cycles via the canonical spine) is **clean** — immutable,
-money-safe (minor units, guarded), backward-compatible persistence, and directly unit-tested in
-`apps/mobile/src/local/dataEngineModels.test.ts`. No data-loss or critical correctness bugs. The
-remaining items are UX/a11y polish, Melo-chat hardening, and one product decision.
+Lanes may run in parallel; WITHIN a lane, strictly sequential (shared files).
 
-## Backlog (leverage-ranked)
+| Plan | Title | Priority | Effort | Lane | Depends on | Status |
+|------|-------|----------|--------|------|------------|--------|
+| 101 | Hydration degraded path recovers from backup | P1 | M | A (store) | — | TODO |
+| 102 | Persist recovery-matrix tests | P1 | M | A | 101 | TODO |
+| 103 | Linked-debt payment/account sync | P2 | S | A | not-concurrent-with 101/104 | TODO |
+| 104 | setCurrentBalance recomputes bank total | P2 | S | A | not-concurrent-with 101/103 | TODO |
+| 106 | Trial-ended acknowledgement row | P1 | S | B (UI) | — | TODO |
+| 107 | Truth micro-fixes (reset caption, rounding, guard formula, safeZone input) | P2 | S | B | 106 | TODO |
+| 108 | De-payday mode-aware headers + shortfall nudge (D2) | P2 | M | B | 106, 107 | TODO |
+| 105 | Reconciliation warning on closing-balance offer | P3 | S | B | — (disjoint file) | TODO |
+| 109 | Root error boundary + Sentry capture + lane catches | P1 | S | C (shell) | — | TODO |
+| 110 | Durable ProGuard rules + drop biometric permission | P2 | M | C | — | TODO |
+| 111 | Release-docs refresh (store declarations etc.) | P2 | S | D (docs) | — | TODO |
+| 112 | Dead-code excision stage 1 (~39k lines, enumerated) | P2 | M | E (last) | ALL above merged | TODO |
 
-| #   | Finding                                                                                                                        | Cat                   | Evidence                                                           | Effort | Leverage     |
-| --- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------- | ------------------------------------------------------------------ | ------ | ------------ |
-| 01  | `useCountUp` on Pots ignores reduced-motion (Subscriptions honors it); 3 duplicated copies                                     | a11y / dedup          | `pots.tsx` ~73, `subscriptions.tsx` ~56, `todayPath.tsx` ~55       | S      | HIGH         |
-| 02  | Reallocation sheet primes state **during render** (anti-pattern; stale-flash under React 18 strict/concurrent)                 | correctness           | `pots.tsx` ~346–352                                                | S      | HIGH         |
-| 03  | Buffer-pot tight-point preview keys off a **regex on the pot name** — silently no-ops for off-name pots                        | product / correctness | `pots.tsx` ~59–62                                                  | M      | MED-HIGH     |
-| 04  | Insights SVG bar chart has no accessibility role/label — invisible to screen readers                                           | a11y                  | `insights.tsx` ~65–77                                              | M      | MED          |
-| 05  | Melo chat: no message length cap / rate limit (prompt-injection surface; advisory arch limits blast radius)                    | security              | `meloChat.tsx` ~112, `meloAiClient.ts` ~187                        | S      | MED          |
-| 06  | Melo chat: no request timeout/abort on the provider fetch                                                                      | reliability           | `meloAiClient.ts` ~196, `app/index.tsx` ~733                       | S      | MED          |
-| 07  | LLM response parsed with regex + `JSON.parse`, no schema validation (defensive defaults + downstream `VALID_TOOL_NAMES` exist) | security              | `meloAiClient.ts` ~248–303                                         | S      | MED          |
-| 08  | No unit tests for `meloAiClient` / `meloChat` (parse, suggestion-validation, error, share-gating)                              | tests                 | `meloAiClient.ts`, `sheets/meloChat.tsx`                           | L      | MED          |
-| 09  | Two Melo suggestions are no-ops (remove-spend, tight-point goal) — no canonical mutation; either implement or drop the chip    | product               | `app/index.tsx` suggestion handler                                 | M      | MED          |
-| 10  | Hardcoded `rgba(...)` instead of kit tokens (drifts if `paper.calm` changes)                                                   | polish                | `subscriptions.tsx` ~459, `insights.tsx` ~52, `MoneyPath.tsx` ~774 | S      | LOW          |
-| 11  | Insights chart bar `key` includes array index (flicker on window switch)                                                       | correctness           | `insights.tsx` ~65                                                 | S      | LOW          |
-| 12  | `TodaySpendStrip` returns `null` on empty week (inconsistent with `TodayRecentTxns` empty state)                               | UX                    | `todaySpendStrip.tsx` ~53                                          | S      | LOW          |
-| 13  | `headerHint` muted text may fail WCAG AA contrast on inset bg                                                                  | a11y                  | `todaySpendStrip.tsx` ~110                                         | S      | LOW (verify) |
+Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale)
 
-## Owner decision (not a bug)
+## Dependency notes
 
-- **Melo AI key delivery.** A standalone Expo client can only read `EXPO_PUBLIC_*` (bundled/
-  extractable). For a real secret, route Melo through a backend proxy that holds the key; for a
-  self-hosted/low-value provider, the bundled key is acceptable. Decide before wiring a real key.
+- Lane A plans all touch `store.ts`/`store.test.ts` — never run two concurrently.
+- Lane B: 106→107→108 share the Today screens/TodayNudges; 105 touches only
+  BulkStatementLanding and may run any time.
+- 102 needs 101's `consumeLoadDegraded` seam.
+- 110 needs the Android emulator (emulator-5554) for its release-build verification.
 
-## Considered and rejected (don't re-audit)
+## Findings considered and rejected / deferred (don't re-audit)
 
-- valueScore ÷0 → Infinity (intentional "worst", handled in label); Insights avg over empty set
-  → 0 (correct); pot progress on zero goal → 1.0 (guarded); JSON-blob persistence for the new
-  containers (intentional, no ACID need); count-up models rebuilt per state change (memoized,
-  small N); cert pinning (platform TLS sufficient for an operator-configured endpoint); base
-  URL / model name bundling (not secrets).
+- **Hero £0 floors** (survival/stability/debt Today heroes clamp negative spare to £0):
+  KEPT BY DESIGN — calm doctrine; verdict copy carries the crisis. The INPUT clamp +
+  widget context gap IS fixed (plan 107 step 4).
+- **Four safe-zone accountings unification** (route vs safeZoneMath vs stability-hero vs
+  paywall): REAL but L-effort and owner-taste on which number wins — DEFERRED to owner.
+  Plan 107 fixes the paywall-guard input (the trust-critical piece) only.
+- **Widget receiver `exported="false"`** (Android 12+ APPWIDGET_UPDATE delivery): library
+  default, MED confidence — verify on-device during the next dogfood pass, not a code plan.
+- **Melo chat length caps / schema validation / timeouts** (legacy backlog 05–07): the
+  Melo client was rebuilt since; re-audit before planning.
 
-## Suggested order
+## Legacy parity backlog (historical, `e52de55`, branch `claude/folio-web-parity`)
 
-01 → 02 (quick correctness/a11y), then 05–07 (Melo hardening, bundle as one), then 03/04/09
-(MED), then 10–13 polish. 08 (tests) can land anytime and de-risks 05–07. Each is independent;
-no hard dependencies. Run `/improve plan <#>` to expand any line into a full executable plan.
+(unchanged record — see git history of this file for the original context)
+
+| # | Finding | Cat | Effort | Leverage |
+|---|---------|-----|--------|----------|
+| 01 | useCountUp ignores reduced-motion (pressureMap surface — ARCHIVED) | a11y | S | superseded |
+| 02 | Reallocation sheet primes state during render (pressureMap — ARCHIVED) | correctness | S | superseded |
+| 03 | Buffer-pot regex on pot name (pressureMap — ARCHIVED) | product | M | superseded |
+| 04 | Insights SVG a11y (pressureMap — ARCHIVED) | a11y | M | superseded |
+| 05–07 | Melo chat hardening (client since rebuilt — re-audit) | security | S | re-audit |
+| 08 | meloAiClient tests (partially superseded — meloAiClient.test.ts exists now) | tests | L | re-audit |
+| 09 | Two no-op Melo suggestions | product | M | re-audit |
+| 10–13 | Token/key/empty-state polish (pressureMap — ARCHIVED) | polish | S | superseded |
