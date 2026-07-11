@@ -28,6 +28,9 @@ import {
   Text,
   View,
 } from 'react-native';
+// Matches errorReporting.ts's own import — that module only inits Sentry, it exposes no
+// captureException helper, so componentDidCatch below imports the SDK directly.
+import * as Sentry from '@sentry/react-native';
 
 import {
   BottomNav,
@@ -802,6 +805,11 @@ class ScreenErrorBoundary extends Component<ScreenErrorBoundaryProps, ScreenErro
     // Quiet by design — the shell is not wired to a logger. Surface enough to debug in dev.
     // eslint-disable-next-line no-console
     console.error('Screen crashed:', this.props.screenLabel, error, info);
+    try {
+      Sentry.captureException(error);
+    } catch {
+      /* telemetry is best-effort — never let capture crash the fallback. */
+    }
   }
 
   private handleReset = (): void => {

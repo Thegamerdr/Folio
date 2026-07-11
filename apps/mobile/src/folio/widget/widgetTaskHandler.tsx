@@ -19,6 +19,12 @@ import { readWidgetSnapshot } from './widgetSnapshotStore';
 export const safeZoneWidgetTaskHandler: WidgetTaskHandler = async (props) => {
   if (props.widgetAction === 'WIDGET_DELETED') return;
 
-  const snapshot = await readWidgetSnapshot();
-  props.renderWidget(<SafeZoneWidget snapshot={snapshot} />);
+  try {
+    const snapshot = await readWidgetSnapshot();
+    props.renderWidget(<SafeZoneWidget snapshot={snapshot} />);
+  } catch {
+    // best-effort — never blocks/crashes the lane. Mirror readWidgetSnapshot's own null path
+    // (its honest empty state) so the widget still renders something instead of nothing.
+    props.renderWidget(<SafeZoneWidget snapshot={null} />);
+  }
 };

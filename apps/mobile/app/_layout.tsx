@@ -1,3 +1,5 @@
+import { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import {
   Fraunces_400Regular,
   Fraunces_500Medium,
@@ -10,12 +12,79 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, View } from 'react-native';
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
+// Same SDK import errorReporting.ts uses internally — that module only inits Sentry, it exposes
+// no captureException helper.
+import * as Sentry from '@sentry/react-native';
 
 import { ThemeProvider, useIsDark, useTheme } from '../src/surfaces/pressureMap/kit';
 import { clerkTokenCache, getClerkPublishableKey } from '../src/folio/lib/clerkAuth';
 import { initErrorReporting } from '../src/folio/lib/errorReporting';
 import { safeZoneWidgetTaskHandler } from '../src/folio/widget/widgetTaskHandler';
+
+// ---------------------------------------------------------------------------
+// Root error boundary — the LAST line of defence, above every provider and above FolioShell's own
+// screen-level ScreenErrorBoundary. Deliberately self-contained: no `@/folio/*` imports and no
+// theme dependency (raw RN primitives + inline styles only), so it can still render its fallback
+// even when the thing that threw is the folio module graph or the theme system itself.
+// ---------------------------------------------------------------------------
+type RootErrorBoundaryProps = { children: ReactNode };
+type RootErrorBoundaryState = { hasError: boolean };
+
+class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBoundaryState> {
+  override state: RootErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): RootErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
+    // eslint-disable-next-line no-console
+    console.error('Root crashed:', error, info);
+    try {
+      Sentry.captureException(error);
+    } catch {
+      /* telemetry is best-effort — never let capture crash the fallback. */
+    }
+  }
+
+  override render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <View style={rootErrorStyles.container}>
+          <Text style={rootErrorStyles.title}>Something broke on the way in.</Text>
+          <Text style={rootErrorStyles.body}>
+            Your data is safe on this device. Close and reopen the app.
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const rootErrorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1a1a1a',
+    paddingHorizontal: 24,
+  },
+  title: {
+    color: '#f5f5f5',
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  body: {
+    color: '#c9c9c9',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+});
 
 // Crash reporting first — module scope, before anything else can throw. Privacy-tuned
 // (no PII/screenshots/tracing — see errorReporting.ts); no-op when no DSN is configured.
@@ -54,7 +123,7 @@ function ThemedRoot() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     Fraunces_400Regular,
     Fraunces_500Medium,
@@ -99,4 +168,15 @@ export default function RootLayout() {
   const clerkProps = { publishableKey, tokenCache: clerkTokenCache } as ClerkProviderProps;
 
   return <ClerkProvider {...clerkProps}>{tree}</ClerkProvider>;
+}
+
+// The default export: RootLayout wrapped in RootErrorBoundary so a throw anywhere inside it
+// (font loading, ThemeProvider, ClerkProvider setup, FolioShell's own module graph) renders the
+// calm fallback instead of a white screen.
+export default function Root(): ReactNode {
+  return (
+    <RootErrorBoundary>
+      <RootLayout />
+    </RootErrorBoundary>
+  );
 }

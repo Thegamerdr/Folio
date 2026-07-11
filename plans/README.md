@@ -28,7 +28,7 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | 107 | Truth micro-fixes (reset caption, rounding, guard formula, safeZone input) | P2 | S | B | 106 | TODO |
 | 108 | De-payday mode-aware headers + shortfall nudge (D2) | P2 | M | B | 106, 107 | TODO |
 | 105 | Reconciliation warning on closing-balance offer | P3 | S | B | — (disjoint file) | TODO |
-| 109 | Root error boundary + Sentry capture + lane catches | P1 | S | C (shell) | — | TODO |
+| 109 | Root error boundary + Sentry capture + lane catches | P1 | S | C (shell) | — | DONE (reviewed) |
 | 110 | Durable ProGuard rules + drop biometric permission | P2 | M | C | — | TODO |
 | 111 | Release-docs refresh (store declarations etc.) | P2 | S | D (docs) | — | TODO |
 | 112 | Dead-code excision stage 1 (~39k lines, enumerated) | P2 | M | E (last) | ALL above merged | TODO |

@@ -38,16 +38,20 @@ function makeDebounced(fn: () => void, ms: number): () => void {
 }
 
 async function syncNow(): Promise<void> {
-  const snapshot = buildWidgetSnapshot(getState(), new Date());
-  await writeWidgetSnapshot(snapshot);
-  // Push straight to any widget already on the home screen. `widgetNotFound` is left
-  // unset — no widget on screen is the common case (most users never add it) and needs
-  // no cleanup; the snapshot write above already covers the OS-driven redraw path for
-  // when one gets added later.
-  await requestWidgetUpdate({
-    widgetName: SAFE_ZONE_WIDGET_NAME,
-    renderWidget: () => <SafeZoneWidget snapshot={snapshot} />,
-  });
+  try {
+    const snapshot = buildWidgetSnapshot(getState(), new Date());
+    await writeWidgetSnapshot(snapshot);
+    // Push straight to any widget already on the home screen. `widgetNotFound` is left
+    // unset — no widget on screen is the common case (most users never add it) and needs
+    // no cleanup; the snapshot write above already covers the OS-driven redraw path for
+    // when one gets added later.
+    await requestWidgetUpdate({
+      widgetName: SAFE_ZONE_WIDGET_NAME,
+      renderWidget: () => <SafeZoneWidget snapshot={snapshot} />,
+    });
+  } catch {
+    /* best-effort — never blocks/crashes the lane. */
+  }
 }
 
 /** Subscribe to the store and keep the widget in sync, debounced. Returns an

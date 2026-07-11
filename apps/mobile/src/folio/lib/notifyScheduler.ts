@@ -72,38 +72,42 @@ function recordSent(plan: PlannedNotification | null): void {
 let lastSnapshot: NotifySnapshot | null = null;
 
 async function recomputeAndReschedule(): Promise<void> {
-  const state = getState();
-  const quietMode = state.melo?.quietMode ?? false;
-  if (quietMode) {
-    await reschedule([]);
-    return;
+  try {
+    const state = getState();
+    const quietMode = state.melo?.quietMode ?? false;
+    if (quietMode) {
+      await reschedule([]);
+      return;
+    }
+
+    const settings = await loadRemindersSettings();
+    if (!settings.remindersEnabled) {
+      await reschedule([]);
+      return;
+    }
+
+    const now = new Date();
+    rolloverCountersIfNewDay(now);
+
+    const route = routeFromStore(state, now);
+    const nextSnapshot = snapshotFromRoute(state, route, now);
+    const built = deriveNotifyInputs(state, route, lastSnapshot, nextSnapshot, now, {
+      sentToday,
+      dangerSentToday,
+    });
+    lastSnapshot = nextSnapshot;
+
+    if (built === null) {
+      await reschedule([]);
+      return;
+    }
+
+    const planned = planNotification(built.inputs, built.ctx);
+    recordSent(planned);
+    await reschedule(planned ? [planned] : []);
+  } catch {
+    /* best-effort — never blocks/crashes the lane. */
   }
-
-  const settings = await loadRemindersSettings();
-  if (!settings.remindersEnabled) {
-    await reschedule([]);
-    return;
-  }
-
-  const now = new Date();
-  rolloverCountersIfNewDay(now);
-
-  const route = routeFromStore(state, now);
-  const nextSnapshot = snapshotFromRoute(state, route, now);
-  const built = deriveNotifyInputs(state, route, lastSnapshot, nextSnapshot, now, {
-    sentToday,
-    dangerSentToday,
-  });
-  lastSnapshot = nextSnapshot;
-
-  if (built === null) {
-    await reschedule([]);
-    return;
-  }
-
-  const planned = planNotification(built.inputs, built.ctx);
-  recordSent(planned);
-  await reschedule(planned ? [planned] : []);
 }
 
 /**
