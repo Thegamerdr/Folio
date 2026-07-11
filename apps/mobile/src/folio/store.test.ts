@@ -1894,9 +1894,27 @@ describe('schema migration v8', () => {
     hydrateFromBlob(JSON.stringify(v7Blob));
 
     const after = getState();
-    const { incomeSources: _incomeAfter, schemaVersion: _versionAfter, ...restAfter } = after;
-    const { incomeSources: _incomeBefore, schemaVersion: _versionBefore, ...restBefore } = before;
+    const {
+      incomeSources: _incomeAfter,
+      schemaVersion: _versionAfter,
+      subs: subsAfter,
+      ...restAfter
+    } = after;
+    const {
+      incomeSources: _incomeBefore,
+      schemaVersion: _versionBefore,
+      subs: subsBefore,
+      ...restBefore
+    } = before;
     expect(restAfter).toEqual(restBefore);
+    // Subs compare modulo `nextRenewalISO`: EVERY hydration deliberately synthesizes the date
+    // anchor for legacy subs (the Phase-2 relative-day-rot fix — lib/renewalMath.ts
+    // `reanchorRenewals`, called by load()). That is hydration behaviour, not migration drift;
+    // everything else about each sub must still be byte-identical.
+    const stripAnchor = (subs: typeof subsAfter) =>
+      subs.map(({ nextRenewalISO: _anchor, ...rest }) => rest);
+    expect(stripAnchor(subsAfter)).toEqual(stripAnchor(subsBefore));
+    expect(subsAfter.every((sub) => typeof sub.nextRenewalISO === 'string')).toBe(true);
   });
 
   it('a blob that already carries incomeSources keeps them intact across migration (not re-synthesized)', () => {

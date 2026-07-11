@@ -61,7 +61,11 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { setSubs, useAppStore, type Sub } from '@/folio/store';
 import { useCaughtSubs } from '@/folio/lib/caughtSubs';
-import { nextRenewalDaysAwayFrom } from '@/folio/lib/renewalMath';
+import {
+  anchorIsoFor,
+  nextRenewalDaysAwayFrom,
+  renewalPeriodDaysFor,
+} from '@/folio/lib/renewalMath';
 import type { Cadence } from '@/folio/lib/subSignals';
 
 // ---------------------------------------------------------------------------
@@ -254,18 +258,22 @@ function SubCaughtBody({
       );
       if (!already) {
         const todayIso = new Date().toISOString().slice(0, 10);
+        // Honest renewal estimate derived from the SAME facts the detector caught (cadence +
+        // last-charged date) — never a hardcoded constant (lib/renewalMath.ts; see that module's
+        // header for the money-safety bug this replaced). The date-anchor pair makes it durable:
+        // every hydration re-derives the day count from the anchor, so it never rots.
+        const daysAway = nextRenewalDaysAwayFrom(
+          candidate.cadence,
+          candidate.lastDateIso,
+          todayIso,
+        );
+        const periodDays = renewalPeriodDaysFor(candidate.cadence);
         const newSub: Sub = {
           name: candidate.name,
           cost: candidate.amount,
-          // Honest renewal estimate derived from the SAME facts the detector caught (cadence +
-          // last-charged date) — never a hardcoded constant (lib/renewalMath.ts; see that module's
-          // header for the money-safety bug this replaced). Usage fields start neutral; the engine
-          // refines them later.
-          nextRenewalDaysAway: nextRenewalDaysAwayFrom(
-            candidate.cadence,
-            candidate.lastDateIso,
-            todayIso,
-          ),
+          nextRenewalDaysAway: daysAway,
+          nextRenewalISO: anchorIsoFor(daysAway, todayIso),
+          ...(periodDays !== undefined ? { renewalPeriodDays: periodDays } : {}),
           lastUsedDaysAgo: 0,
           usesPerMonth: 0,
         };

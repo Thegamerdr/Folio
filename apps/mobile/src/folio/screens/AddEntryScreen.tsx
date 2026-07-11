@@ -79,7 +79,7 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { addCalendarEvent, setSubs, type Sub } from '@/folio/store';
 import { buildDebtSchedule, type DebtCadence } from '@/folio/lib/debt';
-import { daysUntilDayOfMonth } from '@/folio/lib/renewalMath';
+import { anchorIsoFor, daysUntilDayOfMonth } from '@/folio/lib/renewalMath';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy (STATES.md "AddEntry" row). For this typed form, the real
@@ -253,9 +253,10 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
       // nextRenewalDaysAway seeding (2026-07-10 device-smoke fix): the old code wrote the
       // day-of-month LITERAL as the days-away count — "12th" became "due in 12 days", landing the
       // bill on a phantom calendar day for the route, the calendar, and the Bills Shield. Monthly
-      // now derives the honest days-to-next-occurrence; Weekly/Yearly seed one period out (the Sub
-      // record carries no cadence field yet — the WHEN day can't anchor those; the date-anchored
-      // bill model that fixes this properly is the audit's Phase-2 rebuild).
+      // derives the honest days-to-next-occurrence; Weekly/Yearly seed one period out. The
+      // date-anchor pair below (Phase-2 rebuild, 2026-07-11) makes the seed DURABLE: the anchor
+      // is the real due date, and every hydration re-derives the day count from it
+      // (lib/renewalMath.ts `reanchorRenewals`) so it never rots between sessions.
       const seededDaysAway =
         freq === 'Weekly'
           ? 7
@@ -266,6 +267,12 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
         name: name.trim() || 'Untitled',
         cost: value,
         nextRenewalDaysAway: seededDaysAway,
+        nextRenewalISO: anchorIsoFor(seededDaysAway, todayIso()),
+        ...(freq === 'Weekly'
+          ? { renewalPeriodDays: 7 }
+          : freq === 'Yearly'
+            ? { renewalPeriodDays: 365 }
+            : {}), // Monthly — calendar day-of-month roll (renewalPeriodDays undefined).
         lastUsedDaysAgo: 0,
         usesPerMonth: 0,
       };

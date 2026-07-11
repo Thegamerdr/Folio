@@ -132,3 +132,102 @@ export function daysUntilDayOfMonth(dayOfMonth: number, todayIso: string): numbe
   const next = addCalendarMonths({ year: today.year, month: today.month, day: wanted }, 1);
   return daysBetween(todayIso, isoOfYmd(next));
 }
+
+// ---------------------------------------------------------------------------
+// Date-anchored renewals — the Phase-2 fix for relative-day rot
+// ---------------------------------------------------------------------------
+//
+// THE ROT (MELO_ALIGNMENT_AUDIT.md, confirmed on-device 2026-07-10): `Sub.nextRenewalDaysAway`
+// is a persisted RELATIVE day count. It is written once ("due in 12 days") and then read for
+// weeks — after 7 days away from the app it is wrong by 7 days, and everything downstream
+// (route, calendar, Bills Shield, mode strategies, Melo's voice) inherits the lie.
+//
+// THE FIX SHAPE: ~30 files read `nextRenewalDaysAway` directly, so the field STAYS the universal
+// read — but it becomes DERIVED. Each sub now also carries a persisted DATE anchor
+// (`nextRenewalISO`, plus an optional fixed `renewalPeriodDays`), and `reanchorRenewals` below is
+// run at every store hydration and app-foreground: it rolls a past anchor forward by its period
+// (fixed days, or calendar-monthly keeping the original day-of-month — Jan 31 stays "the 31st,
+// clamped", never drifting to the 28th forever after one February) and recomputes the day count
+// from the anchor. A sub that predates the anchor field gets one synthesized from its current
+// day count — freezing whatever rot already happened, but stopping all future rot.
+
+/** The anchored slice of `Sub` this module needs — structural, so store.ts can import this
+ *  module without a type cycle. */
+export type AnchoredRenewal = {
+  nextRenewalDaysAway: number;
+  /** ISO `YYYY-MM-DD` the next renewal actually falls on. The durable truth the day count is
+   *  derived from. Optional for shape back-compat — `reanchorRenewals` synthesizes it. */
+  nextRenewalISO?: string;
+  /** Fixed renewal period in days (7 weekly, 14 fortnightly, 365 yearly). Undefined = calendar
+   *  monthly (same day-of-month, clamped to short months). */
+  renewalPeriodDays?: number;
+};
+
+/** The anchor date for a renewal declared as "N days away from today". */
+export function anchorIsoFor(daysAway: number, todayIso: string): string {
+  return addIsoDays(todayIso, Math.max(0, Math.round(daysAway)));
+}
+
+/** A detector cadence's fixed roll period — `undefined` means calendar-monthly (the anchor rolls
+ *  to the same day-of-month). Quarterly rides a 91-day fixed step: close enough for a roll that
+ *  only happens when the app slept past the due date, without teaching the roller a third mode. */
+export function renewalPeriodDaysFor(cadence: Cadence): number | undefined {
+  if (cadence === 'weekly') return 7;
+  if (cadence === 'fortnightly') return 14;
+  if (cadence === 'quarterly') return 91;
+  if (cadence === 'yearly') return 365;
+  return undefined;
+}
+
+/** Roll a (possibly past) anchor forward by its period until it lands on/after `todayIso`.
+ *  An anchor due TODAY is not rolled — `<= 0` still reads as "due" everywhere. */
+function rollAnchorForward(
+  anchorIso: string,
+  periodDays: number | undefined,
+  todayIso: string,
+): string {
+  if (daysBetween(anchorIso, todayIso) <= 0) return anchorIso; // today or future — keep.
+  if (periodDays !== undefined && periodDays > 0) {
+    let next = anchorIso;
+    let guard = 0;
+    while (daysBetween(next, todayIso) > 0 && guard < 10_000) {
+      next = addIsoDays(next, periodDays);
+      guard += 1;
+    }
+    return next;
+  }
+  // Calendar monthly — step whole months FROM THE ORIGINAL anchor so the day-of-month never
+  // drifts after a clamped short month (Jan 31 → Feb 28 → Mar 31, not Mar 28).
+  const origin = parseIsoDate(anchorIso);
+  for (let months = 1; months <= 1_000; months += 1) {
+    const candidate = addCalendarMonths(origin, months);
+    if (daysBetween(isoOfYmd(candidate), todayIso) <= 0) return isoOfYmd(candidate);
+  }
+  return anchorIso; // unreachable in practice (guard bound) — never loop forever.
+}
+
+/**
+ * Re-derive every renewal's day count from its date anchor, synthesizing anchors for legacy
+ * entries. Pure; returns the SAME array instance when nothing changed so store hydration can
+ * skip a redundant write. Runs at load() + app foreground (store.ts `reanchorSubRenewals`).
+ */
+export function reanchorRenewals<T extends AnchoredRenewal>(
+  items: readonly T[],
+  todayIso: string,
+): { items: T[]; changed: boolean } {
+  let changed = false;
+  const next = items.map((item) => {
+    if (item.nextRenewalISO === undefined) {
+      // Legacy entry — synthesize the anchor from today's relative count (freezes any rot that
+      // already happened; stops all future rot). The day count itself is left untouched.
+      changed = true;
+      return { ...item, nextRenewalISO: anchorIsoFor(item.nextRenewalDaysAway, todayIso) };
+    }
+    const rolled = rollAnchorForward(item.nextRenewalISO, item.renewalPeriodDays, todayIso);
+    const daysAway = Math.max(0, daysBetween(todayIso, rolled));
+    if (rolled === item.nextRenewalISO && daysAway === item.nextRenewalDaysAway) return item;
+    changed = true;
+    return { ...item, nextRenewalISO: rolled, nextRenewalDaysAway: daysAway };
+  });
+  return changed ? { items: next, changed } : { items: items as T[], changed };
+}

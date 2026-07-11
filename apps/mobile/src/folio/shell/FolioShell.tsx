@@ -100,7 +100,7 @@ import { DriftCaughtSheet } from '@/folio/sheets/DriftCaughtSheet';
 import { AnnualCaughtSheet } from '@/folio/sheets/AnnualCaughtSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
-import { useAppStore } from '@/folio/store';
+import { reanchorSubRenewals, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { endLensTrialIfExpired, useLens } from '@/folio/lib/lens';
 import { getHydrationOutcome, type HydrationOutcome } from '@/folio/lib/persist';
@@ -408,10 +408,18 @@ export function FolioShell() {
   // app returns to the foreground, so a trial whose end date passed while the app was closed locks
   // on the next open rather than living forever. Date math lives in lib/lens.ts
   // (`endLensTrialIfExpired` — same end date the countdown chip displays).
+  //
+  // Renewal re-anchor rides the same moments: every sub's relative day count is re-derived from
+  // its persisted date anchor (store.ts `reanchorSubRenewals` → lib/renewalMath.ts), so a phone
+  // that stays alive across midnight stops carrying yesterday's day counts. load() covers boot.
   useEffect(() => {
     endLensTrialIfExpired();
+    reanchorSubRenewals();
     const subscription = AppState.addEventListener('change', (status) => {
-      if (status === 'active') endLensTrialIfExpired();
+      if (status === 'active') {
+        endLensTrialIfExpired();
+        reanchorSubRenewals();
+      }
     });
     return () => subscription.remove();
   }, []);

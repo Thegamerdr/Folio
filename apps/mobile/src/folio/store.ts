@@ -23,6 +23,7 @@
 
 import { dedupeKey } from '../local/statementReaderDedup';
 import { readCacheEvictions, READ_CACHE_MAX_CANDIDATES } from './lib/billing/readAllowance';
+import { anchorIsoFor, reanchorRenewals } from './lib/renewalMath';
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import {
@@ -91,8 +92,18 @@ export type Sub = {
   /** Canonical display name — also the key used in `subPaused`. */
   name: string;
   cost: number;
-  /** Days until next renewal, relative to "now". Decremented by fastForwardMonth. */
+  /** Days until next renewal, relative to "now". Since the 2026-07-11 date-anchor fix this is
+   *  DERIVED — re-computed from `nextRenewalISO` at every hydration + app foreground
+   *  (lib/renewalMath.ts `reanchorRenewals`), so it can no longer rot between sessions. It stays
+   *  a stored field because ~30 readers consume it directly; the anchor is the truth. */
   nextRenewalDaysAway: number;
+  /** ISO `YYYY-MM-DD` the next renewal actually falls on — the durable anchor the day count
+   *  derives from. Optional for shape back-compat: a legacy sub gets one synthesized from its
+   *  current day count on first re-anchor (freezing past rot, stopping future rot). */
+  nextRenewalISO?: string;
+  /** Fixed renewal period in days (7 weekly, 14 fortnightly, 365 yearly). Undefined = calendar
+   *  monthly — the anchor rolls to the same day-of-month, clamped to short months. */
+  renewalPeriodDays?: number;
   /** Last opened/used this many days ago. */
   lastUsedDaysAgo: number;
   /** Rough monthly usage count. 0 = quiet. */
@@ -1387,7 +1398,11 @@ function load(): AppState {
     const loaded: AppState = {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       pots: migrated.pots ?? DEFAULTS.pots,
-      subs: migrated.subs ?? DEFAULTS.subs,
+      // Date-anchor re-derivation (lib/renewalMath.ts): every hydration recomputes each sub's
+      // relative day count from its persisted date anchor (synthesizing anchors for legacy
+      // subs), so `nextRenewalDaysAway` can never rot between sessions.
+      subs: reanchorRenewals(migrated.subs ?? DEFAULTS.subs, new Date().toISOString().slice(0, 10))
+        .items,
       subPaused: migrated.subPaused ?? {},
       subOverrides: migrated.subOverrides ?? {},
       cycles: migrated.cycles ?? DEFAULTS.cycles,
@@ -3066,6 +3081,15 @@ export function markWhatChangedSeen(nowISO: string) {
   setPartial({ whatChangedSeenISO: nowISO });
 }
 
+/** Re-derive every sub's `nextRenewalDaysAway` from its date anchor (lib/renewalMath.ts
+ *  `reanchorRenewals`) — the app-foreground half of the date-anchor fix (load() covers boot).
+ *  A phone that stays alive across midnight re-derives here instead of rotting until the next
+ *  cold start. No-op (no write, no listener churn) when nothing changed. */
+export function reanchorSubRenewals(todayIso: string = new Date().toISOString().slice(0, 10)) {
+  const { items, changed } = reanchorRenewals(state.subs, todayIso);
+  if (changed) setPartial({ subs: items });
+}
+
 export function setReaderClosingBalance(closingBalance: ReaderClosingBalance | null) {
   setPartial({ readerClosingBalance: closingBalance });
 }
@@ -3599,6 +3623,12 @@ export function fastForwardMonth() {
   const agedSubs = state.subs.map((s) => ({
     ...s,
     nextRenewalDaysAway: s.nextRenewalDaysAway <= 0 ? 30 : s.nextRenewalDaysAway,
+    // Re-stamp the date anchor to match the rolled day count — without this the next hydration's
+    // re-anchor (lib/renewalMath.ts) would recompute from the OLD anchor and undo the demo shift.
+    nextRenewalISO: anchorIsoFor(
+      s.nextRenewalDaysAway <= 0 ? 30 : s.nextRenewalDaysAway,
+      new Date().toISOString().slice(0, 10),
+    ),
     lastUsedDaysAgo: s.lastUsedDaysAgo + 30,
   }));
   setPartial({
