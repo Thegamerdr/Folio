@@ -48,6 +48,7 @@ import {
   hydrateFromBlob,
   isBankTxn,
   isRealUser,
+  logDebtPayment,
   matchMeloTool,
   purgeSeedIfReal,
   stripSeedData,
@@ -78,6 +79,7 @@ import {
   syncHistoryCycles,
   togglePaused,
   totalDebtMinor,
+  undoDebtPayment,
   upsertIncomeSource,
 } from './store';
 import type { CandidateMoneyItem } from './lib/importSheet';
@@ -920,6 +922,82 @@ describe('credit-cards as liabilities (ACCOUNTS_MODEL.md P2)', () => {
     expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, card.id, 0)).toBe(false);
     expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, 'acct-nope', 10)).toBe(false);
     expect(payCreditCardFromBank(card.id, card.id, 10)).toBe(false); // "bank" side is itself a liability
+  });
+});
+
+// ---------------------------------------------------------------------------
+// logDebtPayment / undoDebtPayment — card-linked debt/account sync (plan 103).
+// A card-linked Debt mirrors an Account (Debt.linkedAccountId): logging or
+// undoing a payment against the Debt must land on the linked Account's
+// balanceMinor in the SAME write, or the Debt-lens figure and the
+// account/net-worth figure disagree, and the next statement import
+// (syncCardDebt) silently erases the payment from the Debt row.
+// ---------------------------------------------------------------------------
+describe('logDebtPayment — card-linked debt/account sync', () => {
+  it('logDebtPayment on a card-linked debt decrements both the Debt balance and the linked Account balanceMinor', () => {
+    resetToEmpty();
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 200 });
+    const debt = addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+
+    logDebtPayment(debt!.id, 50);
+
+    expect(getState().debts?.find((d) => d.id === debt!.id)?.balance).toBe(150);
+    expect(getState().accounts?.find((a) => a.id === card.id)?.balanceMinor).toBe(150);
+  });
+
+  it('undoDebtPayment on a card-linked debt restores both the Debt balance and the linked Account balanceMinor', () => {
+    resetToEmpty();
+    const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 200 });
+    const debt = addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
+    logDebtPayment(debt!.id, 50);
+
+    undoDebtPayment(debt!.id, 50);
+
+    expect(getState().debts?.find((d) => d.id === debt!.id)?.balance).toBe(200);
+    expect(getState().accounts?.find((a) => a.id === card.id)?.balanceMinor).toBe(200);
+  });
+
+  it('logDebtPayment on an unlinked debt changes only the debt; accounts are untouched', () => {
+    resetToEmpty();
+    const accountsBefore = getState().accounts;
+    const loan = addDebt({
+      name: 'Personal loan',
+      kind: 'loan',
+      balance: 2400,
+      apr: 12.9,
+      minPayment: 120,
+      dueDom: 5,
+    });
+
+    logDebtPayment(loan.id, 100);
+
+    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(2300);
+    expect(getState().accounts).toEqual(accountsBefore);
+  });
+
+  it('logDebtPayment/undoDebtPayment on an unlinked debt keep their existing no-op and clamp behaviour', () => {
+    resetToEmpty();
+    const loan = addDebt({
+      name: 'Personal loan',
+      kind: 'loan',
+      balance: 40,
+      apr: 12.9,
+      minPayment: 10,
+      dueDom: 5,
+    });
+
+    logDebtPayment(loan.id, 0); // no-op: amount not > 0
+    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(40);
+
+    logDebtPayment(loan.id, 100); // clamps at £0, never negative
+    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(0);
+
+    undoDebtPayment(loan.id, 25); // adds back, no clamp
+    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(25);
+
+    logDebtPayment('debt-nope', 10); // unknown id: no-op, no throw
+    undoDebtPayment('debt-nope', 10);
+    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(25);
   });
 });
 

@@ -2382,26 +2382,55 @@ export function removeDebt(id: string) {
   setPartial({ debts: (state.debts ?? []).filter((d) => d.id !== id) });
 }
 
-/** Log a payment against a debt — decrements the balance, never below £0. */
+/** Log a payment against a debt — decrements the balance, never below £0. A card-linked Debt
+ *  mirrors an Account (see `Debt.linkedAccountId`'s doc) — a payment must land on BOTH in one
+ *  write, or the next `syncCardDebt` (statement import) erases it. */
 export function logDebtPayment(id: string, amount: number) {
   if (!(amount > 0)) return;
-  setPartial({
-    debts: (state.debts ?? []).map((d) =>
-      d.id === id ? { ...d, balance: Math.max(0, d.balance - amount) } : d,
-    ),
-  });
+  const target = (state.debts ?? []).find((d) => d.id === id);
+  if (target === undefined) return;
+  const nextDebts = (state.debts ?? []).map((d) =>
+    d.id === id ? { ...d, balance: Math.max(0, d.balance - amount) } : d,
+  );
+  const linkedId = target.linkedAccountId;
+  if (linkedId !== undefined) {
+    const accounts = (state.accounts ?? []).map((a) =>
+      a.id === linkedId
+        ? {
+            ...a,
+            balanceMinor: Math.max(0, a.balanceMinor - amount),
+            balanceAsOfISO: new Date().toISOString(),
+          }
+        : a,
+    );
+    setPartial({ debts: nextDebts, accounts });
+    return;
+  }
+  setPartial({ debts: nextDebts });
 }
 
 /** Reverses a logged payment — increments the balance back by `amount`. Used by LogPaymentSheet's
  *  Tier-1 undo window (useUndo/showUndo) so tapping Undo restores exactly what was paid, mirroring
- *  the pattern EditTxnSheet uses for its own undo snapshot-restore. */
+ *  the pattern EditTxnSheet uses for its own undo snapshot-restore. Mirrors `logDebtPayment`'s
+ *  linked-account sync so an undo restores BOTH sides. */
 export function undoDebtPayment(id: string, amount: number) {
   if (!(amount > 0)) return;
-  setPartial({
-    debts: (state.debts ?? []).map((d) =>
-      d.id === id ? { ...d, balance: d.balance + amount } : d,
-    ),
-  });
+  const target = (state.debts ?? []).find((d) => d.id === id);
+  if (target === undefined) return;
+  const nextDebts = (state.debts ?? []).map((d) =>
+    d.id === id ? { ...d, balance: d.balance + amount } : d,
+  );
+  const linkedId = target.linkedAccountId;
+  if (linkedId !== undefined) {
+    const accounts = (state.accounts ?? []).map((a) =>
+      a.id === linkedId
+        ? { ...a, balanceMinor: a.balanceMinor + amount, balanceAsOfISO: new Date().toISOString() }
+        : a,
+    );
+    setPartial({ debts: nextDebts, accounts });
+    return;
+  }
+  setPartial({ debts: nextDebts });
 }
 
 /** ACCOUNTS_MODEL.md §2.4 point 3 — the payment-path seam for a credit-card `Account` linked to a
