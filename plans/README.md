@@ -32,6 +32,7 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | 110 | Durable ProGuard rules + drop biometric permission | P2 | M | C | — | DONE (reviewed; commit a2ef35d; R8 merged-config verified; release APK boot-checked clean on emulator-5554) |
 | 111 | Release-docs refresh (store declarations etc.) | P2 | S | D (docs) | — | DONE (reviewed) |
 | 112 | Dead-code excision stage 1 (~39k lines, enumerated) | P2 | M | E (last) | ALL above merged | DONE (executor died mid-run; reviewer completed Steps 5–7; 2 unpredicted type-only edges resolved — see commit) |
+| 113 | Restore from a Folio export (afternoon wave) | P1 | M | A/B | — | DONE (reviewer-executed; round-trip unit-proven; emulator UI drill rides the next build) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale)
 

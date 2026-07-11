@@ -10,6 +10,9 @@
 //               empty"). NO post-wipe Undo (D3: no fake undo after a confirmed wipe).
 // @writes-export runExport() — "Export my data" runs the real export engine (full JSON + CSVs +
 //               OS share sheet, ENGINES §6 D6). It opens the OS share sheet itself, not a Folio sheet.
+// @writes-restore pickRestoreFile()/applyRestore() (plan 113) — "Restore from an export" loads a
+//               folio-export.json back in through the store's own cold-boot hydration path, behind
+//               a two-gate confirm that shows the file's contents first. Replaces current state.
 // @copy         FROZEN — must match what the app actually does. No false claims. Checked by the RN
 //               copy-lint tests (copyLint.test.ts): no banned words, no false privacy/security claims.
 // @tokens       calm (accent) · positive (check) · repair (negative reset rows) · surface · hairline
@@ -104,6 +107,7 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { resetAll, resetToEmpty } from '@/folio/store';
 import { runExport } from '@/folio/lib/exportNative';
+import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
 import type { Nav } from '@/folio/types';
 
@@ -286,6 +290,76 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       performReset(resetToEmpty, 'Cleared to empty', 'Everything cleared. The app is empty now.'),
     );
 
+  // Restore from an export (plan 113) — the recovery path the wipe chain's first gate points at.
+  // pickRestoreFile opens the system picker and validates the file BEFORE anything is touched;
+  // the two-gate confirm shows what the file holds (counts + name) and says plainly that loading
+  // it replaces current state; only the final branch applies. applyRestore routes through the
+  // store's own cold-boot hydration (migrate/guards/re-anchor) — a restore and a first run are
+  // the same code path. Degraded (= the pipeline threw and state fell back to defaults) is
+  // reported honestly; per-field corruption defaults silently, same as any boot.
+  const handleRestore = () => {
+    void (async () => {
+      const picked = await pickRestoreFile();
+      if (picked.status === 'cancelled') return;
+      if (picked.status === 'invalid') {
+        Alert.alert(
+          'Couldn’t read that file',
+          'That file doesn’t look like a Folio export. Pick the folio-export.json from an export.',
+          [{ text: 'OK', style: 'cancel' }],
+          { cancelable: true },
+        );
+        return;
+      }
+      const { summary, raw, fileName } = picked;
+      const who = summary.name !== null ? ` for ${summary.name}` : '';
+      // Gate 1 — what the file holds + what loading it does, before anything changes.
+      Alert.alert(
+        'Restore from this export?',
+        `${fileName} holds ${summary.transactions} transactions, ${summary.subs} subscriptions and ${summary.pots} pots${who}. Loading it replaces everything currently in the app — export your current data first if you want to keep it.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Continue',
+            onPress: () => {
+              // Gate 2 — the final replace confirm; only this branch applies the file.
+              Alert.alert(
+                'Replace everything now?',
+                'What’s in the app now is overwritten by the file.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Restore',
+                    style: 'destructive',
+                    onPress: () => {
+                      void applyRestore(raw).then(({ degraded }) => {
+                        Alert.alert(
+                          degraded ? 'Restored with gaps' : 'Restored',
+                          degraded
+                            ? 'The file couldn’t be fully read — what loaded is in place, the rest was reset.'
+                            : 'Your data is back.',
+                          [{ text: 'OK', style: 'cancel' }],
+                          { cancelable: true },
+                        );
+                      });
+                    },
+                  },
+                ],
+                { cancelable: true },
+              );
+            },
+          },
+        ],
+        { cancelable: true },
+      );
+    })().catch((err: unknown) => {
+      const message =
+        err instanceof Error ? err.message : 'Restore could not finish on this device.';
+      Alert.alert('Restore didn’t finish', message, [{ text: 'OK', style: 'cancel' }], {
+        cancelable: true,
+      });
+    });
+  };
+
   // Export my data — runs the REAL export engine (ENGINES §6 D6 "export everything", free + never
   // paywalled). runExport builds the complete JSON + per-surface CSVs from live state, writes them to
   // the app's document directory, and opens the OS share sheet on the canonical JSON. It opens the OS
@@ -433,7 +507,27 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
             <ChevronRight color={t.muted} />
           </Pressable>
 
-          {/* Inter-row divider (web divide-y) — between "See what's saved" and "Reset to the demo". */}
+          {/* Inter-row divider (web divide-y) — between "See what's saved" and "Restore". */}
+          <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
+
+          {/* Restore from an export — loads a folio-export.json back in (plan 113). Ink title (its
+            intent is recovery), truthful subtitle; the two-gate confirm carries the replace weight. */}
+          <Pressable
+            accessibilityHint="Asks you to pick an export file and confirm before replacing your data"
+            accessibilityRole="button"
+            onPress={handleRestore}
+            style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
+          >
+            <View style={styles.actionText}>
+              <Text style={[styles.actionTitle, { color: t.ink }]}>Restore from an export</Text>
+              <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+                loads a folio-export.json, replaces what&apos;s here
+              </Text>
+            </View>
+            <ChevronRight color={t.muted} />
+          </Pressable>
+
+          {/* Inter-row divider — between "Restore" and "Reset to the demo". */}
           <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
 
           {/* Reset to the demo — resetAll(): wipes your data, then puts the example data back. */}
