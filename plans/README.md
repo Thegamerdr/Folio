@@ -32,7 +32,9 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | 110 | Durable ProGuard rules + drop biometric permission | P2 | M | C | — | DONE (reviewed; commit a2ef35d; R8 merged-config verified; release APK boot-checked clean on emulator-5554) |
 | 111 | Release-docs refresh (store declarations etc.) | P2 | S | D (docs) | — | DONE (reviewed) |
 | 112 | Dead-code excision stage 1 (~39k lines, enumerated) | P2 | M | E (last) | ALL above merged | DONE (executor died mid-run; reviewer completed Steps 5–7; 2 unpredicted type-only edges resolved — see commit) |
-| 113 | Restore from a Folio export (afternoon wave) | P1 | M | A/B | — | DONE (reviewer-executed; round-trip unit-proven AND emulator UI drill passed 2026-07-11: picker→summary confirm→replace→restored state rendered on Today; dark-mode sweep of Today/Review/Melo/More/Privacy clean — 2 nits fixed, "Folio" wordmark question logged for owner) |
+| 113 | Restore from a Folio export (afternoon wave) | P1 | M | A/B | — | DONE (reviewer-executed; round-trip unit-proven AND emulator UI drill passed 2026-07-11: picker→summary confirm→replace→restored state rendered on Today; dark-mode sweep of Today/Review/Melo/More/Privacy clean — 2 nits fixed) |
+| 114 | Owner-reported reset truth leaks (evening wave) | P0 | M | A/B | — | DONE (`2e355d0`: resetToEmpty zeroes income; Recovery/PdfSuccess fabricated content excised + noFabricatedContent guard; Visualizer sample-meta precedence flipped) |
+| 115 | Melo brand sweep — completes D4 (owner: "Call the app Melo") | P1 | S | B | — | DONE (`8dcad4a`: launcher/widget/permission-dialog labels + every user-visible string; package id/scheme/filenames deliberately unchanged) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale)
 
