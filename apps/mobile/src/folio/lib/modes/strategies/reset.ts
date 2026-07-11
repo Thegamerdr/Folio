@@ -22,10 +22,18 @@ const VOICE: MeloVoiceTint = {
     'Mode: Reset. The user is recovering. One tiny move per surface. Never a plan longer than this week. Never celebratory.',
 };
 
+/** The essentials-per-day denominator `daysCovered` divides by. Exported so any caption
+ *  that quotes a "~£X/day" figure alongside the day count (e.g. TodayModeScreen's Reset
+ *  hero) uses the SAME number the day count came from, instead of re-deriving its own
+ *  (previously-diverging) formula. */
+export function resetEssentialsPerDay(monthlyIncome: number): number {
+  return Math.max(5, (monthlyIncome * 0.4) / 30);
+}
+
 function derive(inputs: ModeInputs): ModeState {
   const { currentBalance, pots, onboarding, hour, ritualCompletedRecently } = inputs;
 
-  const essentialsPerDay = Math.max(5, (onboarding.monthlyIncome * 0.4) / 30);
+  const essentialsPerDay = resetEssentialsPerDay(onboarding.monthlyIncome);
   const earmarked = pots.reduce((s, p) => s + Math.max(0, p.saved), 0);
   const available = Math.max(0, currentBalance.amount - earmarked);
   const daysCovered = Math.floor(available / essentialsPerDay);

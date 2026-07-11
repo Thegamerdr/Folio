@@ -91,7 +91,10 @@ function shieldedBills(inputs: ModeInputs): number {
 }
 
 export function safeZoneMath(inputs: ModeInputs): SafeZoneMath {
-  const balance = Math.max(0, inputs.currentBalance?.amount ?? 0);
+  // Deliberately UNCLAMPED (plan 107 Step 4): an overdrawn account must compute shield math
+  // against the true negative balance, not a fictional £0 — the old Math.max(0, ...) here made
+  // the sheet/widget show "£0 safe" with no crisis context.
+  const balance = inputs.currentBalance?.amount ?? 0;
   const buffer = Math.max(0, inputs.bufferAmount ?? 100);
   const shield = shieldedBills(inputs);
 
@@ -113,7 +116,12 @@ export function safeZoneMath(inputs: ModeInputs): SafeZoneMath {
     },
   ];
 
-  const total = floorPound(balance - shield - buffer);
+  // Signed, unclamped total (plan 107 Step 4) — Math.floor (not floorPound) so an overdrawn
+  // zone reads its true negative figure. Still rounds DOWN to the pound (more negative when
+  // negative), so headroom is never over-promised. `perDay` keeps the ≥0 floor: a "−£X/day"
+  // pace is not a spendable number, and every consumer renders £0/day alongside the negative
+  // total's own crisis styling.
+  const total = Math.floor(balance - shield - buffer);
   const daysLeft = daysBetween(null, inputs.tightestDate);
   const perDay = floorPound(daysLeft > 0 ? total / daysLeft : total);
 

@@ -41,6 +41,7 @@ import { StubDisclaimer } from '@/folio/ui/StubDisclaimer';
 import { useLens } from '@/folio/lib/lens';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
 import { computeLeaks, type OptimizerLeak } from '@/folio/lib/modes/strategies/optimizer';
+import { resetEssentialsPerDay } from '@/folio/lib/modes/strategies/reset';
 import * as debtEngine from '@/folio/lib/modes/debtEngine';
 import {
   computeBillSplits,
@@ -67,6 +68,11 @@ type HeroCtx = {
   currentBalance: number;
   monthlyIn: number;
   monthlyOut: number;
+  /** Raw `onboarding.monthlyIncome` — the exact input `resetStrategy.derive` feeds into
+   *  `resetEssentialsPerDay` to produce the Reset day count. Deliberately distinct from
+   *  `monthlyIn` (which is `selectMonthlyIncome`, a different derived figure) so the Reset
+   *  hero's "~£X/day" caption divides by the SAME number the day count above it divides by. */
+  onboardingMonthlyIncome: number;
   subsCount: number;
   potsSaved: number;
   potsTarget: number;
@@ -614,7 +620,10 @@ const HERO: Record<
     render: (c, t) => {
       const days = Math.max(0, Math.round(c.amount));
       const target = 14;
-      const dailyEssentials = Math.max(15, c.monthlyOut / 30);
+      // Same denominator resetStrategy.derive() divided by to produce `days` above — was
+      // previously a different local formula (Math.max(15, c.monthlyOut / 30)) that could
+      // make "N days" and "~£X/day" not multiply back to anything real (plan 107 Step 2).
+      const dailyEssentials = resetEssentialsPerDay(c.onboardingMonthlyIncome);
       const tone = days < 3 ? t.repair : days < 7 ? t.caution : t.positive;
       const move =
         days < 3
@@ -944,6 +953,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     currentBalance: currentBalance.amount,
     monthlyIn,
     monthlyOut,
+    onboardingMonthlyIncome: onboarding.monthlyIncome,
     subsCount: subs.length,
     potsSaved,
     potsTarget,

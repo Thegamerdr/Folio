@@ -217,7 +217,7 @@ export function TodayNudges({
       onPress: () => nav.openMelo({ prefill: `Yes — pause ${nextSub.name} for a month.` }),
     });
   } else if (tightPointGoal && tightestSpare !== null && tightestSpare < tightPointGoal) {
-    const gapToFind = tightPointGoal - tightestSpare;
+    const gapToFind = Math.round(tightPointGoal - tightestSpare);
     nudges.push({
       key: 'melo-tight',
       tone: 'melo',

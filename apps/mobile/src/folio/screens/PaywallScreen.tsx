@@ -55,6 +55,7 @@ import { setLensFullUnlocked } from '@/folio/store';
 import { useLens, trialEndIsoFor, FREE_LENSES, FULL_LENSES } from '@/folio/lib/lens';
 import { canShowUpsell, upsellSuppressionReason } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
+import { safeZoneMath } from '@/folio/lib/modes/safeZone';
 import { useRoute } from '@/folio/lib/storeRoute';
 import {
   probeAvailability,
@@ -235,9 +236,23 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
 
   const route = useRoute(new Date());
 
+  // Canonical Safe Zone total (balance − Bills Shield − buffer) — was a home-rolled
+  // balance-minus-pots figure that ignored shielded bills and the user's buffer, so it read
+  // more generous than the real Safe Zone and could let the never-sell-in-a-bad-moment guard
+  // (canShowUpsell) allow an upsell exactly when the real Safe Zone was ≤ 0 (plan 107 Step 3).
   const safeZoneTotal = useMemo(
-    () => currentBalance.amount - pots.reduce((sum, p) => sum + Math.max(0, p.saved), 0),
-    [currentBalance, pots],
+    () =>
+      safeZoneMath({
+        currentBalance,
+        onboarding,
+        pots,
+        subs,
+        subPaused,
+        tightestSpare: route.tightPoint.amount,
+        tightestDate: route.tightPoint.date,
+        ritualCompletedRecently: false,
+      }).total,
+    [currentBalance, onboarding, pots, subs, subPaused, route],
   );
 
   const modeState = useMemo(

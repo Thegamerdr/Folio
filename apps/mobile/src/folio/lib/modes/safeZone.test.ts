@@ -46,9 +46,7 @@ describe('safeZoneMath — Bills Shield window', () => {
     // Tight date 11.4 days out (fractional on purpose): round() would give 11 and exclude a
     // 12-days-away bill; ceil() gives 12 and includes it — the on-device £0-shield repro.
     const tightestDate = new Date(Date.now() + 11.4 * DAY_MS).toISOString();
-    const zone = safeZoneMath(
-      inputsWith({ tightestDate, subs: [sub('Rent', 120, 12)] }),
-    );
+    const zone = safeZoneMath(inputsWith({ tightestDate, subs: [sub('Rent', 120, 12)] }));
 
     const shield = zone.lines.find((line) => line.key === 'shield');
     expect(shield?.amount).toBe(-120);
@@ -57,9 +55,7 @@ describe('safeZoneMath — Bills Shield window', () => {
 
   it('a bill beyond the window is not shielded', () => {
     const tightestDate = new Date(Date.now() + 11.4 * DAY_MS).toISOString();
-    const zone = safeZoneMath(
-      inputsWith({ tightestDate, subs: [sub('Insurance', 80, 20)] }),
-    );
+    const zone = safeZoneMath(inputsWith({ tightestDate, subs: [sub('Insurance', 80, 20)] }));
 
     const shield = zone.lines.find((line) => line.key === 'shield');
     expect(shield?.amount).toBe(-0);
@@ -85,5 +81,33 @@ describe('safeZoneMath — Bills Shield window', () => {
     const shield = zone.lines.find((line) => line.key === 'shield');
     expect(shield?.amount).toBe(-0);
     expect(zone.total).toBe(2150 - 100);
+  });
+
+  it('an overdrawn balance flows through unclamped: −40 with a £20 shielded bill → total −60', () => {
+    // Plan 107 Step 4: the input balance is no longer floored at £0, so shield math runs on
+    // the true negative figure and the total goes signed (−40 − 20 − buffer 0 = −60) instead
+    // of the old fictional "£0 safe".
+    const tightestDate = new Date(Date.now() + 11.4 * DAY_MS).toISOString();
+    const zone = safeZoneMath(
+      inputsWith({
+        currentBalance: {
+          amount: -40,
+          source: 'user-entered',
+          confidence: 'rough',
+          setAt: new Date().toISOString(),
+        },
+        tightestDate,
+        subs: [sub('Rent', 20, 3)],
+        bufferAmount: 0,
+      }),
+    );
+
+    const balanceLine = zone.lines.find((line) => line.key === 'balance');
+    expect(balanceLine?.amount).toBe(-40);
+    const shield = zone.lines.find((line) => line.key === 'shield');
+    expect(shield?.amount).toBe(-20);
+    expect(zone.total).toBe(-60);
+    // perDay keeps its ≥0 floor — a negative "per day" is not a spendable pace.
+    expect(zone.perDay).toBe(0);
   });
 });

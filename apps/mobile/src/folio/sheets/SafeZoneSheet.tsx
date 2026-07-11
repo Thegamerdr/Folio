@@ -18,6 +18,7 @@ import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme
 import { useAppStore, setBufferAmount } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { safeZoneMath } from '@/folio/lib/modes/safeZone';
+import { formatGBP } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
 
 export type SafeZoneSheetProps = {
@@ -76,8 +77,12 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
       <View style={s.body}>
         <Text style={s.eyebrow}>Your Safe Zone</Text>
         <View style={s.numberRow}>
+          {/* Sign-aware headline (plan 107 Step 4): `formatGBP` renders negatives as `−£60`
+              (minus BEFORE the pound sign — same convention as SafeZoneWidget's formatter),
+              where the old inline template produced the garbled `£-60`. Positive output shape
+              is identical (whole pounds, en-GB grouping — zone.total is already an integer). */}
           <Text style={[s.number, { color: zone.total <= 0 ? t.repair : t.ink }]}>
-            £{Math.round(zone.total).toLocaleString('en-GB')}
+            {formatGBP(zone.total)}
           </Text>
           <Text style={s.numberCaption}>· about £{zone.perDay}/day</Text>
         </View>

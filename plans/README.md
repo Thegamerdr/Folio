@@ -25,7 +25,7 @@ checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
 | 103 | Linked-debt payment/account sync | P2 | S | A | not-concurrent-with 101/104 | TODO |
 | 104 | setCurrentBalance recomputes bank total | P2 | S | A | not-concurrent-with 101/103 | TODO |
 | 106 | Trial-ended acknowledgement row | P1 | S | B (UI) | — | DONE (reviewed) |
-| 107 | Truth micro-fixes (reset caption, rounding, guard formula, safeZone input) | P2 | S | B | 106 | TODO |
+| 107 | Truth micro-fixes (reset caption, rounding, guard formula, safeZone input) | P2 | S | B | 106 | DONE (reviewed; scope amended +SafeZoneSheet) |
 | 108 | De-payday mode-aware headers + shortfall nudge (D2) | P2 | M | B | 106, 107 | TODO |
 | 105 | Reconciliation warning on closing-balance offer | P3 | S | B | — (disjoint file) | TODO |
 | 109 | Root error boundary + Sentry capture + lane catches | P1 | S | C (shell) | — | DONE (reviewed) |
