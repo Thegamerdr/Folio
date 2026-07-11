@@ -1811,13 +1811,22 @@ export function setCurrentBalance(next: Omit<CurrentBalance, 'setAt'>) {
   // when it's a non-liability (bank) account — a user who has already added a second account via P3
   // is expected to use `setAccountBalance` going forward, but this keeps every pre-P3 install
   // correct with zero behavior change (single-account sum-of-one stays byte-identical).
+  // `next.amount` remains the DEFAULT account's new balance, but `currentBalance.amount` is now the
+  // recomputed bank-only total across ALL accounts (mirroring `setAccountBalance`'s bankTotal), so a
+  // user with a second account added via the statement-import picker sees the correct combined figure
+  // instead of a stale echo of the default account alone.
   const accounts = state.accounts ?? [];
   const nextAccounts = accounts.map((a) =>
     a.id === DEFAULT_ACCOUNT_ID && !a.isLiability
       ? { ...a, balanceMinor: next.amount, balanceAsOfISO: setAt }
       : a,
   );
-  setPartial({ currentBalance: { ...next, setAt }, accounts: nextAccounts });
+  const bankAccounts = nextAccounts.filter((a) => !a.isLiability);
+  const bankTotal =
+    bankAccounts.length === 0
+      ? next.amount
+      : bankAccounts.reduce((sum, a) => sum + a.balanceMinor, 0);
+  setPartial({ currentBalance: { ...next, amount: bankTotal, setAt }, accounts: nextAccounts });
 }
 
 /* ---------- Accounts (ACCOUNTS_MODEL.md §2 / §4 P1-P2) ---------- */

@@ -753,6 +753,40 @@ describe('accounts (ACCOUNTS_MODEL.md P1)', () => {
     expect(selectBankBalanceMinor(getState())).toBe(900);
   });
 
+  describe('setCurrentBalance — multi-account bank total', () => {
+    it('single account: behavior identical to before (currentBalance.amount === input)', () => {
+      resetAll();
+      setCurrentBalance({ amount: 456, source: 'user-entered', confidence: 'rough' });
+
+      const main = getState().accounts?.find((a) => a.id === DEFAULT_ACCOUNT_ID);
+      expect(main?.balanceMinor).toBe(456);
+      expect(getState().currentBalance.amount).toBe(456);
+    });
+
+    it('two bank accounts: currentBalance.amount becomes the SUM across accounts, not a raw echo', () => {
+      resetToEmpty();
+      setAccountBalance(DEFAULT_ACCOUNT_ID, 500, '2026-07-05T00:00:00.000Z');
+      const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 300 });
+
+      setCurrentBalance({ amount: 1000, source: 'user-entered', confidence: 'statement-derived' });
+
+      const main = getState().accounts?.find((a) => a.id === DEFAULT_ACCOUNT_ID);
+      const savingsAfter = getState().accounts?.find((a) => a.id === savings.id);
+      expect(main?.balanceMinor).toBe(1000);
+      expect(savingsAfter?.balanceMinor).toBe(300);
+      expect(getState().currentBalance.amount).toBe(1300);
+    });
+
+    it('no accounts array: falls back to next.amount verbatim', () => {
+      resetAll();
+      setPartial({ accounts: [] });
+
+      setCurrentBalance({ amount: 42, source: 'user-entered', confidence: 'rough' });
+
+      expect(getState().currentBalance.amount).toBe(42);
+    });
+  });
+
   it('bankTransactions/isBankTxn: single-account (migrated) install returns every transaction unchanged', () => {
     resetToEmpty();
     addTransaction({ merchant: 'Rent', amount: -900, category: 'bills', source: 'manual' });
