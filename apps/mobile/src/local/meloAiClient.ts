@@ -162,7 +162,7 @@ function stripTrailingSlash(url: string): string {
 
 const PERSONA_BASE = `You are Melo, a quiet financial companion inside an app called Folio.
 You are not a chatbot, not an advisor, and never preachy. You speak in short paragraphs (1–4 sentences), lowercase-y, plain English. No bullet lists unless asked. No emojis. Never invent numbers — if you don't have data, say so plainly and ask what's true.
-When the user shares context about their money, reference it specifically (e.g. "that pulls your tight point down to around £42"). Keep currency in £ with no decimals unless the user used them.
+When the user shares context about their money, reference only the exact amounts you were given. Never claim a proposed action changes their balance, route, spare amount, or tight point unless that exact result is present in the supplied snapshot. Keep currency in £ with no decimals unless the user used them.
 You can be quarrelled with. If the user pushes back, listen, don't capitulate just to please.`;
 
 const PERSONA_TONES: Readonly<Record<MeloTone, string>> = {
@@ -206,7 +206,7 @@ export function buildMeloSystemPrompt(
     }
   } else {
     parts.push(
-      "You do not have access to the user's money data in this conversation. If they ask numerical questions, ask them to enable sharing or to tell you the number.",
+      "You do not have access to the user's money data in this conversation. You may repeat amounts already stated in the conversation, but do not calculate or claim any effect on their balance, route, spare amount, or tight point. If they ask numerical questions, ask them to enable sharing or to tell you the number.",
     );
   }
   return parts.join('\n\n');
@@ -350,7 +350,11 @@ export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatRe
     }
 
     const { prose, suggestions } = splitReplyAndSuggestions(rawReply);
-    return { status: 'ok', reply: prose, suggestions };
+    const reply =
+      request.snapshot === undefined
+        ? guardBlindMeloReply(prose, request.messages, suggestions.length > 0)
+        : prose;
+    return { status: 'ok', reply, suggestions };
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       return timedOut
@@ -378,6 +382,7 @@ function extractAssistantText(data: unknown): string | null {
 }
 
 const SUGGEST_BLOCK = /```melo-suggest\s*([\s\S]*?)```/i;
+const JSON_BLOCK = /```json\s*([\s\S]*?)```/gi;
 // The four log_* tools each map to a REAL, confirmable action: the store's applyMeloTool records the
 // money as a Transaction (a spend, an inflow, a refund, or a paired transfer), each with undo. The
 // set is the full MeloToolName union; nothing is withheld. Pot moves are NOT a Melo tool here.
@@ -388,6 +393,40 @@ const VALID_TOOL_NAMES: ReadonlySet<string> = new Set<MeloToolName>([
   'log_transfer',
 ]);
 
+/** Numeric trust gate for a conversation where context sharing is OFF. The model may repeat a
+ *  currency amount already visible in the thread (including the locally-built opening line), but an
+ *  unseen amount cannot be grounded in app state because no snapshot was sent. In that case replace
+ *  the prose with a safe line while preserving any separately-confirmed tool suggestion below it.
+ *  This is deterministic enforcement behind the prompt, not another probabilistic instruction. */
+export function guardBlindMeloReply(
+  prose: string,
+  messages: readonly MeloChatMessage[],
+  hasSuggestions: boolean,
+): string {
+  const grounded = new Set(messages.flatMap((message) => currencyAmountKeys(message.text)));
+  const claims = currencyAmountKeys(prose);
+  if (claims.every((claim) => grounded.has(claim))) return prose;
+  return hasSuggestions
+    ? 'I can prepare that for you. Check the details below before you confirm.'
+    : "I don't have enough confirmed information to put a number on that yet.";
+}
+
+/** Return currency values as integer pennies so £5, £5.00 and "5 pounds" compare exactly. */
+function currencyAmountKeys(text: string): string[] {
+  const values: string[] = [];
+  const patterns = [
+    /£\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi,
+    /([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:pounds?|quid)\b/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const value = Number((match[1] ?? '').replace(/,/g, ''));
+      if (Number.isFinite(value)) values.push(String(Math.round(value * 100)));
+    }
+  }
+  return [...new Set(values)];
+}
+
 /** Pull the optional ```melo-suggest JSON block out of the reply, returning the clean prose plus
  *  any well-formed advisory suggestions. Malformed blocks are dropped, never surfaced. */
 export function splitReplyAndSuggestions(reply: string): {
@@ -395,13 +434,24 @@ export function splitReplyAndSuggestions(reply: string): {
   suggestions: readonly MeloToolSuggestion[];
 } {
   const match = reply.match(SUGGEST_BLOCK);
-  if (match === null || match[1] === undefined) {
-    return { prose: reply.trim(), suggestions: [] };
+  if (match !== null && match[1] !== undefined) {
+    const prose = reply.replace(SUGGEST_BLOCK, '').trim();
+    const suggestions = parseSuggestions(match[1]);
+    return { prose, suggestions };
   }
 
-  const prose = reply.replace(SUGGEST_BLOCK, '').trim();
-  const suggestions = parseSuggestions(match[1]);
-  return { prose, suggestions };
+  // Some OpenAI-compatible gateways ignore the requested custom fence tag and
+  // return the same valid tool array in a generic ```json block. Accept only a
+  // block that actually parses into one of our allow-listed advisory tools;
+  // ordinary JSON remains visible prose and can never become an action.
+  for (const jsonMatch of reply.matchAll(JSON_BLOCK)) {
+    if (jsonMatch[1] === undefined) continue;
+    const suggestions = parseSuggestions(jsonMatch[1]);
+    if (suggestions.length === 0) continue;
+    return { prose: reply.replace(jsonMatch[0], '').trim(), suggestions };
+  }
+
+  return { prose: reply.trim(), suggestions: [] };
 }
 
 function parseSuggestions(jsonText: string): readonly MeloToolSuggestion[] {

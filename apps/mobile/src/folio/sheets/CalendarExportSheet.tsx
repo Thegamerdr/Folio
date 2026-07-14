@@ -83,7 +83,7 @@ const COPY = {
   eyebrow: 'Subscribe', // also the Sheet-chrome title
   headlineLead: 'Your money dates, in your ', // **calendar.** is the accent word
   headlineAccent: 'calendar.',
-  lead: "One-way — your money moves into your calendar app. Folio doesn't read anything back.",
+  lead: "One-way — your money moves into your calendar app. Melo doesn't read anything back.",
   includedLabel: "What's included",
   download: 'Download calendar file',
   orSubscribe: 'Or subscribe',

@@ -430,9 +430,9 @@ export function PdfSuccessScreen({
             candidates={rawCandidates}
             {...(closingBalance !== undefined ? { closingBalance } : {})}
             onAdded={() => clearReaderCandidates()}
-            onReviewOneByOne={() => {
+            onReviewOneByOne={(accountId) => {
               const { dropped } = enqueueReviewItems(
-                queueInputFromCandidates(rawCandidates, 'pdf'),
+                queueInputFromCandidates(rawCandidates, 'pdf', accountId),
               );
               if (dropped > 0) {
                 showToast(
@@ -483,9 +483,7 @@ export function PdfSuccessScreen({
               accessibilityHint="Opens the review of what was found"
               style={[styles.primary, elevation.cta, { backgroundColor: t.calm }]}
             >
-              <Text style={[styles.primaryLabel, { color: t.inverse }]}>
-                Check what Folio found
-              </Text>
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>Check what Melo found</Text>
             </PressButton>
 
             {/* Secondary CTA — quiet path back to intake to pick a different file. */}

@@ -59,7 +59,7 @@ const F: Record<FramingSurface, Record<MoneyMode, Framing>> = {
       sublabel: 'Renewal marks show what to cancel before it charges.',
     },
     reset: { eyebrow: 'Reset', sublabel: 'Just this week. Nothing further out.' },
-    lowVis: { eyebrow: 'Looking', sublabel: "The blank days are what Folio hasn't seen yet." },
+    lowVis: { eyebrow: 'Looking', sublabel: "The blank days are what Melo hasn't seen yet." },
   },
   cycleClose: {
     survival: { eyebrow: 'Survival', sublabel: "You made it. That's the whole win." },
@@ -71,7 +71,7 @@ const F: Record<FramingSurface, Record<MoneyMode, Framing>> = {
     planning: { eyebrow: 'Planning', sublabel: 'One more cycle closer to the target.' },
     optimizer: { eyebrow: 'Optimizer', sublabel: 'Recovered £ is real money you kept.' },
     reset: { eyebrow: 'Reset', sublabel: "Held the essentials. That's enough for now." },
-    lowVis: { eyebrow: 'Looking', sublabel: 'Now Folio has a whole cycle to learn from.' },
+    lowVis: { eyebrow: 'Looking', sublabel: 'Now Melo has a whole cycle to learn from.' },
   },
 };
 

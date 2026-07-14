@@ -58,7 +58,7 @@
 // do. No banned product vocabulary appears in any visible string. Every row is a >=44px tap target.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccessibilityInfo } from 'react-native';
 import Animated, {
@@ -73,7 +73,7 @@ import { Surface, Hairline, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { useAppStore } from '@/folio/store';
+import { addAccount, useAppStore, type AccountKind } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { hasStatementSourceData } from '@/folio/lib/accountSources';
 import { selectMonthlyIncome } from '@/folio/lib/income';
@@ -135,6 +135,13 @@ const CADENCE_LABEL: Record<string, string> = {
   'last-working-day': 'last working day of the month',
 };
 
+const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
+  bank: 'Current',
+  savings: 'Savings',
+  cash: 'Cash',
+  'credit-card': 'Credit card',
+};
+
 // The three doors at a glance — Free/Full/Live (MONEY_MODEL.md §2b). Prices are the paywall's
 // numbers, owner-confirmed 2026-07-11.
 const TIERS: readonly {
@@ -173,20 +180,33 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const statementImportsCount = useAppStore((s) => s.statementImports?.length ?? 0);
   const onboarding = useAppStore((s) => s.onboarding);
   const currentBalance = useAppStore((s) => s.currentBalance);
-  const incomeSources = useAppStore((s) => s.incomeSources ?? []);
+  // Keep the external-store selector referentially stable. Filtering inside the selector creates a
+  // new array on every snapshot read, which React correctly treats as an endless update loop.
+  const allAccounts = useAppStore((s) => s.accounts);
+  const accounts = useMemo(
+    () => (allAccounts ?? []).filter((account) => !account.closed),
+    [allAccounts],
+  );
+  const incomeSources = useAppStore((s) => s.incomeSources);
   const monthlyIncome = useAppStore((s) => selectMonthlyIncome(s));
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
 
   // The detected income's label + cadence — from the first declared source when the user has one
   // (the honest, named figure), falling back to the generic "Income" / "monthly" shape for the
   // legacy onboarding-lump or history-derived-median cases where there's no named source to show.
-  const primaryIncomeSource = incomeSources[0];
+  const primaryIncomeSource = incomeSources?.[0];
   const incomeLabel = primaryIncomeSource?.label || 'Income';
   const incomeCadenceLabel = primaryIncomeSource
     ? CADENCE_LABEL[primaryIncomeSource.cadence]
     : 'monthly';
 
-  const balanceSourceLabel = BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'sample data';
+  const balanceSourceLabel =
+    !onboarding.done &&
+    currentBalance.amount === 0 &&
+    transactionsCount === 0 &&
+    statementImportsCount === 0
+      ? 'not set yet'
+      : (BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'sample data');
 
   // Sign-in is entirely optional (see clerkAuth.ts). Evaluated once per render, not via a hook, so
   // this branch stays safe whether or not a ClerkProvider ancestor exists — Clerk's own hooks only
@@ -194,6 +214,25 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   // the root layout actually wrapped the tree in ClerkProvider).
   const clerkConfigured = isClerkConfigured();
   const [signInVisible, setSignInVisible] = useState(false);
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [newAccountName, setNewAccountName] = useState('');
+  const [newAccountKind, setNewAccountKind] = useState<AccountKind>('bank');
+  const [newAccountBalance, setNewAccountBalance] = useState('');
+
+  const saveAccount = () => {
+    const name = newAccountName.trim();
+    if (!name) return;
+    const parsed = Number(newAccountBalance.replace(/[^0-9.]/g, ''));
+    addAccount({
+      name,
+      kind: newAccountKind,
+      balanceMinor: Number.isFinite(parsed) ? parsed : 0,
+    });
+    setNewAccountName('');
+    setNewAccountBalance('');
+    setNewAccountKind('bank');
+    setAddingAccount(false);
+  };
 
   // Tier — the real lens engine, Free/Full/Live vocabulary. (Live ownership lives in the billing
   // entitlement record, not the lens store — this card reads lens state only, so a Live-only
@@ -240,12 +279,12 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
       },
       {
         label: 'Bank connection',
-        hint: 'coming with the mobile app',
+        hint: 'not available yet',
         state: 'empty' as const,
         action: () =>
           Alert.alert(
-            'Bank link ships with a future update',
-            'Nothing to connect here yet.',
+            'Bank connection is not available yet',
+            'Statements, photos and manual entries work now.',
             [{ text: 'OK', style: 'cancel' }],
             { cancelable: true },
           ),
@@ -324,96 +363,12 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
 
         {/* Title block. */}
         <View style={styles.titleBlock}>
-          <Text style={[styles.kicker, { color: t.muted }]}>You + Folio</Text>
+          <Text style={[styles.kicker, { color: t.muted }]}>You + Melo</Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
             {'Your '}
-            <Text style={[styles.headlineAccent, { color: t.calm }]}>plan</Text>
+            <Text style={[styles.headlineAccent, { color: t.calm }]}>money</Text>
             {', plainly.'}
           </Text>
-        </View>
-
-        {/* Tier card. */}
-        <Surface style={[styles.tierCard, { borderColor: t.hairline }]}>
-          <View style={styles.tierTopRow}>
-            <Text style={[styles.tierEyebrow, { color: t.muted }]}>Tier</Text>
-            <View style={[styles.tierPill, { backgroundColor: t.inset }]}>
-              <Text style={[styles.tierPillLabel, { color: t.muted }]}>{tierLabel}</Text>
-            </View>
-          </View>
-          <Text style={[styles.tierHint, { color: t.ink }]}>{tierHint}</Text>
-          {tier === 'trial' && trialDaysLeft != null ? (
-            <Text style={[styles.tierTrialChip, { color: t.muted }]}>
-              <Text style={{ color: t.calm }}>{trialDaysLeft}</Text>
-              {trialDaysLeft === 1
-                ? " day left · we'll ask when it ends"
-                : " days left · we'll ask when it ends"}
-            </Text>
-          ) : null}
-          <View style={styles.tierActions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => nav.go('paywall')}
-              style={({ pressed: isPressed }) => [
-                styles.tierCta,
-                { backgroundColor: t.calm },
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.tierCtaLabel, { color: t.inverse }]}>
-                {tier === 'free' ? 'See plans' : 'Manage plan'}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => nav.go('paywall')}
-              style={({ pressed: isPressed }) => [
-                styles.tierRestore,
-                { borderColor: t.hairline },
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.tierRestoreLabel, { color: t.muted }]}>Restore</Text>
-            </Pressable>
-          </View>
-        </Surface>
-
-        {/* Three-tier at a glance. */}
-        <View style={styles.tiersGrid}>
-          {TIERS.map((p) => {
-            const isCurrent =
-              p.key === 'full' ? tier === 'full' || tier === 'trial' : p.key === tier;
-            const priceAria =
-              p.key === 'full'
-                ? `${p.price} one-time`
-                : p.key === 'live'
-                  ? `${p.price} per month`
-                  : p.price;
-            return (
-              <Pressable
-                accessibilityLabel={`${p.name} — ${priceAria}. Tap for details.`}
-                accessibilityRole="button"
-                key={p.key}
-                onPress={() => nav.go('paywall')}
-                style={({ pressed: isPressed }) => [
-                  styles.tierGridCard,
-                  { backgroundColor: isCurrent ? t.calmSoft : t.surface, borderColor: t.hairline },
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.tierGridName, { color: t.ink }]}>{p.name}</Text>
-                <Text style={[styles.tierGridPrice, { color: t.ink }]}>
-                  {p.price}
-                  {p.priceSuffix ? (
-                    <Text style={[styles.tierGridHint, { color: t.muted }]}> {p.priceSuffix}</Text>
-                  ) : null}
-                </Text>
-                <Text style={[styles.tierGridHint, { color: t.muted }]}>{p.hint}</Text>
-                {isCurrent ? (
-                  <Text style={[styles.tierGridCurrent, { color: t.calm }]}>Current</Text>
-                ) : null}
-              </Pressable>
-            );
-          })}
         </View>
 
         {/* Balance — the real, honest current-balance read (ENGINES.md §6): every balance shows where
@@ -428,11 +383,144 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           </Surface>
         </View>
 
-        {/* Sources. */}
+        {/* Real account model — bank, savings, cash and credit-card balances already exist in the
+            store and statement import can target them. Surface the model here instead of reducing
+            "Account" to billing and sign-in. */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Accounts</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>
+              {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
+            </Text>
+          </View>
+          <Surface style={[styles.card, { borderColor: t.hairline }]}>
+            {accounts.map((account, index) => (
+              <View key={account.id}>
+                {index > 0 ? <Hairline /> : null}
+                <View
+                  accessibilityLabel={`${account.name}, ${ACCOUNT_KIND_LABEL[account.kind]}, ${account.isLiability ? 'owed' : 'balance'} £${Math.abs(account.balanceMinor).toFixed(2)}`}
+                  style={styles.accountRow}
+                >
+                  <View style={styles.rowText}>
+                    <Text style={[styles.rowLabel, { color: t.ink }]}>{account.name}</Text>
+                    <Text style={[styles.rowHint, { color: t.muted }]}>
+                      {ACCOUNT_KIND_LABEL[account.kind]}
+                    </Text>
+                  </View>
+                  <View style={styles.accountAmountWrap}>
+                    <Text
+                      style={[
+                        styles.accountAmount,
+                        { color: account.isLiability ? t.repairInk : t.ink },
+                      ]}
+                    >
+                      £
+                      {Math.abs(account.balanceMinor).toLocaleString('en-GB', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </Text>
+                    <Text style={[styles.accountAmountHint, { color: t.muted }]}>
+                      {account.isLiability ? 'owed' : 'balance'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+            {accounts.length > 0 ? <Hairline /> : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: addingAccount }}
+              onPress={() => setAddingAccount((open) => !open)}
+              style={({ pressed: isPressed }) => [
+                styles.addAccountToggle,
+                isPressed ? styles.rowPressed : undefined,
+              ]}
+            >
+              <Text style={[styles.addAccountToggleLabel, { color: t.calm }]}>
+                + Add an account
+              </Text>
+            </Pressable>
+          </Surface>
+
+          {addingAccount ? (
+            <Surface style={[styles.addAccountCard, { borderColor: t.hairline }]}>
+              <Text style={[styles.addAccountTitle, { color: t.ink }]}>Name this account</Text>
+              <TextInput
+                accessibilityLabel="Account name"
+                autoCapitalize="words"
+                onChangeText={setNewAccountName}
+                placeholder="e.g. Monzo current"
+                placeholderTextColor={t.muted}
+                style={[styles.addAccountInput, { backgroundColor: t.inset, color: t.ink }]}
+                value={newAccountName}
+              />
+              <View style={styles.accountKindRow}>
+                {(Object.keys(ACCOUNT_KIND_LABEL) as AccountKind[]).map((kind) => {
+                  const selected = kind === newAccountKind;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      key={kind}
+                      onPress={() => setNewAccountKind(kind)}
+                      style={({ pressed: isPressed }) => [
+                        styles.accountKindChip,
+                        { backgroundColor: selected ? t.ink : t.inset },
+                        isPressed ? styles.pressed : undefined,
+                      ]}
+                    >
+                      <Text
+                        style={[styles.accountKindLabel, { color: selected ? t.canvas : t.muted }]}
+                      >
+                        {ACCOUNT_KIND_LABEL[kind]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={[styles.addAccountBalanceRow, { backgroundColor: t.inset }]}>
+                <Text style={[styles.addAccountCurrency, { color: t.ink }]}>£</Text>
+                <TextInput
+                  accessibilityLabel={
+                    newAccountKind === 'credit-card' ? 'Amount owed' : 'Opening balance'
+                  }
+                  keyboardType="decimal-pad"
+                  onChangeText={setNewAccountBalance}
+                  placeholder="0.00"
+                  placeholderTextColor={t.muted}
+                  style={[styles.addAccountBalanceInput, { color: t.ink }]}
+                  value={newAccountBalance}
+                />
+                <Text style={[styles.addAccountBalanceHint, { color: t.muted }]}>
+                  {newAccountKind === 'credit-card' ? 'owed' : 'opening balance'}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: newAccountName.trim().length === 0 }}
+                disabled={newAccountName.trim().length === 0}
+                onPress={saveAccount}
+                style={({ pressed: isPressed }) => [
+                  styles.addAccountSave,
+                  {
+                    backgroundColor: t.calm,
+                    opacity: newAccountName.trim().length === 0 ? 0.45 : 1,
+                  },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.addAccountSaveLabel, { color: t.inverse }]}>Add account</Text>
+              </Pressable>
+            </Surface>
+          ) : null}
+        </View>
+
+        {/* Sources. */}
+        <View style={styles.section}>
+          <View style={[styles.sectionHeaderRow, styles.sourcesHeaderRow]}>
             <Text style={[styles.sectionTitle, { color: t.ink }]}>Where your money comes from</Text>
-            <Text style={[styles.sectionHint, { color: t.muted }]}>local · this device</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>set by you · imported</Text>
           </View>
           <Surface style={[styles.card, { borderColor: t.hairline }]}>
             {sources.map((s, index) => (
@@ -473,6 +561,99 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <Stat n={subsCount} label="subs" />
             <Stat n={potsCount} label="pots" />
             <Stat n={cyclesCount} label="cycles" />
+          </View>
+        </View>
+
+        {/* Plan and billing follow the user's actual money, accounts, sources, and footprint. Account
+            is an operational money surface first; it should not open as a three-card sales page. */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>Your Melo plan</Text>
+          <Surface style={[styles.tierCard, styles.tierCardInSection, { borderColor: t.hairline }]}>
+            <View style={styles.tierTopRow}>
+              <Text style={[styles.tierEyebrow, { color: t.muted }]}>Tier</Text>
+              <View style={[styles.tierPill, { backgroundColor: t.inset }]}>
+                <Text style={[styles.tierPillLabel, { color: t.muted }]}>{tierLabel}</Text>
+              </View>
+            </View>
+            <Text style={[styles.tierHint, { color: t.ink }]}>{tierHint}</Text>
+            {tier === 'trial' && trialDaysLeft != null ? (
+              <Text style={[styles.tierTrialChip, { color: t.muted }]}>
+                <Text style={{ color: t.calm }}>{trialDaysLeft}</Text>
+                {trialDaysLeft === 1
+                  ? " day left · we'll ask when it ends"
+                  : " days left · we'll ask when it ends"}
+              </Text>
+            ) : null}
+            <View style={styles.tierActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.go('paywall')}
+                style={({ pressed: isPressed }) => [
+                  styles.tierCta,
+                  { backgroundColor: t.calm },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.tierCtaLabel, { color: t.inverse }]}>
+                  {tier === 'free' ? 'See plans' : 'Manage plan'}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.go('paywall')}
+                style={({ pressed: isPressed }) => [
+                  styles.tierRestore,
+                  { borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.tierRestoreLabel, { color: t.muted }]}>Restore</Text>
+              </Pressable>
+            </View>
+          </Surface>
+
+          <View style={styles.tiersGrid}>
+            {TIERS.map((p) => {
+              const isCurrent =
+                p.key === 'full' ? tier === 'full' || tier === 'trial' : p.key === tier;
+              const priceAria =
+                p.key === 'full'
+                  ? `${p.price} one-time`
+                  : p.key === 'live'
+                    ? `${p.price} per month`
+                    : p.price;
+              return (
+                <Pressable
+                  accessibilityLabel={`${p.name} — ${priceAria}. Tap for details.`}
+                  accessibilityRole="button"
+                  key={p.key}
+                  onPress={() => nav.go('paywall')}
+                  style={({ pressed: isPressed }) => [
+                    styles.tierGridCard,
+                    {
+                      backgroundColor: isCurrent ? t.calmSoft : t.surface,
+                      borderColor: t.hairline,
+                    },
+                    isPressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.tierGridName, { color: t.ink }]}>{p.name}</Text>
+                  <Text style={[styles.tierGridPrice, { color: t.ink }]}>
+                    {p.price}
+                    {p.priceSuffix ? (
+                      <Text style={[styles.tierGridHint, { color: t.muted }]}>
+                        {' '}
+                        {p.priceSuffix}
+                      </Text>
+                    ) : null}
+                  </Text>
+                  <Text style={[styles.tierGridHint, { color: t.muted }]}>{p.hint}</Text>
+                  {isCurrent ? (
+                    <Text style={[styles.tierGridCurrent, { color: t.calm }]}>Current</Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -526,9 +707,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           <MeloLine text="Nothing here is guessed. You'll only see what you added or what Melo read from a statement." />
         </View>
 
-        <Text style={[styles.footer, { color: t.muted }]}>
-          Folio · designed on web, shipping on mobile
-        </Text>
+        <Text style={[styles.footer, { color: t.muted }]}>{copy.global.app.name} · Android</Text>
       </ScrollView>
       {clerkConfigured ? (
         <SignInSheet visible={signInVisible} onClose={() => setSignInVisible(false)} />
@@ -661,6 +840,9 @@ const styles = StyleSheet.create({
     marginTop: gap.xl,
     padding: gap.lg,
   },
+  tierCardInSection: {
+    marginTop: gap.md,
+  },
   tierTopRow: {
     alignItems: 'baseline',
     flexDirection: 'row',
@@ -760,6 +942,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  sourcesHeaderRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+    gap: gap.xxs,
+  },
   sectionTitle: {
     fontFamily: serif.displayItalic,
     fontSize: 15,
@@ -791,6 +978,101 @@ const styles = StyleSheet.create({
     fontFamily: serif.displayItalic,
     fontSize: 11.5,
     marginTop: gap.xs,
+  },
+  accountRow: {
+    alignItems: 'center',
+    columnGap: gap.md,
+    flexDirection: 'row',
+    minHeight: 58,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.md,
+  },
+  accountAmountWrap: {
+    alignItems: 'flex-end',
+  },
+  accountAmount: {
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '600',
+  },
+  accountAmountHint: {
+    fontSize: 10,
+    marginTop: 2,
+    textTransform: 'uppercase',
+  },
+  addAccountToggle: {
+    alignItems: 'center',
+    minHeight: 50,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.md,
+  },
+  addAccountToggleLabel: {
+    fontSize: 13.5,
+    fontWeight: '600',
+  },
+  addAccountCard: {
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.md,
+    padding: gap.lg,
+  },
+  addAccountTitle: {
+    fontFamily: serif.display,
+    fontSize: 18,
+  },
+  addAccountInput: {
+    borderRadius: radius.md,
+    fontSize: 15,
+    marginTop: gap.md,
+    minHeight: 50,
+    paddingHorizontal: gap.md,
+  },
+  accountKindRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: gap.sm,
+    marginTop: gap.md,
+  },
+  accountKindChip: {
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 38,
+    paddingHorizontal: gap.md,
+  },
+  accountKindLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  addAccountBalanceRow: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    marginTop: gap.md,
+    minHeight: 50,
+    paddingHorizontal: gap.md,
+  },
+  addAccountCurrency: {
+    fontSize: 15,
+  },
+  addAccountBalanceInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingHorizontal: gap.xs,
+  },
+  addAccountBalanceHint: {
+    fontSize: 10,
+    textTransform: 'uppercase',
+  },
+  addAccountSave: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    justifyContent: 'center',
+    marginTop: gap.md,
+    minHeight: 50,
+  },
+  addAccountSaveLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   wipeCard: {
     marginTop: gap.md,
@@ -836,13 +1118,15 @@ const styles = StyleSheet.create({
   statsGrid: {
     columnGap: gap.sm,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: gap.md,
+    rowGap: gap.sm,
   },
   statCard: {
     alignItems: 'center',
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    flex: 1,
+    width: '31%',
     paddingVertical: gap.md,
   },
   statNumber: {

@@ -170,6 +170,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const transactions = useAppStore((st) => st.transactions);
   const tinyWins = useAppStore((st) => st.tinyWins ?? []);
+  const onboardingDone = useAppStore((st) => st.onboarding.done);
 
   // Annual-radar candidates (DATA_INTELLIGENCE.md phase ⑥ item 5) — NOT part of the frozen web
   // source; see the quiet card below (and lib/caughtAnnual.ts's own "SURFACE CHOICE" note) for why
@@ -247,6 +248,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
 
   // ----- EMPTY (cycles.length === 0) -------------------------------------------------------------
   if (cycles.length === 0) {
+    const needsSetup = !onboardingDone;
     return (
       <Animated.View style={[s.root, enterStyle]}>
         <View style={[s.screen, { paddingTop: insets.top + gap.sm }]}>
@@ -269,9 +271,21 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
           <View style={s.emptyBlock}>
             <EmptyState
               mood="curious"
-              headline={splitBoldHeadline(copy.insights.empty.head)}
-              body={copy.insights.empty.body}
-              cta={{ label: copy.insights.empty.cta, onPress: () => nav.go('ritual') }}
+              headline={
+                needsSetup
+                  ? 'Start with your first picture'
+                  : splitBoldHeadline(copy.insights.empty.head)
+              }
+              body={
+                needsSetup
+                  ? 'Add your balance and payday. Melo will wait for a real cycle before showing patterns.'
+                  : copy.insights.empty.body
+              }
+              cta={
+                needsSetup
+                  ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
+                  : { label: 'Back to today', onPress: () => nav.go('today') }
+              }
             />
           </View>
         </View>

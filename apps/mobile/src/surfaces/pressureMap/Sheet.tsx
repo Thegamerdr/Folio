@@ -27,6 +27,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { elevation, gap, useTheme, type Palette } from './kit';
+import { announceSurfaceRepaint } from './sheetRepaint';
 
 // The web sheet rounds its top to 28px (rounded-t-[28px]). The kit's radius.xxl (32) is a
 // touch too round for the sheet lip, so the sheet keeps its own constant to match the web.
@@ -72,6 +73,23 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
   // Both are refs so they survive re-renders and we can drive them imperatively.
   const translateY = useRef(new Animated.Value(height)).current;
   const scrimOpacity = useRef(new Animated.Value(0)).current;
+  const wasVisible = useRef(visible);
+  const repaintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleUnderlyingRepaint = () => {
+    if (repaintTimer.current !== null) return;
+    repaintTimer.current = setTimeout(() => {
+      repaintTimer.current = null;
+      announceSurfaceRepaint();
+    }, 50);
+  };
+
+  // Some sheet-owned actions close by changing `visible` directly instead of calling handleClose.
+  // Detect that transition as well so every dismissal path repaints the underlying Android surface.
+  useEffect(() => {
+    if (wasVisible.current && !visible) scheduleUnderlyingRepaint();
+    wasVisible.current = visible;
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -107,9 +125,16 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
   // Animate the panel back down, then tell the parent to unmount. With reduced motion we
   // close instantly. The Modal stays mounted (visible) for the duration of the slide-out
   // so the panel is still on screen while it animates away.
+  const finishClose = () => {
+    onClose();
+    // Let the Modal unmount commit, then ask persistent chrome to repaint. This is paint-only state;
+    // it does not reset the current route or reopen/close any sheet.
+    scheduleUnderlyingRepaint();
+  };
+
   const handleClose = () => {
     if (reduceMotion) {
-      onClose();
+      finishClose();
       return;
     }
     Animated.parallel([
@@ -127,7 +152,7 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
       }),
     ]).start(({ finished }) => {
       if (finished) {
-        onClose();
+        finishClose();
       }
     });
   };

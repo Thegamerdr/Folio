@@ -331,7 +331,7 @@ export function PasteSuccessScreen({
             {tail}
           </Text>
           <Text style={[styles.body, { color: t.muted }]}>
-            Folio found possible money in and money out. Nothing has been added yet.
+            Melo found possible money in and money out. Nothing has been added yet.
           </Text>
         </View>
 
@@ -374,8 +374,10 @@ export function PasteSuccessScreen({
             nav={nav}
             candidates={candidates}
             onAdded={() => {}}
-            onReviewOneByOne={() => {
-              const { dropped } = enqueueReviewItems(queueInputFromCandidates(candidates, 'csv'));
+            onReviewOneByOne={(accountId) => {
+              const { dropped } = enqueueReviewItems(
+                queueInputFromCandidates(candidates, 'csv', accountId),
+              );
               if (dropped > 0) {
                 showToast(
                   'Showing the newest 60 to check first',

@@ -39,9 +39,9 @@
 // @tokens       surface · hairline · inset · calm (accent) · calmStrong · calmSoft (accent-soft) ·
 //               muted · secondary · ink · positiveInk · repairInk · inverse — all from the kit via
 //               '@/folio/theme'. No new token.
-// @motion       slide-in-r (whole screen, 360ms ease-out-expo) · press 0.97 (every tappable) ·
-//               fade-in (expanded move-card body, 220ms) · count-up on the after/shortfall figure
-//               (MOTION.md: money values count up, never slide). Reduced motion = final state.
+// @motion       press 0.97 (every tappable) · fade-in (expanded move-card body, 220ms) · count-up on
+//               the after/shortfall figure (MOTION.md: money values count up, never slide). Reduced
+//               motion = final state. The page root stays static for reliable native repainting.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • SINGLE-SELECT: tapping the active card deselects (picked → null), which disables the CTA —
@@ -55,8 +55,8 @@
 //   • COUNT-UP: the after/shortfall figure settles between values via the kit useCountUp (snaps under
 //     reduce-motion), so the number never hard-swaps on selection.
 //   • '−' is U+2212 MINUS SIGN (not a hyphen) and '→' is U+2192 — kept exact for tabular alignment.
-//   • slide-in-r / fade-in collapse to final state under reduce-motion (resolved layout, never a
-//     slower animation), mirroring ReviewScreen / Melo / StartScreen.
+//   • The nested fade-in collapses to its final state under reduce-motion. The page root stays static
+//     because Android can retain full-screen transformed layers after navigation.
 //
 // Tokens only — no new colour, font, spacing, radius, or shadow. Banned visible words (import / rows /
 // parser / extraction / OCR / sync / dashboard / analytics / users / 100% / bank-grade / AI-powered /
@@ -297,12 +297,8 @@ const DISCRETIONARY: ReadonlySet<string> = new Set([
   'other',
 ]);
 
-// Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1) — for the slide-in + fade-in.
+// Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1) — for the nested reveal.
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-
-// slide-in-r geometry (web .slide-in-r): the whole screen enters from +28px on X with a fade, 360ms.
-const SLIDE_FROM_X = 28;
-const SLIDE_MS = 360;
 
 // fade-in for the expanded move body (web .fade-in ~220ms).
 const FADE_MS = 220;
@@ -432,14 +428,20 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
 
   const [picked, setPicked] = useState<string | null>(null);
 
-  // The base route — the live verdict. Its tight point's depth below zero IS the shortfall. When the
-  // real route shows no overspend (tight point ≥ 0, e.g. on a direct mount), fall back to the web
-  // sample so this overspent-only surface still renders coherently. @rn-engine money-path.
+  // The base route — the live verdict. Its tight point's depth below zero IS the shortfall. Recovery
+  // is an overspent-only surface: a direct mount with no real money picture or no negative tight point
+  // takes the honest empty branch below, never a web/sample fallback.
   const baseTight = useMemo(
     () => routeFromStore(appState, routeNow).tightPoint.amount,
     [appState, routeNow],
   );
-  const shortfall = routeReady && baseTight < 0 ? Math.round(-baseTight) : FALLBACK_SHORTFALL;
+  const hasMoneyPicture =
+    appState.onboarding.done ||
+    appState.transactions.length > 0 ||
+    appState.currentBalance.amount !== 0 ||
+    monthlyIncome > 0;
+  const hasShortfall = routeReady && hasMoneyPicture && baseTight < 0;
+  const shortfall = hasShortfall ? Math.round(-baseTight) : FALLBACK_SHORTFALL;
 
   // The three corrective moves, each carrying its REAL lift. Pause-a-sub and Move-a-bill re-route a
   // hypothetical store copy and diff the tight point against the base; Set-a-hold frees the user's
@@ -552,20 +554,6 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // Count up the magnitude between selections (MOTION.md: money values count up, never slide).
   const afterMagnitude = useCountUp(Math.abs(after), COUNT_MS, reduceMotion);
 
-  // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
-  const enter = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    if (reduceMotion) {
-      enter.value = 1;
-      return;
-    }
-    enter.value = withTiming(1, { duration: SLIDE_MS, easing: EASE_OUT_EXPO });
-  }, [enter, reduceMotion]);
-  const enterStyle = useAnimatedStyle(() => ({
-    opacity: enter.value,
-    transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
-  }));
-
   // Guard a stray commit after unmount (defensive — no timers here, but keep the contract explicit).
   const committedRef = useRef(false);
 
@@ -584,13 +572,22 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // empty — no overspent verdict to recover from. Per the spec, Recovery is only reached from an
   // overspent verdict; with no shortfall it should not render a blank Recovery, so it offers a calm
   // doorway back to Today rather than dead-ending.
-  if (state === 'empty') {
+  if (state === 'empty' || (routeReady && !hasShortfall)) {
+    const needsSetup = !hasMoneyPicture;
     return (
       <EmptyState
         mood="calm"
-        headline="Nothing to repair"
-        body="You're on track to payday. Recovery shows up only when something needs a move."
-        cta={{ label: 'Back to today', onPress: () => nav.go('today') }}
+        headline={needsSetup ? 'Add your first money picture' : 'Nothing to repair'}
+        body={
+          needsSetup
+            ? 'Set your balance and payday first. Recovery will appear only when a real route needs room.'
+            : "You're on track to payday. Recovery shows up only when something needs a move."
+        }
+        cta={
+          needsSetup
+            ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
+            : { label: 'Back to today', onPress: () => nav.go('today') }
+        }
       />
     );
   }
@@ -619,7 +616,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   const afterValue = `${sign}£${Math.round(afterMagnitude)}`;
 
   return (
-    <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+    <View style={[styles.root, { backgroundColor: t.canvas }]}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -778,7 +775,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           <Text style={[styles.secondaryLabel, { color: t.muted }]}>Not now</Text>
         </Pressable>
       </ScrollView>
-    </Animated.View>
+    </View>
   );
 }
 

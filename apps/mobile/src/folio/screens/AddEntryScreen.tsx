@@ -378,8 +378,8 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
   // local-first, so it works the same; the only offline tell is the Melo line, which reassures that a
   // statement added now is "saved, will read later".
   const isOffline = state === 'offline';
-  const eyebrow = kind === 'bill' ? 'Add a bill' : 'Add a debt';
-  const placeholder = kind === 'bill' ? 'Name · e.g. Rent' : 'Name · e.g. Klarna sofa';
+  const eyebrow = kind === 'bill' ? 'Add a regular payment' : 'Add a debt';
+  const placeholder = kind === 'bill' ? 'Name · e.g. Rent or Netflix' : 'Name · e.g. Klarna sofa';
   const meloText = isOffline
     ? 'Saved. I’ll read it properly when you’re back online.'
     : 'An estimate is fine. You can adjust it later.';

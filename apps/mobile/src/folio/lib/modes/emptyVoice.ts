@@ -29,7 +29,7 @@ const POTS: Record<MoneyMode, EmptyVoiceCopy> = {
     headlineLead: 'No ',
     headlineAccent: 'pots',
     headlineTail: ' yet.',
-    body: "A pot is a small set-aside for one thing. Add the first one and Folio will quietly set it aside from what's left over.",
+    body: "A pot is a small set-aside for one thing. Add the first one and Melo will quietly set it aside from what's left over.",
   },
   stability: {
     headlineLead: 'Room for a ',
@@ -65,7 +65,7 @@ const POTS: Record<MoneyMode, EmptyVoiceCopy> = {
     headlineLead: 'The ',
     headlineAccent: 'goal',
     headlineTail: ' lives in a pot.',
-    body: 'Give the thing a name and a number. Folio will draw a line from today to there.',
+    body: 'Give the thing a name and a number. Melo will draw a line from today to there.',
   },
   optimizer: {
     headlineLead: 'A pot for the ',
@@ -98,7 +98,7 @@ const SUBS: Record<MoneyMode, EmptyVoiceCopy> = {
     headlineLead: 'Nothing ',
     headlineAccent: 'recurring',
     headlineTail: ' tracked.',
-    body: 'Add a sub and Folio will keep an eye on renewals so nothing surprises the buffer.',
+    body: 'Add a sub and Melo will keep an eye on renewals so nothing surprises the buffer.',
   },
   growth: {
     headlineLead: 'Every sub is a ',
@@ -146,7 +146,7 @@ const SUBS: Record<MoneyMode, EmptyVoiceCopy> = {
     headlineLead: 'Roughly, what ',
     headlineAccent: 'recurs',
     headlineTail: '?',
-    body: 'Add the ones you know off the top of your head. Folio will sharpen the rest from a statement.',
+    body: 'Add the ones you know off the top of your head. Melo will sharpen the rest from a statement.',
   },
 };
 

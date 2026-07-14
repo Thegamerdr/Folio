@@ -882,9 +882,11 @@ function NavIcon({ id, active, t }: { id: ProductScreen; active: boolean; t: Pal
 export function BottomNav({
   active,
   onChange,
+  reviewCount = 0,
 }: {
   active: ProductScreen;
   onChange: (screen: ProductScreen) => void;
+  reviewCount?: number;
 }) {
   // Sit the whole nav above the system gesture inset so the home-gesture strip never
   // eats taps on the tabs (and the nav never crowds the gesture pill). Use the real
@@ -895,8 +897,19 @@ export function BottomNav({
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const navPaddingBottom = (insets.bottom > 0 ? insets.bottom : 12) + NAV_SAFE_GAP;
+
   return (
-    <View style={[s.nav, { paddingBottom: navPaddingBottom }]}>
+    // Fabric can retain only the two tab children whose `selected` prop changed when the screen
+    // beneath this persistent sibling is replaced. On-device that left the previous + current tab
+    // visible and made the other two look removed even though their hit targets still existed.
+    // Remount the four-item strip when the active tab changes so every icon and label is painted.
+    // Keeping these views non-collapsible also stops Fabric's layout-only optimisation from dropping
+    // unchanged siblings when a screen or a native sheet beneath this strip is replaced.
+    <View
+      collapsable={false}
+      key={`bottom-nav-${active}`}
+      style={[s.nav, { paddingBottom: navPaddingBottom }]}
+    >
       {NAV_TABS.map((tab) => {
         const selected = active === tab.id;
         return (
@@ -905,11 +918,22 @@ export function BottomNav({
             accessibilityLabel={`${tab.label} tab`}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            key={tab.id}
+            collapsable={false}
+            key={`${tab.id}-${active}`}
             onPress={() => onChange(tab.id)}
             style={({ pressed: isPressed }) => [layout.navItem, isPressed ? pressed : undefined]}
           >
-            <NavIcon id={tab.id} active={selected} t={t} />
+            <View collapsable={false} style={layout.navIconWrap}>
+              <NavIcon id={tab.id} active={selected} t={t} />
+              {tab.id === 'import' && reviewCount > 0 ? (
+                <View
+                  accessibilityLabel={`${reviewCount} ${reviewCount === 1 ? 'item' : 'items'} waiting for review`}
+                  style={s.navBadge}
+                >
+                  <Text style={s.navBadgeLabel}>{reviewCount > 9 ? '9+' : reviewCount}</Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={[s.navLabel, selected ? s.navLabelActive : undefined]}>{tab.label}</Text>
           </Pressable>
         );
@@ -962,6 +986,7 @@ const layout = StyleSheet.create({
   pad: { flexDirection: 'row', flexWrap: 'wrap' },
   padKey: { width: '33.333%', height: 62, alignItems: 'center', justifyContent: 'center' },
   navItem: { flex: 1, alignItems: 'center', gap: 3 },
+  navIconWrap: { position: 'relative' },
 });
 
 // Colour-bearing styles, resolved against the active palette `t`. Rebuilt per-render via the
@@ -1138,6 +1163,26 @@ function makeStyles(t: Palette) {
       letterSpacing: 0.2,
     },
     navLabelActive: { color: t.calmStrong },
+    navBadge: {
+      alignItems: 'center',
+      backgroundColor: t.calmStrong,
+      borderColor: t.surface,
+      borderRadius: radius.pill,
+      borderWidth: 2,
+      height: 17,
+      justifyContent: 'center',
+      minWidth: 17,
+      paddingHorizontal: 3,
+      position: 'absolute',
+      right: -8,
+      top: -5,
+    },
+    navBadgeLabel: {
+      color: t.inverse,
+      fontSize: 9,
+      fontWeight: '700',
+      lineHeight: 11,
+    },
   });
 }
 

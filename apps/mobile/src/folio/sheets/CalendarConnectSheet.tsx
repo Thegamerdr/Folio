@@ -286,7 +286,7 @@ function CalendarConnectBody({
 
       {/* Subhead — one-way framing. Inline-frozen verbatim. */}
       <Text style={s.subhead}>
-        One way — Folio adds the dates that move your money. Folio doesn&apos;t read anything back
+        One way — Melo adds the dates that move your money. Melo doesn&apos;t read anything back
         from Google.
       </Text>
 

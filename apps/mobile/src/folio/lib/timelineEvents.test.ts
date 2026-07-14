@@ -2,9 +2,9 @@
 // apps/mobile/src/folio/lib/timelineEvents.ts (@rn-engine timeline-verbs).
 //
 // Pins: transactions with no matching edit read "Added"; a transaction with a matching
-// edits[].txnId reads "Edited"; timelineEvents map to their calm verb + note (sub-paused →
-// "Paused"/"for one cycle", sub-resumed → "Resumed"/no note, review-ignored → "Left for later"/"you
-// can decide another time"); the merge is newest-first by timestamp regardless of source; and the
+// edits[].txnId reads "Edited"; timelineEvents map to their truthful verb + note (sub-paused →
+// "Paused"/"for one cycle", sub-resumed → "Resumed"/no note, review-ignored → "Ignored"/"hidden
+// from future checks"); the merge is newest-first by timestamp regardless of source; and the
 // function is pure (no store reads, no mutation of its inputs).
 //
 // Node-safe: touches only this module + the Transaction/TimelineEvent/StoredTxnEdit types (no
@@ -110,14 +110,14 @@ describe('buildTimelineRows', () => {
     expect(rows[0]!.note).toBeUndefined();
   });
 
-  it('maps review-ignored to "Left for later" with a calm deferred note', () => {
+  it('maps review-ignored to the durable action the user actually chose', () => {
     const rows = buildTimelineRows({
       transactions: [],
       edits: [],
       events: [event('review-ignored', 'Klarna', '2026-07-01T09:00:00.000Z')],
     });
-    expect(rows[0]!.verb).toBe('Left for later');
-    expect(rows[0]!.note).toBe('you can decide another time');
+    expect(rows[0]!.verb).toBe('Ignored');
+    expect(rows[0]!.note).toBe('hidden from future checks');
   });
 
   it('an explicit event.note overrides the default verb note', () => {

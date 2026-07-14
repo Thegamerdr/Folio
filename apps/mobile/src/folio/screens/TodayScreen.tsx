@@ -74,7 +74,6 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, setRouteFocusDate, sweepSubOverrides } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
-import { hasAnyUserData } from '@/folio/lib/income';
 import { resolveNextTopUp } from '@/folio/lib/potCadence';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
 import { useLens } from '@/folio/lib/lens';
@@ -145,7 +144,17 @@ export function TodayScreen({
   const subPaused = useAppStore((st) => st.subPaused);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
-  const hasRealData = useAppStore((st) => hasAnyUserData(st));
+  const hasRealData = useAppStore(
+    (st) =>
+      st.onboarding.done ||
+      st.transactions.some((transaction) => transaction.source !== 'seed') ||
+      (st.currentBalance.source !== 'sample' && st.currentBalance.amount !== 0) ||
+      (st.statementImports?.length ?? 0) > 0,
+  );
+  // A fresh or deliberately-cleared ledger is a real product state, not permission to render the
+  // sample route as if it were the user's money. Keep the doorway useful, but keep every number off
+  // screen until the user has supplied a picture of their own.
+  const isFirstRun = !onboarding.done && !hasRealData;
   // Real count of unreviewed intake items (was a hardcoded "2 things" — a fake
   // count that showed even on a clean/empty ledger). Hidden entirely at zero.
   const pendingReview = useAppStore((st) => st.reviewQueue?.length ?? 0);
@@ -462,6 +471,10 @@ export function TodayScreen({
     );
   }
 
+  if (isFirstRun) {
+    return <TodayFirstRun nav={nav} />;
+  }
+
   return (
     <Animated.View style={[styles.root, enterStyle]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -623,10 +636,6 @@ export function TodayScreen({
             <Text style={[styles.checkPillLabel, { color: t.calm }]}>Your Safe Zone →</Text>
           </Pressable>
         </View>
-
-        <TodayNudges nav={nav} tightestSpare={isLoading ? null : tightestSpare} />
-        <TodaySpendStrip nav={nav} />
-        <TodayRecentTxns nav={nav} />
 
         {/* Path card — the hero object */}
         <View
@@ -908,6 +917,12 @@ export function TodayScreen({
           </View>
         </View>
 
+        {/* The route is the proof for the headline. Actions and recent activity follow it instead
+            of interrupting the answer before the user has seen why the number is true. */}
+        <TodayNudges nav={nav} tightestSpare={isLoading ? null : tightestSpare} />
+        <TodayRecentTxns nav={nav} />
+        <TodaySpendStrip nav={nav} />
+
         {/* Melo prompt card */}
         <Pressable
           accessibilityRole="button"
@@ -940,6 +955,69 @@ export function TodayScreen({
         </Pressable>
 
         <TodayWeekTiles nav={nav} tightSpare={tightestSpare} tightDate={tight.tightestDate} />
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
+function TodayFirstRun({ nav }: { nav: Nav }) {
+  const t = useTheme();
+  return (
+    <Animated.View style={[styles.root, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={styles.firstRunScroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.headerDate, { color: t.muted }]}>
+          {new Date().toLocaleDateString('en-GB', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          })}
+        </Text>
+        <View style={[styles.firstRunMelo, { backgroundColor: t.inset }]}>
+          <Melo size={92} mood="curious" />
+        </View>
+        <Text style={[styles.firstRunKicker, { color: t.muted }]}>Your first picture</Text>
+        <Text accessibilityRole="header" style={[styles.firstRunTitle, { color: t.ink }]}>
+          {'See where your money gets '}
+          <Text style={{ color: t.calm }}>tight</Text>
+          {', before it does.'}
+        </Text>
+        <Text style={[styles.firstRunBody, { color: t.muted }]}>
+          Add a balance, payday and regular costs. Melo will turn them into one route to payday —
+          without pretending sample numbers are yours.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add my numbers"
+          onPress={() => nav.openSheet('onboarding')}
+          style={({ pressed: p }) => [
+            styles.firstRunPrimary,
+            { backgroundColor: t.calm },
+            p ? pressed : undefined,
+          ]}
+        >
+          <Text style={[styles.firstRunPrimaryLabel, { color: t.inverse }]}>Add my numbers</Text>
+          <Text style={[styles.firstRunPrimaryArrow, { color: t.inverse }]}>→</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add a statement instead"
+          onPress={() => nav.go('intake')}
+          style={({ pressed: p }) => [
+            styles.firstRunSecondary,
+            { borderColor: t.hairline },
+            p ? pressed : undefined,
+          ]}
+        >
+          <Text style={[styles.firstRunSecondaryLabel, { color: t.ink }]}>
+            Add a statement instead
+          </Text>
+        </Pressable>
+        <Text style={[styles.firstRunFootnote, { color: t.muted }]}>
+          Nothing counts until you review it.
+        </Text>
       </ScrollView>
     </Animated.View>
   );
@@ -1035,6 +1113,74 @@ function useReduceMotion(): boolean {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  firstRunScroll: {
+    flexGrow: 1,
+    paddingBottom: gap.xxxl,
+    paddingHorizontal: gap.xl,
+    paddingTop: gap.xl,
+  },
+  firstRunMelo: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderRadius: radius.xxl,
+    height: 132,
+    justifyContent: 'center',
+    marginTop: gap.xxxl,
+    width: 132,
+  },
+  firstRunKicker: {
+    fontFamily: serif.displayItalic,
+    fontSize: 14,
+    marginTop: gap.xl,
+  },
+  firstRunTitle: {
+    fontFamily: serif.display,
+    fontSize: 38,
+    letterSpacing: -0.8,
+    lineHeight: 42,
+    marginTop: gap.xs,
+  },
+  firstRunBody: {
+    fontSize: 16,
+    lineHeight: 23,
+    marginTop: gap.lg,
+    maxWidth: 360,
+  },
+  firstRunPrimary: {
+    alignItems: 'center',
+    borderRadius: radius.xl,
+    flexDirection: 'row',
+    height: 58,
+    justifyContent: 'center',
+    marginTop: gap.xxl,
+    paddingHorizontal: gap.xl,
+  },
+  firstRunPrimaryLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  firstRunPrimaryArrow: {
+    fontSize: 21,
+    position: 'absolute',
+    right: gap.xl,
+  },
+  firstRunSecondary: {
+    alignItems: 'center',
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 54,
+    justifyContent: 'center',
+    marginTop: gap.md,
+  },
+  firstRunSecondaryLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  firstRunFootnote: {
+    fontSize: 12.5,
+    marginTop: gap.lg,
+    textAlign: 'center',
+  },
   scrollContent: { paddingBottom: gap.xxxl },
 
   header: {

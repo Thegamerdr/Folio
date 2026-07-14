@@ -2627,6 +2627,26 @@ describe('reviewQueue', () => {
     expect('date' in mapped[1]!).toBe(false);
   });
 
+  it('carries the confirmed account into every one-by-one review item', () => {
+    const mapped = queueInputFromCandidates(
+      [
+        {
+          id: 'r1',
+          source: 'csv',
+          kind: 'spend',
+          merchant: 'Tesco',
+          amount: -42.1,
+          date: '2026-07-01',
+          confidence: 'high',
+        },
+      ],
+      'pdf',
+      'acct-savings',
+    );
+
+    expect(mapped[0]?.accountId).toBe('acct-savings');
+  });
+
   // Provenance carry-through (DATA_INTELLIGENCE.md phase ③): a merchant-memory recall applied
   // upstream (setReaderCandidates, or the paste path's own applyMemoryToCandidates call) must survive
   // this mapping into the persisted queue, so ReviewScreen can pre-select the chip + show honest

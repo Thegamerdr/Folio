@@ -307,6 +307,21 @@ describe('formatDayHeader', () => {
 // declared) must see byte-IDENTICAL output to before this feature existed.
 // ---------------------------------------------------------------------------
 describe('deriveCalendarEvents — legacy fallback (no incomeSources)', () => {
+  it('does not invent a zero-value payday for an unconfigured user', () => {
+    const events = deriveCalendarEvents({
+      subs: [],
+      subPaused: {},
+      subOverrides: {},
+      onboarding: { done: false, name: '', payday: 0, monthlyIncome: 0 },
+      manualEvents: [],
+      pots: [],
+      now: new Date('2026-07-14T00:00:00.000Z'),
+      includeSampleBills: false,
+    });
+
+    expect(events.filter((event) => event.source === 'payday')).toEqual([]);
+  });
+
   it('is byte-identical to the pre-existing single-payday derivation when incomeSources is omitted', () => {
     const now = at('2026-07-01');
     const subs: Sub[] = [

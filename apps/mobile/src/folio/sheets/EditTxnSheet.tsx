@@ -51,6 +51,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -58,10 +59,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import {
+  accountIdOf,
   editTransaction,
   rememberMerchantCategory,
   useAppStore,
@@ -111,6 +114,18 @@ function monthDay(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+}
+
+function dateValue(iso: string): Date {
+  const parsed = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function localIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +207,20 @@ function EditTxnForm({
   const [amountText, setAmountText] = useState(Math.abs(txn.amount).toFixed(2));
   const [category, setCategory] = useState<Transaction['category']>(txn.category);
   const [note, setNote] = useState(txn.note ?? '');
+  const [when, setWhen] = useState(txn.when);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const accountName = useAppStore((state) => {
+    const id = accountIdOf(txn);
+    return state.accounts?.find((account) => account.id === id)?.name ?? 'Main';
+  });
+  // `useAppStore` is backed by `useSyncExternalStore`; returning a freshly-filtered array from the
+  // selector makes every snapshot look new and React 19 loops until its maximum update depth. Read
+  // the stable store slice first, then derive this transaction's history with `useMemo`.
+  const edits = useAppStore((state) => state.edits);
+  const corrections = useMemo(
+    () => (edits ?? []).filter((edit) => edit.txnId === txn.id),
+    [edits, txn.id],
+  );
   const { showUndo } = useUndo();
 
   const title = `${txn.merchant} · ${monthDay(txn.when)}`.replace(/ · $/, '');
@@ -225,18 +254,20 @@ function EditTxnForm({
     const changed =
       nextMerchant !== txn.merchant ||
       nextAmount !== txn.amount ||
+      when !== txn.when ||
       categoryChanged ||
       nextNote !== (txn.note ?? '');
     const snapshot = {
       merchant: txn.merchant,
       amount: txn.amount,
+      when: txn.when,
       category: txn.category,
       note: txn.note ?? '',
     };
     const finalMerchant = nextMerchant || txn.merchant;
     editTransaction(
       txn.id,
-      { merchant: finalMerchant, amount: nextAmount, category, note: nextNote },
+      { merchant: finalMerchant, amount: nextAmount, when, category, note: nextNote },
       'user',
     );
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a category correction on a real,
@@ -304,6 +335,45 @@ function EditTxnForm({
           </View>
         </View>
 
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Date, ${monthDay(when)}. Tap to change.`}
+          onPress={() => setDatePickerOpen(true)}
+          style={({ pressed }) => [s.fieldRow, pressed ? s.pressed : undefined]}
+        >
+          <Text style={s.fieldLabel}>Date</Text>
+          <Text style={s.fieldValue}>{monthDay(when)}</Text>
+        </Pressable>
+
+        {datePickerOpen ? (
+          <View style={s.datePickerWrap}>
+            <DateTimePicker
+              display={Platform.OS === 'ios' ? 'inline' : 'default'}
+              maximumDate={new Date()}
+              mode="date"
+              onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                if (Platform.OS === 'android') setDatePickerOpen(false);
+                if (selected) setWhen(localIsoDate(selected));
+              }}
+              value={dateValue(when)}
+            />
+            {Platform.OS === 'ios' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setDatePickerOpen(false)}
+                style={({ pressed }) => [s.dateDone, pressed ? s.pressed : undefined]}
+              >
+                <Text style={s.dateDoneLabel}>Done</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        <View style={s.fieldRow}>
+          <Text style={s.fieldLabel}>Account</Text>
+          <Text style={s.fieldValue}>{accountName}</Text>
+        </View>
+
         {/* Repeat — not a Transaction field; stays a display row. */}
         <View style={s.fieldRow}>
           <Text style={s.fieldLabel}>Repeat</Text>
@@ -350,6 +420,16 @@ function EditTxnForm({
           })}
         </View>
       </View>
+
+      {corrections.length > 0 ? (
+        <View style={s.historyBlock}>
+          <Text style={s.categoryLabel}>Correction history</Text>
+          <Text style={s.historyLine}>
+            {corrections.length} {corrections.length === 1 ? 'change' : 'changes'} kept with this
+            transaction.
+          </Text>
+        </View>
+      ) : null}
 
       {/* Footer — Cancel (inset fill) + Save changes (accent fill), side by side (web `flex gap-2`).
           Cancel just closes without applying any of the pending edits. */}
@@ -513,6 +593,24 @@ function makeStyles(t: Palette) {
       paddingVertical: 0,
       textAlign: 'right',
     },
+    datePickerWrap: {
+      backgroundColor: t.inset,
+      borderRadius: radius.md,
+      overflow: 'hidden',
+      padding: gap.sm,
+    },
+    dateDone: {
+      alignItems: 'center',
+      alignSelf: 'flex-end',
+      justifyContent: 'center',
+      minHeight: 40,
+      paddingHorizontal: gap.md,
+    },
+    dateDoneLabel: {
+      color: t.calm,
+      fontSize: 13,
+      fontWeight: '600',
+    },
     // Amount — a right-aligned magnitude input with a £ prefix, reading like the value cell it replaced.
     amountInputWrap: {
       alignItems: 'center',
@@ -538,6 +636,15 @@ function makeStyles(t: Palette) {
     // Category — a labelled block of tappable chips below the field rows.
     categoryBlock: {
       marginTop: gap.md,
+    },
+    historyBlock: {
+      marginTop: gap.lg,
+    },
+    historyLine: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 12,
+      lineHeight: 17,
     },
     categoryLabel: {
       color: t.muted,

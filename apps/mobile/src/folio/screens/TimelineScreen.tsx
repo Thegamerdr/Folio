@@ -53,10 +53,9 @@
 //     category chip is derived from the REAL store. `verb` derives from `buildTimelineRows`
 //     (`lib/timelineEvents.ts`) — a transaction with a matching entry in `edits` reads "Edited",
 //     everything else "Added"; a `timelineEvents` log entry (`// @rn-engine timeline-verbs`, store.ts)
-//     supplies the richer Paused / Resumed / Left-for-later ("review-ignored") rows, written by
-//     `togglePaused` and `addIgnoredReviewSig`. "Ignored" (the web's 5th verb, an unrecognised bank
-//     line) has no writer yet on RN — Folio has no bank feed to ignore a row FROM — so it is reachable
-//     in the type but never emitted; it will appear once a feed exists to ignore from.
+//     supplies the richer Paused / Resumed / Ignored rows, written by `togglePaused` and
+//     `addIgnoredReviewSig`. Review's Ignore writes a reversible suppression signature, so its verb
+//     names that real action rather than the web demo's inaccurate "Left for later" euphemism.
 //   • Category chip: the web cycled a COMPONENT-LOCAL category that reset on unmount — a real bug the
 //     spec says NOT to replicate. The chip here reflects the PERSISTED transaction.category as a
 //     read-only label (no cycler). The ROW is the edit affordance — it opens the edit-txn sheet for
@@ -352,7 +351,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
             <Text accessibilityRole="header" style={s.headline}>
               {"Everything you've "}
               <Text style={s.headlineAccent}>added</Text>
-              {' or skipped.'}
+              {' or changed.'}
             </Text>
             <Text style={s.subhead}>Newest first. Nothing is hidden.</Text>
           </View>
@@ -362,7 +361,8 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
             <EmptyState
               mood="calm"
               headline="Your story starts here"
-              body="The things you add or leave for later will show up here, newest first."
+              body="The things you add or ignore will show up here, newest first."
+              cta={{ label: 'Add a statement', onPress: () => nav.go('intake') }}
             />
           </View>
         </View>
@@ -395,7 +395,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
           <Text accessibilityRole="header" style={s.headline}>
             {"Everything you've "}
             <Text style={s.headlineAccent}>added</Text>
-            {' or skipped.'}
+            {' or changed.'}
           </Text>
           <Text style={s.subhead}>Newest first. Nothing is hidden.</Text>
         </View>

@@ -324,7 +324,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
             mood="calm"
             headline={copy.subs.empty.head.replace(/\*\*/g, '')}
             body="Add a streaming service, gym, or anything that comes out every month. You'll see everything that repeats and what's coming."
-            cta={{ label: copy.subs.empty.cta, onPress: () => nav.go('add-debt') }}
+            cta={{ label: copy.subs.empty.cta, onPress: () => nav.go('add-bill') }}
           />
         </View>
       </ScrollView>

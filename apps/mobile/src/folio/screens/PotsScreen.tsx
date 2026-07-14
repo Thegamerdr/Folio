@@ -64,7 +64,15 @@
 // smart / provenance / source record / indexed) are absent.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -239,6 +247,10 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
   const [transfer, setTransfer] = useState<{ from: string; to: string } | null>(null);
   const [amount, setAmount] = useState(20);
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const [potName, setPotName] = useState('');
+  const [potGoal, setPotGoal] = useState('');
+  const [potWeekly, setPotWeekly] = useState('');
 
   const total = pots.reduce((sum, p) => sum + p.saved, 0);
   const totalGoal = pots.reduce((sum, p) => sum + p.goal, 0);
@@ -320,9 +332,37 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
     closeTransfer();
   }
 
+  function closeCreator() {
+    setCreatorOpen(false);
+    setPotName('');
+    setPotGoal('');
+    setPotWeekly('');
+  }
+
+  function createPot() {
+    const name = potName.trim();
+    const goal = Number(potGoal.replace(/[^0-9.]/g, ''));
+    const perWeek = Number(potWeekly.replace(/[^0-9.]/g, ''));
+    if (!name || !Number.isFinite(goal) || goal <= 0) return;
+
+    setPots((current) => [
+      ...current,
+      {
+        id: `pot-${Date.now()}`,
+        name,
+        saved: 0,
+        goal,
+        perWeek: Number.isFinite(perWeek) ? Math.max(0, perWeek) : 0,
+        accent: current.length === 0,
+        cadence: { kind: 'after-payday' },
+      },
+    ]);
+    closeCreator();
+  }
+
   // ── EMPTY ──────────────────────────────────────────────────────────────────────────────────────
   // pots.length === 0: the header + "Set aside / Small, calmly, on purpose." frame + EmptyState (deck
-  // copy, mood calm) inviting the first pot → routes to the ritual that hosts pot creation.
+  // copy, mood calm) inviting the first pot → opens the real screen-owned creator.
   if (resolvedState === 'empty') {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -344,11 +384,24 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
           <View style={styles.emptyWrap}>
             <EmptyState
               mood="calm"
-              headline={copy.pots.empty.head}
-              body="A pot is a small set-aside for one thing — a holiday, a buffer, Christmas. Add the first one and Melo will quietly set it aside from what's left over."
-              cta={{ label: copy.pots.empty.cta, onPress: () => nav.go('ritual') }}
+              headline={copy.pots.empty.head.replace(/\*\*/g, '')}
+              body="A pot is a small set-aside for one thing — a holiday, a buffer, Christmas. Add the first one, then choose the pace."
+              cta={{ label: copy.pots.empty.cta, onPress: () => setCreatorOpen(true) }}
             />
           </View>
+          <OpenPotSheet
+            visible={creatorOpen}
+            name={potName}
+            goal={potGoal}
+            weekly={potWeekly}
+            reduceMotion={reduceMotion}
+            t={t}
+            onNameChange={setPotName}
+            onGoalChange={setPotGoal}
+            onWeeklyChange={setPotWeekly}
+            onCancel={closeCreator}
+            onCreate={createPot}
+          />
         </View>
       </Animated.View>
     );
@@ -474,13 +527,12 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
           ))}
         </View>
 
-        {/* Open a pot — the doorway to creating one (the ritual hosts pot creation). The single lifted,
-            terracotta, directional CTA. */}
+        {/* Open a pot — the doorway to the screen-owned creator. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open a pot"
           accessibilityHint="Starts a new pot."
-          onPress={() => nav.go('ritual')}
+          onPress={() => setCreatorOpen(true)}
           style={({ pressed: isPressed }) => [
             styles.openCta,
             { backgroundColor: t.calm },
@@ -513,6 +565,19 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
         onStep={(next) => setAmount(next)}
         onCancel={closeTransfer}
         onMove={commit}
+      />
+      <OpenPotSheet
+        visible={creatorOpen}
+        name={potName}
+        goal={potGoal}
+        weekly={potWeekly}
+        reduceMotion={reduceMotion}
+        t={t}
+        onNameChange={setPotName}
+        onGoalChange={setPotGoal}
+        onWeeklyChange={setPotWeekly}
+        onCancel={closeCreator}
+        onCreate={createPot}
       />
     </Animated.View>
   );
@@ -885,6 +950,117 @@ function ReallocateSheet({
   );
 }
 
+// ── Open-pot sheet ─────────────────────────────────────────────────────────────────────────────
+// A direct, local-first creator. The previous CTA opened the payday-closing ritual, which had no
+// pot-creation controls at all; keeping this inside Pots makes the promise and the action agree.
+function OpenPotSheet({
+  visible,
+  name,
+  goal,
+  weekly,
+  reduceMotion,
+  t,
+  onNameChange,
+  onGoalChange,
+  onWeeklyChange,
+  onCancel,
+  onCreate,
+}: {
+  visible: boolean;
+  name: string;
+  goal: string;
+  weekly: string;
+  reduceMotion: boolean;
+  t: Palette;
+  onNameChange: (value: string) => void;
+  onGoalChange: (value: string) => void;
+  onWeeklyChange: (value: string) => void;
+  onCancel: () => void;
+  onCreate: () => void;
+}) {
+  const parsedGoal = Number(goal.replace(/[^0-9.]/g, ''));
+  const canCreate = name.trim().length > 0 && Number.isFinite(parsedGoal) && parsedGoal > 0;
+
+  return (
+    <Sheet visible={visible} onClose={onCancel} reduceMotion={reduceMotion}>
+      <Text style={[styles.sheetKicker, { color: t.muted }]}>One thing to set aside for</Text>
+      <Text accessibilityRole="header" style={[styles.sheetTitle, { color: t.ink }]}>
+        Open a pot
+      </Text>
+      <Text style={[styles.creatorBody, { color: t.muted }]}>
+        Start at £0. You can add money or change the pace whenever you like.
+      </Text>
+
+      <Text style={[styles.creatorLabel, { color: t.muted }]}>Name</Text>
+      <TextInput
+        accessibilityLabel="Pot name"
+        autoCapitalize="words"
+        onChangeText={onNameChange}
+        placeholder="e.g. Emergency buffer"
+        placeholderTextColor={t.muted}
+        style={[styles.creatorInput, { backgroundColor: t.inset, color: t.ink }]}
+        value={name}
+      />
+
+      <View style={styles.creatorNumbersRow}>
+        <View style={styles.creatorNumberField}>
+          <Text style={[styles.creatorLabel, { color: t.muted }]}>Goal</Text>
+          <TextInput
+            accessibilityLabel="Pot goal"
+            keyboardType="decimal-pad"
+            onChangeText={onGoalChange}
+            placeholder="£500"
+            placeholderTextColor={t.muted}
+            style={[styles.creatorInput, { backgroundColor: t.inset, color: t.ink }]}
+            value={goal}
+          />
+        </View>
+        <View style={styles.creatorNumberField}>
+          <Text style={[styles.creatorLabel, { color: t.muted }]}>Each week</Text>
+          <TextInput
+            accessibilityLabel="Weekly pot amount"
+            keyboardType="decimal-pad"
+            onChangeText={onWeeklyChange}
+            placeholder="£20 · optional"
+            placeholderTextColor={t.muted}
+            style={[styles.creatorInput, { backgroundColor: t.inset, color: t.ink }]}
+            value={weekly}
+          />
+        </View>
+      </View>
+
+      <View style={styles.sheetActions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onCancel}
+          style={({ pressed: isPressed }) => [
+            styles.sheetCancel,
+            { borderColor: t.hairline },
+            isPressed ? styles.pressed : undefined,
+          ]}
+        >
+          <Text style={[styles.sheetCancelLabel, { color: t.ink }]}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canCreate }}
+          disabled={!canCreate}
+          onPress={onCreate}
+          style={({ pressed: isPressed }) => [
+            styles.sheetMove,
+            { backgroundColor: canCreate ? t.calm : t.inset },
+            isPressed && canCreate ? styles.pressed : undefined,
+          ]}
+        >
+          <Text style={[styles.sheetMoveLabel, { color: canCreate ? t.inverse : t.muted }]}>
+            Open pot
+          </Text>
+        </Pressable>
+      </View>
+    </Sheet>
+  );
+}
+
 function StepButton({
   label,
   disabled,
@@ -1249,6 +1425,33 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 26,
     marginTop: gap.xxs,
+  },
+  creatorBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: gap.sm,
+  },
+  creatorLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    marginBottom: gap.xs,
+    marginTop: gap.lg,
+    textTransform: 'uppercase',
+  },
+  creatorInput: {
+    borderRadius: radius.lg,
+    fontSize: 15,
+    minHeight: 50,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+  },
+  creatorNumbersRow: {
+    flexDirection: 'row',
+    gap: gap.md,
+  },
+  creatorNumberField: {
+    flex: 1,
   },
   // Amount well — inset, 2xl radius, p-5, mt-5.
   amountWell: {

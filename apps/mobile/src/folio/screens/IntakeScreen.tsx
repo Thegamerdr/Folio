@@ -82,7 +82,15 @@
 // '@/folio/copy/copy'; the unkeyed option/subhead/Melo/footer strings are @copy FROZEN literals).
 
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Clipboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -153,6 +161,8 @@ type IntakeOption = {
   icon: string;
   to: ScreenId;
   pick?: 'document' | 'photo';
+  /** Reads copied statement text from the device clipboard and stages parsed rows. */
+  paste?: boolean;
   fastest?: boolean;
   /** When set, the row opens this sheet instead of navigating to `to`. Used by "Add numbers
    *  yourself", which opens the manual log-spend entry rather than the candidate-review screen. */
@@ -179,8 +189,20 @@ const OPTIONS: readonly IntakeOption[] = [
     to: 'image-success',
     pick: 'photo',
   },
-  { title: 'Paste transactions', hint: 'copy from anywhere', icon: '❝', to: 'paste-success' },
-  { title: 'CSV or TXT file', hint: 'if you have one', icon: '⌗', to: 'paste-success' },
+  {
+    title: 'Paste from clipboard',
+    hint: 'copy transactions first',
+    icon: '❝',
+    to: 'paste-success',
+    paste: true,
+  },
+  {
+    title: 'CSV or TXT file',
+    hint: 'if you have one',
+    icon: '⌗',
+    to: 'paste-success',
+    pick: 'document',
+  },
   {
     title: 'Add numbers yourself',
     hint: 'type it in',
@@ -606,9 +628,28 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     }
   }
 
+  // A paste row must actually read the clipboard before it claims anything was found. Parsed rows
+  // are staged only; Review remains the sole route into financial reality. Empty clipboard input
+  // stays on this screen with a useful instruction instead of opening a hollow success page.
+  async function runClipboardPaste() {
+    const text = await Clipboard.getString();
+    if (text.trim().length === 0) {
+      showToast('Nothing copied yet', 'Copy the transaction rows, then tap Paste from clipboard.');
+      return;
+    }
+    const candidates = readTextCandidates(text);
+    setReaderCandidates(candidates ?? []);
+    setReaderClosingBalance(null);
+    nav.go('paste-success');
+  }
+
   // Dispatch a row: the two file-shaped rows open the real picker (runPick); every other row keeps the
   // straight, declarative nav.go to its screen (web parity).
   const onSelect = (option: IntakeOption) => {
+    if (option.paste === true) {
+      void runClipboardPaste();
+      return;
+    }
     if (option.pick !== undefined) {
       void runPick(option);
       return;
@@ -757,7 +798,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
 
         {/* Footer reassurance — @copy FROZEN inline literal. */}
         <Text style={[styles.footer, { color: t.muted }]}>
-          Nothing is shared unless you choose to export it.
+          PDF and photo files are sent to Melo for reading. Nothing is added until you confirm it.
         </Text>
       </ScrollView>
     </Animated.View>

@@ -163,7 +163,7 @@ export function deriveCalendarEvents({
   // `firstPaydayIso` is reused below as the `after-payday` anchor for pot
   // top-ups in BOTH branches — a source-driven user's pot top-ups anchor to
   // their real earliest income event, not a fixed day-of-month.
-  let firstPaydayIso: string;
+  let firstPaydayIso: string | undefined;
   if (incomeSources.length > 0) {
     const incomeEvents = projectIncomeEvents(incomeSources, nowIso, windowDays);
     firstPaydayIso = incomeEvents[0]?.date ?? nextDayOfMonth(nowIso, onboarding.payday || 25);
@@ -180,25 +180,34 @@ export function deriveCalendarEvents({
       });
     }
   } else {
-    // The next concrete payday (engine-resolved: Feb-31 clamp + weekend-previous).
-    firstPaydayIso = nextDayOfMonth(nowIso, onboarding.payday || 25);
+    // A default day-of-month is an implementation fallback, not user data. Do not turn an
+    // unconfigured £0 app into a calendar full of invented "Payday +£0" events (or use that
+    // invented date to anchor an after-payday pot). The legacy monthly projection exists only
+    // when the user has actually declared positive monthly income.
+    if (onboarding.monthlyIncome > 0) {
+      // The next concrete payday (engine-resolved: Feb-31 clamp + weekend-previous).
+      firstPaydayIso = nextDayOfMonth(nowIso, onboarding.payday || 25);
 
-    // Payday — next occurrence(s) within window.
-    let payIso = firstPaydayIso;
-    while (payIso <= windowEndIso) {
-      out.push({
-        id: `payday-${payIso}`,
-        date: payIso,
-        kind: 'in',
-        source: 'payday',
-        title: 'Payday',
-        note: 'Salary in',
-        amount: onboarding.monthlyIncome || 0,
-        recurring: 'monthly',
-      });
-      // Advance to the same day-of-month next month, re-resolved through the
-      // engine so each month gets its own clamp/weekend shift.
-      payIso = nextDayOfMonth(nextYearMonth(yearMonthOf(payIso)) + '-01', onboarding.payday || 25);
+      // Payday — next occurrence(s) within window.
+      let payIso = firstPaydayIso;
+      while (payIso <= windowEndIso) {
+        out.push({
+          id: `payday-${payIso}`,
+          date: payIso,
+          kind: 'in',
+          source: 'payday',
+          title: 'Payday',
+          note: 'Salary in',
+          amount: onboarding.monthlyIncome,
+          recurring: 'monthly',
+        });
+        // Advance to the same day-of-month next month, re-resolved through the
+        // engine so each month gets its own clamp/weekend shift.
+        payIso = nextDayOfMonth(
+          nextYearMonth(yearMonthOf(payIso)) + '-01',
+          onboarding.payday || 25,
+        );
+      }
     }
   }
 

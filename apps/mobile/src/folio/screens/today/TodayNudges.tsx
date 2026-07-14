@@ -363,7 +363,7 @@ export function TodayNudges({
         ) : (
           <View style={[styles.dot, top.tone === 'accent' ? s.dotAccent : s.dotMuted]} />
         )}
-        <Text style={[styles.label, { color: t.ink }]} numberOfLines={1}>
+        <Text style={[styles.label, { color: t.ink }]} numberOfLines={2}>
           {top.label}
         </Text>
         {extra > 0 && (

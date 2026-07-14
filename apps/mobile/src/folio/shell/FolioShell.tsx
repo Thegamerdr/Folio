@@ -16,7 +16,15 @@
 //
 // ThemeProvider is mounted once at the app root (app/_layout.tsx) — the shell never remounts it.
 
-import { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import {
   AccessibilityInfo,
@@ -41,6 +49,10 @@ import {
   PrimaryAction,
   useTheme,
 } from '@/surfaces/pressureMap/kit';
+import {
+  getSurfaceRepaintEpoch,
+  subscribeSurfaceRepaint,
+} from '@/surfaces/pressureMap/sheetRepaint';
 import type { ProductScreen } from '@/surfaces/pressureMap/productScreen';
 import { Sheet } from '@/surfaces/pressureMap/Sheet';
 
@@ -261,6 +273,7 @@ function useReducedMotion(): boolean {
 // ---------------------------------------------------------------------------
 
 export function FolioShell() {
+  const t = useTheme();
   // In-memory nav state — the doorway is `start`, but the home tab is `today`. The web index lands
   // on `start`; here the shell opens on `today` so the bottom nav has a lit home from the first
   // frame (Start is reachable but is not a tab). One screen, one optional sheet.
@@ -283,7 +296,27 @@ export function FolioShell() {
   // editTxnTarget/dayDetailDate slots exactly: set when openSheet('add-event', { addEventKind,
   // addEventTitle }) is called, cleared whenever a sheet closes or a navigation supersedes it.
   const [addEventIntent, setAddEventIntent] = useState<SheetPayload | undefined>(undefined);
+  const [navigationPaintEpoch, setNavigationPaintEpoch] = useState(0);
+  const surfaceRepaintEpoch = useSyncExternalStore(
+    subscribeSurfaceRepaint,
+    getSurfaceRepaintEpoch,
+    getSurfaceRepaintEpoch,
+  );
   const reduceMotion = useReducedMotion();
+
+  // More-subtree navigation keeps the same active tab. Android Fabric can therefore finish the
+  // route commit while treating the visually unchanged tab strip as reusable, even when its first
+  // native buffer was incomplete. Remount the static strip after the originating Pressable has
+  // released and again at the end of the short native settle window. This changes no screen state
+  // and creates no animated hardware layer; it only asks Fabric to paint four fresh tab children.
+  useEffect(() => {
+    const afterPress = setTimeout(() => setNavigationPaintEpoch((value) => value + 1), 90);
+    const afterSettle = setTimeout(() => setNavigationPaintEpoch((value) => value + 1), 260);
+    return () => {
+      clearTimeout(afterPress);
+      clearTimeout(afterSettle);
+    };
+  }, [screen]);
 
   // Back-history stack — a faithful port of the web shell's `historyRef` (HeroPhone.tsx): `go` pushes
   // the destination, `back` pops to the previous screen. The shell opens on `today` (not the web's
@@ -295,6 +328,7 @@ export function FolioShell() {
   // The onboarding gate reads the live store flag (faithful to the web index, which reads
   // `useAppStore((s) => s.onboarding.done)`). A returning, set-up user is never offered onboarding.
   const onboardingDone = useAppStore((st) => st.onboarding.done);
+  const pendingReviewCount = useAppStore((st) => st.reviewQueue?.length ?? 0);
 
   // App-wide money-pressure — the mood/tone the WHOLE app reads. DERIVED from the real route (the
   // tightest projected spare → a band), replacing the old hardcoded 'calm' so Today / What-if / Melo
@@ -443,9 +477,13 @@ export function FolioShell() {
   // The bottom-tab press maps the kit's ProductScreen id back to a web ScreenId, then navigates.
   const onTabChange = useCallback(
     (tab: ProductScreen) => {
+      if (tab === 'import' && pendingReviewCount > 0) {
+        go('review');
+        return;
+      }
       go(screenForTab(tab));
     },
-    [go],
+    [go, pendingReviewCount],
   );
 
   const activeTab = useMemo(() => activeTabForScreen(screen), [screen]);
@@ -454,105 +492,136 @@ export function FolioShell() {
     // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
     // (ENGINES §6) via useUndo(); its snackbar host renders above the screen + bottom nav.
     <UndoProvider>
-      {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
+      <View collapsable={false} style={[shellStyles.root, { backgroundColor: t.canvas }]}>
+        {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
           unreadable, say so ONCE, visibly, instead of booting an empty app that reads as a fresh
           install (silence must never look identical to success). */}
-      <HydrationNotice />
-      {/* Every screen renders inside the error boundary so one screen throwing renders a calm
+        <HydrationNotice />
+        {/* Every screen renders inside the error boundary so one screen throwing renders a calm
           fallback instead of taking down the whole shell (faithful to the web HeroPhone, which wraps
           its screen switch in ScreenErrorBoundary). `screenLabel` resets the boundary when the screen
           changes (a fresh navigation clears a prior crash); onReset returns to Today. */}
-      <ScreenErrorBoundary screenLabel={screen} onReset={() => go('today')}>
-        <ScreenView screen={screen} nav={nav} pressure={activePressure} />
-      </ScreenErrorBoundary>
-      <BottomNav active={activeTab} onChange={onTabChange} />
-      {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
+        {/* Replace the screen and its tab bar as one opaque native frame. Keying only the React
+          boundary (or the two native siblings independently) lets Fabric commit the canvas and nav
+          on different frames, which can expose stale/black pixels during More-subtree navigation.
+          This grouped host gives Android one complete frame to paint, without a page-wide animation. */}
+        <View
+          collapsable={false}
+          key={`route-frame-${screen}`}
+          style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
+        >
+          <View collapsable={false} style={[shellStyles.screenHost, { backgroundColor: t.canvas }]}>
+            <ScreenErrorBoundary
+              key={`screen-${screen}`}
+              screenLabel={screen}
+              onReset={() => go('today')}
+            >
+              <ScreenView screen={screen} nav={nav} pressure={activePressure} />
+            </ScreenErrorBoundary>
+          </View>
+          <BottomNav
+            key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
+            active={activeTab}
+            onChange={onTabChange}
+            reviewCount={pendingReviewCount}
+          />
+        </View>
+        {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
           sheets (onboarding, edit-item, edit-txn, log-spend, sub-caught, add-event, calendar-export,
           calendar-connect, route-detail, melo-chat, share, day-detail) each wrap the kit Sheet
           internally and are mounted as sibling hosts below, so they are excluded here (via
           SELF_HOSTING_SHEETS) to avoid double-nesting. With these wired, every SheetId now resolves
           to a real component. */}
-      {sheet !== null && !SELF_HOSTING_SHEETS.has(sheet) && (
-        <Sheet visible onClose={closeSheet} reduceMotion={reduceMotion}>
-          <SheetView sheet={sheet} />
-        </Sheet>
-      )}
-      {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
+        {sheet !== null && !SELF_HOSTING_SHEETS.has(sheet) && (
+          <Sheet visible onClose={closeSheet} reduceMotion={reduceMotion}>
+            <SheetView sheet={sheet} />
+          </Sheet>
+        )}
+        {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
           (never nested inside the generic one) and is visible only while it is the active sheet. */}
-      {sheet === 'onboarding' && <OnboardingSheet visible onClose={closeSheet} />}
-      {sheet === 'edit-item' && <EditItemSheet visible onClose={closeSheet} />}
-      {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
+        {sheet === 'onboarding' && <OnboardingSheet visible onClose={closeSheet} />}
+        {sheet === 'edit-item' && <EditItemSheet visible onClose={closeSheet} />}
+        {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
           (the row the opener chose) so Save corrects THAT transaction via the store; with no target
           (cold open) the sheet keeps its safe inert fallback and edits nothing. */}
-      {sheet === 'edit-txn' && <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />}
-      {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
-      {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
-      {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
-      {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
-      {sheet === 'drift-caught' && <DriftCaughtSheet visible onClose={closeSheet} />}
-      {sheet === 'annual-caught' && <AnnualCaughtSheet visible onClose={closeSheet} />}
-      {sheet === 'add-event' && (
-        <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
-      )}
-      {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
-      {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
-      {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
-      {sheet === 'afford-check' && <AffordCheckSheet visible onClose={closeSheet} />}
-      {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
-      {sheet === 'chart-style' && <ChartStyleSheet visible onClose={closeSheet} />}
-      {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
-      {sheet === 'add-plan' && <AddPlanSheet visible onClose={closeSheet} />}
-      {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
+        {sheet === 'edit-txn' && (
+          <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />
+        )}
+        {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
+        {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
+        {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
+        {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
+        {sheet === 'drift-caught' && <DriftCaughtSheet visible onClose={closeSheet} />}
+        {sheet === 'annual-caught' && <AnnualCaughtSheet visible onClose={closeSheet} />}
+        {sheet === 'add-event' && (
+          <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
+        )}
+        {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
+        {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
+        {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
+        {sheet === 'afford-check' && <AffordCheckSheet visible onClose={closeSheet} />}
+        {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
+        {sheet === 'chart-style' && <ChartStyleSheet visible onClose={closeSheet} />}
+        {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
+        {sheet === 'add-plan' && <AddPlanSheet visible onClose={closeSheet} />}
+        {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
           web's SheetAddDebt. Distinct from the ScreenId 'add-debt' (AddEntryScreen's unrelated
           recurring bill/debt-payment quick-add) — see the SheetId union's doc-comment in types.ts. */}
-      {sheet === 'declare-debt' && <AddDebtSheet visible onClose={closeSheet} />}
-      {sheet === 'log-payment' && <LogPaymentSheet visible onClose={closeSheet} />}
-      {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
-      {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
+        {sheet === 'declare-debt' && <AddDebtSheet visible onClose={closeSheet} />}
+        {sheet === 'log-payment' && <LogPaymentSheet visible onClose={closeSheet} />}
+        {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
+        {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
           sibling hosts like RouteDetailSheet/MeloChatSheet rather than through the generic host. */}
-      {sheet === 'lens-picker' && <LensPickerSheet visible onClose={closeSheet} nav={nav} />}
-      {sheet === 'safe-zone' && <SafeZoneSheet visible onClose={closeSheet} nav={nav} />}
-      {/* Route-detail — the money-path point sheet. Owns its own kit Sheet, so it is a sibling host;
+        {sheet === 'lens-picker' && <LensPickerSheet visible onClose={closeSheet} nav={nav} />}
+        {sheet === 'safe-zone' && <SafeZoneSheet visible onClose={closeSheet} nav={nav} />}
+        {/* Route-detail — the money-path point sheet. Owns its own kit Sheet, so it is a sibling host;
           it needs the shell's nav (its CTA bridges to the Calendar) and the shell's pressure default
           (the "Left after this" figure + Melo mood, threaded the same way as the screens). The tapped
           `point` is the money-path engine's job (@rn-engine), so it falls back to its own placeholder. */}
-      {sheet === 'route-detail' && (
-        <RouteDetailSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} />
-      )}
-      {/* Melo-chat — the companion sheet. Self-hosting like RouteDetailSheet: it needs the shell's nav
+        {sheet === 'route-detail' && (
+          <RouteDetailSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} />
+        )}
+        {/* Melo-chat — the companion sheet. Self-hosting like RouteDetailSheet: it needs the shell's nav
           (its replies bridge to screens) and the shell's pressure default (the RN Nav contract carries
           no `.pressure`, so the shell threads it alongside). The shell threads the openMelo intent
           (prefill/seed) so an "Ask Melo" CTA opens the chat with its draft. */}
-      {sheet === 'melo-chat' && (
-        <MeloChatSheet
-          visible
-          onClose={closeSheet}
-          nav={nav}
-          pressure={activePressure}
-          intent={meloIntent}
-        />
-      )}
-      {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
-      {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
-      {/* Day-detail — the Calendar's full-detail day drill-in (Month cell / "+N" chip / Week day
+        {sheet === 'melo-chat' && (
+          <MeloChatSheet
+            visible
+            onClose={closeSheet}
+            nav={nav}
+            pressure={activePressure}
+            intent={meloIntent}
+          />
+        )}
+        {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
+        {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
+        {/* Day-detail — the Calendar's full-detail day drill-in (Month cell / "+N" chip / Week day
           header). The shell threads the parked ISO day; a cold open (no payload, e.g. reached via
           the generic nav rather than a Calendar tap) falls back to today so the sheet always shows a
           meaningful day rather than an inert state. */}
-      {sheet === 'day-detail' && (
-        <SheetDayDetail
-          visible
-          onClose={closeSheet}
-          nav={nav}
-          date={dayDetailDate ?? todayIsoForDayDetail()}
-        />
-      )}
-      {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
+        {sheet === 'day-detail' && (
+          <SheetDayDetail
+            visible
+            onClose={closeSheet}
+            nav={nav}
+            date={dayDetailDate ?? todayIsoForDayDetail()}
+          />
+        )}
+        {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
           ported). Mounted once at the top-level overlay, alongside the undo snackbar it never
           disturbs. */}
-      <ToastHost />
+        <ToastHost />
+      </View>
     </UndoProvider>
   );
 }
+
+const shellStyles = StyleSheet.create({
+  root: { flex: 1 },
+  routeFrame: { flex: 1 },
+  screenHost: { flex: 1 },
+});
 
 // ---------------------------------------------------------------------------
 // Hydration notice — the visible face of lib/persist.ts's do-not-destroy contract. Reads the

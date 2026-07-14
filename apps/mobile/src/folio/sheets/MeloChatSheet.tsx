@@ -1,11 +1,11 @@
 // @rn-sheet     MeloChatSheet
 // @purpose      Melo conversation surface — a snapshot of app state + a proactive opener, hosting the
-//               full Melo chat (transcript, tone/share settings, the four store-recording tool calls
-//               with a 30s undo window, composer).
+//               full Melo chat (transcript, tone/share settings, approval-gated store suggestions
+//               with a 30s undo window after confirmation, composer).
 // @reads        Full app snapshot (pots, subs, subPaused, tightPointGoal, onboarding, last-14d txns)
-// @writes       applyMeloTool via tool callbacks — the log_* family (log spend / log income /
-//               log refund / log transfer), each recorded as a Transaction with a captured undo
-//               closure. Pot moves are NOT a Melo tool (they go through addToPot / borrowFromPot).
+// @writes       applyMeloTool only after the user confirms a pending suggestion — the log_* family
+//               (log spend / log income / log refund / log transfer), each recorded as a Transaction
+//               with a captured undo closure. Dismiss never writes. Pot moves are NOT a Melo tool.
 // @copy         FROZEN — most assistant lines come from the gateway persona, not this file. The
 //               keyed strings (Melo name, currency) read VERBATIM from '@/folio/copy/copy'. The
 //               web's share-row line "Stays on this device" is a BANNED honest-claim (COPY_DECK
@@ -14,7 +14,8 @@
 // @tokens       --paper(canvas) --surface --inset --ink --muted-ink(muted) --hairline
 //               --accent(calm) --hairlineStrong (grip) — all via '@/folio/theme'.
 // @motion       sheet-rise + scrim-in (inherited from the kit Sheet) · press (scale 0.97) on every
-//               tappable (Tune, tone buttons, starter chips, Undo, Start fresh, submit) · message
+//               tappable (Tune, tone buttons, starter chips, Confirm, Dismiss, Undo, Start fresh,
+//               submit) · message
 //               fade-in on each bubble · Melo's-thinking shimmer (2s) · undo-pill 30s timer. Every
 //               motion collapses to its final state under reduce-motion (MOTION.md).
 // @moods        calm — the only mood used here. MELO_MOODS.md fixes the chat sheet at calm; the web
@@ -62,10 +63,27 @@ import {
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { copy } from '@/folio/copy/copy';
 import { Melo } from '@/folio/melo/Melo';
-import { applyMeloTool, useAppStore, type Sub, type Transaction } from '@/folio/store';
+import {
+  applyMeloTool,
+  setMelo,
+  useAppStore,
+  type MeloTone,
+  type Sub,
+  type Transaction,
+} from '@/folio/store';
 import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
 import { buildMeloSnapshot } from '@/folio/lib/meloSnapshot';
 import type { MeloIntent, Nav, Pressure } from '@/folio/types';
+import {
+  MELO_TOOL_APPROVAL_DENIED,
+  MELO_TOOL_APPROVAL_REQUESTED,
+  decideMeloToolSuggestion,
+  describeMeloToolSuggestion,
+  getMeloToolSuggestionPhase,
+  settleMeloToolApplication,
+  settleMeloToolUndo,
+  type MeloToolSuggestionSettlement,
+} from '@/folio/sheets/meloToolSuggestion';
 import {
   isMeloAiConfigured,
   sendMeloChat,
@@ -80,7 +98,7 @@ import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 // ---------------------------------------------------------------------------
 
 // The four tones (web TONES). `id` is the gateway tone key; `label` is the visible word.
-type Tone = 'calm' | 'honest' | 'dry' | 'coachy';
+type Tone = MeloTone;
 const TONES: readonly { id: Tone; label: string }[] = [
   { id: 'calm', label: 'Calm' },
   { id: 'honest', label: 'Honest' },
@@ -277,14 +295,18 @@ function MeloChat({
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
 
-  // Persistence — the web kept messages + settings in localStorage (folio.melo.chat.v1). RN has no
-  // web storage; the seam to the encrypted local store (@folio/storage, BUILD_PLAN §3) is not wired
-  // here, so this session starts from the seed + default settings each open. Tagged so it is not
-  // mistaken for a silent drop.
-  // @rn-engine melo-chat-persistence (wire @folio/storage over folio.melo.chat.v1)
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  // Tone is a companion preference, not a throwaway sheet state. Retain it in the existing local
+  // Melo settings slice; context sharing remains deliberately session-only and off by default.
+  const savedTone = useAppStore((s) => s.melo?.tone ?? DEFAULT_SETTINGS.tone);
+  const [settings, setSettings] = useState<Settings>(() => ({
+    ...DEFAULT_SETTINGS,
+    tone: savedTone,
+  }));
   const [showSettings, setShowSettings] = useState(false);
   const [input, setInput] = useState(prefill ?? '');
+  useEffect(() => {
+    if (prefill) setInput(prefill);
+  }, [prefill]);
 
   // Seed an opening assistant message when the chat is empty (web seededMessages).
   const seededMessages = useMemo<ChatMessage[]>(() => {
@@ -299,50 +321,20 @@ function MeloChat({
   const isLoading = status === 'submitted' || status === 'streaming';
   const toneLabel = TONES.find((tn) => tn.id === settings.tone)?.label ?? 'Calm';
 
-  // --- Tool bridge: when a tool part is "output-available", mutate the real app store ONCE. -------
-  // Faithful to the web: dedupe by toolCallId (appliedRef), only apply on output-available, call
-  // applyMeloTool, and on applied=true open a 30s Undo window then auto-expire it. The undo closures
-  // captured by applyMeloTool hold the exact pre-change state.
-  const appliedRef = useRef<Set<string>>(new Set());
+  // --- Tool approval gate -------------------------------------------------------------------------
+  // Suggestions remain transcript-only until Confirm. Dismiss only settles the visible part.
+  // `decidedRef` protects against double taps; a confirmed write keeps the existing 30s Undo window.
+  const decidedRef = useRef<Set<string>>(new Set());
   const undoTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [undoMap, setUndoMap] = useState<Record<string, { undo: () => void }>>({});
 
-  useEffect(() => {
-    for (const m of messages) {
-      if (m.role !== 'assistant') continue;
-      for (const p of m.parts) {
-        if (!isToolPart(p)) continue;
-        if (p.state !== 'output-available') continue;
-        const id = p.toolCallId ?? `${m.id}-${p.type}`;
-        if (appliedRef.current.has(id)) continue;
-        appliedRef.current.add(id);
-        const name = p.type.replace(/^tool-/, '');
-        const result = applyMeloTool(name, p.input ?? {});
-        // Write the REAL outcome back onto the part so the pill renders the truth: applyMeloTool's
-        // summary when it actually mutated, or its reason when it could not (unmatched target, etc.).
-        // The pill shows tp.output?.message; an unmatched move therefore reads as the reason, never a
-        // fake "done". Only an applied result gets the 30s Undo window.
-        const outputMessage = result.applied ? result.summary : result.reason;
-        recordToolOutput(id, { ok: result.applied, message: outputMessage });
-        if (result.applied) {
-          setUndoMap((prev) => ({ ...prev, [id]: { undo: result.undo } }));
-          undoTimers.current[id] = setTimeout(() => {
-            setUndoMap((prev) => {
-              const { [id]: _gone, ...rest } = prev;
-              return rest;
-            });
-            delete undoTimers.current[id];
-          }, UNDO_WINDOW_MS);
-        }
-      }
-    }
-    // recordToolOutput is a stable closure over setMessages; messages is the only reactive input.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
-
-  // Attach a settled tool outcome to its part (matched by toolCallId), immutably. Drives the pill's
-  // visible result text from what applyMeloTool actually did.
-  function recordToolOutput(callId: string, output: { ok: boolean; message: string }) {
+  // Settle one still-pending part immutably. Dismissal deliberately carries no fake tool output;
+  // confirmation carries the exact summary/reason returned by applyMeloTool.
+  function recordToolSettlement(
+    callId: string,
+    settlement: MeloToolSuggestionSettlement,
+    expectedPhase: 'pending' | 'applied' = 'pending',
+  ) {
     setMessages((prev) =>
       prev.map((m) => {
         if (m.role !== 'assistant') return m;
@@ -350,13 +342,47 @@ function MeloChat({
         const parts = m.parts.map((p) => {
           if (!isToolPart(p)) return p;
           const id = p.toolCallId ?? `${m.id}-${p.type}`;
-          if (id !== callId || p.output !== undefined) return p;
+          if (id !== callId || getMeloToolSuggestionPhase(p) !== expectedPhase) return p;
           changed = true;
-          return { ...p, output };
+          if (settlement.state === MELO_TOOL_APPROVAL_DENIED) {
+            const { output: _discardedOutput, ...withoutOutput } = p;
+            return { ...withoutOutput, state: settlement.state };
+          }
+          return { ...p, state: settlement.state, output: settlement.output };
         });
         return changed ? { ...m, parts } : m;
       }),
     );
+  }
+
+  function dismissToolSuggestion(callId: string, suggestion: ToolPart) {
+    if (decidedRef.current.has(callId)) return;
+    const command = decideMeloToolSuggestion(suggestion, 'dismiss');
+    if (command.type !== 'settle') return;
+    decidedRef.current.add(callId);
+    recordToolSettlement(callId, command.settlement);
+  }
+
+  function confirmToolSuggestion(callId: string, suggestion: ToolPart) {
+    if (decidedRef.current.has(callId)) return;
+    const command = decideMeloToolSuggestion(suggestion, 'confirm');
+    if (command.type !== 'apply') return;
+    decidedRef.current.add(callId);
+
+    const name = suggestion.type.replace(/^tool-/, '');
+    const result = applyMeloTool(name, suggestion.input ?? {});
+    const outputMessage = result.applied ? result.summary : result.reason;
+    recordToolSettlement(callId, settleMeloToolApplication(result.applied, outputMessage));
+
+    if (!result.applied) return;
+    setUndoMap((prev) => ({ ...prev, [callId]: { undo: result.undo } }));
+    undoTimers.current[callId] = setTimeout(() => {
+      setUndoMap((prev) => {
+        const { [callId]: _gone, ...rest } = prev;
+        return rest;
+      });
+      delete undoTimers.current[callId];
+    }, UNDO_WINDOW_MS);
   }
 
   // Clear any pending undo timers on unmount (no leaked timeouts when the sheet closes).
@@ -371,6 +397,7 @@ function MeloChat({
     const entry = undoMap[id];
     if (!entry) return;
     entry.undo();
+    recordToolSettlement(id, settleMeloToolUndo(), 'applied');
     const timer = undoTimers.current[id];
     if (timer) {
       clearTimeout(timer);
@@ -386,12 +413,10 @@ function MeloChat({
   // @rn-engine melo-gateway (existing apps/mobile/src/local/meloAiClient.ts) — WIRED. On send we call
   // `sendMeloChat` with the visible thread + the snapshot (shared ONLY when "let Melo see my money"
   // is on; blind otherwise). The discriminated result drives the render:
-  //   • ok          → the returned assistant prose, plus one inline tool pill per advisory suggestion.
-  //                   Each tool part is emitted `output-available`; the existing tool-bridge effect
-  //                   applies it via applyMeloTool exactly once (deduped by toolCallId) and opens the
-  //                   30s Undo. Honest by construction: applyMeloTool only reports "done" when it
-  //                   actually mutated — an unmatched target shows "working on it…" with no Undo, not
-  //                   a fake success.
+  //   • ok          → the returned assistant prose, plus one pending pill per advisory suggestion.
+  //                   Nothing writes until Confirm. Dismiss is transcript-only. A confirmed call
+  //                   shows applyMeloTool's exact summary/reason and opens the 30s Undo only when the
+  //                   local mutation actually succeeded.
   //   • no-provider → the client's honest "Melo isn't configured yet…" line, surfaced verbatim. We
   //                   never fabricate an AI reply when the gateway URL is unset.
   //   • error       → the existing inline accent error line (no transcript pollution, no faked answer).
@@ -498,7 +523,7 @@ function MeloChat({
   function performClear() {
     for (const id of Object.keys(undoTimers.current)) clearTimeout(undoTimers.current[id]);
     undoTimers.current = {};
-    appliedRef.current = new Set();
+    decidedRef.current = new Set();
     setUndoMap({});
     setMessages([]);
   }
@@ -566,7 +591,10 @@ function MeloChat({
                   key={tn.id}
                   label={tn.label}
                   selected={settings.tone === tn.id}
-                  onPress={() => setSettings((prev) => ({ ...prev, tone: tn.id }))}
+                  onPress={() => {
+                    setSettings((prev) => ({ ...prev, tone: tn.id }));
+                    setMelo({ tone: tn.id });
+                  }}
                   styles={s}
                   reduceMotion={reduceMotion}
                 />
@@ -593,7 +621,7 @@ function MeloChat({
             <Toggle checked={settings.share} palette={t} />
           </Pressable>
 
-          {messages.length > 0 ? (
+          {messages.length > 0 && Object.keys(undoMap).length === 0 ? (
             <PressText
               label="Start fresh"
               onPress={startFresh}
@@ -659,18 +687,62 @@ function MeloChat({
               <FadeIn key={m.id} reduceMotion={reduceMotion} style={s.assistant}>
                 {text ? <Text style={s.assistantText}>{text}</Text> : null}
                 {toolParts.map((tp, i) => {
-                  const name = tp.type.replace(/^tool-/, '').replace(/_/g, ' ');
-                  const done = tp.state === 'output-available' && tp.output?.message;
+                  const toolName = tp.type.replace(/^tool-/, '');
+                  const name = toolName.replace(/_/g, ' ');
                   const callId = tp.toolCallId ?? `${m.id}-${tp.type}`;
-                  const canUndo = !!undoMap[callId];
+                  const phase = getMeloToolSuggestionPhase(tp);
+                  const isPending = phase === 'pending';
+                  const canUndo = phase === 'applied' && !!undoMap[callId];
+                  const glyph =
+                    phase === 'applied'
+                      ? '✓'
+                      : phase === 'undone'
+                        ? '↶'
+                        : phase === 'failed' || phase === 'unavailable'
+                          ? '!'
+                          : phase === 'dismissed'
+                            ? '–'
+                            : '→';
+                  const resultText = isPending
+                    ? describeMeloToolSuggestion(toolName, tp.input ?? {})
+                    : phase === 'dismissed'
+                      ? 'Dismissed. Nothing changed.'
+                      : phase === 'unavailable'
+                        ? 'This suggestion is unavailable.'
+                        : (tp.output?.message ?? 'No change was made.');
                   return (
                     <View key={`${callId}-${i}`} style={s.toolPill}>
-                      <Text style={s.toolTick}>✓</Text>
+                      <Text style={s.toolTick}>{glyph}</Text>
                       <View style={s.toolTextCol}>
                         <Text style={s.toolName}>{name}</Text>
-                        <Text style={s.toolResult}>
-                          {done ? tp.output?.message : 'working on it…'}
+                        <Text style={s.toolResult} accessibilityLiveRegion="polite">
+                          {resultText}
                         </Text>
+                        {isPending ? (
+                          <>
+                            <Text style={s.toolHint}>Nothing changes until you confirm.</Text>
+                            <View style={s.toolActions}>
+                              <PressText
+                                label="Dismiss"
+                                onPress={() => dismissToolSuggestion(callId, tp)}
+                                style={s.toolDismiss}
+                                labelStyle={s.toolDismissLabel}
+                                reduceMotion={reduceMotion}
+                                accessibilityLabel={`Dismiss ${name} suggestion`}
+                                accessibilityHint="Leaves your money records unchanged"
+                              />
+                              <PressText
+                                label="Confirm"
+                                onPress={() => confirmToolSuggestion(callId, tp)}
+                                style={s.toolConfirm}
+                                labelStyle={s.toolConfirmLabel}
+                                reduceMotion={reduceMotion}
+                                accessibilityLabel={`Confirm ${name} suggestion`}
+                                accessibilityHint="Records this change in Melo"
+                              />
+                            </View>
+                          </>
+                        ) : null}
                       </View>
                       {canUndo ? (
                         <PressText
@@ -795,10 +867,8 @@ function toRequestSnapshot(snapshot: Record<string, unknown>): MeloLocalFinancia
   return withNames as unknown as MeloLocalFinancialSnapshot;
 }
 
-// Turn an ok result into one assistant message: the prose text part (when non-empty) plus one
-// `output-available` tool part per advisory suggestion. Emitting the suggestions as tool parts routes
-// them through the existing tool-bridge effect, which calls applyMeloTool exactly once each (deduped
-// by toolCallId) and opens the inline Undo — so nothing is applied here directly.
+// Turn an ok result into one assistant message: the prose text part (when non-empty) plus one explicit
+// approval request per advisory suggestion. These are transcript-only until the user presses Confirm.
 function assistantMessageFromResult(
   reply: string,
   suggestions: readonly MeloToolSuggestion[],
@@ -810,7 +880,7 @@ function assistantMessageFromResult(
   suggestions.forEach((suggestion) => {
     parts.push({
       type: `tool-${suggestion.name}`,
-      state: 'output-available',
+      state: MELO_TOOL_APPROVAL_REQUESTED,
       toolCallId: suggestion.id,
       input: suggestion.args as Record<string, unknown>,
     });
@@ -906,7 +976,7 @@ function StarterChip({
 }
 
 // ---------------------------------------------------------------------------
-// PressText — a text-only tappable with the .press scale (Tune, Undo, Start fresh).
+// PressText — a compact tappable with the .press scale (Tune, decisions, Undo, Start fresh).
 // ---------------------------------------------------------------------------
 
 function PressText({
@@ -916,6 +986,7 @@ function PressText({
   labelStyle,
   reduceMotion,
   accessibilityLabel,
+  accessibilityHint,
 }: {
   label: string;
   onPress: () => void;
@@ -923,6 +994,7 @@ function PressText({
   labelStyle: object;
   reduceMotion: boolean;
   accessibilityLabel: string;
+  accessibilityHint?: string;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   function press(to: number) {
@@ -936,6 +1008,7 @@ function PressText({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       onPress={onPress}
       onPressIn={() => press(PRESS_SCALE)}
       onPressOut={() => press(1)}
@@ -1379,6 +1452,49 @@ function makeStyles(t: Palette) {
       fontSize: 10.5,
       letterSpacing: 1.3, // tracking-[0.12em] on a 10.5px label
       textTransform: 'uppercase',
+    },
+    toolActions: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: gap.sm,
+      marginTop: gap.md,
+    },
+    toolConfirm: {
+      alignItems: 'center',
+      backgroundColor: t.ink,
+      borderRadius: radius.sm,
+      justifyContent: 'center',
+      minHeight: 36,
+      paddingHorizontal: gap.md,
+    },
+    toolConfirmLabel: {
+      color: t.canvas,
+      fontSize: 11,
+      fontWeight: '600',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    toolDismiss: {
+      alignItems: 'center',
+      borderColor: t.hairlineStrong,
+      borderRadius: radius.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      justifyContent: 'center',
+      minHeight: 36,
+      paddingHorizontal: gap.md,
+    },
+    toolDismissLabel: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '500',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    toolHint: {
+      color: t.muted,
+      fontSize: 11.5,
+      lineHeight: 16,
+      marginTop: gap.xs,
     },
     toolPill: {
       alignItems: 'flex-start',

@@ -11,8 +11,8 @@
 //      by definition — see `verbForTransaction`).
 //   2. `timelineEvents` (store.ts) — the append-only log this port introduces for the two verb-state
 //      moments that have no other durable, human-readable trace: a subscription paused/resumed, and
-//      a Review candidate ignored ("Left for later" reads as the calm, non-judgemental voice for an
-//      ignored candidate — ENGINES.md §6 "Ignored review items" frames it as deferred, not rejected).
+//      a Review candidate ignored. The action suppresses exact future matches until the user unhides
+//      it, so the visible verb says "Ignored" rather than misrepresenting it as a temporary deferral.
 //
 // Both sources are merged newest-first by timestamp into one `TimelineRow[]` feed. Pure — no store
 // reads here; callers (TimelineScreen) pass in the two slices + `now`.
@@ -20,14 +20,8 @@
 import type { Transaction, StoredTxnEdit, TimelineEvent } from '../store';
 
 // The verbs the web's ScreenTimeline union defines, reproduced verbatim (COPY FROZEN — no new verb
-// strings; "review-ignored" reads as "Left for later" per ENGINES.md §6's deferred-not-rejected framing).
-//
-// DEFERRED — 'Ignored' is unreachable from this engine: the store's real `review-ignored` event
-// (addIgnoredReviewSig, store.ts) maps to 'Left for later' above, not 'Ignored'. In the web design
-// source 'Ignored' only ever appears in ScreenTimeline's 8 hardcoded demo rows, which read from no
-// real state at all (see file header) — there is no live emitter to port. The member is kept for
-// union-shape parity with the web's verb type; if a future real source needs a distinct "outright
-// rejected" (vs. "deferred") verb, wire it here explicitly rather than resurrecting this unused case.
+// strings. The web demo distinguished "Left for later" and "Ignored", but the real native action is
+// the latter: it writes a durable suppression signature and is reversible from Hidden review.
 export type TimelineVerb = 'Added' | 'Left for later' | 'Ignored' | 'Edited' | 'Paused' | 'Resumed';
 
 export type TimelineRow = {
@@ -62,7 +56,7 @@ function verbForEvent(kind: TimelineEvent['kind']): {
     case 'sub-resumed':
       return { verb: 'Resumed', note: undefined };
     case 'review-ignored':
-      return { verb: 'Left for later', note: 'you can decide another time' };
+      return { verb: 'Ignored', note: 'hidden from future checks' };
     default:
       return { verb: 'Added', note: undefined };
   }

@@ -755,6 +755,9 @@ export type ReviewItem = {
   amount: number;
   /** ISO YYYY-MM-DD if the reader pinned a date. */
   date?: string;
+  /** The account the user selected before choosing one-by-one review. Omitted
+   *  for legacy/manual queue items, which continue to resolve to Main. */
+  accountId?: string;
   /** Human hint the reader wrote ("looks like a bill"). */
   hint?: string;
   /** When Folio queued it. Used for sort + 14-day age-out. */
@@ -770,11 +773,15 @@ export type ReviewItem = {
   rememberedCategory?: true;
 };
 
+export type MeloTone = 'calm' | 'honest' | 'dry' | 'coachy';
+
 /** Melo companion settings (`MeloScreen`). `quietMode` hides the character
- *  (numbers stay); `wardrobe` is up to 3 equipped companion-touch ids. */
+ *  (numbers stay); `wardrobe` is up to 3 equipped companion-touch ids. `tone` is optional for
+ *  persisted-shape compatibility with installs created before chat preferences were retained. */
 export type MeloState = {
   quietMode: boolean;
   wardrobe: string[];
+  tone?: MeloTone;
 };
 /** Persistence key prefix, used only for the parked-future-blob slot name
  *  below (`${KEY}.future.${v}`) — mirrors the web original's localStorage
@@ -851,7 +858,7 @@ const DEFAULT_HOUSEHOLD: Household = { partnerName: '', defaultShare: 0.5, subSh
 /** Non-optional fallback for `AppState.melo` — see `DEFAULT_LENS` for why
  *  `DEFAULTS.melo` can't be used directly here (the field is optional on
  *  `AppState` for shape back-compat). */
-const DEFAULT_MELO: MeloState = { quietMode: false, wardrobe: [] };
+const DEFAULT_MELO: MeloState = { quietMode: false, wardrobe: [], tone: 'calm' };
 
 const SAMPLE_BALANCE: CurrentBalance = {
   amount: 720,
@@ -1002,7 +1009,7 @@ const DEFAULTS: AppState = {
     trialEndedCycleId: null,
     trialEndAcknowledged: true,
   },
-  melo: { quietMode: false, wardrobe: [] },
+  melo: { quietMode: false, wardrobe: [], tone: 'calm' },
   tinyWins: [],
   timelineEvents: [],
   // Empty by default — a fresh install has NOT declared income sources yet, so
@@ -1372,6 +1379,10 @@ function firstRunState(): AppState {
     subPaused: {},
     subOverrides: {},
     cycles: [],
+    // Release first-run is genuinely blank. The old demo's £2,180/month must not survive merely
+    // because onboarding has not been completed yet; the onboarding slider now honestly starts at
+    // zero and writes only what the owner chooses.
+    onboarding: { done: false, name: '', payday: 25, monthlyIncome: 0 },
     debts: [],
     plans: [],
     currentBalance: emptyBalance,
@@ -3350,12 +3361,14 @@ export function refillReviewQueueFromSpillover() {
 export function queueInputFromCandidates(
   candidates: readonly CandidateWithMemory[],
   source: ReviewItem['source'],
+  accountId?: string,
 ): Array<Omit<ReviewItem, 'id' | 'addedAt'>> {
   return candidates.map((c) => ({
     source,
     merchant: c.merchant,
     amount: c.amount,
     ...(c.date !== undefined ? { date: c.date } : {}),
+    ...(accountId !== undefined ? { accountId } : {}),
     ...(c.note !== undefined ? { hint: c.note } : {}),
     ...(c.category !== undefined ? { category: c.category } : {}),
     ...(c.rememberedCategory !== undefined ? { rememberedCategory: c.rememberedCategory } : {}),
@@ -3494,7 +3507,7 @@ export function resetToEmpty() {
       trialEndedCycleId: null,
       trialEndAcknowledged: true,
     },
-    melo: { quietMode: false, wardrobe: [] },
+    melo: { quietMode: false, wardrobe: [], tone: 'calm' },
     tinyWins: [],
     timelineEvents: [],
     incomeSources: [],

@@ -15,7 +15,9 @@ import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
 import {
   buildMeloSystemPrompt,
+  guardBlindMeloReply,
   resolveNamedTarget,
+  splitReplyAndSuggestions,
   windowChatHistory,
   type MeloChatMessage,
   type NamedTarget,
@@ -96,6 +98,32 @@ describe('buildMeloSystemPrompt — names reach the model', () => {
   it('tells the model it has no money data when given no snapshot', () => {
     const prompt = buildMeloSystemPrompt('calm');
     expect(prompt).toContain('do not have access');
+    expect(prompt).toContain('do not calculate or claim any effect');
+    expect(prompt).not.toContain('tight point down to around £42');
+  });
+});
+
+describe('guardBlindMeloReply — no invented money claims when sharing is off', () => {
+  const thread: readonly MeloChatMessage[] = [
+    { id: 'u1', role: 'user', text: 'log 5 pounds at Cafe' },
+  ];
+
+  it('keeps an amount already stated in the conversation', () => {
+    expect(guardBlindMeloReply('I can prepare the £5 spend.', thread, true)).toBe(
+      'I can prepare the £5 spend.',
+    );
+  });
+
+  it('replaces an ungrounded projection while retaining the confirmation flow', () => {
+    expect(
+      guardBlindMeloReply('that pulls your tight point down to around £17.', thread, true),
+    ).toBe('I can prepare that for you. Check the details below before you confirm.');
+  });
+
+  it('uses a no-data explanation when there is no suggestion to inspect', () => {
+    expect(guardBlindMeloReply('your balance will be £17.', thread, false)).toBe(
+      "I don't have enough confirmed information to put a number on that yet.",
+    );
   });
 });
 
@@ -130,5 +158,28 @@ describe('windowChatHistory — outbound cost bound', () => {
     const wall = msg(0, 'y'.repeat(5_000));
     windowChatHistory([wall]);
     expect(wall.text).toHaveLength(5_000);
+  });
+});
+
+describe('splitReplyAndSuggestions — gateway fence tolerance', () => {
+  it('turns an allow-listed tool array in a generic json fence into a confirmation suggestion', () => {
+    const result = splitReplyAndSuggestions(`i can help with that.\n\n\`\`\`json
+[
+  {"name":"log_spend","args":{"merchant":"Tesco","amount":10,"category":"food"},"summary":"log a £10 spend at Tesco"}
+]
+\`\`\``);
+
+    expect(result.prose).toBe('i can help with that.');
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]).toMatchObject({
+      name: 'log_spend',
+      args: { merchant: 'Tesco', amount: 10, category: 'food' },
+      summary: 'log a £10 spend at Tesco',
+    });
+  });
+
+  it('leaves an ordinary json block visible when it contains no allow-listed tool', () => {
+    const reply = 'Here is the breakdown.\n\n```json\n{"total":10}\n```';
+    expect(splitReplyAndSuggestions(reply)).toEqual({ prose: reply, suggestions: [] });
   });
 });

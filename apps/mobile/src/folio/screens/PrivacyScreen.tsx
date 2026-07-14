@@ -6,8 +6,9 @@
 // @purpose      Plain statement of what Folio does (and doesn't do) with the user's data, plus export
 //               and reset.
 // @reads        — (no store reads for render)
-// @writes       resetAll() (via "Reset to the demo") · resetToEmpty() (via "Clear everything to
-//               empty"). NO post-wipe Undo (D3: no fake undo after a confirmed wipe).
+// @writes       resetToEmpty() (via "Clear everything to empty"). NO post-wipe Undo (D3: no fake
+//               undo after a confirmed wipe). Demo reseeding remains a development/test concern and
+//               is deliberately not exposed in the release privacy UI.
 // @writes-export runExport() — "Export my data" runs the real export engine (full JSON + CSVs +
 //               OS share sheet, ENGINES §6 D6). It opens the OS share sheet itself, not a Folio sheet.
 // @writes-restore pickRestoreFile()/applyRestore() (plan 113) — "Restore from an export" loads a
@@ -17,8 +18,8 @@
 //               copy-lint tests (copyLint.test.ts): no banned words, no false privacy/security claims.
 // @tokens       calm (accent) · positive (check) · repair (negative reset rows) · surface · hairline
 //               · muted · canvas · ink — all from the kit via '@/folio/theme'
-// @motion       slide-in-r on mount (whole screen, translateX 28→0 + fade, 360ms ease-out-expo) ·
-//               press 0.97 on every tappable (kit `pressed`) · Melo breathe/blink at the footer (calm)
+// @motion       press 0.97 on every tappable (kit `pressed`) · Melo breathe/blink at the footer
+//               (calm). The page root stays static for reliable native navigation repainting.
 // @notes        Claims here are checked by RN copy-lint tests. Edit copy with care.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store source):
@@ -33,7 +34,7 @@
 //     the picked PDF/photo to Folio's reader service, and Melo chat sends the conversation (plus an
 //     optional snapshot) to the gateway — both leave the device before any export tap. The rewritten
 //     claim names those two real egress paths instead of promising nothing leaves.
-//   • HONEST_CLAIMS[2] (was "Delete everything in one tap"): both resets below run the SAME
+//   • HONEST_CLAIMS[2] (was "Delete everything in one tap"): the reset below runs a
 //     three-gate confirm chain (exportedAck → typedConfirm → finalConfirm) — never a single tap. The
 //     rewritten claim describes the actual deliberate, multi-step gate instead of a one-tap wipe.
 //   • The accent word "your call." is rendered UPRIGHT (not italic) in terracotta — the web uses
@@ -48,23 +49,18 @@
 //     rgba(224,99,58,0.55), which is NOT a token and must not be reintroduced). It opens the share
 //     sheet via nav.openSheet('share'). Note this is a plain centred label (no arrow), faithful to the
 //     web button, so it is NOT the kit's <PrimaryAction> (which pins a chevron).
-//   • The action list is a single `surface` card with the kit hairline border, holding two rows split
-//     by ONE inter-row hairline (web divide-y → a single divider between the two rows; never above row
-//     1 or below the last row). Each row is a Pressable with the kit `pressed` feel and a right
-//     chevron. The card now holds THREE rows ("See what's saved" + the two resets), each split by one
-//     inter-row hairline.
-//   • TWO distinct destructive resets, both gated, run their wipe, then navigate to Start. "Reset to
-//     the demo" → resetAll() (RESEEDS the sample/demo set, so its toast says the example was put back);
-//     "Clear to empty" → resetToEmpty() (leaves a GENUINELY empty app — no reseed — for a real user who
-//     wants only their own data, so its toast truthfully says the app is empty). Both run the SAME
-//     tier-3 confirm chain (exportedAck → typedConfirm → finalConfirm); only the final branch wipes.
+//   • The action list is one `surface` card with the kit hairline border. It holds "See what's saved",
+//     restore, and the single release-safe destructive action, each split by one inter-row hairline.
+//   • "Clear to empty" → resetToEmpty() leaves a GENUINELY empty app — no reseed — for a real user who
+//     wants only their own data. It runs the tier-3 confirm chain (exportedAck → typedConfirm →
+//     finalConfirm); only the final branch wipes. There is no customer-facing sample-data reset.
 //     Per D3 there is NO post-wipe Undo (no fake undo after a confirmed wipe): the toast is a plain
 //     confirmation, and the export acknowledged in gate 1 is the real recovery path. The honest claim
 //     above ("a few deliberate confirmations, never one accidental tap") describes the user's OWN
 //     data being wiped; the gate is deliberately multi-step, and what's LEFT after differs by which
 //     reset was chosen. See @rn-engine.
-//   • slide-in-r resolves straight to its final state under reduce-motion (resolved layout, never a
-//     slower animation), mirroring Melo's own gating and StartScreen.
+//   • The page root stays static. Android can retain full-screen transformed layers after navigation;
+//     motion remains local to press feedback and Melo instead of wrapping the entire surface.
 //   • STATES: per the spec, Privacy is populated-only and offline ≡ populated (local-first, no network
 //     dependency, no offline banner). All five branches are rendered for completeness: populated /
 //     offline = the real surface; loading = Melo curious + a line (never a spinner, per the hard rule
@@ -74,23 +70,8 @@
 // Tokens only — no new colour, font, spacing, radius, or shadow. Tap targets are >=44px (the rows and
 // CTA have generous padding; the back glyph carries hitSlop). Named export (the route file is separate).
 
-import { useEffect, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 
 import {
   CheckGlyph,
@@ -105,7 +86,7 @@ import {
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { resetAll, resetToEmpty } from '@/folio/store';
+import { resetToEmpty } from '@/folio/store';
 import { runExport } from '@/folio/lib/exportNative';
 import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
@@ -121,80 +102,33 @@ export type PrivacyScreenProps = {
   state?: PrivacyState;
 };
 
-// The three honest claims — VERBATIM from the web source. Each must stay literally true of the shipped
-// app: no ads/tracking is shipped, nothing leaves the device without the export tap, and Start fresh
-// wipes the user's data in one tap. Copy-lint checks these.
+// Three concise, literal claims about the shipped app. Melo messages and statement files can leave the
+// device for processing, so the copy names that boundary instead of implying everything stays local.
 const HONEST_CLAIMS = [
   'No ads, no tracking',
-  'What you type to Melo, or a statement you add, goes to that AI provider — a copy only leaves when you export',
-  'Clearing everything takes a few deliberate confirmations, never one accidental tap',
+  'Melo messages and statement files go only to the services that process them',
+  'Exports happen only when you ask; clearing takes three confirmations',
 ] as const;
-
-// Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
-const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-
-// slide-in-r geometry (from the spec @motion): the whole screen enters from +28px on X with a fade.
-const SLIDE_FROM_X = 28;
-const SLIDE_MS = 360;
 
 // The positive check badge is a 15% alpha tint of the `positive` token (web bg-[var(--positive)]/15).
 // `positive` is a 6-digit hex; append the 0x26 (~15%) alpha byte so the tint follows the theme rather
 // than being a separate hard-coded colour.
 const POSITIVE_TINT_ALPHA = '26'; // 0x26 / 0xFF ≈ 0.15
 
-// Local reduce-motion read, mirroring Melo.tsx / StartScreen exactly: read once, then subscribe.
-function useReduceMotion(): boolean {
-  const [reduce, setReduce] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) setReduce(enabled);
-    });
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
-  return reduce;
-}
-
 export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const reduceMotion = useReduceMotion();
 
-  // slide-in-r — drives the whole screen. 0 = entering, 1 = resting; under reduce-motion we resolve
-  // straight to the final state instead of animating.
-  const enter = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    if (reduceMotion) {
-      enter.value = 1;
-      return;
-    }
-    enter.value = withTiming(1, { duration: SLIDE_MS, easing: EASE_OUT_EXPO });
-  }, [enter, reduceMotion]);
-
-  const enterStyle = useAnimatedStyle(() => ({
-    opacity: enter.value,
-    transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
-  }));
-
-  // TWO distinct destructive resets, deliberately NOT the same thing:
-  //
-  //   • "Reset to the demo" → resetAll(). Wipes the user's own data and RESEEDS the sample/demo set
-  //     (3 demo pots + ~10 days of seeded transactions). For someone who wants to go back to the
-  //     example app, NOT a genuinely empty one.
-  //   • "Clear everything to empty" → resetToEmpty(). Wipes to a GENUINELY empty app — no reseed, no
+  // "Clear everything to empty" → resetToEmpty(). Wipes to a GENUINELY empty app — no reseed, no
   //     demo content — for a real user who wants only their own data going forward. The store leaves
   //     a neutral, honest empty (£0, user-entered/rough, not a `sample` source) and keeps
   //     `onboarding.done` true so the cleared user is not re-onboarded.
   //
-  // Both are Tier-3 "nuke" actions per undoPolicy.ts (ENGINES.md §6): each wipes ALL of the user's
-  // data, so NEITHER is ever one-tap reachable. Both fire only once `canStartFresh` clears all three
+  // This is a Tier-3 "nuke" action per undoPolicy.ts (ENGINES.md §6), so it is never one-tap
+  // reachable. It fires only once `canStartFresh` clears all three
   // gates — an explicit "I've exported my data" acknowledgement (exportedAck), a deliberate
   // typed-style confirm of the destructive intent (typedConfirm), and a final confirm (finalConfirm).
-  // The engine (canStartFresh) and this UI agree; neither bare one-tap reset bypasses the gate.
+  // The engine (canStartFresh) and this UI agree; no bare one-tap reset bypasses the gate.
   //
   // Realised with the codebase's established RN confirmation convention — Alert.alert button chains
   // (SubscriptionsScreen / MeloChatSheet / TodayRecentTxns). RN's Alert.prompt is iOS-only and is used
@@ -202,17 +136,14 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // step rather than a free-text box. Each step is independently cancellable, and the wipe only runs
   // inside the final branch after the gate returns true.
   //
-  // Once the gate clears: run the chosen wipe and jump to Start. There is NO post-wipe Undo — D3
+  // Once the gate clears: run the wipe and jump to Start. There is NO post-wipe Undo — D3
   // forbids a fake undo after a confirmed wipe, and the final gate already says "there is no going
-  // back" (the web's 6s sonner-with-Undo is deliberately dropped). Both wipes share this
-  // shell; they differ only in the wipe function and the confirmation wording. Export is now REAL:
+  // back" (the web's 6s sonner-with-Undo is deliberately dropped). Export is now REAL:
   // "Export my data" calls runExport() (the export engine), which builds the complete JSON + CSVs and
   // opens the OS share sheet on them — it no longer opens the cycle-share card (D6, never paywalled).
-  //   • "Reset to the demo" runs resetAll(), which reseeds the sample/demo set (it does NOT leave a
-  //     truly empty store), so its copy talks about going back to the example, not an empty app.
-  //   • "Clear everything to empty" runs resetToEmpty(), which leaves NO demo data, so its copy
+  // "Clear everything to empty" runs resetToEmpty(), which leaves NO demo data, so its copy
   //     truthfully says the app is left empty — the right choice for a real user who wants only their
-  //     own data. Either way the user's OWN data is wiped first; the difference is what's left after.
+  //     own data.
   const performReset = (wipe: () => void, toastTitle: string, toastBody: string) => {
     // The gate is cleared — build the StartFreshState the engine vets and confirm all three are set
     // before the destructive call. This keeps the engine as the single source of truth for the policy.
@@ -273,16 +204,6 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       { cancelable: true },
     );
   };
-
-  // "Reset to the demo" — resetAll(): wipe the user's data and reseed the sample/demo set.
-  const handleResetToDemo = () =>
-    confirmReset('Reset to the demo', () =>
-      performReset(
-        resetAll,
-        'Reset to the demo',
-        'Your data was cleared and the example put back.',
-      ),
-    );
 
   // "Clear everything to empty" — resetToEmpty(): wipe to a genuinely empty app, no demo reseed.
   const handleClearToEmpty = () =>
@@ -412,10 +333,9 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   const positiveTint = `${t.positive}${POSITIVE_TINT_ALPHA}`;
 
   return (
-    <Animated.View
+    <View
       style={[
         styles.screen,
-        enterStyle,
         {
           backgroundColor: t.canvas,
           paddingTop: insets.top + gap.md,
@@ -528,26 +448,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
             <ChevronRight color={t.muted} />
           </Pressable>
 
-          {/* Inter-row divider — between "Restore" and "Reset to the demo". */}
-          <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
-
-          {/* Reset to the demo — resetAll(): wipes your data, then puts the example data back. */}
-          <Pressable
-            accessibilityHint="Asks you to confirm before clearing your data"
-            accessibilityRole="button"
-            onPress={handleResetToDemo}
-            style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
-          >
-            <View style={styles.actionText}>
-              <Text style={[styles.actionTitle, { color: t.repair }]}>Reset to the demo</Text>
-              <Text style={[styles.actionSubtitle, { color: t.muted }]}>
-                clears yours, puts the example back
-              </Text>
-            </View>
-            <ChevronRight color={t.muted} />
-          </Pressable>
-
-          {/* Inter-row divider — between "Reset to the demo" and "Clear to empty". */}
+          {/* Inter-row divider — between "Restore" and "Clear to empty". */}
           <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
 
           {/* Clear to empty — resetToEmpty(): wipes to a genuinely empty app, no demo data left. */}
@@ -577,7 +478,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           <MeloLine mood="calm" size={28} text="Your numbers are yours to keep or export." />
         </View>
       </ScrollView>
-    </Animated.View>
+    </View>
   );
 }
 

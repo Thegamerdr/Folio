@@ -15,8 +15,9 @@
 // @copy         FROZEN
 // @tokens       calm (accent) · surface · hairline · muted · repairInk (negative) · canvas (paper) ·
 //               ink · caution — all from the kit, no new token defined here.
-// @motion       slide-in-r on mount (translateX 28→0 + fade, 360ms ease-out-expo) · press 0.97/120ms
-//               on every row · Melo breathe + blink (the only continuous motion on this quiet screen).
+// @motion       press feedback on every row · Melo breathe + blink (the only continuous motion on
+//               this quiet screen). The native hub stays static so its long scroll never covers
+//               persistent Android navigation chrome with a retained full-screen animation layer.
 // @notes        Fast-forward is a dev/demo action; Start fresh routes to the gated reset on Data &
 //               privacy (D3 forbids a one-confirm wipe here, so it no longer wipes from this hub).
 //               Both are kept LAST and visually quiet (same row styling; only "Start fresh" carries
@@ -57,8 +58,9 @@
 //     heading — rendered UPRIGHT (Fraunces display, normal style) + terracotta (t.calm), NOT italic.
 //   • Chevron is a literal "→" text glyph in muted ink on the web. Kept as a muted "→" Text glyph
 //     (the kit's ChevronRight is an option, but the web glyph is the literal "→"; staying faithful).
-//   • slide-in-r: translateX 28→0 + fade over 360ms, ease-out-expo (the web styles.css value, not the
-//     doc block's 240ms) — gated to FINAL STATE under reduce-motion (resolved layout, never slower).
+//   • The web's page-wide slide-in is deliberately omitted on native. Android can retain the
+//     full-screen animation layer after it settles and composite it over unchanged navigation after
+//     a long scroll. Row feedback and Melo's local motion preserve life without risking the shell.
 //   • Header carries the "Folio" wordmark (font-display italic 14px) + a 20px empty balance spacer on
 //     the right — the spacer is kept so the wordmark stays left-aligned; it is NOT a button.
 //   • Scroll container hides scrollbars and clears the tab bar with a bottom safe-area inset + bottom
@@ -78,14 +80,8 @@
 // literals exactly as the web keeps them; only app.name is keyed in COPY_DECK).
 
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 
 import {
   Surface,
@@ -191,38 +187,17 @@ type MoreRow = {
   tone?: 'negative';
 };
 
-// Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
-const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-
-// slide-in-r geometry (from the spec @motion): the whole screen enters from +28px on X with a fade.
-const SLIDE_FROM_X = 28;
-const SLIDE_MS = 360;
+type MoreGroup = {
+  title: string;
+  rows: MoreRow[];
+};
 
 // The web's w-5 (20px) balance spacer that keeps the wordmark left-aligned. Not a button.
 const BALANCE_SPACER = 20;
 
-// Local reduce-motion read, mirroring Melo.tsx / StartScreen exactly: read once, then subscribe to
-// changes. Kept self-contained so this screen pulls no heavy module graph.
-function useReduceMotion(): boolean {
-  const [reduce, setReduce] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) setReduce(enabled);
-    });
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
-  return reduce;
-}
-
 export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const reduceMotion = useReduceMotion();
 
   // Appearance — the RN replacement for the web document.documentElement.classList mechanism. The
   // hint reads the live resolved appearance; the tap flips it binary light↔dark (never 'system'),
@@ -237,84 +212,91 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const hiddenCount = useAppStore((s) => s.ignoredReviewSigs?.length ?? 0);
   const reminders = useReminders();
 
-  // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
-  // we resolve straight to the final state instead of animating.
-  const enter = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    if (reduceMotion) {
-      enter.value = 1;
-      return;
-    }
-    enter.value = withTiming(1, { duration: SLIDE_MS, easing: EASE_OUT_EXPO });
-  }, [enter, reduceMotion]);
-
-  const enterStyle = useAnimatedStyle(() => ({
-    opacity: enter.value,
-    transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
-  }));
-
-  // ONE flat scannable list — byte-faithful to the web `rows` array (order, labels, hints, targets).
-  // Order is intent: see the picture first, adjust it, try a move, then admin. Dev/demo actions stay
-  // last so they read as escape hatches (see FIDELITY DECISIONS — this replaces the prior four-group
-  // reorganisation, which dropped "Chart style" and "Hidden from Review" entirely).
-  const rows: MoreRow[] = [
-    { label: 'Account & plan', hint: 'tier, sources, sign in', to: 'account' },
-    { label: 'Melo', hint: 'companion, plumage, quiet mode', to: 'melo' },
-    { label: 'Timeline', hint: 'what you added, what you left', to: 'timeline' },
-    { label: 'Calendar', hint: 'the dates that matter', to: 'calendar' },
-    { label: 'Plans', hint: "what's coming before payday", to: 'plans' },
-    { label: 'Insights', hint: 'the shape of your months', to: 'insights' },
-    { label: 'Subscriptions', hint: 'what still earns its place', to: 'subs' },
-    { label: 'Pots', hint: 'set aside, calmly', to: 'pots' },
-    { label: 'Payday & income', hint: 'change when money lands', sheet: 'onboarding' },
-    { label: 'Payday review', hint: 'wrap up the month in four steps', to: 'ritual' },
-    { label: 'What if I spend', hint: 'preview before you decide', to: 'whatif' },
-    { label: 'Recovery', hint: 'something has to move', to: 'recovery' },
-    { label: 'Share a cycle', hint: 'a quiet win card', sheet: 'share' },
-    { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
+  // Group by user intent. Twenty unrelated rows in one card made the hub feel like an implementation
+  // index; these sections keep the same working destinations while making the next choice legible.
+  // Demo time travel is development-only and can never ship as a real account action.
+  const groups: MoreGroup[] = [
     {
-      label: 'Appearance',
-      hint: isDark ? 'dark · tap for light' : 'light · tap for dark',
-      onPress: toggleAppearance,
+      title: 'Your money',
+      rows: [
+        { label: 'Account & plan', hint: 'tier, accounts, sign in', to: 'account' },
+        { label: 'Timeline', hint: 'everything you added or changed', to: 'timeline' },
+        { label: 'Calendar', hint: 'the dates that matter', to: 'calendar' },
+        { label: 'Plans', hint: "what's coming before payday", to: 'plans' },
+        { label: 'Insights', hint: 'the shape of your months', to: 'insights' },
+        { label: 'Subscriptions', hint: 'what still earns its place', to: 'subs' },
+        { label: 'Pots & goals', hint: 'what you are setting aside', to: 'pots' },
+      ],
     },
     {
-      label: 'Chart style',
-      hint: `${CHART_STYLE_LABEL[chartStyle]} · ${CHART_STYLE_HINT[chartStyle]}`,
-      sheet: 'chart-style',
+      title: 'Melo & routines',
+      rows: [
+        { label: 'Melo settings', hint: 'companion, tone, quiet mode', to: 'melo' },
+        { label: 'Payday & income', hint: 'change when money lands', sheet: 'onboarding' },
+        { label: 'Payday review', hint: 'wrap up the month in four steps', to: 'ritual' },
+        { label: 'What if I spend', hint: 'preview before you decide', to: 'whatif' },
+        { label: 'Recovery', hint: 'make room when the route runs short', to: 'recovery' },
+        { label: 'Share a cycle', hint: 'a quiet win card', sheet: 'share' },
+      ],
     },
     {
-      label: 'Hidden from Review',
-      hint:
-        hiddenCount === 0
-          ? 'nothing hidden'
-          : `${hiddenCount} ${hiddenCount === 1 ? 'row' : 'rows'} · tap to un-hide`,
-      sheet: 'hidden-review',
+      title: 'Preferences',
+      rows: [
+        {
+          label: 'Appearance',
+          hint: isDark ? 'dark · tap for light' : 'light · tap for dark',
+          onPress: toggleAppearance,
+        },
+        {
+          label: 'Chart style',
+          hint: `${CHART_STYLE_LABEL[chartStyle]} · ${CHART_STYLE_HINT[chartStyle]}`,
+          sheet: 'chart-style',
+        },
+        {
+          label: 'Hidden from Review',
+          hint:
+            hiddenCount === 0
+              ? 'nothing hidden'
+              : `${hiddenCount} ${hiddenCount === 1 ? 'row' : 'rows'} · tap to un-hide`,
+          sheet: 'hidden-review',
+        },
+        {
+          label: 'Reminders',
+          hint: remindersHint(reminders.enabled, reminders.permission),
+          onPress: reminders.onPress,
+        },
+        { label: 'App lock', hint: 'off · tap to configure', to: 'privacy' },
+      ],
     },
     {
-      label: 'Reminders',
-      hint: remindersHint(reminders.enabled, reminders.permission),
-      onPress: reminders.onPress,
+      title: 'Your data',
+      rows: [
+        { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
+        {
+          label: 'Start fresh',
+          hint: 'review and clear your data',
+          to: 'privacy',
+          tone: 'negative',
+        },
+      ],
     },
-    { label: 'App lock', hint: 'Face ID · off', to: 'privacy' },
-    {
-      label: 'Fast-forward 1 month',
-      hint: 'demo: age dates, close a cycle',
-      onPress: () => {
-        fastForwardMonth();
-        nav.go('insights');
-      },
-    },
-    {
-      label: 'Start fresh',
-      hint: 'clears everything',
-      // D3 (layered undo) forbids a one-tap / single-confirm wipe. The old wiring here was a
-      // single-confirm resetToEmpty(), which BYPASSED the tier-3 "start fresh" policy (double
-      // confirmation + an export warning). Start fresh now ROUTES to Data & privacy, where the
-      // gated "Clear to empty" reset lives (exportedAck → typedConfirm → finalConfirm), so the
-      // destructive wipe only ever runs behind that gate. No destructive call is made from here.
-      to: 'privacy',
-      tone: 'negative',
-    },
+    ...(__DEV__
+      ? [
+          {
+            title: 'Developer',
+            rows: [
+              {
+                label: 'Fast-forward 1 month',
+                hint: 'test cycle ageing',
+                onPress: () => {
+                  fastForwardMonth();
+                  nav.go('insights');
+                },
+              },
+            ],
+          },
+        ]
+      : []),
   ];
 
   // empty / error — the calm EmptyState doorway (n/a in practice; the hub has no data dependency).
@@ -345,9 +327,9 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   }
 
   // populated / offline — the real hub. offline ≡ populated (local-first; nothing here needs the
-  // network). The slide-in-r entrance wraps the scroll content.
+  // network). The static root keeps the persistent tab shell stable throughout long scrolling.
   return (
-    <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+    <View style={[styles.root, { backgroundColor: t.canvas }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -379,22 +361,28 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           </View>
         </View>
 
-        {/* ONE flat scannable list — byte-faithful to the web's single `rows` array + order. */}
-        <Surface style={[styles.card, { borderColor: t.hairline }]}>
-          {rows.map((row, index) => (
-            <View key={row.label}>
-              {index > 0 ? <Hairline /> : null}
-              <MoreRowView nav={nav} row={row} />
+        <View style={styles.groups}>
+          {groups.map((group) => (
+            <View key={group.title}>
+              <Text style={[styles.groupTitle, { color: t.muted }]}>{group.title}</Text>
+              <Surface style={[styles.card, { borderColor: t.hairline }]}>
+                {group.rows.map((row, index) => (
+                  <View key={row.label}>
+                    {index > 0 ? <Hairline /> : null}
+                    <MoreRowView nav={nav} row={row} />
+                  </View>
+                ))}
+              </Surface>
             </View>
           ))}
-        </Surface>
+        </View>
 
         {/* Closing reassurance — the verbatim web line. */}
         <View style={styles.closing}>
           <MeloLine text="Tap export any time. Tap start fresh and it's gone." />
         </View>
       </ScrollView>
-    </Animated.View>
+    </View>
   );
 }
 

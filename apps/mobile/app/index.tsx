@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 
 import { useTheme } from '@/surfaces/pressureMap/kit';
@@ -78,13 +78,15 @@ export default function FolioRoute() {
   if (!ready) return null; // keep the native splash up until hydration finishes.
 
   return (
-    <GestureHandlerRootView style={styles.flex}>
+    <GestureHandlerRootView style={[styles.flex, { backgroundColor: t.canvas }]}>
       <SafeAreaProvider>
-        <SafeAreaView edges={['top']} style={[styles.flex, { backgroundColor: t.canvas }]}>
-          <View style={styles.frame}>
-            <FolioShell />
-          </View>
-        </SafeAreaView>
+        {/* Every screen and the bottom nav already consume the real safe-area insets. Keeping a
+            second safe-area + 24dp frame here doubled their intended phone gutters and exposed the
+            window background when Android invalidated an animated child. This native root owns the
+            full canvas; screens remain responsible for their designed content insets. */}
+        <View collapsable={false} style={[styles.frame, { backgroundColor: t.canvas }]}>
+          <FolioShell />
+        </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -92,5 +94,5 @@ export default function FolioRoute() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  frame: { flex: 1, paddingHorizontal: 24 },
+  frame: { flex: 1 },
 });

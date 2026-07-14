@@ -96,6 +96,7 @@ import { useLens } from '@/folio/lib/lens';
 import { canShowUpsell } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import type { Nav, Pressure } from '@/folio/types';
 
 export type MeloScreenState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
@@ -171,7 +172,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const currentBalance = useAppStore((s) => s.currentBalance);
   const cycles = useAppStore((s) => s.cycles);
 
-  const { canAccess } = useLens();
+  const { canAccess, fullUnlocked } = useLens();
 
   const route = useRoute(new Date());
 
@@ -229,7 +230,10 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   }));
 
   const toggleWardrobe = (id: string, equipped: boolean, locked: boolean) => {
-    if (locked && !upsellsOn) return;
+    if (locked) {
+      if (upsellsOn) nav.go('paywall');
+      return;
+    }
     const next = equipped
       ? melo.wardrobe.filter((x) => x !== id)
       : [...melo.wardrobe, id].slice(0, 3);
@@ -325,15 +329,16 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             />
           )}
 
-          {/* Live state line — weather + lens, no chip container. Locked Plus lens shows a small
+          {/* Live state line — weather + lens, no chip container. Locked Full lens shows a small
               lock so the paywall state is legible without opening the picker. */}
           <View style={styles.lensLine}>
+            <MeloWeatherGlyph weather={modeState.weather} size={12} />
             <Text style={[styles.lensLineText, { color: t.muted }]}>
               {MODE_LABEL[moneyMode].toLowerCase()} lens
             </Text>
             {modeLocked ? (
               <Pressable
-                accessibilityLabel="This lens is Plus — tap to unlock"
+                accessibilityLabel="This lens is Full — tap to see access options"
                 accessibilityRole="button"
                 onPress={() => nav.go('paywall')}
                 style={({ pressed: isPressed }) => [
@@ -342,18 +347,34 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
                   isPressed ? styles.pressed : undefined,
                 ]}
               >
-                <Text style={[styles.lockChipLabel, { color: t.calm }]}>plus</Text>
+                <Text style={[styles.lockChipLabel, { color: t.calm }]}>full</Text>
               </Pressable>
             ) : null}
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Talk to Melo"
+            accessibilityHint="Opens the companion conversation"
+            onPress={() => nav.openMelo()}
+            style={({ pressed: isPressed }) => [
+              styles.talkButton,
+              { backgroundColor: t.ink },
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.talkButtonLabel, { color: t.canvas }]}>Talk to Melo</Text>
+            <Text style={[styles.talkButtonArrow, { color: t.canvas }]}>→</Text>
+          </Pressable>
         </View>
 
-        {/* Plumage reading — the "tier", tied to money health, not streaks. */}
+        {/* A current reflection, explicitly not progress, a score, or a hidden tier. */}
         {!melo.quietMode ? (
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: t.ink }]}>Plumage</Text>
-              <Text style={[styles.sectionHint, { color: t.muted }]}>live · money health</Text>
+              <Text style={[styles.sectionTitle, { color: t.ink }]}>Right now</Text>
+              <Text style={[styles.sectionHint, { color: t.muted }]}>
+                current money · not a score
+              </Text>
             </View>
             <View style={styles.plumageRow}>
               <Text style={[styles.plumageWord, { color: t.ink }]}>{plumage}</Text>
@@ -396,12 +417,13 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           <View style={styles.wardrobeList}>
             {WARDROBE.map((w) => {
               const equipped = melo.wardrobe.includes(w.id);
-              const locked = w.plus && !equipped;
+              const locked = w.plus && !fullUnlocked && !equipped;
               const suppress = locked && !upsellsOn;
               return (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ selected: equipped, disabled: suppress }}
+                  accessibilityLabel={`${w.label}. ${equipped ? 'Equipped' : locked ? 'Melo Full' : 'Available'}`}
                   key={w.id}
                   onPress={() => toggleWardrobe(w.id, equipped, locked)}
                   style={({ pressed: isPressed }) => [
@@ -419,7 +441,9 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
                     <Text style={[styles.wardrobeNote, { color: t.muted }]}>{w.note}</Text>
                   </View>
                   {w.plus && !equipped ? (
-                    <Text style={[styles.wardrobePlus, { color: t.muted }]}>Plus</Text>
+                    <Text style={[styles.wardrobePlus, { color: t.muted }]}>
+                      {fullUnlocked ? 'available' : 'Full'}
+                    </Text>
                   ) : null}
                 </Pressable>
               );
@@ -430,8 +454,10 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         {/* Quiet Mode */}
         <View style={styles.section}>
           <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: melo.quietMode }}
+            accessibilityRole="switch"
+            accessibilityLabel={`Quiet Mode, ${melo.quietMode ? 'on' : 'off'}`}
+            accessibilityHint="Hides the character but keeps your money information available"
+            accessibilityState={{ checked: melo.quietMode }}
             onPress={toggleQuietMode}
             style={({ pressed: isPressed }) => [
               styles.quietRow,
@@ -570,6 +596,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
+  },
+  talkButton: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    minHeight: 48,
+    paddingHorizontal: gap.xl,
+  },
+  talkButtonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  talkButtonArrow: {
+    fontSize: 18,
+    marginLeft: gap.sm,
   },
   lockChip: {
     alignItems: 'center',

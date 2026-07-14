@@ -94,6 +94,7 @@ import {
   togglePaused,
   nudgeSub,
   resetSubOverrides,
+  type IncomeSource,
 } from '@/folio/store';
 import { elevation, gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
@@ -117,6 +118,8 @@ import {
   type CalendarAnchor,
 } from '@/folio/lib/modes/surfacePrefs';
 import type { Nav } from '@/folio/types';
+
+const EMPTY_INCOME_SOURCES: IncomeSource[] = [];
 
 // The three planner views. Default is Agenda (the web default), the most legible on a narrow phone.
 // Named CalendarView (not `View`) so it never shadows react-native's <View>.
@@ -294,7 +297,8 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const subOverrides = useAppStore((st) => st.subOverrides);
   const onboarding = useAppStore((st) => st.onboarding);
   const monthlyIncome = useAppStore((st) => selectMonthlyIncome(st));
-  const incomeSourcesCount = useAppStore((st) => (st.incomeSources ?? []).length);
+  const incomeSources = useAppStore((st) => st.incomeSources ?? EMPTY_INCOME_SOURCES);
+  const incomeSourcesCount = incomeSources.length;
   const manual = useAppStore((st) => st.calendarEvents);
   const focusDate = useAppStore((st) => st.calendarFocusDate);
   const pots = useAppStore((st) => st.pots);
@@ -350,13 +354,24 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             subPaused,
             subOverrides,
             onboarding,
+            incomeSources,
             manualEvents: manual,
             pots,
             now: today,
             includeSampleBills,
           })
         : [],
-    [subs, subPaused, subOverrides, onboarding, manual, pots, today, includeSampleBills],
+    [
+      subs,
+      subPaused,
+      subOverrides,
+      onboarding,
+      incomeSources,
+      manual,
+      pots,
+      today,
+      includeSampleBills,
+    ],
   );
 
   const groups = useMemo(() => groupByDay(events), [events]);

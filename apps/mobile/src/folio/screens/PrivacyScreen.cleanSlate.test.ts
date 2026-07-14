@@ -1,26 +1,23 @@
-// "Clear to empty" clean-slate contract — the Privacy screen's distinct second reset
+// "Clear to empty" clean-slate contract — the Privacy screen's only release reset
 // (apps/mobile/src/folio/screens/PrivacyScreen.tsx, handleClearToEmpty → confirmReset → performReset).
 //
-// The screen offers TWO gated destructive resets over the SAME confirm chain + Undo shell:
-//   • "Reset to the demo"  → resetAll()      — wipes the user's data and RESEEDS the sample/demo set.
-//   • "Clear to empty"     → resetToEmpty()  — wipes to a GENUINELY empty app, no demo reseed.
-// This test pins the load-bearing promise of the NEW "Clear to empty" path: gated behind the same
-// tier-3 `canStartFresh` chain that "Reset to the demo" uses, it leaves a genuinely empty store (NOT
-// the reseeded demo), and its Undo restores exactly what was there before.
+// The screen offers one gated destructive action: resetToEmpty(). Demo seeding still exists as test
+// infrastructure, but is deliberately absent from the customer-facing privacy surface. This test pins
+// the load-bearing promise: all three tier-3 gates are required and the result is genuinely empty.
 //
 // Node-safe by design: the screen `.tsx` imports the react-native runtime and so cannot load under the
 // Node test runner (the repo's vitest glob is `apps/**/*.test.ts`; .tsx is never collected). The
 // handler's wipe path is a thin, deterministic wrapper over exactly these calls —
-// `if (!canStartFresh(gate)) return; const snapshot = { ...getState() }; resetToEmpty(); nav.go('start');`
-// with an Undo of `setPartial(snapshot)` — none of which touches react-native. We exercise that exact
-// contract directly: build the cleared gate, run the same gate-then-snapshot-then-wipe sequence the
+// `if (!canStartFresh(gate)) return; resetToEmpty(); nav.go('start');`. We exercise that exact
+// contract directly: build the cleared gate, run the same gate-then-wipe sequence the
 // handler runs, and assert the result. `nav.go` / `Alert.alert` are pure UI (no store effect) and are
 // intentionally out of scope here, exactly as in VisualizerScreen.addAll.test.ts.
 
 import { beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import {
-  type AppState,
   addTransaction,
   getState,
   hasAnyUserData,
@@ -32,24 +29,16 @@ import {
 import { canStartFresh, type StartFreshState } from '../lib/undoPolicy';
 import type { CandidateMoneyItem } from '../lib/importSheet';
 
-// The exact gate the handler builds once all three confirm steps have cleared. Reused by BOTH
-// destructive resets, so "Clear to empty" can never be weaker than "Reset to the demo".
+// The exact gate the handler builds once all three confirm steps have cleared.
 const CLEARED_GATE: StartFreshState = { typedConfirm: true, exportedAck: true, finalConfirm: true };
 
 // The cleanSlate handler's pure store sequence (PrivacyScreen.performReset(resetToEmpty, ...)):
-// vet the gate, snapshot for Undo, wipe to empty. Returns the snapshot so a test can assert Undo
-// restores it. A blocked gate is a no-op that returns null (nothing snapshotted, nothing wiped),
+// vet the gate, then wipe to empty. A blocked gate is a no-op,
 // matching `if (!canStartFresh(gate)) return;`.
-function clearToEmpty(gate: StartFreshState): AppState | null {
-  if (!canStartFresh(gate)) return null;
-  const snapshot = { ...getState() };
+function clearToEmpty(gate: StartFreshState): boolean {
+  if (!canStartFresh(gate)) return false;
   resetToEmpty();
-  return snapshot;
-}
-
-// The Undo branch — Alert.alert's "Undo" action restores the captured snapshot via setPartial.
-function undo(snapshot: AppState): void {
-  setPartial(snapshot);
+  return true;
 }
 
 beforeEach(() => {
@@ -71,8 +60,8 @@ describe('Privacy "Clear to empty" — gated tier-3 clean slate', () => {
       { typedConfirm: false, exportedAck: false, finalConfirm: false },
     ];
     for (const gate of partials) {
-      const snapshot = clearToEmpty(gate);
-      expect(snapshot).toBeNull(); // gate refused — no snapshot, no wipe
+      const cleared = clearToEmpty(gate);
+      expect(cleared).toBe(false); // gate refused — no wipe
       expect(hasAnyUserData(getState())).toBe(true); // data still present
     }
   });
@@ -86,8 +75,8 @@ describe('Privacy "Clear to empty" — gated tier-3 clean slate', () => {
     });
     expect(hasAnyUserData(getState())).toBe(true);
 
-    const snapshot = clearToEmpty(CLEARED_GATE);
-    expect(snapshot).not.toBeNull(); // gate cleared → the wipe ran
+    const cleared = clearToEmpty(CLEARED_GATE);
+    expect(cleared).toBe(true); // gate cleared → the wipe ran
 
     const s = getState();
     // Every user-data slot is genuinely empty — and CRUCIALLY nothing was reseeded.
@@ -104,37 +93,27 @@ describe('Privacy "Clear to empty" — gated tier-3 clean slate', () => {
     expect(s.currentBalance.source).not.toBe('sample');
   });
 
-  it('is DISTINCT from "Reset to the demo" — clean slate leaves empty, demo reset reseeds', () => {
+  it('remains distinct from the internal test seed — clean slate never reseeds', () => {
     // "Clear to empty" → genuinely empty.
     clearToEmpty(CLEARED_GATE);
     expect(hasAnyUserData(getState())).toBe(false);
     expect(getState().pots.length).toBe(0);
     expect(getState().transactions.length).toBe(0);
 
-    // "Reset to the demo" (resetAll) on the SAME app → reseeds the sample/demo set.
+    // resetAll remains internal test infrastructure and is not exposed by PrivacyScreen.
     resetAll();
     expect(hasAnyUserData(getState())).toBe(true);
     expect(getState().pots.length).toBe(3); // demo pots back
     expect(getState().transactions.length).toBeGreaterThan(0); // seeded transactions back
   });
 
-  it('Undo restores exactly what was there before the clear', () => {
-    addTransaction({ merchant: 'Greggs', amount: -3.5, category: 'food', source: 'manual' });
-    const potsBefore = getState().pots.length;
-    const txnsBefore = getState().transactions.length;
-
-    const snapshot = clearToEmpty(CLEARED_GATE);
-    expect(snapshot).not.toBeNull();
-    // After the wipe the app is empty.
-    expect(hasAnyUserData(getState())).toBe(false);
-
-    // The user taps Undo on the snackbar → the pre-wipe state is restored verbatim.
-    undo(snapshot as AppState);
-    const s = getState();
-    expect(hasAnyUserData(s)).toBe(true);
-    expect(s.pots.length).toBe(potsBefore);
-    expect(s.transactions.length).toBe(txnsBefore);
-    expect(s.transactions.some((t) => t.merchant === 'Greggs')).toBe(true);
+  it('does not expose demo reseeding in the release privacy screen', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'apps/mobile/src/folio/screens/PrivacyScreen.tsx'),
+      'utf8',
+    );
+    expect(source).not.toContain('resetAll');
+    expect(source).not.toContain('Reset to the demo');
   });
 
   it('review-before-truth holds — clearing posts nothing and leaves the reader queue empty', () => {
@@ -149,8 +128,8 @@ describe('Privacy "Clear to empty" — gated tier-3 clean slate', () => {
     };
     setReaderCandidates([candidate]);
 
-    const snapshot = clearToEmpty(CLEARED_GATE);
-    expect(snapshot).not.toBeNull();
+    const cleared = clearToEmpty(CLEARED_GATE);
+    expect(cleared).toBe(true);
 
     const s = getState();
     // Clearing to empty never promotes a candidate into a posted transaction.

@@ -217,8 +217,8 @@ const HERO: Record<
           <View style={heroStyles.block}>
             <View style={[heroStyles.noticeBox, { backgroundColor: t.inset }]}>
               <Text style={[heroStyles.noticeText, { color: t.muted }]}>
-                No debts declared yet. Add one and Folio holds the payoff, the minimums, and the
-                next due date.
+                No debts declared yet. Add one and Melo holds the payoff, the minimums, and the next
+                due date.
               </Text>
               <View style={heroStyles.noticeCta}>
                 <HeroCta
@@ -467,7 +467,7 @@ const HERO: Record<
           <View style={heroStyles.block}>
             <View style={[heroStyles.noticeBox, { backgroundColor: t.inset }]}>
               <Text style={[heroStyles.noticeText, { color: t.muted }]}>
-                No plans yet. Add one and Folio holds the target, the by-date, and the weekly pace.
+                No plans yet. Add one and Melo holds the target, the by-date, and the weekly pace.
               </Text>
               <View style={heroStyles.noticeCta}>
                 <HeroCta
@@ -565,8 +565,8 @@ const HERO: Record<
         return (
           <View style={heroStyles.block}>
             <Text style={[heroStyles.leanText, { color: t.muted }]}>
-              Nothing obvious leaking right now. Folio watches for subs you stop using and bills
-              that outgrow their value.
+              Nothing obvious leaking right now. Melo watches for subs you stop using and bills that
+              outgrow their value.
             </Text>
           </View>
         );

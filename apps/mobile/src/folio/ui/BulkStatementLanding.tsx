@@ -79,8 +79,9 @@ export type BulkStatementLandingProps = {
    *  staging slot it used (e.g. `clearReaderCandidates`), since that slot differs per reader path.
    *  Fired exactly once, before the post-import offers (if any) are shown. */
   onAdded: () => void;
-  /** Fires when the user chooses "Review one by one" — the caller's existing per-row enqueue path. */
-  onReviewOneByOne: () => void;
+  /** Fires when the user chooses "Review one by one", carrying the account they
+   *  just confirmed so accepted rows cannot silently fall back to Main. */
+  onReviewOneByOne: (accountId: string) => void;
 };
 
 // Format a signed GBP magnitude the way the rest of the success screens do: whole pounds grouped,
@@ -463,7 +464,7 @@ export function BulkStatementLanding({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Review one by one"
-        onPress={onReviewOneByOne}
+        onPress={() => onReviewOneByOne(resolvedAccountId ?? DEFAULT_ACCOUNT_ID)}
         style={({ pressed }) => [styles.secondary, pressed ? styles.pressed : undefined]}
       >
         <Text style={[styles.secondaryLabel, { color: t.muted }]}>Review one by one</Text>

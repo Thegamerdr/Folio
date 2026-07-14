@@ -397,9 +397,9 @@ export function ImageSuccessScreen({
             candidates={rawCandidates}
             {...(closingBalance !== undefined ? { closingBalance } : {})}
             onAdded={() => clearReaderCandidates()}
-            onReviewOneByOne={() => {
+            onReviewOneByOne={(accountId) => {
               const { dropped } = enqueueReviewItems(
-                queueInputFromCandidates(rawCandidates, 'image'),
+                queueInputFromCandidates(rawCandidates, 'image', accountId),
               );
               if (dropped > 0) {
                 showToast(
@@ -450,9 +450,7 @@ export function ImageSuccessScreen({
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              <Text style={[styles.primaryLabel, { color: t.inverse }]}>
-                Check what Folio found
-              </Text>
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>Check what Melo found</Text>
             </Pressable>
 
             {/* Secondary CTA — quiet path back to intake to pick a different image. */}

@@ -220,7 +220,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 5000,
     step: 50,
-    hint: "It's fine to guess. Folio sharpens this each cycle.",
+    hint: "It's fine to guess. Melo sharpens this each cycle.",
   },
 };
 
@@ -286,11 +286,11 @@ const BALANCE_STEP = 10;
 type IncomeRange = { min: number; max: number; step: number; unit: string };
 
 const INCOME_RANGE_BY_CADENCE: Record<PayCadence, IncomeRange> = {
-  monthly: { min: 500, max: 8000, step: 20, unit: '/ month' },
-  'last-working-day': { min: 500, max: 8000, step: 20, unit: '/ month' },
-  weekly: { min: 25, max: 2000, step: 5, unit: '/ week' },
-  fortnightly: { min: 50, max: 4000, step: 10, unit: '/ 2 weeks' },
-  'four-weekly': { min: 100, max: 7500, step: 20, unit: '/ 4 weeks' },
+  monthly: { min: 0, max: 8000, step: 20, unit: '/ month' },
+  'last-working-day': { min: 0, max: 8000, step: 20, unit: '/ month' },
+  weekly: { min: 0, max: 2000, step: 5, unit: '/ week' },
+  fortnightly: { min: 0, max: 4000, step: 10, unit: '/ 2 weeks' },
+  'four-weekly': { min: 0, max: 7500, step: 20, unit: '/ 4 weeks' },
 };
 
 const STEP_SLIDE_MS = 360; // doc-block "slide between steps"
@@ -523,8 +523,8 @@ function OnboardingFlow({
     // it must NOT persist once the user has chosen to begin. `resetToEmpty` wipes every demo slot,
     // sets the balance to a neutral £0, and forces onboarding.done true (so the sample-numbers nudge
     // is gone and no demo number lingers). We then write the user's real values on top of that empty
-    // state. This is the ONLY place the demo→clean transition happens; "Skip for now" never runs it,
-    // so skipping is an explicit, deliberate choice to KEEP exploring the sample.
+    // state. "Skip for now" simply closes this sheet; Today remains an honest setup doorway until
+    // the user supplies a balance, payday and regular costs.
     resetToEmpty();
 
     // Legacy day-of-month equivalent — kept alive for anything not yet swept onto `incomeSources`
@@ -852,7 +852,7 @@ function OnboardingFlow({
 
             {cadence === 'last-working-day' ? (
               <Text style={s.help}>
-                The last working day of each month — Folio works this out for you.
+                The last working day of each month — Melo works this out for you.
               </Text>
             ) : null}
 
@@ -900,7 +900,7 @@ function OnboardingFlow({
               palette={t}
               accessibilityLabel={`Rough income${incomeRange.unit}`}
             />
-            <Text style={s.help}>Doesn't need to be exact. Folio adjusts as you go.</Text>
+            <Text style={s.help}>Doesn't need to be exact. Melo adjusts as you go.</Text>
           </View>
         ) : null}
 
@@ -920,7 +920,7 @@ function OnboardingFlow({
               accessibilityLabel="Rough current account balance"
             />
             <Text style={s.help}>
-              Your guess is fine. Folio uses this as the starting point — every number you'll see is
+              Your guess is fine. Melo uses this as the starting point — every number you'll see is
               anchored here, not a sample.
             </Text>
           </View>
@@ -972,7 +972,7 @@ function OnboardingFlow({
         <Text style={s.skipLabel}>Skip for now</Text>
       </Pressable>
       <Text style={s.footer}>
-        Skipping keeps sample numbers on Today. Melo works honestly once these are yours.
+        Skip if you need to. Today stays empty, and Melo will not guess your numbers.
       </Text>
     </View>
   );

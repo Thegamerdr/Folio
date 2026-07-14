@@ -16,9 +16,9 @@
 // @copy         FROZEN — ceremonial, slow, never rushed.
 // @tokens       canvas (paper) · calm (accent) · positive · hairline · muted · ink · surface · inset
 //               · inverse — all from the kit via '@/folio/theme'. No new token.
-// @motion       slide-in-r (whole screen) · progress-dot width/colour tween (500ms) · count-up on the
-//               stat money (money never slides) · verdict-stamp (the seal on completion) · press 0.97
-//               (kit `pressed`) · Melo breathe/blink + mood-swap per step. Reduced motion = final state.
+// @motion       progress-dot width/colour tween (500ms) · count-up on the stat money (money never
+//               slides) · verdict-stamp (the seal on completion) · press 0.97 (kit `pressed`) · Melo
+//               breathe/blink + mood-swap per step. Reduced motion = final state.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store/copy sources):
 //   • FOUR STEPS, populated happy-path is the only branch this component renders; the screen-level
@@ -49,8 +49,8 @@
 //   • Progress dots tween width (20↔28) + colour over 500ms (web transition-all duration-500); a 4px
 //     element's width tween is acceptable and mirrors the web cadence.
 //   • Money counts up, never slides (MOTION rule) — the stat figure settles to target via useCountUp.
-//   • slide-in-r: translateX 28→0 + fade over 360ms ease-out-expo, gated to FINAL STATE under
-//     reduce-motion (resolved layout, never a slower animation), mirroring Melo + StartScreen + Review.
+//   • The page root stays static. Android can retain full-screen transformed layers after navigation,
+//     so motion is reserved for the progress, values, seal, and Melo rather than the entire surface.
 //   • The step-4 textarea is a multiline TextInput (autoFocus, maxLength 140, 3 lines) on an inset
 //     well; KeyboardAvoidingView keeps the bottom CTAs reachable when the keyboard pops.
 //
@@ -509,10 +509,6 @@ const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 // The seal's signature curve — a soft overshoot (matches Review's stamp curve).
 const STAMP_EASE = Easing.bezier(0.34, 1.56, 0.64, 1);
 
-// slide-in-r geometry (web .slide-in-r): the screen enters from +28px on X with a fade, 360ms.
-const SLIDE_FROM_X = 28;
-const SLIDE_MS = 360;
-
 // Progress dot tween (web transition-all duration-500). Width 20↔28px.
 const DOT_MS = 500;
 const DOT_W_ACTIVE = 28; // web w-7
@@ -669,6 +665,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const pots = useAppStore((st) => st.pots);
   const persistedNote = useAppStore((st) => st.nextYouNote);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const onboardingDone = useAppStore((st) => st.onboarding.done);
 
   // Step-4 input — seeded from the persisted draft so the user can leave and come back without losing
   // what they typed (ENGINES §7 "Cycle close note").
@@ -832,20 +829,6 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const current = steps[step] ?? steps[0]!;
   const isLast = step === steps.length - 1;
 
-  // slide-in-r — drives the whole screen, resolves straight to final state under reduce-motion.
-  const enter = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    if (reduceMotion) {
-      enter.value = 1;
-      return;
-    }
-    enter.value = withTiming(1, { duration: SLIDE_MS, easing: EASE_OUT_EXPO });
-  }, [enter, reduceMotion]);
-  const enterStyle = useAnimatedStyle(() => ({
-    opacity: enter.value,
-    transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
-  }));
-
   // The ceremonial seal — a 600ms scale-overshoot fired once on finish, never looping.
   const sealScale = useSharedValue(0);
   const sealStyle = useAnimatedStyle(() => ({
@@ -914,15 +897,28 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
     setNextYouNote(next);
   }
 
-  // empty (screen-level) — "Nothing to close yet". Gated upstream in practice; rendered here so a
-  // direct mount with no cycle to close never dead-ends (STATES.md). The single CTA returns to Today.
-  if (state === 'empty') {
+  // A skipped/unconfigured first run is not a £0 cycle. Guard the route itself (not only its callers)
+  // so More, Melo, Insights, or a stale navigation trail can never turn absent data into praise for a
+  // month the user did not record.
+  const needsSetup = !onboardingDone;
+
+  // empty (screen-level) — "Nothing to close yet". The setup variant opens the real onboarding
+  // sheet; an already-configured user simply returns to Today until their payday review is due.
+  if (state === 'empty' || needsSetup) {
     return (
       <EmptyState
         mood="calm"
-        headline="Nothing to close yet"
-        body="Your cycle wraps up at payday. Come back then and we'll close it together."
-        cta={{ label: 'Back to today', onPress: () => nav.go('today') }}
+        headline={needsSetup ? 'Add your first money picture' : 'Nothing to close yet'}
+        body={
+          needsSetup
+            ? 'Set your balance and payday first. The review will use what really happened after that.'
+            : "Your cycle wraps up at payday. Come back then and we'll close it together."
+        }
+        cta={
+          needsSetup
+            ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
+            : { label: 'Back to today', onPress: () => nav.go('today') }
+        }
       />
     );
   }
@@ -949,10 +945,9 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Animated.View
+      <View
         style={[
           styles.screen,
-          enterStyle,
           {
             backgroundColor: t.canvas,
             paddingTop: insets.top + gap.lg,
@@ -1111,7 +1106,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
             <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
           </Pressable>
         </ScrollView>
-      </Animated.View>
+      </View>
     </KeyboardAvoidingView>
   );
 }

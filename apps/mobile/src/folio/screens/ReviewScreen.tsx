@@ -6,7 +6,7 @@
 // @rn-screen    ReviewScreen
 // @rn-stack     Intake > Review
 // @purpose      One found item, one decision. A single review card — the amount, the date, what
-//               adding it would do to the balance, and a category — with one dominant "Add to my
+//               accepting it records, and a category — with one dominant "Add to my
 //               picture". This is review-before-truth: nothing counts until the user taps Add.
 // @reads        reviewQueue[0] + currentBalance (frozen at mount — the next queued intake candidate
 //               when no direct candidate prop is passed, web ScreenReview.tsx parity), transactions
@@ -16,12 +16,11 @@
 //               De-dupe: when the candidate matches an existing row the card PROPOSES a link
 //               (ENGINES §8 / lib/reviewDedupe → lib/dedupe); "Link them" adds NOTHING (no double
 //               count), "Keep both" is the only Add.
-// @opens-sheet  edit-txn (the header's ⋯ opens the edit-txn sheet via nav.openSheet)
 // @copy         FROZEN
 // @tokens       surface · hairline · inset · calm (accent) · calmSoft (accent-soft) · muted · ink ·
 //               inverse — all from the kit via '@/folio/theme'. No new token.
 // @motion       stamp 600ms cubic-bezier(.34,1.56,.64,1) (the "Added" seal) · slide-in-r (whole
-//               screen) · count-up on the "if you add it" balance · press 0.97 (kit `pressed`).
+//               screen) · count-up on the accepted amount · press 0.97 (kit `pressed`).
 //               Reduced motion = final state (stamp + slide collapse, count-up snaps).
 //
 // @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review
@@ -41,15 +40,13 @@
 //   • The stamp is the "Added" seal: a 600ms scale-overshoot on cubic-bezier(.34,1.56,.64,1) (the
 //     web's stamp curve), firing exactly once on Accept, never looping. Gated to a no-op (final
 //     state) under reduce-motion.
-//   • The count-up balance uses the kit's useCountUp (re-exported via theme) so the "if you add it"
-//     figure settles from £325 → £283 with the same easeOutCubic the rest of the surface uses; it
-//     snaps under reduce-motion. The before/delta line ("from £325 · drops by £42") is derived from
-//     the candidate so the numbers can never drift apart.
+//   • The count-up amount uses the kit's useCountUp (re-exported via theme). Review accepts statement
+//     history; it does not rewrite the user's sourced current bank balance, so this panel describes
+//     the real write instead of repeating the frozen prototype's false "you'll have £…" promise.
 //   • The category chips are spend buckets (the web CATEGORIES list, verbatim). The active chip reads
 //     accent-soft fill + terracotta text; the rest read surface + muted, faithful to the web. They
 //     are disabled once stamped (the decision is sealed).
-//   • The web's '←' and '⋯' glyphs are kept as small inline drawings: the back arrow as the shared
-//     react-native-svg BackArrow, the "more" as three tappable dots (the codebase ships no icon font).
+//   • The web's '←' glyph is kept as the shared react-native-svg BackArrow.
 //   • slide-in-r: translateX 28→0 + fade over 360ms ease-out-expo, gated to FINAL STATE under
 //     reduce-motion (resolved layout, never a slower animation), mirroring Melo + StartScreen.
 //
@@ -100,15 +97,13 @@ import { findCaughtBills } from '@/folio/lib/caughtBills';
 import { findDriftCandidates } from '@/folio/lib/caughtDrift';
 import { findCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import { isOverspentLanding } from '@/folio/lib/storeRoute';
+import { formatGBP } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
 
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
-// reader. `before` is the current balance; `after` is what it becomes if the item (a spend) is added.
+// reader. `before` is the sourced current balance shown for context; Review never rewrites it.
 export type ReviewCandidate = {
-  /** The posted transaction id this candidate corresponds to, when it already exists as a row (so the
-   *  edit-txn sheet can correct THAT transaction). The pre-truth SAMPLE has none — a candidate is not
-   *  a posted fact until Accept, so there is no real subject to edit yet, and the edit-txn sheet falls
-   *  back to its safe inert branch rather than editing a random row. */
+  /** The posted transaction id this candidate may correspond to, used only by duplicate matching. */
   id?: string;
   merchant: string;
   /** Magnitude in £ (always positive — `flow` carries the direction). */
@@ -116,6 +111,8 @@ export type ReviewCandidate = {
   flow: 'in' | 'out';
   date: string;
   before: number;
+  /** Account selected at statement intake. Absent legacy/manual candidates use Main. */
+  accountId?: string;
   /** The reader's suggested `Transaction['category']` bucket (model guess, or a
    *  merchant-memory recall — see `rememberedCategory`), when known. Used only
    *  to pre-select a chip below; the user's own tap always wins. */
@@ -176,7 +173,7 @@ const SLIDE_MS = 360;
 const STAMP_MS = 600;
 const ADD_DWELL_MS = 900;
 
-// The "if you add it" count-up duration (web useCountUp(..., 700)).
+// Accepted-amount count-up duration (web useCountUp(..., 700)).
 const COUNT_MS = 700;
 
 // Map a chosen category chip → a Transaction category bucket, so an accepted item flows into the
@@ -287,8 +284,8 @@ function asCategoryBucket(value: string | undefined): Transaction['category'] | 
 }
 
 // Thread one queued ReviewItem into this screen's candidate shape. `id` is intentionally OMITTED —
-// a queued candidate is not a posted fact (review-before-truth), so the edit-txn sheet must keep its
-// safe inert fallback. `date` keeps the item's raw ISO (or '' when the reader pinned none) so the
+// a queued candidate is not a posted fact (review-before-truth). `date` keeps the item's raw ISO
+// (or '' when the reader pinned none) so the
 // de-dupe engine and the Ignore signature read the exact stored value; display formats separately.
 // `category`/`rememberedCategory` carry the reader's guess or a merchant-memory recall
 // (DATA_INTELLIGENCE.md phase ③) through to pre-select a chip + show honest provenance.
@@ -300,6 +297,7 @@ function candidateFromQueueItem(item: ReviewItem, before: number): ReviewCandida
     flow: item.amount < 0 ? 'out' : 'in',
     date: item.date ?? '',
     before,
+    ...(item.accountId !== undefined ? { accountId: item.accountId } : {}),
     ...(bucket !== undefined ? { category: bucket } : {}),
     ...(bucket !== undefined && item.rememberedCategory
       ? { rememberedCategory: true as const }
@@ -365,13 +363,15 @@ export function ReviewScreen({
   // recall — DATA_INTELLIGENCE.md phase ③) when one resolves to a known chip. Falling further back:
   // an 'in'-flow candidate with no usable category guess pre-selects 'Income' rather than the spend
   // default (task: income-category fix — a bare income row must never land on 'Groceries' just
-  // because that's the first chip in the list). Only an 'out'-flow candidate with no guess falls all
-  // the way to 'Groceries'. `categoryLabelFor` is the reverse of `categoryFor` below. Lazy
+  // because that's the first chip in the list). An out-flow candidate with no guess falls back to
+  // 'Other', not the first chip: the device pass proved "Landlord rent" was otherwise presented as
+  // groceries despite carrying no evidence for that category. `categoryLabelFor` is the reverse of
+  // `categoryFor` below. Lazy
   // initializer — evaluated once at mount, exactly like the merchant/amount seeds below.
   const [category, setCategory] = useState<Category>(
     () =>
       (candidate.category !== undefined ? categoryLabelFor(candidate.category) : null) ??
-      (candidate.flow === 'in' ? 'Income' : 'Groceries'),
+      (candidate.flow === 'in' ? 'Income' : 'Other'),
   );
   // Whether the chip is still showing an untouched merchant-memory recall — drives the "remembered"
   // caption. Any manual chip tap (including re-picking the same label) counts as the user's own
@@ -384,8 +384,13 @@ export function ReviewScreen({
   // review card before Add, not in a separate sheet. Seeded from the candidate; the candidate itself
   // is never mutated — only the local draft, which is what Accept actually records.
   const [merchant, setMerchant] = useState(candidate.merchant);
-  const [amountText, setAmountText] = useState(candidate.amount.toFixed(2));
-  const editedAmount = Math.max(0, Number(amountText) || 0);
+  const [amountText, setAmountText] = useState(
+    candidate.amount.toLocaleString('en-GB', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }),
+  );
+  const editedAmount = Math.max(0, Number(amountText.replace(/,/g, '')) || 0);
 
   // Existing rows + a mount-gated clock, for the de-dupe proposal (ENGINES §8 / the dedupe engine):
   // when the candidate looks like a transaction the user ALREADY added, Review PROPOSES a link rather
@@ -394,17 +399,8 @@ export function ReviewScreen({
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => setNow(new Date()), []);
 
-  // The payload threaded to the edit-txn sheet — the candidate's real subject id when it already
-  // exists as a posted transaction. Under exactOptionalPropertyTypes the `id` key is OMITTED (not set
-  // to undefined) for the pre-truth SAMPLE, so the sheet receives no target and uses its safe inert
-  // fallback rather than editing a random row.
-  const editTargetPayload = candidate.id !== undefined ? { id: candidate.id } : {};
-
-  // The "if you add it" balance: before until stamped, after once committed (a spend drops it).
-  // Uses the edited draft amount so the projection stays honest to what Accept will actually record.
   const signedDelta = candidate.flow === 'out' ? -editedAmount : editedAmount;
-  const afterBalance = candidate.before + signedDelta;
-  const balance = useCountUp(stamped ? afterBalance : candidate.before, COUNT_MS, reduceMotion);
+  const previewAmount = useCountUp(editedAmount, COUNT_MS, reduceMotion);
 
   // The de-dupe proposal for THIS candidate against existing rows, or null (the pure engine decides).
   // Skipped when there's no real candidate, once sealed, before the clock mounts, or when the
@@ -462,11 +458,17 @@ export function ReviewScreen({
     setStamped(true);
     const finalMerchant = merchant.trim() || 'Unnamed';
     const finalCategory = categoryFor(category);
+    const statementDate = reviewDateToIso(
+      candidate.date,
+      now?.getFullYear() ?? new Date().getFullYear(),
+    );
     addTransaction({
       merchant: finalMerchant,
       amount: signedDelta,
       category: finalCategory,
       source: 'manual',
+      ...(statementDate !== null ? { when: `${statementDate}T00:00:00.000Z` } : {}),
+      ...(candidate.accountId !== undefined ? { accountId: candidate.accountId } : {}),
     });
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): every Accept confirms this
     // merchant's category — whether the user changed the chip away from the incoming guess, or left
@@ -632,7 +634,7 @@ export function ReviewScreen({
   // populated / offline / error — the real one-decision card. offline ≡ populated (local-first); a
   // direct error mount still shows the card so the user can decide on the candidate in hand.
   const isOut = candidate.flow === 'out';
-  const dropLine = `from £${candidate.before} · ${isOut ? 'drops' : 'rises'} by £${editedAmount.toFixed(0)}`;
+  const balanceLine = `to your history · balance stays ${formatGBP(candidate.before)}`;
 
   // Position + provenance. Queue-fed cards read honestly from the queue ("1 of N", the item's own
   // intake source); the direct-candidate path keeps its original literals byte-for-byte.
@@ -649,7 +651,8 @@ export function ReviewScreen({
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — back glyph · "1 of 3" position · more-options glyph (opens edit-txn). */}
+        {/* Header — back glyph · real queue position. The trailing spacer keeps the counter centred;
+            a candidate is already editable inline, so it must not open the posted-transaction sheet. */}
         <View style={styles.header}>
           <Pressable
             accessibilityRole="button"
@@ -669,18 +672,7 @@ export function ReviewScreen({
           >
             {positionLabel}
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="More options"
-            hitSlop={12}
-            onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
-            style={({ pressed: isPressed }) => [
-              styles.pressIcon,
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <MoreDots color={t.muted} />
-          </Pressable>
+          <View style={styles.headerSpacer} />
         </View>
 
         {/* Intro — italic "Review" kicker + the headline with the merchant as the single accent word. */}
@@ -695,7 +687,7 @@ export function ReviewScreen({
           </Text>
         </View>
 
-        {/* The review card — amount, date, and what adding it does to the balance. */}
+        {/* The review card — amount, date, and the exact record accepting it will create. */}
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           {/* The "Added" seal — only after Accept. */}
           {stamped ? (
@@ -725,13 +717,15 @@ export function ReviewScreen({
           </View>
 
           <View style={styles.amountHeaderRow}>
-            <Text style={[styles.fieldLabel, { color: t.muted }]}>Amount out</Text>
+            <Text style={[styles.fieldLabel, { color: t.muted }]}>
+              {isOut ? 'Amount out' : 'Amount in'}
+            </Text>
             <Text style={[styles.outLabel, { color: t.muted }]}>{isOut ? 'out' : 'in'}</Text>
           </View>
           <View style={styles.amountRow}>
             <Text style={[styles.amountPrefix, { color: t.ink }]}>£</Text>
             <TextInput
-              accessibilityLabel="Amount out"
+              accessibilityLabel={isOut ? 'Amount out' : 'Amount in'}
               editable={!stamped}
               inputMode="decimal"
               keyboardType="decimal-pad"
@@ -750,19 +744,23 @@ export function ReviewScreen({
 
           <View style={styles.projectionRow}>
             <View style={[styles.projIcon, { backgroundColor: t.calmSoft }]}>
-              <Text style={[styles.projGlyph, { color: t.calm }]}>↓</Text>
+              <Text style={[styles.projGlyph, { color: t.calm }]}>{isOut ? '−' : '+'}</Text>
             </View>
             <View accessibilityLiveRegion="polite" style={styles.projBody}>
-              <Text style={[styles.projLead, { color: t.ink }]}>If you add it, you'll have</Text>
-              <Text style={[styles.projBalance, { color: t.ink }]}>{`£${balance.toFixed(0)}`}</Text>
-              <Text style={[styles.projDelta, { color: t.muted }]}>{dropLine}</Text>
+              <Text style={[styles.projLead, { color: t.ink }]}>
+                {isOut ? 'This will add a spend of' : 'This will add income of'}
+              </Text>
+              <Text style={[styles.projBalance, { color: t.ink }]}>
+                {formatGBP(previewAmount)}
+              </Text>
+              <Text style={[styles.projDelta, { color: t.muted }]}>{balanceLine}</Text>
             </View>
           </View>
         </View>
 
         {/* Category chips. */}
         <View style={styles.catBlock}>
-          <Text style={[styles.catLabel, { color: t.muted }]}>What kind of spend?</Text>
+          <Text style={[styles.catLabel, { color: t.muted }]}>What kind of money is this?</Text>
           <View style={styles.chipRow}>
             {CATEGORIES.map((c) => {
               const active = c === category;
@@ -825,7 +823,7 @@ export function ReviewScreen({
         {dupeProposal && !stamped ? (
           /* De-dupe proposal — "This looks like something you already added." Propose, never
              auto-merge (ENGINES §8 / the dedupe engine): Link them (adds NOTHING — no double count) ·
-             Keep both (the normal Add) · Edit before linking (opens edit-txn) · Ignore (backs out).
+            Keep both (the normal Add) · edit inline above · Ignore (records the suppression).
              Linking removes nothing; the original stays. */
           <View style={[styles.dupeCard, { backgroundColor: t.calmSoft, borderColor: t.calm }]}>
             <Text style={[styles.dupeHead, { color: t.ink }]}>
@@ -860,23 +858,14 @@ export function ReviewScreen({
                 <Text style={[styles.dupeCellLabel, { color: t.ink }]}>Keep both</Text>
               </Pressable>
             </View>
+            <Text style={[styles.dupeFoot, { color: t.muted }]}>
+              Need to change it? Edit the fields above first.
+            </Text>
             <View style={styles.dupeRow}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Edit before linking"
-                onPress={() => nav.openSheet('edit-txn', editTargetPayload)}
-                style={({ pressed: isPressed }) => [
-                  styles.dupeCell,
-                  { backgroundColor: t.surface, borderColor: t.hairline },
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.dupeCellLabel, { color: t.ink }]}>Edit before linking</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
                 accessibilityLabel="Ignore the imported one"
-                onPress={nav.back}
+                onPress={onIgnore}
                 style={({ pressed: isPressed }) => [
                   styles.dupeCell,
                   { backgroundColor: t.surface, borderColor: t.hairline },
@@ -912,10 +901,8 @@ export function ReviewScreen({
               </Text>
             </Pressable>
 
-            {/* Secondary row — web-exact order (ScreenReview.tsx "grid-cols-2"): Ignore (records a
-                suppression signature, backs out) then Cancel (backs out with no side effect at all —
-                the edited draft is simply discarded). The edit-txn sheet stays reachable via the
-                header's "More options" glyph above, so that route keeps working. */}
+            {/* Secondary row: Ignore records a suppression signature; Cancel backs out with no side
+                effect and discards the inline draft. */}
             <View style={styles.secondaryRow}>
               <Pressable
                 accessibilityRole="button"
@@ -967,20 +954,6 @@ function BackArrow({ color }: { color: string }) {
   );
 }
 
-// More-options — the web '⋯' glyph, drawn inline as three dots. 20×20 user space.
-function MoreDots({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Path
-        d="M5 10 h0.01 M10 10 h0.01 M15 10 h0.01"
-        stroke={color}
-        strokeWidth={2.6}
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-}
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -1008,6 +981,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
     minWidth: 24,
+  },
+  headerSpacer: {
+    height: 44,
+    width: 24,
   },
   // "1 of 3" — 12px muted, tabular.
   position: {
@@ -1130,7 +1107,7 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     marginTop: gap.xl,
   },
-  // Projection row — the down icon + the "if you add it" copy, gap-3, mt-5.
+  // Acceptance-effect row — sign icon + amount/history copy, gap-3, mt-5.
   projectionRow: {
     alignItems: 'flex-start',
     columnGap: gap.md,
@@ -1155,7 +1132,7 @@ const styles = StyleSheet.create({
   projLead: {
     fontSize: 13,
   },
-  // Fraunces 28px tabular projected balance, mt-0.5.
+  // Fraunces 28px tabular accepted amount, mt-0.5.
   projBalance: {
     fontFamily: serif.display,
     fontSize: 28,
