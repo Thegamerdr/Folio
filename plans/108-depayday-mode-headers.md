@@ -72,9 +72,9 @@ Conventional commit: `feat: mode-aware Today header + shortfall framing (D2 refr
    - growth, optimizer, planning, household: `This month →` (cadence framing, no day count).
    - irregular: `Your runway →` (no payday).
    - lowVis: `Getting a picture →` (no numbers as fact).
-   (survival/stability included in the map for totality but unused by TodayModeScreen.)
-   Unit-test the map (one assertion per mode; assert NO banned words appear in any output:
-   loop the values through a local list ['again','payday'-allowed-only-for(debt,reset,survival,stability)]).
+     (survival/stability included in the map for totality but unused by TodayModeScreen.)
+     Unit-test the map (one assertion per mode; assert NO banned words appear in any output:
+     loop the values through a local list ['again','payday'-allowed-only-for(debt,reset,survival,stability)]).
 2. TodayModeScreen: replace the literal with `headerLineFor(moneyMode, daysToPayday)`. The
    Pressable still routes to 'ritual' (unchanged — the ritual is payday-anchored, that's
    fine; the LABEL was the violation).

@@ -517,14 +517,9 @@ function OnboardingFlow({
   }
 
   function done() {
-    // CLEAN SLATE on completion — finishing onboarding (the primary "make them yours" path) takes
-    // the app OUT of the demo REGIME and into a genuinely empty app ready for the user's real data.
-    // The sample (demo transactions/subs/cycles/pots/balance) was a PRE-ONBOARDING preview only;
-    // it must NOT persist once the user has chosen to begin. `resetToEmpty` wipes every demo slot,
-    // sets the balance to a neutral £0, and forces onboarding.done true (so the sample-numbers nudge
-    // is gone and no demo number lingers). We then write the user's real values on top of that empty
-    // state. "Skip for now" simply closes this sheet; Today remains an honest setup doorway until
-    // the user supplies a balance, payday and regular costs.
+    // CLEAN SLATE on completion. `resetToEmpty` removes any state left by an older development build
+    // before writing the user's real values. No sample transaction, pot, subscription, cycle or
+    // balance is allowed to become part of a real account.
     resetToEmpty();
 
     // Legacy day-of-month equivalent — kept alive for anything not yet swept onto `incomeSources`
@@ -548,9 +543,9 @@ function OnboardingFlow({
     // this legacy slot and the modern selector never diverge.
     const monthlyIncomeEquivalent = monthlyEquivalent(income, cadence);
 
-    // The user's real onboarding identity, written over the clean state. `resetToEmpty` preserved the
-    // prior (still-blank) onboarding fields and flipped done→true; this overwrites name/payday/income
-    // with what they entered while keeping done true.
+    // The user's real onboarding identity, written over the clean state. `resetToEmpty` clears the
+    // prior onboarding identity and keeps only done=true; this writes the current name/payday/income
+    // after the sample/demo purge.
     setOnboarding({
       name,
       payday: legacyPayday,
@@ -604,6 +599,13 @@ function OnboardingFlow({
       accent: tpl.accent,
     }));
     if (nextPots.length > 0) storeSetPots(nextPots);
+    onClose();
+  }
+
+  function skipForNow() {
+    // Skip means "not yet", not "show me invented money". Keep onboarding incomplete so the user
+    // can return later, but make the underlying Today screen a genuinely empty setup doorway.
+    resetToEmpty({ onboardingDone: false });
     onClose();
   }
 
@@ -957,12 +959,10 @@ function OnboardingFlow({
         </Pressable>
       </Animated.View>
 
-      {/* Skip ≠ finished — leave onboarding.done false so the sample-numbers nudge stays and Today
-          doesn't read an empty name as the user's real name (spec SKIP ≠ DONE). The ONLY action is
-          onClose(); it must never call setOnboarding done:true. */}
+      {/* Skip ≠ finished. It leaves onboarding.done false but clears any legacy sample state. */}
       <Pressable
         accessibilityRole="button"
-        onPress={onClose}
+        onPress={skipForNow}
         // Visual height stays the web's 40 (h-10); hitSlop extends the touch area to >=44px tall so
         // the row meets the tap-target minimum without changing the faithful vertical rhythm (same
         // technique Melo uses for small glyphs).

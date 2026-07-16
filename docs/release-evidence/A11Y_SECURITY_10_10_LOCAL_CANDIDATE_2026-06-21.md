@@ -76,6 +76,43 @@ Notable XML checks:
 The visible Expo Tools floating button is development-client tooling. It is not part of Folio
 runtime UI and does not exist in a production build.
 
+## Production Android Release Pass - 2026-07-15
+
+A fresh `x86_64` release APK was installed on the `CloseLedger_Phone` Android emulator and tested
+against the production Melo interface rather than the historical synthetic Phase 9 shell.
+
+Verified local outcomes:
+
+- Clean first run renders the real onboarding sheet and an empty Today state. The captured UI tree
+  contains no Tesco, Spotify, Netflix, Octopus or inherited sample-money values.
+- With all three Android animation scales set to `0`, the onboarding sheet appears immediately and
+  keeps its name input visible above the keyboard. This pass found and fixed an Android in-tree
+  portal bug where a native-driver transition could remain off-screen when system animations were
+  disabled. Android portal transitions now use the JS driver, and the shared sheet uses
+  `KeyboardAvoidingView` height behaviour on Android.
+- At Android `font_scale=1.3`, onboarding, More and Data & privacy reflow without clipped controls;
+  the relevant content remains scrollable and the onboarding input remains above the keyboard.
+- TalkBack 15.0 was bound with touch exploration enabled. The Data & privacy Back control received
+  the visible TalkBack focus indicator. The screen implementation also exposes the heading as a
+  header; Back, export, saved-data, restore and local-clear actions as buttons; and App lock as a
+  switch with checked, disabled and busy state.
+- The emulator was returned to `font_scale=1.0`, animation scale `1`, TalkBack disabled and no
+  Android Accessibility Suite notification permission after the pass.
+
+Production artifacts:
+
+- `android-melo-release-first-run.png` and `.xml`
+- `android-melo-reduced-motion-onboarding.png` and `.xml`
+- `android-melo-large-text-onboarding.png` and `.xml`
+- `android-melo-large-text-more.png` and `.xml`
+- `android-melo-large-text-privacy.png` and `.xml`
+- `android-melo-talkback-back-focus.png` and `.xml`
+
+This is strong local Android evidence, not a complete TalkBack traversal or independent audit. The
+Windows capture layer could not safely drive the oversized emulator window for a full gesture-order
+recording, so full focus-order, spoken-output, switch-announcement and real-device coverage remain
+explicit acceptance work rather than inferred passes.
+
 ## Standards Used
 
 - WCAG 2.2 was used as the accessibility reference, especially non-text contrast, focus visibility,

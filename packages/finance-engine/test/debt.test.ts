@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { projectDebtSchedule } from '../src/index.js';
+import { projectDebtPortfolio, projectDebtSchedule } from '../src/index.js';
 
 describe('debt schedule primitive', () => {
   it('projects integer-minor-unit interest, payments, and payoff date deterministically', () => {
@@ -40,5 +40,86 @@ describe('debt schedule primitive', () => {
         startDate: '2026-07-31',
       }),
     ).toThrow(/does not cover/);
+  });
+});
+
+describe('debt portfolio projection', () => {
+  const debts = [
+    {
+      id: 'card',
+      principalMinor: 100000,
+      annualRateBps: 2400,
+      minimumPaymentMinor: 5000,
+    },
+    {
+      id: 'bnpl',
+      principalMinor: 30000,
+      annualRateBps: 0,
+      minimumPaymentMinor: 10000,
+    },
+  ] as const;
+
+  it('keeps contractual minimums attached to each debt and models 0% BNPL exactly', () => {
+    const projection = projectDebtPortfolio({
+      debts,
+      strategy: 'contractual-minimums',
+      startDate: '2026-07-31',
+    });
+
+    expect(projection).toMatchObject({
+      debtCount: 2,
+      startingPrincipalMinor: 130000,
+      contractualMinimumMinor: 15000,
+      extraMonthlyMinor: 0,
+      stalled: false,
+    });
+    expect(projection.months).toBeGreaterThan(3);
+    expect(projection.payoffDate).not.toBeNull();
+    expect(projection.rows[2]?.closingPrincipalMinor).toBeGreaterThan(0);
+  });
+
+  it('applies an explicit fixed extra under either user-selected order', () => {
+    const avalanche = projectDebtPortfolio({
+      debts,
+      strategy: 'highest-rate-first',
+      extraMonthlyMinor: 5000,
+      startDate: '2026-07-31',
+    });
+    const snowball = projectDebtPortfolio({
+      debts,
+      strategy: 'lowest-balance-first',
+      extraMonthlyMinor: 5000,
+      startDate: '2026-07-31',
+    });
+    const minimums = projectDebtPortfolio({
+      debts,
+      strategy: 'contractual-minimums',
+      startDate: '2026-07-31',
+    });
+
+    expect(avalanche.months).not.toBeNull();
+    expect(snowball.months).not.toBeNull();
+    expect(avalanche.months!).toBeLessThan(minimums.months!);
+    expect(snowball.months!).toBeLessThan(minimums.months!);
+    expect(avalanche.totalInterestMinor).toBeLessThanOrEqual(snowball.totalInterestMinor);
+  });
+
+  it('reports a stalled projection without pretending there is a payoff date', () => {
+    const projection = projectDebtPortfolio({
+      debts: [
+        {
+          id: 'interest-only-gap',
+          principalMinor: 100000,
+          annualRateBps: 2400,
+          minimumPaymentMinor: 1000,
+        },
+      ],
+      strategy: 'contractual-minimums',
+      startDate: '2026-07-31',
+      maxMonths: 24,
+    });
+
+    expect(projection).toMatchObject({ months: null, payoffDate: null, stalled: true });
+    expect(projection.rows).toHaveLength(24);
   });
 });

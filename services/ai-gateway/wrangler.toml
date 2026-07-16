@@ -1,30 +1,27 @@
 # Cloudflare Worker config for the Folio Melo AI gateway.
 #
-# This Worker is a thin OpenAI-compatible proxy in front of OpenRouter. It holds the
-# OpenRouter API key as a Cloudflare *secret* (set with `wrangler secret put`), so the
-# key lives only server-side and never ships inside the Folio APK.
+# This Worker is an abstract phrasing boundary, not a chat/file proxy. It accepts only
+# allow-listed enums and placeholder tokens; raw prompts, messages, snapshots and files fail closed.
+# The OpenRouter key is a Cloudflare secret and never ships inside the Melo APK.
 #
 # Deploy:   wrangler deploy
 # Secret:   wrangler secret put OPENROUTER_API_KEY
-# Optional: wrangler secret put GATEWAY_TOKEN     (shared app<->gateway token)
+# Secret:   wrangler secret put GATEWAY_TOKEN
 
 name = "folio-ai-gateway"
 main = "src/index.ts"
-compatibility_date = "2025-06-01"
+compatibility_date = "2026-07-15"
+compatibility_flags = ["nodejs_compat"]
 
 # Non-secret defaults. Override per-environment in the Cloudflare dashboard or here.
 # The OpenRouter API key is NEVER set here — it is a secret (`wrangler secret put`).
 [vars]
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "google/gemini-2.5-flash"
-# Metering caps (only enforced when METER_KV below is bound). Abuse backstops, deliberately above
-# the app's own per-tier allowances — see src/index.ts Env docs.
-READS_PER_MONTH_CAP = "40"
-GLOBAL_DAILY_READ_CAP = "500"
-GLOBAL_DAILY_CHAT_CAP = "2000"
+OPENROUTER_MODEL = "google/gemini-2.5-flash-lite"
+PHRASE_DAILY_CAP = "2000"
 
 # Metering store — created + bound 2026-07-11 (owner "do all"). Remove this block to switch
-# metering off entirely; the worker degrades gracefully without it.
+# metering off entirely; the worker then fails closed.
 [[kv_namespaces]]
 binding = "METER_KV"
 id = "aacebf9d340b45e2807b982182bd6d08"

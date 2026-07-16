@@ -53,7 +53,9 @@ file, restore the backup, show the recovery notice) — machinery that already e
 - `store.ts:3448-3450`:
   ```ts
   export function hasAnyUserData(s: AppState): boolean {
-    return s.transactions.length > 0 || s.pots.length > 0 || s.subs.length > 0 || s.cycles.length > 0;
+    return (
+      s.transactions.length > 0 || s.pots.length > 0 || s.subs.length > 0 || s.cycles.length > 0
+    );
   }
   ```
   This is TRUE for seeded `DEFAULTS` (proven by the existing test
@@ -67,7 +69,9 @@ file, restore the backup, show the recovery notice) — machinery that already e
       if (hasAnyUserData(getState())) {
         await FileSystem.copyAsync({ from: uri, to: backupUri });
       }
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
     return;
   }
   // Main blob exists but is unreadable — park it FIRST ... then fall back to the backup.
@@ -87,12 +91,12 @@ file, restore the backup, show the recovery notice) — machinery that already e
 Run from the repo root (`C:\dev\folio-v2-greenfield\.claude\worktrees\melo-mvp`) unless noted.
 This is a pnpm monorepo but pnpm is BROKEN on this machine — use the direct binaries below.
 
-| Purpose   | Command | Expected on success |
-|-----------|---------|---------------------|
-| Tests (full) | `node node_modules/vitest/vitest.mjs run` | all pass (2,279+ tests) |
-| Tests (one file) | `node node_modules/vitest/vitest.mjs run apps/mobile/src/folio/store.test.ts` | all pass |
-| Typecheck | from `apps\mobile`: `..\..\node_modules\.bin\tsc.cmd --noEmit -p tsconfig.json` | exit 0, no output |
-| Format | `node_modules\.bin\prettier.cmd --write <files>` | exit 0 |
+| Purpose          | Command                                                                         | Expected on success     |
+| ---------------- | ------------------------------------------------------------------------------- | ----------------------- |
+| Tests (full)     | `node node_modules/vitest/vitest.mjs run`                                       | all pass (2,279+ tests) |
+| Tests (one file) | `node node_modules/vitest/vitest.mjs run apps/mobile/src/folio/store.test.ts`   | all pass                |
+| Typecheck        | from `apps\mobile`: `..\..\node_modules\.bin\tsc.cmd --noEmit -p tsconfig.json` | exit 0, no output       |
+| Format           | `node_modules\.bin\prettier.cmd --write <files>`                                | exit 0                  |
 
 Fresh worktrees share git history but not node_modules — if binaries are missing, run
 `npm install --no-save` NO — STOP instead (see STOP conditions): the main worktree's
@@ -102,11 +106,13 @@ commands first; only report if they cannot run.
 ## Scope
 
 **In scope** (the only files you should modify):
+
 - `apps/mobile/src/folio/store.ts`
 - `apps/mobile/src/folio/lib/persist.ts`
 - `apps/mobile/src/folio/store.test.ts` (add tests)
 
 **Out of scope** (do NOT touch):
+
 - `hasAnyUserData` itself — other callers rely on its current semantics.
 - `DEFAULTS` / seed contents — demo seeding is deliberate for dev builds.
 - `lib/persist.test.ts` — the full recovery-matrix suite is Plan 102, not this plan.
@@ -139,6 +145,7 @@ what the `??` currently falls back to). NOTE for `subs`: the mapping currently w
 ### Step 2: Make a degraded load observable and non-seeded
 
 In `store.ts`:
+
 1. Add a module-level flag near `load()`:
    ```ts
    /** True when the LAST load()'s pipeline threw and the state degraded to defaults —
@@ -161,9 +168,11 @@ In `store.ts`:
 
 In `tryHydrateFile` (persist.ts), after the call to `hydrateFromBlob(raw)` succeeds,
 add:
+
 ```ts
 if (consumeLoadDegraded()) return false; // load() threw internally — treat as unreadable.
 ```
+
 Import `consumeLoadDegraded` from `../store` alongside the existing store imports.
 This makes a throwing hydrate fall through to the EXISTING park-main + restore-backup path,
 producing `hydrationOutcome = 'recovered-backup'` (or `'unreadable'` when no backup) and
@@ -177,6 +186,7 @@ Also extend the comment at the backup gate (persist.ts ~209) to note the flag no
 ### Step 4: Tests
 
 In `store.test.ts`, add a describe `load() degraded-path hardening`:
+
 1. `hydrateFromBlob` with a blob where `subs` is a string (e.g.
    `JSON.stringify({ ...validBlobFields, subs: 'corrupt' })`) → the store does NOT throw,
    and `consumeLoadDegraded()` returns false BUT the subs field fell back to defaults

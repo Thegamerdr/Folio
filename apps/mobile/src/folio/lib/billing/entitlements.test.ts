@@ -27,6 +27,34 @@ vi.mock('expo-file-system/legacy', () => ({
   writeAsStringAsync,
 }));
 
+vi.mock('./billingVerification', () => ({
+  billingVerificationConfig: () => ({
+    issuer: 'https://billing.test',
+    audience: 'com.folio.v2.greenfield',
+    keyId: 'test-key',
+    publicKey: 'test-public-key',
+  }),
+}));
+
+vi.mock('./entitlementGrant', () => ({
+  verifyEntitlementGrant: (grant: string) =>
+    grant === 'signed-full'
+      ? {
+          tier: 'full',
+          productId: 'folio.full',
+          expiresAt: null,
+          graceUntil: null,
+        }
+      : grant === 'signed-live'
+        ? {
+            tier: 'live',
+            productId: 'folio.live.monthly',
+            expiresAt: '2026-08-01T00:00:00.000Z',
+            graceUntil: '2026-08-04T00:00:00.000Z',
+          }
+        : null,
+}));
+
 import { resetAll, setPartial, getState, type LensState } from '../../store';
 import { reconcileEntitlements } from './entitlements';
 
@@ -70,7 +98,7 @@ describe('reconcileEntitlements', () => {
     expect(lens().plusUnlocked).toBe(false);
   });
 
-  it('repairs the Full unlock (both legacy flags) from a legacy store Plus entitlement — grandfather rule', async () => {
+  it('does not trust an unsigned legacy store Plus label', async () => {
     getInfoAsync.mockResolvedValue({ exists: true });
     readAsStringAsync.mockResolvedValue(
       JSON.stringify({ v: 1, record: { source: 'store', tier: 'plus' } }),
@@ -81,11 +109,11 @@ describe('reconcileEntitlements', () => {
 
     // Free/Full/Live restructure: Full is written through setLensFullUnlocked, which sets BOTH
     // legacy persisted flags — a legacy Plus purchaser owns Full outright.
-    expect(lens().plusUnlocked).toBe(true);
-    expect(lens().proUnlocked).toBe(true);
+    expect(lens().plusUnlocked).toBe(false);
+    expect(lens().proUnlocked).toBe(false);
   });
 
-  it('repairs the Full unlock from a legacy store Pro entitlement — grandfather rule', async () => {
+  it('does not trust an unsigned legacy store Pro label', async () => {
     getInfoAsync.mockResolvedValue({ exists: true });
     readAsStringAsync.mockResolvedValue(
       JSON.stringify({ v: 1, record: { source: 'store', tier: 'pro' } }),
@@ -94,16 +122,38 @@ describe('reconcileEntitlements', () => {
 
     await reconcileEntitlements();
 
-    expect(lens().proUnlocked).toBe(true);
-    expect(lens().plusUnlocked).toBe(true);
+    expect(lens().proUnlocked).toBe(false);
+    expect(lens().plusUnlocked).toBe(false);
   });
 
-  it('repairs the Full unlock from a store Full entitlement', async () => {
+  it('does not trust an unsigned local Full label', async () => {
     getInfoAsync.mockResolvedValue({ exists: true });
     readAsStringAsync.mockResolvedValue(
       JSON.stringify({ v: 1, record: { source: 'store', tier: 'full' } }),
     );
     setPartial({ lens: { ...lens(), plusUnlocked: false, proUnlocked: false } });
+
+    await reconcileEntitlements();
+
+    expect(lens().plusUnlocked).toBe(false);
+    expect(lens().proUnlocked).toBe(false);
+  });
+
+  it('repairs Full only from a verified signed grant', async () => {
+    getInfoAsync.mockResolvedValue({ exists: true });
+    readAsStringAsync.mockResolvedValue(
+      JSON.stringify({
+        v: 2,
+        records: [
+          {
+            source: 'store',
+            tier: 'full',
+            productId: 'folio.full',
+            grant: 'signed-full',
+          },
+        ],
+      }),
+    );
 
     await reconcileEntitlements();
 

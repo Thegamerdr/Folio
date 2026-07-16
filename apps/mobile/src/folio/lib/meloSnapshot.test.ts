@@ -1,177 +1,341 @@
-// meloSnapshot tests — the pure store→MeloSnapshot builder (apps/mobile/src/folio/lib/meloSnapshot.ts)
-// that feeds MeloChatSheet's gateway context. Node-safe: imports the pure builder + the store
-// singleton (both node-safe, no react-native runtime), so it is collected by the apps/**/*.test.ts
-// vitest runner. Relative imports — the runner has no `@` alias (mirrors storeRoute.test.ts /
-// widgetSnapshot.test.ts).
-//
-// This test exists for the honesty fix: `daysToPayday` and `monthlyIncome` used to be frozen
-// web-prototype literals (11 / onboarding-only) that could go stale the moment the user's real cycle
-// or declared income sources moved on. Both must now track the SAME live engines every other surface
-// reads — `routeFromStore` (daysToPayday) and the cadence-normalised income total (monthlyIncome).
-
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { buildMeloSnapshot, liveMonthlyIncome } from './meloSnapshot';
+import { buildMeloSnapshot } from './meloSnapshot';
 import { routeFromStore } from './storeRoute';
 import {
-  addTransaction,
+  createEmptyWorkspacePartition,
   getState,
+  purgeSeedIfReal,
   resetAll,
-  setIncomeSources,
   setOnboarding,
   setPartial,
-  type IncomeSource,
 } from '../store';
+import { createBusinessWorkspace, createPersonalWorkspaceRoot } from './workspaceRoot';
+
+const NOW = '2026-06-10';
 
 beforeEach(() => {
   resetAll();
 });
 
-// A fixed mid-month "today" well before the seed payday (25th), matching storeRoute.test.ts's own
-// fixture day, so daysToPayday is unambiguously positive and comparable across both derivations.
-const NOW = '2026-06-10';
+describe('buildMeloSnapshot privacy boundary', () => {
+  it('does not expose rich identity or transaction data', () => {
+    setPartial({
+      currentBalance: {
+        amount: 720,
+        source: 'user-entered',
+        confidence: 'rough',
+        setAt: NOW,
+      },
+    });
 
-describe('buildMeloSnapshot — daysToPayday tracks the live route, never a frozen literal', () => {
-  it('equals routeFromStore(state, now).daysToPayday exactly, not the old hardcoded 11', () => {
-    const state = getState();
-    const snapshot = buildMeloSnapshot(state, 'calm', NOW);
-    const route = routeFromStore(state, NOW);
+    const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
+    const serialized = JSON.stringify(snapshot);
 
-    expect(snapshot.daysToPayday).toBe(route.daysToPayday);
-    expect(snapshot.daysToPayday).not.toBe(11);
+    expect(Object.keys(snapshot).sort()).toEqual(
+      [
+        'accountCount',
+        'activeRecurringCount',
+        'activeSubscriptionMonthlyMinor',
+        'availableNowMinor',
+        'currency',
+        'debtCount',
+        'goalCount',
+        'goalSavedMinor',
+        'goalTargetMinor',
+        'hasMoneyPicture',
+        'incomeSourceCount',
+        'irregularIncomeMode',
+        'liabilityAccountCount',
+        'monthlyDebtMinimumMinor',
+        'monthlyIncomeMinor',
+        'monthlyOutgoingsMinor',
+        'nextCalendarDate',
+        'nextPaydayLabel',
+        'pendingReviewCount',
+        'protectedItems',
+        'subscriptionCount',
+        'tightestBalanceMinor',
+        'tightestDay',
+        'totalDebtMinor',
+        'unseenChangeCount',
+        'upcomingCalendarCount',
+        'workspaceKind',
+      ].sort(),
+    );
+    for (const forbidden of [
+      '"merchant":',
+      '"lastFewTransactions":',
+      '"recentSpend":',
+      '"subscriptions":',
+      '"pots":',
+      '"name":',
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
   });
 
-  it('changes when the declared payday changes, proving it is live-derived', () => {
-    const before = buildMeloSnapshot(getState(), 'calm', NOW);
+  it('uses the same live route and converts pound values to integer pence', () => {
+    setPartial({
+      currentBalance: {
+        amount: 720,
+        source: 'user-entered',
+        confidence: 'rough',
+        setAt: NOW,
+      },
+    });
+    const state = getState();
+    const route = routeFromStore(purgeSeedIfReal(state), NOW);
+    const snapshot = buildMeloSnapshot(state, 'calm', NOW);
 
-    setOnboarding({ payday: 12 }); // moves payday to just after NOW (the 10th)
+    expect(snapshot.hasMoneyPicture).toBe(true);
+    expect(snapshot.tightestBalanceMinor).toBe(Math.round(route.tightPoint.amount * 100));
+    expect(Number.isInteger(snapshot.availableNowMinor)).toBe(true);
+  });
+
+  it('tracks the live payday instead of a frozen prototype value', () => {
+    setPartial({
+      currentBalance: {
+        amount: 720,
+        source: 'user-entered',
+        confidence: 'rough',
+        setAt: NOW,
+      },
+    });
+    const before = buildMeloSnapshot(getState(), 'calm', NOW);
+    setOnboarding({ payday: 12 });
     const after = buildMeloSnapshot(getState(), 'calm', NOW);
 
-    expect(after.daysToPayday).not.toBe(before.daysToPayday);
-    expect(after.daysToPayday).toBe(routeFromStore(getState(), NOW).daysToPayday);
+    expect(after.nextPaydayLabel).not.toBe(before.nextPaydayLabel);
+    expect(after.nextPaydayLabel).toMatch(/^[A-Z][a-z]+,? \d{1,2} [A-Z][a-z]{2}$/);
+    expect(after.nextPaydayLabel).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
-});
 
-describe('buildMeloSnapshot — monthlyIncome', () => {
-  it('falls back to onboarding.monthlyIncome when no incomeSources are declared (legacy parity)', () => {
-    setOnboarding({ monthlyIncome: 2500 });
-    setIncomeSources([]);
-
+  it('never feeds seeded sample money to Melo as user truth', () => {
     const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
 
-    expect(snapshot.monthlyIncome).toBe(2500);
-    expect(liveMonthlyIncome(getState())).toBe(2500);
+    expect(snapshot.hasMoneyPicture).toBe(false);
+    expect(snapshot.availableNowMinor).toBe(0);
+    expect(snapshot.tightestBalanceMinor).toBe(0);
+    expect(snapshot.monthlyIncomeMinor).toBe(0);
+    expect(snapshot.monthlyOutgoingsMinor).toBe(0);
+    expect(snapshot.activeSubscriptionMonthlyMinor).toBe(0);
+    expect(snapshot.subscriptionCount).toBe(0);
+    expect(snapshot.debtCount).toBe(0);
+    expect(snapshot.totalDebtMinor).toBe(0);
+    expect(snapshot.goalCount).toBe(0);
+    expect(snapshot.goalSavedMinor).toBe(0);
+    expect(snapshot.goalTargetMinor).toBe(0);
+    expect(snapshot.upcomingCalendarCount).toBe(0);
+    expect(snapshot.nextPaydayLabel).toBe('not set up yet');
   });
 
-  it('sums monthly-equivalent income across declared sources instead of the stale onboarding lump', () => {
-    setOnboarding({ monthlyIncome: 2180 }); // the legacy lump — must NOT be what gets reported
-    const sources: IncomeSource[] = [
-      {
-        id: 'src-weekly',
-        label: 'Weekly Employer',
-        cadence: 'weekly',
-        anchorISO: '2026-06-05',
-        amount: 470,
-        source: 'inferred',
-      },
-    ];
-    setIncomeSources(sources);
-
-    const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
-
-    // Weekly £470 at the engine's nominal 4.33 occurrences/month (driftSignals.ts
-    // OCCURRENCES_PER_MONTH, reused verbatim) ≈ £2035.10 monthly-equivalent — NOT the £2180
-    // onboarding lump.
-    expect(snapshot.monthlyIncome).not.toBe(2180);
-    expect(snapshot.monthlyIncome).toBeCloseTo(470 * 4.33, 2);
-  });
-
-  it('sums multiple declared sources across mixed cadences (weekly + monthly)', () => {
-    const sources: IncomeSource[] = [
-      {
-        id: 'src-weekly',
-        label: 'Side gig',
-        cadence: 'weekly',
-        anchorISO: '2026-06-05',
-        amount: 100,
-        source: 'manual',
-      },
-      {
-        id: 'src-monthly',
-        label: 'Pension',
-        cadence: 'monthly',
-        dayOfMonth: 1,
-        amount: 400,
-        source: 'onboarding',
-      },
-    ];
-    setIncomeSources(sources);
-
-    const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
-    const expected = 100 * 4.33 + 400; // weekly nominal factor + monthly (factor 1)
-
-    expect(snapshot.monthlyIncome).toBeCloseTo(expected, 2);
-  });
-});
-
-describe('buildMeloSnapshot — tightPoint is the real route low, never a quantized table', () => {
-  it('equals routeFromStore(state, now).tightPoint.amount (rounded) when a money picture exists', () => {
-    const state = getState(); // seeded state carries a balance + transactions — a real picture.
-    const snapshot = buildMeloSnapshot(state, 'pressured', NOW);
-    const route = routeFromStore(state, NOW);
-
-    expect(snapshot.pressure).toBe('pressured');
-    expect(snapshot.tightPoint).toBe(Math.round(route.tightPoint.amount));
-    // The old per-pressure table handed the persona 42 for every 'pressured' user — the real
-    // route figure must be what ships, whatever it is, so pin only that it is a number here.
-    expect(typeof snapshot.tightPoint).toBe('number');
-  });
-
-  it('is null when the app holds no current money picture (nothing set, nothing logged)', () => {
+  it('counts every local review queue without exposing its rows', () => {
     setPartial({
-      transactions: [],
-      currentBalance: { amount: 0, source: 'sample', confidence: 'sample', setAt: NOW },
+      currentBalance: {
+        amount: 720,
+        source: 'user-entered',
+        confidence: 'rough',
+        setAt: NOW,
+      },
+      readerCandidates: [
+        {
+          id: 'candidate-private',
+          source: 'pdf',
+          kind: 'spend',
+          date: NOW,
+          merchant: 'Private merchant',
+          amount: -12,
+          category: 'other',
+          confidence: 'medium',
+        },
+      ],
+      reviewQueue: [
+        {
+          id: 'review-private',
+          merchant: 'Another private merchant',
+          amount: -20,
+          category: 'other',
+          date: NOW,
+          source: 'pdf',
+          addedAt: `${NOW}T00:00:00.000Z`,
+        },
+      ],
+      reviewQueueSpillover: [],
     });
 
     const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
-
-    expect(snapshot.tightPoint).toBeNull();
+    expect(snapshot.pendingReviewCount).toBe(2);
+    expect(JSON.stringify(snapshot)).not.toContain('Private merchant');
+    expect(JSON.stringify(snapshot)).not.toContain('Another private merchant');
   });
 
-  it('only folds in transactions from the last 14 days', () => {
-    // Clear the demo seed first — resetAll's seedTransactions() dates its rows off the REAL
-    // wall-clock `Date.now()` (not the fixed `NOW` this test uses), and since the store's date-correct
-    // retention sort (`applyTransactionRetention`) now genuinely orders by `when` rather than
-    // insertion, those real-clock-dated seed rows could otherwise outrank/crowd out this test's own
-    // fixed-date fixture in `lastFewTransactions`'s top-8. Isolating to just this test's two rows
-    // keeps the assertion about the 14-day cutoff, not about clock drift.
-    setPartial({ transactions: [] });
-    addTransaction({
-      merchant: 'Old Shop',
-      amount: -50,
-      category: 'shopping',
-      source: 'manual',
-      when: '2026-05-01T00:00:00.000Z', // >14 days before NOW — must be excluded
-    });
-    addTransaction({
-      merchant: 'Recent Shop',
-      amount: -20,
-      category: 'shopping',
-      source: 'manual',
-      when: '2026-06-09T00:00:00.000Z', // 1 day before NOW — must be included
+  it('derives debt, goal, recurring, calendar and irregular-income aggregates from real rows only', () => {
+    setPartial({
+      currentBalance: {
+        amount: 720,
+        source: 'user-entered',
+        confidence: 'rough',
+        setAt: NOW,
+      },
+      debts: [
+        {
+          id: 'debt-real',
+          name: 'Private debt name',
+          kind: 'loan',
+          balance: 4_800,
+          apr: 9,
+          minPayment: 180,
+          dueDom: 18,
+          addedAt: `${NOW}T00:00:00.000Z`,
+        },
+      ],
+      pots: [
+        {
+          id: 'pot-real',
+          name: 'Private pot name',
+          saved: 750,
+          goal: 3_000,
+          perWeek: 25,
+          accent: true,
+        },
+      ],
+      plans: [],
+      subs: [
+        {
+          name: 'Private recurring name',
+          cost: 42,
+          nextRenewalDaysAway: 3,
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 1,
+        },
+      ],
+      subPaused: {},
+      incomeSources: [
+        {
+          id: 'income-real',
+          label: 'Private income source',
+          cadence: 'weekly',
+          anchorISO: '2026-06-05',
+          amount: 500,
+          source: 'manual',
+        },
+      ],
+      moneyMode: 'irregular',
+      calendarEvents: [
+        {
+          id: 'calendar-real',
+          date: '2026-06-12',
+          kind: 'out',
+          title: 'Private calendar title',
+          amount: -30,
+        },
+      ],
     });
 
     const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
-    const merchants = snapshot.lastFewTransactions.map((t) => t.merchant);
-
-    expect(merchants).toContain('Recent Shop');
-    expect(merchants).not.toContain('Old Shop');
+    expect(snapshot).toMatchObject({
+      activeRecurringCount: 1,
+      activeSubscriptionMonthlyMinor: 4_200,
+      debtCount: 1,
+      totalDebtMinor: 480_000,
+      monthlyDebtMinimumMinor: 18_000,
+      goalCount: 1,
+      goalSavedMinor: 75_000,
+      goalTargetMinor: 300_000,
+      incomeSourceCount: 1,
+      irregularIncomeMode: true,
+    });
+    expect(snapshot.upcomingCalendarCount).toBeGreaterThan(0);
+    const serialized = JSON.stringify(snapshot);
+    expect(serialized).not.toContain('Private debt name');
+    expect(serialized).not.toContain('Private pot name');
+    expect(serialized).not.toContain('Private recurring name');
+    expect(serialized).not.toContain('Private income source');
+    expect(serialized).not.toContain('Private calendar title');
   });
 
-  it('is stable across two consecutive builds against the same state (pure — no hidden clock read)', () => {
-    const first = buildMeloSnapshot(getState(), 'calm', NOW);
-    const second = buildMeloSnapshot(getState(), 'calm', NOW);
+  it('is stable for the same state and injected date', () => {
+    const state = getState();
+    expect(buildMeloSnapshot(state, 'calm', NOW)).toEqual(buildMeloSnapshot(state, 'calm', NOW));
+  });
 
-    expect(second).toEqual(first);
+  it('builds Business-only cash aggregates without Personal payday semantics or row details', () => {
+    const personal = createPersonalWorkspaceRoot().workspaces[0]!;
+    const business = createBusinessWorkspace({
+      id: 'workspace_business_snapshot',
+      name: 'Private trading name',
+      encryptedSubkeyId: 'workspace-subkey-business-snapshot-v1',
+    });
+    const root = {
+      workspaces: [personal, business],
+      activeWorkspaceId: business.id,
+      dataWorkspaceId: business.id,
+    } as const;
+    const empty = createEmptyWorkspacePartition(root, business.id, '2026-06-01T00:00:00.000Z');
+    const state = {
+      ...empty,
+      accounts: [
+        {
+          id: 'business-account-private',
+          workspaceId: business.id,
+          name: 'Private business account name',
+          kind: 'bank' as const,
+          isLiability: false,
+          balanceMinor: 1_500,
+          balanceAsOfISO: '2026-06-10T00:00:00.000Z',
+          addedAt: '2026-06-01T00:00:00.000Z',
+        },
+      ],
+      transactions: [
+        {
+          id: 'business-transaction-private',
+          workspaceId: business.id,
+          when: '2026-06-08T00:00:00.000Z',
+          merchant: 'Private client name',
+          amount: 400,
+          category: 'income' as const,
+          source: 'manual' as const,
+          accountId: 'business-account-private',
+        },
+      ],
+      calendarEvents: [
+        {
+          id: 'business-commitment-private',
+          workspaceId: business.id,
+          date: '2026-06-15',
+          kind: 'out' as const,
+          title: 'Private supplier name',
+          amount: -300,
+        },
+      ],
+    };
+
+    const snapshot = buildMeloSnapshot(state, 'calm', NOW, business.id);
+    expect(snapshot).toMatchObject({
+      workspaceKind: 'business',
+      hasMoneyPicture: true,
+      businessCashBalanceMinor: 150_000,
+      businessUpcomingCommitmentsMinor: 30_000,
+      businessProjectedCashMinor: 120_000,
+      businessConfirmedIncome30DaysMinor: 40_000,
+      nextPaydayLabel: 'not set up yet',
+    });
+    const serialized = JSON.stringify(snapshot);
+    expect(serialized).not.toContain('Private trading name');
+    expect(serialized).not.toContain('Private business account name');
+    expect(serialized).not.toContain('Private client name');
+    expect(serialized).not.toContain('Private supplier name');
+  });
+
+  it('refuses to build a Personal snapshot after a crafted Business workspace switch', () => {
+    const state = {
+      ...getState(),
+      activeWorkspaceId: 'workspace_business_injected' as ReturnType<
+        typeof getState
+      >['activeWorkspaceId'],
+    };
+
+    expect(() => buildMeloSnapshot(state, 'calm', NOW)).toThrow(/unavailable/);
   });
 });

@@ -96,7 +96,11 @@ export function logDebtPayment(id: string, amount: number) {
   if (linkedId !== undefined) {
     const accounts = (state.accounts ?? []).map((a) =>
       a.id === linkedId
-        ? { ...a, balanceMinor: Math.max(0, a.balanceMinor - amount), balanceAsOfISO: new Date().toISOString() }
+        ? {
+            ...a,
+            balanceMinor: Math.max(0, a.balanceMinor - amount),
+            balanceAsOfISO: new Date().toISOString(),
+          }
         : a,
     );
     setPartial({ debts: nextDebts, accounts });
@@ -118,11 +122,12 @@ NOTE: read the `Account` type first to confirm the exact field names
 ### Step 2: Tests
 
 In `store.test.ts`, new describe `logDebtPayment — card-linked debt/account sync`:
+
 1. Arrange: create a credit-card account + linked debt (use the existing helpers/mutators
    the current card tests use — search `store.test.ts` for `addCardPayoffDetails` or
    `syncCardDebt` usage as the arrange pattern; if none exists, build state via
    `setPartial` with an account `{ id: 'acc-1', kind: 'credit-card', isLiability: true,
-   balanceMinor: 200, ... }` matching the Account type, plus a debt with
+balanceMinor: 200, ... }` matching the Account type, plus a debt with
    `linkedAccountId: 'acc-1'`, `id` from `cardDebtId` if exported or literal
    `'debt-for-acc-1'`).
 2. `logDebtPayment(debtId, 50)` → debt.balance 150 AND account.balanceMinor 150.

@@ -26,23 +26,32 @@
 // re-exports the pressure-map kit). Nothing new is defined — no colour, font, spacing, or dependency.
 // The web '×' close glyph is drawn inline with react-native-svg (the codebase ships no icon font).
 //
-// Date input: the web used <input type="date"> (a browser-native picker that yields a YYYY-MM-DD
-// string). RN has no equivalent without adding @react-native-community/datetimepicker, which is not
-// installed and would be a new dependency — forbidden here. To keep the date a valid 10-char ISO
-// Y-M-D (the only thing canAdd checks) and stay tap-only, the date well is a − / + day stepper over
-// the ISO string. It never feeds locale-formatted text into state. The display below the steppers is
-// the friendly long-form date; the stored value stays ISO.
+// Date/time input uses the native picker already shipped by the mobile package. Calendar reminders
+// are explicit and optional; choosing one requests OS permission only after the event is saved.
 //
 // This sheet OWNS its Sheet host (visible / onClose), mounted as a sibling in the shell — mirroring
 // the EditItemSheet + LogSpendSheet + OnboardingSheet pattern — so it never nests in a generic host.
 
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { addCalendarEvent, type CalendarEvent } from '@/folio/store';
 import { copy } from '@/folio/copy/copy';
+import { reminderFireDate } from '@/folio/lib/calendarReminders';
+import { forceRescheduleNow } from '@/folio/lib/notifyScheduler';
+import { loadRemindersSettings, saveRemindersSettings } from '@/folio/lib/notifySettings';
+import { requestPermission } from '@/folio/lib/notifications';
 import type { SheetPayload } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -68,8 +77,18 @@ const KINDS: { id: Kind; label: string; hint: string }[] = [
   { id: 'deadline', label: 'Deadline', hint: 'a date that matters' },
 ];
 
-// One day in ms — used by the date stepper.
-const DAY_MS = 86_400_000;
+type ReminderChoice = 'off' | 'on-day' | 'day-before' | 'week-before';
+
+const REMINDER_CHOICES: ReadonlyArray<{
+  id: ReminderChoice;
+  label: string;
+  offsetMinutes?: number;
+}> = [
+  { id: 'off', label: 'Off' },
+  { id: 'on-day', label: 'On day', offsetMinutes: 0 },
+  { id: 'day-before', label: 'Day before', offsetMinutes: 24 * 60 },
+  { id: 'week-before', label: 'Week before', offsetMinutes: 7 * 24 * 60 },
+];
 
 // Local-date YYYY-MM-DD (zero-padded), the web `todayIso()` helper reimplemented for RN. RN has no
 // SSR, so the new Date() default is stable (no hydration mismatch — see STATES.md).
@@ -78,12 +97,25 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// Step an ISO Y-M-D string by whole days, returning another 10-char ISO Y-M-D. Built from the date's
-// own local fields so the result never drifts into locale-formatted text and stays exactly 10 chars.
-function stepIso(iso: string, deltaDays: number): string {
-  const base = new Date(`${iso}T00:00:00`);
-  const next = new Date(base.getTime() + deltaDays * DAY_MS);
-  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+function localIsoDate(value: Date): string {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(
+    value.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+function dateValue(iso: string): Date {
+  return new Date(`${iso}T12:00:00`);
+}
+
+function timeValue(time: string | null): Date {
+  const [hour = 9, minute = 0] = (time ?? '09:00').split(':').map(Number);
+  const value = new Date();
+  value.setHours(hour, minute, 0, 0);
+  return value;
+}
+
+function localTime(value: Date): string {
+  return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
 }
 
 // Friendly long-form label for the chosen ISO date — display only; the stored value stays ISO.
@@ -153,8 +185,27 @@ function AddEventForm({
   const [title, setTitle] = useState(intent?.addEventTitle ?? '');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [time, setTime] = useState<string | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [reminderChoice, setReminderChoice] = useState<ReminderChoice>('off');
 
-  const canAdd = title.trim().length > 0 && date.length === 10;
+  const reminderOffsetMinutes = REMINDER_CHOICES.find(
+    (choice) => choice.id === reminderChoice,
+  )?.offsetMinutes;
+  const reminderDate =
+    reminderOffsetMinutes === undefined
+      ? null
+      : reminderFireDate({
+          id: 'draft',
+          date,
+          ...(time !== null ? { time } : {}),
+          kind,
+          title: title.trim() || 'Draft',
+          reminderOffsetMinutes,
+        });
+  const reminderIsFuture = reminderDate === null || reminderDate.getTime() > Date.now();
+  const canAdd = title.trim().length > 0 && date.length === 10 && reminderIsFuture;
   const showAmount = kind === 'in' || kind === 'out';
 
   function handleAdd() {
@@ -172,12 +223,24 @@ function AddEventForm({
     // (mirrors the store / calendarEvents conditional-spread idiom). Same output as the web source.
     addCalendarEvent({
       date,
+      ...(time !== null ? { time } : {}),
       kind,
       title: title.trim(),
       ...(trimmedNote ? { note: trimmedNote } : {}),
       ...(signedAmount !== undefined ? { amount: signedAmount } : {}),
+      ...(reminderOffsetMinutes !== undefined ? { reminderOffsetMinutes } : {}),
     });
     onClose();
+    if (reminderOffsetMinutes !== undefined) {
+      // Creating a reminder is the opt-in action. The event remains valid if OS permission is
+      // denied; More then explains that system settings are blocking its notification.
+      void (async () => {
+        const settings = await loadRemindersSettings();
+        await saveRemindersSettings({ ...settings, remindersEnabled: true });
+        await requestPermission();
+        forceRescheduleNow();
+      })();
+    }
   }
 
   const hint = KINDS.find((k) => k.id === kind)?.hint;
@@ -231,30 +294,87 @@ function AddEventForm({
           <Text style={s.hint}>{hint}</Text>
         </View>
 
-        {/* Date — a − / + day stepper over the ISO string (see header note). */}
+        {/* Native date picker; the persisted value remains local YYYY-MM-DD. */}
         <View>
           <Text style={s.fieldLabel}>Date</Text>
-          <View style={s.dateWell}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Previous day"
-              onPress={() => setDate((d) => stepIso(d, -1))}
-              style={({ pressed }) => [s.dateStep, pressed ? s.pressed : undefined]}
-            >
-              <Text style={s.dateStepLabel}>−</Text>
-            </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Date, ${isoLabel(date)}. Tap to change.`}
+            onPress={() => setDatePickerOpen(true)}
+            style={({ pressed }) => [s.dateWell, pressed ? s.pressed : undefined]}
+          >
             <Text accessibilityLabel={isoLabel(date)} style={s.dateValue}>
               {isoLabel(date)}
             </Text>
+          </Pressable>
+          {datePickerOpen ? (
+            <View style={s.pickerWrap}>
+              <DateTimePicker
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                mode="date"
+                onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                  if (Platform.OS === 'android') setDatePickerOpen(false);
+                  if (selected !== undefined) setDate(localIsoDate(selected));
+                }}
+                value={dateValue(date)}
+              />
+              {Platform.OS === 'ios' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setDatePickerOpen(false)}
+                  style={({ pressed }) => [s.pickerDone, pressed ? s.pressed : undefined]}
+                >
+                  <Text style={s.pickerDoneLabel}>Done</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        <View>
+          <Text style={s.fieldLabel}>Time (optional)</Text>
+          <View style={s.timeRow}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Next day"
-              onPress={() => setDate((d) => stepIso(d, 1))}
-              style={({ pressed }) => [s.dateStep, pressed ? s.pressed : undefined]}
+              accessibilityLabel={`${time ?? 'All day'}. Tap to choose a time.`}
+              onPress={() => setTimePickerOpen(true)}
+              style={({ pressed }) => [s.timeWell, pressed ? s.pressed : undefined]}
             >
-              <Text style={s.dateStepLabel}>+</Text>
+              <Text style={s.dateValue}>{time ?? 'All day'}</Text>
             </Pressable>
+            {time !== null ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear event time"
+                onPress={() => setTime(null)}
+                style={({ pressed }) => [s.clearTime, pressed ? s.pressed : undefined]}
+              >
+                <Text style={s.clearTimeLabel}>Clear</Text>
+              </Pressable>
+            ) : null}
           </View>
+          {timePickerOpen ? (
+            <View style={s.pickerWrap}>
+              <DateTimePicker
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                mode="time"
+                onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                  if (Platform.OS === 'android') setTimePickerOpen(false);
+                  if (selected !== undefined) setTime(localTime(selected));
+                }}
+                value={timeValue(time)}
+              />
+              {Platform.OS === 'ios' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setTimePickerOpen(false)}
+                  style={({ pressed }) => [s.pickerDone, pressed ? s.pressed : undefined]}
+                >
+                  <Text style={s.pickerDoneLabel}>Done</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         {/* What is it. */}
@@ -301,6 +421,42 @@ function AddEventForm({
             style={s.input}
             value={note}
           />
+        </View>
+
+        <View>
+          <Text style={s.fieldLabel}>Reminder</Text>
+          <View style={s.kindGrid}>
+            {REMINDER_CHOICES.map((choice) => {
+              const on = reminderChoice === choice.id;
+              return (
+                <Pressable
+                  key={choice.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => setReminderChoice(choice.id)}
+                  style={({ pressed }) => [
+                    s.kindChip,
+                    { backgroundColor: on ? t.calmSoft : t.inset },
+                    pressed ? s.pressed : undefined,
+                  ]}
+                >
+                  <Text
+                    numberOfLines={2}
+                    style={[s.reminderChipLabel, { color: on ? t.ink : t.muted }]}
+                  >
+                    {choice.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={[s.hint, !reminderIsFuture ? { color: t.repair } : undefined]}>
+            {!reminderIsFuture
+              ? 'That reminder time has passed. Choose a later date or time.'
+              : reminderChoice === 'off'
+                ? 'Off until you choose one.'
+                : `Scheduled locally${time === null ? ' at 09:00' : ''}. Details stay private on your lock screen.`}
+          </Text>
         </View>
       </View>
 
@@ -448,6 +604,54 @@ function makeStyles(t: Palette) {
       flex: 1,
       fontSize: 13.5,
       fontVariant: ['tabular-nums'],
+      textAlign: 'center',
+    },
+    timeRow: {
+      alignItems: 'center',
+      columnGap: gap.sm,
+      flexDirection: 'row',
+      marginTop: gap.sm,
+    },
+    timeWell: {
+      alignItems: 'center',
+      backgroundColor: t.inset,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      flex: 1,
+      height: 44,
+      justifyContent: 'center',
+      paddingHorizontal: gap.md,
+    },
+    clearTime: {
+      alignItems: 'center',
+      height: 44,
+      justifyContent: 'center',
+      minWidth: 52,
+    },
+    clearTimeLabel: {
+      color: t.muted,
+      fontSize: 12,
+    },
+    pickerWrap: {
+      marginTop: gap.sm,
+    },
+    pickerDone: {
+      alignItems: 'center',
+      alignSelf: 'flex-end',
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: gap.md,
+    },
+    pickerDoneLabel: {
+      color: t.calm,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    reminderChipLabel: {
+      fontSize: 11,
+      fontWeight: '500',
+      lineHeight: 14,
       textAlign: 'center',
     },
     // Text field — 44px tall inset well, px-3, 13.5px, mt-2.

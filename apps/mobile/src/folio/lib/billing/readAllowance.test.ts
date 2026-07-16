@@ -25,6 +25,7 @@ import {
   type AiReadCacheEntry,
 } from '../../store';
 import type { CandidateMoneyItem } from '../importSheet';
+import { PERSONAL_WORKSPACE_ID } from '../workspaceRoot';
 
 const JULY = '2026-07';
 const AUGUST = '2026-08';
@@ -127,35 +128,51 @@ describe('store — recordAiRead / cacheAiRead / getCachedAiRead', () => {
   });
 
   it('records reads within a month and rolls over to 1 on a new month', () => {
-    recordAiRead(JULY);
-    recordAiRead(JULY);
+    recordAiRead(PERSONAL_WORKSPACE_ID, JULY);
+    recordAiRead(PERSONAL_WORKSPACE_ID, JULY);
     expect(getState().aiReads).toEqual({ monthKey: JULY, used: 2 });
 
-    recordAiRead(AUGUST);
+    recordAiRead(PERSONAL_WORKSPACE_ID, AUGUST);
     expect(getState().aiReads).toEqual({ monthKey: AUGUST, used: 1 });
   });
 
   it('caches and retrieves a read by key', () => {
     const entry = makeEntry('2026-07-01T00:00:00.000Z', 2);
-    cacheAiRead('key-1', entry);
-    expect(getCachedAiRead('key-1')).toEqual(entry);
-    expect(getCachedAiRead('missing')).toBeNull();
+    cacheAiRead(PERSONAL_WORKSPACE_ID, 'key-1', entry);
+    expect(getCachedAiRead(PERSONAL_WORKSPACE_ID, 'key-1')).toEqual(entry);
+    expect(getCachedAiRead(PERSONAL_WORKSPACE_ID, 'missing')).toBeNull();
   });
 
   it('evicts the oldest entry once the cache is full', () => {
     for (let i = 0; i < READ_CACHE_MAX_ENTRIES; i++) {
-      cacheAiRead(`key-${i}`, makeEntry(`2026-07-0${i + 1}T00:00:00.000Z`, 1));
+      cacheAiRead(
+        PERSONAL_WORKSPACE_ID,
+        `key-${i}`,
+        makeEntry(`2026-07-0${i + 1}T00:00:00.000Z`, 1),
+      );
     }
-    cacheAiRead('key-new', makeEntry('2026-07-09T00:00:00.000Z', 1));
+    cacheAiRead(PERSONAL_WORKSPACE_ID, 'key-new', makeEntry('2026-07-09T00:00:00.000Z', 1));
 
-    expect(getCachedAiRead('key-0')).toBeNull(); // oldest evicted
-    expect(getCachedAiRead('key-new')).not.toBeNull();
+    expect(getCachedAiRead(PERSONAL_WORKSPACE_ID, 'key-0')).toBeNull(); // oldest evicted
+    expect(getCachedAiRead(PERSONAL_WORKSPACE_ID, 'key-new')).not.toBeNull();
     expect(Object.keys(getState().aiReadCache ?? {}).length).toBe(READ_CACHE_MAX_ENTRIES);
   });
 
   it('refuses to cache an oversized read rather than bloating the persist blob', () => {
-    cacheAiRead('huge', makeEntry('2026-07-01T00:00:00.000Z', READ_CACHE_MAX_CANDIDATES + 1));
-    expect(getCachedAiRead('huge')).toBeNull();
+    cacheAiRead(
+      PERSONAL_WORKSPACE_ID,
+      'huge',
+      makeEntry('2026-07-01T00:00:00.000Z', READ_CACHE_MAX_CANDIDATES + 1),
+    );
+    expect(getCachedAiRead(PERSONAL_WORKSPACE_ID, 'huge')).toBeNull();
+  });
+
+  it('rejects cache reads and writes for an unprovisioned workspace', () => {
+    const business = 'workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID;
+    expect(() => getCachedAiRead(business, 'key')).toThrow(/unavailable/i);
+    expect(() => cacheAiRead(business, 'key', makeEntry('2026-07-01T00:00:00.000Z', 1))).toThrow(
+      /unavailable/i,
+    );
   });
 });
 

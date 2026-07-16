@@ -17,6 +17,7 @@ const workspaceEntryPoints = {
   '@folio/open-banking': path.join(workspaceRoot, 'packages/open-banking/src/index.ts'),
   '@folio/plan-engine': path.join(workspaceRoot, 'packages/plan-engine/src/index.ts'),
   '@folio/release-readiness': path.join(workspaceRoot, 'packages/release-readiness/src/index.ts'),
+  '@folio/storage': path.join(workspaceRoot, 'packages/storage/src/index.ts'),
   '@folio/store-release': path.join(workspaceRoot, 'packages/store-release/src/index.ts'),
   '@folio/ui': path.join(workspaceRoot, 'packages/ui/src/index.ts'),
 };

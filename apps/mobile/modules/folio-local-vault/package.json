@@ -1,0 +1,7 @@
+{
+  "name": "folio-local-vault",
+  "version": "0.1.0",
+  "description": "Narrow Android bridge for byte-verified quarantine of Melo's private SQLCipher database family.",
+  "main": "index.ts",
+  "private": true
+}

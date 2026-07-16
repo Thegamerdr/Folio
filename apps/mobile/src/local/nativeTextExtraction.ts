@@ -3,21 +3,14 @@
  *
  * PURPOSE
  * -------
- * This is the typed seam the import/review UI wires to NOW, so the rest of the
- * document-reading flow (picker -> extractor -> text -> import-engine
- * `parseImportFile`) can be built ahead of the native module that does the real
- * PDF rendering and OCR.
- *
- * Until the native module lands, `extractTextFromDocument` SAFELY returns
- * `{ text: '', source: 'none' }`. It NEVER throws. A `'none'` result means the
- * caller should fall back to the manual-from-file workbench (the user types the
- * important numbers themselves). This keeps automatic reading "not available
- * yet" rather than "broken".
+ * This is the typed seam between the picker and the bundled Android reader. The
+ * reader performs real PDF rendering and ML Kit OCR; unsupported platforms and
+ * extraction failures safely return `{ text: '', source: 'none' }`.
  *
  * PRIVACY / DATA RESIDENCY
  * ------------------------
- * Everything here is on-device only. No bytes leave the phone. The eventual
- * native path uses Android's bundled `android.graphics.pdf.PdfRenderer` for
+ * Everything here is on-device only. No bytes leave the phone. The native
+ * path uses Android's bundled `android.graphics.pdf.PdfRenderer` for
  * PDF -> bitmap and Google ML Kit on-device Text Recognition for bitmap -> text.
  * ML Kit's bundled text model runs fully offline (no Google Play Services
  * model download, no network). Do NOT introduce any cloud OCR / cloud PDF
@@ -41,7 +34,16 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 // The on-device reader native module (ML Kit OCR + PdfRenderer). Resolves lazily and never throws.
-import { readDocumentText } from '../../modules/folio-reader';
+import {
+  readDocumentText,
+  type OcrBoundingBox,
+  type OcrElement,
+  type OcrLine,
+  type OcrPage,
+  type OcrPoint,
+} from '../../modules/folio-reader';
+
+export type { OcrBoundingBox, OcrElement, OcrLine, OcrPage, OcrPoint };
 
 /**
  * Result of an on-device extraction attempt.
@@ -59,6 +61,10 @@ export type ExtractedText = Readonly<{
   text: string;
   source: 'pdf-text' | 'ocr-image' | 'none';
   pages?: number | undefined;
+  totalPages?: number | undefined;
+  truncated?: boolean | undefined;
+  /** Spatial OCR evidence retained for local table/receipt/invoice interpretation. */
+  layout?: readonly OcrPage[] | undefined;
 }>;
 
 /**
@@ -96,44 +102,6 @@ export async function extractTextFromDocument(
       return NOT_AVAILABLE;
     }
 
-    // -----------------------------------------------------------------------
-    // NATIVE PLUG-IN POINT (currently a no-op fallback).
-    //
-    // When the native TurboModule / bridge module lands, replace the
-    // `return NOT_AVAILABLE` below with a call into it. The native module is
-    // expected to expose something like:
-    //
-    //   NativeModules.FolioDocumentText.extract(uri: string): Promise<{
-    //     text: string;
-    //     source: 'pdf-text' | 'ocr-image' | 'none';
-    //     pages?: number;
-    //   }>
-    //
-    // and internally:
-    //
-    //   * PDF  -> open the file descriptor, render each page to a Bitmap with
-    //             `android.graphics.pdf.PdfRenderer`, then run Google ML Kit
-    //             on-device `TextRecognition` over each page bitmap; join page
-    //             texts with `\n`. Set `pages` to the rendered page count and
-    //             `source: 'pdf-text'`.
-    //
-    //   * image / photo / screenshot -> build an
-    //             `InputImage.fromFilePath(...)` and run ML Kit
-    //             `TextRecognition`; `source: 'ocr-image'`, `pages` omitted (or 1).
-    //
-    // Both paths stay on-device (bundled ML Kit model, no network).
-    //
-    // Sketch of the eventual wiring (kept commented so this file stays a safe
-    // no-op until the native side exists and is verified):
-    //
-    //   const native = (await import('./nativeDocumentTextModule')).default;
-    //   if (native !== undefined) {
-    //     const result = await native.extract(uri);
-    //     return normaliseNativeResult(result);
-    //   }
-    //
-    // -----------------------------------------------------------------------
-
     // Guarded availability probe: confirm the file is actually readable before
     // we hand it to the native module. This never throws out of here.
     const exists = await fileIsReadable(uri);
@@ -147,7 +115,7 @@ export async function extractTextFromDocument(
     // NOT_AVAILABLE, so the caller still lands on the manual-from-file workbench.
     const native = await readDocumentText(uri, mimeType);
     if (native.source !== 'none' && native.text.trim().length > 0) {
-      return { text: native.text, source: native.source };
+      return native;
     }
     return NOT_AVAILABLE;
   } catch {

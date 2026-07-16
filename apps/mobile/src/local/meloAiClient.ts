@@ -1,24 +1,14 @@
-// AI client for Melo (RN port of the web /api/melo-chat route).
+// Retired remote Melo client compatibility seams.
 //
-// KEYLESS BY DESIGN. This client holds NO provider key. It talks to Folio's own standalone
-// gateway (a Cloudflare Worker at `services/ai-gateway`) which holds the OpenRouter key as a
-// server-side secret and forwards to the model. The app only knows the gateway's URL
-// (EXPO_PUBLIC_MELO_GATEWAY_URL) and a weak shared token (EXPO_PUBLIC_MELO_GATEWAY_TOKEN) sent
-// in the `x-folio-gateway-token` header. The real secret never ships in the APK, and the app
-// depends on no Lovable / web-app infrastructure. When no gateway URL is configured the client
-// returns a clear, non-fatal `no-provider` state so the sheet can show "Melo isn't configured
-// yet" instead of crashing.
-//
-// It speaks the OpenAI-compatible Chat Completions shape (`POST {gatewayUrl}/chat/completions`).
-// The gateway accepts that exact shape, so swapping the upstream model/provider is a gateway
-// config change, not an app change.
+// The shipping companion runs through localMeloTurn. This module retains only the pure parsers and
+// types needed by existing confirmation flows/tests; it contains no provider config and no network
+// transport. A future remote phrasing feature must use the gateway's enum-only /v1/phrase contract.
 //
 // ADVISORY ONLY. Melo can SUGGEST recording money (log a spend, an income, a refund, or a
 // transfer), but this client never executes them. Suggestions come back as structured
 // `MeloToolSuggestion[]` for the UI to surface as user-confirmed actions. The client has no
 // access to app state and cannot mutate anything.
 
-import Constants from 'expo-constants';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
 // ---------------------------------------------------------------------------
@@ -116,44 +106,17 @@ export type MeloChatRequest = Readonly<{
 // Config resolution (public Expo config only — no secrets)
 // ---------------------------------------------------------------------------
 
-function readPublicExtra(key: string): string | undefined {
-  // EXPO_PUBLIC_* env vars are inlined into process.env at build time and also surface on
-  // expoConfig.extra in some setups. Read both, prefer the explicit env var, and treat empty
-  // strings as unset.
-  const fromEnv = (process.env as Record<string, string | undefined>)[key];
-  const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
-  const fromExtra = typeof extra[key] === 'string' ? (extra[key] as string) : undefined;
-  const value = (fromEnv ?? fromExtra ?? '').trim();
-  return value.length > 0 ? value : undefined;
-}
-
-/** The deployed gateway this build ships against by default. An env var (EXPO_PUBLIC_*) or
- *  app.config `extra` overrides it — but those are unreliable in the gradle RELEASE bundle (it
- *  inlines neither process.env nor expoConfig.extra dependably), so these source literals are the
- *  always-present fallback (a string literal is always in the JS bundle). URL + a WEAK shared token
- *  only; the real OpenRouter key is a Cloudflare Worker secret and never reaches the app. */
-const DEFAULT_GATEWAY_URL = 'https://folio-ai-gateway.tgdroppin.workers.dev/v1';
-const DEFAULT_GATEWAY_TOKEN = 'folio-local-38cf0d6da78a33a51382b91cafe0a7f2';
-
-/** Resolve the gateway config. Pure read — no network, no key. Prefers an explicit env/extra
- *  override, else the deployed default above, so a shipped build is always configured. The token is
- *  optional: a gateway with no GATEWAY_TOKEN set accepts requests without the header. */
+/**
+ * Raw mobile chat transport is retired. The shipping companion uses `localMeloTurn`; a future
+ * provider integration may call only the Worker's enum-only `/v1/phrase` envelope.
+ */
 export function resolveMeloAiProviderConfig(): MeloAiProviderConfig {
-  const gatewayUrl = readPublicExtra('EXPO_PUBLIC_MELO_GATEWAY_URL') ?? DEFAULT_GATEWAY_URL;
-  return {
-    configured: true,
-    gatewayUrl: stripTrailingSlash(gatewayUrl),
-    token: readPublicExtra('EXPO_PUBLIC_MELO_GATEWAY_TOKEN') ?? DEFAULT_GATEWAY_TOKEN,
-  };
+  return { configured: false };
 }
 
 /** Convenience: is the Melo gateway configured at all? */
 export function isMeloAiConfigured(): boolean {
   return resolveMeloAiProviderConfig().configured;
-}
-
-function stripTrailingSlash(url: string): string {
-  return url.endsWith('/') ? url.slice(0, -1) : url;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,61 +149,15 @@ Only suggest recording something for a real, completed event the user has clearl
 
 export function buildMeloSystemPrompt(
   tone: MeloTone,
-  snapshot?: MeloLocalFinancialSnapshot | undefined,
+  _snapshot?: MeloLocalFinancialSnapshot | undefined,
 ): string {
   const parts = [PERSONA_BASE, PERSONA_TONES[tone], PERSONA_TOOLS];
-  if (snapshot) {
-    parts.push(
-      `Here is the user's current money snapshot (JSON). Treat as ground truth; do not make up other numbers:\n${JSON.stringify(
-        snapshot,
-        null,
-        2,
-      )}`,
-    );
-    // The snapshot carries the user's own subscription + pot names. Surface them so Melo can refer
-    // to the user's real money by name (e.g. naming a pot as a log_transfer endpoint) instead of
-    // inventing one.
-    const names = describeSnapshotNames(snapshot);
-    if (names !== undefined) {
-      parts.push(names);
-    }
-  } else {
-    parts.push(
-      "You do not have access to the user's money data in this conversation. You may repeat amounts already stated in the conversation, but do not calculate or claim any effect on their balance, route, spare amount, or tight point. If they ask numerical questions, ask them to enable sharing or to tell you the number.",
-    );
-  }
+  parts.push(
+    "You do not have access to the user's money data in this conversation; do not calculate or claim any effect on their balance, route, spare amount, or tight point. Raw chat transport is disabled; this prompt builder is retained only for parser compatibility tests.",
+  );
   return parts.join('\n\n');
 }
 
-/** Build a short instruction naming the user's subscriptions + pots so Melo refers to them by their
- *  real names. Returns undefined when the snapshot carries no names (nothing to reference). */
-function describeSnapshotNames(snapshot: MeloLocalFinancialSnapshot): string | undefined {
-  const subscriptions = (snapshot.subscriptionNames ?? []).filter((name) => name.trim().length > 0);
-  const pots = (snapshot.potNames ?? []).filter((name) => name.trim().length > 0);
-  if (subscriptions.length === 0 && pots.length === 0) {
-    return undefined;
-  }
-  const lines = [
-    'When you refer to the user’s subscriptions or pots, use the user’s exact names from these lists — copy a name verbatim, do not invent or rephrase one.',
-  ];
-  if (subscriptions.length > 0) {
-    lines.push(`Their subscriptions: ${subscriptions.join(', ')}.`);
-  }
-  if (pots.length > 0) {
-    lines.push(`Their pots: ${pots.join(', ')}.`);
-  }
-  return lines.join(' ');
-}
-
-// ---------------------------------------------------------------------------
-// OpenAI-compatible chat call
-// ---------------------------------------------------------------------------
-
-type OpenAiChatMessage = Readonly<{ role: 'system' | 'user' | 'assistant'; content: string }>;
-
-/** Hard ceiling on one turn's wait. The sheet has a Stop button, but a hung gateway must
- *  not spin forever when the user simply waits — 30s is far above any healthy completion. */
-const DEFAULT_TIMEOUT_MS = 30_000;
 /** Outbound history window: the newest N thread messages (system prompt excluded). Every turn
  *  used to resend the WHOLE visible thread, so a long session's cost grew per turn until the
  *  model context blew — the window bounds both. 24 messages = 12 full exchanges of context. */
@@ -264,122 +181,17 @@ export function windowChatHistory(
     );
 }
 
-/** Send one chat turn through Folio's Melo gateway. Returns a discriminated result — never throws
- *  for the expected failure modes (no gateway configured, network/HTTP error). The gateway holds
- *  the real provider key; this client sends only the shared token (when configured). */
-export async function sendMeloChat(request: MeloChatRequest): Promise<MeloChatResult> {
-  const config = resolveMeloAiProviderConfig();
-  if (!config.configured) {
-    return {
-      status: 'no-provider',
-      message:
-        "Melo isn't configured yet. Set EXPO_PUBLIC_MELO_GATEWAY_URL to your deployed gateway and rebuild.",
-    };
-  }
-
-  const payloadMessages: OpenAiChatMessage[] = [
-    { role: 'system', content: buildMeloSystemPrompt(request.tone, request.snapshot) },
-    ...windowChatHistory(request.messages).map<OpenAiChatMessage>((message) => ({
-      role: message.role,
-      content: message.text,
-    })),
-  ];
-
-  // COST SPLIT: chat pins a CHEAP text model. The expensive vision/file model (gemini-2.5-flash) is
-  // reserved for PDF/photo EXTRACTION (statementReaderClient); chat is high-volume and must not ride
-  // the pricey vision tier. The gateway forwards this model verbatim and only allows the approved
-  // chat/vision models (services/ai-gateway), so a leaked token can't request a costlier one.
-  const CHAT_MODEL = 'google/gemini-2.5-flash-lite';
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (config.token !== undefined) {
-    headers['x-folio-gateway-token'] = config.token;
-  }
-  // Anonymous install id for the gateway's abuse metering. Lazily imported so this module stays
-  // Node-safe for its tests (deviceId pulls expo modules); any failure omits the header and the
-  // gateway falls back to its coarser IP backstop.
-  try {
-    const { getDeviceId } = await import('./deviceId');
-    const deviceId = await getDeviceId();
-    if (deviceId !== null) headers['x-folio-device'] = deviceId;
-  } catch {
-    /* header omitted. */
-  }
-
-  // Timeout + caller-cancel share one controller (Hermes has no AbortSignal.any/timeout):
-  // our controller drives the fetch; the timer aborts it on DEFAULT_TIMEOUT_MS, the caller's
-  // signal aborts it on Stop/unmount. `timedOut` disambiguates the two so the user reads the
-  // honest cause — a timeout is Melo's failure, a cancel is their own action.
-  const controller = new AbortController();
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, DEFAULT_TIMEOUT_MS);
-  const callerSignal = request.signal;
-  const onCallerAbort = () => controller.abort();
-  if (callerSignal !== undefined) {
-    if (callerSignal.aborted) controller.abort();
-    else callerSignal.addEventListener('abort', onCallerAbort);
-  }
-
-  try {
-    const response = await fetch(`${config.gatewayUrl}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: CHAT_MODEL,
-        messages: payloadMessages,
-        temperature: 0.6,
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const detail = await safeReadErrorBody(response);
-      return {
-        status: 'error',
-        message: `Melo's gateway returned ${response.status}.${detail ? ` ${detail}` : ''}`,
-      };
-    }
-
-    const data: unknown = await response.json();
-    const rawReply = extractAssistantText(data);
-    if (rawReply === null) {
-      return { status: 'error', message: "Melo's gateway sent an unexpected response." };
-    }
-
-    const { prose, suggestions } = splitReplyAndSuggestions(rawReply);
-    const reply =
-      request.snapshot === undefined
-        ? guardBlindMeloReply(prose, request.messages, suggestions.length > 0)
-        : prose;
-    return { status: 'ok', reply, suggestions };
-  } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return timedOut
-        ? { status: 'error', message: 'Melo took too long to answer. Try again.' }
-        : { status: 'error', message: 'Cancelled.' };
-    }
-    return { status: 'error', message: `Couldn't reach Melo just now. ${errorMessage(error)}` };
-  } finally {
-    clearTimeout(timer);
-    callerSignal?.removeEventListener('abort', onCallerAbort);
-  }
+/** Retired transport. It intentionally cannot send a request, regardless of build configuration. */
+export async function sendMeloChat(_request: MeloChatRequest): Promise<MeloChatResult> {
+  return {
+    status: 'no-provider',
+    message: 'Remote companion transport is disabled. Melo runs on this device.',
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Response parsing
 // ---------------------------------------------------------------------------
-
-function extractAssistantText(data: unknown): string | null {
-  if (typeof data !== 'object' || data === null) return null;
-  const choices = (data as { choices?: unknown }).choices;
-  if (!Array.isArray(choices) || choices.length === 0) return null;
-  const first = choices[0] as { message?: { content?: unknown } } | undefined;
-  const content = first?.message?.content;
-  return typeof content === 'string' ? content : null;
-}
 
 const SUGGEST_BLOCK = /```melo-suggest\s*([\s\S]*?)```/i;
 const JSON_BLOCK = /```json\s*([\s\S]*?)```/gi;
@@ -512,18 +324,4 @@ function stringArg(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim().length > 0) return value.trim();
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return undefined;
-}
-
-async function safeReadErrorBody(response: Response): Promise<string> {
-  try {
-    const text = await response.text();
-    return text.slice(0, 200);
-  } catch {
-    return '';
-  }
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return 'Unexpected error.';
 }

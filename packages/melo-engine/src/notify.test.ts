@@ -60,6 +60,12 @@ describe('quiet hours', () => {
     expect(inQuietHours(20)).toBe(false);
   });
 
+  it('honours a user-configured window, including a same-hour disabled window', () => {
+    expect(inQuietHours(19, 18, 9)).toBe(true);
+    expect(inQuietHours(10, 18, 9)).toBe(false);
+    expect(inQuietHours(2, 0, 0)).toBe(false);
+  });
+
   it('suppresses everything — even danger — at night (§13: no 2am panic)', () => {
     const i: NotifyInputs = {
       ...base,

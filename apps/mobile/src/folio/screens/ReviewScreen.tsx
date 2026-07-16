@@ -1,7 +1,7 @@
 // @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review (see BUILD_PLAN §3)
 //
-// ReviewScreen — the faithful 1:1 React Native port of the web one-decision review card
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenReview.tsx).
+// ReviewScreen — the native review-before-truth surface shared by manual, statement, photo and
+// provider-neutral bank candidates.
 //
 // @rn-screen    ReviewScreen
 // @rn-stack     Intake > Review
@@ -23,11 +23,8 @@
 //               screen) · count-up on the accepted amount · press 0.97 (kit `pressed`).
 //               Reduced motion = final state (stamp + slide collapse, count-up snaps).
 //
-// @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review
-//   (see BUILD_PLAN §3). This wave ports the UI only; the real readers are built later. The single
-//   candidate below (merchant / amount / date / balance numbers) is the engine's eventual output —
-//   here it is a local sample that REUSES the web source's exact values (Tesco · £42 · from £325 →
-//   £283), no fabricated merchants/numbers.
+// @rn-engine statement-reader|photo-reader|text-reader|open-banking — all semi-automatic sources
+//   stage candidates here; none writes directly to the ledger.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • The accent word in the headline ("Tesco") is rendered UPRIGHT terracotta inside the Fraunces
@@ -59,6 +56,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -80,6 +78,7 @@ import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/the
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import {
+  addIgnoredBankExternalId,
   addIgnoredReviewSig,
   addTransaction,
   forgetMerchantCategory,
@@ -97,6 +96,7 @@ import { findCaughtBills } from '@/folio/lib/caughtBills';
 import { findDriftCandidates } from '@/folio/lib/caughtDrift';
 import { findCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import { isOverspentLanding } from '@/folio/lib/storeRoute';
+import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import { formatGBP } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
 
@@ -113,6 +113,11 @@ export type ReviewCandidate = {
   before: number;
   /** Account selected at statement intake. Absent legacy/manual candidates use Main. */
   accountId?: string;
+  sourceEvidenceId?: string;
+  /** Present only for a row staged by Melo's Open Banking service. */
+  source?: 'bank';
+  externalId?: string;
+  bankConnectionId?: string;
   /** The reader's suggested `Transaction['category']` bucket (model guess, or a
    *  merchant-memory recall — see `rememberedCategory`), when known. Used only
    *  to pre-select a chip below; the user's own tap always wins. */
@@ -124,20 +129,21 @@ export type ReviewCandidate = {
   rememberedCategory?: true;
 };
 
-// What a completed read hands this screen. Until the reader lands, the shell passes the SAMPLE below
-// (the web source's exact Tesco · £42 · £325 numbers), so the screen renders honestly.
-const SAMPLE_CANDIDATE: ReviewCandidate = {
-  merchant: 'Tesco',
-  amount: 42,
+// Hooks below require a stable candidate shape before the empty doorway returns. This sentinel is
+// never rendered or accepted; unlike the inherited web placeholder it contains no sample merchant
+// or financial data.
+const NON_RENDERED_EMPTY_CANDIDATE: ReviewCandidate = {
+  merchant: '',
+  amount: 0,
   flow: 'out',
-  date: '26 June',
-  before: 325,
+  date: '',
+  before: 0,
 };
 
 // The category chips — the web CATEGORIES list, verbatim, PLUS 'Income' (task: income-category
 // fix). An income-flow candidate must never be forced into a spend bucket like 'Groceries' — see
 // `categoryFor`/`categoryLabelFor` below for the paired mapping this chip completes.
-const CATEGORIES = [
+const PERSONAL_CATEGORIES = [
   'Groceries',
   'Transport',
   'Bills',
@@ -147,7 +153,14 @@ const CATEGORIES = [
   'Income',
   'Other',
 ] as const;
-type Category = (typeof CATEGORIES)[number];
+const BUSINESS_CATEGORIES = [
+  'Travel',
+  'Software & services',
+  'Supplies',
+  'Client income',
+  'Other',
+] as const;
+type Category = (typeof PERSONAL_CATEGORIES)[number] | (typeof BUSINESS_CATEGORIES)[number];
 
 // The render states this screen can occupy.
 export type ReviewState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
@@ -185,13 +198,17 @@ function categoryFor(label: Category): Transaction['category'] {
     case 'Eating out':
       return 'food';
     case 'Transport':
+    case 'Travel':
       return 'transport';
     case 'Bills':
     case 'Subscription':
+    case 'Software & services':
       return 'bills';
     case 'Shopping':
+    case 'Supplies':
       return 'shopping';
     case 'Income':
+    case 'Client income':
       return 'income';
     default:
       return 'other';
@@ -205,7 +222,21 @@ function categoryFor(label: Category): Transaction['category'] {
 // change; it is never used to grade correctness. 'income' -> 'Income' (task: income-category fix) so
 // an income-flow candidate pre-selects the Income chip instead of falling through to the 'Groceries'
 // default declared below.
-function categoryLabelFor(bucket: Transaction['category']): Category | null {
+function categoryLabelFor(bucket: Transaction['category'], business: boolean): Category | null {
+  if (business) {
+    switch (bucket) {
+      case 'transport':
+        return 'Travel';
+      case 'bills':
+        return 'Software & services';
+      case 'shopping':
+        return 'Supplies';
+      case 'income':
+        return 'Client income';
+      default:
+        return 'Other';
+    }
+  }
   switch (bucket) {
     case 'food':
       return 'Groceries';
@@ -260,7 +291,9 @@ function sourceNoun(source: ReviewItem['source']): string {
       ? 'statement'
       : source === 'image'
         ? 'photo'
-        : 'intake';
+        : source === 'bank'
+          ? 'bank connection'
+          : 'intake';
 }
 
 // The known Transaction category buckets, for safely narrowing a ReviewItem's free-text `category`
@@ -298,6 +331,10 @@ function candidateFromQueueItem(item: ReviewItem, before: number): ReviewCandida
     date: item.date ?? '',
     before,
     ...(item.accountId !== undefined ? { accountId: item.accountId } : {}),
+    ...(item.sourceEvidenceId !== undefined ? { sourceEvidenceId: item.sourceEvidenceId } : {}),
+    ...(item.source === 'bank' ? { source: 'bank' as const } : {}),
+    ...(item.externalId !== undefined ? { externalId: item.externalId } : {}),
+    ...(item.bankConnectionId !== undefined ? { bankConnectionId: item.bankConnectionId } : {}),
     ...(bucket !== undefined ? { category: bucket } : {}),
     ...(bucket !== undefined && item.rememberedCategory
       ? { rememberedCategory: true as const }
@@ -330,6 +367,18 @@ export function ReviewScreen({
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
+  const workspaceKind = useAppStore(
+    (current) =>
+      current.workspaces.find((workspace) => workspace.id === current.activeWorkspaceId)?.kind ??
+      'personal',
+  );
+  const isBusiness = workspaceKind === 'business';
+  const categories: readonly Category[] = isBusiness ? BUSINESS_CATEGORIES : PERSONAL_CATEGORIES;
+  const workspace = useAppStore(
+    (current) =>
+      current.workspaces.find((candidate) => candidate.id === current.activeWorkspaceId)!,
+  );
+  const evidenceDocuments = useAppStore((current) => current.evidenceDocuments);
 
   // Queue consumption (web ScreenReview.tsx `reviewQueue[0]`): with no direct candidate prop, the
   // screen reviews the NEXT queued intake candidate. Frozen ONCE at mount (useState initializer) so
@@ -352,11 +401,27 @@ export function ReviewScreen({
   // review queue. A cold open from the shell (FolioShell renders <ReviewScreen nav={nav} /> with no
   // candidate — e.g. the Intake "Add numbers yourself" path) with an EMPTY queue passes none. We
   // never fabricate a sample row in that case: the empty doorway shows below, so the user can never
-  // accidentally Add a fake "Tesco £42" as a real transaction. SAMPLE_CANDIDATE is kept ONLY as a
-  // safe fallback so the hooks/derivations below never read undefined — its values are never
-  // displayed when `hasRealCandidate` is false.
+  // accidentally add fake data as a real transaction. The non-rendered empty sentinel exists only
+  // so hooks and derivations below never read undefined.
   const hasRealCandidate = candidateProp !== undefined || queuedCandidate !== null;
-  const candidate = candidateProp ?? queuedCandidate ?? SAMPLE_CANDIDATE;
+  const candidate = candidateProp ?? queuedCandidate ?? NON_RENDERED_EMPTY_CANDIDATE;
+  const sourceEvidence = useMemo(
+    () =>
+      candidate.sourceEvidenceId === undefined
+        ? undefined
+        : evidenceDocuments?.find((document) => document.id === candidate.sourceEvidenceId),
+    [candidate.sourceEvidenceId, evidenceDocuments],
+  );
+
+  const openSourceEvidence = () => {
+    if (sourceEvidence === undefined) return;
+    void openEvidenceDocument(workspace, sourceEvidence).catch((reason: unknown) => {
+      Alert.alert(
+        'Could not open the saved source',
+        reason instanceof Error ? reason.message : 'The encrypted source could not be opened.',
+      );
+    });
+  };
 
   const [stamped, setStamped] = useState(false);
   // Pre-select the chip from the candidate's incoming category (a model guess, or a merchant-memory
@@ -370,8 +435,9 @@ export function ReviewScreen({
   // initializer — evaluated once at mount, exactly like the merchant/amount seeds below.
   const [category, setCategory] = useState<Category>(
     () =>
-      (candidate.category !== undefined ? categoryLabelFor(candidate.category) : null) ??
-      (candidate.flow === 'in' ? 'Income' : 'Other'),
+      (candidate.category !== undefined
+        ? categoryLabelFor(candidate.category, isBusiness)
+        : null) ?? (candidate.flow === 'in' ? (isBusiness ? 'Client income' : 'Income') : 'Other'),
   );
   // Whether the chip is still showing an untouched merchant-memory recall — drives the "remembered"
   // caption. Any manual chip tap (including re-picking the same label) counts as the user's own
@@ -466,9 +532,16 @@ export function ReviewScreen({
       merchant: finalMerchant,
       amount: signedDelta,
       category: finalCategory,
-      source: 'manual',
+      source: candidate.source === 'bank' ? 'bank' : 'manual',
       ...(statementDate !== null ? { when: `${statementDate}T00:00:00.000Z` } : {}),
       ...(candidate.accountId !== undefined ? { accountId: candidate.accountId } : {}),
+      ...(candidate.sourceEvidenceId !== undefined
+        ? { sourceEvidenceId: candidate.sourceEvidenceId }
+        : {}),
+      ...(candidate.externalId !== undefined ? { externalId: candidate.externalId } : {}),
+      ...(candidate.bankConnectionId !== undefined
+        ? { bankConnectionId: candidate.bankConnectionId }
+        : {}),
     });
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): every Accept confirms this
     // merchant's category — whether the user changed the chip away from the incoming guess, or left
@@ -478,7 +551,7 @@ export function ReviewScreen({
     // Drain the queued item this card was showing so the Today chip decrements
     // (web ScreenReview.tsx: `if (topCandidate) resolveReviewItem(topCandidate.id)`).
     // No-op when the card came from a direct candidate prop.
-    if (queued) resolveReviewItem(queued.item.id);
+    if (queued) resolveReviewItem(queued.item.id, 'accepted');
     if (!reduceMotion) {
       stampScale.value = withSequence(
         withTiming(1.12, { duration: STAMP_MS * 0.6, easing: STAMP_EASE }),
@@ -510,16 +583,17 @@ export function ReviewScreen({
     // already re-evaluated fresh on the NEXT landing (see the ordering comment above), so whatever
     // would have qualified here simply gets its turn once the user is out of the danger band.
     const stateAfterAdd = getState();
-    const overspent = isOverspentLanding(stateAfterAdd);
-    const incomeSignals = overspent
-      ? []
-      : findCaughtIncome(
-          stateAfterAdd.transactions,
-          stateAfterAdd.incomeSources ?? [],
-          stateAfterAdd.dismissedIncomeSignals ?? [],
-        );
+    const overspent = !isBusiness && isOverspentLanding(stateAfterAdd);
+    const incomeSignals =
+      isBusiness || overspent
+        ? []
+        : findCaughtIncome(
+            stateAfterAdd.transactions,
+            stateAfterAdd.incomeSources ?? [],
+            stateAfterAdd.dismissedIncomeSignals ?? [],
+          );
     const billSignals =
-      overspent || incomeSignals.length > 0
+      isBusiness || overspent || incomeSignals.length > 0
         ? []
         : findCaughtBills(
             stateAfterAdd.transactions,
@@ -527,7 +601,7 @@ export function ReviewScreen({
             stateAfterAdd.dismissedBillSignals ?? [],
           );
     const driftSignals =
-      overspent || incomeSignals.length > 0 || billSignals.length > 0
+      isBusiness || overspent || incomeSignals.length > 0 || billSignals.length > 0
         ? []
         : findDriftCandidates(
             stateAfterAdd.transactions,
@@ -536,7 +610,11 @@ export function ReviewScreen({
             stateAfterAdd.dismissedDriftSignals ?? [],
           );
     const annualSignals =
-      overspent || incomeSignals.length > 0 || billSignals.length > 0 || driftSignals.length > 0
+      isBusiness ||
+      overspent ||
+      incomeSignals.length > 0 ||
+      billSignals.length > 0 ||
+      driftSignals.length > 0
         ? []
         : findCaughtAnnual(
             stateAfterAdd.transactions,
@@ -566,6 +644,7 @@ export function ReviewScreen({
   // reversible (the user can re-add from intake). Route to Today, like any completed decision.
   function onLink() {
     if (stamped) return;
+    if (queued) resolveReviewItem(queued.item.id, 'linked');
     nav.go('today');
   }
 
@@ -576,12 +655,16 @@ export function ReviewScreen({
   // recording — the pre-truth SAMPLE/empty-doorway path has nothing to suppress.
   function onIgnore() {
     if (hasRealCandidate) {
-      const year = now?.getFullYear() ?? new Date().getFullYear();
-      const dateIso = reviewDateToIso(candidate.date, year) ?? candidate.date;
-      addIgnoredReviewSig(reviewCandidateSig(merchant, signedDelta, dateIso), merchant);
+      if (candidate.externalId !== undefined) {
+        addIgnoredBankExternalId(candidate.externalId);
+      } else {
+        const year = now?.getFullYear() ?? new Date().getFullYear();
+        const dateIso = reviewDateToIso(candidate.date, year) ?? candidate.date;
+        addIgnoredReviewSig(reviewCandidateSig(merchant, signedDelta, dateIso), merchant);
+      }
       // A queued candidate also leaves the queue (web ignoreReviewItem drops the item AND records
       // its signature; RN composes the same outcome from the two store actions).
-      if (queued) resolveReviewItem(queued.item.id);
+      if (queued) resolveReviewItem(queued.item.id, 'ignored');
     }
     nav.back();
   }
@@ -601,7 +684,11 @@ export function ReviewScreen({
         <View style={[styles.emptyWrap, { paddingTop: insets.top + gap.xxl }]}>
           <MeloLine
             mood="calm"
-            text="Nothing to review yet. Add a statement and I'll show what I find."
+            text={
+              isBusiness
+                ? "Nothing to review in this business yet. Add a statement or receipt and I'll show what I find."
+                : "Nothing to review yet. Add a statement and I'll show what I find."
+            }
           />
           <Pressable
             accessibilityRole="button"
@@ -634,7 +721,9 @@ export function ReviewScreen({
   // populated / offline / error — the real one-decision card. offline ≡ populated (local-first); a
   // direct error mount still shows the card so the user can decide on the candidate in hand.
   const isOut = candidate.flow === 'out';
-  const balanceLine = `to your history · balance stays ${formatGBP(candidate.before)}`;
+  const balanceLine = isBusiness
+    ? `to Business activity · current cash stays ${formatGBP(candidate.before)}`
+    : `to your history · balance stays ${formatGBP(candidate.before)}`;
 
   // Position + provenance. Queue-fed cards read honestly from the queue ("1 of N", the item's own
   // intake source); the direct-candidate path keeps its original literals byte-for-byte.
@@ -679,11 +768,11 @@ export function ReviewScreen({
         <View style={styles.intro}>
           <Text style={[styles.kicker, { color: t.muted }]}>Review</Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {'Is this your '}
+            {isBusiness ? 'Is this a Business ' : 'Is this your '}
             <Text style={[styles.headlineAccent, { color: t.calm }]}>
               {merchant.trim() || candidate.merchant}
             </Text>
-            {' payment?'}
+            {isBusiness ? ' record?' : ' payment?'}
           </Text>
         </View>
 
@@ -740,6 +829,28 @@ export function ReviewScreen({
           </View>
           <Text style={[styles.dateLine, { color: t.muted }]}>{dateLine}</Text>
 
+          {sourceEvidence !== undefined ? (
+            <Pressable
+              accessibilityHint="Decrypts a temporary copy and opens the device share or viewer sheet"
+              accessibilityLabel={`Open saved source, ${sourceEvidence.filename}`}
+              accessibilityRole="button"
+              onPress={openSourceEvidence}
+              style={({ pressed: isPressed }) => [
+                styles.sourceEvidence,
+                { backgroundColor: t.inset },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <View style={styles.sourceEvidenceText}>
+                <Text numberOfLines={1} style={[styles.sourceEvidenceName, { color: t.ink }]}>
+                  {sourceEvidence.filename}
+                </Text>
+                <Text style={[styles.sourceEvidenceHint, { color: t.muted }]}>Saved source</Text>
+              </View>
+              <Text style={[styles.sourceEvidenceAction, { color: t.calm }]}>Open</Text>
+            </Pressable>
+          ) : null}
+
           <View style={[styles.cardDivider, { backgroundColor: t.hairline }]} />
 
           <View style={styles.projectionRow}>
@@ -748,11 +859,15 @@ export function ReviewScreen({
             </View>
             <View accessibilityLiveRegion="polite" style={styles.projBody}>
               <Text style={[styles.projLead, { color: t.ink }]}>
-                {isOut ? 'This will add a spend of' : 'This will add income of'}
+                {isBusiness
+                  ? isOut
+                    ? 'This will add a business expense of'
+                    : 'This will add business income of'
+                  : isOut
+                    ? 'This will add a spend of'
+                    : 'This will add income of'}
               </Text>
-              <Text style={[styles.projBalance, { color: t.ink }]}>
-                {formatGBP(previewAmount)}
-              </Text>
+              <Text style={[styles.projBalance, { color: t.ink }]}>{formatGBP(previewAmount)}</Text>
               <Text style={[styles.projDelta, { color: t.muted }]}>{balanceLine}</Text>
             </View>
           </View>
@@ -760,9 +875,13 @@ export function ReviewScreen({
 
         {/* Category chips. */}
         <View style={styles.catBlock}>
-          <Text style={[styles.catLabel, { color: t.muted }]}>What kind of money is this?</Text>
+          <Text style={[styles.catLabel, { color: t.muted }]}>
+            {isBusiness
+              ? 'How should this business record be labelled?'
+              : 'What kind of money is this?'}
+          </Text>
           <View style={styles.chipRow}>
-            {CATEGORIES.map((c) => {
+            {categories.map((c) => {
               const active = c === category;
               return (
                 <Pressable
@@ -814,7 +933,14 @@ export function ReviewScreen({
 
         {/* Melo line — the quiet companion, calm mood. MeloLine adds the straight quotes. */}
         <View style={styles.meloBlock}>
-          <MeloLine mood="calm" text="Take your time. You can change this later." />
+          <MeloLine
+            mood="calm"
+            text={
+              isBusiness
+                ? 'This stays a proposal until you add it to Business activity.'
+                : 'Take your time. You can change this later.'
+            }
+          />
         </View>
 
         {/* Spacer pins the CTAs to the bottom, mirroring the web flex-1 spacer. */}
@@ -886,7 +1012,15 @@ export function ReviewScreen({
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ disabled: stamped || editedAmount <= 0 }}
-              accessibilityLabel={stamped ? 'Added to your picture' : 'Add to my picture'}
+              accessibilityLabel={
+                stamped
+                  ? isBusiness
+                    ? 'Added to Business activity'
+                    : 'Added to your picture'
+                  : isBusiness
+                    ? 'Add to Business activity'
+                    : 'Add to my picture'
+              }
               disabled={stamped || editedAmount <= 0}
               onPress={onAdd}
               style={({ pressed: isPressed }) => [
@@ -897,7 +1031,13 @@ export function ReviewScreen({
               ]}
             >
               <Text style={[styles.primaryLabel, { color: t.inverse }]}>
-                {stamped ? 'Added to your picture' : 'Add to my picture'}
+                {stamped
+                  ? isBusiness
+                    ? 'Added to Business activity'
+                    : 'Added to your picture'
+                  : isBusiness
+                    ? 'Add to Business activity'
+                    : 'Add to my picture'}
               </Text>
             </Pressable>
 
@@ -1101,6 +1241,32 @@ const styles = StyleSheet.create({
   dateLine: {
     fontSize: 13,
     marginTop: gap.md,
+  },
+  sourceEvidence: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    marginTop: gap.md,
+    minHeight: 48,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+  },
+  sourceEvidenceText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sourceEvidenceName: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  sourceEvidenceHint: {
+    fontSize: 11,
+    marginTop: gap.xxs,
+  },
+  sourceEvidenceAction: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: gap.md,
   },
   // h-px divider, mt-6.
   cardDivider: {

@@ -11,8 +11,8 @@
 // @tokens       canvas (paper) · calm (accent) · muted · hairline · serif (Fraunces) — all from the kit
 // @motion       slide-in-r (whole screen) · pointer-nudge (kit-owned, on the PrimaryAction arrow)
 //               · press 0.97 (kit `pressed`) · Melo breathe + blink (from MeloLine, calm mood)
-// @notes        "Try sample data" path skips intake and jumps to Today (the RN seed path lives
-//               downstream, not here — faithful to the web, which just nav.go('today')).
+// @notes        Secondary paths expose real setup and Melo only; production never seeds invented
+//               money into the user's Today view.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit source):
 //   • The accent word "last" is rendered UPRIGHT (not italic) in terracotta — the web uses
@@ -200,11 +200,9 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
           accessibilityHint="Opens the guided check-in"
         />
 
-        {/* Secondary links — inline 3-up row, two 1px hairline rules between, exactly like the web. */}
+        {/* Secondary paths — both lead to a real workflow; there is no customer-facing sample mode. */}
         <View style={styles.secondaryRow}>
           <SecondaryLink label="Add a statement" onPress={() => nav.go('intake')} />
-          <View style={[styles.divider, { backgroundColor: t.hairline }]} />
-          <SecondaryLink label="Try sample data" onPress={() => nav.go('today')} />
           <View style={[styles.divider, { backgroundColor: t.hairline }]} />
           <SecondaryLink label="Meet Melo" onPress={() => nav.go('melo')} />
         </View>

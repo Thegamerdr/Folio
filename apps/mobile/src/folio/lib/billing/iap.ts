@@ -140,6 +140,7 @@ export async function queryProducts(skus: readonly string[] = ALL_PRODUCT_IDS): 
 
 export type PurchaseOutcome =
   | { status: 'purchased'; purchase: Purchase }
+  | { status: 'pending' }
   | { status: 'cancelled' }
   | { status: 'failed'; message: string };
 
@@ -161,7 +162,11 @@ export function purchase(productId: string): Promise<PurchaseOutcome> {
     };
 
     const updatedSub = purchaseUpdatedListener((p) => {
-      if (p.productId === productId) settle({ status: 'purchased', purchase: p });
+      if (p.productId !== productId) return;
+      // Pending cash/approval transactions are not ownership. They must never reach verification,
+      // acknowledgement, finishTransaction, or the entitlement store.
+      if (p.purchaseState === 'pending') settle({ status: 'pending' });
+      else if (p.purchaseState === 'purchased') settle({ status: 'purchased', purchase: p });
     });
     const errorSub = purchaseErrorListener((err) => {
       if (err.code === 'user-cancelled') {

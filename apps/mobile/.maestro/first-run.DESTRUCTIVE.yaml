@@ -6,10 +6,10 @@ appId: com.folio.v2.greenfield
     clearState: true
     stopApp: true
 - extendedWaitUntil:
-    visible: "What should Melo call you?"
+    visible: 'What should Melo call you?'
     timeout: 20000
-- tapOn: "Skip for now"
+- tapOn: 'Skip for now'
 - extendedWaitUntil:
-    visible: "spare"
+    visible: 'spare'
     timeout: 10000
-- assertVisible: "Sample numbers"
+- assertVisible: 'Sample numbers'

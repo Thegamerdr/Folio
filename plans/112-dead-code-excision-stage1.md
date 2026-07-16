@@ -41,6 +41,7 @@ listed in Step 4 ARE deleted (their replacement is live and wired).
 ## Current state — the load-bearing dependencies you must preserve
 
 LIVE files inside otherwise-dead trees (verified; deleting any of these breaks the app):
+
 - `src/surfaces/pressureMap/`: `kit.tsx`, `kitTheme.tsx`, `Sheet.tsx`, `MoneyPath.tsx`,
   `secondaryKit.tsx`, `useCountUp.ts`, `money.ts`, `routeMath.ts`,
   `melo/MeloFigure.tsx`, `melo/MeloPresence.tsx`, `melo/index.ts`, `melo/meloStates.ts`
@@ -51,6 +52,7 @@ LIVE files inside otherwise-dead trees (verified; deleting any of these breaks t
 
 Type-only edges that must be re-homed BEFORE deleting their source (all erased at runtime,
 but typecheck breaks without them):
+
 - `ProductScreen` from `src/surfaces/mobileShell.tsx` → consumed type-only by
   `src/surfaces/pressureMap/kit.tsx:59` and `src/folio/shell/FolioShell.tsx:41`.
 - `todayTypes.ts` types re-exported by the LIVE `MoneyPath.tsx` — `todayTypes.ts` therefore

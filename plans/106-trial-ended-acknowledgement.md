@@ -52,15 +52,16 @@ app's honesty doctrine — right where monetization trust matters most.
 From repo root (`C:\dev\folio-v2-greenfield\.claude\worktrees\melo-mvp`); pnpm is broken
 on this machine — use direct binaries:
 
-| Purpose | Command | Expected |
-|---------|---------|----------|
-| Tests | `node node_modules/vitest/vitest.mjs run` | all pass |
-| Typecheck | from `apps\mobile`: `..\..\node_modules\.bin\tsc.cmd --noEmit -p tsconfig.json` | exit 0 |
-| Format | `node_modules\.bin\prettier.cmd --write <files>` | exit 0 |
+| Purpose   | Command                                                                         | Expected |
+| --------- | ------------------------------------------------------------------------------- | -------- |
+| Tests     | `node node_modules/vitest/vitest.mjs run`                                       | all pass |
+| Typecheck | from `apps\mobile`: `..\..\node_modules\.bin\tsc.cmd --noEmit -p tsconfig.json` | exit 0   |
+| Format    | `node_modules\.bin\prettier.cmd --write <files>`                                | exit 0   |
 
 ## Scope
 
 **In scope**:
+
 - `apps/mobile/src/folio/ui/TrialEndedRow.tsx` (create)
 - The three Today screens listed above (one import + one JSX line each)
 - `apps/mobile/src/folio/lib/whatChanged.test.ts` — NO. Tests go in a NEW file
@@ -69,6 +70,7 @@ on this machine — use direct binaries:
   cannot load .tsx (see below), and the store plumbing is already tested.
 
 **Out of scope**:
+
 - `lib/lens.ts`, `store.ts` — the plumbing exists; do not change it.
 - `PaywallScreen.tsx` / `ctaMode.ts` — the spent-trial paywall branch is deliberate.
 - `LensPickerSheet.tsx`.
@@ -98,10 +100,11 @@ export function TrialEndedRow({ nav }: { nav: Nav }) {
 ```
 
 Visible copy (exact strings — they pass the copy lint):
+
 - Title: `Trial ended`
 - Body: `Full lenses are locked. Everything Free keeps working.`
 - Actions: `Plans →` (routes to paywall) and `OK` (dismiss only).
-Accessibility label on the row: `Your trial ended — Full lenses are locked, everything
+  Accessibility label on the row: `Your trial ended — Full lenses are locked, everything
 Free keeps working. See plans or dismiss.`
 
 **Verify**: typecheck → exit 0.

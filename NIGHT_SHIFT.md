@@ -8,6 +8,7 @@
 > "EXECUTION LOOP" below. If it's fresh, another session is alive — exit without acting.
 
 ## Ground rules (non-negotiable)
+
 - Work ONLY in worktree `C:\dev\folio-v2-greenfield\.claude\worktrees\melo-mvp`, branch
   `claude/melo-mvp`. NEVER switch branches in the main checkout (dirty, different branch).
 - Delegate all building to **sonnet** agents via the Workflow tool (batch ≤3 concurrent — the
@@ -22,6 +23,7 @@
   credentials entry; C:\dev root stays clean; owner's phone data is sacred — never pm clear.
 
 ## Toolchain (this box — every gotcha already paid for)
+
 - tsc: `./node_modules/.bin/tsc -b apps/mobile --pretty false` (ignore src/local errors).
 - Tests: `./node_modules/.bin/vitest run apps/mobile` (~1094+) and `packages/melo-engine` (357).
 - Commit style: conventional, no attribution footer. Push = plain `git push`.
@@ -31,11 +33,11 @@
   changes need a full APK rebuild — avoid native changes overnight.)
 - Native rebuild (only if unavoidable): `subst X: <worktree>` (cleared by reboot — recreate),
   build from `X:\apps\mobile\android` with `$env:JAVA_HOME='C:\Program Files\Android\Android
-  Studio\jbr'; $env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"`; gradlew.bat via PowerShell.
+Studio\jbr'; $env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"`; gradlew.bat via PowerShell.
   Phone (2af26a2c19017ece) stays on the debug-signature chain — the upload keystore
   (~/.folio-signing, props in ~/.gradle/gradle.properties) is for Play only. R8 is ON.
 - Maestro smoke: `%USERPROFILE%\.maestro-cli\maestro\bin\maestro.bat --device 2af26a2c19017ece
-  test apps/mobile/.maestro/smoke.yaml` (needs JAVA_HOME; non-destructive; DON'T run
+test apps/mobile/.maestro/smoke.yaml` (needs JAVA_HOME; non-destructive; DON'T run
   first-run.DESTRUCTIVE.yaml on the phone — real data).
 - pnpm works in the worktree WITH `--ignore-scripts` only. Config plugins must be `.cjs`.
 - Design SoT (READ-ONLY): `C:\dev\folio-melo\.claude\worktrees\design-main`. The web is a
@@ -45,8 +47,10 @@
   from the journal cache. Script files live under the session workflows/scripts dirs.
 
 ## PROGRAM STATE (update the checkboxes as you go)
+
 Program spec with all file:line evidence: `DATA_INTELLIGENCE.md` (repo root). Status log at its
 bottom — append one line per shipped phase.
+
 - [x] Phase ① income cadence model (shipped + OTA, commit range → 2224ec6)
 - [x] Phase ② salary inference + same-income update guard (shipped + OTA, 5c605d3)
 - [x] Phase ③ merchant→category memory (shipped + OTA 07-06, flip-threshold hardened)
@@ -63,7 +67,7 @@ bottom — append one line per shipped phase.
       ranging or sequential month-window reads with progress UI; keep the 500KB single-shot
       pre-flight as the fallback message. (Real test PDFs in .claude-session/, git-excluded.)
 - [x] Phase ⑧ consolidation (shipped 07-06: dead detector pair archived, CONSOLIDATION.md maps the rest)
-      ONLY by notifications; finance/today/calendar/import-engine packages; folio/lib/*) —
+      ONLY by notifications; finance/today/calendar/import-engine packages; folio/lib/\*) —
       produce a consolidation plan doc + execute the safe parts (retire dead code paths, one
       source of truth per formula). Careful: notifyState imports melo-engine planNotification.
 - [x] Phase ⑨ backlog burn + sweep (shipped + OTA 07-06; chat-context CRITICAL fixed)
@@ -71,6 +75,7 @@ bottom — append one line per shipped phase.
       report (what shipped, what's left, deltas vs Lovable) + update memory + this file.
 
 ## BACKLOG (non-blocking accumulator — burn in ⑨)
+
 - Income drift re-check (discovery ②-2) — folded into ⑥.
 - Benefits/pension credits: income detection is CORRECT behavior; add copy nuance so "pays
   you" reads right for DWP/pension credits — DONE (burn-B, isKnownStatePayer + copy.income
@@ -105,6 +110,7 @@ bottom — append one line per shipped phase.
   policy hosting — RELEASE_CHECKLIST.md.
 
 ## Succession protocol
+
 - Heartbeat = last commit time on `claude/melo-mvp` (every phase commits; commit even
   mid-phase progress if a phase runs >90min, message `wip(di-...): ...`).
 - A Windows scheduled watchdog may launch a fresh Claude session periodically with

@@ -103,10 +103,17 @@ import {
   DEFAULT_REMINDERS_SETTINGS,
   loadRemindersSettings,
   saveRemindersSettings,
+  type RemindersSettings,
 } from '@/folio/lib/notifySettings';
 import { getPermissionState, requestPermission } from '@/folio/lib/notifications';
 import { forceRescheduleNow } from '@/folio/lib/notifyScheduler';
 import type { PermissionState } from '@/folio/lib/notifications';
+import {
+  getCachedAppLockSettings,
+  inspectAppLockCapability,
+  loadAppLockSettings,
+  subscribeAppLockSettings,
+} from '@/folio/lib/appLock';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
 /** The Reminders row's live hint, one calm line per permission/enabled combination — no separate
@@ -121,11 +128,12 @@ function remindersHint(enabled: boolean, permission: PermissionState): string {
 /** Reminders on/off + live permission state, backing the MoreScreen "Reminders" row. Self-contained
  *  (own persisted module, not store.ts) — see lib/notifySettings.ts + lib/notifications.ts. */
 function useReminders(): {
-  enabled: boolean;
+  settings: RemindersSettings;
   permission: PermissionState;
-  onPress: () => void;
+  toggleEnabled: () => void;
+  toggleSensitivePreviews: () => void;
 } {
-  const [enabled, setEnabled] = useState(DEFAULT_REMINDERS_SETTINGS.remindersEnabled);
+  const [settings, setSettings] = useState(DEFAULT_REMINDERS_SETTINGS);
   const [permission, setPermission] = useState<PermissionState>('undetermined');
 
   useEffect(() => {
@@ -133,7 +141,7 @@ function useReminders(): {
     void (async () => {
       const [settings, perm] = await Promise.all([loadRemindersSettings(), getPermissionState()]);
       if (!mounted) return;
-      setEnabled(settings.remindersEnabled);
+      setSettings(settings);
       setPermission(perm);
     })();
     return () => {
@@ -141,23 +149,55 @@ function useReminders(): {
     };
   }, []);
 
-  const onPress = () => {
+  const toggleEnabled = () => {
     void (async () => {
-      // Undetermined permission: the tap itself is the ask (no separate "enable" step first).
-      if (enabled && permission === 'undetermined') {
-        const result = await requestPermission();
-        setPermission(result);
-        forceRescheduleNow();
-        return;
+      const next = { ...settings, remindersEnabled: !settings.remindersEnabled };
+      setSettings(next);
+      await saveRemindersSettings(next);
+      // Permission is asked only on the same explicit tap that enables reminders—never at startup.
+      if (next.remindersEnabled && permission !== 'granted') {
+        setPermission(await requestPermission());
       }
-      const next = !enabled;
-      setEnabled(next);
-      await saveRemindersSettings({ remindersEnabled: next });
       forceRescheduleNow();
     })();
   };
 
-  return { enabled, permission, onPress };
+  const toggleSensitivePreviews = () => {
+    void (async () => {
+      const next = { ...settings, sensitivePreviews: !settings.sensitivePreviews };
+      setSettings(next);
+      await saveRemindersSettings(next);
+      forceRescheduleNow();
+    })();
+  };
+
+  return { settings, permission, toggleEnabled, toggleSensitivePreviews };
+}
+
+function useAppLockHint(): string {
+  const [settings, setSettings] = useState(getCachedAppLockSettings());
+  const [available, setAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const unsubscribe = subscribeAppLockSettings(setSettings);
+    void Promise.all([loadAppLockSettings(), inspectAppLockCapability()]).then(
+      ([loaded, capability]) => {
+        if (!mounted) return;
+        setSettings(loaded);
+        setAvailable(capability.available);
+      },
+    );
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  if (settings.enabled) return 'on · locks when Melo leaves';
+  if (available === false) return 'off · device screen lock required';
+  if (available === null) return 'checking device lock';
+  return 'off · tap to configure';
 }
 
 // Routing: the web "Data & privacy" row navigates to the Privacy screen (web `to: "privacy"`), where
@@ -211,6 +251,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const { style: chartStyle } = useChartStyle();
   const hiddenCount = useAppStore((s) => s.ignoredReviewSigs?.length ?? 0);
   const reminders = useReminders();
+  const appLockHint = useAppLockHint();
 
   // Group by user intent. Twenty unrelated rows in one card made the hub feel like an implementation
   // index; these sections keep the same working destinations while making the next choice legible.
@@ -262,10 +303,17 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         },
         {
           label: 'Reminders',
-          hint: remindersHint(reminders.enabled, reminders.permission),
-          onPress: reminders.onPress,
+          hint: remindersHint(reminders.settings.remindersEnabled, reminders.permission),
+          onPress: reminders.toggleEnabled,
         },
-        { label: 'App lock', hint: 'off · tap to configure', to: 'privacy' },
+        {
+          label: 'Lock-screen details',
+          hint: reminders.settings.sensitivePreviews
+            ? 'show titles and details'
+            : 'hidden · recommended',
+          onPress: reminders.toggleSensitivePreviews,
+        },
+        { label: 'App lock', hint: appLockHint, to: 'privacy' },
       ],
     },
     {
@@ -274,7 +322,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
         {
           label: 'Start fresh',
-          hint: 'review and clear your data',
+          hint: 'clear local money, not your account',
           to: 'privacy',
           tone: 'negative',
         },
@@ -379,7 +427,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
 
         {/* Closing reassurance — the verbatim web line. */}
         <View style={styles.closing}>
-          <MeloLine text="Tap export any time. Tap start fresh and it's gone." />
+          <MeloLine text="Export any time. Start fresh clears this device, not your account." />
         </View>
       </ScrollView>
     </View>

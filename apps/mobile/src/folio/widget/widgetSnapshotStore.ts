@@ -17,6 +17,7 @@
  *     access is required there, only the persisted snapshot.
  */
 import * as FileSystem from 'expo-file-system/legacy';
+import { createWorkspaceId, type WorkspaceId } from '@folio/domain';
 
 import type { SafeZoneWidgetSnapshot } from '@/folio/lib/widgetSnapshot';
 
@@ -31,7 +32,14 @@ function snapshotFileUri(): string | null {
 /** Write the snapshot to disk. Fire-and-forget from the caller's perspective — any
  *  disk/quota failure is swallowed (matches `persist.ts`'s tolerance): a widget that
  *  briefly shows stale data is fine, a crashed app is not. */
-export async function writeWidgetSnapshot(snapshot: SafeZoneWidgetSnapshot): Promise<void> {
+export async function writeWidgetSnapshot(
+  workspaceId: WorkspaceId,
+  snapshot: SafeZoneWidgetSnapshot,
+): Promise<void> {
+  const checked = createWorkspaceId(String(workspaceId));
+  if (String(snapshot.workspaceId) !== String(checked)) {
+    throw new Error('Widget snapshot ownership does not match the active workspace.');
+  }
   const uri = snapshotFileUri();
   if (uri === null) return;
   try {
@@ -55,9 +63,14 @@ export async function readWidgetSnapshot(): Promise<SafeZoneWidgetSnapshot | nul
     const raw = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    const parsed = JSON.parse(raw) as SafeZoneWidgetSnapshot;
+    const parsed = JSON.parse(raw) as Partial<SafeZoneWidgetSnapshot>;
     if (parsed === null || typeof parsed !== 'object') return null;
-    return parsed;
+    try {
+      const workspaceId = createWorkspaceId(String(parsed.workspaceId ?? ''));
+      return { ...parsed, workspaceId } as SafeZoneWidgetSnapshot;
+    } catch {
+      return null;
+    }
   } catch {
     return null;
   }

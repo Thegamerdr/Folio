@@ -73,28 +73,7 @@ describe('resolveNamedTarget — tolerant matching', () => {
   });
 });
 
-describe('buildMeloSystemPrompt — names reach the model', () => {
-  it('names the user’s subscriptions and pots when the snapshot carries them', () => {
-    const prompt = buildMeloSystemPrompt('calm', {
-      ...baseSnapshot,
-      subscriptionNames: ['Netflix', 'Spotify'],
-      potNames: ['Holiday'],
-    });
-    expect(prompt).toContain('Netflix');
-    expect(prompt).toContain('Spotify');
-    expect(prompt).toContain('Holiday');
-    expect(prompt).toContain('use the user’s exact names');
-  });
-
-  it('omits the names instruction when there are no subscriptions or pots', () => {
-    const prompt = buildMeloSystemPrompt('calm', {
-      ...baseSnapshot,
-      subscriptionNames: [],
-      potNames: [],
-    });
-    expect(prompt).not.toContain('use the user’s exact names');
-  });
-
+describe('buildMeloSystemPrompt — aggregate context only', () => {
   it('tells the model it has no money data when given no snapshot', () => {
     const prompt = buildMeloSystemPrompt('calm');
     expect(prompt).toContain('do not have access');

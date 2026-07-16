@@ -72,7 +72,12 @@ import {
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { useAppStore, setRouteFocusDate, sweepSubOverrides } from '@/folio/store';
+import {
+  hasConfiguredMoneyPicture,
+  useAppStore,
+  setRouteFocusDate,
+  sweepSubOverrides,
+} from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { resolveNextTopUp } from '@/folio/lib/potCadence';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
@@ -144,17 +149,11 @@ export function TodayScreen({
   const subPaused = useAppStore((st) => st.subPaused);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
-  const hasRealData = useAppStore(
-    (st) =>
-      st.onboarding.done ||
-      st.transactions.some((transaction) => transaction.source !== 'seed') ||
-      (st.currentBalance.source !== 'sample' && st.currentBalance.amount !== 0) ||
-      (st.statementImports?.length ?? 0) > 0,
-  );
+  const hasMoneyPicture = useAppStore(hasConfiguredMoneyPicture);
   // A fresh or deliberately-cleared ledger is a real product state, not permission to render the
   // sample route as if it were the user's money. Keep the doorway useful, but keep every number off
   // screen until the user has supplied a picture of their own.
-  const isFirstRun = !onboarding.done && !hasRealData;
+  const isFirstRun = !hasMoneyPicture;
   // Real count of unreviewed intake items (was a hardcoded "2 things" — a fake
   // count that showed even on a clean/empty ledger). Hidden entirely at zero.
   const pendingReview = useAppStore((st) => st.reviewQueue?.length ?? 0);
@@ -554,7 +553,7 @@ export function TodayScreen({
             onPress={() => nav.go('paywall')}
             palette={t}
           />
-        ) : !onboarding.done && !hasRealData ? (
+        ) : !onboarding.done && !hasMoneyPicture ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="The numbers on this screen are sample data — tap to make them yours"
@@ -605,36 +604,6 @@ export function TodayScreen({
           <Text style={[styles.heroSource, { color: t.muted }]}>
             starting from £{groupedPounds(currentBalance.amount)} · {balanceSourceLabel}
           </Text>
-        </View>
-
-        {/* Doors to the two flagship checks — the sheets existed but had no opener anywhere in the
-            app (2026-07-10 audit): a built Safe Zone / afford check the user can't reach is a
-            promise the product doesn't keep. */}
-        <View style={styles.checksRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Before you spend — check a spend against your Safe Zone"
-            onPress={() => nav.openSheet('afford-check')}
-            style={({ pressed: p }) => [
-              styles.checkPill,
-              { backgroundColor: t.inset },
-              p ? pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.checkPillLabel, { color: t.calm }]}>Before you spend →</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Your Safe Zone — how the truly-spendable number is made"
-            onPress={() => nav.openSheet('safe-zone')}
-            style={({ pressed: p }) => [
-              styles.checkPill,
-              { backgroundColor: t.inset },
-              p ? pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.checkPillLabel, { color: t.calm }]}>Your Safe Zone →</Text>
-          </Pressable>
         </View>
 
         {/* Path card — the hero object */}
@@ -847,8 +816,8 @@ export function TodayScreen({
             </Svg>
           </View>
 
-          {/* band pills */}
-          <View style={styles.bandRow}>
+          {/* One time-range control, rather than three unrelated floating pills. */}
+          <View style={[styles.bandRow, { backgroundColor: t.inset }]}>
             {bands.map((b) => {
               const on = b.id === band;
               return (
@@ -859,7 +828,7 @@ export function TodayScreen({
                   onPress={() => setBand(b.id)}
                   style={({ pressed: p }) => [
                     styles.bandPill,
-                    { backgroundColor: on ? t.ink : t.inset },
+                    { backgroundColor: on ? t.ink : 'transparent' },
                     p ? pressed : undefined,
                   ]}
                 >
@@ -919,6 +888,32 @@ export function TodayScreen({
 
         {/* The route is the proof for the headline. Actions and recent activity follow it instead
             of interrupting the answer before the user has seen why the number is true. */}
+        <View style={styles.checksRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Before you spend — check a spend against your Safe Zone"
+            onPress={() => nav.openSheet('afford-check')}
+            style={({ pressed: p }) => [
+              styles.checkPill,
+              { backgroundColor: t.inset },
+              p ? pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.checkPillLabel, { color: t.calm }]}>Before you spend →</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Your Safe Zone — how the truly-spendable number is made"
+            onPress={() => nav.openSheet('safe-zone')}
+            style={({ pressed: p }) => [
+              styles.checkPill,
+              { backgroundColor: t.inset },
+              p ? pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.checkPillLabel, { color: t.calm }]}>Your Safe Zone →</Text>
+          </Pressable>
+        </View>
         <TodayNudges nav={nav} tightestSpare={isLoading ? null : tightestSpare} />
         <TodayRecentTxns nav={nav} />
         <TodaySpendStrip nav={nav} />
@@ -968,15 +963,29 @@ function TodayFirstRun({ nav }: { nav: Nav }) {
         contentContainerStyle={styles.firstRunScroll}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.headerDate, { color: t.muted }]}>
-          {new Date().toLocaleDateString('en-GB', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-          })}
-        </Text>
+        <View style={styles.firstRunHeader}>
+          <Text style={[styles.headerDate, { color: t.muted }]}>
+            {new Date().toLocaleDateString('en-GB', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open Melo"
+            onPress={() => nav.openMelo()}
+            style={({ pressed: p }) => [
+              styles.firstRunMeloButton,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+              p ? pressed : undefined,
+            ]}
+          >
+            <Melo size={21} mood="calm" />
+          </Pressable>
+        </View>
         <View style={[styles.firstRunMelo, { backgroundColor: t.inset }]}>
-          <Melo size={92} mood="curious" />
+          <Melo size={52} mood="curious" />
         </View>
         <Text style={[styles.firstRunKicker, { color: t.muted }]}>Your first picture</Text>
         <Text accessibilityRole="header" style={[styles.firstRunTitle, { color: t.ink }]}>
@@ -1005,14 +1014,10 @@ function TodayFirstRun({ nav }: { nav: Nav }) {
           accessibilityRole="button"
           accessibilityLabel="Add a statement instead"
           onPress={() => nav.go('intake')}
-          style={({ pressed: p }) => [
-            styles.firstRunSecondary,
-            { borderColor: t.hairline },
-            p ? pressed : undefined,
-          ]}
+          style={({ pressed: p }) => [styles.firstRunSecondary, p ? pressed : undefined]}
         >
-          <Text style={[styles.firstRunSecondaryLabel, { color: t.ink }]}>
-            Add a statement instead
+          <Text style={[styles.firstRunSecondaryLabel, { color: t.calm }]}>
+            Read a statement instead →
           </Text>
         </Pressable>
         <Text style={[styles.firstRunFootnote, { color: t.muted }]}>
@@ -1115,44 +1120,57 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   firstRunScroll: {
     flexGrow: 1,
-    paddingBottom: gap.xxxl,
-    paddingHorizontal: gap.xl,
-    paddingTop: gap.xl,
+    paddingBottom: gap.xxl,
+    paddingHorizontal: 28,
+    paddingTop: gap.md,
+  },
+  firstRunHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  firstRunMeloButton: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
   },
   firstRunMelo: {
     alignItems: 'center',
     alignSelf: 'flex-start',
     borderRadius: radius.xxl,
-    height: 132,
+    height: 76,
     justifyContent: 'center',
-    marginTop: gap.xxxl,
-    width: 132,
+    marginTop: gap.xxl,
+    width: 76,
   },
   firstRunKicker: {
     fontFamily: serif.displayItalic,
     fontSize: 14,
-    marginTop: gap.xl,
+    marginTop: gap.lg,
   },
   firstRunTitle: {
     fontFamily: serif.display,
-    fontSize: 38,
-    letterSpacing: -0.8,
-    lineHeight: 42,
+    fontSize: 32,
+    letterSpacing: -0.5,
+    lineHeight: 36,
     marginTop: gap.xs,
   },
   firstRunBody: {
-    fontSize: 16,
-    lineHeight: 23,
-    marginTop: gap.lg,
+    fontSize: 14.5,
+    lineHeight: 21,
+    marginTop: gap.md,
     maxWidth: 360,
   },
   firstRunPrimary: {
     alignItems: 'center',
     borderRadius: radius.xl,
     flexDirection: 'row',
-    height: 58,
+    height: 54,
     justifyContent: 'center',
-    marginTop: gap.xxl,
+    marginTop: gap.xl,
     paddingHorizontal: gap.xl,
   },
   firstRunPrimaryLabel: {
@@ -1166,15 +1184,13 @@ const styles = StyleSheet.create({
   },
   firstRunSecondary: {
     alignItems: 'center',
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 54,
+    minHeight: 44,
     justifyContent: 'center',
-    marginTop: gap.md,
+    marginTop: gap.sm,
   },
   firstRunSecondaryLabel: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
   firstRunFootnote: {
     fontSize: 12.5,
@@ -1269,7 +1285,7 @@ const styles = StyleSheet.create({
   },
   checksRow: {
     paddingHorizontal: 28,
-    marginTop: gap.sm,
+    marginTop: gap.md,
     flexDirection: 'row',
     gap: gap.sm,
   },
@@ -1318,11 +1334,13 @@ const styles = StyleSheet.create({
     marginTop: gap.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    borderRadius: 999,
+    gap: 2,
+    padding: 3,
   },
   bandPill: {
     flex: 1,
-    height: 28,
+    height: 30,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',

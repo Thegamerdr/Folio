@@ -12,15 +12,17 @@ WHAT MELO IS (context): Melo computes the one number that matters — the Safe Z
 
 BUILD THREE FLOWS:
 
-1) ONBOARDING — six beats, one question per screen, under 90 seconds total:
-- Cold open: just one line and one button. "I'm Melo. Two questions and I'll tell you what's *actually* safe to spend." Button: "Let's do it". No carousel, no feature tour.
+1. ONBOARDING — six beats, one question per screen, under 90 seconds total:
+
+- Cold open: just one line and one button. "I'm Melo. Two questions and I'll tell you what's _actually_ safe to spend." Button: "Let's do it". No carousel, no feature tour.
 - Pick your Melo: three colorways of the same small creature — Ember (warm terracotta), Moss (sage green), Tide (dusty blue). Copy: "Pick your Melo. They all worry about you equally."
 - Payday: date/pattern picker. "When does money arrive? Everything counts back from that day."
-- Income: amount input. "Roughly what lands? Rough is fine — I round *down* on your behalf."
+- Income: amount input. "Roughly what lands? Rough is fine — I round _down_ on your behalf."
 - Big bills: UK preset chips (rent, council tax, energy, water, phone, broadband, subscriptions, car, debt) — tap a chip, enter a rough amount. The mascot visibly stacks each confirmed bill into a small chest as you add them. Copy: "Which of these are yours? These get protected first."
 - THE REVEAL — spend the most craft here, it is the product's money moment: the Safe Zone number counts up from £0 (e.g. to £184), a soft weather sky forms behind it, a runway strip draws itself (today → payday with bill dots), and the mascot reacts with calm satisfaction. Copy: "£184 until the 12th. That's your real number — balance minus everything that's spoken for." Then a button into Home.
 
-2) HOME — "the Glance Stack", top to bottom in one glance:
+2. HOME — "the Glance Stack", top to bottom in one glance:
+
 - Ambient weather sky header (soft gradient, subtle, changes with state)
 - Mascot with exactly ONE speech line
 - Huge Safe Zone number in tabular numerals ("£184" + "safe until Fri 12th"). Tapping it opens "show the math": a waterfall — balance − shielded bills − essentials − savings − buffer = Safe Zone
@@ -30,6 +32,7 @@ BUILD THREE FLOWS:
 - A tiny-wins ticker line at the bottom, e.g. "✦ 3 checks-before-buying this week"
 
 Add a small floating dev toggle (discreet, corner) that switches the whole app state between: Calm / Tight / Warning / Storm / Recovery / Fog. Everything reacts: sky, mascot emotion, speech line, action card, copy. State rules:
+
 - Calm: sunny warmth. "Nothing needs you today." (the number carries the amount — don't duplicate it in the speech line)
 - Tight: cloudy. Per-day number promoted: "£41 to Friday — £6/day. Doable, needs a little steering."
 - Warning: rain approaching. "Heads up — around Thursday, money runs out before Friday's payday. £9/day keeps it dry." Action card = the per-day plan.
@@ -37,7 +40,8 @@ Add a small floating dev toggle (discreet, corner) that switches the whole app s
 - Recovery: soft dimmed warm palette, single-task feel. Entry from Storm's action card.
 - Fog: muted violet-grey haze, every number gets an "as of Tue" staleness badge, the mascot squints into fog. "I can't see clearly right now — last good numbers are from Tuesday." An afford-check asked in Fog answers honestly: "Can't call it — my numbers are from Tuesday."
 
-3) RECOVERY WALKTHROUGH — three soft single-task screens entered from Storm:
+3. RECOVERY WALKTHROUGH — three soft single-task screens entered from Storm:
+
 - Step 1 "See it plainly": "It went over — £23 past the line. No lecture. Here's the way back: three steps, the first one takes a minute."
 - Step 2 "Adjust the plan": rebuilt per-day number for remaining days, bills shown as still protected.
 - Step 3 "One move today": a single small action (e.g. "Shift £8 to bills"). Then a daily check-in card showing "Day 2 on the path" — progress is ALWAYS counted forward ("days on the path"), never "days since failure".

@@ -1,5 +1,16 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
+function clerkPublishableKeyForBuild(): string | undefined {
+  const key = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
+  if (!key) return undefined;
+  if (process.env.NODE_ENV === 'production' && !key.startsWith('pk_live_')) {
+    throw new Error(
+      'Production Melo builds require an EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY beginning with pk_live_.',
+    );
+  }
+  return key;
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   // The app IS Melo (owner D4; brand sweep completed 2026-07-11). The slug (EAS project),
@@ -56,7 +67,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-router',
     'expo-secure-store',
+    'expo-web-browser',
     'expo-iap',
+    '@sentry/react-native',
     './plugins/withUploadSigning.cjs',
     [
       // R8 code + resource shrinking for release builds (the 68MB sideload APK problem).
@@ -134,14 +147,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-image-picker',
       {
-        // Honest permission copy: reading a statement image SENDS it to Folio's reader service (the
-        // Melo gateway vision model, services/ai-gateway) — it does not stay on device. Review-before-
-        // truth: nothing is added to the user's money until they confirm it. (Was "Images stay on this
-        // device", which contradicted the Intake reader flow — IntakeScreen.runReader → gateway.)
+        // Statement images are read locally first. Intake asks separately before the optional
+        // secured reader service is used, and review still precedes every ledger write.
         photosPermission:
-          'Melo uses a photo only to read a statement you pick. Reading it sends the image to Melo’s reader service; nothing is added to your money until you review it.',
+          'Melo uses a photo only to read a statement you pick. Reading starts on this device; Melo asks before using its secured reader service. Nothing is added until you review it.',
         cameraPermission:
-          'Melo uses the camera only to capture a statement you choose. Reading it sends the image to Melo’s reader service; nothing is added until you review it.',
+          'Melo uses the camera only to capture a statement you choose. Reading starts on this device; Melo asks before using its secured reader service. Nothing is added until you review it.',
       },
     ],
     'expo-sharing',
@@ -149,29 +160,35 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: {
     typedRoutes: true,
   },
-  // Surface the Melo gateway config on Constants.expoConfig.extra as a fallback for the
-  // meloAiClient (which prefers the inlined process.env value). These are PUBLIC, keyless
-  // values: the gateway URL and a weak shared token. The real OpenRouter key lives only as a
-  // Cloudflare Worker secret (see services/ai-gateway) and never reaches the app/APK.
   extra: {
     ...config.extra,
     eas: {
       projectId: 'ef69039d-abaf-48e9-b35a-52d80b03a96a',
     },
-    // Prefer an env override (EAS env / .env), else the deployed gateway. These ship in the app by
-    // design — the URL and the WEAK shared token only. The real OpenRouter key is a Cloudflare Worker
-    // secret and never reaches the app. Embedding here (Constants.expoConfig.extra) is reliable across
-    // gradle/EAS builds, unlike EXPO_PUBLIC_* babel inlining which depends on the bundler's env.
-    EXPO_PUBLIC_MELO_GATEWAY_URL:
-      process.env.EXPO_PUBLIC_MELO_GATEWAY_URL ??
-      'https://folio-ai-gateway.tgdroppin.workers.dev/v1',
-    EXPO_PUBLIC_MELO_GATEWAY_TOKEN:
-      process.env.EXPO_PUBLIC_MELO_GATEWAY_TOKEN ?? 'folio-local-38cf0d6da78a33a51382b91cafe0a7f2',
-    // Clerk PUBLISHABLE key (pk_test_* — public by design, same tier as the gateway URL above).
+    // Clerk PUBLISHABLE key (public by design). There is no
+    // hardcoded development fallback: signed-out Melo remains fully usable, while production
+    // builds reject pk_test_* so a store binary cannot silently target a development instance.
     // The secret key never exists anywhere in this repo or app.
-    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:
-      process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ??
-      'pk_test_dW5pdGVkLWdpcmFmZmUtMzMuY2xlcmsuYWNjb3VudHMuZGV2JA',
+    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkPublishableKeyForBuild(),
+    // Optional zero-knowledge backup service. The server authenticates the Clerk account and stores
+    // only the client-encrypted envelope; the separate recovery code never leaves the device.
+    EXPO_PUBLIC_MELO_CLOUD_VAULT_URL:
+      process.env.EXPO_PUBLIC_MELO_CLOUD_VAULT_URL ??
+      'https://melo-cloud-vault.tgdroppin.workers.dev',
+    // Optional UK Open Banking adapter. Provider credentials and per-user provider connection
+    // identifiers stay in the Worker; the app receives only provider-neutral consent/account state
+    // and staged transaction candidates.
+    EXPO_PUBLIC_MELO_OPEN_BANKING_URL:
+      process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_URL ??
+      'https://melo-open-banking.tgdroppin.workers.dev',
+    // Google Play purchase verification. The private Play/service and Ed25519 signing keys stay
+    // in the Worker; the APK contains only this endpoint and the public verification key.
+    EXPO_PUBLIC_MELO_BILLING_URL:
+      process.env.EXPO_PUBLIC_MELO_BILLING_URL ??
+      'https://melo-billing-entitlements.tgdroppin.workers.dev',
+    EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY:
+      process.env.EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY ??
+      'OKponTUZ9ZP1APZpvUeUK5BmKmlJm8FZQ5IDAd92HL8',
     // Sentry DSN — public submit-only key (crash reports; privacy-tuned init lives in
     // src/folio/lib/errorReporting.ts: no PII, no screenshots, no tracing).
     EXPO_PUBLIC_SENTRY_DSN:

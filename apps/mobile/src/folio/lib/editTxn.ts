@@ -98,6 +98,14 @@ export type TxnEditPatch = {
   note?: string | undefined;
 };
 
+/** One changed field shown before a correction is committed. This deliberately omits ids,
+ * timestamps and actor metadata: it is a read-only preview, not an audit record. */
+export type TxnEditPreview = Readonly<{
+  field: EditableField;
+  before: string | number | undefined;
+  after: string | number | undefined;
+}>;
+
 /** Caller-supplied context. Kept as inputs so the engine is deterministic and
  *  testable without a clock. */
 export type EditTxnContext = {
@@ -116,6 +124,26 @@ const EDITABLE_FIELDS: readonly EditableField[] = [
   'category',
   'note',
 ];
+
+/**
+ * Describe exactly what a patch would change without writing or creating audit metadata.
+ *
+ * The edit sheet uses this for its review-before-commit step. Keeping the comparison beside the
+ * correction engine prevents the preview and the eventual immutable edit records from disagreeing.
+ */
+export function previewTxnEdit(
+  txn: EditableTransaction,
+  patch: TxnEditPatch,
+): readonly TxnEditPreview[] {
+  const preview: TxnEditPreview[] = [];
+  for (const field of EDITABLE_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(patch, field)) continue;
+    const before = readField(txn, field);
+    const after = readField(patch, field);
+    if (before !== after) preview.push({ field, before, after });
+  }
+  return preview;
+}
 
 /** Read a field off either the txn or the patch without index-signature access
  *  (keeps noUncheckedIndexedAccess happy and avoids `any`). */
@@ -162,16 +190,8 @@ export function applyTxnEdit<T extends EditableTransaction>(
   // present on T) rides along on the spread, untouched.
   const next: T & EditableTransaction = { ...txn };
 
-  for (const field of EDITABLE_FIELDS) {
-    // Only consider fields the patch actually carries.
-    if (!Object.prototype.hasOwnProperty.call(patch, field)) continue;
-
-    const before = readField(txn, field);
-    const after = readField(patch, field);
-
-    // No-op: a field set to its current value records nothing.
-    if (before === after) continue;
-
+  // Use the same comparison the UI previews, so review and commit cannot drift apart.
+  for (const { field, before, after } of previewTxnEdit(txn, patch)) {
     edits.push({
       id: `${txn.id}:${field}:${ctx.at}`,
       txnId: txn.id,

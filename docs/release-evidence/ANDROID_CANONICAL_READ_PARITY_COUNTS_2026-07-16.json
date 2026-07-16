@@ -1,0 +1,43 @@
+{
+  "date": "2026-07-16",
+  "target": "emulator-5554",
+  "package": "com.folio.v2.greenfield",
+  "physicalDeviceModified": false,
+  "canonicalMoneyParity": {
+    "currentBalance": true,
+    "accounts": true,
+    "postedTransactions": true,
+    "futureExpectations": true,
+    "failClosedBeforeNativeCommit": true,
+    "uiReadAuthoritySwitched": false
+  },
+  "repositoryValidation": {
+    "testFiles": 202,
+    "tests": 2460,
+    "v2FilesChecked": 620,
+    "v1HashesChecked": 859,
+    "sourcePackageFiles": 75,
+    "fixtureConsistencyCases": 14
+  },
+  "releaseColdStart": {
+    "honestEmptyDoorway": true,
+    "controlledNamePresent": false,
+    "controlledBalancePresent": false,
+    "fixtureRecordsPresent": false,
+    "remoteEvidenceFilesRemaining": 0
+  },
+  "artifacts": {
+    "apk": {
+      "bytes": 108954283,
+      "sha256": "4244DBDDAD9CBE8A5BA70603869F7AFC411C91D77459845AB1159DF3F22E7A67"
+    },
+    "aab": {
+      "bytes": 76926853,
+      "sha256": "176B1A9EA53C47068EFCD4600986A5D91BCAFABC578EA80DF20FEF56BFF3C99F"
+    },
+    "javascriptBundle": {
+      "bytes": 7843960,
+      "sha256": "4FBEAB6A1F5BC322EDCB04817A4E1FB6D772790BB1357E89DB0C37CA561F377D"
+    }
+  }
+}

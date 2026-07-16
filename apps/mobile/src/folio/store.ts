@@ -50,6 +50,30 @@ import { findCaughtIncome, type IncomeCaughtCandidate } from './lib/caughtIncome
 import { findCaughtBills } from './lib/caughtBills';
 import { findCaughtAnnual } from './lib/caughtAnnual';
 import { isOverspentLanding } from './lib/storeRoute';
+import {
+  createPersonalWorkspaceRoot,
+  normalisePersonalWorkspaceRoot,
+  PERSONAL_WORKSPACE_ID,
+  requireWorkspaceData,
+  type PersistedWorkspace,
+  type WorkspaceRoot,
+} from './lib/workspaceRoot';
+import {
+  createWorkspaceScopedRowRepository,
+  normaliseWorkspaceRowPatch,
+  normaliseWorkspaceRows,
+  ownWorkspaceRow,
+  requireWorkspaceRows,
+  type WorkspaceScopedRowRepository,
+} from './lib/workspaceRows';
+import { assertValidWorkspaceRoot } from './lib/workspacePartition';
+import {
+  clearPendingAppStateCommands,
+  createPendingAppStateCommand,
+  enqueuePendingAppStateCommand,
+  type PendingAppStateCommandInput,
+} from './lib/typedCommandBridge';
+import type { WorkspaceId } from '@folio/domain';
 
 /** The element type of the persisted `AppState.edits` slot. It is the engine's
  *  full `TxnEdit` with `id` relaxed to optional: every record this store writes
@@ -57,12 +81,15 @@ import { isOverspentLanding } from './lib/storeRoute';
  *  engine + its tests read the slot tolerantly (older/loose shapes without an
  *  `id`), so the persisted contract must not require it. Runtime values are
  *  always full `TxnEdit`s; the relaxation is purely a structural-compat seam. */
-export type StoredTxnEdit = Omit<TxnEdit, 'id'> & { id?: string };
+export type StoredTxnEdit = Omit<TxnEdit, 'id'> & {
+  id?: string;
+  workspaceId?: WorkspaceId;
+};
 
 /** One cooldown record on `AppState.dismissedDriftSignals` — see that field's doc for the full
  *  "drift thrash" fix. `merchant` is the normalised key (`normaliseIncomeSignalKey`); `at` is the ISO
  *  timestamp of the confirm-or-dismiss action that started the cooldown window. */
-export type DriftCooldownEntry = { merchant: string; at: string };
+export type DriftCooldownEntry = { merchant: string; at: string; workspaceId?: WorkspaceId };
 
 /** Per-pot top-up cadence. Per ENGINES.md § 6 "Pot top-up cadence":
  *  default is `after-payday`. `weekly` is the legacy/prototype shape that
@@ -75,6 +102,8 @@ export type PotCadence =
 
 export type Pot = {
   id: string;
+  /** Required on every production persisted row from schema v10 onward. */
+  workspaceId?: WorkspaceId;
   name: string;
   saved: number;
   goal: number;
@@ -91,6 +120,7 @@ export type Pot = {
 export type Sub = {
   /** Canonical display name — also the key used in `subPaused`. */
   name: string;
+  workspaceId?: WorkspaceId;
   cost: number;
   /** Days until next renewal, relative to "now". Since the 2026-07-11 date-anchor fix this is
    *  DERIVED — re-computed from `nextRenewalISO` at every hydration + app foreground
@@ -120,6 +150,7 @@ export type Sub = {
  *  decremented by future debt-payment logging (not yet wired here). */
 export type Debt = {
   id: string;
+  workspaceId?: WorkspaceId;
   name: string;
   kind: 'loan' | 'card' | 'bnpl' | 'other';
   /** Current outstanding £. Never negative. */
@@ -163,6 +194,7 @@ export type Household = {
  *  against current cadence to say "on pace" or "short". */
 export type Plan = {
   id: string;
+  workspaceId?: WorkspaceId;
   name: string;
   /** £ target. Never negative. */
   target: number;
@@ -225,6 +257,7 @@ const DEFAULT_SUBS: Sub[] = [
 ];
 
 export type CycleRecord = {
+  workspaceId?: WorkspaceId;
   /** ISO date the ritual was completed */
   closedAt: string;
   /** Free-text label like "June" */
@@ -267,6 +300,7 @@ export type Onboarding = {
  *  contract violation, not something to silently guess around. */
 export type IncomeSource = {
   id: string;
+  workspaceId?: WorkspaceId;
   label: string;
   cadence: 'monthly' | 'weekly' | 'fortnightly' | 'four-weekly' | 'last-working-day';
   /** 1..31. Only meaningful for `cadence: 'monthly'`. */
@@ -305,6 +339,7 @@ export type CurrentBalance = {
  *  is computed from honest deposit history instead of `perWeek × 4`. */
 export type PotLedgerEntry = {
   id: string;
+  workspaceId?: WorkspaceId;
   potId: string;
   /** ISO timestamp */
   at: string;
@@ -317,6 +352,7 @@ export type PotLedgerEntry = {
 
 export type Transaction = {
   id: string;
+  workspaceId?: WorkspaceId;
   /** ISO timestamp */
   when: string;
   merchant: string;
@@ -324,7 +360,16 @@ export type Transaction = {
   amount: number;
   category: 'food' | 'transport' | 'fun' | 'bills' | 'shopping' | 'income' | 'other';
   /** Where it came from — manual entry, Melo-logged, or seed/demo. */
-  source: 'manual' | 'melo' | 'seed';
+  source: 'manual' | 'melo' | 'seed' | 'bank';
+  /** ID of the encrypted source original retained on this device. Optional for manual/bank rows and
+   *  legacy imports. The workspace-owned evidence metadata resolves the filename and media type. */
+  sourceEvidenceId?: string;
+  /** Stable, provider-neutral ID for an optional Open Banking row. It is generated by Melo's
+   *  backend and is not the provider transaction ID. Used only to stop repeat refreshes from
+   *  offering the same row again. */
+  externalId?: string;
+  /** Melo-local connection ID for separating disconnect from the optional local-history deletion. */
+  bankConnectionId?: string;
   /** Which `Account` this transaction belongs to (see `Account` below and ACCOUNTS_MODEL.md §2.2).
    *  OPTIONAL and defaults to `'acct-main'` via `accountIdOf()` — this is a deliberate LOW-RISK
    *  choice: making this required would force a mass fixture migration across every existing test
@@ -347,6 +392,7 @@ export type AccountKind = 'bank' | 'credit-card' | 'savings' | 'cash';
 
 export type Account = {
   id: string;
+  workspaceId?: WorkspaceId;
   /** User-facing label, e.g. "Monzo Current", "Amex Gold". */
   name: string;
   kind: AccountKind;
@@ -431,6 +477,7 @@ export type TimelineEventKind = 'sub-paused' | 'sub-resumed' | 'review-ignored';
 
 export type TimelineEvent = {
   id: string;
+  workspaceId?: WorkspaceId;
   /** ISO timestamp. */
   at: string;
   kind: TimelineEventKind;
@@ -444,13 +491,21 @@ export type TimelineEvent = {
  *  deadlines) come from `deriveCalendarEvents()` and are NOT stored. */
 export type CalendarEvent = {
   id: string;
+  workspaceId?: WorkspaceId;
   /** ISO date YYYY-MM-DD */
   date: string;
+  /** Optional device-local wall-clock time (`HH:mm`). An omitted value is an all-day event. */
+  time?: string;
   kind: 'in' | 'out' | 'review' | 'deadline';
   title: string;
   note?: string;
   /** Signed pounds — positive = in, negative = out, undefined for review/deadline. */
   amount?: number;
+  /**
+   * User-chosen local notification lead time. The reminder fires this many minutes before the
+   * event's `date` + `time`; all-day events use 09:00 local time. Omitted means no reminder.
+   */
+  reminderOffsetMinutes?: number;
 };
 
 export type AppState = {
@@ -458,6 +513,13 @@ export type AppState = {
    *  so the prototype stops silently falling back to defaults for missing
    *  fields. RN must keep the same scheme (per RN_PORT.md "Store migration"). */
   schemaVersion: number;
+  /** Durable workspace registry. Schema v9 intentionally contains Personal only; Business cannot
+   *  be activated until every entity/query/export/companion seam is workspace-scoped. */
+  workspaces: readonly PersistedWorkspace[];
+  /** Visible workspace selection. Locked to Personal in schema v9. */
+  activeWorkspaceId: WorkspaceId;
+  /** Owns every current top-level data slot in this legacy AppState partition. */
+  dataWorkspaceId: WorkspaceId;
   pots: Pot[];
   subs: Sub[];
   subPaused: Record<string, boolean>;
@@ -637,6 +699,9 @@ export type AppState = {
    *  ever surfaces. Optional for shape back-compat with hand-built `AppState` fixtures predating this
    *  field; `DEFAULTS`/`load()`/`resetToEmpty()` always populate it ([]). */
   reviewQueueSpillover?: ReviewItem[];
+  /** Open Banking rows the user explicitly ignored. Provider-neutral IDs only; provider IDs and
+   *  credentials never enter the app/store. */
+  ignoredBankExternalIds?: string[];
   /** Income-cadence model (`lib/income.ts`) — see `IncomeSource`. Additive:
    *  when empty/absent, every caller (calendarEvents, storeRoute) falls back
    *  BYTE-IDENTICAL to the legacy single-payday derivation off
@@ -704,6 +769,9 @@ export type AppState = {
    *  shape back-compat with hand-built `AppState` fixtures predating this field; `DEFAULTS`/`load()`/
    *  `resetToEmpty()` always populate it ([]). */
   statementImports?: StatementImportRecord[];
+  /** Encrypted-original metadata for statements/receipts retained in this workspace. File bytes live
+   *  in a separate AES-GCM document vault; picker/cache URIs never enter persisted state. */
+  evidenceDocuments?: EvidenceDocument[];
   /** ACCOUNTS_MODEL.md §2 — named accounts (bank/credit-card/savings/cash), replacing the single
    *  implicit "the whole ledger is one account" model. OPTIONAL for shape back-compat: every existing
    *  install has this absent until `load()`'s `synthesizeDefaultAccount` backfills exactly one `'Main'`
@@ -721,6 +789,7 @@ export type AppState = {
  *  convention). */
 export type StatementImportRecord = {
   id: string;
+  workspaceId?: WorkspaceId;
   /** Which intake path produced it. Best-effort — 'unknown' when the caller doesn't have one handy
    *  (e.g. a call site that predates this field). */
   source: 'paste' | 'pdf' | 'image' | 'csv' | 'txt' | 'manual' | 'unknown';
@@ -739,6 +808,20 @@ export type StatementImportRecord = {
   /** The closing balance this import reported, if any (mirrors `StatementClosingBalanceOffer`).
    *  Optional — not every statement/reader supplies one. Signed £ float, matching `Account.balance`. */
   closingBalanceMinor?: number;
+  /** Encrypted original that produced this landing, when one was retained. */
+  sourceEvidenceId?: string;
+};
+
+export type EvidenceDocument = {
+  id: string;
+  workspaceId?: WorkspaceId;
+  filename: string;
+  mediaType: string;
+  byteSize: number;
+  addedAtISO: string;
+  sourceType: 'document' | 'image' | 'camera';
+  extractionStatus: 'read' | 'unreadable';
+  storageState: 'encrypted-device-vault';
 };
 
 /** Retention cap for `statementImports` — mirrors `timelineEvents`'s 200-entry cap. */
@@ -749,8 +832,11 @@ export const STATEMENT_IMPORT_CAP = 200;
  *  `Transaction`. */
 export type ReviewItem = {
   id: string;
+  workspaceId?: WorkspaceId;
   /** Which intake path produced it. Used only for captions, never logic. */
-  source: 'paste' | 'pdf' | 'image' | 'csv' | 'txt' | 'manual';
+  source: 'paste' | 'pdf' | 'image' | 'csv' | 'txt' | 'manual' | 'bank';
+  /** Encrypted original retained on device, when this proposal came from a selected file/photo. */
+  sourceEvidenceId?: string;
   merchant: string;
   amount: number;
   /** ISO YYYY-MM-DD if the reader pinned a date. */
@@ -758,6 +844,10 @@ export type ReviewItem = {
   /** The account the user selected before choosing one-by-one review. Omitted
    *  for legacy/manual queue items, which continue to resolve to Main. */
   accountId?: string;
+  /** Provider-neutral server-generated ID used to suppress a repeat bank refresh. */
+  externalId?: string;
+  /** Melo-local connection ID. Enables a separate "delete imported history" choice on disconnect. */
+  bankConnectionId?: string;
   /** Human hint the reader wrote ("looks like a bill"). */
   hint?: string;
   /** When Folio queued it. Used for sort + 14-day age-out. */
@@ -776,8 +866,9 @@ export type ReviewItem = {
 export type MeloTone = 'calm' | 'honest' | 'dry' | 'coachy';
 
 /** Melo companion settings (`MeloScreen`). `quietMode` hides the character
- *  (numbers stay); `wardrobe` is up to 3 equipped companion-touch ids. `tone` is optional for
- *  persisted-shape compatibility with installs created before chat preferences were retained. */
+ *  (numbers stay); `wardrobe` is up to 3 equipped companion-touch ids. `tone` is the global
+ *  companion style used by chat and proactive Today guidance. It remains optional for persisted-
+ *  shape compatibility with installs created before the preference was retained. */
 export type MeloState = {
   quietMode: boolean;
   wardrobe: string[];
@@ -790,7 +881,7 @@ export type MeloState = {
 const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 11;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -818,10 +909,8 @@ const DEFAULT_BUFFER_AMOUNT = 100;
 const TRANSACTION_CAP = 2000;
 
 /** Non-optional fallback for `AppState.debts` — same widening issue. Empty,
- *  not the DEFAULTS seed data, since this is used by `load()`/`migrate()`
- *  for a genuinely-missing slot on an existing install, not a fresh install
- *  (a fresh install goes through `DEFAULTS` directly, which does carry the
- *  seed debts). */
+ *  not the DEFAULTS fixture data, since this is used by `load()`/`migrate()`
+ *  for a genuinely-missing slot on an existing install. */
 const DEFAULT_DEBTS: Debt[] = [];
 
 /** Non-optional fallback for `AppState.plans` — see `DEFAULT_DEBTS`. */
@@ -899,130 +988,135 @@ function synthesizeDefaultAccount(currentBalance: CurrentBalance): Account {
   };
 }
 
-const DEFAULTS: AppState = {
-  schemaVersion: CURRENT_SCHEMA_VERSION,
-  pots: [
-    {
-      id: 'holiday',
-      name: 'Holiday · September',
-      saved: 420,
-      goal: 1200,
-      perWeek: 35,
-      accent: true,
+const DEFAULTS: AppState = normaliseWorkspaceRows(
+  {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    ...createPersonalWorkspaceRoot(),
+    pots: [
+      {
+        id: 'holiday',
+        name: 'Holiday · September',
+        saved: 420,
+        goal: 1200,
+        perWeek: 35,
+        accent: true,
+      },
+      { id: 'buffer', name: 'Buffer', saved: 140, goal: 500, perWeek: 20, accent: false },
+      { id: 'christmas', name: 'Christmas', saved: 60, goal: 300, perWeek: 15, accent: false },
+    ],
+    subs: DEFAULT_SUBS,
+    subPaused: {},
+    subOverrides: {},
+    cycles: [
+      // Seed two prior cycles so Insights has something to show on first run.
+      {
+        closedAt: '2026-05-25',
+        label: 'May',
+        spare: 142,
+        tightPoint: 38,
+        setAside: 60,
+        note: 'Held the line on takeaway.',
+      },
+      {
+        closedAt: '2026-04-25',
+        label: 'April',
+        spare: 88,
+        tightPoint: 24,
+        setAside: 50,
+        note: 'Tight one — buffer saved it.',
+      },
+    ],
+    onboarding: { done: false, name: '', payday: 25, monthlyIncome: 2180 },
+    currentBalance: SAMPLE_BALANCE,
+    accounts: [synthesizeDefaultAccount(SAMPLE_BALANCE)],
+    potLedger: [],
+    nextYouNote: '',
+    tightPointGoal: null,
+    transactions: [],
+    droppedTransactionCount: 0,
+    edits: [],
+    calendarEvents: [],
+    calendarFocusDate: null,
+    routeFocusDate: null,
+    readerCandidates: [],
+    readerClosingBalance: null,
+    ignoredReviewSigs: [],
+    reviewQueue: [],
+    reviewQueueSpillover: [],
+    statementImports: [],
+    evidenceDocuments: [],
+    moneyMode: 'survival',
+    bufferAmount: 100,
+    modeExtras: {},
+    // Sentinel monthKey '' never matches a real month, so the counter reads as 0 used until the
+    // first recorded read stamps the real month.
+    aiReads: { monthKey: '', used: 0 },
+    aiReadCache: {},
+    whatChangedSeenISO: null,
+    // Two seed debts so the Debt lens has honest numbers on first run, mirroring
+    // the Lovable design's DEFAULTS. Klarna is interest-free; the loan is a
+    // mid-APR personal loan. Balances are rough — the user replaces via a
+    // future SheetAddDebt (not yet wired on RN).
+    debts: [
+      {
+        id: 'seed-loan',
+        name: 'Personal loan',
+        kind: 'loan',
+        balance: 2400,
+        apr: 12.9,
+        minPayment: 120,
+        dueDom: 5,
+        addedAt: '2026-03-01T00:00:00.000Z',
+      },
+      {
+        id: 'seed-klarna',
+        name: 'Klarna sofa',
+        kind: 'bnpl',
+        balance: 320,
+        apr: 0,
+        minPayment: 80,
+        dueDom: 15,
+        addedAt: '2026-05-01T00:00:00.000Z',
+      },
+    ],
+    household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
+    // One seed plan so the Planning lens has an honest number on first run,
+    // mirroring the Lovable design's DEFAULTS. Illustrative — the user
+    // replaces via a future SheetAddPlan (not yet wired on RN).
+    plans: [
+      {
+        id: 'seed-macbook',
+        name: 'New MacBook',
+        target: 1600,
+        saved: 240,
+        byDate: '2026-12-15',
+        perWeek: 40,
+        addedAt: '2026-06-01T00:00:00.000Z',
+      },
+    ],
+    lens: {
+      plusUnlocked: false,
+      proUnlocked: false,
+      trialCycleId: null,
+      trialEndedCycleId: null,
+      trialEndAcknowledged: true,
     },
-    { id: 'buffer', name: 'Buffer', saved: 140, goal: 500, perWeek: 20, accent: false },
-    { id: 'christmas', name: 'Christmas', saved: 60, goal: 300, perWeek: 15, accent: false },
-  ],
-  subs: DEFAULT_SUBS,
-  subPaused: {},
-  subOverrides: {},
-  cycles: [
-    // Seed two prior cycles so Insights has something to show on first run.
-    {
-      closedAt: '2026-05-25',
-      label: 'May',
-      spare: 142,
-      tightPoint: 38,
-      setAside: 60,
-      note: 'Held the line on takeaway.',
-    },
-    {
-      closedAt: '2026-04-25',
-      label: 'April',
-      spare: 88,
-      tightPoint: 24,
-      setAside: 50,
-      note: 'Tight one — buffer saved it.',
-    },
-  ],
-  onboarding: { done: false, name: '', payday: 25, monthlyIncome: 2180 },
-  currentBalance: SAMPLE_BALANCE,
-  accounts: [synthesizeDefaultAccount(SAMPLE_BALANCE)],
-  potLedger: [],
-  nextYouNote: '',
-  tightPointGoal: null,
-  transactions: [],
-  droppedTransactionCount: 0,
-  edits: [],
-  calendarEvents: [],
-  calendarFocusDate: null,
-  routeFocusDate: null,
-  readerCandidates: [],
-  readerClosingBalance: null,
-  ignoredReviewSigs: [],
-  reviewQueue: [],
-  reviewQueueSpillover: [],
-  statementImports: [],
-  moneyMode: 'survival',
-  bufferAmount: 100,
-  modeExtras: {},
-  // Sentinel monthKey '' never matches a real month, so the counter reads as 0 used until the
-  // first recorded read stamps the real month.
-  aiReads: { monthKey: '', used: 0 },
-  aiReadCache: {},
-  whatChangedSeenISO: null,
-  // Two seed debts so the Debt lens has honest numbers on first run, mirroring
-  // the Lovable design's DEFAULTS. Klarna is interest-free; the loan is a
-  // mid-APR personal loan. Balances are rough — the user replaces via a
-  // future SheetAddDebt (not yet wired on RN).
-  debts: [
-    {
-      id: 'seed-loan',
-      name: 'Personal loan',
-      kind: 'loan',
-      balance: 2400,
-      apr: 12.9,
-      minPayment: 120,
-      dueDom: 5,
-      addedAt: '2026-03-01T00:00:00.000Z',
-    },
-    {
-      id: 'seed-klarna',
-      name: 'Klarna sofa',
-      kind: 'bnpl',
-      balance: 320,
-      apr: 0,
-      minPayment: 80,
-      dueDom: 15,
-      addedAt: '2026-05-01T00:00:00.000Z',
-    },
-  ],
-  household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
-  // One seed plan so the Planning lens has an honest number on first run,
-  // mirroring the Lovable design's DEFAULTS. Illustrative — the user
-  // replaces via a future SheetAddPlan (not yet wired on RN).
-  plans: [
-    {
-      id: 'seed-macbook',
-      name: 'New MacBook',
-      target: 1600,
-      saved: 240,
-      byDate: '2026-12-15',
-      perWeek: 40,
-      addedAt: '2026-06-01T00:00:00.000Z',
-    },
-  ],
-  lens: {
-    plusUnlocked: false,
-    proUnlocked: false,
-    trialCycleId: null,
-    trialEndedCycleId: null,
-    trialEndAcknowledged: true,
+    melo: { quietMode: false, wardrobe: [], tone: 'calm' },
+    tinyWins: [],
+    timelineEvents: [],
+    // Empty by default — a fresh install has NOT declared income sources yet, so
+    // every caller falls back to the legacy `onboarding.payday`/`monthlyIncome`
+    // single-lump derivation until the user (or the v7→v8 migration, for an
+    // existing install) populates this list.
+    incomeSources: [],
+    dismissedIncomeSignals: [],
+    dismissedBillSignals: [],
+    dismissedDriftSignals: [],
+    dismissedAnnualSignals: [],
+    merchantCategories: DEFAULT_MERCHANT_CATEGORIES,
   },
-  melo: { quietMode: false, wardrobe: [], tone: 'calm' },
-  tinyWins: [],
-  timelineEvents: [],
-  // Empty by default — a fresh install has NOT declared income sources yet, so
-  // every caller falls back to the legacy `onboarding.payday`/`monthlyIncome`
-  // single-lump derivation until the user (or the v7→v8 migration, for an
-  // existing install) populates this list.
-  incomeSources: [],
-  dismissedIncomeSignals: [],
-  dismissedBillSignals: [],
-  dismissedDriftSignals: [],
-  dismissedAnnualSignals: [],
-  merchantCategories: DEFAULT_MERCHANT_CATEGORIES,
-};
+  PERSONAL_WORKSPACE_ID,
+);
 
 /** Seed ~10 days of recent activity so Today/Insights have something honest to render.
  *  Called only when there is no persisted blob (uses Date.now). */
@@ -1193,6 +1287,41 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
       incomeSources: synthesized,
     };
   },
+  // v8 → v9: make the current top-level store's ownership explicit. Every existing record remains
+  // byte-identical and belongs to the immutable Personal data partition. Business activation is
+  // intentionally locked out until rows and query boundaries carry required workspace IDs.
+  9: (prev) => {
+    const workspaceRoot = createPersonalWorkspaceRoot();
+    return {
+      ...prev,
+      schemaVersion: 9,
+      workspaces: workspaceRoot.workspaces,
+      activeWorkspaceId: workspaceRoot.activeWorkspaceId,
+      dataWorkspaceId: workspaceRoot.dataWorkspaceId,
+    };
+  },
+  // v9 → v10: stamp every independently addressable production row with its non-null Personal
+  // workspace owner. A conflicting pre-existing owner is treated as corruption instead of being
+  // overwritten. Keyed maps/scalars remain owned by the enclosing `dataWorkspaceId` partition.
+  10: (prev) =>
+    normaliseWorkspaceRows(
+      {
+        ...prev,
+        schemaVersion: 10,
+      },
+      PERSONAL_WORKSPACE_ID,
+    ) as Record<string, unknown>,
+  // v10 → v11: adopt the isolated-partition file contract without trusting a pre-v11 Business
+  // root. Every existing blob is definitively Personal; only a v11 partition created through the
+  // new manifest/key transaction may carry Business metadata.
+  11: (prev) => {
+    const workspaceRoot = normalisePersonalWorkspaceRoot({
+      workspaces: prev['workspaces'],
+      activeWorkspaceId: prev['activeWorkspaceId'],
+      dataWorkspaceId: prev['dataWorkspaceId'],
+    });
+    return { ...prev, schemaVersion: 11, ...workspaceRoot };
+  },
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -1265,24 +1394,19 @@ const futureBlobs: Record<string, Record<string, unknown>> = {};
 function isShippedSeedRecord(rec: unknown, seeds: readonly unknown[]): boolean {
   if (rec === null || typeof rec !== 'object') return false;
   const r = rec as Record<string, unknown>;
-  const rKeys = Object.keys(r);
+  const rKeys = Object.keys(r).filter((key) => key !== 'workspaceId');
   return seeds.some((seed) => {
     const sd = seed as Record<string, unknown>;
-    const sKeys = Object.keys(sd);
+    const sKeys = Object.keys(sd).filter((key) => key !== 'workspaceId');
     return rKeys.length === sKeys.length && rKeys.every((k) => r[k] === sd[k]);
   });
 }
 
-/** TRUE only in a dev/Metro build (`__DEV__`). A released app ALWAYS starts
- *  clean — no demo data (owner rule). `typeof` guard so it is safe under
- *  vitest/Node where `__DEV__` is undefined (→ treated as a release → clean). */
-const SEED_ON_FIRST_RUN = typeof __DEV__ !== 'undefined' && __DEV__ === true;
-
-/** True when the state shows ANY sign of real use, so demo data must never sit
+/** True when the state shows ANY sign of real use, so legacy fixture data must never sit
  *  alongside it: onboarding done, a non-`sample` balance, any non-seed
  *  transaction, or any logged statement import. A state matching NONE of these
- *  is an untouched demo/preview (e.g. after the Privacy "Reset to the demo"),
- *  whose demo data is intentional and left.
+ *  is an untouched development fixture. `load()` replaces that whole legacy state with the clean
+ *  first-run state after this selective cleanup has protected any real rows.
  *
  *  NOTE: `incomeSources` is deliberately NOT a signal — the v7→v8 migration
  *  synthesizes one "Pay" source for EVERY install (including a demo one, from
@@ -1357,39 +1481,38 @@ export function stripSeedData(s: AppState): AppState {
 }
 
 /** OTA-safe cleanup: strip demo data IFF this is a real user's state. Idempotent
- *  and a no-op for genuine demo/preview states. This is what removes demo data
+ *  and a no-op for an untouched legacy fixture state. This is what removes demo data
  *  that already leaked onto a real device — first-run seeding changes alone
  *  cannot, because the demo data is already persisted in the blob. */
 export function purgeSeedIfReal(s: AppState): AppState {
   return isRealUser(s) ? stripSeedData(s) : s;
 }
 
-/** The state a FIRST run lands on. Dev/Metro seeds the demo set; a released
- *  build starts genuinely empty (onboarding still runs — `onboarding.done`
- *  stays false — and leads the user to add real data). */
+/** The state every first run lands on, including development and emulator builds. Sample money is
+ *  never an implicit product state; visual fixtures belong in tests and explicit prototypes. */
 function firstRunState(): AppState {
-  if (SEED_ON_FIRST_RUN) {
-    return { ...DEFAULTS, transactions: seedTransactions() };
-  }
   const emptyBalance: CurrentBalance = { ...EMPTY_BALANCE, setAt: new Date().toISOString() };
-  return {
-    ...DEFAULTS,
-    pots: [],
-    subs: [],
-    subPaused: {},
-    subOverrides: {},
-    cycles: [],
-    // Release first-run is genuinely blank. The old demo's £2,180/month must not survive merely
-    // because onboarding has not been completed yet; the onboarding slider now honestly starts at
-    // zero and writes only what the owner chooses.
-    onboarding: { done: false, name: '', payday: 25, monthlyIncome: 0 },
-    debts: [],
-    plans: [],
-    currentBalance: emptyBalance,
-    accounts: [synthesizeDefaultAccount(emptyBalance)],
-    transactions: [],
-    incomeSources: [],
-  };
+  return normaliseWorkspaceRows(
+    {
+      ...DEFAULTS,
+      pots: [],
+      subs: [],
+      subPaused: {},
+      subOverrides: {},
+      cycles: [],
+      // Release first-run is genuinely blank. The old demo's £2,180/month must not survive merely
+      // because onboarding has not been completed yet; the onboarding slider now honestly starts at
+      // zero and writes only what the owner chooses.
+      onboarding: { done: false, name: '', payday: 25, monthlyIncome: 0 },
+      debts: [],
+      plans: [],
+      currentBalance: emptyBalance,
+      accounts: [synthesizeDefaultAccount(emptyBalance)],
+      transactions: [],
+      incomeSources: [],
+    },
+    PERSONAL_WORKSPACE_ID,
+  );
 }
 
 /** True when the LAST load()'s pipeline threw and the state degraded to defaults —
@@ -1406,19 +1529,38 @@ function load(): AppState {
   try {
     loadDegraded = false;
     if (!persistedBlob) {
-      // First run on this device. A RELEASED build starts CLEAN (owner rule
-      // 2026-07-06: real data required to use the app — no demo data shipped);
-      // only a dev/Metro build seeds the demo set. See `firstRunState`.
+      // First run on this device always starts clean. Development builds follow the same product
+      // contract so emulator screenshots and owner testing cannot accidentally present fake money.
       return firstRunState();
     }
     // Deep-clone the persisted blob so migrate/load never mutate the stored copy.
     const parsedRaw = JSON.parse(JSON.stringify(persistedBlob)) as Record<string, unknown>;
     const migrated = migrate(parsedRaw) as Partial<AppState>;
+    const fallbackRoot = createPersonalWorkspaceRoot();
+    const workspaceRoot = assertValidWorkspaceRoot({
+      workspaces: Array.isArray(migrated.workspaces)
+        ? (migrated.workspaces as readonly PersistedWorkspace[])
+        : fallbackRoot.workspaces,
+      activeWorkspaceId:
+        typeof migrated.activeWorkspaceId === 'string'
+          ? (migrated.activeWorkspaceId as WorkspaceId)
+          : fallbackRoot.activeWorkspaceId,
+      dataWorkspaceId:
+        typeof migrated.dataWorkspaceId === 'string'
+          ? (migrated.dataWorkspaceId as WorkspaceId)
+          : fallbackRoot.dataWorkspaceId,
+    });
+    const activeWorkspace = workspaceRoot.workspaces.find(
+      (workspace) => workspace.id === workspaceRoot.activeWorkspaceId,
+    )!;
     // Resolved once so `accounts` (below) can synthesize the default account from the SAME balance
     // this load is about to publish — never a stale/different one.
     const resolvedCurrentBalance = migrated.currentBalance ?? SAMPLE_BALANCE;
     const loaded: AppState = {
       schemaVersion: CURRENT_SCHEMA_VERSION,
+      workspaces: [...workspaceRoot.workspaces],
+      activeWorkspaceId: workspaceRoot.activeWorkspaceId,
+      dataWorkspaceId: workspaceRoot.dataWorkspaceId,
       pots: Array.isArray(migrated.pots) ? migrated.pots : DEFAULTS.pots,
       // Date-anchor re-derivation (lib/renewalMath.ts): every hydration recomputes each sub's
       // relative day count from its persisted date anchor (synthesizing anchors for legacy
@@ -1435,9 +1577,12 @@ function load(): AppState {
       // ACCOUNTS_MODEL.md §2.1 migration: an install that already has `accounts` keeps them
       // untouched; one that doesn't (every pre-existing install) gets exactly one synthesized
       // `'Main'` bank account mirroring `resolvedCurrentBalance` — see `synthesizeDefaultAccount`.
-      accounts:
-        Array.isArray(migrated.accounts) && migrated.accounts.length > 0
+      accounts: Array.isArray(migrated.accounts)
+        ? migrated.accounts.length > 0 || activeWorkspace.kind === 'business'
           ? migrated.accounts
+          : [synthesizeDefaultAccount(resolvedCurrentBalance)]
+        : activeWorkspace.kind === 'business'
+          ? []
           : [synthesizeDefaultAccount(resolvedCurrentBalance)],
       potLedger: migrated.potLedger ?? [],
       nextYouNote: migrated.nextYouNote ?? '',
@@ -1463,6 +1608,9 @@ function load(): AppState {
         ? migrated.reviewQueueSpillover
         : [],
       statementImports: Array.isArray(migrated.statementImports) ? migrated.statementImports : [],
+      evidenceDocuments: Array.isArray(migrated.evidenceDocuments)
+        ? migrated.evidenceDocuments
+        : [],
       moneyMode: migrated.moneyMode ?? DEFAULT_MONEY_MODE,
       bufferAmount: migrated.bufferAmount ?? DEFAULT_BUFFER_AMOUNT,
       modeExtras: migrated.modeExtras ?? {},
@@ -1500,13 +1648,21 @@ function load(): AppState {
     // device (idempotent; a no-op for genuine demo/preview states). This is the
     // step that cleans an already-contaminated install — first-run seeding
     // changes cannot, since the demo data is already persisted in the blob.
-    return purgeSeedIfReal({
-      ...loaded,
-      subOverrides: sweepStaleOverrides(loaded.subs, loaded.subOverrides),
-    });
+    const cleaned = purgeSeedIfReal(
+      normaliseWorkspaceRows(
+        {
+          ...loaded,
+          subOverrides: sweepStaleOverrides(loaded.subs, loaded.subOverrides),
+        },
+        workspaceRoot.dataWorkspaceId,
+      ),
+    );
+    // Older development builds explicitly persisted a complete demo regime. It is not user data and
+    // must not survive as a hidden alternative first-run product after sample mode is removed.
+    return cleaned.currentBalance.source === 'sample' ? firstRunState() : cleaned;
   } catch {
     loadDegraded = true;
-    return DEFAULTS;
+    return firstRunState();
   }
 }
 
@@ -1535,7 +1691,26 @@ export function sweepSubOverrides() {
   const changed =
     Object.keys(next).length !== Object.keys(state.subOverrides).length ||
     Object.entries(next).some(([k, v]) => state.subOverrides[k] !== v);
-  if (changed) setPartial({ subOverrides: next });
+  if (changed) {
+    const removedNames = Object.keys(state.subOverrides).filter(
+      (name) => !Object.prototype.hasOwnProperty.call(next, name),
+    );
+    setPartialWithTypedCommand(
+      { subOverrides: next },
+      {
+        commandType: 'folio.subscription_overrides.expire.v1',
+        actorKind: 'system',
+        entityRefs: uniqueOpaqueContainerEntityRefs('subscription', removedNames),
+        before: {
+          overrides: Object.fromEntries(
+            removedNames.map((name) => [name, state.subOverrides[name] ?? null]),
+          ),
+        },
+        after: {},
+        invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+      },
+    );
+  }
 }
 
 let state: AppState = load();
@@ -1550,14 +1725,28 @@ function persist() {
   // Web original wrote JSON to window.localStorage; here we keep a structural
   // copy so a later migrate() never aliases live state.
   try {
-    persistedBlob = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+    const checked = requireWorkspaceRows(
+      requireWorkspaceData(state, state.activeWorkspaceId),
+      state.activeWorkspaceId,
+    );
+    persistedBlob = JSON.parse(JSON.stringify(checked)) as Record<string, unknown>;
   } catch {
     /* serialization failure — ignore, matches web quota/private-mode swallow */
   }
 }
 
 export function getState(): AppState {
-  return state;
+  return requireWorkspaceRows(
+    requireWorkspaceData(state, state.activeWorkspaceId),
+    state.activeWorkspaceId,
+  );
+}
+
+/** Explicit non-React query boundary for services that need addressable row collections. */
+export function getWorkspaceRowRepository(
+  requestedWorkspaceId: WorkspaceId = state.activeWorkspaceId,
+): WorkspaceScopedRowRepository {
+  return createWorkspaceScopedRowRepository(state, requestedWorkspaceId);
 }
 
 /** Serialize the current state to a JSON string for native persistence.
@@ -1570,14 +1759,28 @@ export function getState(): AppState {
  *  unreviewed candidates survive a restart, which the review-before-truth rule
  *  forbids.
  *  Per ENGINES §7 store-migration / RN_PORT "Store migration". */
-export function getPersistBlob(): string {
+export function getPersistBlob(
+  requestedWorkspaceId: WorkspaceId = state.activeWorkspaceId,
+): string {
+  return serializeWorkspacePartition(state, requestedWorkspaceId);
+}
+
+export function serializeWorkspacePartition(
+  partition: AppState,
+  requestedWorkspaceId: WorkspaceId,
+): string {
+  assertValidWorkspaceRoot(partition);
+  const checked = requireWorkspaceRows(
+    requireWorkspaceData(partition, requestedWorkspaceId),
+    requestedWorkspaceId,
+  );
   const {
     calendarFocusDate: _f,
     routeFocusDate: _r,
     readerCandidates: _rc,
     readerClosingBalance: _rcb,
     ...persistable
-  } = state;
+  } = checked;
   return JSON.stringify(persistable);
 }
 
@@ -1586,7 +1789,10 @@ export function getPersistBlob(): string {
  *  `persistedBlob`, then `setPartial` the loaded+migrated state so listeners
  *  fire and the round-trip is identical to a first-run load. A malformed blob
  *  is a safe no-op (matches `load()`'s catch). Pure + Node-safe. */
-export function hydrateFromBlob(raw: string): void {
+export function hydrateFromBlob(
+  raw: string,
+  requestedWorkspaceId: WorkspaceId = state.activeWorkspaceId,
+): void {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -1595,34 +1801,199 @@ export function hydrateFromBlob(raw: string): void {
   }
   if (parsed === null || typeof parsed !== 'object') return;
   // Route through the persisted-blob slot so load() applies migrate() + the
-  // same field defaulting as a cold start, then publish via setPartial.
+  // same field defaulting as a cold start. Publish as one complete partition replacement: routing
+  // through setPartial would stamp the incoming Business rows as the previously-active Personal
+  // workspace during an intentional switch.
   persistedBlob = parsed;
-  setPartial(load());
-}
-
-export function setPartial(patch: Partial<AppState>) {
-  state = { ...state, ...patch };
+  const loaded = load();
+  if (
+    String(loaded.activeWorkspaceId) !== String(requestedWorkspaceId) ||
+    String(loaded.dataWorkspaceId) !== String(requestedWorkspaceId)
+  ) {
+    throw new Error(
+      `Persisted partition does not belong to workspace ${String(requestedWorkspaceId)}.`,
+    );
+  }
+  assertValidWorkspaceRoot(loaded);
+  requireWorkspaceRows(requireWorkspaceData(loaded, requestedWorkspaceId), requestedWorkspaceId);
+  state = loaded;
   persist();
   emit();
 }
 
+function nextStateForPartial(patch: Partial<AppState>): AppState {
+  const rootKeys = new Set<keyof AppState>([
+    'schemaVersion',
+    'workspaces',
+    'activeWorkspaceId',
+    'dataWorkspaceId',
+  ]);
+  const touchesWorkspaceData = (Object.keys(patch) as Array<keyof AppState>).some(
+    (key) => !rootKeys.has(key),
+  );
+  if (
+    (patch.activeWorkspaceId !== undefined &&
+      String(patch.activeWorkspaceId) !== String(state.activeWorkspaceId)) ||
+    (patch.dataWorkspaceId !== undefined &&
+      String(patch.dataWorkspaceId) !== String(state.dataWorkspaceId))
+  ) {
+    throw new Error('Workspace switches require a complete, verified partition replacement.');
+  }
+  if (touchesWorkspaceData) {
+    requireWorkspaceRows(
+      requireWorkspaceData(state, state.activeWorkspaceId),
+      state.activeWorkspaceId,
+    );
+  }
+  const ownedPatch = normaliseWorkspaceRowPatch(patch, state.activeWorkspaceId);
+  const next = { ...state, ...ownedPatch };
+  assertValidWorkspaceRoot(next);
+  return next;
+}
+
+function publishState(next: AppState): void {
+  state = next;
+  persist();
+  emit();
+}
+
+export function setPartial(patch: Partial<AppState>) {
+  publishState(nextStateForPartial(patch));
+}
+
+type AppStateCommandDescriptor = Omit<PendingAppStateCommandInput, 'workspaceId' | 'occurredAt'> & {
+  occurredAt?: string;
+};
+
+/** Queue the privacy-minimal typed receipt before publishing the matching synchronous mutation. */
+function setPartialWithTypedCommand(
+  patch: Partial<AppState>,
+  descriptor: AppStateCommandDescriptor,
+): void {
+  const next = nextStateForPartial(patch);
+  const receipt = createPendingAppStateCommand({
+    ...descriptor,
+    workspaceId: state.activeWorkspaceId,
+  });
+  enqueuePendingAppStateCommand(receipt);
+  publishState(next);
+}
+
+/**
+ * Subscription names and user-chosen pot ids can contain private labels. Audit entity references
+ * need stable correlation, but never need those labels themselves, so container receipts use a
+ * deterministic workspace-scoped opaque id. The command delta already stores checksums rather than
+ * values; this closes the equivalent metadata seam in `entityRefs`.
+ */
+function opaqueContainerEntityRef(type: string, sourceId: string): { type: string; id: string } {
+  const source = `${String(state.activeWorkspaceId)}\u001f${type}\u001f${sourceId}`;
+  return {
+    type,
+    id: `${type}-${fnv1a32Hex(source, 0x811c9dc5)}${fnv1a32Hex(source, 0x01000193)}`,
+  };
+}
+
+function financialContextEntityRef(): { type: 'financial-context'; id: string } {
+  return {
+    type: 'financial-context',
+    id: `${String(state.activeWorkspaceId)}:active`,
+  };
+}
+
+function workspaceCollectionEntityRef(type: string): { type: string; id: string } {
+  return { type, id: `${String(state.activeWorkspaceId)}:active` };
+}
+
+function fnv1a32Hex(input: string, seed: number): string {
+  let hash = seed >>> 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+function uniqueOpaqueContainerEntityRefs(
+  type: string,
+  sourceIds: readonly string[],
+): Array<{ type: string; id: string }> {
+  return [...new Set(sourceIds)].map((sourceId) => opaqueContainerEntityRef(type, sourceId));
+}
+
+function structurallyEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export function setPots(pots: Pot[] | ((prev: Pot[]) => Pot[])) {
   const next = typeof pots === 'function' ? pots(state.pots) : pots;
-  setPartial({ pots: next });
+  if (structurallyEqual(state.pots, next)) {
+    setPartial({ pots: next });
+    return;
+  }
+  const refs = uniqueOpaqueContainerEntityRefs(
+    'pot',
+    [...state.pots, ...next].map((pot) => pot.id),
+  );
+  setPartialWithTypedCommand(
+    { pots: next },
+    {
+      commandType: 'folio.pots.replace.v1',
+      actorKind: 'user',
+      entityRefs: refs,
+      before: { pots: state.pots },
+      after: { pots: next },
+      invalidatedProjectionKinds: ['pots', 'cashflow'],
+    },
+  );
 }
 
 export function setSubs(subs: Sub[] | ((prev: Sub[]) => Sub[])) {
   const next = typeof subs === 'function' ? subs(state.subs) : subs;
-  setPartial({ subs: next });
+  if (structurallyEqual(state.subs, next)) {
+    setPartial({ subs: next });
+    return;
+  }
+  const refs = uniqueOpaqueContainerEntityRefs(
+    'subscription',
+    [...state.subs, ...next].map((subscription) => subscription.name),
+  );
+  setPartialWithTypedCommand(
+    { subs: next },
+    {
+      commandType: 'folio.subscriptions.replace.v1',
+      actorKind: 'user',
+      entityRefs: refs,
+      before: { subscriptions: state.subs },
+      after: { subscriptions: next },
+      invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+    },
+  );
 }
 
 export function removeSub(name: string) {
   const { [name]: _gone, ...restPaused } = state.subPaused;
   const { [name]: _gone2, ...restOverrides } = state.subOverrides;
-  setPartial({
-    subs: state.subs.filter((s) => s.name !== name),
-    subPaused: restPaused,
-    subOverrides: restOverrides,
+  const subscriptions = state.subs.filter((s) => s.name !== name);
+  const changed =
+    subscriptions.length !== state.subs.length ||
+    Object.prototype.hasOwnProperty.call(state.subPaused, name) ||
+    Object.prototype.hasOwnProperty.call(state.subOverrides, name);
+  const patch = { subs: subscriptions, subPaused: restPaused, subOverrides: restOverrides };
+  if (!changed) {
+    setPartial(patch);
+    return;
+  }
+  setPartialWithTypedCommand(patch, {
+    commandType: 'folio.subscription.remove.v1',
+    actorKind: 'user',
+    entityRefs: [opaqueContainerEntityRef('subscription', name)],
+    before: {
+      subscription: state.subs.filter((subscription) => subscription.name === name),
+      paused: state.subPaused[name] ?? null,
+      overrideDays: state.subOverrides[name] ?? null,
+    },
+    after: {},
+    invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
   });
 }
 
@@ -1638,10 +2009,19 @@ export function addToPot(id: string, amount: number, source: string = 'manual') 
     source,
   };
   const nextPots = state.pots.map((p) => (p.id === id ? { ...p, saved: p.saved + amount } : p));
-  setPartial({
-    pots: nextPots,
-    potLedger: [entry, ...state.potLedger].slice(0, 500),
-  });
+  const potLedger = [entry, ...state.potLedger].slice(0, 500);
+  setPartialWithTypedCommand(
+    { pots: nextPots, potLedger },
+    {
+      commandType: 'folio.pot.deposit.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('pot', id), { type: 'pot-ledger-entry', id: entry.id }],
+      before: { pot: before ?? null },
+      after: { pot: nextPots.find((pot) => pot.id === id) ?? null, ledgerEntry: entry },
+      invalidatedProjectionKinds: ['pots', 'pot-ledger', 'cashflow'],
+      occurredAt: entry.at,
+    },
+  );
 
   // Emit a Melo reaction if this deposit tips the pot over the goal line (or over the halfway
   // threshold on the way up). RN port of folio-melo lib/store.ts `addToPot` (byte-faithful
@@ -1699,10 +2079,20 @@ export function borrowFromPot(
     amount,
     source,
   };
-  setPartial({
-    pots: state.pots.map((p) => (p.id === id ? { ...p, saved: p.saved - amount } : p)),
-    potLedger: [entry, ...state.potLedger].slice(0, 500),
-  });
+  const pots = state.pots.map((p) => (p.id === id ? { ...p, saved: p.saved - amount } : p));
+  const potLedger = [entry, ...state.potLedger].slice(0, 500);
+  setPartialWithTypedCommand(
+    { pots, potLedger },
+    {
+      commandType: 'folio.pot.borrow.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('pot', id), { type: 'pot-ledger-entry', id: entry.id }],
+      before: { pot },
+      after: { pot: pots.find((candidate) => candidate.id === id), ledgerEntry: entry },
+      invalidatedProjectionKinds: ['pots', 'pot-ledger', 'cashflow'],
+      occurredAt: entry.at,
+    },
+  );
   // Whisper on Today so the borrow feels acknowledged, not silent.
   void import('./lib/melo/reactionBus').then(({ emitMeloReaction }) => {
     emitMeloReaction('today-header', {
@@ -1731,16 +2121,41 @@ export function repayToPot(id: string, amount: number, source: string = 'manual'
     amount,
     source,
   };
-  setPartial({ potLedger: [entry, ...state.potLedger].slice(0, 500) });
+  setPartialWithTypedCommand(
+    { potLedger: [entry, ...state.potLedger].slice(0, 500) },
+    {
+      commandType: 'folio.pot.repay.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('pot', id), { type: 'pot-ledger-entry', id: entry.id }],
+      before: {},
+      after: { ledgerEntry: entry },
+      invalidatedProjectionKinds: ['pot-ledger', 'cashflow'],
+      occurredAt: entry.at,
+    },
+  );
 }
 
 /** ENGINES.md § 4 "Pot borrow hard-capped by default" (RN port of folio-melo lib/store.ts
  *  `setPotAllowNegative`). Toggles the per-pot opt-in that lets a buffer pot go briefly negative when
  *  borrowed from, instead of the default hard cap at £0. */
 export function setPotAllowNegative(id: string, value: boolean) {
-  setPartial({
-    pots: state.pots.map((p) => (p.id === id ? { ...p, allowNegative: value } : p)),
-  });
+  const pot = state.pots.find((candidate) => candidate.id === id);
+  const pots = state.pots.map((p) => (p.id === id ? { ...p, allowNegative: value } : p));
+  if (pot === undefined || structurallyEqual(state.pots, pots)) {
+    setPartial({ pots });
+    return;
+  }
+  setPartialWithTypedCommand(
+    { pots },
+    {
+      commandType: 'folio.pot.overdraft_policy.set.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('pot', id)],
+      before: { allowNegative: pot.allowNegative ?? false },
+      after: { allowNegative: value },
+      invalidatedProjectionKinds: ['pots', 'cashflow'],
+    },
+  );
 }
 
 /** Awards a Tiny Win the first (and only) time this kind fires (RN port of folio-melo lib/store.ts
@@ -1750,32 +2165,79 @@ export function awardTinyWin(kind: TinyWinKind): TinyWin | null {
   const existing = state.tinyWins ?? [];
   if (hasWin(existing, kind)) return null;
   const win = makeWin(kind);
-  setPartial({ tinyWins: [win, ...existing].slice(0, 40) });
+  const tinyWins = [win, ...existing].slice(0, 40);
+  setPartialWithTypedCommand(
+    { tinyWins },
+    {
+      commandType: 'folio.companion.tiny_win.award.v1',
+      actorKind: 'system',
+      entityRefs: [opaqueContainerEntityRef('tiny-win', kind)],
+      before: { tinyWins: existing },
+      after: { tinyWins },
+      invalidatedProjectionKinds: ['companion', 'insights'],
+    },
+  );
   return win;
 }
 
 /** Mark a sub as "just used" — resets lastUsedDaysAgo to 0 and nudges
  *  the monthly count up by one, so the Subs screen pulse turns green. */
 export function markSubUsed(name: string) {
-  setSubs((prev) =>
-    prev.map((s) =>
-      s.name === name ? { ...s, lastUsedDaysAgo: 0, usesPerMonth: s.usesPerMonth + 1 } : s,
-    ),
+  const before = state.subs.find((subscription) => subscription.name === name);
+  if (before === undefined) return;
+  const subs = state.subs.map((subscription) =>
+    subscription.name === name
+      ? {
+          ...subscription,
+          lastUsedDaysAgo: 0,
+          usesPerMonth: subscription.usesPerMonth + 1,
+        }
+      : subscription,
+  );
+  setPartialWithTypedCommand(
+    { subs },
+    {
+      commandType: 'folio.subscription.mark_used.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('subscription', name)],
+      before: { subscription: before },
+      after: { subscription: subs.find((subscription) => subscription.name === name) },
+      invalidatedProjectionKinds: ['subscriptions'],
+    },
   );
 }
 
 export function togglePaused(name: string, value?: boolean) {
   const current = !!state.subPaused[name];
   const next = value ?? !current;
-  setPartial({ subPaused: { ...state.subPaused, [name]: next } });
+  const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subPaused, name);
+  const subPaused = { ...state.subPaused, [name]: next };
+  const timelineEvent =
+    current === next ? null : createTimelineEvent(next ? 'sub-paused' : 'sub-resumed', name);
+  const timelineEvents =
+    timelineEvent === null
+      ? undefined
+      : [timelineEvent, ...(state.timelineEvents ?? [])].slice(0, 200);
+  if (current === next && hadStoredValue) {
+    setPartial({ subPaused });
+  } else {
+    setPartialWithTypedCommand(
+      { subPaused, ...(timelineEvents === undefined ? {} : { timelineEvents }) },
+      {
+        commandType: next ? 'folio.subscription.pause.v1' : 'folio.subscription.resume.v1',
+        actorKind: 'user',
+        entityRefs: [opaqueContainerEntityRef('subscription', name)],
+        before: { paused: hadStoredValue ? state.subPaused[name] : null },
+        after: { paused: next },
+        invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+      },
+    );
+  }
 
   // Sub toggled → whisper on the subs surface. RN port of folio-melo lib/store.ts `togglePaused`
   // (byte-faithful mood/pose/copy/durations). MELO_EMOTIONAL_ENGINE.md § 3 "sub paused" / "sub
   // resumed" reactions — cooldown/dedupe is the separate `meloReactions` engine (ENGINES.md § 9.4).
   if (current !== next) {
-    // @rn-engine timeline-verbs — log the pause/resume so Timeline can render the moment as a
-    // verb-state row. A no-op toggle (current === next) logs nothing, same guard as the reaction.
-    logTimelineEvent(next ? 'sub-paused' : 'sub-resumed', name);
     void import('./lib/melo/reactionBus').then(({ emitMeloReaction }) => {
       emitMeloReaction('subs-inline', {
         mood: next ? 'calm' : 'curious',
@@ -1791,20 +2253,65 @@ export function togglePaused(name: string, value?: boolean) {
 }
 
 export function pauseMany(names: string[], value: boolean) {
+  const uniqueNames = [...new Set(names)];
+  if (uniqueNames.length === 0) return;
   const next = { ...state.subPaused };
-  for (const n of names) next[n] = value;
-  setPartial({ subPaused: next });
+  for (const n of uniqueNames) next[n] = value;
+  if (structurallyEqual(state.subPaused, next)) {
+    setPartial({ subPaused: next });
+    return;
+  }
+  setPartialWithTypedCommand(
+    { subPaused: next },
+    {
+      commandType: value
+        ? 'folio.subscriptions.pause_many.v1'
+        : 'folio.subscriptions.resume_many.v1',
+      actorKind: 'user',
+      entityRefs: uniqueOpaqueContainerEntityRefs('subscription', uniqueNames),
+      before: {
+        paused: Object.fromEntries(
+          uniqueNames.map((name) => [name, state.subPaused[name] ?? null]),
+        ),
+      },
+      after: { paused: Object.fromEntries(uniqueNames.map((name) => [name, value])) },
+      invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+    },
+  );
 }
 
 export function addCycle(c: CycleRecord) {
   // The note the user just wrote at cycle close becomes "past-you's line"
   // for the next ritual. Clearing it here means the next cycle starts with
   // a blank input rather than echoing the same note forever.
-  setPartial({ cycles: [c, ...state.cycles].slice(0, 24), nextYouNote: '' });
+  const cycles = [c, ...state.cycles].slice(0, 24);
+  setPartialWithTypedCommand(
+    { cycles, nextYouNote: '' },
+    {
+      commandType: 'folio.cycle.close.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('cycle', `${c.closedAt}\u001f${c.label}`)],
+      before: {},
+      after: { cycle: c },
+      invalidatedProjectionKinds: ['cycles', 'insights', 'cashflow'],
+      occurredAt: new Date(c.closedAt).toISOString(),
+    },
+  );
 }
 
 export function setOnboarding(o: Partial<Onboarding>) {
-  setPartial({ onboarding: { ...state.onboarding, ...o } });
+  const onboarding = { ...state.onboarding, ...o };
+  setPartialWithTypedCommand(
+    { onboarding },
+    {
+      commandType: 'folio.financial_context.onboarding.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { onboarding: state.onboarding },
+      after: { onboarding },
+      invalidatedProjectionKinds: ['income', 'calendar', 'cashflow', 'route'],
+    },
+  );
 }
 
 /** ENGINES.md § 6 "Starting balance — source + confidence". The single
@@ -1837,7 +2344,52 @@ export function setCurrentBalance(next: Omit<CurrentBalance, 'setAt'>) {
     bankAccounts.length === 0
       ? next.amount
       : bankAccounts.reduce((sum, a) => sum + a.balanceMinor, 0);
-  setPartial({ currentBalance: { ...next, amount: bankTotal, setAt }, accounts: nextAccounts });
+  const nextBalance = { ...next, amount: bankTotal, setAt };
+  setPartialWithTypedCommand(
+    { currentBalance: nextBalance, accounts: nextAccounts },
+    {
+      commandType: 'folio.balance.set_current.v1',
+      actorKind: balanceActorKind(next.source),
+      entityRefs: [{ type: 'balance', id: `${String(state.activeWorkspaceId)}:current` }],
+      before: { balance: state.currentBalance },
+      after: { balance: nextBalance },
+      changedEntityIds: nextAccounts.some((account) => account.id === DEFAULT_ACCOUNT_ID)
+        ? [DEFAULT_ACCOUNT_ID]
+        : [],
+      invalidatedProjectionKinds: ['account-balances', 'cashflow'],
+      occurredAt: setAt,
+    },
+  );
+}
+
+function balanceActorKind(source: BalanceSource): PendingAppStateCommandInput['actorKind'] {
+  if (source === 'statement' || source === 'pdf-derived' || source === 'ocr-derived')
+    return 'import';
+  if (source === 'sample') return 'system';
+  return 'user';
+}
+
+function transactionActorKind(
+  transactions: readonly Pick<Transaction, 'source' | 'sourceEvidenceId'>[],
+): PendingAppStateCommandInput['actorKind'] {
+  if (transactions.some((transaction) => transaction.sourceEvidenceId !== undefined))
+    return 'import';
+  const sources = new Set(transactions.map((transaction) => transaction.source));
+  if (sources.size !== 1) return 'system';
+  const source = transactions[0]?.source;
+  if (source === 'melo') return 'melo';
+  if (source === 'bank') return 'sync';
+  if (source === 'seed') return 'system';
+  return 'user';
+}
+
+function reviewActorKind(
+  items: readonly Pick<ReviewItem, 'source'>[],
+): PendingAppStateCommandInput['actorKind'] {
+  const sources = new Set(items.map((item) => item.source));
+  if (sources.size === 1 && items[0]?.source === 'bank') return 'sync';
+  if (sources.size === 1 && items[0]?.source === 'manual') return 'user';
+  return 'import';
 }
 
 /* ---------- Accounts (ACCOUNTS_MODEL.md §2 / §4 P1-P2) ---------- */
@@ -1850,47 +2402,9 @@ function cardDebtId(accountId: string): string {
   return `debt-for-${accountId}`;
 }
 
-/** ACCOUNTS_MODEL.md §2.4 recommendation (a) — sync-on-write: whenever a `kind: 'credit-card'`
- *  account's balance changes (import or manual), find-or-create a paired `Debt` row so the existing
- *  debt engine (`debtEngine.summarise`, `weightedApr`, avalanche/snowball ordering — all pure
- *  functions over `Debt[]`) and every current `state.debts` reader (the Debt strategy, `LogPaymentSheet`,
- *  `notifyState.ts`) see imported cards alongside seed loans/BNPL with ZERO changes to any of them.
- *  This is the chosen bridge over reading liability accounts directly from `debtEngine`, because
- *  `apr`/`minPayment`/`dueDom` have no equivalent on `Account` and the amortisation math needs them —
- *  a statement import can supply the new balance, but payoff details still need the user to declare
- *  them once.
- *
- *  Behavior:
- *  - No existing `Debt` row for this account (brand new card, no payoff details declared yet) →
- *    does NOT create one with invented apr/minPayment (0%/£0 would make `debtEngine.summarise`
- *    report a false instant/free payoff — ACCOUNTS_MODEL.md §2.4's explicit warning). Returns
- *    `{ needsPayoffDetails: true }` so the caller can surface an "add payoff details" prompt
- *    (mirroring `strategies/debt.ts`'s existing empty-state honesty pattern). The account's balance
- *    itself is still tracked correctly by `selectNetPositionMinor`/`totalDebtMinor` even with no
- *    linked `Debt` row — only the amortisation VIEW (months-to-payoff) needs the extra fields.
- *  - An existing linked `Debt` row → updates its `balance` from the account's `balanceMinor`,
- *    leaving `apr`/`minPayment`/`dueDom`/`name` untouched (those are the user's own declarations,
- *    never overwritten by a statement import). Returns `{ needsPayoffDetails: false }`.
- *
- *  Not exported — `addAccount`/`setAccountBalance` call this internally for any `kind: 'credit-card'`
- *  account, so every write path that can change a card's balance stays in sync automatically; a
- *  caller never needs to remember to call this separately. */
-function syncCardDebt(accountId: string, balanceMinor: number): { needsPayoffDetails: boolean } {
-  const debts = state.debts ?? [];
-  const linkedId = cardDebtId(accountId);
-  const existing = debts.find((d) => d.id === linkedId);
-  if (existing === undefined) {
-    return { needsPayoffDetails: true };
-  }
-  setPartial({
-    debts: debts.map((d) => (d.id === linkedId ? { ...d, balance: Math.max(0, balanceMinor) } : d)),
-  });
-  return { needsPayoffDetails: false };
-}
-
 /** ACCOUNTS_MODEL.md §2.4 — declare payoff details (APR/min payment/due day) for a credit-card
- *  `Account` that has no linked `Debt` row yet (i.e. `syncCardDebt` returned `needsPayoffDetails:
- *  true`). Creates the linked `Debt` row keyed by `debt-for-${accountId}` with the account's CURRENT
+ *  `Account` that has no linked `Debt` row yet. Creates the linked `Debt` row keyed by
+ *  `debt-for-${accountId}` with the account's CURRENT
  *  balance. No-op if the account doesn't exist, isn't a credit card, or already has a linked `Debt`
  *  row (use `addDebt`/direct edits for a standalone loan/BNPL `Debt` — this is only for the
  *  account-linked card path). This is the UI seam the "add payoff details" prompt calls. */
@@ -1915,7 +2429,21 @@ export function addCardPayoffDetails(
     addedAt: new Date().toISOString(),
     linkedAccountId: accountId,
   };
-  setPartial({ debts: [...debts, full] });
+  setPartialWithTypedCommand(
+    { debts: [...debts, full] },
+    {
+      commandType: 'folio.debt.card_payoff_details.add.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'account', id: accountId },
+        { type: 'debt', id: full.id },
+      ],
+      before: { account },
+      after: { debt: full },
+      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+      occurredAt: full.addedAt,
+    },
+  );
   return full;
 }
 
@@ -1925,11 +2453,9 @@ export function addCardPayoffDetails(
  *  ACCOUNTS_MODEL.md §2.1's convention — pass it explicitly to override. Account-picker/creator UI is
  *  P3; this is the plumbing it will call.
  *
- *  ACCOUNTS_MODEL.md §2.4 (P2) — a `kind: 'credit-card'` account with a non-zero starting balance
- *  attempts `syncCardDebt` immediately (a card can be added with its statement-derived balance already
- *  known, e.g. from the account-creation flow), so it appears in `totalDebtMinor`/the debt view
- *  without a separate "now sync it" step. A brand-new card with no linked `Debt` row yet still needs
- *  `addCardPayoffDetails` before it contributes amortisation math (payoff months) — see `syncCardDebt`. */
+ *  ACCOUNTS_MODEL.md §2.4 (P2) — a brand-new card is never given invented APR/minimum-payment
+ *  details. It still contributes to net position immediately, and `addCardPayoffDetails` creates the
+ *  linked amortisation row only after the user declares those missing facts. */
 export function addAccount(
   input: Partial<Omit<Account, 'id'>> & Pick<Account, 'name' | 'kind'>,
 ): Account {
@@ -1946,6 +2472,7 @@ export function addAccount(
     ...(input.closed !== undefined ? { closed: input.closed } : {}),
   };
   const nextAccounts = [...(state.accounts ?? []), account];
+  let patch: Partial<AppState>;
   if (!account.isLiability && account.balanceMinor !== 0) {
     // Same two-way sync invariant as `setAccountBalance`: a new bank account arriving WITH an
     // opening balance moves bank money, so the legacy scalar follows the bank sum in the same
@@ -1954,7 +2481,7 @@ export function addAccount(
     const bankTotal = nextAccounts
       .filter((a) => !a.isLiability)
       .reduce((sum, a) => sum + a.balanceMinor, 0);
-    setPartial({
+    patch = {
       accounts: nextAccounts,
       currentBalance: {
         amount: bankTotal,
@@ -1962,21 +2489,41 @@ export function addAccount(
         confidence: 'corrected',
         setAt: account.balanceAsOfISO,
       },
-    });
+    };
   } else {
-    setPartial({ accounts: nextAccounts });
+    patch = { accounts: nextAccounts };
   }
-  if (account.kind === 'credit-card') syncCardDebt(account.id, account.balanceMinor);
+  setPartialWithTypedCommand(patch, {
+    commandType: 'folio.account.add.v1',
+    actorKind: 'user',
+    entityRefs: [{ type: 'account', id: account.id }],
+    before: {},
+    after: { account },
+    changedEntityIds: [account.id],
+    invalidatedProjectionKinds: ['accounts', 'account-balances', 'cashflow'],
+    occurredAt: now,
+  });
   return account;
 }
 
 /** Rename an existing account. No-op if the id doesn't exist. */
 export function renameAccount(accountId: string, name: string) {
   const accounts = state.accounts ?? [];
-  if (!accounts.some((a) => a.id === accountId)) return;
-  setPartial({
-    accounts: accounts.map((a) => (a.id === accountId ? { ...a, name } : a)),
-  });
+  const account = accounts.find((candidate) => candidate.id === accountId);
+  if (account === undefined || account.name === name) return;
+  const renamed = { ...account, name };
+  setPartialWithTypedCommand(
+    { accounts: accounts.map((candidate) => (candidate.id === accountId ? renamed : candidate)) },
+    {
+      commandType: 'folio.account.rename.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'account', id: accountId }],
+      before: { account },
+      after: { account: renamed },
+      changedEntityIds: [accountId],
+      invalidatedProjectionKinds: ['accounts'],
+    },
+  );
 }
 
 /** ACCOUNTS_MODEL.md §3 step 4 — set a SPECIFIC account's balance (replaces the global
@@ -1992,10 +2539,9 @@ export function renameAccount(accountId: string, name: string) {
  *  must not masquerade as user-entered); it defaults to a manual correction. Liability (card)
  *  writes never touch the scalar — borrowing is not bank money.
  *
- *  ACCOUNTS_MODEL.md §2.4 (P2) — when the account is `kind: 'credit-card'`, also runs `syncCardDebt`
- *  so its linked `Debt` row's balance stays current (a statement import's closing balance, or a
- *  manual edit, both flow through this single write path). See `syncCardDebt`'s doc for the
- *  find-or-create contract and the `needsPayoffDetails` signal. */
+ *  ACCOUNTS_MODEL.md §2.4 (P2) — when the account is `kind: 'credit-card'` and already has declared
+ *  payoff details, its linked `Debt` balance is updated in this same typed mutation. A card without
+ *  payoff details remains honest rather than acquiring invented APR/minimum-payment values. */
 export function setAccountBalance(
   accountId: string,
   amount: number,
@@ -2009,23 +2555,48 @@ export function setAccountBalance(
   const nextAccounts = accounts.map((a) =>
     a.id === accountId ? { ...a, balanceMinor: amount, balanceAsOfISO } : a,
   );
+  let nextDebts = state.debts ?? [];
+  const linkedDebtId = cardDebtId(accountId);
+  const linkedDebtChanged =
+    account.kind === 'credit-card' && nextDebts.some((debt) => debt.id === linkedDebtId);
+  if (linkedDebtChanged) {
+    nextDebts = nextDebts.map((debt) =>
+      debt.id === linkedDebtId ? { ...debt, balance: Math.max(0, amount) } : debt,
+    );
+  }
+  let patch: Partial<AppState>;
   if (account.isLiability) {
-    setPartial({ accounts: nextAccounts });
+    patch = { accounts: nextAccounts, ...(linkedDebtChanged ? { debts: nextDebts } : {}) };
   } else {
     const bankTotal = nextAccounts
       .filter((a) => !a.isLiability)
       .reduce((sum, a) => sum + a.balanceMinor, 0);
-    setPartial({
+    patch = {
       accounts: nextAccounts,
+      ...(linkedDebtChanged ? { debts: nextDebts } : {}),
       currentBalance: {
         amount: bankTotal,
         source: provenance?.source ?? 'corrected',
         confidence: provenance?.confidence ?? 'corrected',
         setAt: balanceAsOfISO,
       },
-    });
+    };
   }
-  if (account.kind === 'credit-card') syncCardDebt(accountId, amount);
+  setPartialWithTypedCommand(patch, {
+    commandType: 'folio.account.set_balance.v1',
+    actorKind: balanceActorKind(provenance?.source ?? 'corrected'),
+    entityRefs: [
+      { type: 'account', id: accountId },
+      ...(linkedDebtChanged ? [{ type: 'debt', id: linkedDebtId }] : []),
+    ],
+    before: {
+      balance: { amount: account.balanceMinor, asOfISO: account.balanceAsOfISO },
+    },
+    after: { balance: { amount, asOfISO: balanceAsOfISO } },
+    changedEntityIds: [accountId, ...(linkedDebtChanged ? [linkedDebtId] : [])],
+    invalidatedProjectionKinds: ['account-balances', 'cashflow', 'debt-summary'],
+    occurredAt: balanceAsOfISO,
+  });
 }
 
 /** ACCOUNTS_MODEL.md §2.4 — sum of non-liability (`bank`/`savings`/`cash`) account balances. This is
@@ -2080,7 +2651,17 @@ export function setNextYouNote(note: string) {
 }
 
 export function setTightPointGoal(amount: number | null) {
-  setPartial({ tightPointGoal: amount });
+  setPartialWithTypedCommand(
+    { tightPointGoal: amount },
+    {
+      commandType: 'folio.financial_context.tight_point_goal.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { tightPointGoal: state.tightPointGoal },
+      after: { tightPointGoal: amount },
+      invalidatedProjectionKinds: ['cashflow', 'route'],
+    },
+  );
 }
 
 /* ---------- Income sources (`lib/income.ts`) ---------- */
@@ -2092,7 +2673,17 @@ export function setIncomeSources(
 ) {
   const prev = state.incomeSources ?? DEFAULT_INCOME_SOURCES;
   const next = typeof sources === 'function' ? sources(prev) : sources;
-  setPartial({ incomeSources: next });
+  setPartialWithTypedCommand(
+    { incomeSources: next },
+    {
+      commandType: 'folio.income_schedules.replace.v1',
+      actorKind: 'user',
+      entityRefs: [workspaceCollectionEntityRef('income-schedule-set')],
+      before: { incomeSources: prev },
+      after: { incomeSources: next },
+      invalidatedProjectionKinds: ['income', 'calendar', 'cashflow', 'route'],
+    },
+  );
 }
 
 /** Add a new source, or replace the existing one with the same `id`. Immutable
@@ -2103,13 +2694,40 @@ export function upsertIncomeSource(sourceEntry: IncomeSource) {
   const next = exists
     ? prev.map((s) => (s.id === sourceEntry.id ? sourceEntry : s))
     : [...prev, sourceEntry];
-  setPartial({ incomeSources: next });
+  setPartialWithTypedCommand(
+    { incomeSources: next },
+    {
+      commandType: exists ? 'folio.income_schedule.update.v1' : 'folio.income_schedule.add.v1',
+      // Upsert is a committed user action even when the candidate originated from inference.
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('income-schedule', sourceEntry.id)],
+      before: { incomeSource: prev.find((source) => source.id === sourceEntry.id) ?? null },
+      after: { incomeSource: sourceEntry },
+      invalidatedProjectionKinds: ['income', 'calendar', 'cashflow', 'route'],
+    },
+  );
 }
 
 /** Remove a source by id. No-op if the id is not present. */
 export function removeIncomeSource(id: string) {
   const prev = state.incomeSources ?? DEFAULT_INCOME_SOURCES;
-  setPartial({ incomeSources: prev.filter((s) => s.id !== id) });
+  const removed = prev.find((source) => source.id === id);
+  const incomeSources = prev.filter((source) => source.id !== id);
+  if (removed === undefined) {
+    setPartial({ incomeSources });
+    return;
+  }
+  setPartialWithTypedCommand(
+    { incomeSources },
+    {
+      commandType: 'folio.income_schedule.remove.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('income-schedule', id)],
+      before: { incomeSource: removed },
+      after: { incomeSource: null },
+      invalidatedProjectionKinds: ['income', 'calendar', 'cashflow', 'route'],
+    },
+  );
 }
 
 /** Normalise a merchant name into the `dismissedIncomeSignals` key — matches
@@ -2127,7 +2745,18 @@ export function dismissIncomeSignal(merchant: string) {
   const key = normaliseIncomeSignalKey(merchant);
   const current = state.dismissedIncomeSignals ?? [];
   if (current.includes(key)) return;
-  setPartial({ dismissedIncomeSignals: [key, ...current] });
+  const dismissedIncomeSignals = [key, ...current];
+  setPartialWithTypedCommand(
+    { dismissedIncomeSignals },
+    {
+      commandType: 'folio.intelligence.income_signal.dismiss.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('income-signal', key)],
+      before: { dismissedIncomeSignals: current },
+      after: { dismissedIncomeSignals },
+      invalidatedProjectionKinds: ['income-signals'],
+    },
+  );
 }
 
 /* ---------- Bill signals (`lib/caughtBills.ts`) — DATA_INTELLIGENCE.md phase ⑤(B) ---------- */
@@ -2141,7 +2770,18 @@ export function dismissBillSignal(merchant: string) {
   const key = normaliseIncomeSignalKey(merchant);
   const current = state.dismissedBillSignals ?? [];
   if (current.includes(key)) return;
-  setPartial({ dismissedBillSignals: [key, ...current] });
+  const dismissedBillSignals = [key, ...current];
+  setPartialWithTypedCommand(
+    { dismissedBillSignals },
+    {
+      commandType: 'folio.intelligence.bill_signal.dismiss.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('bill-signal', key)],
+      before: { dismissedBillSignals: current },
+      after: { dismissedBillSignals },
+      invalidatedProjectionKinds: ['bill-signals'],
+    },
+  );
 }
 
 /* ---------- Drift signals (`lib/driftSignals.ts`) — DATA_INTELLIGENCE.md phase ⑥ ---------- */
@@ -2150,13 +2790,22 @@ export function dismissBillSignal(merchant: string) {
 /** Shared writer for both drift actions below — records (or refreshes) this merchant's cooldown
  *  entry with `at` = now, replacing any prior entry for the SAME merchant (never accumulating one row
  *  per re-trigger) so `findDriftCandidates`'s cooldown check always reads the MOST RECENT action. */
-function recordDriftCooldown(merchant: string) {
+function recordDriftCooldown(merchant: string, action: 'dismiss' | 'confirm') {
   const key = normaliseIncomeSignalKey(merchant);
   const current = state.dismissedDriftSignals ?? [];
   const rest = current.filter((entry) => entry.merchant !== key);
-  setPartial({
-    dismissedDriftSignals: [{ merchant: key, at: new Date().toISOString() }, ...rest],
-  });
+  const dismissedDriftSignals = [{ merchant: key, at: new Date().toISOString() }, ...rest];
+  setPartialWithTypedCommand(
+    { dismissedDriftSignals },
+    {
+      commandType: `folio.intelligence.drift_signal.${action}.v1`,
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('drift-signal', key)],
+      before: { dismissedDriftSignals: current },
+      after: { dismissedDriftSignals },
+      invalidatedProjectionKinds: ['drift-signals'],
+    },
+  );
 }
 
 /** Record a detected drift-signal merchant as DISMISSED (`DriftCaughtSheet`'s "Not this one", either
@@ -2166,7 +2815,7 @@ function recordDriftCooldown(merchant: string) {
  *  deviation exceeds the cooldown's `DRIFT_COOLDOWN_BREAKTHROUGH_FRACTION` (30%) break-through, per
  *  `lib/caughtDrift.ts`'s `findDriftCandidates`. */
 export function dismissDriftSignal(merchant: string) {
-  recordDriftCooldown(merchant);
+  recordDriftCooldown(merchant, 'dismiss');
 }
 
 /** Record a detected drift-signal merchant as CONFIRMED (`DriftCaughtSheet`'s "Yes, update it", either
@@ -2176,7 +2825,7 @@ export function dismissDriftSignal(merchant: string) {
  *  small re-detections of the number that was JUST corrected (classic thrash source — noisy pay ±10-14%
  *  re-triggering every landing) while still letting a genuinely new >30% deviation break through. */
 export function confirmDriftSignal(merchant: string) {
-  recordDriftCooldown(merchant);
+  recordDriftCooldown(merchant, 'confirm');
 }
 
 /* ---------- Annual candidates (`lib/historyStats.ts` detectAnnualCandidates) ---------- */
@@ -2190,10 +2839,40 @@ export function dismissAnnualSignal(merchant: string) {
   const key = normaliseIncomeSignalKey(merchant);
   const current = state.dismissedAnnualSignals ?? [];
   if (current.includes(key)) return;
-  setPartial({ dismissedAnnualSignals: [key, ...current] });
+  const dismissedAnnualSignals = [key, ...current];
+  setPartialWithTypedCommand(
+    { dismissedAnnualSignals },
+    {
+      commandType: 'folio.intelligence.annual_signal.dismiss.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('annual-signal', key)],
+      before: { dismissedAnnualSignals: current },
+      after: { dismissedAnnualSignals },
+      invalidatedProjectionKinds: ['annual-signals'],
+    },
+  );
 }
 
 /* ---------- Merchant→category memory (`lib/merchantMemory.ts`) ---------- */
+
+function setMerchantCategoriesWithTypedCommand(
+  key: string,
+  current: MerchantCategoryMap,
+  merchantCategories: MerchantCategoryMap,
+  action: 'remember' | 'forget',
+): void {
+  setPartialWithTypedCommand(
+    { merchantCategories },
+    {
+      commandType: `folio.intelligence.merchant_category.${action}.v1`,
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('merchant-category', key)],
+      before: { memory: current[key] ?? null },
+      after: { memory: merchantCategories[key] ?? null },
+      invalidatedProjectionKinds: ['merchant-memory', 'review-proposals'],
+    },
+  );
+}
 
 /** Record (or update) the user's category correction for a merchant —
  *  `ReviewScreen.tsx`'s category-chip pick / edit-transaction sheet is the
@@ -2226,14 +2905,24 @@ export function rememberMerchantCategory(merchant: string, category: string) {
 
   if (existing) {
     const nextEntry = buildFlipEntry(existing, category, correctedAt);
-    setPartial({ merchantCategories: { ...current, [key]: nextEntry } });
+    setMerchantCategoriesWithTypedCommand(
+      key,
+      current,
+      { ...current, [key]: nextEntry },
+      'remember',
+    );
     return;
   }
 
   const nextEntry = { category, correctedAt, hits: 1 };
   const entries = Object.entries(current);
   if (entries.length < MERCHANT_CATEGORY_CAP) {
-    setPartial({ merchantCategories: { ...current, [key]: nextEntry } });
+    setMerchantCategoriesWithTypedCommand(
+      key,
+      current,
+      { ...current, [key]: nextEntry },
+      'remember',
+    );
     return;
   }
 
@@ -2242,7 +2931,7 @@ export function rememberMerchantCategory(merchant: string, category: string) {
   const oldest = entries.reduce((a, b) => (a[1].correctedAt <= b[1].correctedAt ? a : b));
   const rest = { ...current };
   delete rest[oldest[0]];
-  setPartial({ merchantCategories: { ...rest, [key]: nextEntry } });
+  setMerchantCategoriesWithTypedCommand(key, current, { ...rest, [key]: nextEntry }, 'remember');
 }
 
 /** Pure helper for `rememberMerchantCategory`'s flip-threshold decision on an
@@ -2287,26 +2976,58 @@ export function forgetMerchantCategory(merchant: string) {
   const current = state.merchantCategories ?? DEFAULT_MERCHANT_CATEGORIES;
   if (!(key in current)) return;
   const { [key]: _removed, ...rest } = current;
-  setPartial({ merchantCategories: rest });
+  setMerchantCategoriesWithTypedCommand(key, current, rest, 'forget');
 }
 
 /* ---------- Lens / Money Mode engine (ports folio-melo `lib/store.ts` 1:1) ---------- */
 
 /** The user's declared Money Mode / Lens. See `lib/modes/types.ts`. */
 export function setMoneyMode(mode: MoneyMode) {
-  setPartial({ moneyMode: mode });
+  setPartialWithTypedCommand(
+    { moneyMode: mode },
+    {
+      commandType: 'folio.financial_context.money_mode.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { moneyMode: state.moneyMode ?? DEFAULT_MONEY_MODE },
+      after: { moneyMode: mode },
+      invalidatedProjectionKinds: ['lens', 'cashflow', 'route'],
+    },
+  );
 }
 
 /** User-declared safety buffer for Stability + other buffer-aware lenses. */
 export function setBufferAmount(amount: number) {
-  setPartial({ bufferAmount: Math.max(0, Math.round(amount)) });
+  const bufferAmount = Math.max(0, Math.round(amount));
+  setPartialWithTypedCommand(
+    { bufferAmount },
+    {
+      commandType: 'folio.financial_context.buffer.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { bufferAmount: state.bufferAmount ?? DEFAULT_BUFFER_AMOUNT },
+      after: { bufferAmount },
+      invalidatedProjectionKinds: ['cashflow', 'route'],
+    },
+  );
 }
 
 /** Record a mode's onboarding follow-up answer (£). Merged per mode — re-running onboarding with a
  *  different intent never wipes another mode's declaration. See `AppState.modeExtras`. */
 export function setModeExtra(mode: MoneyMode, amount: number) {
   const current = state.modeExtras ?? {};
-  setPartial({ modeExtras: { ...current, [mode]: Math.max(0, Math.round(amount)) } });
+  const modeExtras = { ...current, [mode]: Math.max(0, Math.round(amount)) };
+  setPartialWithTypedCommand(
+    { modeExtras },
+    {
+      commandType: 'folio.financial_context.mode_extra.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { modeExtras: current },
+      after: { modeExtras },
+      invalidatedProjectionKinds: ['lens', 'cashflow', 'route'],
+    },
+  );
 }
 
 /** FULL (one-time tier) entitlement setter — the write path since the Free/Full/Live
@@ -2314,7 +3035,19 @@ export function setModeExtra(mode: MoneyMode, amount: number) {
  *  entitlement record, `useLens`'s grandfather rule) agrees. */
 export function setLensFullUnlocked(unlocked: boolean) {
   const lens: LensState = state.lens ?? DEFAULT_LENS;
-  setPartial({ lens: { ...lens, plusUnlocked: unlocked, proUnlocked: unlocked } });
+  const next = { ...lens, plusUnlocked: unlocked, proUnlocked: unlocked };
+  if (structurallyEqual(lens, next)) return;
+  setPartialWithTypedCommand(
+    { lens: next },
+    {
+      commandType: 'folio.companion.entitlement.reconcile.v1',
+      actorKind: 'system',
+      entityRefs: [workspaceCollectionEntityRef('companion-runtime')],
+      before: { lens },
+      after: { lens: next },
+      invalidatedProjectionKinds: ['entitlements', 'lens', 'companion'],
+    },
+  );
 }
 
 /** @deprecated Legacy Plus setter — kept for the entitlement reconciler's back-compat path only.
@@ -2338,14 +3071,23 @@ export function setLensProUnlocked(unlocked: boolean) {
 export function startLensTrial(cycleId: string) {
   const lens: LensState = state.lens ?? DEFAULT_LENS;
   if (lens.trialCycleId !== null || lens.trialEndedCycleId !== null) return;
-  setPartial({
-    lens: {
-      ...lens,
-      trialCycleId: cycleId,
-      trialEndedCycleId: null,
-      trialEndAcknowledged: true,
+  const next = {
+    ...lens,
+    trialCycleId: cycleId,
+    trialEndedCycleId: null,
+    trialEndAcknowledged: true,
+  };
+  setPartialWithTypedCommand(
+    { lens: next },
+    {
+      commandType: 'folio.companion.lens_trial.start.v1',
+      actorKind: 'user',
+      entityRefs: [workspaceCollectionEntityRef('companion-runtime')],
+      before: { lens },
+      after: { lens: next },
+      invalidatedProjectionKinds: ['entitlements', 'lens', 'companion'],
     },
-  });
+  );
 }
 
 /** End the active trial. Called by `lib/lens.ts`'s `endLensTrialIfExpired` (boot / foreground /
@@ -2356,29 +3098,62 @@ export function startLensTrial(cycleId: string) {
 export function endLensTrial() {
   const lens: LensState = state.lens ?? DEFAULT_LENS;
   if (lens.trialCycleId === null) return;
-  setPartial({
-    lens: {
-      ...lens,
-      trialCycleId: null,
-      trialEndedCycleId: lens.trialCycleId,
-      trialEndAcknowledged: false,
+  const next = {
+    ...lens,
+    trialCycleId: null,
+    trialEndedCycleId: lens.trialCycleId,
+    trialEndAcknowledged: false,
+  };
+  setPartialWithTypedCommand(
+    { lens: next },
+    {
+      commandType: 'folio.companion.lens_trial.end.v1',
+      actorKind: 'system',
+      entityRefs: [workspaceCollectionEntityRef('companion-runtime')],
+      before: { lens },
+      after: { lens: next },
+      invalidatedProjectionKinds: ['entitlements', 'lens', 'companion'],
     },
-  });
+  );
 }
 
 /** User has seen the "trial ended" prompt on Today — don't show it again. */
 export function acknowledgeTrialEnd() {
   const lens: LensState = state.lens ?? DEFAULT_LENS;
-  setPartial({ lens: { ...lens, trialEndAcknowledged: true } });
+  if (lens.trialEndAcknowledged) return;
+  const next = { ...lens, trialEndAcknowledged: true };
+  setPartialWithTypedCommand(
+    { lens: next },
+    {
+      commandType: 'folio.companion.lens_trial.acknowledge_end.v1',
+      actorKind: 'user',
+      entityRefs: [workspaceCollectionEntityRef('companion-runtime')],
+      before: { lens },
+      after: { lens: next },
+      invalidatedProjectionKinds: ['lens', 'companion'],
+    },
+  );
 }
 
 /* ---------- Melo companion settings (`MeloScreen`) ---------- */
 
-/** Patch the Melo companion settings (quiet mode / wardrobe). Immutable —
+/** Patch the Melo companion settings (quiet mode / wardrobe / global tone). Immutable —
  *  merges onto the current `melo` slice (or the default if absent). */
 export function setMelo(patch: Partial<MeloState>) {
   const melo: MeloState = state.melo ?? DEFAULT_MELO;
-  setPartial({ melo: { ...melo, ...patch } });
+  const next = { ...melo, ...patch };
+  if (structurallyEqual(melo, next)) return;
+  setPartialWithTypedCommand(
+    { melo: next },
+    {
+      commandType: 'folio.companion.preferences.update.v1',
+      actorKind: 'user',
+      entityRefs: [workspaceCollectionEntityRef('companion-runtime')],
+      before: { melo },
+      after: { melo: next },
+      invalidatedProjectionKinds: ['companion'],
+    },
+  );
 }
 
 /* ---------- Debts (Debt lens) ---------- */
@@ -2393,13 +3168,47 @@ export function addDebt(d: Omit<Debt, 'id' | 'addedAt'> & { id?: string; addedAt
     minPayment: d.minPayment,
     dueDom: d.dueDom,
     addedAt: d.addedAt ?? new Date().toISOString(),
+    ...(d.linkedAccountId !== undefined ? { linkedAccountId: d.linkedAccountId } : {}),
   };
-  setPartial({ debts: [...(state.debts ?? []), full] });
+  setPartialWithTypedCommand(
+    { debts: [...(state.debts ?? []), full] },
+    {
+      commandType: 'folio.debt.add.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'debt', id: full.id },
+        ...(full.linkedAccountId === undefined
+          ? []
+          : [{ type: 'account', id: full.linkedAccountId }]),
+      ],
+      before: {},
+      after: { debt: full },
+      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+      occurredAt: full.addedAt,
+    },
+  );
   return full;
 }
 
 export function removeDebt(id: string) {
-  setPartial({ debts: (state.debts ?? []).filter((d) => d.id !== id) });
+  const target = (state.debts ?? []).find((debt) => debt.id === id);
+  if (target === undefined) return;
+  setPartialWithTypedCommand(
+    { debts: (state.debts ?? []).filter((debt) => debt.id !== id) },
+    {
+      commandType: 'folio.debt.remove.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'debt', id },
+        ...(target.linkedAccountId === undefined
+          ? []
+          : [{ type: 'account', id: target.linkedAccountId }]),
+      ],
+      before: { debt: target },
+      after: {},
+      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+    },
+  );
 }
 
 /** Log a payment against a debt — decrements the balance, never below £0. A card-linked Debt
@@ -2414,19 +3223,53 @@ export function logDebtPayment(id: string, amount: number) {
   );
   const linkedId = target.linkedAccountId;
   if (linkedId !== undefined) {
+    const linkedAccount = (state.accounts ?? []).find((account) => account.id === linkedId);
+    const changedAt = new Date().toISOString();
     const accounts = (state.accounts ?? []).map((a) =>
       a.id === linkedId
         ? {
             ...a,
             balanceMinor: Math.max(0, a.balanceMinor - amount),
-            balanceAsOfISO: new Date().toISOString(),
+            balanceAsOfISO: changedAt,
           }
         : a,
     );
-    setPartial({ debts: nextDebts, accounts });
+    setPartialWithTypedCommand(
+      { debts: nextDebts, accounts },
+      {
+        commandType: 'folio.debt.payment.record.v1',
+        actorKind: 'user',
+        entityRefs: [
+          { type: 'debt', id },
+          ...(linkedAccount === undefined ? [] : [{ type: 'account', id: linkedId }]),
+        ],
+        before: {
+          debt: target,
+          ...(linkedAccount === undefined ? {} : { account: linkedAccount }),
+        },
+        after: {
+          debt: nextDebts.find((debt) => debt.id === id),
+          ...(linkedAccount === undefined
+            ? {}
+            : { account: accounts.find((account) => account.id === linkedId) }),
+        },
+        invalidatedProjectionKinds: ['account-balances', 'debt-summary', 'cashflow'],
+        occurredAt: changedAt,
+      },
+    );
     return;
   }
-  setPartial({ debts: nextDebts });
+  setPartialWithTypedCommand(
+    { debts: nextDebts },
+    {
+      commandType: 'folio.debt.payment.record.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'debt', id }],
+      before: { debt: target },
+      after: { debt: nextDebts.find((debt) => debt.id === id) },
+      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+    },
+  );
 }
 
 /** Reverses a logged payment — increments the balance back by `amount`. Used by LogPaymentSheet's
@@ -2442,15 +3285,49 @@ export function undoDebtPayment(id: string, amount: number) {
   );
   const linkedId = target.linkedAccountId;
   if (linkedId !== undefined) {
+    const linkedAccount = (state.accounts ?? []).find((account) => account.id === linkedId);
+    const changedAt = new Date().toISOString();
     const accounts = (state.accounts ?? []).map((a) =>
       a.id === linkedId
-        ? { ...a, balanceMinor: a.balanceMinor + amount, balanceAsOfISO: new Date().toISOString() }
+        ? { ...a, balanceMinor: a.balanceMinor + amount, balanceAsOfISO: changedAt }
         : a,
     );
-    setPartial({ debts: nextDebts, accounts });
+    setPartialWithTypedCommand(
+      { debts: nextDebts, accounts },
+      {
+        commandType: 'folio.debt.payment.reverse.v1',
+        actorKind: 'user',
+        entityRefs: [
+          { type: 'debt', id },
+          ...(linkedAccount === undefined ? [] : [{ type: 'account', id: linkedId }]),
+        ],
+        before: {
+          debt: target,
+          ...(linkedAccount === undefined ? {} : { account: linkedAccount }),
+        },
+        after: {
+          debt: nextDebts.find((debt) => debt.id === id),
+          ...(linkedAccount === undefined
+            ? {}
+            : { account: accounts.find((account) => account.id === linkedId) }),
+        },
+        invalidatedProjectionKinds: ['account-balances', 'debt-summary', 'cashflow'],
+        occurredAt: changedAt,
+      },
+    );
     return;
   }
-  setPartial({ debts: nextDebts });
+  setPartialWithTypedCommand(
+    { debts: nextDebts },
+    {
+      commandType: 'folio.debt.payment.reverse.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'debt', id }],
+      before: { debt: target },
+      after: { debt: nextDebts.find((debt) => debt.id === id) },
+      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+    },
+  );
 }
 
 /** ACCOUNTS_MODEL.md §2.4 point 3 — the payment-path seam for a credit-card `Account` linked to a
@@ -2509,11 +3386,39 @@ export function payCreditCardFromBank(
   const bankTotal = nextAccounts
     .filter((a) => !a.isLiability)
     .reduce((sum, a) => sum + a.balanceMinor, 0);
-  setPartial({
-    accounts: nextAccounts,
-    debts,
-    currentBalance: { amount: bankTotal, source: 'corrected', confidence: 'corrected', setAt: now },
-  });
+  setPartialWithTypedCommand(
+    {
+      accounts: nextAccounts,
+      debts,
+      currentBalance: {
+        amount: bankTotal,
+        source: 'corrected',
+        confidence: 'corrected',
+        setAt: now,
+      },
+    },
+    {
+      commandType: 'folio.credit_card.payment.record.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'account', id: bankAccountId },
+        { type: 'account', id: cardAccountId },
+        ...(debts.some((debt) => debt.id === linkedId) ? [{ type: 'debt', id: linkedId }] : []),
+      ],
+      before: {
+        bankAccount: bank,
+        cardAccount: card,
+        debt: (state.debts ?? []).find((debt) => debt.id === linkedId) ?? null,
+      },
+      after: {
+        bankAccount: nextAccounts.find((account) => account.id === bankAccountId),
+        cardAccount: nextAccounts.find((account) => account.id === cardAccountId),
+        debt: debts.find((debt) => debt.id === linkedId) ?? null,
+      },
+      invalidatedProjectionKinds: ['account-balances', 'debt-summary', 'cashflow'],
+      occurredAt: now,
+    },
+  );
   return true;
 }
 
@@ -2529,45 +3434,116 @@ export function addPlan(p: Omit<Plan, 'id' | 'addedAt'> & { id?: string; addedAt
     perWeek: Math.max(0, p.perWeek),
     addedAt: p.addedAt ?? new Date().toISOString(),
   };
-  setPartial({ plans: [...(state.plans ?? []), full] });
+  setPartialWithTypedCommand(
+    { plans: [...(state.plans ?? []), full] },
+    {
+      commandType: 'folio.plan.add.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('plan', full.id)],
+      before: {},
+      after: { plan: full },
+      invalidatedProjectionKinds: ['plans', 'calendar', 'cashflow', 'route'],
+      occurredAt: full.addedAt,
+    },
+  );
   return full;
 }
 
 export function removePlan(id: string) {
-  setPartial({ plans: (state.plans ?? []).filter((p) => p.id !== id) });
+  const before = (state.plans ?? []).find((plan) => plan.id === id);
+  const plans = (state.plans ?? []).filter((plan) => plan.id !== id);
+  if (before === undefined) {
+    setPartial({ plans });
+    return;
+  }
+  setPartialWithTypedCommand(
+    { plans },
+    {
+      commandType: 'folio.plan.remove.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('plan', id)],
+      before: { plan: before },
+      after: { plan: null },
+      invalidatedProjectionKinds: ['plans', 'calendar', 'cashflow', 'route'],
+    },
+  );
 }
 
 export function addToPlan(id: string, amount: number) {
   if (!(amount > 0)) return;
-  setPartial({
-    plans: (state.plans ?? []).map((p) => (p.id === id ? { ...p, saved: p.saved + amount } : p)),
-  });
+  const before = (state.plans ?? []).find((plan) => plan.id === id);
+  if (before === undefined) return;
+  const plans = (state.plans ?? []).map((plan) =>
+    plan.id === id ? { ...plan, saved: plan.saved + amount } : plan,
+  );
+  setPartialWithTypedCommand(
+    { plans },
+    {
+      commandType: 'folio.plan.contribution.record.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('plan', id)],
+      before: { plan: before },
+      after: { plan: plans.find((plan) => plan.id === id) },
+      invalidatedProjectionKinds: ['plans', 'cashflow', 'route'],
+    },
+  );
 }
 
 /* ---------- Household (Household lens) ---------- */
 
 export function setHousehold(patch: Partial<Household>) {
   const household = state.household ?? DEFAULT_HOUSEHOLD;
-  setPartial({ household: { ...household, ...patch } });
+  const nextHousehold = { ...household, ...patch };
+  setPartialWithTypedCommand(
+    { household: nextHousehold },
+    {
+      commandType: 'folio.financial_context.household.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { household },
+      after: { household: nextHousehold },
+      invalidatedProjectionKinds: ['household', 'cashflow'],
+    },
+  );
 }
 
 export function setSubShareOverride(subName: string, share: number) {
   const household = state.household ?? DEFAULT_HOUSEHOLD;
-  setPartial({
-    household: {
-      ...household,
-      subShareOverrides: {
-        ...household.subShareOverrides,
-        [subName]: Math.max(0, Math.min(1, share)),
-      },
+  const nextHousehold = {
+    ...household,
+    subShareOverrides: {
+      ...household.subShareOverrides,
+      [subName]: Math.max(0, Math.min(1, share)),
     },
-  });
+  };
+  setPartialWithTypedCommand(
+    { household: nextHousehold },
+    {
+      commandType: 'folio.financial_context.household_subscription_share.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { household },
+      after: { household: nextHousehold },
+      invalidatedProjectionKinds: ['household', 'cashflow'],
+    },
+  );
 }
 
 export function removeSubShareOverride(subName: string) {
   const household = state.household ?? DEFAULT_HOUSEHOLD;
   const { [subName]: _gone, ...rest } = household.subShareOverrides;
-  setPartial({ household: { ...household, subShareOverrides: rest } });
+  const nextHousehold = { ...household, subShareOverrides: rest };
+  setPartialWithTypedCommand(
+    { household: nextHousehold },
+    {
+      commandType: 'folio.financial_context.household_subscription_share.remove.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { household },
+      after: { household: nextHousehold },
+      invalidatedProjectionKinds: ['household', 'cashflow'],
+    },
+  );
 }
 
 /** Single retention policy for `transactions` — the ONE place that caps the
@@ -2609,9 +3585,22 @@ function applyTransactionRetention(
   };
 }
 
+function requireSourceEvidence(sourceEvidenceId: string | undefined): EvidenceDocument | undefined {
+  if (sourceEvidenceId === undefined) return undefined;
+  const document = (state.evidenceDocuments ?? []).find(
+    (candidate) =>
+      candidate.id === sourceEvidenceId && candidate.workspaceId === state.activeWorkspaceId,
+  );
+  if (document === undefined) {
+    throw new Error(`Evidence document ${sourceEvidenceId} is unavailable in this workspace.`);
+  }
+  return document;
+}
+
 export function addTransaction(
   t: Omit<Transaction, 'id' | 'when'> & { id?: string; when?: string },
 ): Transaction {
+  requireSourceEvidence(t.sourceEvidenceId);
   const full: Transaction = {
     id: t.id ?? `txn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     when: t.when ?? new Date().toISOString(),
@@ -2619,13 +3608,28 @@ export function addTransaction(
     amount: t.amount,
     category: t.category,
     source: t.source,
+    ...(t.sourceEvidenceId !== undefined ? { sourceEvidenceId: t.sourceEvidenceId } : {}),
     ...(t.accountId !== undefined ? { accountId: t.accountId } : {}),
+    ...(t.externalId !== undefined ? { externalId: t.externalId } : {}),
+    ...(t.bankConnectionId !== undefined ? { bankConnectionId: t.bankConnectionId } : {}),
   };
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
     [full, ...state.transactions],
     state.droppedTransactionCount ?? 0,
   );
-  setPartial({ transactions, droppedTransactionCount });
+  setPartialWithTypedCommand(
+    { transactions, droppedTransactionCount },
+    {
+      commandType: 'folio.transaction.record.v1',
+      actorKind: transactionActorKind([full]),
+      entityRefs: [{ type: 'transaction', id: full.id }],
+      before: {},
+      after: { transaction: full },
+      changedEntityIds: [full.id],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+      occurredAt: full.when,
+    },
+  );
   return full;
 }
 
@@ -2654,6 +3658,7 @@ export function addTransactionsBatch(
   rows: readonly (Omit<Transaction, 'id' | 'when'> & { id?: string; when?: string })[],
 ): Transaction[] {
   if (rows.length === 0) return [];
+  for (const row of rows) requireSourceEvidence(row.sourceEvidenceId);
   const fullRows: Transaction[] = rows.map((t, i) => ({
     id: t.id ?? `txn-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
     when: t.when ?? new Date().toISOString(),
@@ -2661,13 +3666,31 @@ export function addTransactionsBatch(
     amount: t.amount,
     category: t.category,
     source: t.source,
+    ...(t.sourceEvidenceId !== undefined ? { sourceEvidenceId: t.sourceEvidenceId } : {}),
     ...(t.accountId !== undefined ? { accountId: t.accountId } : {}),
+    ...(t.externalId !== undefined ? { externalId: t.externalId } : {}),
+    ...(t.bankConnectionId !== undefined ? { bankConnectionId: t.bankConnectionId } : {}),
   }));
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
     [...fullRows].reverse().concat(state.transactions),
     state.droppedTransactionCount ?? 0,
   );
-  setPartial({ transactions, droppedTransactionCount });
+  setPartialWithTypedCommand(
+    { transactions, droppedTransactionCount },
+    {
+      commandType: 'folio.transactions.record_batch.v1',
+      actorKind: transactionActorKind(fullRows),
+      entityRefs: fullRows.map((transaction) => ({
+        type: 'transaction',
+        id: transaction.id,
+      })),
+      before: {},
+      after: { transactions: fullRows },
+      changedEntityIds: fullRows.map((transaction) => transaction.id),
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+      occurredAt: new Date().toISOString(),
+    },
+  );
   return fullRows;
 }
 
@@ -2689,11 +3712,41 @@ export function syncHistoryCycles(): void {
     state.cycles,
     todayIso,
   );
-  setPartial({ cycles: nextCycles });
+  if (structurallyEqual(state.cycles, nextCycles)) return;
+  const cycleRefs = uniqueOpaqueContainerEntityRefs(
+    'cycle',
+    [...state.cycles, ...nextCycles].map(
+      (cycle) => `${cycle.closedAt}\u001f${cycle.label}\u001f${cycle.reconstructed === true}`,
+    ),
+  );
+  setPartialWithTypedCommand(
+    { cycles: nextCycles },
+    {
+      commandType: 'folio.cycles.reconstruct.v1',
+      actorKind: 'system',
+      entityRefs: cycleRefs,
+      before: { cycles: state.cycles },
+      after: { cycles: nextCycles },
+      invalidatedProjectionKinds: ['cycles', 'insights', 'cashflow'],
+    },
+  );
 }
 
 export function removeTransaction(id: string) {
-  setPartial({ transactions: state.transactions.filter((t) => t.id !== id) });
+  const target = state.transactions.find((transaction) => transaction.id === id);
+  if (target === undefined) return;
+  setPartialWithTypedCommand(
+    { transactions: state.transactions.filter((transaction) => transaction.id !== id) },
+    {
+      commandType: 'folio.transaction.remove.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'transaction', id }],
+      before: { transaction: target },
+      after: {},
+      changedEntityIds: [id],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+    },
+  );
 }
 
 /* ---------- Bulk "add all as history" (task: BULK ADD-AS-HISTORY) ---------- */
@@ -2955,22 +4008,20 @@ export function addStatementAsHistory(
   return result;
 }
 
-/** @rn-engine timeline-verbs — the single write path for the timeline event log (see
- *  `TimelineEvent`). Newest first, capped at 200 (mirrors the `transactions` cap). Internal writer —
- *  called from `togglePaused` (sub-paused/sub-resumed) and `addIgnoredReviewSig` (review-ignored);
- *  not exported, since every verb-state moment already has its own dedicated store action and a
- *  caller should never log an event without also making the underlying change. */
-function logTimelineEvent(kind: TimelineEventKind, subject: string, note?: string): TimelineEvent {
-  const entry: TimelineEvent = {
+/** @rn-engine timeline-verbs — build the timeline side effect that `togglePaused` and
+ * `addIgnoredReviewSig` commit atomically with their underlying typed command. */
+function createTimelineEvent(
+  kind: TimelineEventKind,
+  subject: string,
+  note?: string,
+): TimelineEvent {
+  return {
     id: `tl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     at: new Date().toISOString(),
     kind,
     subject,
     ...(note !== undefined ? { note } : {}),
   };
-  const existing = state.timelineEvents ?? [];
-  setPartial({ timelineEvents: [entry, ...existing].slice(0, 200) });
-  return entry;
 }
 
 /** `CandidateMoneyItem.source` ('csv' | 'paste' | 'pdf' | 'photo') → `StatementImportRecord.source`
@@ -2989,7 +4040,7 @@ function toStatementImportSource(
  *  reaching this, so a byte-identical re-import that adds nothing never logs a phantom row). The
  *  record's `source` is the first landed candidate's own source — good enough for an honest label on
  *  a single-import row without a second "was this a mixed-source batch" concept the UI doesn't need
- *  yet. Newest first, capped at `STATEMENT_IMPORT_CAP` (200), mirroring `logTimelineEvent`'s own
+ *  yet. Newest first, capped at `STATEMENT_IMPORT_CAP` (200), mirroring `timelineEvents`' own
  *  retention shape. Not exported — `addStatementAsHistory` is the only real caller (every import must
  *  go through it, so a caller should never log an import without actually landing one).
  *
@@ -3003,15 +4054,31 @@ function logStatementImport(
 ): void {
   if (newCandidates.length === 0) return;
   const first = newCandidates[0]!;
+  const evidence = first.sourceEvidenceId
+    ? (state.evidenceDocuments ?? []).find((document) => document.id === first.sourceEvidenceId)
+    : undefined;
   const entry: StatementImportRecord = {
     id: `imp-log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     source: toStatementImportSource(first.source),
     rowCount: newCandidates.length,
     atISO: new Date().toISOString(),
     accountId: accountId ?? DEFAULT_ACCOUNT_ID,
+    ...(evidence !== undefined ? { filename: evidence.filename } : {}),
+    ...(first.sourceEvidenceId !== undefined ? { sourceEvidenceId: first.sourceEvidenceId } : {}),
   };
   const existing = state.statementImports ?? [];
-  setPartial({ statementImports: [entry, ...existing].slice(0, STATEMENT_IMPORT_CAP) });
+  const statementImports = [entry, ...existing].slice(0, STATEMENT_IMPORT_CAP);
+  setPartialWithTypedCommand(
+    { statementImports },
+    {
+      commandType: 'folio.intelligence.statement_import.record.v1',
+      actorKind: 'import',
+      entityRefs: [opaqueContainerEntityRef('statement-import', entry.id)],
+      before: { statementImports: existing },
+      after: { statementImports },
+      invalidatedProjectionKinds: ['statement-imports', 'evidence'],
+    },
+  );
 }
 
 /** ENGINES.md §6 "Editing existing transactions — required, never destructive".
@@ -3028,10 +4095,28 @@ export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' |
   const at = new Date().toISOString();
   const { txn: edited, edits } = applyTxnEdit(target, patch, { at, by });
   if (edits.length === 0) return; // no-op edit records nothing and writes nothing.
-  setPartial({
-    transactions: state.transactions.map((t) => (t.id === txnId ? edited : t)),
-    edits: [...(state.edits ?? []), ...edits],
-  });
+  setPartialWithTypedCommand(
+    {
+      transactions: state.transactions.map((t) => (t.id === txnId ? edited : t)),
+      edits: [...(state.edits ?? []), ...edits],
+    },
+    {
+      commandType: 'folio.transaction.correct.v1',
+      actorKind: by === 'melo' ? 'melo' : 'user',
+      entityRefs: [
+        { type: 'transaction', id: txnId },
+        ...edits.flatMap((edit) => (edit.id === undefined ? [] : [{ type: 'edit', id: edit.id }])),
+      ],
+      before: { transaction: target },
+      after: { transaction: edited },
+      changedEntityIds: [
+        txnId,
+        ...edits.flatMap((edit) => (edit.id === undefined ? [] : [edit.id])),
+      ],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+      occurredAt: at,
+    },
+  );
 }
 
 export function addCalendarEvent(e: Omit<CalendarEvent, 'id'> & { id?: string }): CalendarEvent {
@@ -3041,22 +4126,68 @@ export function addCalendarEvent(e: Omit<CalendarEvent, 'id'> & { id?: string })
     kind: e.kind,
     title: e.title,
     // exactOptionalPropertyTypes: only set optional fields when present (never explicit undefined).
+    ...(e.time !== undefined ? { time: e.time } : {}),
     ...(e.note !== undefined ? { note: e.note } : {}),
     ...(e.amount !== undefined ? { amount: e.amount } : {}),
+    ...(e.reminderOffsetMinutes !== undefined
+      ? { reminderOffsetMinutes: e.reminderOffsetMinutes }
+      : {}),
   };
-  setPartial({ calendarEvents: [full, ...state.calendarEvents].slice(0, 100) });
+  setPartialWithTypedCommand(
+    { calendarEvents: [full, ...state.calendarEvents].slice(0, 100) },
+    {
+      commandType: 'folio.calendar_event.add.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('calendar-event', full.id)],
+      before: {},
+      after: { calendarEvent: full },
+      invalidatedProjectionKinds: ['calendar', 'cashflow', 'route'],
+    },
+  );
   return full;
 }
 
 export function removeCalendarEvent(id: string) {
-  setPartial({ calendarEvents: state.calendarEvents.filter((e) => e.id !== id) });
+  const before = state.calendarEvents.find((event) => event.id === id);
+  const calendarEvents = state.calendarEvents.filter((event) => event.id !== id);
+  if (before === undefined) {
+    setPartial({ calendarEvents });
+    return;
+  }
+  setPartialWithTypedCommand(
+    { calendarEvents },
+    {
+      commandType: 'folio.calendar_event.remove.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('calendar-event', id)],
+      before: { calendarEvent: before },
+      after: { calendarEvent: null },
+      invalidatedProjectionKinds: ['calendar', 'cashflow', 'route'],
+    },
+  );
 }
 
 /** Patch a manual calendar event (date nudge / edits). */
 export function updateCalendarEvent(id: string, patch: Partial<Omit<CalendarEvent, 'id'>>) {
-  setPartial({
-    calendarEvents: state.calendarEvents.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-  });
+  const before = state.calendarEvents.find((event) => event.id === id);
+  const calendarEvents = state.calendarEvents.map((event) =>
+    event.id === id ? { ...event, ...patch } : event,
+  );
+  if (before === undefined) {
+    setPartial({ calendarEvents });
+    return;
+  }
+  setPartialWithTypedCommand(
+    { calendarEvents },
+    {
+      commandType: 'folio.calendar_event.update.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('calendar-event', id)],
+      before: { calendarEvent: before },
+      after: { calendarEvent: calendarEvents.find((event) => event.id === id) },
+      invalidatedProjectionKinds: ['calendar', 'cashflow', 'route'],
+    },
+  );
 }
 
 /** Bridge from Route detail → Calendar. Calendar consumes and clears. */
@@ -3086,8 +4217,111 @@ export function setRouteFocusDate(date: string | null) {
  *  through IntakeScreen call this one setter), so recall only needs wiring
  *  here, not at every producer. Category-only: amount/date/kind are untouched. */
 export function setReaderCandidates(items: CandidateMoneyItem[]) {
+  for (const item of items) requireSourceEvidence(item.sourceEvidenceId);
   const withMemory = applyMemoryToCandidates(items, state.merchantCategories);
   setPartial({ readerCandidates: withMemory });
+}
+
+/** Register metadata only after the encrypted original has been durably staged. The picker/cache URI
+ *  is deliberately absent from this shape and therefore cannot leak into the state export. */
+export function addEvidenceDocument(
+  document: Omit<EvidenceDocument, 'workspaceId'> & { workspaceId?: WorkspaceId },
+): EvidenceDocument {
+  if (!/^evidence_[a-f0-9]{32}$/u.test(document.id)) {
+    throw new Error('Evidence document ID is invalid.');
+  }
+  if (
+    !Number.isFinite(Date.parse(document.addedAtISO)) ||
+    new Date(document.addedAtISO).toISOString() !== document.addedAtISO ||
+    document.filename.trim().length === 0 ||
+    document.filename.length > 240 ||
+    document.mediaType.trim().length === 0 ||
+    !Number.isSafeInteger(document.byteSize) ||
+    document.byteSize < 1
+  ) {
+    throw new Error('Evidence document metadata is invalid.');
+  }
+  const existing = (state.evidenceDocuments ?? []).find(
+    (candidate) => candidate.id === document.id,
+  );
+  if (existing !== undefined) {
+    if (
+      existing.workspaceId !== state.activeWorkspaceId ||
+      existing.filename !== document.filename ||
+      existing.mediaType !== document.mediaType ||
+      existing.byteSize !== document.byteSize ||
+      existing.addedAtISO !== document.addedAtISO ||
+      existing.sourceType !== document.sourceType ||
+      existing.extractionStatus !== document.extractionStatus ||
+      existing.storageState !== document.storageState
+    ) {
+      throw new Error(`Evidence document ${document.id} conflicts with an existing record.`);
+    }
+    return existing;
+  }
+  const owned = ownWorkspaceRow(document, state.activeWorkspaceId, `evidence/${document.id}`);
+  // Evidence rows are durable referential metadata. Silently slicing this list would strand older
+  // encrypted originals and break transaction links, so storage pressure must be handled through an
+  // explicit source-removal workflow rather than an invisible collection cap.
+  const evidenceDocuments = [owned, ...(state.evidenceDocuments ?? [])];
+  setPartialWithTypedCommand(
+    { evidenceDocuments },
+    {
+      commandType: 'folio.intelligence.evidence_document.add.v1',
+      actorKind: 'import',
+      entityRefs: [opaqueContainerEntityRef('evidence-document', document.id)],
+      before: { document: null },
+      after: { document: owned },
+      invalidatedProjectionKinds: ['evidence', 'statement-imports'],
+    },
+  );
+  return owned;
+}
+
+function withoutEvidenceLink<T extends { sourceEvidenceId?: string }>(
+  row: T,
+  evidenceId: string,
+): T {
+  if (row.sourceEvidenceId !== evidenceId) return row;
+  const { sourceEvidenceId: _removed, ...rest } = row;
+  return rest as T;
+}
+
+/** Forget one retained original while keeping the user's confirmed money/history. Every reference is
+ *  cleared atomically so the state cannot contain a dangling evidence link. The native caller must
+ *  delete the encrypted file first; this action owns only AppState metadata and relationships. */
+export function removeEvidenceDocument(evidenceId: string): boolean {
+  const documents = state.evidenceDocuments ?? [];
+  const document = documents.find(
+    (candidate) => candidate.id === evidenceId && candidate.workspaceId === state.activeWorkspaceId,
+  );
+  if (document === undefined) return false;
+  const patch: Partial<AppState> = {
+    evidenceDocuments: documents.filter((candidate) => candidate.id !== evidenceId),
+    transactions: state.transactions.map((row) => withoutEvidenceLink(row, evidenceId)),
+    statementImports: (state.statementImports ?? []).map((row) =>
+      withoutEvidenceLink(row, evidenceId),
+    ),
+    readerCandidates: state.readerCandidates.map((row) => withoutEvidenceLink(row, evidenceId)),
+    reviewQueue: (state.reviewQueue ?? []).map((row) => withoutEvidenceLink(row, evidenceId)),
+    reviewQueueSpillover: (state.reviewQueueSpillover ?? []).map((row) =>
+      withoutEvidenceLink(row, evidenceId),
+    ),
+  };
+  setPartialWithTypedCommand(patch, {
+    commandType: 'folio.intelligence.evidence_document.remove.v1',
+    actorKind: 'user',
+    entityRefs: [opaqueContainerEntityRef('evidence-document', evidenceId)],
+    before: { document },
+    after: { document: null },
+    invalidatedProjectionKinds: [
+      'evidence',
+      'transactions',
+      'statement-imports',
+      'review-proposals',
+    ],
+  });
+  return true;
 }
 
 /** Stage the closing balance the statement reader reported alongside a read
@@ -3125,33 +4359,70 @@ export type AiReadCacheEntry = {
 /** Count one AI statement read against the current month. `monthKey` comes from the caller
  *  (lib/billing/readAllowance.ts `monthKeyOf`) so this stays clock-free and Node-testable; a key
  *  change rolls the counter over to 1 (lazy monthly reset). */
-export function recordAiRead(monthKey: string) {
-  const current = state.aiReads;
+export function recordAiRead(workspaceId: WorkspaceId, monthKey: string) {
+  const scoped = requireWorkspaceRows(requireWorkspaceData(state, workspaceId), workspaceId);
+  const current = scoped.aiReads;
   const used = current && current.monthKey === monthKey ? current.used + 1 : 1;
-  setPartial({ aiReads: { monthKey, used } });
+  const aiReads = { monthKey, used };
+  setPartialWithTypedCommand(
+    { aiReads },
+    {
+      commandType: 'folio.companion.ai_read.record.v1',
+      actorKind: 'system',
+      entityRefs: [workspaceCollectionEntityRef('companion-runtime')],
+      before: { aiReads: current ?? null },
+      after: { aiReads },
+      invalidatedProjectionKinds: ['read-allowance', 'companion'],
+    },
+  );
 }
 
 /** Cache a successful statement read by file-content key. Oversized reads are not cached (they
  *  would tax every subsequent persist write more than the saved gateway call is worth); the
  *  oldest entries are evicted so the cache never exceeds READ_CACHE_MAX_ENTRIES. */
-export function cacheAiRead(key: string, entry: AiReadCacheEntry) {
+export function cacheAiRead(workspaceId: WorkspaceId, key: string, entry: AiReadCacheEntry) {
   if (entry.candidates.length > READ_CACHE_MAX_CANDIDATES) return;
-  const current = state.aiReadCache ?? {};
+  const scoped = requireWorkspaceRows(requireWorkspaceData(state, workspaceId), workspaceId);
+  const current = scoped.aiReadCache ?? {};
   const drops = readCacheEvictions(current);
   const kept = Object.fromEntries(Object.entries(current).filter(([k]) => !drops.includes(k)));
-  setPartial({ aiReadCache: { ...kept, [key]: entry } });
+  const aiReadCache = { ...kept, [key]: entry };
+  setPartialWithTypedCommand(
+    { aiReadCache },
+    {
+      commandType: 'folio.companion.ai_read_cache.store.v1',
+      actorKind: 'system',
+      entityRefs: [opaqueContainerEntityRef('ai-read-cache', key)],
+      before: { cacheEntry: current[key] ?? null, evictedKeys: drops },
+      after: { cacheEntry: entry },
+      invalidatedProjectionKinds: ['read-cache', 'companion'],
+    },
+  );
 }
 
 /** The cached read for a file-content key, or null. Pure read — no expiry (a statement's content
  *  never changes; the cache is only bounded by entry-count eviction). */
-export function getCachedAiRead(key: string): AiReadCacheEntry | null {
-  return state.aiReadCache?.[key] ?? null;
+export function getCachedAiRead(workspaceId: WorkspaceId, key: string): AiReadCacheEntry | null {
+  const scoped = requireWorkspaceRows(requireWorkspaceData(state, workspaceId), workspaceId);
+  return scoped.aiReadCache?.[key] ?? null;
 }
 
 /** Stamp the What-Changed baseline (see `AppState.whatChangedSeenISO`). Called by
  *  ui/WhatChangedRow.tsx on its silent first-mount baseline and on every tap-through. */
 export function markWhatChangedSeen(nowISO: string) {
-  setPartial({ whatChangedSeenISO: nowISO });
+  const current = state.whatChangedSeenISO ?? null;
+  if (current === nowISO) return;
+  setPartialWithTypedCommand(
+    { whatChangedSeenISO: nowISO },
+    {
+      commandType: 'folio.companion.what_changed.mark_seen.v1',
+      actorKind: 'system',
+      entityRefs: [workspaceCollectionEntityRef('companion-runtime')],
+      before: { whatChangedSeenISO: current },
+      after: { whatChangedSeenISO: nowISO },
+      invalidatedProjectionKinds: ['what-changed', 'companion'],
+    },
+  );
 }
 
 /** Re-derive every sub's `nextRenewalDaysAway` from its date anchor (lib/renewalMath.ts
@@ -3160,7 +4431,28 @@ export function markWhatChangedSeen(nowISO: string) {
  *  cold start. No-op (no write, no listener churn) when nothing changed. */
 export function reanchorSubRenewals(todayIso: string = new Date().toISOString().slice(0, 10)) {
   const { items, changed } = reanchorRenewals(state.subs, todayIso);
-  if (changed) setPartial({ subs: items });
+  if (changed) {
+    const changedNames = items
+      .filter((subscription, index) => !structurallyEqual(subscription, state.subs[index]))
+      .map((subscription) => subscription.name);
+    setPartialWithTypedCommand(
+      { subs: items },
+      {
+        commandType: 'folio.subscription_renewals.reanchor.v1',
+        actorKind: 'system',
+        entityRefs: uniqueOpaqueContainerEntityRefs('subscription', changedNames),
+        before: {
+          subscriptions: state.subs.filter((subscription) =>
+            changedNames.includes(subscription.name),
+          ),
+        },
+        after: {
+          subscriptions: items.filter((subscription) => changedNames.includes(subscription.name)),
+        },
+        invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+      },
+    );
+  }
 }
 
 export function setReaderClosingBalance(closingBalance: ReaderClosingBalance | null) {
@@ -3213,14 +4505,43 @@ export function reviewCandidateSig(merchant: string, amount: number, date: strin
 export function addIgnoredReviewSig(sig: string, subject?: string) {
   const current = state.ignoredReviewSigs ?? [];
   if (current.includes(sig)) return;
-  setPartial({ ignoredReviewSigs: [sig, ...current] });
-  if (subject) logTimelineEvent('review-ignored', subject);
+  const ignoredReviewSigs = [sig, ...current];
+  const timelineEvent =
+    subject === undefined ? null : createTimelineEvent('review-ignored', subject);
+  const timelineEvents =
+    timelineEvent === null
+      ? undefined
+      : [timelineEvent, ...(state.timelineEvents ?? [])].slice(0, 200);
+  setPartialWithTypedCommand(
+    { ignoredReviewSigs, ...(timelineEvents === undefined ? {} : { timelineEvents }) },
+    {
+      commandType: 'folio.intelligence.review_signature.ignore.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('review-signature', sig)],
+      before: { ignoredReviewSigs: current },
+      after: { ignoredReviewSigs },
+      invalidatedProjectionKinds: ['review-proposals'],
+    },
+  );
 }
 
 /** Un-hide a previously-ignored Review candidate signature (HiddenReviewSheet's
  *  "Un-hide" action) — future intakes matching it will surface again. */
 export function unhideReviewSig(sig: string) {
-  setPartial({ ignoredReviewSigs: (state.ignoredReviewSigs ?? []).filter((s) => s !== sig) });
+  const current = state.ignoredReviewSigs ?? [];
+  if (!current.includes(sig)) return;
+  const ignoredReviewSigs = current.filter((candidate) => candidate !== sig);
+  setPartialWithTypedCommand(
+    { ignoredReviewSigs },
+    {
+      commandType: 'folio.intelligence.review_signature.unhide.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('review-signature', sig)],
+      before: { ignoredReviewSigs: current },
+      after: { ignoredReviewSigs },
+      invalidatedProjectionKinds: ['review-proposals'],
+    },
+  );
 }
 
 /* ---------- reviewQueue — the persisted intake review queue ---------- */
@@ -3280,23 +4601,34 @@ export function enqueueReviewItems(
   const existingQueue = state.reviewQueue ?? [];
   const existingSpillover = state.reviewQueueSpillover ?? [];
   const ignored = new Set(state.ignoredReviewSigs ?? []);
+  const ignoredBankExternalIds = new Set(state.ignoredBankExternalIds ?? []);
   const now = Date.now();
   const fresh: ReviewItem[] = [];
   for (const c of candidates) {
-    if (ignored.has(reviewCandidateSig(c.merchant, c.amount, c.date ?? ''))) continue;
-    const dupe =
-      existingQueue.some(
-        (it) =>
-          it.merchant === c.merchant &&
-          it.amount === c.amount &&
-          (it.date ?? '') === (c.date ?? ''),
-      ) ||
-      existingSpillover.some(
-        (it) =>
-          it.merchant === c.merchant &&
-          it.amount === c.amount &&
-          (it.date ?? '') === (c.date ?? ''),
-      );
+    requireSourceEvidence(c.sourceEvidenceId);
+    if (c.externalId !== undefined && ignoredBankExternalIds.has(c.externalId)) continue;
+    if (
+      c.externalId === undefined &&
+      ignored.has(reviewCandidateSig(c.merchant, c.amount, c.date ?? ''))
+    ) {
+      continue;
+    }
+    const dupe = c.externalId
+      ? state.transactions.some((it) => it.externalId === c.externalId) ||
+        existingQueue.some((it) => it.externalId === c.externalId) ||
+        existingSpillover.some((it) => it.externalId === c.externalId)
+      : existingQueue.some(
+          (it) =>
+            it.merchant === c.merchant &&
+            it.amount === c.amount &&
+            (it.date ?? '') === (c.date ?? ''),
+        ) ||
+        existingSpillover.some(
+          (it) =>
+            it.merchant === c.merchant &&
+            it.amount === c.amount &&
+            (it.date ?? '') === (c.date ?? ''),
+        );
     if (dupe) continue;
     fresh.push({
       ...c,
@@ -3313,7 +4645,19 @@ export function enqueueReviewItems(
   const nextQueue = pool.slice(0, REVIEW_QUEUE_CAP);
   const nextSpillover = pool.slice(REVIEW_QUEUE_CAP, REVIEW_QUEUE_CAP + REVIEW_QUEUE_SPILLOVER_CAP);
 
-  setPartial({ reviewQueue: nextQueue, reviewQueueSpillover: nextSpillover });
+  setPartialWithTypedCommand(
+    { reviewQueue: nextQueue, reviewQueueSpillover: nextSpillover },
+    {
+      commandType: 'folio.review.enqueue.v1',
+      actorKind: reviewActorKind(fresh),
+      entityRefs: fresh.map((item) => ({ type: 'review-proposal', id: item.id })),
+      before: {},
+      after: { proposals: fresh },
+      changedEntityIds: fresh.map((item) => item.id),
+      invalidatedProjectionKinds: ['review-proposals'],
+      occurredAt: fresh[0]!.addedAt,
+    },
+  );
 
   const freshIds = new Set(fresh.map((it) => it.id));
   const freshVisible = nextQueue.filter((it) => freshIds.has(it.id)).length;
@@ -3335,15 +4679,53 @@ export function refillReviewQueueFromSpillover() {
   const now = Date.now();
   const fresh = spillover.filter((it) => now - new Date(it.addedAt).getTime() < REVIEW_TTL_MS);
   if (fresh.length === 0) {
-    if (fresh.length !== spillover.length) setPartial({ reviewQueueSpillover: fresh });
+    if (fresh.length !== spillover.length) {
+      setPartialWithTypedCommand(
+        { reviewQueueSpillover: fresh },
+        {
+          commandType: 'folio.review.spillover.expire.v1',
+          actorKind: 'system',
+          entityRefs: [workspaceCollectionEntityRef('review-queue')],
+          before: { reviewQueueSpillover: spillover },
+          after: { reviewQueueSpillover: fresh },
+          invalidatedProjectionKinds: ['review-proposals'],
+          occurredAt: new Date(now).toISOString(),
+        },
+      );
+    }
     return;
   }
   const toMove = fresh.slice(0, room);
   const remaining = fresh.slice(room);
-  setPartial({
-    reviewQueue: [...queue, ...toMove],
-    reviewQueueSpillover: remaining,
-  });
+  const reviewQueue = [...queue, ...toMove];
+  setPartialWithTypedCommand(
+    { reviewQueue, reviewQueueSpillover: remaining },
+    {
+      commandType: 'folio.review.refill_from_spillover.v1',
+      actorKind: 'system',
+      entityRefs: [workspaceCollectionEntityRef('review-queue')],
+      before: { reviewQueue: queue, reviewQueueSpillover: spillover },
+      after: { reviewQueue, reviewQueueSpillover: remaining },
+      invalidatedProjectionKinds: ['review-proposals'],
+      occurredAt: new Date(now).toISOString(),
+    },
+  );
+}
+
+function refilledReviewQueue(
+  queue: readonly ReviewItem[],
+  spillover: readonly ReviewItem[],
+  now: number,
+): { reviewQueue: ReviewItem[]; reviewQueueSpillover: ReviewItem[] } {
+  const room = REVIEW_QUEUE_CAP - queue.length;
+  if (room <= 0 || spillover.length === 0) {
+    return { reviewQueue: [...queue], reviewQueueSpillover: [...spillover] };
+  }
+  const fresh = spillover.filter((item) => now - new Date(item.addedAt).getTime() < REVIEW_TTL_MS);
+  return {
+    reviewQueue: [...queue, ...fresh.slice(0, room)],
+    reviewQueueSpillover: fresh.slice(room),
+  };
 }
 
 /** Map reader candidates (the `readerCandidates` staging shape) into
@@ -3368,6 +4750,7 @@ export function queueInputFromCandidates(
     merchant: c.merchant,
     amount: c.amount,
     ...(c.date !== undefined ? { date: c.date } : {}),
+    ...(c.sourceEvidenceId !== undefined ? { sourceEvidenceId: c.sourceEvidenceId } : {}),
     ...(accountId !== undefined ? { accountId } : {}),
     ...(c.note !== undefined ? { hint: c.note } : {}),
     ...(c.category !== undefined ? { category: c.category } : {}),
@@ -3380,22 +4763,122 @@ export function queueInputFromCandidates(
  *  `addIgnoredReviewSig`). Silent no-op if the id is gone. Refills the now-freed slot from
  *  `reviewQueueSpillover` (if any) so the visible queue honestly drains the overflow instead of
  *  leaving it parked once there's room for it. */
-export function resolveReviewItem(id: string) {
+export function resolveReviewItem(
+  id: string,
+  resolution: 'accepted' | 'ignored' | 'linked' = 'accepted',
+) {
   const queue = state.reviewQueue ?? [];
+  const target = queue.find((item) => item.id === id);
+  if (target === undefined) return;
   const next = queue.filter((it) => it.id !== id);
-  if (next.length !== queue.length) {
-    setPartial({ reviewQueue: next });
-    refillReviewQueueFromSpillover();
+  const refilled = refilledReviewQueue(next, state.reviewQueueSpillover ?? [], Date.now());
+  setPartialWithTypedCommand(refilled, {
+    commandType: `folio.review.${resolution}.v1`,
+    actorKind: 'user',
+    entityRefs: [{ type: 'review-proposal', id }],
+    before: { proposal: target },
+    after: {},
+    changedEntityIds: [id],
+    invalidatedProjectionKinds: ['review-proposals'],
+  });
+}
+
+const IGNORED_BANK_EXTERNAL_ID_CAP = 2_000;
+
+/** Remember one explicitly ignored Open Banking row without letting one merchant/date/amount
+ *  signature suppress a different legitimate bank transaction. */
+export function addIgnoredBankExternalId(externalId: string): void {
+  const id = externalId.trim();
+  if (id.length === 0) return;
+  const current = state.ignoredBankExternalIds ?? [];
+  if (current.includes(id)) return;
+  const ignoredBankExternalIds = [id, ...current].slice(0, IGNORED_BANK_EXTERNAL_ID_CAP);
+  setPartialWithTypedCommand(
+    { ignoredBankExternalIds },
+    {
+      commandType: 'folio.intelligence.bank_external_id.ignore.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('bank-external-id', id)],
+      before: { ignoredBankExternalIds: current },
+      after: { ignoredBankExternalIds },
+      invalidatedProjectionKinds: ['review-proposals', 'open-banking'],
+    },
+  );
+}
+
+/** Device-side half of Open Banking disconnect. The server disconnect is always separate; this
+ *  function runs only after the user explicitly chooses to remove already accepted/queued bank
+ *  history from this device. */
+export function deleteBankImportedHistory(connectionId: string): {
+  deletedTransactions: number;
+  deletedReviewItems: number;
+} {
+  const transactions = state.transactions.filter(
+    (transaction) => transaction.bankConnectionId !== connectionId,
+  );
+  const reviewQueue = (state.reviewQueue ?? []).filter(
+    (item) => item.bankConnectionId !== connectionId,
+  );
+  const reviewQueueSpillover = (state.reviewQueueSpillover ?? []).filter(
+    (item) => item.bankConnectionId !== connectionId,
+  );
+  const deletedTransactions = state.transactions.length - transactions.length;
+  const deletedReviewItems =
+    (state.reviewQueue?.length ?? 0) +
+    (state.reviewQueueSpillover?.length ?? 0) -
+    reviewQueue.length -
+    reviewQueueSpillover.length;
+  if (deletedTransactions > 0 || deletedReviewItems > 0) {
+    const removedTransactions = state.transactions.filter(
+      (transaction) => transaction.bankConnectionId === connectionId,
+    );
+    const removedReviewItems = [
+      ...(state.reviewQueue ?? []),
+      ...(state.reviewQueueSpillover ?? []),
+    ].filter((item) => item.bankConnectionId === connectionId);
+    setPartialWithTypedCommand(
+      { transactions, reviewQueue, reviewQueueSpillover },
+      {
+        commandType: 'folio.open_banking.history.delete.v1',
+        actorKind: 'user',
+        entityRefs: [
+          ...removedTransactions.map((transaction) => ({
+            type: 'transaction',
+            id: transaction.id,
+          })),
+          ...removedReviewItems.map((item) => ({ type: 'review-proposal', id: item.id })),
+        ],
+        before: { transactions: removedTransactions, proposals: removedReviewItems },
+        after: {},
+        changedEntityIds: [
+          ...removedTransactions.map((transaction) => transaction.id),
+          ...removedReviewItems.map((item) => item.id),
+        ],
+        invalidatedProjectionKinds: ['transactions', 'cashflow', 'review-proposals'],
+      },
+    );
   }
+  return { deletedTransactions, deletedReviewItems };
 }
 
 /** Drain the whole queue — used when the user explicitly says "clear all"
  *  or when a cycle closes and stale candidates should stop nagging. Also drains the spillover: a
  *  "clear all" that left the overflow parked would just silently repopulate the queue moments later. */
 export function clearReviewQueue() {
-  const hadQueue = (state.reviewQueue ?? []).length > 0;
-  const hadSpillover = (state.reviewQueueSpillover ?? []).length > 0;
-  if (hadQueue || hadSpillover) setPartial({ reviewQueue: [], reviewQueueSpillover: [] });
+  const items = [...(state.reviewQueue ?? []), ...(state.reviewQueueSpillover ?? [])];
+  if (items.length === 0) return;
+  setPartialWithTypedCommand(
+    { reviewQueue: [], reviewQueueSpillover: [] },
+    {
+      commandType: 'folio.review.clear.v1',
+      actorKind: 'user',
+      entityRefs: items.map((item) => ({ type: 'review-proposal', id: item.id })),
+      before: { proposals: items },
+      after: {},
+      changedEntityIds: items.map((item) => item.id),
+      invalidatedProjectionKinds: ['review-proposals'],
+    },
+  );
 }
 
 /** Public sweep — call on Today mount to age out expired items in both the visible queue and the
@@ -3409,8 +4892,18 @@ export function sweepReviewQueue() {
   const nextSpillover = spillover.filter(notExpired);
   const changed = nextQueue.length !== queue.length || nextSpillover.length !== spillover.length;
   if (changed) {
-    setPartial({ reviewQueue: nextQueue, reviewQueueSpillover: nextSpillover });
-    refillReviewQueueFromSpillover();
+    const expired = [...queue, ...spillover].filter((item) => !notExpired(item));
+    const refilled = refilledReviewQueue(nextQueue, nextSpillover, now);
+    setPartialWithTypedCommand(refilled, {
+      commandType: 'folio.review.expire.v1',
+      actorKind: 'system',
+      entityRefs: expired.map((item) => ({ type: 'review-proposal', id: item.id })),
+      before: { proposals: expired },
+      after: {},
+      changedEntityIds: expired.map((item) => item.id),
+      invalidatedProjectionKinds: ['review-proposals'],
+      occurredAt: new Date(now).toISOString(),
+    });
   }
 }
 
@@ -3420,58 +4913,113 @@ export function sweepReviewQueue() {
 export function nudgeSub(name: string, deltaDays: number) {
   const current = state.subOverrides[name] ?? 0;
   const next = Math.max(-7, Math.min(7, current + deltaDays));
-  setPartial({ subOverrides: { ...state.subOverrides, [name]: next } });
+  const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subOverrides, name);
+  const subOverrides = { ...state.subOverrides, [name]: next };
+  if (hadStoredValue && current === next) {
+    setPartial({ subOverrides });
+    return;
+  }
+  setPartialWithTypedCommand(
+    { subOverrides },
+    {
+      commandType: 'folio.subscription.nudge.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('subscription', name)],
+      before: { overrideDays: hadStoredValue ? current : null },
+      after: { overrideDays: next },
+      invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+    },
+  );
 }
 
 /** Reset all "what if" nudges on flexible bills. */
 export function resetSubOverrides(name?: string) {
   if (name) {
+    if (!Object.prototype.hasOwnProperty.call(state.subOverrides, name)) return;
     const { [name]: _gone, ...rest } = state.subOverrides;
-    setPartial({ subOverrides: rest });
+    setPartialWithTypedCommand(
+      { subOverrides: rest },
+      {
+        commandType: 'folio.subscription.nudge_reset.v1',
+        actorKind: 'user',
+        entityRefs: [opaqueContainerEntityRef('subscription', name)],
+        before: { overrideDays: state.subOverrides[name] },
+        after: {},
+        invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+      },
+    );
   } else {
-    setPartial({ subOverrides: {} });
+    const names = Object.keys(state.subOverrides);
+    if (names.length === 0) return;
+    setPartialWithTypedCommand(
+      { subOverrides: {} },
+      {
+        commandType: 'folio.subscription.nudge_reset_all.v1',
+        actorKind: 'user',
+        entityRefs: uniqueOpaqueContainerEntityRefs('subscription', names),
+        before: { overrides: state.subOverrides },
+        after: {},
+        invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+      },
+    );
   }
 }
 
 export function resetAll() {
-  state = {
-    ...DEFAULTS,
-    transactions: seedTransactions(),
-    calendarEvents: [],
-    timelineEvents: [],
-    incomeSources: [],
-  };
+  clearPendingAppStateCommands();
+  state = normaliseWorkspaceRows(
+    {
+      ...DEFAULTS,
+      transactions: seedTransactions(),
+      calendarEvents: [],
+      timelineEvents: [],
+      incomeSources: [],
+    },
+    PERSONAL_WORKSPACE_ID,
+  );
   persist();
   emit();
 }
 
-/** CLEAN-EMPTY reset — wipe the user's data to a genuinely empty state, with NO
- *  sample/demo reseed (the opposite of `resetAll`, which reseeds the demo set).
- *  Every user-data slot is cleared: transactions, pots, subs, the sub
- *  paused/override maps, ritual cycles, the correction-edit history, calendar
- *  events, the pot ledger, and the staged statement-reader review queue. The
- *  balance becomes a neutral, honest empty (£0, `user-entered`/`rough` — NOT
- *  `sample`), and `onboarding.done` is forced true so a returning clean user is
- *  NOT re-onboarded. `schemaVersion` is preserved so the empty state still loads
- *  through the same migration contract. Pure + immutable — builds a brand-new
- *  state object, never mutates the previous one. */
-export function resetToEmpty() {
-  const emptyBalance: CurrentBalance = { ...EMPTY_BALANCE, setAt: new Date().toISOString() };
+/**
+ * Build a genuinely empty, fully-owned partition for an already-validated workspace root. This is
+ * pure and does not publish the partition; the native persistence transaction must encrypt and
+ * durably stage it before an active-workspace manifest can point at it.
+ */
+export function createEmptyWorkspacePartition(
+  root: WorkspaceRoot,
+  workspaceId: WorkspaceId,
+  createdAt: string,
+): AppState {
+  assertValidWorkspaceRoot(root);
+  if (
+    String(root.activeWorkspaceId) !== String(workspaceId) ||
+    String(root.dataWorkspaceId) !== String(workspaceId)
+  ) {
+    throw new Error('Empty partition root must select the workspace it owns.');
+  }
+  if (!Number.isFinite(Date.parse(createdAt)) || new Date(createdAt).toISOString() !== createdAt) {
+    throw new Error('Empty partition createdAt must be an ISO date.');
+  }
+  const workspace = root.workspaces.find((candidate) => candidate.id === workspaceId)!;
+  const emptyBalance: CurrentBalance = {
+    ...EMPTY_BALANCE,
+    amount: 0,
+    setAt: createdAt,
+  };
   const empty: AppState = {
-    schemaVersion: state.schemaVersion,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    workspaces: [...root.workspaces],
+    activeWorkspaceId: workspaceId,
+    dataWorkspaceId: workspaceId,
     pots: [],
     subs: [],
     subPaused: {},
     subOverrides: {},
     cycles: [],
-    // Keeps `done` (no forced re-onboarding) and the name (a preference, not money data), but
-    // ZEROES the income figure: it feeds every "coming in" read, and surviving a clear-to-empty
-    // it kept telling the owner their old income on a supposedly blank app (2026-07-11).
-    onboarding: { ...state.onboarding, done: true, monthlyIncome: 0 },
+    onboarding: { done: true, name: '', payday: 25, monthlyIncome: 0 },
     currentBalance: emptyBalance,
-    // Mirrors `currentBalance` exactly, same as every other load/reset path — a clean-empty reset
-    // still has exactly one (empty) default bank account, never zero accounts.
-    accounts: [synthesizeDefaultAccount(emptyBalance)],
+    accounts: workspace.kind === 'personal' ? [synthesizeDefaultAccount(emptyBalance)] : [],
     potLedger: [],
     nextYouNote: '',
     tightPointGoal: null,
@@ -3487,6 +5035,91 @@ export function resetToEmpty() {
     reviewQueue: [],
     reviewQueueSpillover: [],
     statementImports: [],
+    evidenceDocuments: [],
+    moneyMode: 'survival',
+    bufferAmount: 100,
+    modeExtras: {},
+    aiReads: { monthKey: '', used: 0 },
+    aiReadCache: {},
+    whatChangedSeenISO: null,
+    dismissedIncomeSignals: [],
+    dismissedBillSignals: [],
+    dismissedDriftSignals: [],
+    dismissedAnnualSignals: [],
+    debts: [],
+    household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
+    plans: [],
+    lens: { ...DEFAULT_LENS },
+    melo: { ...DEFAULT_MELO, wardrobe: [] },
+    tinyWins: [],
+    timelineEvents: [],
+    incomeSources: [],
+    merchantCategories: {},
+  };
+  return normaliseWorkspaceRows(empty, workspaceId);
+}
+
+/** CLEAN-EMPTY reset — wipe the user's data to a genuinely empty state, with NO
+ *  sample/demo reseed (the opposite of `resetAll`, which reseeds the demo set).
+ *  Every user-data slot is cleared: transactions, pots, subs, the sub
+ *  paused/override maps, ritual cycles, the correction-edit history, calendar
+ *  events, the pot ledger, and the staged statement-reader review queue. The
+ *  balance becomes a neutral, honest empty (£0, `user-entered`/`rough` — NOT
+ *  `sample`). Personally identifying setup values are cleared too; only
+ *  `onboarding.done` defaults to true so a returning clean user is NOT re-onboarded. Callers such
+ *  as "Skip for now" may explicitly keep it false while still clearing all data.
+ *  `schemaVersion` is preserved so the empty state still loads through the same
+ *  migration contract. Pure + immutable — builds a brand-new state object, never
+ *  mutates the previous one. */
+export function resetToEmpty(options?: Readonly<{ onboardingDone?: boolean }>) {
+  clearPendingAppStateCommands(state.activeWorkspaceId);
+  const emptyBalance: CurrentBalance = { ...EMPTY_BALANCE, setAt: new Date().toISOString() };
+  const workspaceRoot = assertValidWorkspaceRoot({
+    workspaces: [...state.workspaces],
+    activeWorkspaceId: state.activeWorkspaceId,
+    dataWorkspaceId: state.dataWorkspaceId,
+  });
+  const activeWorkspace = workspaceRoot.workspaces.find(
+    (workspace) => workspace.id === workspaceRoot.activeWorkspaceId,
+  )!;
+  const empty: AppState = {
+    schemaVersion: state.schemaVersion,
+    ...workspaceRoot,
+    pots: [],
+    subs: [],
+    subPaused: {},
+    subOverrides: {},
+    cycles: [],
+    // Keep only the non-identifying completion flag so a deliberate local wipe does not force the
+    // returning user through onboarding. Name, payday and income are all user data and must not
+    // survive a control labelled "Clear local money & history". The shipped payday default is a
+    // structural placeholder only; no prior user value is retained.
+    onboarding: {
+      done: options?.onboardingDone ?? true,
+      name: '',
+      payday: DEFAULTS.onboarding.payday,
+      monthlyIncome: 0,
+    },
+    currentBalance: emptyBalance,
+    // Personal keeps its neutral Main shell; a Business partition remains genuinely accountless
+    // until the user adds or connects an account.
+    accounts: activeWorkspace.kind === 'personal' ? [synthesizeDefaultAccount(emptyBalance)] : [],
+    potLedger: [],
+    nextYouNote: '',
+    tightPointGoal: null,
+    transactions: [],
+    droppedTransactionCount: 0,
+    edits: [],
+    calendarEvents: [],
+    calendarFocusDate: null,
+    routeFocusDate: null,
+    readerCandidates: [],
+    readerClosingBalance: null,
+    ignoredReviewSigs: [],
+    reviewQueue: [],
+    reviewQueueSpillover: [],
+    statementImports: [],
+    evidenceDocuments: [],
     moneyMode: 'survival',
     bufferAmount: 100,
     modeExtras: {},
@@ -3513,18 +5146,38 @@ export function resetToEmpty() {
     incomeSources: [],
     merchantCategories: {},
   };
-  state = empty;
+  state = normaliseWorkspaceRows(empty, workspaceRoot.activeWorkspaceId);
   persist();
   emit();
 }
 
 /** Pure selector — true when the app holds any real user data (transactions,
  *  pots, subs, or ritual cycles). Lets a surface tell a genuinely-used app from
- *  a fresh/demo one (e.g. after `resetToEmpty`, this is false). No state read of
+ *  a fresh/empty one (e.g. after `resetToEmpty`, this is false). No state read of
  *  its own — operates only on the snapshot it's given, so it's safe to call from
  *  selectors, `load()`, or tests. */
 export function hasAnyUserData(s: AppState): boolean {
   return s.transactions.length > 0 || s.pots.length > 0 || s.subs.length > 0 || s.cycles.length > 0;
+}
+
+/**
+ * True when Today has enough user-owned information to present a money picture instead of the
+ * honest empty doorway. This deliberately does not treat `onboarding.done` or a non-sample £0
+ * balance as evidence: both survive `resetToEmpty()`, and neither can support a claim about making
+ * it to payday. Unlike `hasAnyUserData`, this also includes the finance inputs that can drive a
+ * useful route without a posted transaction yet.
+ */
+export function hasConfiguredMoneyPicture(s: AppState): boolean {
+  return (
+    hasAnyUserData(s) ||
+    s.currentBalance.amount !== 0 ||
+    s.onboarding.monthlyIncome > 0 ||
+    (s.incomeSources?.length ?? 0) > 0 ||
+    (s.statementImports?.length ?? 0) > 0 ||
+    (s.debts?.length ?? 0) > 0 ||
+    (s.plans?.length ?? 0) > 0 ||
+    s.calendarEvents.length > 0
+  );
 }
 
 /* ---------- One-time melo → folio data-continuity migration ----------
@@ -3563,16 +5216,16 @@ export type MeloImportBlob = {
  *  `hasAnyUserData`: this gate exists ONLY to decide whether the one-time
  *  melo import should run, so it checks exactly the slots the import writes
  *  (transactions, debts, onboarding, balance) rather than every user-data
- *  slot in the app. A fresh install (DEFAULTS) is NOT "empty" by this check
- *  because DEFAULTS seeds sample transactions/debts/balance — which is
- *  correct: the import must not overwrite real seeded-vs-real ambiguity by
- *  guessing, it only fires when the user has neither. */
+ *  slot in the app. Both the current clean first-run state and an untouched legacy sample state are
+ *  empty by this check. A real statement/user balance is never considered empty. */
 export function isEmptyForMeloImport(s: AppState): boolean {
   const noTransactions = s.transactions.length === 0;
   const noDebts = (s.debts ?? []).length === 0;
   const noOnboarding = !s.onboarding.done;
-  const sampleBalance = s.currentBalance.source === 'sample';
-  return noTransactions && noDebts && noOnboarding && sampleBalance;
+  const noOwnedBalance =
+    s.currentBalance.source === 'sample' ||
+    (s.currentBalance.source === 'user-entered' && s.currentBalance.amount === 0);
+  return noTransactions && noDebts && noOnboarding && noOwnedBalance;
 }
 
 /** Map an archived Melo blob's `setup` onto a folio state patch. Pure — no
@@ -3672,7 +5325,25 @@ export function applyMeloImportIfEmpty(blob: MeloImportBlob): boolean {
   if (!isEmptyForMeloImport(state)) return false;
   const patch = mapMeloBlobToFolioPatch(blob);
   if (patch === null) return false;
-  setPartial(patch);
+  setPartialWithTypedCommand(patch, {
+    commandType: 'folio.legacy_melo.import.v1',
+    actorKind: 'import',
+    entityRefs: [
+      {
+        type: 'legacy-import',
+        id: `melo-${fnv1a32Hex(String(state.activeWorkspaceId), 0x811c9dc5)}`,
+      },
+    ],
+    before: {},
+    after: { importedState: patch },
+    invalidatedProjectionKinds: [
+      'accounts',
+      'account-balances',
+      'transactions',
+      'debt-summary',
+      'cashflow',
+    ],
+  });
   return true;
 }
 
@@ -3709,11 +5380,41 @@ export function fastForwardMonth() {
     ),
     lastUsedDaysAgo: s.lastUsedDaysAgo + 30,
   }));
-  setPartial({
-    cycles: [newCycle, ...agedCycles].slice(0, 24),
-    transactions: agedTxns,
-    subs: agedSubs,
-  });
+  setPartialWithTypedCommand(
+    {
+      cycles: [newCycle, ...agedCycles].slice(0, 24),
+      transactions: agedTxns,
+      subs: agedSubs,
+    },
+    {
+      commandType: 'folio.debug.fast_forward_month.v1',
+      actorKind: 'system',
+      entityRefs: [
+        {
+          type: 'debug-simulation',
+          id: `month-${fnv1a32Hex(String(state.activeWorkspaceId), 0x01000193)}`,
+        },
+      ],
+      before: {
+        cycles: state.cycles,
+        transactions: state.transactions,
+        subscriptions: state.subs,
+      },
+      after: {
+        cycles: [newCycle, ...agedCycles].slice(0, 24),
+        transactions: agedTxns,
+        subscriptions: agedSubs,
+      },
+      invalidatedProjectionKinds: [
+        'cycles',
+        'insights',
+        'transactions',
+        'subscriptions',
+        'cashflow',
+        'calendar',
+      ],
+    },
+  );
 }
 
 /* ---------- Melo tool bridge ----------
@@ -3936,7 +5637,7 @@ export function subscribeStore(cb: () => void): () => void {
 export function useAppStore<T>(selector: (s: AppState) => T): T {
   return useSyncExternalStore(
     subscribe,
-    () => selector(state),
-    () => selector(DEFAULTS),
+    () => selector(getState()),
+    () => selector(requireWorkspaceRows(DEFAULTS, PERSONAL_WORKSPACE_ID)),
   );
 }

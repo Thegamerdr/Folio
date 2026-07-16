@@ -43,6 +43,8 @@ export interface NotifyInputs {
   readonly prevDangerDaysAway: number | null;
   readonly nextDangerDaysAway: number | null;
   readonly hour: number; // device-local 0..23
+  /** Optional user policy; omitted callers retain the canonical 21:00–08:00 default. */
+  readonly quietHours?: Readonly<{ startHour: number; endHour: number }>;
   readonly sentToday: number; // notifications already delivered today
   readonly dangerSentToday: number;
   readonly recoveryCheckinDue: boolean; // surface computes: in recovery, chosen hour reached, not yet sent
@@ -54,13 +56,16 @@ const QUIET_START = 21;
 const QUIET_END = 8;
 const DAILY_BUDGET = 1;
 
-export function inQuietHours(hour: number): boolean {
-  return hour >= QUIET_START || hour < QUIET_END;
+export function inQuietHours(hour: number, startHour = QUIET_START, endHour = QUIET_END): boolean {
+  if (startHour === endHour) return false;
+  return startHour < endHour
+    ? hour >= startHour && hour < endHour
+    : hour >= startHour || hour < endHour;
 }
 
 /** Decide the single notification (if any) this evaluation should produce. */
 export function planNotification(i: NotifyInputs, ctx: NotifyContext): PlannedNotification | null {
-  if (inQuietHours(i.hour)) return null;
+  if (inQuietHours(i.hour, i.quietHours?.startHour, i.quietHours?.endHour)) return null;
 
   const prev = i.prev;
   const next = i.next;

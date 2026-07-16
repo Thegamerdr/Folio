@@ -1,25 +1,43 @@
-// expo-notifications wrapper — the native-adapter half of the notifications lane. The DECISION
-// logic (what to say, when, budget/quiet-hours) lives in `@folio/melo-engine`'s `notify.ts`
-// (`planNotification`); this file only turns an already-decided `PlannedNotification[]` into local
-// (device-only, no push/remote) scheduled notifications, exactly like `lib/persist.ts` is the
-// native adapter for the pure store.
-//
-// HARD CONSTRAINTS:
-//   • Local only. No push token, no remote server, no `getExpoPushTokenAsync` call — this is
-//     purely "the app reminds you of your own numbers," never a server pushing to you.
-//   • Content comes from the engine's `PlannedNotification.title`/`.body` — this file NEVER
-//     invents copy (§ the brief: "never invent copy").
-//   • A denied permission is a graceful, silent no-op everywhere (schedule calls become no-ops) —
-//     never a crash, never a repeated nag prompt from this module itself.
+// Local-only expo-notifications adapter. Decision logic lives in the pure calendar/Melo planners;
+// this module owns Android channels, permission state, precise DATE triggers, and scoped cleanup.
+// It never obtains a push token and never sends notification data to a server.
 
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import type { PlannedNotification } from '@folio/melo-engine';
+import type { WorkspaceId } from '@folio/domain';
 
-/** Android notification channel — one calm channel, default importance (a heads-up banner, not a
- *  high-priority alert with sound), no custom sound. iOS has no channel concept; this is a no-op
- *  there (`setNotificationChannelAsync` doesn't exist on iOS, guarded by `Platform.OS` below). */
+import type { MeloNotificationOwner, ScheduledLocalNotification } from './notificationRequests';
+import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
+
 export const MELO_CHANNEL_ID = 'melo';
+export const MELO_REMINDER_CHANNEL_ID = 'melo-reminders';
+export const MELO_UPDATE_CHANNEL_ID = 'melo-updates';
+
+function isMeloOwner(value: unknown): value is MeloNotificationOwner {
+  return value === 'calendar' || value === 'insight';
+}
+
+/**
+ * Expo discards notifications that fire while the app is foregrounded unless a handler answers
+ * within three seconds. Keep Melo reminders visible in the notification list, but deliberately
+ * avoid a sound, badge or interruptive foreground banner. Notifications not owned by Melo retain
+ * Expo's default foreground suppression instead of being globally opted in by this feature.
+ */
+export function installForegroundNotificationHandler(): void {
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification) => {
+      const show = isMeloOwner(notification.request.content.data?.meloOwner);
+      return {
+        shouldShowBanner: false,
+        shouldShowList: show,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    },
+  });
+}
+
+installForegroundNotificationHandler();
 
 export type PermissionState = 'granted' | 'denied' | 'undetermined';
 
@@ -29,100 +47,187 @@ function toPermissionState(status: Notifications.PermissionStatus): PermissionSt
   return 'undetermined';
 }
 
-/** Create (or update) the Android notification channel. Safe to call repeatedly — idempotent on
- *  the OS side. No-op on iOS. Call once at app start, before any scheduling. */
 export async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
+  const common: Omit<Notifications.NotificationChannelInput, 'name'> = {
+    importance: Notifications.AndroidImportance.DEFAULT,
+    sound: null,
+    vibrationPattern: null,
+    enableVibrate: false,
+    showBadge: false,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+  };
   try {
-    await Notifications.setNotificationChannelAsync(MELO_CHANNEL_ID, {
-      name: 'Melo',
-      importance: Notifications.AndroidImportance.DEFAULT,
-      sound: null, // no sound spam — a quiet default banner.
-      vibrationPattern: null,
-    });
+    await Promise.all([
+      Notifications.setNotificationChannelAsync(MELO_CHANNEL_ID, {
+        ...common,
+        name: 'Melo',
+      }),
+      Notifications.setNotificationChannelAsync(MELO_REMINDER_CHANNEL_ID, {
+        ...common,
+        name: 'Melo reminders',
+        description: 'Deadlines and reminders you explicitly choose in Melo.',
+      }),
+      Notifications.setNotificationChannelAsync(MELO_UPDATE_CHANNEL_ID, {
+        ...common,
+        name: 'Melo updates',
+        description: 'Quiet, meaningful changes in your money path.',
+      }),
+    ]);
   } catch {
-    /* channel creation failure — scheduling below will still no-op gracefully. */
+    // Channel creation failure is non-fatal; scheduling remains best-effort.
   }
 }
 
-/** Read the current permission state without prompting. */
 export async function getPermissionState(): Promise<PermissionState> {
   try {
-    const result = await Notifications.getPermissionsAsync();
-    return toPermissionState(result.status);
+    return toPermissionState((await Notifications.getPermissionsAsync()).status);
   } catch {
     return 'undetermined';
   }
 }
 
-/** Request permission if not already determined; returns the resulting state. Never throws — a
- *  denied result (or a request failure) is a graceful state the caller renders, not an error. */
+/** Prompt only from an explicit user action. Scheduler/startup code never calls this function. */
 export async function requestPermission(): Promise<PermissionState> {
   try {
     const current = await Notifications.getPermissionsAsync();
     if (current.status === Notifications.PermissionStatus.GRANTED) return 'granted';
-    const requested = await Notifications.requestPermissionsAsync();
-    return toPermissionState(requested.status);
+    return toPermissionState((await Notifications.requestPermissionsAsync()).status);
   } catch {
-    return 'denied'; // treat a request failure as denied — the safe, silent default.
+    return 'denied';
   }
 }
 
-/** Cancel every currently-scheduled Melo notification. Called before each reschedule so a stale
- *  plan (yesterday's danger date, a since-resolved payday) never lingers alongside a fresh one. */
-export async function cancelAll(): Promise<void> {
+function requestOwner(request: Notifications.NotificationRequest): unknown {
+  return request.content.data?.meloOwner;
+}
+
+function requestWorkspaceId(request: Notifications.NotificationRequest): unknown {
+  return request.content.data?.meloWorkspaceId;
+}
+
+function requestBelongsToWorkspace(
+  request: Notifications.NotificationRequest,
+  workspaceId: WorkspaceId,
+): boolean {
+  const stored = requestWorkspaceId(request);
+  if (stored !== undefined && stored !== null) return String(stored) === String(workspaceId);
+  // Requests created before workspace metadata existed can only have come from Personal.
+  return String(workspaceId) === String(PERSONAL_WORKSPACE_ID);
+}
+
+/** Cancel only notifications scheduled by the requested Melo subsystem, including after restart. */
+export async function cancelOwnedNotifications(
+  workspaceId: WorkspaceId,
+  owner: MeloNotificationOwner,
+): Promise<void> {
   try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter(
+          (request) =>
+            requestOwner(request) === owner && requestBelongsToWorkspace(request, workspaceId),
+        )
+        .map((request) => Notifications.cancelScheduledNotificationAsync(request.identifier)),
+    );
   } catch {
-    /* nothing scheduled, or the OS call failed — either way there is nothing further to do. */
+    // Nothing owned is scheduled, or the OS query failed. Never crash the app for cleanup.
   }
 }
 
-/** Schedule a plan of `PlannedNotification`s as one-shot local notifications, a small stagger
- *  apart (`STAGGER_SECONDS`) so multiple same-tick plans don't collide into one OS notification
- *  and so they display in the engine's own priority order. No-op (per-item, swallowed) on a denied
- *  permission or scheduling failure — never throws, never partially crashes the batch. */
-const STAGGER_SECONDS = 2;
+/** Cancel all Melo-owned groups without touching other notification features in the application. */
+export async function cancelAll(workspaceId: WorkspaceId): Promise<void> {
+  await Promise.all([
+    cancelOwnedNotifications(workspaceId, 'calendar'),
+    cancelOwnedNotifications(workspaceId, 'insight'),
+  ]);
+}
 
-export async function scheduleFromPlan(plan: readonly PlannedNotification[]): Promise<void> {
-  if (plan.length === 0) return;
-  const permission = await getPermissionState();
-  if (permission !== 'granted') return; // graceful denied-state no-op — see module header.
+/** Dismiss only already-delivered notifications owned by Melo, leaving other app features alone. */
+export async function dismissOwnedNotifications(
+  workspaceId: WorkspaceId,
+  owner: MeloNotificationOwner,
+): Promise<void> {
+  try {
+    const presented = await Notifications.getPresentedNotificationsAsync();
+    await Promise.all(
+      presented
+        .filter(
+          (notification) =>
+            requestOwner(notification.request) === owner &&
+            requestBelongsToWorkspace(notification.request, workspaceId),
+        )
+        .map((notification) =>
+          Notifications.dismissNotificationAsync(notification.request.identifier),
+        ),
+    );
+  } catch {
+    // Presented-notification cleanup is best-effort and must never block local deletion.
+  }
+}
 
+export async function clearAllMeloNotifications(workspaceId: WorkspaceId): Promise<void> {
+  await Promise.all([
+    cancelOwnedNotifications(workspaceId, 'calendar'),
+    cancelOwnedNotifications(workspaceId, 'insight'),
+    dismissOwnedNotifications(workspaceId, 'calendar'),
+    dismissOwnedNotifications(workspaceId, 'insight'),
+  ]);
+}
+
+function channelFor(request: ScheduledLocalNotification): string {
+  return request.owner === 'calendar' ? MELO_REMINDER_CHANNEL_ID : MELO_UPDATE_CHANNEL_ID;
+}
+
+async function scheduleRequests(requests: readonly ScheduledLocalNotification[]): Promise<number> {
+  if (requests.length === 0 || (await getPermissionState()) !== 'granted') return 0;
   await ensureAndroidChannel();
-
-  for (const [index, notification] of plan.entries()) {
+  let scheduledCount = 0;
+  for (const request of requests) {
+    if (!Number.isFinite(request.fireAt.getTime()) || request.fireAt.getTime() <= Date.now())
+      continue;
     try {
-      const trigger: Notifications.NotificationTriggerInput =
-        Platform.OS === 'android'
-          ? {
-              type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-              seconds: Math.max(1, (index + 1) * STAGGER_SECONDS),
-              repeats: false,
-              channelId: MELO_CHANNEL_ID,
-            }
-          : {
-              type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-              seconds: Math.max(1, (index + 1) * STAGGER_SECONDS),
-              repeats: false,
-            };
+      const trigger: Notifications.NotificationTriggerInput = {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: request.fireAt,
+        ...(Platform.OS === 'android' ? { channelId: channelFor(request) } : {}),
+      };
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: notification.title,
-          body: notification.body,
-          data: { key: notification.key },
+          title: request.title,
+          body: request.body,
+          data: {
+            meloOwner: request.owner,
+            meloWorkspaceId: request.workspaceId,
+            logicalId: request.logicalId,
+            notificationClass: request.notificationClass,
+            ...(request.eventId !== undefined ? { eventId: request.eventId } : {}),
+          },
         },
         trigger,
       });
+      scheduledCount += 1;
     } catch {
-      /* one bad item must never block the rest of the batch. */
+      // One bad request must not block the rest of the batch.
     }
   }
+  return scheduledCount;
 }
 
-/** Cancel everything, then schedule the fresh plan — the standard "reschedule" pattern the
- *  scheduler hook calls after every store-derived plan recompute. */
-export async function reschedule(plan: readonly PlannedNotification[]): Promise<void> {
-  await cancelAll();
-  await scheduleFromPlan(plan);
+/** Replace one owned schedule atomically enough for app use, leaving every other owner untouched. */
+export async function replaceOwnedNotifications(
+  workspaceId: WorkspaceId,
+  owner: MeloNotificationOwner,
+  requests: readonly ScheduledLocalNotification[],
+): Promise<number> {
+  if (
+    requests.some(
+      (request) => request.owner !== owner || String(request.workspaceId) !== String(workspaceId),
+    )
+  ) {
+    throw new Error('A notification batch crossed its workspace or owner boundary.');
+  }
+  await cancelOwnedNotifications(workspaceId, owner);
+  return scheduleRequests(requests);
 }

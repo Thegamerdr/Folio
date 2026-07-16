@@ -15,8 +15,16 @@
 //     field, defaults what's missing, and flags degraded loads — one owner of
 //     that logic, not two.
 
+import type { WorkspaceId } from '@folio/domain';
+
+import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
+
 /** Why a picked file was rejected, for honest user-facing copy. */
-export type RestoreRejection = 'not-json' | 'not-an-object' | 'not-a-folio-export';
+export type RestoreRejection =
+  | 'not-json'
+  | 'not-an-object'
+  | 'not-a-folio-export'
+  | 'wrong-workspace';
 
 export type RestoreValidation =
   | { ok: true; parsed: Record<string, unknown> }
@@ -41,7 +49,10 @@ const SIGNATURE_KEYS = [
 const MIN_SIGNATURE_MATCHES = 2;
 
 /** Envelope check: is this string a Folio export we can hand to the store? */
-export function validateRestoreJson(raw: string): RestoreValidation {
+export function validateRestoreJson(
+  raw: string,
+  expectedWorkspaceId?: WorkspaceId,
+): RestoreValidation {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -56,7 +67,39 @@ export function validateRestoreJson(raw: string): RestoreValidation {
   if (matches < MIN_SIGNATURE_MATCHES) {
     return { ok: false, reason: 'not-a-folio-export' };
   }
+  if (
+    expectedWorkspaceId !== undefined &&
+    !isRestoreOwnedByWorkspace(record, expectedWorkspaceId)
+  ) {
+    return { ok: false, reason: 'wrong-workspace' };
+  }
   return { ok: true, parsed: record };
+}
+
+function isRestoreOwnedByWorkspace(
+  record: Record<string, unknown>,
+  expectedWorkspaceId: WorkspaceId,
+): boolean {
+  const hasWorkspaceRoot =
+    'workspaces' in record || 'activeWorkspaceId' in record || 'dataWorkspaceId' in record;
+  if (!hasWorkspaceRoot) {
+    // Pre-v9 exports had no root and can only be the historic Personal partition.
+    return String(expectedWorkspaceId) === String(PERSONAL_WORKSPACE_ID);
+  }
+  if (
+    String(record.activeWorkspaceId ?? '') !== String(expectedWorkspaceId) ||
+    String(record.dataWorkspaceId ?? '') !== String(expectedWorkspaceId) ||
+    !Array.isArray(record.workspaces)
+  ) {
+    return false;
+  }
+  return record.workspaces.some(
+    (workspace) =>
+      workspace !== null &&
+      typeof workspace === 'object' &&
+      !Array.isArray(workspace) &&
+      String((workspace as Record<string, unknown>).id ?? '') === String(expectedWorkspaceId),
+  );
 }
 
 /** What the confirm sheet shows the user before anything is replaced. */

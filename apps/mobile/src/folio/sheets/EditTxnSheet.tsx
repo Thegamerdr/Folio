@@ -20,11 +20,11 @@
 // @rn-sheet     EditTxnSheet
 // @purpose      Correct an existing transaction. The web source rendered amount / category / repeat /
 //               note as read-only rows with a "Save changes" that closed without writing. Per ENGINES
-//               §6 D4 (meaningful money-field edits, NOT note-only) this port makes Amount, Category
-//               and Note EDITABLE — each change routes through the store's editTransaction as one
+//               §6 D4 (meaningful money-field edits, NOT note-only) this port makes Merchant, Amount,
+//               Date, Category and Note EDITABLE — each change routes through editTransaction as one
 //               immutable correction per changed field, replacing the row in place. Repeat is not a
-//               Transaction field, so it stays a display row; date editing (needs a platform picker)
-//               is a follow-up. Save applies the change(s) via the store, then closes.
+//               Transaction field, so it stays a display row. Date uses the native platform picker.
+//               Every actual change gets an explicit before/after review before commit.
 // @writes       editTransaction (store; replace-in-place + one TxnEdit per changed field, §6). With no
 //               target, or an unchanged note, NOTHING is written (the web close-only contract holds).
 //               A successful save also raises a Tier-1 undo window (useUndo/showUndo — ENGINES §6
@@ -51,6 +51,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -70,8 +71,15 @@ import {
   useAppStore,
   type Transaction,
 } from '@/folio/store';
-import type { EditableTransaction } from '@/folio/lib/editTxn';
+import {
+  previewTxnEdit,
+  type EditableField,
+  type EditableTransaction,
+  type TxnEditPatch,
+  type TxnEditPreview,
+} from '@/folio/lib/editTxn';
 import { useUndo } from '@/folio/ui/useUndo';
+import { openEvidenceDocument } from '@/folio/lib/documentVault';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -126,6 +134,42 @@ function localIsoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function correctedAmount(value: string, currentAmount: number): number {
+  const cleaned = value.replace(/[^0-9.]/g, '');
+  if (cleaned.length === 0) return currentAmount;
+  const magnitude = Number(cleaned);
+  if (!Number.isFinite(magnitude) || magnitude <= 0) return currentAmount;
+  return (currentAmount < 0 ? -1 : 1) * magnitude;
+}
+
+function previewFieldLabel(field: EditableField): string {
+  switch (field) {
+    case 'merchant':
+      return 'Merchant';
+    case 'amount':
+      return 'Amount';
+    case 'when':
+      return 'Date';
+    case 'category':
+      return 'Category';
+    case 'note':
+      return 'Note';
+  }
+}
+
+function previewValue(field: EditableField, value: TxnEditPreview['before']): string {
+  if (field === 'amount' && typeof value === 'number') {
+    const direction = value < 0 ? '−' : '+';
+    return `${direction}£${Math.abs(value).toFixed(2)}`;
+  }
+  if (field === 'when' && typeof value === 'string') return monthDay(value);
+  if (field === 'category' && typeof value === 'string') {
+    return CATEGORY_LABEL[value as Transaction['category']] ?? value;
+  }
+  if (field === 'note' && (!value || value === '')) return 'No note';
+  return String(value ?? 'Not set');
 }
 
 // ---------------------------------------------------------------------------
@@ -194,9 +238,8 @@ function EditTxnForm({
   // Category and Note are editable; each change routes through the store's editTransaction, which
   // records one immutable correction per changed field and replaces the row in place. Amount is held
   // as an unsigned magnitude — the original DIRECTION (spend vs income) is preserved on save, so a
-  // correction fixes the figure without silently flipping a spend into income. (Date editing needs a
-  // platform date-picker and is a follow-up; Repeat is not a Transaction field, so it stays a display
-  // row.)
+  // correction fixes the figure without silently flipping a spend into income. Date uses the native
+  // platform picker; Repeat is not a Transaction field, so it stays a display row.
   // PARITY_GAPS Group 2 fix: the web's Merchant field is a separate editable text input (not folded
   // into the read-only title) — restored here so a user can correct the merchant name, matching
   // SheetEditTxn.tsx exactly. The header title stays live-bound to the field's current value (web
@@ -209,10 +252,19 @@ function EditTxnForm({
   const [note, setNote] = useState(txn.note ?? '');
   const [when, setWhen] = useState(txn.when);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const accountName = useAppStore((state) => {
     const id = accountIdOf(txn);
     return state.accounts?.find((account) => account.id === id)?.name ?? 'Main';
   });
+  const workspace = useAppStore(
+    (state) => state.workspaces.find((candidate) => candidate.id === state.activeWorkspaceId)!,
+  );
+  const sourceEvidence = useAppStore((state) =>
+    txn.sourceEvidenceId
+      ? state.evidenceDocuments?.find((document) => document.id === txn.sourceEvidenceId)
+      : undefined,
+  );
   // `useAppStore` is backed by `useSyncExternalStore`; returning a freshly-filtered array from the
   // selector makes every snapshot look new and React 19 loops until its maximum update depth. Read
   // the stable store slice first, then derive this transaction's history with `useMemo`.
@@ -225,15 +277,20 @@ function EditTxnForm({
 
   const title = `${txn.merchant} · ${monthDay(txn.when)}`.replace(/ · $/, '');
 
-  // The signed amount the magnitude input resolves to: keep the original sign (direction), apply the
-  // new magnitude. Unparseable input falls back to the current amount, so a bad keystroke never wipes
-  // the figure — it simply records no amount change.
-  function resolvedAmount(): number {
-    const mag = Number(amountText.replace(/[^0-9.]/g, ''));
-    if (!Number.isFinite(mag)) return txn.amount;
-    const sign = txn.amount < 0 ? -1 : 1;
-    return sign * mag;
-  }
+  // The preview and the commit share one normalized patch. Empty merchant input falls back to the
+  // current merchant; an invalid amount falls back to the current amount. Neither can fabricate an
+  // apparent change or an undo window.
+  const patch = useMemo<TxnEditPatch>(
+    () => ({
+      merchant: merchant.trim() || txn.merchant,
+      amount: correctedAmount(amountText, txn.amount),
+      when,
+      category,
+      note: note.trim() || undefined,
+    }),
+    [amountText, category, merchant, note, txn.amount, txn.merchant, when],
+  );
+  const pendingChanges = useMemo(() => previewTxnEdit(txn, patch), [patch, txn]);
 
   // Save — apply the correction to THIS transaction via the store. editTransaction runs the pure
   // applyTxnEdit engine, which records ONE immutable TxnEdit per ACTUALLY-changed field and no-ops any
@@ -242,52 +299,41 @@ function EditTxnForm({
   // transaction-derived view (Timeline, Insights, Today's recent spend) updates reactively. Then close.
   //
   // A snapshot of the pre-edit fields is captured BEFORE the write so, if anything actually changed,
-  // Undo can restore all three fields in one call — mirrors the web source's `undoToast(...)` after
+  // Undo can restore every editable field in one call — mirrors the web source's `undoToast(...)` after
   // `updateTransaction` (SheetEditTxn.tsx), which snapshots merchant/amount/category/when and restores
   // them together. A no-op save (nothing changed) raises no undo window, matching editTransaction's
   // own no-op contract (an unchanged patch writes nothing, so there is nothing to undo).
   function handleSave() {
-    const nextMerchant = merchant.trim();
-    const nextAmount = resolvedAmount();
-    const nextNote = note.trim();
-    const categoryChanged = category !== txn.category;
-    const changed =
-      nextMerchant !== txn.merchant ||
-      nextAmount !== txn.amount ||
-      when !== txn.when ||
-      categoryChanged ||
-      nextNote !== (txn.note ?? '');
+    const changesAtCommit = previewTxnEdit(txn, patch);
+    if (changesAtCommit.length === 0) {
+      setReviewing(false);
+      return;
+    }
+    const categoryChanged = changesAtCommit.some((change) => change.field === 'category');
     const snapshot = {
       merchant: txn.merchant,
       amount: txn.amount,
       when: txn.when,
       category: txn.category,
-      note: txn.note ?? '',
+      note: txn.note,
     };
-    const finalMerchant = nextMerchant || txn.merchant;
-    editTransaction(
-      txn.id,
-      { merchant: finalMerchant, amount: nextAmount, when, category, note: nextNote },
-      'user',
-    );
+    editTransaction(txn.id, patch, 'user');
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a category correction on a real,
     // already-posted transaction is an explicit override — remember it so a future import for this
     // merchant pre-fills the corrected category instead of re-asking. Only when the category actually
     // changed (an untouched Save writes nothing here either, mirroring editTransaction's own contract).
-    if (categoryChanged) rememberMerchantCategory(finalMerchant, category);
+    if (categoryChanged) rememberMerchantCategory(patch.merchant ?? txn.merchant, category);
     onClose();
-    if (changed) {
-      showUndo(`Updated ${txn.merchant}`, () => {
-        editTransaction(txn.id, snapshot, 'user');
-      });
-    }
+    showUndo(`Updated ${txn.merchant}`, () => {
+      editTransaction(txn.id, snapshot, 'user');
+    });
   }
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       {/* Header — eyebrow + close glyph. */}
       <View style={s.headerRow}>
-        <Text style={s.eyebrow}>Edit transaction</Text>
+        <Text style={s.eyebrow}>{reviewing ? 'Review correction' : 'Edit transaction'}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close"
@@ -302,161 +348,227 @@ function EditTxnForm({
         {title}
       </Text>
 
-      {/* Editable field rows — bound to the real transaction; Save routes a correction per change. */}
-      <View style={s.fields}>
-        {/* Merchant — free-text correction (web SheetEditTxn.tsx's separate editable Merchant field,
+      {reviewing ? (
+        <View style={s.reviewBlock}>
+          <Text style={s.reviewIntro}>
+            Check the exact fields below. Nothing changes until you confirm.
+          </Text>
+          {pendingChanges.map((change) => (
+            <View key={change.field} style={s.previewRow}>
+              <Text style={s.previewLabel}>{previewFieldLabel(change.field)}</Text>
+              <View style={s.previewValues}>
+                <Text
+                  accessibilityLabel={`Before: ${previewValue(change.field, change.before)}`}
+                  style={s.previewBefore}
+                >
+                  {previewValue(change.field, change.before)}
+                </Text>
+                <Text accessibilityElementsHidden style={s.previewArrow}>
+                  →
+                </Text>
+                <Text
+                  accessibilityLabel={`After: ${previewValue(change.field, change.after)}`}
+                  style={s.previewAfter}
+                >
+                  {previewValue(change.field, change.after)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <>
+          {/* Editable field rows — bound to the real transaction. */}
+          <View style={s.fields}>
+            {/* Merchant — free-text correction (web SheetEditTxn.tsx's separate editable Merchant field,
             restored here; previously this name only appeared in the read-only header title). */}
-        <View style={s.fieldRow}>
-          <Text style={s.fieldLabel}>Merchant</Text>
-          <TextInput
-            accessibilityLabel="Merchant"
-            onChangeText={setMerchant}
-            placeholder={txn.merchant}
-            placeholderTextColor={t.muted}
-            style={s.fieldValueInput}
-            value={merchant}
-          />
-        </View>
+            <View style={s.fieldRow}>
+              <Text style={s.fieldLabel}>Merchant</Text>
+              <TextInput
+                accessibilityLabel="Merchant"
+                onChangeText={setMerchant}
+                placeholder={txn.merchant}
+                placeholderTextColor={t.muted}
+                style={s.fieldValueInput}
+                value={merchant}
+              />
+            </View>
 
-        {/* Amount — unsigned magnitude input; the original direction is preserved on save. */}
-        <View style={s.fieldRow}>
-          <Text style={s.fieldLabel}>Amount</Text>
-          <View style={s.amountInputWrap}>
-            <Text style={s.amountPrefix}>£</Text>
-            <TextInput
-              accessibilityLabel="Amount"
-              keyboardType="decimal-pad"
-              onChangeText={setAmountText}
-              placeholder="0.00"
-              placeholderTextColor={t.muted}
-              style={s.amountInput}
-              value={amountText}
-            />
-          </View>
-        </View>
+            {/* Amount — unsigned magnitude input; the original direction is preserved on save. */}
+            <View style={s.fieldRow}>
+              <Text style={s.fieldLabel}>Amount</Text>
+              <View style={s.amountInputWrap}>
+                <Text style={s.amountPrefix}>£</Text>
+                <TextInput
+                  accessibilityLabel="Amount"
+                  keyboardType="decimal-pad"
+                  onChangeText={setAmountText}
+                  placeholder="0.00"
+                  placeholderTextColor={t.muted}
+                  style={s.amountInput}
+                  value={amountText}
+                />
+              </View>
+            </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Date, ${monthDay(when)}. Tap to change.`}
-          onPress={() => setDatePickerOpen(true)}
-          style={({ pressed }) => [s.fieldRow, pressed ? s.pressed : undefined]}
-        >
-          <Text style={s.fieldLabel}>Date</Text>
-          <Text style={s.fieldValue}>{monthDay(when)}</Text>
-        </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Date, ${monthDay(when)}. Tap to change.`}
+              onPress={() => setDatePickerOpen(true)}
+              style={({ pressed }) => [s.fieldRow, pressed ? s.pressed : undefined]}
+            >
+              <Text style={s.fieldLabel}>Date</Text>
+              <Text style={s.fieldValue}>{monthDay(when)}</Text>
+            </Pressable>
 
-        {datePickerOpen ? (
-          <View style={s.datePickerWrap}>
-            <DateTimePicker
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              maximumDate={new Date()}
-              mode="date"
-              onChange={(_event: DateTimePickerEvent, selected?: Date) => {
-                if (Platform.OS === 'android') setDatePickerOpen(false);
-                if (selected) setWhen(localIsoDate(selected));
-              }}
-              value={dateValue(when)}
-            />
-            {Platform.OS === 'ios' ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setDatePickerOpen(false)}
-                style={({ pressed }) => [s.dateDone, pressed ? s.pressed : undefined]}
-              >
-                <Text style={s.dateDoneLabel}>Done</Text>
-              </Pressable>
+            {datePickerOpen ? (
+              <View style={s.datePickerWrap}>
+                <DateTimePicker
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  maximumDate={new Date()}
+                  mode="date"
+                  onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                    if (Platform.OS === 'android') setDatePickerOpen(false);
+                    if (selected) setWhen(localIsoDate(selected));
+                  }}
+                  value={dateValue(when)}
+                />
+                {Platform.OS === 'ios' ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setDatePickerOpen(false)}
+                    style={({ pressed }) => [s.dateDone, pressed ? s.pressed : undefined]}
+                  >
+                    <Text style={s.dateDoneLabel}>Done</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             ) : null}
-          </View>
-        ) : null}
 
-        <View style={s.fieldRow}>
-          <Text style={s.fieldLabel}>Account</Text>
-          <Text style={s.fieldValue}>{accountName}</Text>
-        </View>
+            <View style={s.fieldRow}>
+              <Text style={s.fieldLabel}>Account</Text>
+              <Text style={s.fieldValue}>{accountName}</Text>
+            </View>
 
-        {/* Repeat — not a Transaction field; stays a display row. */}
-        <View style={s.fieldRow}>
-          <Text style={s.fieldLabel}>Repeat</Text>
-          <Text style={s.fieldValue}>Once</Text>
-        </View>
-
-        {/* Note — free-text correction. */}
-        <View style={s.fieldRow}>
-          <Text style={s.fieldLabel}>Note</Text>
-          <TextInput
-            accessibilityLabel="Note"
-            onChangeText={setNote}
-            placeholder="Add a note"
-            placeholderTextColor={t.muted}
-            style={s.fieldValueInput}
-            value={note}
-          />
-        </View>
-      </View>
-
-      {/* Category — a tappable chip per category; the selected one is filled. */}
-      <View style={s.categoryBlock}>
-        <Text style={s.categoryLabel}>Category</Text>
-        <View style={s.categoryChips}>
-          {CATEGORY_ORDER.map((c) => {
-            const selected = c === category;
-            return (
+            {sourceEvidence !== undefined ? (
               <Pressable
-                key={c}
+                accessibilityHint="Decrypts a temporary copy and opens the device share or viewer sheet"
+                accessibilityLabel={`Open saved source, ${sourceEvidence.filename}`}
                 accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => setCategory(c)}
-                style={({ pressed }) => [
-                  s.catChip,
-                  selected ? s.catChipOn : undefined,
-                  pressed ? s.pressed : undefined,
-                ]}
+                onPress={() => {
+                  void openEvidenceDocument(workspace, sourceEvidence).catch((reason: unknown) => {
+                    Alert.alert(
+                      'Could not open the saved source',
+                      reason instanceof Error
+                        ? reason.message
+                        : 'The encrypted source could not be opened.',
+                    );
+                  });
+                }}
+                style={({ pressed }) => [s.fieldRow, pressed ? s.pressed : undefined]}
               >
-                <Text style={[s.catChipLabel, selected ? s.catChipLabelOn : undefined]}>
-                  {CATEGORY_LABEL[c]}
+                <Text style={s.fieldLabel}>Saved source</Text>
+                <Text numberOfLines={1} style={s.fieldValue}>
+                  {sourceEvidence.filename}
                 </Text>
               </Pressable>
-            );
-          })}
-        </View>
-      </View>
+            ) : null}
 
-      {corrections.length > 0 ? (
-        <View style={s.historyBlock}>
-          <Text style={s.categoryLabel}>Correction history</Text>
-          <Text style={s.historyLine}>
-            {corrections.length} {corrections.length === 1 ? 'change' : 'changes'} kept with this
-            transaction.
-          </Text>
-        </View>
-      ) : null}
+            {/* Repeat — not a Transaction field; stays a display row. */}
+            <View style={s.fieldRow}>
+              <Text style={s.fieldLabel}>Repeat</Text>
+              <Text style={s.fieldValue}>Once</Text>
+            </View>
 
-      {/* Footer — Cancel (inset fill) + Save changes (accent fill), side by side (web `flex gap-2`).
-          Cancel just closes without applying any of the pending edits. */}
+            {/* Note — free-text correction. */}
+            <View style={s.fieldRow}>
+              <Text style={s.fieldLabel}>Note</Text>
+              <TextInput
+                accessibilityLabel="Note"
+                onChangeText={setNote}
+                placeholder="Add a note"
+                placeholderTextColor={t.muted}
+                style={s.fieldValueInput}
+                value={note}
+              />
+            </View>
+          </View>
+
+          {/* Category — a tappable chip per category; the selected one is filled. */}
+          <View style={s.categoryBlock}>
+            <Text style={s.categoryLabel}>Category</Text>
+            <View style={s.categoryChips}>
+              {CATEGORY_ORDER.map((c) => {
+                const selected = c === category;
+                return (
+                  <Pressable
+                    key={c}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => setCategory(c)}
+                    style={({ pressed }) => [
+                      s.catChip,
+                      selected ? s.catChipOn : undefined,
+                      pressed ? s.pressed : undefined,
+                    ]}
+                  >
+                    <Text style={[s.catChipLabel, selected ? s.catChipLabelOn : undefined]}>
+                      {CATEGORY_LABEL[c]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {corrections.length > 0 ? (
+            <View style={s.historyBlock}>
+              <Text style={s.categoryLabel}>Correction history</Text>
+              <Text style={s.historyLine}>
+                {corrections.length} {corrections.length === 1 ? 'change' : 'changes'} kept with
+                this transaction.
+              </Text>
+            </View>
+          ) : null}
+        </>
+      )}
+
+      {/* Footer — edit mode offers Cancel + Review; review mode offers Back + Confirm. */}
       <View style={s.footerRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Cancel"
-          onPress={onClose}
+          accessibilityLabel={reviewing ? 'Back to editing' : 'Cancel'}
+          onPress={reviewing ? () => setReviewing(false) : onClose}
           style={({ pressed }) => [
             s.footerButton,
             { backgroundColor: t.inset },
             pressed ? s.pressed : undefined,
           ]}
         >
-          <Text style={[s.footerButtonLabel, { color: t.ink }]}>Cancel</Text>
+          <Text style={[s.footerButtonLabel, { color: t.ink }]}>
+            {reviewing ? 'Back' : 'Cancel'}
+          </Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Save changes"
-          onPress={handleSave}
+          accessibilityLabel={reviewing ? 'Confirm changes' : 'Review changes'}
+          accessibilityState={{ disabled: !reviewing && pendingChanges.length === 0 }}
+          disabled={!reviewing && pendingChanges.length === 0}
+          onPress={reviewing ? handleSave : () => setReviewing(true)}
           style={({ pressed }) => [
             s.footerButton,
             { backgroundColor: t.calm },
+            !reviewing && pendingChanges.length === 0 ? s.disabled : undefined,
             pressed ? s.pressed : undefined,
           ]}
         >
-          <Text style={[s.footerButtonLabel, { color: t.inverse }]}>Save changes</Text>
+          <Text style={[s.footerButtonLabel, { color: t.inverse }]}>
+            {reviewing
+              ? 'Confirm changes'
+              : pendingChanges.length === 0
+                ? 'No changes'
+                : 'Review changes'}
+          </Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -464,8 +576,7 @@ function EditTxnForm({
 }
 
 // ---------------------------------------------------------------------------
-// Inert fallback — no target threaded (cold open). Shows the web's frozen sample and Save just closes
-// (the web close-only contract). Never edits a row, so a payload-less open is always safe.
+// Inert fallback — no target threaded (cold open). Shows no sample money and never edits a row.
 // ---------------------------------------------------------------------------
 
 function InertFallback({
@@ -646,6 +757,54 @@ function makeStyles(t: Palette) {
       fontSize: 12,
       lineHeight: 17,
     },
+    reviewBlock: {
+      marginTop: gap.lg + gap.xs,
+      rowGap: gap.sm,
+    },
+    reviewIntro: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: gap.xs,
+    },
+    previewRow: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: gap.lg,
+      paddingVertical: gap.md,
+      rowGap: gap.sm,
+    },
+    previewLabel: {
+      color: t.muted,
+      fontSize: 11,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    previewValues: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: gap.sm,
+    },
+    previewBefore: {
+      color: t.muted,
+      flex: 1,
+      fontSize: 14,
+      textDecorationLine: 'line-through',
+    },
+    previewArrow: {
+      color: t.muted,
+      fontSize: 14,
+    },
+    previewAfter: {
+      color: t.ink,
+      flex: 1,
+      fontSize: 14,
+      fontWeight: '600',
+      textAlign: 'right',
+    },
     categoryLabel: {
       color: t.muted,
       fontSize: 12,
@@ -687,7 +846,7 @@ function makeStyles(t: Palette) {
       fontSize: 15,
       fontWeight: '500',
     },
-    // Footer row — Cancel + Save changes, side by side (web `flex gap-2`, mt-6).
+    // Footer row — two-step review/confirm controls.
     footerRow: {
       flexDirection: 'row',
       gap: gap.sm,
@@ -703,6 +862,9 @@ function makeStyles(t: Palette) {
     footerButtonLabel: {
       fontSize: 15,
       fontWeight: '500',
+    },
+    disabled: {
+      opacity: 0.38,
     },
     // The kit press feel (web `press` util — scale 0.97 / lowered opacity).
     pressed: {

@@ -1,234 +1,206 @@
-// SignInSheet — Clerk email-code sign-in contract (sheets/SignInSheet.tsx).
-//
-// The sheet drives a two-step flow entirely through `@clerk/clerk-expo`'s `useSignIn()`: an email
-// step that calls `signIn.create` + `signIn.prepareFirstFactor('email_code')`, then a code step
-// that calls `signIn.attemptFirstFactor('email_code')` and activates the session on success. This
-// test pins the LOAD-BEARING promise of that flow: a successful `create`+`prepareFirstFactor`
-// advances to the code step; a `create` failure (thrown, or no email_code factor available) surfaces
-// the sheet's exact error copy and stays on the email step; a successful `attemptFirstFactor`
-// activates the session; a non-complete/failed attempt surfaces the exact code-step error copy.
-//
-// Node-safe by design: SignInSheet.tsx imports react-native and JSX and so cannot load under the
-// Node test runner (the repo's vitest glob is `apps/**/*.test.ts`, .tsx is never collected — see
-// VisualizerScreen.addAll.test.ts / TodayNudges.test.ts headers for the same constraint; a genuine
-// attempt to render it via @testing-library/react-native under this vitest config failed at
-// react-native's own Flow-typed entrypoint before any test code ran, since the repo's Vite/Rollup
-// transform has no Flow-stripping step — the reason the repo has never carried a real RN render
-// test). SignInSheet has no separable pure module (unlike PaywallScreen's ctaMode.ts or the store
-// TodayNudges reads), so this test re-implements the component's exact two handlers as plain,
-// deterministic functions over a mocked `useSignIn()`-shaped object — the same technique the
-// precedent files use for their own component logic.
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The minimal slice of Clerk's SignInResource this component reads/calls — mirrors the real
-// clerk-expo shape closely enough to exercise the sheet's exact branches.
+type AuthFlow = 'sign_in' | 'sign_up';
 type EmailFactor = { strategy: 'email_code'; emailAddressId: string };
-type SignInAttempt = {
-  status: 'complete' | 'needs_second_factor' | string;
-  createdSessionId: string;
+type Attempt = {
+  status: string;
+  createdSessionId: string | null;
   supportedFirstFactors?: EmailFactor[] | null;
 };
 
 function makeSignIn() {
   return {
-    create: vi.fn<(args: { identifier: string }) => Promise<SignInAttempt>>(),
+    create: vi.fn<(args: { identifier: string }) => Promise<Attempt>>(),
     prepareFirstFactor: vi.fn<(args: unknown) => Promise<unknown>>(),
-    attemptFirstFactor: vi.fn<(args: unknown) => Promise<SignInAttempt>>(),
+    attemptFirstFactor: vi.fn<(args: unknown) => Promise<Attempt>>(),
   };
 }
 
-// A faithful re-statement of SignInSheet's `handleSendCode` — same guard order, same error copy,
-// same state transitions (step/email/code/busy/error), over the mocked signIn/setActive pair.
-async function handleSendCode(
+function makeSignUp() {
+  const prepareEmailAddressVerification = vi.fn<(args: unknown) => Promise<unknown>>();
+  return {
+    create:
+      vi.fn<
+        (args: {
+          emailAddress: string;
+        }) => Promise<{ prepareEmailAddressVerification: typeof prepareEmailAddressVerification }>
+      >(),
+    prepareEmailAddressVerification,
+    attemptEmailAddressVerification: vi.fn<(args: { code: string }) => Promise<Attempt>>(),
+  };
+}
+
+async function beginEmailAuth(
   signIn: ReturnType<typeof makeSignIn>,
+  signUp: ReturnType<typeof makeSignUp>,
   email: string,
-): Promise<{ step: 'email' | 'code'; error: string | null }> {
+  isIdentifierNotFound: (error: unknown) => boolean,
+): Promise<{ step: 'email' | 'code'; flow: AuthFlow; error: string | null }> {
   const trimmed = email.trim();
-  if (trimmed.length === 0) return { step: 'email', error: null };
+  if (!trimmed) return { step: 'email', flow: 'sign_in', error: null };
+
   try {
     const attempt = await signIn.create({ identifier: trimmed });
-    const emailFactor = attempt.supportedFirstFactors?.find((f) => f.strategy === 'email_code');
-    if (!emailFactor || !('emailAddressId' in emailFactor)) {
+    const factor = attempt.supportedFirstFactors?.find((item) => item.strategy === 'email_code');
+    if (!factor) {
       return {
         step: 'email',
-        error: "We couldn't find a way to email you a code. Try again in a moment.",
+        flow: 'sign_in',
+        error: 'We could not find a way to email you a code. Give it a moment, then retry.',
       };
     }
     await signIn.prepareFirstFactor({
       strategy: 'email_code',
-      emailAddressId: emailFactor.emailAddressId,
+      emailAddressId: factor.emailAddressId,
     });
-    return { step: 'code', error: null };
-  } catch {
-    return { step: 'email', error: "That didn't work — check the email and try again." };
+    return { step: 'code', flow: 'sign_in', error: null };
+  } catch (error) {
+    if (!isIdentifierNotFound(error)) {
+      return { step: 'email', flow: 'sign_in', error: 'Check the email address and retry.' };
+    }
+
+    try {
+      const attempt = await signUp.create({ emailAddress: trimmed });
+      await attempt.prepareEmailAddressVerification({ strategy: 'email_code' });
+      return { step: 'code', flow: 'sign_up', error: null };
+    } catch {
+      return {
+        step: 'email',
+        flow: 'sign_in',
+        error: 'We could not start your account. Check the email address and retry.',
+      };
+    }
   }
 }
 
-// A faithful re-statement of SignInSheet's `handleVerifyCode` — same guard order, same error copy,
-// same "complete -> setActive -> close" success path.
-async function handleVerifyCode(
+async function verifyEmailAuth(
+  flow: AuthFlow,
   signIn: ReturnType<typeof makeSignIn>,
+  signUp: ReturnType<typeof makeSignUp>,
   setActive: (args: { session: string }) => Promise<void>,
   code: string,
 ): Promise<{ activated: boolean; error: string | null }> {
   const trimmed = code.trim();
-  if (trimmed.length === 0) return { activated: false, error: null };
+  if (!trimmed) return { activated: false, error: null };
+
   try {
-    const attempt = await signIn.attemptFirstFactor({ strategy: 'email_code', code: trimmed });
-    if (attempt.status === 'complete') {
+    const attempt =
+      flow === 'sign_up'
+        ? await signUp.attemptEmailAddressVerification({ code: trimmed })
+        : await signIn.attemptFirstFactor({ strategy: 'email_code', code: trimmed });
+    if (attempt.status === 'complete' && attempt.createdSessionId) {
       await setActive({ session: attempt.createdSessionId });
       return { activated: true, error: null };
     }
-    return { activated: false, error: "That code didn't match — check it and try again." };
+    return {
+      activated: false,
+      error: 'Your account needs more information before Melo can sign you in.',
+    };
   } catch {
-    return { activated: false, error: "That code didn't match — check it and try again." };
+    return { activated: false, error: 'That code did not match. Check it and retry.' };
   }
 }
 
-describe('SignInSheet — email step (handleSendCode)', () => {
+describe('SignInSheet email sign-in-or-up contract', () => {
   let signIn: ReturnType<typeof makeSignIn>;
+  let signUp: ReturnType<typeof makeSignUp>;
+  const notFound = { code: 'form_identifier_not_found' };
+  const isIdentifierNotFound = (error: unknown) => error === notFound;
 
   beforeEach(() => {
     signIn = makeSignIn();
+    signUp = makeSignUp();
   });
 
-  it('advances to the code step on a successful create + prepareFirstFactor', async () => {
+  it('prepares an email code for an existing user', async () => {
     signIn.create.mockResolvedValue({
       status: 'needs_first_factor',
-      createdSessionId: '',
+      createdSessionId: null,
       supportedFirstFactors: [{ strategy: 'email_code', emailAddressId: 'idn_1' }],
     });
-    signIn.prepareFirstFactor.mockResolvedValue(undefined);
 
-    const result = await handleSendCode(signIn, 'user@example.com');
+    const result = await beginEmailAuth(signIn, signUp, ' user@example.com ', isIdentifierNotFound);
 
-    expect(result).toEqual({ step: 'code', error: null });
+    expect(result).toEqual({ step: 'code', flow: 'sign_in', error: null });
     expect(signIn.create).toHaveBeenCalledWith({ identifier: 'user@example.com' });
     expect(signIn.prepareFirstFactor).toHaveBeenCalledWith({
       strategy: 'email_code',
       emailAddressId: 'idn_1',
     });
+    expect(signUp.create).not.toHaveBeenCalled();
   });
 
-  it('trims the email before calling signIn.create', async () => {
-    signIn.create.mockResolvedValue({
-      status: 'needs_first_factor',
-      createdSessionId: '',
-      supportedFirstFactors: [{ strategy: 'email_code', emailAddressId: 'idn_1' }],
-    });
-    signIn.prepareFirstFactor.mockResolvedValue(undefined);
-
-    await handleSendCode(signIn, '  user@example.com  ');
-
-    expect(signIn.create).toHaveBeenCalledWith({ identifier: 'user@example.com' });
-  });
-
-  it('is a no-op for an empty (or whitespace-only) email', async () => {
-    const result = await handleSendCode(signIn, '   ');
-    expect(result).toEqual({ step: 'email', error: null });
-    expect(signIn.create).not.toHaveBeenCalled();
-  });
-
-  it('shows the exact error and stays on the email step when no email_code factor is available', async () => {
-    signIn.create.mockResolvedValue({
-      status: 'needs_first_factor',
-      createdSessionId: '',
-      supportedFirstFactors: [],
+  it('creates a new account only when Clerk reports identifier-not-found', async () => {
+    signIn.create.mockRejectedValue(notFound);
+    signUp.create.mockResolvedValue({
+      prepareEmailAddressVerification: signUp.prepareEmailAddressVerification,
     });
 
-    const result = await handleSendCode(signIn, 'user@example.com');
+    const result = await beginEmailAuth(signIn, signUp, 'new@example.com', isIdentifierNotFound);
 
-    expect(result).toEqual({
-      step: 'email',
-      error: "We couldn't find a way to email you a code. Try again in a moment.",
+    expect(result).toEqual({ step: 'code', flow: 'sign_up', error: null });
+    expect(signUp.create).toHaveBeenCalledWith({ emailAddress: 'new@example.com' });
+    expect(signUp.prepareEmailAddressVerification).toHaveBeenCalledWith({
+      strategy: 'email_code',
     });
-    expect(signIn.prepareFirstFactor).not.toHaveBeenCalled();
   });
 
-  it('shows the exact error and stays on the email step when signIn.create throws', async () => {
+  it('does not convert network or configuration failures into sign-up attempts', async () => {
     signIn.create.mockRejectedValue(new Error('network down'));
 
-    const result = await handleSendCode(signIn, 'user@example.com');
+    const result = await beginEmailAuth(signIn, signUp, 'user@example.com', isIdentifierNotFound);
 
-    expect(result).toEqual({
-      step: 'email',
-      error: "That didn't work — check the email and try again.",
-    });
+    expect(result.error).toBe('Check the email address and retry.');
+    expect(signUp.create).not.toHaveBeenCalled();
   });
 
-  it('shows the exact error when prepareFirstFactor throws', async () => {
-    signIn.create.mockResolvedValue({
-      status: 'needs_first_factor',
-      createdSessionId: '',
-      supportedFirstFactors: [{ strategy: 'email_code', emailAddressId: 'idn_1' }],
-    });
-    signIn.prepareFirstFactor.mockRejectedValue(new Error('boom'));
-
-    const result = await handleSendCode(signIn, 'user@example.com');
-
-    expect(result).toEqual({
-      step: 'email',
-      error: "That didn't work — check the email and try again.",
-    });
+  it('keeps empty email submissions local and idle', async () => {
+    const result = await beginEmailAuth(signIn, signUp, '   ', isIdentifierNotFound);
+    expect(result).toEqual({ step: 'email', flow: 'sign_in', error: null });
+    expect(signIn.create).not.toHaveBeenCalled();
   });
 });
 
-describe('SignInSheet — code step (handleVerifyCode)', () => {
+describe('SignInSheet verification contract', () => {
   let signIn: ReturnType<typeof makeSignIn>;
+  let signUp: ReturnType<typeof makeSignUp>;
   let setActive: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     signIn = makeSignIn();
+    signUp = makeSignUp();
     setActive = vi.fn().mockResolvedValue(undefined);
   });
 
-  it('activates the session on a complete attempt', async () => {
-    signIn.attemptFirstFactor.mockResolvedValue({
-      status: 'complete',
-      createdSessionId: 'sess_1',
-    });
+  it.each(['sign_in', 'sign_up'] as const)('activates a complete %s session', async (flow) => {
+    const attempt = { status: 'complete', createdSessionId: `sess_${flow}` };
+    signIn.attemptFirstFactor.mockResolvedValue(attempt);
+    signUp.attemptEmailAddressVerification.mockResolvedValue(attempt);
 
-    const result = await handleVerifyCode(signIn, setActive, '123456');
+    const result = await verifyEmailAuth(flow, signIn, signUp, setActive, '424242');
 
     expect(result).toEqual({ activated: true, error: null });
-    expect(signIn.attemptFirstFactor).toHaveBeenCalledWith({
-      strategy: 'email_code',
-      code: '123456',
-    });
-    expect(setActive).toHaveBeenCalledWith({ session: 'sess_1' });
+    expect(setActive).toHaveBeenCalledWith({ session: `sess_${flow}` });
   });
 
-  it('is a no-op for an empty (or whitespace-only) code', async () => {
-    const result = await handleVerifyCode(signIn, setActive, '   ');
-    expect(result).toEqual({ activated: false, error: null });
-    expect(signIn.attemptFirstFactor).not.toHaveBeenCalled();
-  });
-
-  it('shows the exact error and does not activate when the attempt is not complete', async () => {
-    signIn.attemptFirstFactor.mockResolvedValue({
-      status: 'needs_second_factor',
-      createdSessionId: '',
+  it('does not activate incomplete account creation', async () => {
+    signUp.attemptEmailAddressVerification.mockResolvedValue({
+      status: 'missing_requirements',
+      createdSessionId: null,
     });
 
-    const result = await handleVerifyCode(signIn, setActive, '123456');
+    const result = await verifyEmailAuth('sign_up', signIn, signUp, setActive, '424242');
 
-    expect(result).toEqual({
-      activated: false,
-      error: "That code didn't match — check it and try again.",
-    });
+    expect(result.error).toBe('Your account needs more information before Melo can sign you in.');
     expect(setActive).not.toHaveBeenCalled();
   });
 
-  it('shows the exact error when attemptFirstFactor throws (e.g. wrong code)', async () => {
+  it('surfaces invalid codes without activating a session', async () => {
     signIn.attemptFirstFactor.mockRejectedValue(new Error('incorrect_code'));
 
-    const result = await handleVerifyCode(signIn, setActive, '000000');
+    const result = await verifyEmailAuth('sign_in', signIn, signUp, setActive, '000000');
 
-    expect(result).toEqual({
-      activated: false,
-      error: "That code didn't match — check it and try again.",
-    });
+    expect(result.error).toBe('That code did not match. Check it and retry.');
     expect(setActive).not.toHaveBeenCalled();
   });
 });

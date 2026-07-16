@@ -79,15 +79,15 @@ Conventional commit: `test(persist): recovery-matrix coverage`. No push.
    b. healthy main with real user data → 'ok' AND backup refreshed (map[backup]=map[main]).
    c. healthy main, EMPTY state (no user data) → 'ok' AND backup NOT written.
    d. corrupt main (unparseable string) + good backup → 'recovered-backup', main PARKED at
-      `.unreadable.json` (original bytes preserved), state = backup's.
+   `.unreadable.json` (original bytes preserved), state = backup's.
    e. corrupt main + corrupt backup → 'unreadable', main parked, backup untouched.
    f. main missing + orphaned good tmp → promoted, 'ok'.
    g. main missing + backup good → 'recovered-backup'.
    h. (post-101) main parses but load() degrades (seed a blob whose shape makes load throw —
-      e.g. `subs` as a number IF that still throws post-101 guards; if the guards make it
-      unthrowable, use whatever shape 101's own tests used; if none exists, assert instead
-      that a degraded flag scenario is unreachable and note it) → treated as unreadable path
-      (parked + backup recovery).
+   e.g. `subs` as a number IF that still throws post-101 guards; if the guards make it
+   unthrowable, use whatever shape 101's own tests used; if none exists, assert instead
+   that a degraded flag scenario is unreachable and note it) → treated as unreadable path
+   (parked + backup recovery).
 3. Full suite + typecheck green.
 
 ## Done criteria

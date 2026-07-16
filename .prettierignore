@@ -7,4 +7,5 @@ coverage
 docs/source-package
 docs/ui-source
 apps/mobile/expo-env.d.ts
+services/ai-gateway/worker-configuration.d.ts
 pnpm-lock.yaml

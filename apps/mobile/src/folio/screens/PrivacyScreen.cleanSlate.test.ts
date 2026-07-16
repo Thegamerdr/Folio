@@ -1,17 +1,16 @@
 // "Clear to empty" clean-slate contract — the Privacy screen's only release reset
 // (apps/mobile/src/folio/screens/PrivacyScreen.tsx, handleClearToEmpty → confirmReset → performReset).
 //
-// The screen offers one gated destructive action: resetToEmpty(). Demo seeding still exists as test
-// infrastructure, but is deliberately absent from the customer-facing privacy surface. This test pins
-// the load-bearing promise: all three tier-3 gates are required and the result is genuinely empty.
+// The screen offers one gated local-destructive action through clearLocalMeloData(). That adapter
+// clears native/filesystem surfaces and then calls resetToEmpty(); its platform boundary has focused
+// tests in localDataDeletion.test.ts. This store test pins the load-bearing inner promise: all three
+// tier-3 gates are required and the live state becomes genuinely empty.
 //
 // Node-safe by design: the screen `.tsx` imports the react-native runtime and so cannot load under the
 // Node test runner (the repo's vitest glob is `apps/**/*.test.ts`; .tsx is never collected). The
-// handler's wipe path is a thin, deterministic wrapper over exactly these calls —
-// `if (!canStartFresh(gate)) return; resetToEmpty(); nav.go('start');`. We exercise that exact
-// contract directly: build the cleared gate, run the same gate-then-wipe sequence the
-// handler runs, and assert the result. `nav.go` / `Alert.alert` are pure UI (no store effect) and are
-// intentionally out of scope here, exactly as in VisualizerScreen.addAll.test.ts.
+// handler's store boundary remains deterministic: build the cleared gate, run the same
+// gate-then-reset inner sequence the native adapter invokes, and assert the result. `nav.go` /
+// `Alert.alert` are pure UI and platform cleanup is covered by the adapter test.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -89,6 +88,8 @@ describe('Privacy "Clear to empty" — gated tier-3 clean slate', () => {
     expect(hasAnyUserData(s)).toBe(false); // the whole point — a blank app, not a demo one
     // The cleared user is NOT re-onboarded, and the balance is a chosen empty (not a sample source).
     expect(s.onboarding.done).toBe(true);
+    expect(s.onboarding.name).toBe('');
+    expect(s.onboarding.monthlyIncome).toBe(0);
     expect(s.currentBalance.amount).toBe(0);
     expect(s.currentBalance.source).not.toBe('sample');
   });

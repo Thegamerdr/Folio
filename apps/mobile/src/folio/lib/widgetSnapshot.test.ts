@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { buildWidgetSnapshot } from './widgetSnapshot';
 import { getState, resetAll, setBufferAmount, setCurrentBalance } from '../store';
+import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
 
 beforeEach(() => {
   resetAll();
@@ -22,6 +23,7 @@ describe('buildWidgetSnapshot — fresh install (sample balance)', () => {
     const snapshot = buildWidgetSnapshot(getState(), NOW);
 
     expect(snapshot.isSample).toBe(true);
+    expect(snapshot.workspaceId).toBe(PERSONAL_WORKSPACE_ID);
     expect(snapshot.paydayISO).toBeNull();
   });
 });

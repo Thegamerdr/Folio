@@ -2,7 +2,7 @@ import { defineMigration, type AppliedMigration, type MigrationPlan } from './mi
 
 export const canonicalSqliteRepositoryMigrationTable = 'canonical_repository_migrations';
 
-export const canonicalSqliteRepositorySchemaVersion = 4;
+export const canonicalSqliteRepositorySchemaVersion = 8;
 
 export const canonicalSqliteCollectionTables = {
   workspaces: 'workspaces',
@@ -34,6 +34,16 @@ export const canonicalSqliteCollectionTables = {
   timelineEntries: 'timeline_entries',
   meloMemory: 'melo_memory',
   meloProposals: 'melo_proposals',
+  pots: 'pots',
+  potLedgerEntries: 'pot_ledger_entries',
+  subscriptions: 'subscriptions',
+  subscriptionPreferences: 'subscription_preferences',
+  cycleRecords: 'cycle_records',
+  debts: 'debts',
+  financialContexts: 'financial_contexts',
+  incomeSchedules: 'income_schedules',
+  transactionIntelligenceStates: 'transaction_intelligence_states',
+  companionRuntimeStates: 'companion_runtime_states',
   auditLog: 'audit_log',
 } as const;
 
@@ -295,7 +305,7 @@ export const canonicalSqliteRepositoryMigrations = [
     `,
   }),
   defineMigration({
-    version: canonicalSqliteRepositorySchemaVersion,
+    version: 4,
     name: 'canonical_import_document_review_v4',
     sql: `
       CREATE TABLE IF NOT EXISTS parsed_rows (
@@ -333,6 +343,120 @@ export const canonicalSqliteRepositoryMigrations = [
         UNIQUE(id, workspace_id)
       );
       CREATE INDEX IF NOT EXISTS idx_document_attachments_workspace_id ON document_attachments(workspace_id, id);
+    `,
+  }),
+  defineMigration({
+    version: 5,
+    name: 'canonical_durable_money_containers_v5',
+    sql: `
+      CREATE TABLE IF NOT EXISTS pots (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_pots_workspace_id ON pots(workspace_id, id);
+
+      CREATE TABLE IF NOT EXISTS pot_ledger_entries (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_pot_ledger_entries_workspace_id ON pot_ledger_entries(workspace_id, id);
+
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_subscriptions_workspace_id ON subscriptions(workspace_id, id);
+
+      CREATE TABLE IF NOT EXISTS subscription_preferences (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_subscription_preferences_workspace_id ON subscription_preferences(workspace_id, id);
+
+      CREATE TABLE IF NOT EXISTS cycle_records (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_cycle_records_workspace_id ON cycle_records(workspace_id, id);
+
+      CREATE TABLE IF NOT EXISTS debts (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_debts_workspace_id ON debts(workspace_id, id);
+    `,
+  }),
+  defineMigration({
+    version: 6,
+    name: 'canonical_financial_context_v6',
+    sql: `
+      CREATE TABLE IF NOT EXISTS financial_contexts (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_financial_contexts_workspace_id
+        ON financial_contexts(workspace_id, id);
+    `,
+  }),
+  defineMigration({
+    version: 7,
+    name: 'canonical_route_planning_v7',
+    sql: `
+      CREATE TABLE IF NOT EXISTS income_schedules (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_income_schedules_workspace_id
+        ON income_schedules(workspace_id, id);
+    `,
+  }),
+  defineMigration({
+    version: canonicalSqliteRepositorySchemaVersion,
+    name: 'canonical_private_runtime_state_v8',
+    sql: `
+      CREATE TABLE IF NOT EXISTS transaction_intelligence_states (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_transaction_intelligence_states_workspace_id
+        ON transaction_intelligence_states(workspace_id, id);
+
+      CREATE TABLE IF NOT EXISTS companion_runtime_states (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL,
+        record_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(id, workspace_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_companion_runtime_states_workspace_id
+        ON companion_runtime_states(workspace_id, id);
     `,
   }),
 ] as const;

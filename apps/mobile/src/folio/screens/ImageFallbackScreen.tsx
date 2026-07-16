@@ -6,8 +6,7 @@
 // @purpose      The failure state when the photo reader can't produce things to check. The image is
 //               kept in Folio (nothing is lost); the screen offers a calm retry, a quiet "view image"
 //               affordance, and a last-resort manual path. Honest copy, one clear recovery.
-// @reads        — (nav only; the web @reads is an em-dash. The web file's ~17 store imports are DEAD
-//               in its body and are NOT ported. This screen reads no store state.)
+// @reads        active workspace + encrypted evidence metadata for the retained image
 // @writes       — (no store mutation; the web @writes is an em-dash. Nothing is added here — the
 //               manual path routes to Review, where an Accept is the only write.)
 // @opens-sheet  edit-item (INTENDED downstream from Review; NOT fired here. Kept documented.)
@@ -17,15 +16,13 @@
 // @motion       slide-in-r (whole screen) · press 0.97 (kit `pressed`) · Melo breathe + blink
 //               (from MeloLine, calm mood — the only continuous motion on this quiet screen).
 //
-// @rn-engine ocr-extraction (native PdfRenderer + ML Kit module — not built; see nativeTextExtraction.ts)
+// @rn-engine ocr-extraction (bundled ML Kit attempted locally before this fallback)
 //   This screen IS the honest destination for that gap: today every photo / screenshot pick on the
 //   Intake screen reaches here because the on-device OCR extractor returns `none` (the native ML Kit
-//   Text Recognition module is not built). The image was saved to the app cache, on-device only
+//   Text Recognition did not produce reliable rows). The image was saved to the app cache
 //   (nothing lost, no bytes leave the phone); we say so plainly ("Image saved" / "will read later")
 //   and never claim a read happened. When the native module lands, a successful extract will parse to
-//   candidates and route to image-success instead — with NO change to this fallback. The image name
-//   below is the saved image's name; here it is a local sample that REUSES the web source's exact
-//   value (no fabricated names).
+//   candidates and route to image-success instead. The card renders the retained image's real name.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • Accent word "saved." is rendered UPRIGHT terracotta inside the Fraunces headline (web
@@ -39,8 +36,8 @@
 //   • Press feedback is the kit `pressed` feel (scale 0.97 / lowered opacity) via Pressable.
 //   • Push-to-bottom: a ScrollView whose contentContainer is flexGrow:1 with a flex:1 spacer pins
 //     the CTAs to the bottom; bottom safe-area replaces the web's trailing margin.
-//   • The "View image" affordance is presentational on this UI-only wave (the viewer is a later
-//     surface). It is a real >=44px tappable that no-ops calmly.
+//   • Both "View image" affordances decrypt into a short-lived cache file, invoke the native
+//     viewer/share surface, and remove that plaintext cache in `finally`.
 //
 // STATES (per STATES.md): this file IS the fallback/error branch for the photo reader. All five
 // branches render for completeness: populated/offline = the fallback (offline ≡ populated, local-
@@ -51,7 +48,15 @@
 // note / Melo line / CTAs are @copy FROZEN inline literals (the web keeps them inline).
 
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -65,11 +70,15 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { consumeReaderFallbackReason } from '@/folio/lib/readerFallbackReason';
+import { openEvidenceDocument } from '@/folio/lib/documentVault';
+import {
+  consumeReaderFallbackEvidenceId,
+  consumeReaderFallbackReason,
+} from '@/folio/lib/readerFallbackReason';
+import { useAppStore } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
-// What a failed read hands this screen — just the saved image's name. Until the reader lands, the
-// shell passes the SAMPLE below (the web source's exact name), so the screen renders honestly.
+// Optional explicit name for previews. Production resolves the retained evidence metadata.
 export type SavedImage = {
   imageName: string;
 };
@@ -82,9 +91,6 @@ export type ImageFallbackScreenProps = {
   image?: SavedImage;
   state?: ImageFallbackState;
 };
-
-// The web prototype's hardcoded image name, reused VERBATIM (no fabricated names).
-const SAMPLE_IMAGE: SavedImage = { imageName: 'IMG_2643.jpg' };
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
@@ -124,11 +130,7 @@ function splitAccent(source: string): { lead: string; accent: string; tail: stri
   };
 }
 
-export function ImageFallbackScreen({
-  nav,
-  image = SAMPLE_IMAGE,
-  state = 'populated',
-}: ImageFallbackScreenProps) {
+export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFallbackScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
@@ -155,6 +157,40 @@ export function ImageFallbackScreen({
   // reader had nothing more specific to say (or on a cold/direct nav here) — the body line below
   // falls back to the honest generic copy in that case, exactly as before.
   const [readerReason] = useState(() => consumeReaderFallbackReason());
+  const [readerEvidenceId] = useState(() => consumeReaderFallbackEvidenceId());
+  const workspace = useAppStore((current) =>
+    current.workspaces.find((candidate) => candidate.id === current.activeWorkspaceId),
+  );
+  const evidenceDocument = useAppStore((current) => {
+    const workspaceId = current.activeWorkspaceId;
+    if (readerEvidenceId !== undefined) {
+      return current.evidenceDocuments?.find(
+        (document) => document.id === readerEvidenceId && document.workspaceId === workspaceId,
+      );
+    }
+    return current.evidenceDocuments?.find(
+      (document) =>
+        document.workspaceId === workspaceId &&
+        (document.sourceType === 'image' || document.sourceType === 'camera'),
+    );
+  });
+  const imageName = image?.imageName ?? evidenceDocument?.filename ?? 'Saved image';
+
+  const openSource = () => {
+    if (workspace === undefined || evidenceDocument === undefined) {
+      Alert.alert(
+        'Saved image unavailable',
+        'This encrypted original is no longer on this device.',
+      );
+      return;
+    }
+    void openEvidenceDocument(workspace, evidenceDocument).catch((reason: unknown) => {
+      Alert.alert(
+        'Could not open the saved image',
+        reason instanceof Error ? reason.message : 'The encrypted image could not be opened.',
+      );
+    });
+  };
 
   // empty — n/a in practice; rendered as the calm doorway so the screen never dead-ends.
   if (state === 'empty') {
@@ -227,15 +263,17 @@ export function ImageFallbackScreen({
           </View>
           <View style={styles.imageMeta}>
             <Text numberOfLines={1} style={[styles.imageName, { color: t.ink }]}>
-              {image.imageName}
+              {imageName}
             </Text>
             <Text style={[styles.imageSub, { color: t.muted }]}>saved in Melo</Text>
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="View image"
+            accessibilityState={{ disabled: evidenceDocument === undefined }}
+            disabled={evidenceDocument === undefined}
             hitSlop={12}
-            onPress={() => {}}
+            onPress={openSource}
             style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
           >
             <Text style={[styles.viewLink, { color: t.muted }]}>View</Text>
@@ -274,12 +312,14 @@ export function ImageFallbackScreen({
           <Text style={[styles.primaryLabel, { color: t.inverse }]}>Try another image</Text>
         </Pressable>
 
-        {/* Secondary row — "View image" (presentational) + the manual last-resort path to Review. */}
+        {/* Secondary row — encrypted original + the manual last-resort path to Review. */}
         <View style={styles.secondaryRow}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="View image"
-            onPress={() => {}}
+            accessibilityState={{ disabled: evidenceDocument === undefined }}
+            disabled={evidenceDocument === undefined}
+            onPress={openSource}
             style={({ pressed: isPressed }) => [
               styles.secondaryCell,
               { backgroundColor: t.surface, borderColor: t.hairline },

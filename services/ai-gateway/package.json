@@ -2,12 +2,14 @@
   "name": "@folio/ai-gateway",
   "version": "0.0.0",
   "private": true,
-  "description": "Standalone Cloudflare Worker that proxies Folio's Melo chat to OpenRouter. Holds the OpenRouter key as a Worker secret so it never ships in the app/APK.",
+  "description": "Cloudflare Worker for enum-only Melo phrasing with no raw prompt, document, or financial-data ingress.",
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "pnpm types:check && tsc --noEmit",
+    "types": "wrangler types worker-configuration.d.ts --include-runtime false --env-interface CloudflareBindings",
+    "types:check": "wrangler types worker-configuration.d.ts --include-runtime false --env-interface CloudflareBindings --check"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250620.0",

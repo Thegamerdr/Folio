@@ -8,8 +8,11 @@ import {
   GCM_NONCE_BYTES,
   VAULT_KEY_BYTES,
   decryptBlob,
+  decryptBytes,
   encryptBlob,
+  encryptBytes,
   isEncryptedBlob,
+  isEncryptedByteBlob,
 } from './cryptoBlob';
 
 const key = new Uint8Array(VAULT_KEY_BYTES).fill(7);
@@ -40,6 +43,15 @@ describe('cryptoBlob — AES-256-GCM', () => {
     expect(decryptBlob(tampered, key)).toBeNull();
   });
 
+  it('authenticates associated metadata without writing it into the ciphertext payload', () => {
+    const workspace = new TextEncoder().encode('workspace-ref:a');
+    const encoded = encryptBlob('private state', key, iv, workspace);
+
+    expect(decryptBlob(encoded, key, workspace)).toBe('private state');
+    expect(decryptBlob(encoded, key, new TextEncoder().encode('workspace-ref:b'))).toBeNull();
+    expect(decryptBlob(encoded, key)).toBeNull();
+  });
+
   it('treats a legacy plaintext blob (no magic) as not-encrypted and undecryptable', () => {
     const legacy = '{"legacy":true,"transactions":[]}';
     expect(isEncryptedBlob(legacy)).toBe(false);
@@ -58,5 +70,18 @@ describe('cryptoBlob — AES-256-GCM', () => {
     expect(a).not.toBe(b);
     expect(decryptBlob(a, key)).toBe('same');
     expect(decryptBlob(b, key)).toBe('same');
+  });
+
+  it('round-trips arbitrary PDF/image bytes without exposing them in the envelope', () => {
+    const bytes = Uint8Array.from([0, 37, 80, 68, 70, 255, 1, 2, 3]);
+    const aad = new TextEncoder().encode('workspace:a:evidence:1');
+    const encoded = encryptBytes(bytes, key, iv, aad);
+
+    expect(isEncryptedByteBlob(encoded)).toBe(true);
+    expect(decryptBytes(encoded, key, aad)).toEqual(bytes);
+    expect(
+      decryptBytes(encoded, key, new TextEncoder().encode('workspace:a:evidence:2')),
+    ).toBeNull();
+    expect(decryptBytes(encoded, new Uint8Array(VAULT_KEY_BYTES).fill(8), aad)).toBeNull();
   });
 });

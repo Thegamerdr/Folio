@@ -6,9 +6,8 @@
 // @purpose      Plain statement of what Folio does (and doesn't do) with the user's data, plus export
 //               and reset.
 // @reads        — (no store reads for render)
-// @writes       resetToEmpty() (via "Clear everything to empty"). NO post-wipe Undo (D3: no fake
-//               undo after a confirmed wipe). Demo reseeding remains a development/test concern and
-//               is deliberately not exposed in the release privacy UI.
+// @writes       clearLocalMeloData() spans encrypted state, SQLCipher rows, reminders, widgets and
+//               app-owned exports. NO post-clear Undo (D3). Demo reseeding stays development-only.
 // @writes-export runExport() — "Export my data" runs the real export engine (full JSON + CSVs +
 //               OS share sheet, ENGINES §6 D6). It opens the OS share sheet itself, not a Folio sheet.
 // @writes-restore pickRestoreFile()/applyRestore() (plan 113) — "Restore from an export" loads a
@@ -51,9 +50,10 @@
 //     web button, so it is NOT the kit's <PrimaryAction> (which pins a chevron).
 //   • The action list is one `surface` card with the kit hairline border. It holds "See what's saved",
 //     restore, and the single release-safe destructive action, each split by one inter-row hairline.
-//   • "Clear to empty" → resetToEmpty() leaves a GENUINELY empty app — no reseed — for a real user who
-//     wants only their own data. It runs the tier-3 confirm chain (exportedAck → typedConfirm →
-//     finalConfirm); only the final branch wipes. There is no customer-facing sample-data reset.
+//   • "Clear local money & history" → clearLocalMeloData() removes every app-owned local surface,
+//     then persists a genuinely empty encrypted state. It runs the tier-3 confirm chain
+//     (exportedAck → typedConfirm → finalConfirm); only the final branch clears. There is no
+//     customer-facing sample-data reset.
 //     Per D3 there is NO post-wipe Undo (no fake undo after a confirmed wipe): the toast is a plain
 //     confirmation, and the export acknowledged in gate 1 is the real recovery path. The honest claim
 //     above ("a few deliberate confirmations, never one accidental tap") describes the user's OWN
@@ -70,6 +70,7 @@
 // Tokens only — no new colour, font, spacing, radius, or shadow. Tap targets are >=44px (the rows and
 // CTA have generous padding; the back glyph carries hitSlop). Named export (the route file is separate).
 
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -86,10 +87,19 @@ import {
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { resetToEmpty } from '@/folio/store';
 import { runExport } from '@/folio/lib/exportNative';
 import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
+import { clearLocalMeloData } from '@/folio/lib/localDataDeletion';
+import { useAppStore } from '@/folio/store';
+import {
+  changeAppLockEnabled,
+  getCachedAppLockSettings,
+  inspectAppLockCapability,
+  loadAppLockSettings,
+  subscribeAppLockSettings,
+  type AppLockCapability,
+} from '@/folio/lib/appLock';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Privacy is populated-only and offline is
@@ -102,12 +112,12 @@ export type PrivacyScreenProps = {
   state?: PrivacyState;
 };
 
-// Three concise, literal claims about the shipped app. Melo messages and statement files can leave the
-// device for processing, so the copy names that boundary instead of implying everything stays local.
+// Three concise, literal claims about the shipped app. Optional remote services and local/account
+// deletion are named as separate boundaries instead of implying everything stays on-device.
 const HONEST_CLAIMS = [
-  'No ads, no tracking',
-  'Melo messages and statement files go only to the services that process them',
-  'Exports happen only when you ask; clearing takes three confirmations',
+  'No ads or behavioural tracking',
+  'Bank, backup, Melo and statement services run only when you choose them',
+  'Local clearing and cloud account deletion stay separate',
 ] as const;
 
 // The positive check badge is a 15% alpha tint of the `positive` token (web bg-[var(--positive)]/15).
@@ -118,11 +128,62 @@ const POSITIVE_TINT_ALPHA = '26'; // 0x26 / 0xFF ≈ 0.15
 export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
+  const activeWorkspace = useAppStore(
+    (current) =>
+      current.workspaces.find((workspace) => workspace.id === current.activeWorkspaceId)!,
+  );
+  const isBusiness = activeWorkspace.kind === 'business';
+  const [appLockSettings, setAppLockSettings] = useState(getCachedAppLockSettings());
+  const [appLockCapability, setAppLockCapability] = useState<AppLockCapability | null>(null);
+  const [changingAppLock, setChangingAppLock] = useState(false);
 
-  // "Clear everything to empty" → resetToEmpty(). Wipes to a GENUINELY empty app — no reseed, no
-  //     demo content — for a real user who wants only their own data going forward. The store leaves
-  //     a neutral, honest empty (£0, user-entered/rough, not a `sample` source) and keeps
-  //     `onboarding.done` true so the cleared user is not re-onboarded.
+  useEffect(() => {
+    let mounted = true;
+    const unsubscribe = subscribeAppLockSettings(setAppLockSettings);
+    void Promise.all([loadAppLockSettings(), inspectAppLockCapability()]).then(
+      ([settings, capability]) => {
+        if (!mounted) return;
+        setAppLockSettings(settings);
+        setAppLockCapability(capability);
+      },
+    );
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const handleAppLock = () => {
+    if (changingAppLock) return;
+    setChangingAppLock(true);
+    void changeAppLockEnabled(!appLockSettings.enabled)
+      .then((result) => {
+        if (result.reason === 'device-lock-not-set') {
+          Alert.alert(
+            'Add a device screen lock first',
+            'Set a PIN, pattern, password or biometric in Android or iPhone settings, then come back to turn on Melo app lock.',
+            [{ text: 'OK', style: 'cancel' }],
+          );
+        } else if (result.reason === 'unavailable') {
+          Alert.alert(
+            'App lock is unavailable',
+            'This device could not securely save or open the app-lock setting. Your Melo vault remains encrypted on disk.',
+            [{ text: 'OK', style: 'cancel' }],
+          );
+        } else if (result.reason === 'failed') {
+          Alert.alert(
+            'Device authentication did not finish',
+            'Melo left the app-lock setting unchanged.',
+            [{ text: 'OK', style: 'cancel' }],
+          );
+        }
+      })
+      .finally(() => setChangingAppLock(false));
+  };
+
+  // "Clear local money & history" spans all app-owned device surfaces, then persists a genuinely
+  // empty encrypted state with no demo content and no forced re-onboarding.
   //
   // This is a Tier-3 "nuke" action per undoPolicy.ts (ENGINES.md §6), so it is never one-tap
   // reachable. It fires only once `canStartFresh` clears all three
@@ -141,22 +202,33 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // back" (the web's 6s sonner-with-Undo is deliberately dropped). Export is now REAL:
   // "Export my data" calls runExport() (the export engine), which builds the complete JSON + CSVs and
   // opens the OS share sheet on them — it no longer opens the cycle-share card (D6, never paywalled).
-  // "Clear everything to empty" runs resetToEmpty(), which leaves NO demo data, so its copy
-  //     truthfully says the app is left empty — the right choice for a real user who wants only their
-  //     own data.
-  const performReset = (wipe: () => void, toastTitle: string, toastBody: string) => {
+  // Remote account data stays separate so neither deletion direction silently destroys the other.
+  const performReset = async () => {
     // The gate is cleared — build the StartFreshState the engine vets and confirm all three are set
     // before the destructive call. This keeps the engine as the single source of truth for the policy.
     const gate: StartFreshState = { typedConfirm: true, exportedAck: true, finalConfirm: true };
     if (!canStartFresh(gate)) return;
 
-    wipe();
-    nav.go('start');
-    // D3: NO fake undo after a confirmed wipe. The three-gate confirm (export ack → typed confirm →
-    // final confirm) IS the protection, and the final dialog already tells the user "there is no going
-    // back" — offering an Undo here would contradict that. So this is a plain confirmation (OK only);
-    // the export the user acknowledged in gate 1 is the real recovery path.
-    Alert.alert(toastTitle, toastBody, [{ text: 'OK', style: 'cancel' }], { cancelable: true });
+    try {
+      const result = await clearLocalMeloData(activeWorkspaceId);
+      nav.go('start');
+      Alert.alert(
+        result.complete ? 'Local data cleared' : 'Local data cleared with one warning',
+        result.complete
+          ? 'Money, setup details, imports, history and app-owned export files were cleared from this device. Your sign-in, cloud backup and bank connections are separate and unchanged.'
+          : `Your live Melo data is empty, but ${result.failedArtifacts.length} older app file${result.failedArtifacts.length === 1 ? '' : 's'} could not be removed. Do not treat this device as fully wiped yet.`,
+        [{ text: 'OK', style: 'cancel' }],
+        { cancelable: true },
+      );
+    } catch (reason: unknown) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'Melo could not verify that local data was fully cleared.';
+      Alert.alert('Local clear did not finish', message, [{ text: 'OK', style: 'cancel' }], {
+        cancelable: true,
+      });
+    }
   };
 
   // The shared tier-3 confirm chain. Both destructive resets run the SAME three independently
@@ -166,8 +238,8 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   const confirmReset = (finalActionLabel: string, perform: () => void) => {
     // Gate 1 — exportedAck: confirm the user has exported before anything is destroyed.
     Alert.alert(
-      'Clear your data?',
-      "This wipes everything you've added. Export your data first if you want to keep it.",
+      'Clear local money and history?',
+      'This clears money, setup details, imports, history, widgets and app-owned export files from this device. It does not delete your sign-in, cloud backup or bank connections. Export first if you want to keep a copy.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -177,16 +249,16 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
             // intent (the cross-platform stand-in for the typed phrase the policy requires).
             Alert.alert(
               'Are you sure?',
-              'This clears all your data and cannot be undone after the next step.',
+              'This local data cannot be recovered unless you already exported it or kept a separate encrypted cloud backup.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                  text: 'Yes, clear everything',
+                  text: 'Yes, clear local data',
                   onPress: () => {
                     // Gate 3 — finalConfirm: the last destructive confirm; only this branch wipes.
                     Alert.alert(
-                      'Clear everything now?',
-                      'There is no going back once this is done.',
+                      'Clear this device now?',
+                      'Local money, setup details and history will be removed. Remote account data stays until you delete it separately.',
                       [
                         { text: 'Cancel', style: 'cancel' },
                         { text: finalActionLabel, style: 'destructive', onPress: perform },
@@ -205,11 +277,11 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     );
   };
 
-  // "Clear everything to empty" — resetToEmpty(): wipe to a genuinely empty app, no demo reseed.
+  // Comprehensive local clear: auxiliary native/filesystem surfaces plus an empty encrypted store.
   const handleClearToEmpty = () =>
-    confirmReset('Clear to empty', () =>
-      performReset(resetToEmpty, 'Cleared to empty', 'Everything cleared. The app is empty now.'),
-    );
+    confirmReset('Clear local data', () => {
+      void performReset();
+    });
 
   // Restore from an export (plan 113) — the recovery path the wipe chain's first gate points at.
   // pickRestoreFile opens the system picker and validates the file BEFORE anything is touched;
@@ -220,12 +292,12 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // reported honestly; per-field corruption defaults silently, same as any boot.
   const handleRestore = () => {
     void (async () => {
-      const picked = await pickRestoreFile();
+      const picked = await pickRestoreFile(activeWorkspaceId);
       if (picked.status === 'cancelled') return;
       if (picked.status === 'invalid') {
         Alert.alert(
           'Couldn’t read that file',
-          'That file doesn’t look like a Melo export. Pick the folio-export.json from an export.',
+          'That file doesn’t look like a Melo data export. Pick the personal or business export file that Melo created.',
           [{ text: 'OK', style: 'cancel' }],
           { cancelable: true },
         );
@@ -253,7 +325,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
                     text: 'Restore',
                     style: 'destructive',
                     onPress: () => {
-                      void applyRestore(raw).then(({ degraded }) => {
+                      void applyRestore(raw, activeWorkspaceId).then(({ degraded }) => {
                         Alert.alert(
                           degraded ? 'Restored with gaps' : 'Restored',
                           degraded
@@ -289,7 +361,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // — the old wiring opened the cycle-share card, which is NOT a data export. On a device without
   // storage/sharing the call rejects; we surface that honestly rather than imply the export happened.
   const handleExport = () => {
-    void runExport().catch((err: unknown) => {
+    void runExport(activeWorkspaceId).catch((err: unknown) => {
       const message =
         err instanceof Error ? err.message : 'Export could not finish on this device.';
       Alert.alert('Export didn’t finish', message, [{ text: 'OK', style: 'cancel' }], {
@@ -305,7 +377,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     const body =
       state === 'error'
         ? undefined
-        : "Melo shows you what's saved, lets you export it, and wipes it when you say so.";
+        : 'Melo shows what is local, what is remote, and lets you clear each separately.';
     return (
       <EmptyState
         mood="calm"
@@ -344,7 +416,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       ]}
     >
       {/* The whole surface scrolls — on a short viewport (or with large OS text) the action card's
-          last row ("Clear to empty") and the Melo footer sit below the fold; without a scroll
+          last row ("Clear local money & history") and the Melo footer sit below the fold; without a scroll
           container they were unreachable. flexGrow:1 keeps the footer pinned to the bottom when there
           IS room (the spacer below expands), and lets the column scroll when there isn't. */}
       <ScrollView
@@ -364,18 +436,22 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           >
             <Text style={[styles.backGlyph, { color: t.muted }]}>←</Text>
           </Pressable>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>Your data</Text>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>
+            {isBusiness ? 'Business workspace data' : 'Your data'}
+          </Text>
           <View style={styles.topBarSpacer} aria-hidden />
         </View>
 
         {/* Headline block — "Your data, " + the upright terracotta accent "your call." + the body line. */}
         <View style={styles.headlineBlock}>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {'Your data, '}
+            {isBusiness ? 'Business data, ' : 'Your data, '}
             <Text style={[styles.headlineAccent, { color: t.calm }]}>your call.</Text>
           </Text>
           <Text style={[styles.body, { color: t.muted }]}>
-            Melo shows you what&apos;s saved, lets you export it, and wipes it when you say so.
+            {isBusiness
+              ? `Exports and restores are bound to ${activeWorkspace.name}. Device-wide clearing is labelled separately.`
+              : 'Melo shows what is local, what is remote, and lets you clear each separately.'}
           </Text>
         </View>
 
@@ -398,7 +474,11 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
         {/* Primary CTA — terracotta fill + the warm raised glow; opens the share (export) sheet. Plain
           centred label, no arrow, faithful to the web button. */}
         <Pressable
-          accessibilityHint="Builds a full copy of your data and opens the share sheet"
+          accessibilityHint={
+            isBusiness
+              ? 'Builds the Business data and spreadsheet files, then shares the accountant records sheet'
+              : 'Builds a full copy of your data and opens the share sheet'
+          }
           accessibilityRole="button"
           onPress={handleExport}
           style={({ pressed: isPressed }) => [
@@ -407,7 +487,9 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
             isPressed ? pressed : undefined,
           ]}
         >
-          <Text style={[styles.primaryLabel, { color: t.inverse }]}>Export my data</Text>
+          <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+            {isBusiness ? 'Export Business records' : 'Export my data'}
+          </Text>
         </Pressable>
 
         {/* Action list card — one surface with the kit hairline border. Three rows split by ONE inter-row
@@ -431,6 +513,46 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           {/* Inter-row divider (web divide-y) — between "See what's saved" and "Restore". */}
           <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
 
+          <Pressable
+            accessibilityHint={
+              appLockSettings.enabled
+                ? 'Authenticates before turning off app lock'
+                : 'Authenticates before turning on app lock'
+            }
+            accessibilityRole="switch"
+            accessibilityState={{
+              checked: appLockSettings.enabled,
+              busy: changingAppLock,
+              disabled: changingAppLock,
+            }}
+            disabled={changingAppLock}
+            onPress={handleAppLock}
+            style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
+          >
+            <View style={styles.actionText}>
+              <Text style={[styles.actionTitle, { color: t.ink }]}>App lock</Text>
+              <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+                {changingAppLock
+                  ? 'checking your device lock…'
+                  : appLockSettings.enabled
+                    ? 'on · locks whenever Melo leaves the screen'
+                    : appLockCapability?.available === false
+                      ? 'off · add a device screen lock first'
+                      : 'off · uses your device screen lock'}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.appLockState,
+                { color: appLockSettings.enabled ? t.positive : t.muted },
+              ]}
+            >
+              {appLockSettings.enabled ? 'ON' : 'OFF'}
+            </Text>
+          </Pressable>
+
+          <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
+
           {/* Restore from an export — loads a folio-export.json back in (plan 113). Ink title (its
             intent is recovery), truthful subtitle; the two-gate confirm carries the replace weight. */}
           <Pressable
@@ -442,26 +564,30 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
             <View style={styles.actionText}>
               <Text style={[styles.actionTitle, { color: t.ink }]}>Restore from an export</Text>
               <Text style={[styles.actionSubtitle, { color: t.muted }]}>
-                loads a folio-export.json, replaces what&apos;s here
+                loads a Melo JSON export, replaces this workspace
               </Text>
             </View>
             <ChevronRight color={t.muted} />
           </Pressable>
 
-          {/* Inter-row divider — between "Restore" and "Clear to empty". */}
+          {/* Inter-row divider — between restore and the local clear. */}
           <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
 
-          {/* Clear to empty — resetToEmpty(): wipes to a genuinely empty app, no demo data left. */}
+          {/* Local clear spans every app-owned device surface and leaves remote account data alone. */}
           <Pressable
-            accessibilityHint="Asks you to confirm before clearing your data"
+            accessibilityHint="Asks you to confirm before clearing local money and history"
             accessibilityRole="button"
             onPress={handleClearToEmpty}
             style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
           >
             <View style={styles.actionText}>
-              <Text style={[styles.actionTitle, { color: t.repair }]}>Clear to empty</Text>
+              <Text style={[styles.actionTitle, { color: t.repair }]}>
+                {isBusiness ? 'Clear all local workspaces' : 'Clear local money & history'}
+              </Text>
               <Text style={[styles.actionSubtitle, { color: t.muted }]}>
-                wipes everything, leaves a blank app
+                {isBusiness
+                  ? 'clears Personal and Business on this device; remote services stay'
+                  : 'keeps sign-in, cloud backup and bank connections'}
               </Text>
             </View>
             <ChevronRight color={t.muted} />
@@ -475,7 +601,15 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           one Fraunces-italic thought. The web mood "soft" is non-canonical (MELO_MOODS maps Privacy to
           'calm'), so the canonical 'calm' is used. MeloLine supplies the straight quotes; pass raw text. */}
         <View style={styles.footer}>
-          <MeloLine mood="calm" size={28} text="Your numbers are yours to keep or export." />
+          <MeloLine
+            mood="calm"
+            size={28}
+            text={
+              isBusiness
+                ? 'This export is built from the active Business partition only.'
+                : 'Your numbers are yours to keep or export.'
+            }
+          />
         </View>
       </ScrollView>
     </View>
@@ -610,6 +744,11 @@ const styles = StyleSheet.create({
   actionSubtitle: {
     fontSize: 12,
     marginTop: 2,
+  },
+  appLockState: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
   },
   // The single inter-row hairline.
   rowDivider: {

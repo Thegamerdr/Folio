@@ -11,10 +11,10 @@
 // from (a real store purchase vs. today's preview/trial fallback) without inventing a second
 // competing "is this unlocked" flag.
 //
-// `source: 'preview'` covers everything the app already does today — the existing local
-// trial/preview flags (lens.trialCycleId, setLensPlusUnlocked/setLensProUnlocked called from the
-// preview-fallback CTA) keep working exactly as before. `source: 'store'` is written only after a
-// real expo-iap purchase resolves, once a Play listing exists.
+// `source: 'preview'` covers the local trial. A `source: 'store'` record is accepted by the native
+// adapter only when its `grant` passes Ed25519 verification; the redundant tier/product fields are
+// indexing hints, not authority. V2 stores Full and Live independently because they are separate
+// products, not rungs on one subscription ladder.
 
 export type EntitlementSource = 'preview' | 'store';
 
@@ -27,23 +27,33 @@ export type EntitlementTier = 'full' | 'live' | 'plus' | 'pro';
 export type EntitlementRecord = {
   source: EntitlementSource;
   tier: EntitlementTier;
-  /** ISO date-time. Present for a time-boxed store subscription once expo-iap surfaces an expiry;
-   *  absent for preview/trial entitlements (those are governed by lens.trialCycleId instead). */
+  /** The server-issued compact JWS. Required before a store record can grant access. */
+  grant?: string;
+  /** Store product that the signed grant was issued for. */
+  productId?: string;
+  /** Provider expiry for Live. Full ownership has no expiry. */
   expiresAt?: string;
+  /** Bounded offline window after a Live provider expiry. */
+  graceUntil?: string;
 };
 
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 type EntitlementBlob = {
   v: number;
-  record: EntitlementRecord | null;
+  records: EntitlementRecord[];
 };
 
-const EMPTY_BLOB: EntitlementBlob = { v: CURRENT_VERSION, record: null };
+const EMPTY_BLOB: EntitlementBlob = { v: CURRENT_VERSION, records: [] };
 
 /** Serialize a record (or its absence) to the on-disk blob string. Pure. */
 export function serializeEntitlement(record: EntitlementRecord | null): string {
-  const blob: EntitlementBlob = { v: CURRENT_VERSION, record };
+  return serializeEntitlements(record === null ? [] : [record]);
+}
+
+/** Serialize the independent Full/Live records into the v2 on-disk blob. */
+export function serializeEntitlements(records: readonly EntitlementRecord[]): string {
+  const blob: EntitlementBlob = { v: CURRENT_VERSION, records: [...records] };
   return JSON.stringify(blob);
 }
 
@@ -51,13 +61,27 @@ export function serializeEntitlement(record: EntitlementRecord | null): string {
  *  record that fails the shape guard all resolve to `null` (no entitlement) rather than throwing
  *  — a corrupt entitlement file must never crash the app or fake a purchase into existing. */
 export function parseEntitlement(raw: string | null): EntitlementRecord | null {
-  if (raw === null || raw.length === 0) return null;
+  return parseEntitlements(raw)[0] ?? null;
+}
+
+/** Parse v2 records, while still reading the former v1 single-record shape for safe migration.
+ * Unsigned v1 store records are returned here but the native verifier rejects them as authority. */
+export function parseEntitlements(raw: string | null): EntitlementRecord[] {
+  if (raw === null || raw.length === 0) return [];
   try {
-    const parsed = JSON.parse(raw) as Partial<EntitlementBlob>;
-    if (parsed === null || typeof parsed !== 'object') return null;
-    return normalizeRecord(parsed.record ?? null);
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+    const values = Array.isArray(parsed['records'])
+      ? parsed['records']
+      : parsed['record'] === null || parsed['record'] === undefined
+        ? []
+        : [parsed['record']];
+    return values
+      .map((value) => normalizeRecord(value))
+      .filter((record): record is EntitlementRecord => record !== null)
+      .slice(0, 4);
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -66,10 +90,18 @@ function normalizeRecord(value: unknown): EntitlementRecord | null {
   const r = value as Partial<EntitlementRecord>;
   if (r.source !== 'preview' && r.source !== 'store') return null;
   if (r.tier !== 'full' && r.tier !== 'live' && r.tier !== 'plus' && r.tier !== 'pro') return null;
+  if (r.grant !== undefined && typeof r.grant !== 'string') return null;
+  if (r.productId !== undefined && typeof r.productId !== 'string') return null;
   if (r.expiresAt !== undefined && typeof r.expiresAt !== 'string') return null;
-  return r.expiresAt !== undefined
-    ? { source: r.source, tier: r.tier, expiresAt: r.expiresAt }
-    : { source: r.source, tier: r.tier };
+  if (r.graceUntil !== undefined && typeof r.graceUntil !== 'string') return null;
+  return {
+    source: r.source,
+    tier: r.tier,
+    ...(r.grant !== undefined ? { grant: r.grant } : {}),
+    ...(r.productId !== undefined ? { productId: r.productId } : {}),
+    ...(r.expiresAt !== undefined ? { expiresAt: r.expiresAt } : {}),
+    ...(r.graceUntil !== undefined ? { graceUntil: r.graceUntil } : {}),
+  };
 }
 
 /** True when a record exists and (if it carries an expiry) that expiry hasn't passed yet. A
@@ -78,10 +110,11 @@ function normalizeRecord(value: unknown): EntitlementRecord | null {
  *  never means "forever" by omission. */
 export function isEntitlementActive(record: EntitlementRecord | null, now: Date): boolean {
   if (record === null) return false;
+  if (record.source === 'store' && (!record.grant || !record.productId)) return false;
   if (record.expiresAt === undefined) return true;
-  const expiry = new Date(record.expiresAt);
-  if (Number.isNaN(expiry.getTime())) return true; // unparsable expiry — fail open, don't punish the user for a bad write.
-  return expiry.getTime() > now.getTime();
+  const boundary = new Date(record.graceUntil ?? record.expiresAt);
+  if (Number.isNaN(boundary.getTime())) return record.source === 'preview';
+  return boundary.getTime() > now.getTime();
 }
 
-export const ENTITLEMENT_EMPTY_BLOB_STRING = serializeEntitlement(EMPTY_BLOB.record);
+export const ENTITLEMENT_EMPTY_BLOB_STRING = serializeEntitlements(EMPTY_BLOB.records);

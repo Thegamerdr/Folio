@@ -104,6 +104,7 @@ export type StatementTransactionDraft = Pick<Transaction, 'merchant' | 'amount' 
    *  caller didn't resolve an account (pre-P1 call sites), and `addTransactionsBatch`/`accountIdOf`
    *  both treat that as `DEFAULT_ACCOUNT_ID`. */
   accountId?: string;
+  sourceEvidenceId?: string;
 };
 
 /** Map one candidate into a transaction draft ready for `addTransactionsBatch`. Pure — never reads
@@ -127,6 +128,9 @@ export function candidateToTransactionDraft(
   }
   if (accountId !== undefined) {
     draft.accountId = accountId;
+  }
+  if (candidate.sourceEvidenceId !== undefined) {
+    draft.sourceEvidenceId = candidate.sourceEvidenceId;
   }
   return draft;
 }

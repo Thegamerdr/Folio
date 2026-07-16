@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 
-import { extractTextFromDocument } from './nativeTextExtraction';
+import { extractTextFromDocument, type ExtractedText } from './nativeTextExtraction';
 import type { LocalDocumentStageInput } from './localLedger';
 
 const READING_NOT_READY =
@@ -23,6 +23,7 @@ export type PickStatementDocumentResult =
       kind: 'picked';
       text: string;
       source: LocalDocumentStageInput;
+      extraction?: ExtractedText;
     }>
   | Readonly<{
       kind: 'cancelled';
@@ -76,6 +77,7 @@ export async function pickLocalStatementDocument(): Promise<PickStatementDocumen
         kind: 'picked',
         text: extracted.text,
         source: { ...source, byteSize: byteSize > 0 ? byteSize : extracted.text.length },
+        extraction: extracted,
       };
     }
     return {

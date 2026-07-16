@@ -11,8 +11,8 @@
 // HARD CONSTRAINTS (see store.ts header + ENGINES §6):
 //   • Pure + deterministic: no Date.now, no locale, no randomness. Same state
 //     in -> byte-identical { json, csvs } out.
-//   • Type-only import of the store shape (verbatimModuleSyntax). No runtime
-//     dependency on the store, so an export never mutates live state.
+//   • No runtime dependency on the live store. The pure workspace guard receives the supplied
+//     state and refuses a mismatched partition before any export strings are built.
 //   • CSV is RFC-4180-ish: header row per file, EVERY field quoted, embedded
 //     quotes doubled, embedded commas/newlines survive inside the quotes.
 //   • Free, never paywalled. There is no gate in this module by design.
@@ -30,6 +30,9 @@ import type {
   Transaction,
 } from '../store';
 import type { MerchantCategoryMap } from './merchantMemory';
+import { requireWorkspaceData } from './workspaceRoot';
+import { requireWorkspaceRows } from './workspaceRows';
+import type { WorkspaceId } from '@folio/domain';
 
 /**
  * A transaction correction record, per ENGINES §6 "Editing existing
@@ -62,7 +65,13 @@ export type ExportBundle = {
  * iteration in callers and tests.
  */
 export const EXPORT_CSV_FILES = [
+  'workspace.csv',
+  'accounts.csv',
   'transactions.csv',
+  'statement-imports.csv',
+  'evidence-documents.csv',
+  'accountant-records.csv',
+  'export-manifest.csv',
   'subs.csv',
   'pots.csv',
   'cycles.csv',
@@ -89,7 +98,7 @@ const CSV_NEWLINE = '\n';
  *  Every field is quoted unconditionally so the format is uniform and a reader
  *  never has to guess whether a value was quoted. `null`/`undefined` -> "". */
 function csvCell(value: unknown): string {
-  const raw =
+  const rawValue =
     value === null || value === undefined
       ? ''
       : typeof value === 'string'
@@ -97,6 +106,11 @@ function csvCell(value: unknown): string {
         : typeof value === 'boolean' || typeof value === 'number'
           ? String(value)
           : JSON.stringify(value);
+  // Quoting alone does not neutralize spreadsheet formulas. Preserve exact values in the JSON
+  // export, but prefix dangerous string cells in CSV so Excel/Sheets treats imported merchant,
+  // filename and note text as inert text. Numeric values stay numeric strings and are never altered.
+  const raw =
+    typeof value === 'string' && /^\s*[=+\-@\t\r]/u.test(rawValue) ? `'${rawValue}` : rawValue;
   return `"${raw.replace(/"/g, '""')}"`;
 }
 
@@ -161,8 +175,216 @@ function cadenceKind(cadence: Pot['cadence']): string {
 
 function transactionsCsv(transactions: readonly Transaction[]): string {
   return toCsv(
-    ['id', 'when', 'merchant', 'amount', 'category', 'source'],
-    transactions.map((t) => [t.id, t.when, t.merchant, t.amount, t.category, t.source]),
+    [
+      'id',
+      'workspaceId',
+      'accountId',
+      'when',
+      'merchant',
+      'amount',
+      'category',
+      'source',
+      'sourceEvidenceId',
+    ],
+    transactions.map((t) => [
+      t.id,
+      t.workspaceId ?? '',
+      t.accountId ?? 'acct-main',
+      t.when,
+      t.merchant,
+      t.amount,
+      t.category,
+      t.source,
+      t.sourceEvidenceId ?? '',
+    ]),
+  );
+}
+
+function workspaceCsv(state: AppState): string {
+  const workspace = state.workspaces.find((candidate) => candidate.id === state.activeWorkspaceId);
+  return toCsv(
+    ['workspaceId', 'label', 'kind', 'currency', 'jurisdiction', 'timeZone', 'dataVersion'],
+    workspace
+      ? [
+          [
+            workspace.id,
+            workspace.name,
+            workspace.kind,
+            workspace.baseCurrency,
+            workspace.jurisdiction,
+            workspace.timeZone,
+            workspace.version.dataVersion,
+          ],
+        ]
+      : [],
+  );
+}
+
+function accountsCsv(state: AppState): string {
+  return toCsv(
+    [
+      'id',
+      'workspaceId',
+      'name',
+      'kind',
+      'isLiability',
+      'balance',
+      'currency',
+      'balanceAsOfISO',
+      'closed',
+    ],
+    (state.accounts ?? []).map((account) => [
+      account.id,
+      account.workspaceId ?? '',
+      account.name,
+      account.kind,
+      account.isLiability,
+      account.balanceMinor,
+      account.currency ?? 'GBP',
+      account.balanceAsOfISO,
+      account.closed === true,
+    ]),
+  );
+}
+
+function statementImportsCsv(state: AppState): string {
+  return toCsv(
+    [
+      'id',
+      'workspaceId',
+      'source',
+      'accountId',
+      'rowCount',
+      'filename',
+      'closingBalance',
+      'addedAt',
+      'sourceEvidenceId',
+    ],
+    (state.statementImports ?? []).map((entry) => [
+      entry.id,
+      entry.workspaceId ?? '',
+      entry.source,
+      entry.accountId ?? 'acct-main',
+      entry.rowCount,
+      entry.filename ?? '',
+      entry.closingBalanceMinor ?? '',
+      entry.atISO,
+      entry.sourceEvidenceId ?? '',
+    ]),
+  );
+}
+
+function evidenceDocumentsCsv(state: AppState): string {
+  return toCsv(
+    [
+      'id',
+      'workspaceId',
+      'filename',
+      'mediaType',
+      'byteSize',
+      'addedAt',
+      'sourceType',
+      'extractionStatus',
+      'storageState',
+    ],
+    (state.evidenceDocuments ?? []).map((document) => [
+      document.id,
+      document.workspaceId ?? '',
+      document.filename,
+      document.mediaType,
+      document.byteSize,
+      document.addedAtISO,
+      document.sourceType,
+      document.extractionStatus,
+      document.storageState,
+    ]),
+  );
+}
+
+function exportPeriod(transactions: readonly Transaction[]): Readonly<{
+  start: string;
+  end: string;
+}> {
+  const dates = transactions
+    .map((transaction) => transaction.when.slice(0, 10))
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/u.test(date))
+    .sort();
+  return { start: dates[0] ?? '', end: dates.at(-1) ?? '' };
+}
+
+function accountantRecordsCsv(state: AppState): string {
+  const workspace = state.workspaces.find((candidate) => candidate.id === state.activeWorkspaceId);
+  const accountNames = new Map(
+    (state.accounts ?? []).map((account) => [account.id, account.name] as const),
+  );
+  return toCsv(
+    [
+      'workspace',
+      'workspaceKind',
+      'transactionId',
+      'date',
+      'description',
+      'amount',
+      'currency',
+      'category',
+      'account',
+      'recordSource',
+      'sourceEvidenceId',
+      'sourceFilename',
+    ],
+    state.transactions.map((transaction) => [
+      workspace?.name ?? '',
+      workspace?.kind ?? '',
+      transaction.id,
+      transaction.when.slice(0, 10),
+      transaction.merchant,
+      transaction.amount,
+      'GBP',
+      transaction.category,
+      accountNames.get(transaction.accountId ?? 'acct-main') ?? 'Main',
+      transaction.source,
+      transaction.sourceEvidenceId ?? '',
+      transaction.sourceEvidenceId
+        ? ((state.evidenceDocuments ?? []).find(
+            (document) => document.id === transaction.sourceEvidenceId,
+          )?.filename ?? '')
+        : '',
+    ]),
+  );
+}
+
+function exportManifestCsv(state: AppState, generatedAtISO: string): string {
+  const workspace = state.workspaces.find((candidate) => candidate.id === state.activeWorkspaceId);
+  const period = exportPeriod(state.transactions);
+  const unresolved =
+    state.readerCandidates.length +
+    (state.reviewQueue?.length ?? 0) +
+    (state.reviewQueueSpillover?.length ?? 0);
+  return toCsv(
+    [
+      'workspace',
+      'workspaceKind',
+      'currency',
+      'periodStart',
+      'periodEnd',
+      'generatedAt',
+      'policyVersion',
+      'unresolvedReviewItems',
+    ],
+    workspace
+      ? [
+          [
+            workspace.name,
+            workspace.kind,
+            workspace.baseCurrency,
+            period.start,
+            period.end,
+            generatedAtISO,
+            workspace.kind === 'business' ? 'melo-business-alpha-v1' : 'melo-personal-v1',
+            unresolved,
+          ],
+        ]
+      : [],
   );
 }
 
@@ -235,7 +457,7 @@ function calendarEventsCsv(calendarEvents: readonly CalendarEvent[]): string {
  *  addedAt); the file name follows this bundle's camelCase convention. */
 function reviewQueueCsv(reviewQueue: readonly ReviewItem[]): string {
   return toCsv(
-    ['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt'],
+    ['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt', 'sourceEvidenceId'],
     reviewQueue.map((r) => [
       r.id,
       r.source,
@@ -244,6 +466,7 @@ function reviewQueueCsv(reviewQueue: readonly ReviewItem[]): string {
       r.date ?? '',
       r.hint ?? '',
       r.addedAt,
+      r.sourceEvidenceId ?? '',
     ]),
   );
 }
@@ -338,7 +561,7 @@ function dismissedSignalsCsv(state: AppState): string {
  *  list split only by whether a row currently fits the visible cap. */
 function reviewSpilloverCsv(reviewQueueSpillover: readonly ReviewItem[]): string {
   return toCsv(
-    ['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt'],
+    ['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt', 'sourceEvidenceId'],
     reviewQueueSpillover.map((r) => [
       r.id,
       r.source,
@@ -347,6 +570,7 @@ function reviewSpilloverCsv(reviewQueueSpillover: readonly ReviewItem[]): string
       r.date ?? '',
       r.hint ?? '',
       r.addedAt,
+      r.sourceEvidenceId ?? '',
     ]),
   );
 }
@@ -393,12 +617,35 @@ function correctionsCsv(edits: readonly TxnEdit[]): string {
   );
 }
 
+function requireEvidenceLinks(state: AppState): AppState {
+  const ids = new Set<string>();
+  for (const document of state.evidenceDocuments ?? []) {
+    if (ids.has(document.id)) {
+      throw new Error(`Evidence document ${document.id} is duplicated.`);
+    }
+    ids.add(document.id);
+  }
+  const references = [
+    ...state.transactions,
+    ...(state.statementImports ?? []),
+    ...state.readerCandidates,
+    ...(state.reviewQueue ?? []),
+    ...(state.reviewQueueSpillover ?? []),
+  ];
+  for (const row of references) {
+    if (row.sourceEvidenceId !== undefined && !ids.has(row.sourceEvidenceId)) {
+      throw new Error(`Evidence document ${row.sourceEvidenceId} is unavailable for export.`);
+    }
+  }
+  return state;
+}
+
 // ---------------------------------------------------------------------------
 // Public entrypoint
 // ---------------------------------------------------------------------------
 
 /**
- * Build the full export bundle for a given app state.
+ * Build the full export bundle for the active workspace data partition in a given app state.
  *
  * - `json` is the complete `AppState`, pretty-printed — the canonical,
  *   loss-free record; the CSVs are the human/spreadsheet-friendly slice.
@@ -408,28 +655,45 @@ function correctionsCsv(edits: readonly TxnEdit[]): string {
  * Pure and deterministic: no clock, no randomness, no I/O, and the input state
  * is never mutated.
  */
-export function buildExport(state: AppState): ExportBundle {
-  const json = JSON.stringify(state, null, 2);
+export function buildExport(
+  state: AppState,
+  workspaceId: WorkspaceId = state.activeWorkspaceId,
+  generatedAtISO = '',
+): ExportBundle {
+  const partition = requireWorkspaceData(state, workspaceId);
+  // Schema v11 is the first durable multi-workspace shape. Refuse a crafted or corrupt partition
+  // before serialising any row; legacy hand-built/export fixtures are still accepted because real
+  // persisted legacy data is normalised to the current schema during load.
+  const localState = requireEvidenceLinks(
+    partition.schemaVersion >= 11 ? requireWorkspaceRows(partition, workspaceId) : partition,
+  );
+  const json = JSON.stringify(localState, null, 2);
 
   const csvs: Record<string, string> = {
-    'transactions.csv': transactionsCsv(state.transactions),
-    'subs.csv': subsCsv(state.subs, state.subPaused, state.subOverrides),
-    'pots.csv': potsCsv(state.pots),
-    'cycles.csv': cyclesCsv(state.cycles),
-    'ledger.csv': ledgerCsv(state.potLedger),
-    'calendarEvents.csv': calendarEventsCsv(state.calendarEvents),
-    'reviewQueue.csv': reviewQueueCsv(state.reviewQueue ?? []),
-    'ignored-review.csv': ignoredReviewCsv(state.ignoredReviewSigs ?? []),
-    'onboarding.csv': onboardingCsv(state),
-    'balance.csv': balanceCsv(state),
-    'settings.csv': settingsCsv(state),
-    'incomeSources.csv': incomeSourcesCsv(state.incomeSources ?? []),
-    'merchant-categories.csv': merchantCategoriesCsv(state.merchantCategories ?? {}),
-    'dismissed-signals.csv': dismissedSignalsCsv(state),
-    'review-spillover.csv': reviewSpilloverCsv(state.reviewQueueSpillover ?? []),
+    'workspace.csv': workspaceCsv(localState),
+    'accounts.csv': accountsCsv(localState),
+    'transactions.csv': transactionsCsv(localState.transactions),
+    'statement-imports.csv': statementImportsCsv(localState),
+    'evidence-documents.csv': evidenceDocumentsCsv(localState),
+    'accountant-records.csv': accountantRecordsCsv(localState),
+    'export-manifest.csv': exportManifestCsv(localState, generatedAtISO),
+    'subs.csv': subsCsv(localState.subs, localState.subPaused, localState.subOverrides),
+    'pots.csv': potsCsv(localState.pots),
+    'cycles.csv': cyclesCsv(localState.cycles),
+    'ledger.csv': ledgerCsv(localState.potLedger),
+    'calendarEvents.csv': calendarEventsCsv(localState.calendarEvents),
+    'reviewQueue.csv': reviewQueueCsv(localState.reviewQueue ?? []),
+    'ignored-review.csv': ignoredReviewCsv(localState.ignoredReviewSigs ?? []),
+    'onboarding.csv': onboardingCsv(localState),
+    'balance.csv': balanceCsv(localState),
+    'settings.csv': settingsCsv(localState),
+    'incomeSources.csv': incomeSourcesCsv(localState.incomeSources ?? []),
+    'merchant-categories.csv': merchantCategoriesCsv(localState.merchantCategories ?? {}),
+    'dismissed-signals.csv': dismissedSignalsCsv(localState),
+    'review-spillover.csv': reviewSpilloverCsv(localState.reviewQueueSpillover ?? []),
   };
 
-  const edits = readEdits(state);
+  const edits = readEdits(localState);
   if (edits.length > 0) {
     csvs['corrections.csv'] = correctionsCsv(edits);
   }

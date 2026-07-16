@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted for Phase 14 synthetic contract evidence.
+Accepted and amended on 2026-07-14 for the real Android billing foundation. Public billing remains
+blocked on external Play configuration and purchase proof.
 
 ## Context
 
@@ -37,20 +38,35 @@ models:
 - roadmap guardrails for household collaboration, direct HMRC MTD, accountant collaboration,
   multiple businesses and additional jurisdictions.
 
-The Expo shell renders synthetic-labelled Phase 14 evidence only. It does not submit to app stores,
-call billing SDKs, verify real purchases, enable production launch, file taxes, start household
-collaboration or launch any new jurisdiction.
+The original Expo shell remains synthetic evidence, but it is no longer the complete billing
+implementation. The production Android app now calls `expo-iap`, distinguishes pending from
+purchased transactions, and sends purchased tokens to a dedicated Worker. The Worker uses only a
+fixed package/product allowlist, verifies with the Google Play Developer API, stores only a
+SHA-256 token hash, signs Ed25519 entitlement grants, and attempts acknowledgement. The app verifies
+the signed grant before persisting or unlocking and finishes a transaction only after that step.
+
+Full and Live remain independent. Full is a permanent one-time ownership grant. Live uses the Play
+expiry plus a 72-hour offline grace. Legacy Plus/Pro subscription products map to permanent Full
+only after Google verifies them. Local core, existing records, export and the one-cycle Full preview
+remain usable without billing or an account.
+
+The Worker is deployed with signing and hash-only KV storage, but Google provider credentials are
+intentionally absent because no authoritative Play listing/service account exists. The paywall
+therefore remains in its honest unavailable-store/preview state and no live purchase is claimed.
 
 ## Consequences
 
 - Phase 14 can prove release-governance contracts and the visible blocker model without claiming
   public launch readiness.
+- The former unsigned on-device `source: store` tier label is not accepted as ownership.
+- A pending, unknown, mismatched, expired or unverified purchase cannot unlock or be finished.
+- Android source/server verification tests can pass before Play proof, but they do not close T184.
 - T183 through T188 remain blocked for release until real external store, billing, legal, security,
   privacy, accessibility, support and launch evidence exists.
 - T189 is implemented as a privacy-safe measurement protocol, not as real research evidence.
 - T190 through T192 remain evaluation-only guardrails; no implementation may start without a
   separate programme, signed review and go/no-go decision.
-- Any future real store submission, billing SDK integration, production launch, household
+- Any future real store submission, production launch, household
   collaboration, HMRC MTD or jurisdiction rollout must update this ADR, the compatibility matrix,
   privacy evidence, source/licence register and release checklist.
 

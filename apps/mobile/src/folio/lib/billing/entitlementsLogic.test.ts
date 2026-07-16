@@ -69,10 +69,12 @@ describe('isEntitlementActive', () => {
     expect(isEntitlementActive({ source: 'preview', tier: 'plus' }, now)).toBe(true);
   });
 
-  it('is true for a store record whose expiry is still in the future', () => {
+  it('is true for a signed store record whose offline boundary is still in the future', () => {
     const record: EntitlementRecord = {
       source: 'store',
       tier: 'pro',
+      grant: 'signed-grant',
+      productId: 'folio.pro.monthly',
       expiresAt: '2026-08-01T00:00:00.000Z',
     };
     expect(isEntitlementActive(record, now)).toBe(true);
@@ -87,8 +89,16 @@ describe('isEntitlementActive', () => {
     expect(isEntitlementActive(record, now)).toBe(false);
   });
 
-  it('fails open (true) on an unparsable expiresAt rather than punishing the user', () => {
-    const record = { source: 'store', tier: 'plus', expiresAt: 'not-a-date' } as EntitlementRecord;
-    expect(isEntitlementActive(record, now)).toBe(true);
+  it('fails closed on unsigned or malformed store records', () => {
+    const unsigned = { source: 'store', tier: 'plus' } as EntitlementRecord;
+    const malformed = {
+      source: 'store',
+      tier: 'plus',
+      grant: 'signed-grant',
+      productId: 'folio.plus.monthly',
+      expiresAt: 'not-a-date',
+    } as EntitlementRecord;
+    expect(isEntitlementActive(unsigned, now)).toBe(false);
+    expect(isEntitlementActive(malformed, now)).toBe(false);
   });
 });

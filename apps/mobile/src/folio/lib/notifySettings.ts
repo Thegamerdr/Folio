@@ -1,28 +1,48 @@
-// Reminders settings — a small SELF-CONTAINED persisted module (per the notifications-binding
-// brief: "not store.ts"). Follows the same on-disk-JSON shape as `./persist.ts` but far lighter:
-// this is a non-sensitive UI preference (one boolean + a cached permission read), so it skips the
-// vault-key/AES machinery entirely and just reads/writes a small plaintext JSON file via
-// `expo-file-system/legacy` (the same module persist.ts uses), mirroring its "missing file / parse
-// failure is always a silent no-op, never blocks launch" tolerance.
-//
-// Contract:
-//   • `remindersEnabled` — the user's own on/off choice for local reminders. Defaults to `true`
-//     (opt-out, not opt-in) so a fresh install schedules the engine's already-approved plan
-//     copy; the OS permission prompt is the real gate on whether anything actually fires.
-//   • This module does NOT touch expo-notifications — permission state lives in
-//     `./notifications.ts` (queried live, not cached here) so this file stays a pure settings
-//     store, importable and unit-testable without pulling in the native module.
+// Persisted, local-only notification policy. This is deliberately separate from the financial
+// store: it contains preferences only, never money data, merchant names, notification copy, or
+// push tokens. The v2 shape mirrors docs/source-package/schemas/notification_policy.json while the
+// parser still accepts the previous `{ remindersEnabled: boolean }` file without losing intent.
 
 import * as FileSystem from 'expo-file-system/legacy';
 
 const SETTINGS_FILENAME = 'reminders.settings.v1.json';
 
+export type MeloNotificationClass =
+  | 'critical_deadline'
+  | 'meaningful_change'
+  | 'ritual'
+  | 'progress'
+  | 'marketing';
+
+export type NotificationClassSettings = Readonly<Record<MeloNotificationClass, boolean>>;
+
+export interface QuietHoursSettings {
+  readonly startHour: number;
+  readonly endHour: number;
+}
+
 export interface RemindersSettings {
+  readonly version: 2;
+  /** Master switch. False on a fresh install: permission is requested only after a user action. */
   readonly remindersEnabled: boolean;
+  /** False hides titles, merchants, amounts, and exact states from notification previews. */
+  readonly sensitivePreviews: boolean;
+  readonly quietHours: QuietHoursSettings;
+  readonly classEnabled: NotificationClassSettings;
 }
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
-  remindersEnabled: true,
+  version: 2,
+  remindersEnabled: false,
+  sensitivePreviews: false,
+  quietHours: { startHour: 21, endHour: 8 },
+  classEnabled: {
+    critical_deadline: true,
+    meaningful_change: true,
+    ritual: false,
+    progress: true,
+    marketing: false,
+  },
 };
 
 function settingsFileUri(): string | null {
@@ -31,26 +51,67 @@ function settingsFileUri(): string | null {
   return `${dir}${SETTINGS_FILENAME}`;
 }
 
-/** Parse a persisted settings blob defensively — a corrupt or partial file (or a future shape
- *  this version doesn't know about) falls back to the default rather than throwing. */
+function isHour(value: unknown): value is number {
+  return Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 23;
+}
+
+function booleanOr(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+/** Defensive parser and v1-to-v2 migration. Unknown or malformed fields fail to quiet defaults. */
 export function parseRemindersSettings(raw: string): RemindersSettings {
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (
-      parsed !== null &&
-      typeof parsed === 'object' &&
-      'remindersEnabled' in parsed &&
-      typeof (parsed as { remindersEnabled: unknown }).remindersEnabled === 'boolean'
-    ) {
-      return { remindersEnabled: (parsed as { remindersEnabled: boolean }).remindersEnabled };
-    }
+    if (parsed === null || typeof parsed !== 'object') return DEFAULT_REMINDERS_SETTINGS;
+    const source = parsed as Record<string, unknown>;
+    const quiet =
+      source.quietHours !== null && typeof source.quietHours === 'object'
+        ? (source.quietHours as Record<string, unknown>)
+        : {};
+    const classes =
+      source.classEnabled !== null && typeof source.classEnabled === 'object'
+        ? (source.classEnabled as Record<string, unknown>)
+        : {};
+    return {
+      version: 2,
+      // The only field in the old v1 file is intentionally preserved. Missing no longer means on.
+      remindersEnabled: booleanOr(
+        source.remindersEnabled,
+        DEFAULT_REMINDERS_SETTINGS.remindersEnabled,
+      ),
+      sensitivePreviews: booleanOr(
+        source.sensitivePreviews,
+        DEFAULT_REMINDERS_SETTINGS.sensitivePreviews,
+      ),
+      quietHours: {
+        startHour: isHour(quiet.startHour)
+          ? quiet.startHour
+          : DEFAULT_REMINDERS_SETTINGS.quietHours.startHour,
+        endHour: isHour(quiet.endHour)
+          ? quiet.endHour
+          : DEFAULT_REMINDERS_SETTINGS.quietHours.endHour,
+      },
+      classEnabled: {
+        critical_deadline: booleanOr(
+          classes.critical_deadline,
+          DEFAULT_REMINDERS_SETTINGS.classEnabled.critical_deadline,
+        ),
+        meaningful_change: booleanOr(
+          classes.meaningful_change,
+          DEFAULT_REMINDERS_SETTINGS.classEnabled.meaningful_change,
+        ),
+        ritual: booleanOr(classes.ritual, DEFAULT_REMINDERS_SETTINGS.classEnabled.ritual),
+        progress: booleanOr(classes.progress, DEFAULT_REMINDERS_SETTINGS.classEnabled.progress),
+        // Marketing remains fail-closed even if a malformed/missing field is encountered.
+        marketing: booleanOr(classes.marketing, false),
+      },
+    };
   } catch {
-    /* fall through to default */
+    return DEFAULT_REMINDERS_SETTINGS;
   }
-  return DEFAULT_REMINDERS_SETTINGS;
 }
 
-/** Read the persisted reminders settings, or the default when unset/unreadable. Never throws. */
 export async function loadRemindersSettings(): Promise<RemindersSettings> {
   const uri = settingsFileUri();
   if (uri === null) return DEFAULT_REMINDERS_SETTINGS;
@@ -60,12 +121,10 @@ export async function loadRemindersSettings(): Promise<RemindersSettings> {
     const raw = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
     return parseRemindersSettings(raw);
   } catch {
-    return DEFAULT_REMINDERS_SETTINGS; // corrupt/unreadable — keep the default, never block launch.
+    return DEFAULT_REMINDERS_SETTINGS;
   }
 }
 
-/** Persist the reminders settings. Fire-and-forget failures are swallowed by the caller's own
- *  try/catch convention (matches `persist.ts` — a disk failure must never crash a settings toggle). */
 export async function saveRemindersSettings(settings: RemindersSettings): Promise<void> {
   const uri = settingsFileUri();
   if (uri === null) return;
@@ -74,7 +133,6 @@ export async function saveRemindersSettings(settings: RemindersSettings): Promis
       encoding: FileSystem.EncodingType.UTF8,
     });
   } catch {
-    /* disk / quota failure — the in-memory toggle already reflects the user's choice this
-     * session; worst case the preference doesn't survive a restart. */
+    // A preference write must never crash or block the app.
   }
 }

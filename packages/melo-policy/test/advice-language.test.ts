@@ -84,6 +84,12 @@ describe('advice-language blocked-pattern classifier', () => {
       'formal_debt_solution',
       'legal_dispute',
     ]);
+    expect(findEscalationTriggers('I cannot eat and need emergency food support.')).toContain(
+      'immediate_crisis',
+    );
+    expect(findEscalationTriggers('How much is in my emergency fund?')).not.toContain(
+      'immediate_crisis',
+    );
   });
 
   it('prevents blocked copy from rendering', () => {

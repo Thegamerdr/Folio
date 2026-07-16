@@ -8,9 +8,47 @@
 
 import { requireNativeModule } from 'expo-modules-core';
 
+export type OcrBoundingBox = Readonly<{
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}>;
+
+export type OcrPoint = Readonly<{ x: number; y: number }>;
+
+export type OcrElement = Readonly<{
+  text: string;
+  boundingBox?: OcrBoundingBox;
+  cornerPoints?: readonly OcrPoint[];
+  confidence?: number;
+  recognizedLanguage?: string;
+}>;
+
+export type OcrLine = Readonly<{
+  text: string;
+  boundingBox?: OcrBoundingBox;
+  cornerPoints?: readonly OcrPoint[];
+  confidence?: number;
+  recognizedLanguage?: string;
+  elements: readonly OcrElement[];
+}>;
+
+export type OcrPage = Readonly<{
+  pageIndex: number;
+  width: number;
+  height: number;
+  text: string;
+  lines: readonly OcrLine[];
+}>;
+
 export type ExtractedText = Readonly<{
   text: string;
   source: 'pdf-text' | 'ocr-image' | 'none';
+  pages?: number;
+  totalPages?: number;
+  truncated?: boolean;
+  layout?: readonly OcrPage[];
 }>;
 
 type FolioReaderNativeModule = {

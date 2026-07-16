@@ -13,12 +13,129 @@ import {
   stageStatementImport,
 } from './localLedger.js';
 import {
+  canonicalAccountIdForSource,
   canonicalMobileLedgerRowCount,
   canonicalMobileLedgerSchema,
   createCanonicalMobileLedgerSnapshot,
 } from './canonicalLedgerAdapter.js';
 
 describe('canonical mobile ledger adapter', () => {
+  it('preserves multiple source accounts and excludes credit liabilities from available cash', () => {
+    const state = {
+      ...createEmptyLocalLedgerState('2026-06-22'),
+      cashOnHandMinor: 999_999,
+      transactions: [
+        {
+          id: 'bank-spend',
+          accountId: 'checking',
+          title: 'Lunch',
+          amountMinor: -100,
+          date: '2026-06-22',
+          source: 'manual' as const,
+          status: 'confirmed' as const,
+          protected: false,
+        },
+        {
+          id: 'card-spend',
+          accountId: 'credit-card',
+          title: 'Train',
+          amountMinor: -200,
+          date: '2026-06-22',
+          source: 'manual' as const,
+          status: 'confirmed' as const,
+          protected: false,
+        },
+      ],
+    };
+    const snapshot = createCanonicalMobileLedgerSnapshot(state, undefined, {
+      defaultAccountId: 'checking',
+      accounts: [
+        {
+          id: 'checking',
+          name: 'Current account',
+          kind: 'bank',
+          currency: 'GBP',
+          balanceMinor: 100_000,
+          balanceAsOfISO: '2026-06-22T08:00:00.000Z',
+        },
+        {
+          id: 'savings',
+          name: 'Rainy day',
+          kind: 'savings',
+          currency: 'GBP',
+          balanceMinor: 50_000,
+          balanceAsOfISO: '2026-06-22T08:01:00.000Z',
+        },
+        {
+          id: 'credit-card',
+          name: 'Credit card',
+          kind: 'credit',
+          currency: 'GBP',
+          balanceMinor: 30_000,
+          balanceAsOfISO: '2026-06-22T08:02:00.000Z',
+        },
+      ],
+    });
+
+    const checkingId = canonicalAccountIdForSource(snapshot.workspace.id, 'checking');
+    const cardId = canonicalAccountIdForSource(snapshot.workspace.id, 'credit-card');
+    expect(snapshot.validation).toEqual({ valid: true, issues: [] });
+    expect(snapshot.accounts).toHaveLength(3);
+    expect(snapshot.currentBalances).toHaveLength(3);
+    expect(
+      snapshot.balanceObservations.every(
+        (observation) => observation.observationKind === 'current-balance',
+      ),
+    ).toBe(true);
+    expect(snapshot.transactions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ description: 'Lunch', accountId: checkingId }),
+        expect.objectContaining({ description: 'Train', accountId: cardId }),
+      ]),
+    );
+    expect(snapshot.availablePositionSnapshots).toEqual([
+      expect.objectContaining({
+        openingBalance: expect.objectContaining({ minorUnits: 150_000 }),
+        actualNet: expect.objectContaining({ minorUnits: -100 }),
+        availableBalance: expect.objectContaining({ minorUnits: 149_900 }),
+      }),
+    ]);
+    expect(snapshot.availablePositionSnapshots[0]?.currentBalanceIds).toHaveLength(2);
+  });
+
+  it('rejects a transaction that points outside an explicit account projection', () => {
+    const state = {
+      ...createEmptyLocalLedgerState('2026-06-22'),
+      transactions: [
+        {
+          id: 'orphan',
+          accountId: 'missing',
+          title: 'Orphan row',
+          amountMinor: -100,
+          date: '2026-06-22',
+          source: 'manual' as const,
+          status: 'confirmed' as const,
+          protected: false,
+        },
+      ],
+    };
+
+    expect(() =>
+      createCanonicalMobileLedgerSnapshot(state, undefined, {
+        accounts: [
+          {
+            id: 'checking',
+            name: 'Current account',
+            kind: 'bank',
+            currency: 'GBP',
+            balanceMinor: 0,
+            balanceAsOfISO: '2026-06-22T08:00:00.000Z',
+          },
+        ],
+      }),
+    ).toThrow(/transaction account missing is unavailable/i);
+  });
+
   it('projects the local shell into canonical personal workspace objects', () => {
     const snapshot = createCanonicalMobileLedgerSnapshot(
       createInitialLocalLedgerState('2026-06-22'),

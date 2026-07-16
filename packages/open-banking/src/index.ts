@@ -991,6 +991,283 @@ export function openBankingRowsByState<Row extends EvidenceRow | Phase12Coverage
   return rows.filter((row) => row.state === state);
 }
 
+// Runtime transport contract used by the production provider adapter and mobile app. The older
+// Phase 12 evaluators above remain the release-evidence model; these validators are the narrow,
+// untrusted-network boundary for the actual implementation. Provider credentials and provider IDs
+// are deliberately absent.
+export type OpenBankingRuntimeStatus =
+  | 'pending_redirect'
+  | 'pending_sync'
+  | 'active'
+  | 'error'
+  | 'disconnected';
+
+export type OpenBankingRuntimeAccount = Readonly<{
+  accountRef: string;
+  label: string;
+  currency: string;
+  kind: BankAccountKind;
+  accountType: 'current' | 'savings' | 'card';
+  lastSuccessfulRefreshAt: string | null;
+}>;
+
+export type OpenBankingRuntimeConnection = Readonly<{
+  id: string;
+  provider: 'truelayer-data-v3';
+  providerLabel: string;
+  status: OpenBankingRuntimeStatus;
+  scopes: readonly ['accounts', 'transactions'];
+  createdAt: string;
+  grantedAt: string | null;
+  expiresAt: string | null;
+  disconnectedAt: string | null;
+  lastSuccessfulRefreshAt: string | null;
+  lastErrorCode: string | null;
+  accounts: readonly OpenBankingRuntimeAccount[];
+  futureAccessStopped: boolean;
+  providerRevocationSupported: false;
+}>;
+
+export type OpenBankingRuntimeCandidate = Readonly<{
+  externalId: string;
+  connectionId: string;
+  accountRef: string;
+  bookingStatus: ProviderBookingStatus;
+  occurredAt: string;
+  amountMinor: number;
+  currency: string;
+  description: string;
+}>;
+
+export type OpenBankingConnectionsResponse = Readonly<{
+  providerConfigured: boolean;
+  connections: readonly OpenBankingRuntimeConnection[];
+}>;
+
+export type OpenBankingSyncResponse = Readonly<{
+  connection: OpenBankingRuntimeConnection;
+  candidates: readonly OpenBankingRuntimeCandidate[];
+  pending: boolean;
+  moreAvailable: boolean;
+  directLedgerWrites: false;
+}>;
+
+export type BankReviewQueueInput = Readonly<{
+  source: 'bank';
+  merchant: string;
+  amount: number;
+  date: string;
+  accountId: string;
+  hint: string;
+  externalId: string;
+  bankConnectionId: string;
+}>;
+
+export type StageBankCandidatesResult = Readonly<{
+  reviewItems: readonly BankReviewQueueInput[];
+  unsupportedCurrencyCount: number;
+  unmappedAccountCount: number;
+}>;
+
+export function parseOpenBankingConnectionsResponse(
+  value: unknown,
+): OpenBankingConnectionsResponse | null {
+  if (!runtimeRecord(value) || typeof value['providerConfigured'] !== 'boolean') return null;
+  const rawConnections = value['connections'];
+  if (!Array.isArray(rawConnections)) return null;
+  const connections = rawConnections.map(parseRuntimeConnection);
+  if (connections.some((connection) => connection === null)) return null;
+  return {
+    providerConfigured: value['providerConfigured'],
+    connections: connections.filter(
+      (connection): connection is OpenBankingRuntimeConnection => connection !== null,
+    ),
+  };
+}
+
+export function parseOpenBankingSyncResponse(value: unknown): OpenBankingSyncResponse | null {
+  if (!runtimeRecord(value)) return null;
+  const connection = parseRuntimeConnection(value['connection']);
+  const rawCandidates = value['candidates'];
+  if (
+    connection === null ||
+    !Array.isArray(rawCandidates) ||
+    typeof value['pending'] !== 'boolean' ||
+    typeof value['moreAvailable'] !== 'boolean' ||
+    value['directLedgerWrites'] !== false
+  ) {
+    return null;
+  }
+  const candidates = rawCandidates.map(parseRuntimeCandidate);
+  if (candidates.some((candidate) => candidate === null)) return null;
+  return {
+    connection,
+    candidates: candidates.filter(
+      (candidate): candidate is OpenBankingRuntimeCandidate => candidate !== null,
+    ),
+    pending: value['pending'],
+    moreAvailable: value['moreAvailable'],
+    directLedgerWrites: false,
+  };
+}
+
+export function stageBankCandidatesForReview(
+  input: Readonly<{
+    sync: OpenBankingSyncResponse;
+    accountMappings: Readonly<Record<string, string>>;
+    supportedCurrency?: string;
+  }>,
+): StageBankCandidatesResult {
+  const supportedCurrency = (input.supportedCurrency ?? 'GBP').toUpperCase();
+  const accountByRef = new Map(
+    input.sync.connection.accounts.map((account) => [account.accountRef, account]),
+  );
+  const reviewItems: BankReviewQueueInput[] = [];
+  let unsupportedCurrencyCount = 0;
+  let unmappedAccountCount = 0;
+  for (const candidate of input.sync.candidates) {
+    const account = accountByRef.get(candidate.accountRef);
+    const localAccountId = input.accountMappings[candidate.accountRef];
+    if (account === undefined || localAccountId === undefined || localAccountId.length === 0) {
+      unmappedAccountCount += 1;
+      continue;
+    }
+    if (candidate.currency.toUpperCase() !== supportedCurrency) {
+      unsupportedCurrencyCount += 1;
+      continue;
+    }
+    reviewItems.push({
+      source: 'bank',
+      merchant: candidate.description,
+      amount: candidate.amountMinor / 100,
+      date: candidate.occurredAt,
+      accountId: localAccountId,
+      hint: `${candidate.bookingStatus === 'pending' ? 'Pending bank transaction' : 'Bank transaction'} · ${account.label}`,
+      externalId: candidate.externalId,
+      bankConnectionId: candidate.connectionId,
+    });
+  }
+  return { reviewItems, unsupportedCurrencyCount, unmappedAccountCount };
+}
+
+function parseRuntimeConnection(value: unknown): OpenBankingRuntimeConnection | null {
+  if (!runtimeRecord(value)) return null;
+  const status = value['status'];
+  const scopes = value['scopes'];
+  const rawAccounts = value['accounts'];
+  if (
+    typeof value['id'] !== 'string' ||
+    value['provider'] !== 'truelayer-data-v3' ||
+    typeof value['providerLabel'] !== 'string' ||
+    !runtimeStatus(status) ||
+    !Array.isArray(scopes) ||
+    scopes.length !== 2 ||
+    scopes[0] !== 'accounts' ||
+    scopes[1] !== 'transactions' ||
+    typeof value['createdAt'] !== 'string' ||
+    !runtimeNullableString(value['grantedAt']) ||
+    !runtimeNullableString(value['expiresAt']) ||
+    !runtimeNullableString(value['disconnectedAt']) ||
+    !runtimeNullableString(value['lastSuccessfulRefreshAt']) ||
+    !runtimeNullableString(value['lastErrorCode']) ||
+    !Array.isArray(rawAccounts) ||
+    typeof value['futureAccessStopped'] !== 'boolean' ||
+    value['providerRevocationSupported'] !== false
+  ) {
+    return null;
+  }
+  const accounts = rawAccounts.map(parseRuntimeAccount);
+  if (accounts.some((account) => account === null)) return null;
+  return {
+    id: value['id'],
+    provider: 'truelayer-data-v3',
+    providerLabel: value['providerLabel'],
+    status,
+    scopes: ['accounts', 'transactions'],
+    createdAt: value['createdAt'],
+    grantedAt: value['grantedAt'],
+    expiresAt: value['expiresAt'],
+    disconnectedAt: value['disconnectedAt'],
+    lastSuccessfulRefreshAt: value['lastSuccessfulRefreshAt'],
+    lastErrorCode: value['lastErrorCode'],
+    accounts: accounts.filter((account): account is OpenBankingRuntimeAccount => account !== null),
+    futureAccessStopped: value['futureAccessStopped'],
+    providerRevocationSupported: false,
+  };
+}
+
+function parseRuntimeAccount(value: unknown): OpenBankingRuntimeAccount | null {
+  if (!runtimeRecord(value)) return null;
+  const kind = value['kind'];
+  const accountType = value['accountType'];
+  if (
+    typeof value['accountRef'] !== 'string' ||
+    typeof value['label'] !== 'string' ||
+    typeof value['currency'] !== 'string' ||
+    (kind !== 'personal' && kind !== 'business') ||
+    (accountType !== 'current' && accountType !== 'savings' && accountType !== 'card') ||
+    !runtimeNullableString(value['lastSuccessfulRefreshAt'])
+  ) {
+    return null;
+  }
+  return {
+    accountRef: value['accountRef'],
+    label: value['label'],
+    currency: value['currency'],
+    kind,
+    accountType,
+    lastSuccessfulRefreshAt: value['lastSuccessfulRefreshAt'],
+  };
+}
+
+function parseRuntimeCandidate(value: unknown): OpenBankingRuntimeCandidate | null {
+  if (!runtimeRecord(value)) return null;
+  const bookingStatus = value['bookingStatus'];
+  if (
+    typeof value['externalId'] !== 'string' ||
+    typeof value['connectionId'] !== 'string' ||
+    typeof value['accountRef'] !== 'string' ||
+    (bookingStatus !== 'pending' && bookingStatus !== 'posted') ||
+    typeof value['occurredAt'] !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/u.test(value['occurredAt']) ||
+    typeof value['amountMinor'] !== 'number' ||
+    !Number.isInteger(value['amountMinor']) ||
+    typeof value['currency'] !== 'string' ||
+    typeof value['description'] !== 'string' ||
+    value['description'].length === 0
+  ) {
+    return null;
+  }
+  return {
+    externalId: value['externalId'],
+    connectionId: value['connectionId'],
+    accountRef: value['accountRef'],
+    bookingStatus,
+    occurredAt: value['occurredAt'],
+    amountMinor: value['amountMinor'],
+    currency: value['currency'],
+    description: value['description'],
+  };
+}
+
+function runtimeStatus(value: unknown): value is OpenBankingRuntimeStatus {
+  return (
+    value === 'pending_redirect' ||
+    value === 'pending_sync' ||
+    value === 'active' ||
+    value === 'error' ||
+    value === 'disconnected'
+  );
+}
+
+function runtimeNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function runtimeRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function coverageRow(
   taskId: Phase12TaskId,
   label: string,

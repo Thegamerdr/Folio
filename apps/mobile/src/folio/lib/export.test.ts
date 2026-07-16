@@ -22,8 +22,19 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { AppState, DriftCooldownEntry, IncomeSource, Transaction } from '../store';
+import {
+  createEmptyWorkspacePartition,
+  type AppState,
+  type DriftCooldownEntry,
+  type IncomeSource,
+  type Transaction,
+} from '../store';
 import { buildExport, EXPORT_CSV_FILES } from './export';
+import {
+  createBusinessWorkspace,
+  createPersonalWorkspaceRoot,
+  PERSONAL_WORKSPACE_ID,
+} from './workspaceRoot';
 
 // ---------------------------------------------------------------------------
 // Fixtures — built by hand (no store import) so the engine stays pure and the
@@ -34,6 +45,7 @@ import { buildExport, EXPORT_CSV_FILES } from './export';
 function fullState(): AppState {
   return {
     schemaVersion: 2,
+    ...createPersonalWorkspaceRoot(),
     pots: [
       {
         id: 'holiday',
@@ -103,6 +115,20 @@ function fullState(): AppState {
         amount: -42.1,
         category: 'food',
         source: 'manual',
+        sourceEvidenceId: 'evidence_11111111111111111111111111111111',
+      },
+    ],
+    evidenceDocuments: [
+      {
+        id: 'evidence_11111111111111111111111111111111',
+        workspaceId: PERSONAL_WORKSPACE_ID,
+        filename: 'current-account-june.pdf',
+        mediaType: 'application/pdf',
+        byteSize: 4096,
+        addedAtISO: '2026-06-26T00:00:00.000Z',
+        sourceType: 'document',
+        extractionStatus: 'read',
+        storageState: 'encrypted-device-vault',
       },
     ],
     calendarEvents: [
@@ -127,6 +153,7 @@ function fullState(): AppState {
         date: '2026-06-25',
         hint: 'looks like spending',
         addedAt: '2026-06-26T00:00:00.000Z',
+        sourceEvidenceId: 'evidence_11111111111111111111111111111111',
       },
     ],
     ignoredReviewSigs: ['ATM withdrawal|-2000|2026-06-23'],
@@ -184,6 +211,7 @@ function fullState(): AppState {
 function emptyState(): AppState {
   return {
     schemaVersion: 2,
+    ...createPersonalWorkspaceRoot(),
     pots: [],
     subs: [],
     subPaused: {},
@@ -318,6 +346,7 @@ describe('buildExport — per-surface csvs', () => {
     expect(csvs).toHaveProperty('merchant-categories.csv');
     expect(csvs).toHaveProperty('dismissed-signals.csv');
     expect(csvs).toHaveProperty('review-spillover.csv');
+    expect(csvs).toHaveProperty('evidence-documents.csv');
   });
 
   it('every category that exists in the store is present in BOTH json and a csv', () => {
@@ -383,7 +412,16 @@ describe('buildExport — per-surface csvs', () => {
   it('reviewQueue.csv carries the queued intake candidates (design-source column set)', () => {
     const { csvs } = buildExport(fullState());
     const rows = parseCsv(csvs['reviewQueue.csv'] as string);
-    expect(rows[0]).toEqual(['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt']);
+    expect(rows[0]).toEqual([
+      'id',
+      'source',
+      'merchant',
+      'amount',
+      'date',
+      'hint',
+      'addedAt',
+      'sourceEvidenceId',
+    ]);
     expect(rows).toHaveLength(2); // header + 1 queued candidate
     const header = rows[0] as string[];
     const row = rows[1] as string[];
@@ -391,6 +429,9 @@ describe('buildExport — per-surface csvs', () => {
     expect(row[header.indexOf('source')]).toBe('pdf');
     expect(row[header.indexOf('amount')]).toBe('-4.2');
     expect(row[header.indexOf('hint')]).toBe('looks like spending');
+    expect(row[header.indexOf('sourceEvidenceId')]).toBe(
+      'evidence_11111111111111111111111111111111',
+    );
   });
 
   it('ignored-review.csv carries one signature per row (design-source shape)', () => {
@@ -519,7 +560,16 @@ describe('buildExport — review-spillover.csv', () => {
   it('carries the same column set as reviewQueue.csv (design-source shape)', () => {
     const { csvs } = buildExport(fullState());
     const rows = parseCsv(csvs['review-spillover.csv'] as string);
-    expect(rows[0]).toEqual(['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt']);
+    expect(rows[0]).toEqual([
+      'id',
+      'source',
+      'merchant',
+      'amount',
+      'date',
+      'hint',
+      'addedAt',
+      'sourceEvidenceId',
+    ]);
     expect(rows).toHaveLength(2); // header + 1 spillover row
     const header = rows[0] as string[];
     const row = rows[1] as string[];
@@ -531,7 +581,16 @@ describe('buildExport — review-spillover.csv', () => {
     const { csvs } = buildExport(emptyState());
     const rows = parseCsv(csvs['review-spillover.csv'] as string);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toEqual(['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt']);
+    expect(rows[0]).toEqual([
+      'id',
+      'source',
+      'merchant',
+      'amount',
+      'date',
+      'hint',
+      'addedAt',
+      'sourceEvidenceId',
+    ]);
   });
 });
 
@@ -573,6 +632,30 @@ describe('buildExport — csv escaping', () => {
     for (const seg of header.split('","')) {
       expect(seg.replace(/^"|"$/g, '')).not.toContain('","');
     }
+  });
+
+  it('neutralizes formula-like imported labels in CSV while JSON keeps the exact value', () => {
+    const state = fullState();
+    state.transactions = [
+      {
+        id: 'txn-formula',
+        when: '2026-06-21T00:00:00.000Z',
+        merchant: '=HYPERLINK("https://example.invalid","click")',
+        amount: -12.5,
+        category: 'other',
+        source: 'manual',
+      },
+    ];
+
+    const exported = buildExport(state);
+    const rows = parseCsv(exported.csvs['transactions.csv'] as string);
+    const header = rows[0] as string[];
+    expect(rows[1]?.[header.indexOf('merchant')]).toBe(
+      `'=HYPERLINK("https://example.invalid","click")`,
+    );
+    expect(JSON.parse(exported.json).transactions[0].merchant).toBe(
+      '=HYPERLINK("https://example.invalid","click")',
+    );
   });
 });
 
@@ -643,6 +726,7 @@ describe('buildExport — empty state', () => {
       'merchant-categories.csv',
       'dismissed-signals.csv',
       'review-spillover.csv',
+      'evidence-documents.csv',
     ];
     // Singleton surfaces always carry the one row that describes the scalar.
     const singletons = ['onboarding.csv', 'balance.csv', 'settings.csv'];
@@ -679,5 +763,178 @@ describe('buildExport — deterministic', () => {
     const snapshot = JSON.parse(JSON.stringify(state)) as AppState;
     buildExport(state);
     expect(state).toEqual(snapshot);
+  });
+
+  it('refuses export after a crafted Business switch instead of exporting the Personal partition', () => {
+    const state = {
+      ...fullState(),
+      activeWorkspaceId: 'workspace_business_injected' as AppState['activeWorkspaceId'],
+    };
+
+    expect(() => buildExport(state)).toThrow(/unavailable/);
+  });
+});
+
+describe('buildExport — Business accountant handoff', () => {
+  function businessState(): AppState {
+    const personal = createPersonalWorkspaceRoot().workspaces[0]!;
+    const business = createBusinessWorkspace({
+      id: 'workspace_business_export',
+      name: 'North Star Studio',
+      encryptedSubkeyId: 'workspace-subkey-business-export-v1',
+    });
+    const root = {
+      workspaces: [personal, business],
+      activeWorkspaceId: business.id,
+      dataWorkspaceId: business.id,
+    } as const;
+    const empty = createEmptyWorkspacePartition(root, business.id, '2026-07-01T00:00:00.000Z');
+
+    return {
+      ...empty,
+      evidenceDocuments: [
+        {
+          id: 'evidence_22222222222222222222222222222222',
+          workspaceId: business.id,
+          filename: 'july-statement.pdf',
+          mediaType: 'application/pdf',
+          byteSize: 8192,
+          addedAtISO: '2026-07-15T08:55:00.000Z',
+          sourceType: 'document',
+          extractionStatus: 'read',
+          storageState: 'encrypted-device-vault',
+        },
+      ],
+      accounts: [
+        {
+          id: 'business-current',
+          workspaceId: business.id,
+          name: 'Business current',
+          kind: 'bank',
+          isLiability: false,
+          balanceMinor: 2_400,
+          currency: 'GBP',
+          balanceAsOfISO: '2026-07-15T00:00:00.000Z',
+          addedAt: '2026-07-01T00:00:00.000Z',
+        },
+      ],
+      transactions: [
+        {
+          id: 'business-txn-1',
+          workspaceId: business.id,
+          accountId: 'business-current',
+          when: '2026-07-12T00:00:00.000Z',
+          merchant: 'Confirmed supplier',
+          amount: -125,
+          category: 'shopping',
+          source: 'manual',
+          sourceEvidenceId: 'evidence_22222222222222222222222222222222',
+        },
+      ],
+      statementImports: [
+        {
+          id: 'business-import-1',
+          workspaceId: business.id,
+          source: 'pdf',
+          accountId: 'business-current',
+          rowCount: 1,
+          filename: 'july-statement.pdf',
+          sourceEvidenceId: 'evidence_22222222222222222222222222222222',
+          atISO: '2026-07-15T09:00:00.000Z',
+        },
+      ],
+      reviewQueue: [
+        {
+          id: 'business-review-1',
+          workspaceId: business.id,
+          source: 'image',
+          merchant: 'Unconfirmed receipt',
+          amount: -10,
+          accountId: 'business-current',
+          addedAt: '2026-07-15T09:30:00.000Z',
+          sourceEvidenceId: 'evidence_22222222222222222222222222222222',
+        },
+      ],
+    };
+  }
+
+  it('emits scoped workspace, account, statement, manifest and accountant rows', () => {
+    const state = businessState();
+    const { json, csvs } = buildExport(state, state.activeWorkspaceId, '2026-07-15T10:00:00.000Z');
+
+    expect(JSON.parse(json)).toEqual(state);
+    expect(parseCsv(csvs['workspace.csv'] as string)[1]).toEqual(
+      expect.arrayContaining(['North Star Studio', 'business']),
+    );
+    expect(parseCsv(csvs['accounts.csv'] as string)[1]).toEqual(
+      expect.arrayContaining(['business-current', 'Business current']),
+    );
+    expect(parseCsv(csvs['statement-imports.csv'] as string)[1]).toEqual(
+      expect.arrayContaining(['business-import-1', 'july-statement.pdf']),
+    );
+    expect(parseCsv(csvs['evidence-documents.csv'] as string)[1]).toEqual(
+      expect.arrayContaining([
+        'evidence_22222222222222222222222222222222',
+        'july-statement.pdf',
+        'application/pdf',
+        '8192',
+        'encrypted-device-vault',
+      ]),
+    );
+
+    const accountantRows = parseCsv(csvs['accountant-records.csv'] as string);
+    expect(accountantRows).toHaveLength(2);
+    expect(accountantRows[1]).toEqual(
+      expect.arrayContaining([
+        'North Star Studio',
+        'business',
+        'business-txn-1',
+        'Confirmed supplier',
+        '-125',
+        'Business current',
+        'evidence_22222222222222222222222222222222',
+        'july-statement.pdf',
+      ]),
+    );
+
+    const manifestRows = parseCsv(csvs['export-manifest.csv'] as string);
+    expect(manifestRows[1]).toEqual(
+      expect.arrayContaining([
+        'North Star Studio',
+        'business',
+        '2026-07-12',
+        '2026-07-15T10:00:00.000Z',
+        'melo-business-alpha-v1',
+        '1',
+      ]),
+    );
+  });
+
+  it('fails closed instead of exporting a row owned by another workspace', () => {
+    const state = businessState();
+    const personalWorkspaceId = state.workspaces.find(
+      (workspace) => workspace.kind === 'personal',
+    )!.id;
+    const corrupted: AppState = {
+      ...state,
+      transactions: [
+        ...state.transactions,
+        {
+          ...state.transactions[0]!,
+          id: 'personal-row-injected',
+          workspaceId: personalWorkspaceId,
+          merchant: 'Personal Merchant Sentinel',
+        },
+      ],
+    };
+
+    expect(() => buildExport(corrupted)).toThrow(/not owned by workspace/);
+  });
+
+  it('fails closed instead of emitting a dangling source-evidence link', () => {
+    const state = businessState();
+    const corrupted: AppState = { ...state, evidenceDocuments: [] };
+
+    expect(() => buildExport(corrupted)).toThrow(/unavailable for export/);
   });
 });

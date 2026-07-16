@@ -39,8 +39,9 @@ function makeDebounced(fn: () => void, ms: number): () => void {
 
 async function syncNow(): Promise<void> {
   try {
-    const snapshot = buildWidgetSnapshot(getState(), new Date());
-    await writeWidgetSnapshot(snapshot);
+    const state = getState();
+    const snapshot = buildWidgetSnapshot(state, new Date());
+    await writeWidgetSnapshot(state.activeWorkspaceId, snapshot);
     // Push straight to any widget already on the home screen. `widgetNotFound` is left
     // unset — no widget on screen is the common case (most users never add it) and needs
     // no cleanup; the snapshot write above already covers the OS-driven redraw path for

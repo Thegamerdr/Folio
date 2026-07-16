@@ -23,6 +23,7 @@ import {
   resetToEmpty,
   setOnboarding,
 } from '../store';
+import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
 
 describe('validateRestoreJson — envelope check', () => {
   it('rejects a string that is not JSON', () => {
@@ -50,6 +51,26 @@ describe('validateRestoreJson — envelope check', () => {
     resetAll();
     const result = validateRestoreJson(getPersistBlob());
     expect(result.ok).toBe(true);
+  });
+
+  it('rejects a current export when the requested workspace does not own it', () => {
+    const business = 'workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID;
+    expect(validateRestoreJson(getPersistBlob(), business)).toEqual({
+      ok: false,
+      reason: 'wrong-workspace',
+    });
+  });
+
+  it('allows a pre-v9 rootless export only through the historic Personal migration path', () => {
+    const legacy = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    delete legacy.workspaces;
+    delete legacy.activeWorkspaceId;
+    delete legacy.dataWorkspaceId;
+    const raw = JSON.stringify(legacy);
+    expect(validateRestoreJson(raw, PERSONAL_WORKSPACE_ID).ok).toBe(true);
+    expect(
+      validateRestoreJson(raw, 'workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID),
+    ).toEqual({ ok: false, reason: 'wrong-workspace' });
   });
 });
 

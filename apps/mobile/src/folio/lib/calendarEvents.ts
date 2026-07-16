@@ -39,6 +39,10 @@ export type DerivedEvent = {
   id: string;
   /** ISO date (YYYY-MM-DD) */
   date: string;
+  /** Optional device-local wall-clock time (`HH:mm`) for manual events. */
+  time?: string;
+  /** User-chosen local reminder lead time, present only on manual events. */
+  reminderOffsetMinutes?: number;
   kind: DerivedEventKind;
   /** Where the event came from — drives "Repeats monthly" hint + pause action. */
   source: DerivedEventSource;
@@ -362,8 +366,12 @@ export function deriveCalendarEvents({
       title: e.title,
       // exactOptionalPropertyTypes: mirror the store's conditional-spread idiom
       // so optional fields are omitted, not set to explicit undefined. Same output.
+      ...(e.time !== undefined ? { time: e.time } : {}),
       ...(e.note !== undefined ? { note: e.note } : {}),
       ...(e.amount !== undefined ? { amount: e.amount } : {}),
+      ...(e.reminderOffsetMinutes !== undefined
+        ? { reminderOffsetMinutes: e.reminderOffsetMinutes }
+        : {}),
       manual: true,
     });
   }

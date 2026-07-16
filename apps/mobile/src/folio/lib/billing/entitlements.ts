@@ -2,20 +2,21 @@
 // ./entitlementsLogic (Node-testable, no expo); this file is the thin device layer, exactly like
 // ../persist.ts is the device layer over the store's pure `getPersistBlob`/`hydrateFromBlob`.
 //
-// Self-contained: its own file, its own read/write, no dependency on ../persist.ts or
-// ../../store.ts. Not encrypted at rest (unlike the main store blob) — this record carries no
-// financial data, only a tier label and an optional expiry, so the ENCRYPTED AT REST bar that
-// applies to money data doesn't apply here.
+// Self-contained: its own file, its own read/write, no dependency on ../persist.ts. Store grants
+// are public-key verified before use; a plain local tier label is never authority. The record has
+// no financial details or raw Play token, only signed public claims and token hash.
 
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { getState, setLensFullUnlocked } from '../../store';
 import {
   isEntitlementActive,
-  parseEntitlement,
-  serializeEntitlement,
+  parseEntitlements,
+  serializeEntitlements,
   type EntitlementRecord,
 } from './entitlementsLogic';
+import { billingVerificationConfig } from './billingVerification';
+import { verifyEntitlementGrant } from './entitlementGrant';
 
 export type { EntitlementRecord, EntitlementSource, EntitlementTier } from './entitlementsLogic';
 
@@ -30,38 +31,113 @@ function fileUri(): string | null {
 /** Read the persisted entitlement, if any. Missing file / read failure / malformed content all
  *  resolve to `null` — never throws, never blocks a caller. */
 export async function loadEntitlement(): Promise<EntitlementRecord | null> {
+  const records = await loadEntitlements();
+  return records[0] ?? null;
+}
+
+async function loadEntitlements(): Promise<EntitlementRecord[]> {
   const uri = fileUri();
-  if (uri === null) return null;
+  if (uri === null) return [];
   try {
     const info = await FileSystem.getInfoAsync(uri);
-    if (!info.exists) return null;
+    if (!info.exists) return [];
     const raw = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    return parseEntitlement(raw);
+    return parseEntitlements(raw);
   } catch {
-    return null;
+    return [];
   }
 }
 
 /** Persist (or clear, with `null`) the entitlement record. Swallows disk failures — a failed
  *  write just means the next launch falls back to no-entitlement, same as first run. */
 export async function saveEntitlement(record: EntitlementRecord | null): Promise<void> {
+  // Store ownership can only enter through saveVerifiedEntitlement. Keep this legacy export for
+  // preview migration/clearing without leaving an unsigned unlock path behind.
+  if (record?.source === 'store') return;
   const uri = fileUri();
   if (uri === null) return;
   try {
-    await FileSystem.writeAsStringAsync(uri, serializeEntitlement(record), {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
+    await FileSystem.writeAsStringAsync(
+      uri,
+      serializeEntitlements(record === null ? [] : [record]),
+      {
+        encoding: FileSystem.EncodingType.UTF8,
+      },
+    );
   } catch {
     /* disk failure — swallow; entitlement falls back to absent next read. */
   }
 }
 
-/** Convenience: load and immediately apply the "still active" check against wall-clock now. */
-export async function loadActiveEntitlement(): Promise<EntitlementRecord | null> {
-  const record = await loadEntitlement();
-  return isEntitlementActive(record, new Date()) ? record : null;
+/** Persist one independently-owned signed grant, replacing only the same tier. The grant is
+ * verified again here so callers cannot smuggle an unverified server response onto disk. */
+export async function saveVerifiedEntitlement(grant: string): Promise<EntitlementRecord | null> {
+  const config = billingVerificationConfig();
+  if (config === null) return null;
+  const verified = verifyEntitlementGrant(grant, config, new Date());
+  if (verified === null) return null;
+  const existing = await loadEntitlements();
+  const record: EntitlementRecord = {
+    source: 'store',
+    tier: verified.tier,
+    grant,
+    productId: verified.productId,
+    ...(verified.expiresAt !== null ? { expiresAt: verified.expiresAt } : {}),
+    ...(verified.graceUntil !== null ? { graceUntil: verified.graceUntil } : {}),
+  };
+  const records = [
+    ...existing.filter((candidate) => candidate.tier !== verified.tier),
+    record,
+  ].slice(-4);
+  const uri = fileUri();
+  if (uri === null) return null;
+  try {
+    await FileSystem.writeAsStringAsync(uri, serializeEntitlements(records), {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    return record;
+  } catch {
+    return null;
+  }
+}
+
+/** Load all currently-authoritative records. Every store record is reconstructed from its signed
+ * grant, so modified redundant JSON fields cannot affect the returned entitlement. */
+export async function loadActiveEntitlements(): Promise<EntitlementRecord[]> {
+  const now = new Date();
+  const config = billingVerificationConfig();
+  const records = await loadEntitlements();
+  const active: EntitlementRecord[] = [];
+  for (const record of records) {
+    if (record.source === 'preview') {
+      if (isEntitlementActive(record, now)) active.push(record);
+      continue;
+    }
+    if (config === null || !record.grant) continue;
+    const verified = verifyEntitlementGrant(record.grant, config, now, record.productId);
+    if (verified === null) continue;
+    active.push({
+      source: 'store',
+      tier: verified.tier,
+      grant: record.grant,
+      productId: verified.productId,
+      ...(verified.expiresAt !== null ? { expiresAt: verified.expiresAt } : {}),
+      ...(verified.graceUntil !== null ? { graceUntil: verified.graceUntil } : {}),
+    });
+  }
+  return active;
+}
+
+/** Convenience lookup. Without a tier, Live is preferred because legacy callers use this to
+ * decide the read allowance; Full remains independently available through the lens store. */
+export async function loadActiveEntitlement(
+  tier?: 'full' | 'live',
+): Promise<EntitlementRecord | null> {
+  const records = await loadActiveEntitlements();
+  if (tier !== undefined) return records.find((record) => record.tier === tier) ?? null;
+  return records.find((record) => record.tier === 'live') ?? records[0] ?? null;
 }
 
 /**
@@ -82,9 +158,13 @@ export async function loadActiveEntitlement(): Promise<EntitlementRecord | null>
  * throw), and this function does nothing observable when there is nothing to reconcile.
  */
 export async function reconcileEntitlements(): Promise<void> {
-  const active = await loadActiveEntitlement();
-  if (active === null || active.source !== 'store') return; // no entitlement, or a preview/trial
-  // record — trials are governed entirely by lens.trialCycleId, not this record.
+  const activeRecords = await loadActiveEntitlements();
+  const ownsFull = activeRecords.some(
+    (record) =>
+      record.source === 'store' &&
+      (record.tier === 'full' || record.tier === 'plus' || record.tier === 'pro'),
+  );
+  if (!ownsFull) return;
 
   // `lens` is optional on AppState for shape-migration reasons (see store.ts DEFAULT_LENS);
   // `?? false` mirrors how useLens() reads these same flags. Tier mapping since the Free/Full/
@@ -93,7 +173,7 @@ export async function reconcileEntitlements(): Promise<void> {
   // gates AI quantity, not lenses; its consumer is the read-allowance layer.
   const lens = getState().lens;
   const fullUnlocked = (lens?.plusUnlocked ?? false) || (lens?.proUnlocked ?? false);
-  if (active.tier !== 'live' && !fullUnlocked) {
+  if (!fullUnlocked) {
     setLensFullUnlocked(true);
   }
 }

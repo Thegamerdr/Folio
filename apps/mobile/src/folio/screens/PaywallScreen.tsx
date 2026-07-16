@@ -7,8 +7,8 @@
 // @rn-stack     More > Paywall
 // @purpose      Three doors: FREE (safety + fit-free lenses, always), FULL (one-time purchase —
 //               every lens and all software, yours forever), LIVE (small monthly sub — the only
-//               recurring price, attached to the only recurring cost: unlimited AI statement
-//               reads, live sync when it ships). Compare matrix, ten-lens rail, and a REAL
+//               recurring price, attached to recurring bank/sync infrastructure when it ships).
+//               Compare matrix, ten-lens rail, and a REAL
 //               one-cycle trial CTA for Full — wired to the actual lens/entitlement engine.
 // @reads        moneyMode, lens (via useLens(): fullUnlocked/trialCycleId/trialEndedCycleId/
 //               trialDaysLeft/tierFor), currentBalance, pots, subs, subPaused, onboarding,
@@ -23,8 +23,8 @@
 //     Survival, Stability, Debt, Irregular, Reset, Low-visibility) and the full safety layer.
 //     Depth/planning lenses (Growth, Optimizer, Planning, Household) are the Full unlock.
 //   • Full is ONE-TIME. Software has zero marginal cost, so it never rents. No cadence applies.
-//   • Live is the only subscription, priced at the metered cost it covers (AI reads; live bank
-//     sync when built). The cadence toggle applies to Live alone.
+//   • Live is the only subscription, priced at the recurring bank/sync infrastructure it covers.
+//     The cadence toggle applies to Live alone.
 //   • canShowUpsell guard (weather/recovery/safe-zone/quiet-mode) — never sell on a bad money
 //     moment. Unchanged from the prior build; all five suppression reasons render.
 //   • One-cycle trial (payday-anchored, 21-day floor, one ever) unlocks the Full lenses; it never
@@ -63,14 +63,10 @@ import {
   purchase,
   finishPurchase,
   restore as restorePurchases,
-  tierForProductId,
   type BillingCadence,
 } from '@/folio/lib/billing/iap';
-import {
-  loadActiveEntitlement,
-  saveEntitlement,
-  type EntitlementRecord,
-} from '@/folio/lib/billing/entitlements';
+import { loadActiveEntitlement, saveVerifiedEntitlement } from '@/folio/lib/billing/entitlements';
+import { verifyGooglePurchase } from '@/folio/lib/billing/billingVerification';
 import { resolveCtaMode } from '@/folio/lib/billing/ctaMode';
 import { showToast } from '@/folio/ui/Toast';
 import type { Nav } from '@/folio/types';
@@ -110,10 +106,8 @@ const LENS_ONE_LINER: Record<MoneyMode, string> = {
 // every flag is a truth claim about TODAY's build:
 //   • The six fit-free lenses + safety layer are shipped → live.
 //   • The four Full lenses (Growth/Optimizer/Planning/Household strategies) are shipped → live.
-//   • AI-read allowances are LIVE — the client-side metering gate ships with this build
-//     (lib/billing/readAllowance.ts + IntakeScreen's gate). Live's UNLIMITED stays `soon`
-//     until Live itself can be bought.
-//   • Wardrobe gating, widgets, briefings, bank sync are not built → soon.
+//   • Statement and photo reading is on-device and does not become a metered quality tier.
+//   • Wardrobe gating, widgets, briefings, bank sync and encrypted sync are not built → soon.
 const TIER_COPY: Record<
   TierKey,
   { name: string; tagline: string; bullets: { label: string; live: boolean }[] }
@@ -125,7 +119,7 @@ const TIER_COPY: Record<
       { label: 'Will my money last to payday?', live: true },
       { label: 'Six money-shape lenses — Survival to Low-vis', live: true },
       { label: 'Safe Zone · Recovery · Bill shield · Calendar', live: true },
-      { label: 'A few AI statement reads each month', live: true },
+      { label: 'On-device statement and photo reading', live: true },
     ],
   },
   full: {
@@ -134,7 +128,7 @@ const TIER_COPY: Record<
     bullets: [
       { label: 'Everything in Free', live: true },
       { label: 'Growth, Optimizer, Planning, Household lenses', live: true },
-      { label: 'Bigger AI read allowance', live: true },
+      { label: 'Local history, scenarios and exports', live: true },
       { label: "'What changed' briefing", live: false },
       { label: 'Widgets · Leak detection', live: false },
       // D6 (owner "do all", 2026-07-11): wardrobe is EARNED-ONLY (the blueprint's unbuyable
@@ -145,8 +139,8 @@ const TIER_COPY: Record<
     name: 'Melo Live',
     tagline: 'The always-on lane — pay only while you use it.',
     bullets: [
-      { label: 'Unlimited AI statement reads', live: false },
       { label: 'Live bank sync', live: false },
+      { label: 'Encrypted backup and multi-device sync', live: false },
       { label: 'Cancel any month — the app keeps working', live: true },
     ],
   },
@@ -159,9 +153,9 @@ const MATRIX: readonly { label: string; free: MatrixCell; full: MatrixCell; live
   { label: 'Six money-shape lenses', free: 'live', full: 'live', live: 'live' },
   { label: 'Growth · Optimizer · Planning · Household', free: 'no', full: 'live', live: 'no' },
   { label: 'Bill shield · Calendar', free: 'live', full: 'live', live: 'live' },
-  { label: 'AI reads — monthly allowance', free: 'live', full: 'live', live: 'live' },
-  { label: 'Unlimited AI reads', free: 'no', full: 'no', live: 'soon' },
+  { label: 'On-device statement reading', free: 'live', full: 'live', live: 'live' },
   { label: 'Live bank sync', free: 'no', full: 'no', live: 'soon' },
+  { label: 'Encrypted backup · device sync', free: 'no', full: 'no', live: 'soon' },
   { label: "'What changed' briefing", free: 'no', full: 'soon', live: 'no' },
   { label: 'Widgets · Leak detection', free: 'no', full: 'soon', live: 'no' },
   { label: 'Money Time Machine', free: 'no', full: 'soon', live: 'no' },
@@ -211,7 +205,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const [liveActive, setLiveActive] = useState(false);
   useEffect(() => {
     let mounted = true;
-    void loadActiveEntitlement().then((record) => {
+    void loadActiveEntitlement('live').then((record) => {
       if (mounted && record?.tier === 'live') setLiveActive(true);
     });
     return () => {
@@ -370,12 +364,36 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       const productId = productIdFor(tier, cadence as BillingCadence);
       const outcome = await purchase(productId);
       if (outcome.status === 'purchased') {
-        await finishPurchase(outcome.purchase);
-        const resolvedTier = tierForProductId(outcome.purchase.productId) ?? tier;
+        const verification = await verifyGooglePurchase(outcome.purchase);
+        if (verification.status !== 'verified') {
+          const title =
+            verification.status === 'pending'
+              ? 'Purchase pending'
+              : verification.status === 'unavailable'
+                ? 'Purchase needs verification'
+                : 'Purchase not confirmed';
+          const message =
+            verification.status === 'pending'
+              ? 'Google Play is still processing it. Melo will not unlock or finish the purchase until Play confirms it.'
+              : verification.message;
+          Alert.alert(title, message, [{ text: 'OK', style: 'cancel' }]);
+          return;
+        }
+        const persisted = await saveVerifiedEntitlement(verification.grant);
+        if (persisted === null) {
+          Alert.alert(
+            'Purchase needs verification',
+            'Melo verified the purchase but could not safely save its signed entitlement. Try Restore purchases shortly.',
+            [{ text: 'OK', style: 'cancel' }],
+          );
+          return;
+        }
+        const resolvedTier = verification.entitlement.tier;
         if (resolvedTier === 'full') setLensFullUnlocked(true);
         else setLiveActive(true);
-        const record: EntitlementRecord = { source: 'store', tier: resolvedTier };
-        await saveEntitlement(record);
+        // The Worker already attempts acknowledgement; finishing here is the replay-safe client
+        // fallback, and only happens after provider verification + signed local persistence.
+        await finishPurchase(outcome.purchase);
         Alert.alert(
           resolvedTier === 'live' ? 'Melo Live is on' : 'Melo Full is yours',
           resolvedTier === 'live'
@@ -384,6 +402,12 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           [{ text: 'OK', style: 'cancel' }],
         );
         nav.back();
+      } else if (outcome.status === 'pending') {
+        Alert.alert(
+          'Purchase pending',
+          'Google Play is still processing it. Melo will unlock only after Play confirms the payment.',
+          [{ text: 'OK', style: 'cancel' }],
+        );
       } else if (outcome.status === 'failed') {
         Alert.alert('Purchase failed', outcome.message, [{ text: 'OK', style: 'cancel' }]);
       }
@@ -412,23 +436,47 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       return;
     }
     const restored = await restorePurchases();
-    const tiers = new Set(
-      restored.map((p) => tierForProductId(p.productId)).filter((tier) => tier !== null),
-    );
-    if (tiers.size === 0) {
+    if (restored.length === 0) {
       Alert.alert('No purchase found on this device', undefined, [{ text: 'OK', style: 'cancel' }]);
       return;
     }
-    // Full (incl. grandfathered legacy subs) repairs the lens flag; Live repairs the record. When
-    // both restore, the record holds 'live' (its expiry matters) — the lens store is already the
-    // durable source of truth for Full.
-    if (tiers.has('full')) setLensFullUnlocked(true);
-    if (tiers.has('live')) {
-      setLiveActive(true);
-      await saveEntitlement({ source: 'store', tier: 'live' });
-    } else {
-      await saveEntitlement({ source: 'store', tier: 'full' });
+    const tiers = new Set<'full' | 'live'>();
+    let pending = false;
+    let unavailableMessage: string | null = null;
+    for (const restoredPurchase of restored) {
+      const verification = await verifyGooglePurchase(restoredPurchase);
+      if (verification.status === 'pending') {
+        pending = true;
+        continue;
+      }
+      if (verification.status !== 'verified') {
+        if (verification.status === 'unavailable') unavailableMessage = verification.message;
+        continue;
+      }
+      const persisted = await saveVerifiedEntitlement(verification.grant);
+      if (persisted === null) {
+        unavailableMessage = 'Melo could not safely save the signed store entitlement.';
+        continue;
+      }
+      tiers.add(verification.entitlement.tier);
+      await finishPurchase(restoredPurchase);
     }
+    if (tiers.size === 0) {
+      Alert.alert(
+        pending
+          ? 'Purchase pending'
+          : unavailableMessage
+            ? 'Restore needs verification'
+            : 'No active purchase found',
+        pending
+          ? 'Google Play is still processing this purchase.'
+          : (unavailableMessage ?? 'Google Play did not confirm an active Melo purchase.'),
+        [{ text: 'OK', style: 'cancel' }],
+      );
+      return;
+    }
+    if (tiers.has('full')) setLensFullUnlocked(true);
+    if (tiers.has('live')) setLiveActive(true);
     const label =
       tiers.has('full') && tiers.has('live')
         ? 'Melo Full + Live restored'
@@ -535,8 +583,8 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           </Text>
           <Text style={[styles.intro, { color: t.muted }]}>
             Melo always answers &quot;will my money last to payday?&quot; for free. Full unlocks
-            every lens with one payment — yours for good. Live is the only subscription: unlimited
-            AI reads, bank sync when it lands.
+            every lens with one payment — yours for good. Live is the optional subscription for
+            automatic bank refresh and encrypted sync when those services launch.
           </Text>
         </View>
 

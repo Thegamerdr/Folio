@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { Component, useEffect, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import {
   Fraunces_400Regular,
@@ -21,6 +21,7 @@ import * as Sentry from '@sentry/react-native';
 import { ThemeProvider, useIsDark, useTheme } from '../src/surfaces/pressureMap/kit';
 import { clerkTokenCache, getClerkPublishableKey } from '../src/folio/lib/clerkAuth';
 import { initErrorReporting } from '../src/folio/lib/errorReporting';
+import { clearEvidenceViewCache } from '../src/folio/lib/documentVault';
 import { safeZoneWidgetTaskHandler } from '../src/folio/widget/widgetTaskHandler';
 
 // ---------------------------------------------------------------------------
@@ -102,6 +103,12 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 // loads this root layout). See widget/widgetTaskHandler.tsx for the render-from-disk-snapshot logic.
 registerWidgetTaskHandler(safeZoneWidgetTaskHandler);
 
+// A bundled font should normally resolve almost immediately, but a corrupt/missing asset or a
+// platform loader regression must never strand the user behind the native splash forever. Keep
+// the editorial first paint when loading succeeds, then degrade to the platform font after a
+// bounded wait. The named families used by the UI already fall back safely when unavailable.
+const FONT_BOOT_TIMEOUT_MS = 6_000;
+
 // The themed shell. It lives UNDER ThemeProvider so the root background + status bar follow the
 // resolved palette (and so a forced Light/Dark choice — not just 'system' — is honoured here too).
 function ThemedRoot() {
@@ -124,7 +131,7 @@ function ThemedRoot() {
 }
 
 function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Fraunces_400Regular,
     Fraunces_500Medium,
     Fraunces_500Medium_Italic,
@@ -146,7 +153,41 @@ function RootLayout() {
     InterTightBold: require('../assets/fonts/InterTight-Bold.ttf'),
   });
 
-  if (!fontsLoaded) return null;
+  const [fontWaitExpired, setFontWaitExpired] = useState(false);
+
+  useEffect(() => {
+    void clearEvidenceViewCache();
+  }, []);
+
+  useEffect(() => {
+    if (fontsLoaded || fontError !== null) return;
+    const timeout = setTimeout(() => setFontWaitExpired(true), FONT_BOOT_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [fontError, fontsLoaded]);
+
+  useEffect(() => {
+    if (fontError === null) return;
+    // eslint-disable-next-line no-console
+    console.error('Bundled fonts failed to load; continuing with platform fallbacks.', fontError);
+    try {
+      Sentry.captureException(fontError);
+    } catch {
+      /* telemetry is best-effort; the degraded boot path must always render. */
+    }
+  }, [fontError]);
+
+  useEffect(() => {
+    if (!fontWaitExpired || fontsLoaded || fontError !== null) return;
+    // eslint-disable-next-line no-console
+    console.warn('Bundled fonts did not finish loading; continuing with platform fallbacks.');
+    try {
+      Sentry.captureMessage('Bundled fonts timed out during app startup', 'warning');
+    } catch {
+      /* telemetry is best-effort; the degraded boot path must always render. */
+    }
+  }, [fontError, fontWaitExpired, fontsLoaded]);
+
+  if (!fontsLoaded && fontError === null && !fontWaitExpired) return null;
 
   const tree = (
     <ThemeProvider>

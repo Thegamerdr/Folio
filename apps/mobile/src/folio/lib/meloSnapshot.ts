@@ -1,135 +1,218 @@
-// Melo snapshot builder — the pure fn that turns live store state into the compact JSON blob
-// MeloChatSheet hands the gateway persona (only when "let Melo see my money" is on).
-//
-// Extracted out of MeloChatSheet.tsx so the mapping is Node-testable without react-native (mirrors
-// `routeFromStore` / `buildWidgetSnapshot`'s own "pure builder + thin React caller" split). Pure and
-// deterministic given an injected `now`: no react-native import, no store singleton read, no random.
-//
-// HONESTY (the fix this module exists for): the chat persona must never quote a STALE number back at
-// the user.
-//   • `daysToPayday` used to be the frozen web-prototype literal `11`. It is now
-//     `routeFromStore(state, now).daysToPayday` — the SAME live cycle/payday derivation the home-screen
-//     widget (`widgetSnapshot.ts`) and Today/notifications already read, not a second parallel one.
-//   • `monthlyIncome` used to read ONLY the legacy `onboarding.monthlyIncome` lump, even for a user who
-//     has since declared cadenced `IncomeSource`s (weekly/fortnightly/four-weekly/last-working-day).
-//     It now sums every declared source's MONTHLY-EQUIVALENT amount (via `driftSignals.ts`'s
-//     `monthlyEquivalent`, reused rather than re-derived) when `incomeSources` is non-empty, and falls
-//     back to `onboarding.monthlyIncome` only when the user has no declared sources yet — byte-identical
-//     to the old behaviour in that legacy case.
+/**
+ * Build the financial context used by Melo's deterministic on-device responder.
+ *
+ * This is deliberately not a provider prompt or an analytics payload. It contains only
+ * derived totals needed for local answers; it excludes names, merchants, transaction rows,
+ * account identifiers, pot names and subscription names. Keeping this type identical to the
+ * local AI contract prevents a future caller from reviving the old rich-snapshot cast.
+ */
+import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
-import { routeFromStore } from './storeRoute';
+import { purgeSeedIfReal, type AppState } from '../store';
+import { deriveCalendarEvents } from './calendarEvents';
 import { selectMonthlyIncome } from './income';
-import type { AppState } from '../store';
-import type { Pressure } from '../types';
+import { routeFromStore } from './storeRoute';
+import { buildTimelineRows } from './timelineEvents';
+import { summarizeWhatChanged } from './whatChanged';
+import { buildWidgetSnapshot } from './widgetSnapshot';
+import { requireWorkspaceData } from './workspaceRoot';
+import { buildBusinessCashPosition } from './businessCashPosition';
 
-const FOURTEEN_DAYS_MS = 14 * 86_400_000;
+const PENCE_PER_POUND = 100;
 
-export type MeloSnapshot = {
-  name: string | null;
-  pressure: Pressure;
-  /** The REAL projected low of the user's route (routeFromStore's own tight point, rounded), or
-   *  null when the app holds no current money picture (no balance set, nothing logged) — the
-   *  gateway persona is told "treat as ground truth", so an unknown must read as null, never as an
-   *  invented figure. Replaces the web prototype's quantized per-pressure table (612/325/184/42/
-   *  −86), which handed Melo a fabricated number she could quote back at the user as fact. */
-  tightPoint: number | null;
-  tightPointGoal: number | null;
-  daysToPayday: number;
-  monthlyIncome: number;
-  pots: Array<{ name: string; saved: number; goal: number; weeklyPace: number }>;
-  subscriptions: Array<{
-    name: string;
-    monthly: number;
-    renewsInDays: number;
-    paused: boolean;
-  }>;
-  recentSpend: {
-    totalLast14Days: number;
-    byCategory: Record<string, number>;
-  };
-  lastFewTransactions: Array<{
-    when: string;
-    merchant: string;
-    amount: number;
-    category: string;
-  }>;
-};
+export type MeloSnapshot = MeloLocalFinancialSnapshot;
 
-/** @deprecated Back-compat alias — the canonical selector is `selectMonthlyIncome` in
- *  `./income.ts` (task: SURFACE SELECTOR PROMOTION). Every NEW caller should import
- *  `selectMonthlyIncome` directly; this re-export exists only so existing call sites don't need to
- *  change their import path. NOTE: `selectMonthlyIncome` extends the original behaviour with one
- *  more fallback rung (a history-derived median when there is no declared income AND no onboarding
- *  lump) — every case this function used to handle is unchanged, byte-identical. */
+/** @deprecated Use `selectMonthlyIncome` directly in new code. */
 export const liveMonthlyIncome = selectMonthlyIncome;
 
-/**
- * Build the Melo chat snapshot from the full app state + the caller's "now" and current landing
- * `pressure`. Pure — no store reads, no `Date.now()` unless `now` is omitted (matches
- * `routeFromStore`'s own default-param escape hatch; the reactive caller always injects `now`
- * explicitly). Only the last 14 days of transactions are folded in, so the prompt stays small and
- * "recent" means recent.
- */
+function toPence(pounds: number): number {
+  return Math.round(pounds * PENCE_PER_POUND);
+}
+
+function formatDay(iso: string): string {
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return 'the projected low day';
+  return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+}
+
+function protectedItemLabels(state: AppState): readonly string[] {
+  const labels: string[] = [];
+  if (state.subs.some((subscription) => !state.subPaused[subscription.name])) {
+    labels.push('active bills and subscriptions');
+  }
+  if (state.pots.some((pot) => pot.saved > 0 || pot.perWeek > 0)) {
+    labels.push('protected pots');
+  }
+  return labels.length > 0 ? labels : ['confirmed commitments'];
+}
+
+function hasRealMoneyPicture(state: AppState): boolean {
+  return (
+    state.currentBalance.source !== 'sample' ||
+    state.transactions.some((transaction) => transaction.source !== 'seed')
+  );
+}
+
+/** Pure and deterministic when `now` is supplied. No network, storage or store-singleton reads. */
 export function buildMeloSnapshot(
   state: AppState,
-  pressure: Pressure,
+  _pressure: unknown,
   now: Date | string = new Date(),
+  workspaceId = state.activeWorkspaceId,
 ): MeloSnapshot {
-  const route = routeFromStore(state, now);
-  const daysToPayday = route.daysToPayday;
-  const monthlyIncome = liveMonthlyIncome(state);
-  // Same current-money-picture gate as the shell's pressure derivation (FolioShell): a balance the
-  // user actually set, or logged activity. Without it, an empty app's route projects from £0 and
-  // the persona would be told a "ground truth" tight point of 0 that the user never entered.
-  const hasMoneyPicture = state.transactions.length > 0 || state.currentBalance.amount > 0;
-
-  const nowMs = typeof now === 'string' ? new Date(`${now}T00:00:00`).getTime() : now.getTime();
-  const cutoff = nowMs - FOURTEEN_DAYS_MS;
-  const recent = state.transactions.filter((t) => new Date(t.when).getTime() >= cutoff);
-  const spendByCategory = recent.reduce<Record<string, number>>((acc, t) => {
-    if (t.amount >= 0) return acc;
-    acc[t.category] = (acc[t.category] ?? 0) + Math.abs(t.amount);
-    return acc;
-  }, {});
+  const nowDate = now instanceof Date ? now : new Date(now);
+  const localState = purgeSeedIfReal(requireWorkspaceData(state, workspaceId));
+  const workspace = localState.workspaces.find((candidate) => candidate.id === workspaceId)!;
+  const isBusiness = workspace.kind === 'business';
+  const route = routeFromStore(localState, nowDate);
+  const widget = buildWidgetSnapshot(localState, nowDate);
+  const hasMoneyPicture = hasRealMoneyPicture(localState);
+  const activeSubscriptions = localState.subs.filter(
+    (subscription) => !localState.subPaused[subscription.name],
+  );
+  const activeDebts = (localState.debts ?? []).filter((debt) => debt.balance > 0);
+  const activePots = localState.pots.filter((pot) => pot.goal > 0);
+  const activePlans = (localState.plans ?? []).filter((plan) => plan.target > 0);
+  const activeAccounts = (localState.accounts ?? []).filter((account) => !account.closed);
+  const calendar = deriveCalendarEvents({
+    subs: localState.subs,
+    subPaused: localState.subPaused,
+    subOverrides: localState.subOverrides,
+    onboarding: localState.onboarding,
+    manualEvents: localState.calendarEvents,
+    pots: localState.pots,
+    incomeSources: localState.incomeSources ?? [],
+    includeSampleBills: false,
+    now: nowDate,
+  });
+  const changes = summarizeWhatChanged({
+    rows: buildTimelineRows({
+      transactions: localState.transactions,
+      edits: localState.edits ?? [],
+      events: localState.timelineEvents ?? [],
+    }),
+    imports: localState.statementImports ?? [],
+    seenISO: localState.whatChangedSeenISO ?? null,
+  });
+  const businessPosition = isBusiness
+    ? buildBusinessCashPosition({
+        accounts: activeAccounts,
+        transactions: localState.transactions,
+        upcomingEvents: calendar,
+        now: nowDate,
+      })
+    : null;
+  const nextBusinessIncome = isBusiness
+    ? calendar.find((event) => typeof event.amount === 'number' && event.amount > 0)
+    : undefined;
+  const resolvedMoneyPicture = isBusiness
+    ? activeAccounts.length > 0 ||
+      localState.transactions.length > 0 ||
+      calendar.length > 0 ||
+      localState.readerCandidates.length > 0 ||
+      (localState.reviewQueue?.length ?? 0) > 0
+    : hasMoneyPicture;
 
   return {
-    name: state.onboarding.name || null,
-    pressure,
-    tightPoint: hasMoneyPicture ? Math.round(route.tightPoint.amount) : null,
-    tightPointGoal: state.tightPointGoal,
-    daysToPayday,
-    monthlyIncome,
-    pots: state.pots.map((p) => ({
-      name: p.name,
-      saved: p.saved,
-      goal: p.goal,
-      weeklyPace: p.perWeek,
-    })),
-    // Usage fields (lastUsedDaysAgo / usesPerMonth) are intentionally NOT shared with the gateway:
-    // bank/seed data proves a charge recurs, not that the product was used
-    // (SUBSCRIPTION_SIGNAL_RESEARCH §2/§5), so Melo is never handed a usage signal she could turn into
-    // an "unused / you should cancel" claim. Only payment facts (cost, renewal, paused) go.
-    subscriptions: state.subs.map((s) => ({
-      name: s.name,
-      monthly: s.cost,
-      renewsInDays: s.nextRenewalDaysAway,
-      paused: !!state.subPaused[s.name],
-    })),
-    recentSpend: {
-      totalLast14Days: Number(
-        Object.values(spendByCategory)
-          .reduce((s, v) => s + v, 0)
-          .toFixed(2),
-      ),
-      byCategory: Object.fromEntries(
-        Object.entries(spendByCategory).map(([k, v]) => [k, Number(v.toFixed(2))]),
-      ),
-    },
-    lastFewTransactions: recent.slice(0, 8).map((t) => ({
-      when: t.when.slice(0, 10),
-      merchant: t.merchant,
-      amount: t.amount,
-      category: t.category,
-    })),
+    currency: 'GBP',
+    workspaceKind: workspace.kind,
+    availableNowMinor: isBusiness
+      ? toPence(businessPosition?.projectedCash ?? 0)
+      : hasMoneyPicture
+        ? widget.safeZonePence
+        : 0,
+    tightestDay: isBusiness
+      ? businessPosition?.nextCommitmentDate
+        ? formatDay(businessPosition.nextCommitmentDate)
+        : 'not set up yet'
+      : hasMoneyPicture
+        ? formatDay(route.tightPoint.date)
+        : 'not set up yet',
+    tightestBalanceMinor: isBusiness
+      ? toPence(businessPosition?.projectedCash ?? 0)
+      : hasMoneyPicture
+        ? toPence(route.tightPoint.amount)
+        : 0,
+    protectedItems: isBusiness
+      ? ['confirmed dated commitments']
+      : hasMoneyPicture
+        ? protectedItemLabels(localState)
+        : ['confirmed commitments'],
+    pendingReviewCount:
+      localState.readerCandidates.length +
+      (localState.reviewQueue?.length ?? 0) +
+      (localState.reviewQueueSpillover?.length ?? 0),
+    nextPaydayLabel: isBusiness
+      ? nextBusinessIncome?.date
+        ? formatDay(nextBusinessIncome.date)
+        : 'not set up yet'
+      : hasMoneyPicture && widget.paydayISO
+        ? formatDay(widget.paydayISO)
+        : 'not set up yet',
+    hasMoneyPicture: resolvedMoneyPicture,
+    subscriptionCount: resolvedMoneyPicture ? activeSubscriptions.length : 0,
+    activeSubscriptionMonthlyMinor: toPence(
+      resolvedMoneyPicture
+        ? activeSubscriptions.reduce((total, subscription) => total + subscription.cost, 0)
+        : 0,
+    ),
+    monthlyIncomeMinor: isBusiness
+      ? toPence(businessPosition?.confirmedIncome30Days ?? 0)
+      : hasMoneyPicture
+        ? toPence(selectMonthlyIncome(localState))
+        : 0,
+    monthlyOutgoingsMinor: isBusiness
+      ? toPence(businessPosition?.confirmedExpense30Days ?? 0)
+      : hasMoneyPicture
+        ? toPence(route.outgoingTotal ?? 0)
+        : 0,
+    activeRecurringCount: resolvedMoneyPicture ? activeSubscriptions.length : 0,
+    debtCount: resolvedMoneyPicture ? activeDebts.length : 0,
+    totalDebtMinor: toPence(
+      resolvedMoneyPicture ? activeDebts.reduce((total, debt) => total + debt.balance, 0) : 0,
+    ),
+    monthlyDebtMinimumMinor: toPence(
+      resolvedMoneyPicture ? activeDebts.reduce((total, debt) => total + debt.minPayment, 0) : 0,
+    ),
+    goalCount: resolvedMoneyPicture ? activePots.length + activePlans.length : 0,
+    goalSavedMinor: toPence(
+      resolvedMoneyPicture
+        ? activePots.reduce((total, pot) => total + pot.saved, 0) +
+            activePlans.reduce((total, plan) => total + plan.saved, 0)
+        : 0,
+    ),
+    goalTargetMinor: toPence(
+      resolvedMoneyPicture
+        ? activePots.reduce((total, pot) => total + pot.goal, 0) +
+            activePlans.reduce((total, plan) => total + plan.target, 0)
+        : 0,
+    ),
+    upcomingCalendarCount: resolvedMoneyPicture ? calendar.length : 0,
+    nextCalendarDate:
+      resolvedMoneyPicture && calendar[0]?.date ? formatDay(calendar[0].date) : undefined,
+    unseenChangeCount: resolvedMoneyPicture ? (changes?.count ?? 0) : 0,
+    incomeSourceCount: resolvedMoneyPicture ? (localState.incomeSources?.length ?? 0) : 0,
+    irregularIncomeMode: resolvedMoneyPicture && localState.moneyMode === 'irregular',
+    accountCount: resolvedMoneyPicture ? activeAccounts.length : 0,
+    liabilityAccountCount: resolvedMoneyPicture
+      ? activeAccounts.filter((account) => account.isLiability).length
+      : 0,
+    ...(businessPosition
+      ? {
+          businessCashBalanceMinor: toPence(businessPosition.cashBalance),
+          businessLiabilityBalanceMinor: toPence(businessPosition.liabilityBalance),
+          businessNetPositionMinor: toPence(businessPosition.netPosition),
+          businessProjectedCashMinor: toPence(businessPosition.projectedCash),
+          businessUpcomingIncomeMinor: toPence(businessPosition.upcomingIncome),
+          businessUpcomingCommitmentsMinor: toPence(businessPosition.upcomingCommitments),
+          businessConfirmedIncome30DaysMinor: toPence(businessPosition.confirmedIncome30Days),
+          businessConfirmedExpense30DaysMinor: toPence(businessPosition.confirmedExpense30Days),
+          businessRunwayDays: businessPosition.runwayDays,
+          businessRunwayHistoryDays: businessPosition.runwayHistoryDays,
+          ...(businessPosition.nextCommitmentDate
+            ? { businessNextCommitmentDate: formatDay(businessPosition.nextCommitmentDate) }
+            : {}),
+        }
+      : {}),
   };
 }

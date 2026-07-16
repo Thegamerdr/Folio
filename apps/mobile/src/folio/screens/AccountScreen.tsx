@@ -1,20 +1,19 @@
-// AccountScreen — the faithful 1:1 React Native port of the web account surface
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenAccount.tsx).
+// AccountScreen — the native account and connected-services surface. Its visual foundation came
+// from the approved web design, then evolved around the real mobile store, privacy gates, account
+// service, encrypted backup and provider-isolated Open Banking runtime.
 //
 // @rn-screen    AccountScreen
 // @rn-stack     MainTabs > More > Account
 // @purpose      A calm read of who you are to Folio — current tier (Free / Full / trial; the
 //               Free/Full/Live restructure, MONEY_MODEL.md §2b), connected money sources, your
-//               footprint, and the quiet levers (sign in, restore purchase, manage plan, export,
-//               wipe).
+//               footprint, and the quiet levers (sign in, restore purchase, export and deletion).
 // @reads        fullUnlocked / trialCycleId / trialDaysLeft (via useLens()),
 //               subs.length, pots.length, cycles.length, onboarding.monthlyIncome/payday,
 //               melo.quietMode
-// @writes       — none directly. "Wipe this device" routes to the gated Privacy reset (see
-//               FIDELITY DECISIONS); export routes through the real export engine (via Privacy).
-// @copy         FROZEN — ported verbatim from the web literals (no COPY_DECK entry exists yet for
-//               this screen, so the web JSX strings are the frozen source, same convention
-//               MeloScreen/MoreScreen use for their own inline literals).
+// @writes       Local clear routes to Privacy; signed-in account deletion purges remote services
+//               before Clerk identity deletion; export routes through Privacy.
+// @copy         Product copy remains grounded in the approved design, with runtime-specific trust
+//               and consent language kept accurate for native services.
 // @tokens       canvas · surface · hairline · muted · calm (accent) · calmSoft · inset · ink ·
 //               positive · repairInk — all from the kit, no new token.
 // @motion       slide-in-r on mount · press 0.97 on every row/button.
@@ -36,16 +35,14 @@
 //     Privacy (`runExport()` from '@/folio/lib/exportNative') via `nav.go('privacy')`, so tapping it
 //     lands the user on the surface that performs the actual, working export rather than reimplementing
 //     a second export entry point or faking a browser download that cannot exist on-device.
-//   • Wipe this device: the web wipes directly behind a two-step sonner toast (arm -> confirm), which
+//   • Local clear: the web wipes directly behind a two-step sonner toast (arm -> confirm), which
 //     is a BYPASS of this app's D3 tier-3 wipe policy (exportedAck -> typedConfirm -> finalConfirm,
 //     the same "no fake undo after a confirmed wipe" rule PrivacyScreen enforces, and the same reason
 //     MoreScreen's own "Start fresh" row was changed to ROUTE to Privacy rather than wipe from the
-//     hub). This port does not add a second, weaker wipe path — "Wipe this device" routes to the
-//     Privacy screen's gated reset instead of calling resetAll()/resetToEmpty() directly.
+//     hub). This port routes to Privacy's complete local-clear adapter instead of adding a bypass.
 //   • Three-tier-at-a-glance grid + "Sources" tappable rows + "Your footprint" stats are ported
 //     1:1 — they read only real store data (subs/pots/cycles/onboarding) and navigate honestly
-//     (intake for statements, the onboarding sheet for payday/income, a plain "coming with the mobile
-//     app" note for bank connection since there is no bank-link engine anywhere in this codebase).
+//     (intake for statements, onboarding for payday/income, and the provider-isolated bank sheet).
 //   • Accent word "plan": web `<em class="not-italic text-accent">plan</em>`. RN has no inline `<em>`,
 //     so the headline is three Text runs and the accent run is a nested UPRIGHT terracotta span (the
 //     StartScreen / MeloScreen / MoreScreen pattern — same Fraunces face, colour-only override).
@@ -73,12 +70,27 @@ import { Surface, Hairline, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { addAccount, useAppStore, type AccountKind } from '@/folio/store';
+import {
+  addAccount,
+  removeEvidenceDocument,
+  renameAccount,
+  setAccountBalance,
+  useAppStore,
+  type Account,
+  type AccountKind,
+} from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { hasStatementSourceData } from '@/folio/lib/accountSources';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
+import {
+  deleteRemoteMeloAccount,
+  RemoteAccountDeletionError,
+} from '@/folio/lib/remoteAccountDeletion';
 import { SignInSheet } from '@/folio/sheets/SignInSheet';
+import { CloudBackupSheet } from '@/folio/sheets/CloudBackupSheet';
+import { BankConnectionSheet, type BankSourceSummary } from '@/folio/sheets/BankConnectionSheet';
+import { deleteEvidenceDocumentFile, openEvidenceDocument } from '@/folio/lib/documentVault';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy. Populated-only per the SPEC convention (offline is
@@ -172,12 +184,21 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
+  const workspace = useAppStore(
+    (s) => s.workspaces.find((candidate) => candidate.id === s.activeWorkspaceId)!,
+  );
+  const isBusiness = workspace.kind === 'business';
 
   const subsCount = useAppStore((s) => s.subs.length);
   const potsCount = useAppStore((s) => s.pots.length);
   const cyclesCount = useAppStore((s) => s.cycles.length);
   const transactionsCount = useAppStore((s) => s.transactions.length);
+  const transactions = useAppStore((s) => s.transactions);
   const statementImportsCount = useAppStore((s) => s.statementImports?.length ?? 0);
+  const evidenceDocuments = useAppStore((s) => s.evidenceDocuments);
+  const readerCandidates = useAppStore((s) => s.readerCandidates);
+  const reviewQueue = useAppStore((s) => s.reviewQueue);
+  const reviewQueueSpillover = useAppStore((s) => s.reviewQueueSpillover);
   const onboarding = useAppStore((s) => s.onboarding);
   const currentBalance = useAppStore((s) => s.currentBalance);
   // Keep the external-store selector referentially stable. Filtering inside the selector creates a
@@ -190,6 +211,76 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const incomeSources = useAppStore((s) => s.incomeSources);
   const monthlyIncome = useAppStore((s) => selectMonthlyIncome(s));
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
+  const [evidenceBusyId, setEvidenceBusyId] = useState<string | null>(null);
+
+  const evidenceStatusById = useMemo(() => {
+    const pending = new Set(
+      [...readerCandidates, ...(reviewQueue ?? []), ...(reviewQueueSpillover ?? [])]
+        .map((item) => item.sourceEvidenceId)
+        .filter((id): id is string => id !== undefined),
+    );
+    const confirmed = new Set(
+      transactions
+        .map((transaction) => transaction.sourceEvidenceId)
+        .filter((id): id is string => id !== undefined),
+    );
+    return new Map(
+      (evidenceDocuments ?? []).map((document) => {
+        const hasPending = pending.has(document.id);
+        const hasConfirmed = confirmed.has(document.id);
+        const label =
+          hasPending && hasConfirmed
+            ? 'partly reviewed'
+            : hasConfirmed
+              ? 'linked to records'
+              : hasPending
+                ? 'waiting for review'
+                : document.extractionStatus === 'unreadable'
+                  ? 'needs details'
+                  : 'saved source';
+        return [document.id, label] as const;
+      }),
+    );
+  }, [evidenceDocuments, readerCandidates, reviewQueue, reviewQueueSpillover, transactions]);
+
+  const openSource = (document: NonNullable<typeof evidenceDocuments>[number]) => {
+    void openEvidenceDocument(workspace, document).catch((reason: unknown) => {
+      Alert.alert(
+        'Could not open the saved source',
+        reason instanceof Error ? reason.message : 'The encrypted source could not be opened.',
+      );
+    });
+  };
+
+  const confirmRemoveSource = (document: NonNullable<typeof evidenceDocuments>[number]) => {
+    Alert.alert(
+      'Remove saved source?',
+      'The encrypted original will be deleted. Confirmed money records stay in Melo.',
+      [
+        { text: 'Keep source', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setEvidenceBusyId(document.id);
+            void deleteEvidenceDocumentFile(workspace, document)
+              .then(() => {
+                removeEvidenceDocument(document.id);
+              })
+              .catch((reason: unknown) => {
+                Alert.alert(
+                  'Could not remove the saved source',
+                  reason instanceof Error
+                    ? reason.message
+                    : 'The encrypted source is still on this device.',
+                );
+              })
+              .finally(() => setEvidenceBusyId(null));
+          },
+        },
+      ],
+    );
+  };
 
   // The detected income's label + cadence — from the first declared source when the user has one
   // (the honest, named figure), falling back to the generic "Income" / "monthly" shape for the
@@ -206,7 +297,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
     transactionsCount === 0 &&
     statementImportsCount === 0
       ? 'not set yet'
-      : (BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'sample data');
+      : isBusiness && currentBalance.source === 'sample'
+        ? 'not set yet'
+        : (BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'source not recorded');
 
   // Sign-in is entirely optional (see clerkAuth.ts). Evaluated once per render, not via a hook, so
   // this branch stays safe whether or not a ClerkProvider ancestor exists — Clerk's own hooks only
@@ -214,24 +307,50 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   // the root layout actually wrapped the tree in ClerkProvider).
   const clerkConfigured = isClerkConfigured();
   const [signInVisible, setSignInVisible] = useState(false);
+  const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
+  const [bankConnectionVisible, setBankConnectionVisible] = useState(false);
+  const [bankSummary, setBankSummary] = useState<BankSourceSummary | null>(null);
   const [addingAccount, setAddingAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountKind, setNewAccountKind] = useState<AccountKind>('bank');
   const [newAccountBalance, setNewAccountBalance] = useState('');
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [editAccountName, setEditAccountName] = useState('');
+  const [editAccountBalance, setEditAccountBalance] = useState('');
+
+  const parseBalance = (value: string, kind: AccountKind): number => {
+    const parsed = Number(value.replace(/[^0-9.-]/g, ''));
+    if (!Number.isFinite(parsed)) return 0;
+    return kind === 'credit-card' ? Math.abs(parsed) : parsed;
+  };
 
   const saveAccount = () => {
     const name = newAccountName.trim();
     if (!name) return;
-    const parsed = Number(newAccountBalance.replace(/[^0-9.]/g, ''));
     addAccount({
       name,
       kind: newAccountKind,
-      balanceMinor: Number.isFinite(parsed) ? parsed : 0,
+      balanceMinor: parseBalance(newAccountBalance, newAccountKind),
     });
     setNewAccountName('');
     setNewAccountBalance('');
     setNewAccountKind('bank');
     setAddingAccount(false);
+  };
+
+  const startEditingAccount = (account: Account) => {
+    setEditingAccountId(account.id);
+    setEditAccountName(account.name);
+    setEditAccountBalance(account.balanceMinor.toFixed(2));
+  };
+
+  const saveAccountEdit = () => {
+    const account = accounts.find((candidate) => candidate.id === editingAccountId);
+    const name = editAccountName.trim();
+    if (!account || !name) return;
+    renameAccount(account.id, name);
+    setAccountBalance(account.id, parseBalance(editAccountBalance, account.kind));
+    setEditingAccountId(null);
   };
 
   // Tier — the real lens engine, Free/Full/Live vocabulary. (Live ownership lives in the billing
@@ -264,11 +383,34 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  // Sources — honest rows. Statements are reachable (real intake flow); bank connection is a plain
-  // "coming with the mobile app" note (no bank-link engine anywhere in this codebase); payday/income
-  // opens the real onboarding sheet.
-  const sources = useMemo(
-    () => [
+  // Sources — honest rows. Statements use real intake, optional bank connection opens the
+  // provider-isolated sheet, and payday/income opens onboarding.
+  const sources = useMemo(() => {
+    if (isBusiness) {
+      return [
+        {
+          label: 'Statements & receipts',
+          hint: 'PDF · image · paste · CSV',
+          state: hasStatementSourceData(statementImportsCount, transactionsCount)
+            ? ('manual' as const)
+            : ('empty' as const),
+          action: () => nav.go('intake'),
+        },
+        {
+          label: 'Manual accounts',
+          hint: accounts.length > 0 ? `${accounts.length} recorded` : 'add the balance you know',
+          state: accounts.length > 0 ? ('manual' as const) : ('empty' as const),
+          action: () => setAddingAccount(true),
+        },
+        {
+          label: 'Dated commitments',
+          hint: 'money in, money out and deadlines',
+          state: 'optional' as const,
+          action: () => nav.go('calendar'),
+        },
+      ];
+    }
+    return [
       {
         label: 'Statements & receipts',
         hint: 'PDF · image · paste · CSV',
@@ -279,15 +421,21 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
       },
       {
         label: 'Bank connection',
-        hint: 'not available yet',
-        state: 'empty' as const,
+        hint: !clerkConfigured
+          ? 'account service not configured'
+          : bankSummary?.active
+            ? 'connected · read-only'
+            : bankSummary?.providerConfigured === false
+              ? 'provider setup pending'
+              : 'optional · read-only',
+        state: bankSummary?.active ? ('connected' as const) : ('optional' as const),
         action: () =>
-          Alert.alert(
-            'Bank connection is not available yet',
-            'Statements, photos and manual entries work now.',
-            [{ text: 'OK', style: 'cancel' }],
-            { cancelable: true },
-          ),
+          clerkConfigured
+            ? setBankConnectionVisible(true)
+            : Alert.alert(
+                'Bank connection is not configured',
+                'Statements, photos, CSV and manual entries still work on this device.',
+              ),
       },
       {
         label: 'Payday & income',
@@ -298,9 +446,19 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         state: monthlyIncome > 0 ? ('manual' as const) : ('empty' as const),
         action: () => nav.openSheet('onboarding'),
       },
-    ],
-    [statementImportsCount, transactionsCount, monthlyIncome, incomeLabel, incomeCadenceLabel, nav],
-  );
+    ];
+  }, [
+    isBusiness,
+    accounts.length,
+    statementImportsCount,
+    transactionsCount,
+    monthlyIncome,
+    incomeLabel,
+    incomeCadenceLabel,
+    bankSummary,
+    clerkConfigured,
+    nav,
+  ]);
 
   // Export — routes to Privacy, which owns the real export engine (runExport). Avoids a second,
   // weaker export entry point (see FIDELITY DECISIONS).
@@ -357,15 +515,19 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           >
             <Text style={[styles.backGlyph, { color: t.muted }]}>←</Text>
           </Pressable>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>Account</Text>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>
+            {isBusiness ? 'Business accounts' : 'Account'}
+          </Text>
           <View style={styles.headerSpacer} />
         </View>
 
         {/* Title block. */}
         <View style={styles.titleBlock}>
-          <Text style={[styles.kicker, { color: t.muted }]}>You + Melo</Text>
+          <Text style={[styles.kicker, { color: t.muted }]}>
+            {isBusiness ? workspace.name : 'You + Melo'}
+          </Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {'Your '}
+            {isBusiness ? 'Business ' : 'Your '}
             <Text style={[styles.headlineAccent, { color: t.calm }]}>money</Text>
             {', plainly.'}
           </Text>
@@ -374,7 +536,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         {/* Balance — the real, honest current-balance read (ENGINES.md §6): every balance shows where
             it came from, so this screen is never blank after a statement import. */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: t.ink }]}>Your balance</Text>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>
+            {isBusiness ? 'Business cash balance' : 'Your balance'}
+          </Text>
           <Surface style={[styles.card, styles.balanceCard, { borderColor: t.hairline }]}>
             <Text style={[styles.balanceValue, { color: t.ink }]}>
               £{Math.round(currentBalance.amount).toLocaleString('en-GB')}
@@ -397,9 +561,15 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             {accounts.map((account, index) => (
               <View key={account.id}>
                 {index > 0 ? <Hairline /> : null}
-                <View
+                <Pressable
                   accessibilityLabel={`${account.name}, ${ACCOUNT_KIND_LABEL[account.kind]}, ${account.isLiability ? 'owed' : 'balance'} £${Math.abs(account.balanceMinor).toFixed(2)}`}
-                  style={styles.accountRow}
+                  accessibilityHint="Edit this account name and balance"
+                  accessibilityRole="button"
+                  onPress={() => startEditingAccount(account)}
+                  style={({ pressed: isPressed }) => [
+                    styles.accountRow,
+                    isPressed ? styles.rowPressed : undefined,
+                  ]}
                 >
                   <View style={styles.rowText}>
                     <Text style={[styles.rowLabel, { color: t.ink }]}>{account.name}</Text>
@@ -424,7 +594,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                       {account.isLiability ? 'owed' : 'balance'}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
               </View>
             ))}
             {accounts.length > 0 ? <Hairline /> : null}
@@ -450,7 +620,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 accessibilityLabel="Account name"
                 autoCapitalize="words"
                 onChangeText={setNewAccountName}
-                placeholder="e.g. Monzo current"
+                placeholder={isBusiness ? 'e.g. Business current' : 'e.g. Monzo current'}
                 placeholderTextColor={t.muted}
                 style={[styles.addAccountInput, { backgroundColor: t.inset, color: t.ink }]}
                 value={newAccountName}
@@ -514,12 +684,73 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
               </Pressable>
             </Surface>
           ) : null}
+
+          {editingAccountId !== null ? (
+            <Surface style={[styles.addAccountCard, { borderColor: t.hairline }]}>
+              <Text style={[styles.addAccountTitle, { color: t.ink }]}>Update this account</Text>
+              <TextInput
+                accessibilityLabel="Account name"
+                autoCapitalize="words"
+                onChangeText={setEditAccountName}
+                placeholder="Account name"
+                placeholderTextColor={t.muted}
+                style={[styles.addAccountInput, { backgroundColor: t.inset, color: t.ink }]}
+                value={editAccountName}
+              />
+              <View style={[styles.addAccountBalanceRow, { backgroundColor: t.inset }]}>
+                <Text style={[styles.addAccountCurrency, { color: t.ink }]}>£</Text>
+                <TextInput
+                  accessibilityLabel="Current account balance"
+                  keyboardType="decimal-pad"
+                  onChangeText={setEditAccountBalance}
+                  placeholder="0.00"
+                  placeholderTextColor={t.muted}
+                  style={[styles.addAccountBalanceInput, { color: t.ink }]}
+                  value={editAccountBalance}
+                />
+                <Text style={[styles.addAccountBalanceHint, { color: t.muted }]}>current</Text>
+              </View>
+              <View style={styles.accountEditActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setEditingAccountId(null)}
+                  style={({ pressed: isPressed }) => [
+                    styles.accountEditCancel,
+                    { borderColor: t.hairline },
+                    isPressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.accountEditCancelLabel, { color: t.muted }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: editAccountName.trim().length === 0 }}
+                  disabled={editAccountName.trim().length === 0}
+                  onPress={saveAccountEdit}
+                  style={({ pressed: isPressed }) => [
+                    styles.accountEditSave,
+                    {
+                      backgroundColor: t.calm,
+                      opacity: editAccountName.trim().length === 0 ? 0.45 : 1,
+                    },
+                    isPressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.addAccountSaveLabel, { color: t.inverse }]}>
+                    Save account
+                  </Text>
+                </Pressable>
+              </View>
+            </Surface>
+          ) : null}
         </View>
 
         {/* Sources. */}
         <View style={styles.section}>
           <View style={[styles.sectionHeaderRow, styles.sourcesHeaderRow]}>
-            <Text style={[styles.sectionTitle, { color: t.ink }]}>Where your money comes from</Text>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>
+              {isBusiness ? 'Where business records come from' : 'Where your money comes from'}
+            </Text>
             <Text style={[styles.sectionHint, { color: t.muted }]}>set by you · imported</Text>
           </View>
           <Surface style={[styles.card, { borderColor: t.hairline }]}>
@@ -540,7 +771,13 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                   </View>
                   <View style={[styles.rowStateChip, { backgroundColor: t.inset }]}>
                     <Text style={[styles.rowStateLabel, { color: t.muted }]}>
-                      {s.state === 'manual' ? 'added by you' : 'not yet'}
+                      {s.state === 'manual'
+                        ? 'added by you'
+                        : s.state === 'connected'
+                          ? 'connected'
+                          : s.state === 'optional'
+                            ? 'optional'
+                            : 'not yet'}
                     </Text>
                   </View>
                   <Text style={[styles.chevron, { color: t.muted }]}>→</Text>
@@ -550,112 +787,176 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           </Surface>
         </View>
 
+        {(evidenceDocuments?.length ?? 0) > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: t.ink }]}>Saved source evidence</Text>
+              <Text style={[styles.sectionHint, { color: t.muted }]}>
+                {evidenceDocuments?.length ?? 0} encrypted
+              </Text>
+            </View>
+            <Surface style={[styles.card, { borderColor: t.hairline }]}>
+              {(evidenceDocuments ?? []).map((document, index) => (
+                <View key={document.id}>
+                  {index > 0 ? <Hairline /> : null}
+                  <View style={styles.row}>
+                    <View style={styles.rowText}>
+                      <Text numberOfLines={1} style={[styles.rowLabel, { color: t.ink }]}>
+                        {document.filename}
+                      </Text>
+                      <Text style={[styles.rowHint, { color: t.muted }]}>
+                        {`${Math.max(1, Math.round(document.byteSize / 1024)).toLocaleString('en-GB')} KB · ${evidenceStatusById.get(document.id) ?? 'saved source'}`}
+                      </Text>
+                    </View>
+                    <View style={styles.evidenceActions}>
+                      <Pressable
+                        accessibilityHint="Decrypts a temporary copy and opens the device share or viewer sheet"
+                        accessibilityLabel={`Open ${document.filename}`}
+                        accessibilityRole="button"
+                        disabled={evidenceBusyId === document.id}
+                        onPress={() => openSource(document)}
+                        style={({ pressed: isPressed }) => [
+                          styles.evidenceAction,
+                          isPressed ? styles.rowPressed : undefined,
+                        ]}
+                      >
+                        <Text style={[styles.evidenceActionLabel, { color: t.ink }]}>Open</Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityLabel={`Remove ${document.filename}`}
+                        accessibilityRole="button"
+                        disabled={evidenceBusyId === document.id}
+                        onPress={() => confirmRemoveSource(document)}
+                        style={({ pressed: isPressed }) => [
+                          styles.evidenceAction,
+                          isPressed ? styles.rowPressed : undefined,
+                        ]}
+                      >
+                        <Text style={[styles.evidenceActionLabel, { color: t.repairInk }]}>
+                          Remove
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </Surface>
+          </View>
+        ) : null}
+
         {/* Your footprint. */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: t.ink }]}>Your footprint</Text>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>
+            {isBusiness ? 'Business footprint' : 'Your footprint'}
+          </Text>
           <View style={styles.statsGrid}>
             <Stat n={transactionsCount} label="transactions" />
             {/* Honest label — imports can be pdf/photo/paste/csv, not only "statements" in the
                 narrow sense (task: coherence-fix stopgap ahead of the full accounts model). */}
             <Stat n={statementImportsCount} label="statements" />
-            <Stat n={subsCount} label="subs" />
-            <Stat n={potsCount} label="pots" />
-            <Stat n={cyclesCount} label="cycles" />
+            {isBusiness ? <Stat n={accounts.length} label="accounts" /> : null}
+            {!isBusiness ? <Stat n={subsCount} label="subs" /> : null}
+            {!isBusiness ? <Stat n={potsCount} label="pots" /> : null}
+            {!isBusiness ? <Stat n={cyclesCount} label="cycles" /> : null}
           </View>
         </View>
 
         {/* Plan and billing follow the user's actual money, accounts, sources, and footprint. Account
             is an operational money surface first; it should not open as a three-card sales page. */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: t.ink }]}>Your Melo plan</Text>
-          <Surface style={[styles.tierCard, styles.tierCardInSection, { borderColor: t.hairline }]}>
-            <View style={styles.tierTopRow}>
-              <Text style={[styles.tierEyebrow, { color: t.muted }]}>Tier</Text>
-              <View style={[styles.tierPill, { backgroundColor: t.inset }]}>
-                <Text style={[styles.tierPillLabel, { color: t.muted }]}>{tierLabel}</Text>
+        {!isBusiness ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Your Melo plan</Text>
+            <Surface
+              style={[styles.tierCard, styles.tierCardInSection, { borderColor: t.hairline }]}
+            >
+              <View style={styles.tierTopRow}>
+                <Text style={[styles.tierEyebrow, { color: t.muted }]}>Tier</Text>
+                <View style={[styles.tierPill, { backgroundColor: t.inset }]}>
+                  <Text style={[styles.tierPillLabel, { color: t.muted }]}>{tierLabel}</Text>
+                </View>
               </View>
-            </View>
-            <Text style={[styles.tierHint, { color: t.ink }]}>{tierHint}</Text>
-            {tier === 'trial' && trialDaysLeft != null ? (
-              <Text style={[styles.tierTrialChip, { color: t.muted }]}>
-                <Text style={{ color: t.calm }}>{trialDaysLeft}</Text>
-                {trialDaysLeft === 1
-                  ? " day left · we'll ask when it ends"
-                  : " days left · we'll ask when it ends"}
-              </Text>
-            ) : null}
-            <View style={styles.tierActions}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => nav.go('paywall')}
-                style={({ pressed: isPressed }) => [
-                  styles.tierCta,
-                  { backgroundColor: t.calm },
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.tierCtaLabel, { color: t.inverse }]}>
-                  {tier === 'free' ? 'See plans' : 'Manage plan'}
+              <Text style={[styles.tierHint, { color: t.ink }]}>{tierHint}</Text>
+              {tier === 'trial' && trialDaysLeft != null ? (
+                <Text style={[styles.tierTrialChip, { color: t.muted }]}>
+                  <Text style={{ color: t.calm }}>{trialDaysLeft}</Text>
+                  {trialDaysLeft === 1
+                    ? " day left · we'll ask when it ends"
+                    : " days left · we'll ask when it ends"}
                 </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => nav.go('paywall')}
-                style={({ pressed: isPressed }) => [
-                  styles.tierRestore,
-                  { borderColor: t.hairline },
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.tierRestoreLabel, { color: t.muted }]}>Restore</Text>
-              </Pressable>
-            </View>
-          </Surface>
-
-          <View style={styles.tiersGrid}>
-            {TIERS.map((p) => {
-              const isCurrent =
-                p.key === 'full' ? tier === 'full' || tier === 'trial' : p.key === tier;
-              const priceAria =
-                p.key === 'full'
-                  ? `${p.price} one-time`
-                  : p.key === 'live'
-                    ? `${p.price} per month`
-                    : p.price;
-              return (
+              ) : null}
+              <View style={styles.tierActions}>
                 <Pressable
-                  accessibilityLabel={`${p.name} — ${priceAria}. Tap for details.`}
                   accessibilityRole="button"
-                  key={p.key}
                   onPress={() => nav.go('paywall')}
                   style={({ pressed: isPressed }) => [
-                    styles.tierGridCard,
-                    {
-                      backgroundColor: isCurrent ? t.calmSoft : t.surface,
-                      borderColor: t.hairline,
-                    },
+                    styles.tierCta,
+                    { backgroundColor: t.calm },
                     isPressed ? styles.pressed : undefined,
                   ]}
                 >
-                  <Text style={[styles.tierGridName, { color: t.ink }]}>{p.name}</Text>
-                  <Text style={[styles.tierGridPrice, { color: t.ink }]}>
-                    {p.price}
-                    {p.priceSuffix ? (
-                      <Text style={[styles.tierGridHint, { color: t.muted }]}>
-                        {' '}
-                        {p.priceSuffix}
-                      </Text>
-                    ) : null}
+                  <Text style={[styles.tierCtaLabel, { color: t.inverse }]}>
+                    {tier === 'free' ? 'See plans' : 'Manage plan'}
                   </Text>
-                  <Text style={[styles.tierGridHint, { color: t.muted }]}>{p.hint}</Text>
-                  {isCurrent ? (
-                    <Text style={[styles.tierGridCurrent, { color: t.calm }]}>Current</Text>
-                  ) : null}
                 </Pressable>
-              );
-            })}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => nav.go('paywall')}
+                  style={({ pressed: isPressed }) => [
+                    styles.tierRestore,
+                    { borderColor: t.hairline },
+                    isPressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.tierRestoreLabel, { color: t.muted }]}>Restore</Text>
+                </Pressable>
+              </View>
+            </Surface>
+
+            <View style={styles.tiersGrid}>
+              {TIERS.map((p) => {
+                const isCurrent =
+                  p.key === 'full' ? tier === 'full' || tier === 'trial' : p.key === tier;
+                const priceAria =
+                  p.key === 'full'
+                    ? `${p.price} one-time`
+                    : p.key === 'live'
+                      ? `${p.price} per month`
+                      : p.price;
+                return (
+                  <Pressable
+                    accessibilityLabel={`${p.name} — ${priceAria}. Tap for details.`}
+                    accessibilityRole="button"
+                    key={p.key}
+                    onPress={() => nav.go('paywall')}
+                    style={({ pressed: isPressed }) => [
+                      styles.tierGridCard,
+                      {
+                        backgroundColor: isCurrent ? t.calmSoft : t.surface,
+                        borderColor: t.hairline,
+                      },
+                      isPressed ? styles.pressed : undefined,
+                    ]}
+                  >
+                    <Text style={[styles.tierGridName, { color: t.ink }]}>{p.name}</Text>
+                    <Text style={[styles.tierGridPrice, { color: t.ink }]}>
+                      {p.price}
+                      {p.priceSuffix ? (
+                        <Text style={[styles.tierGridHint, { color: t.muted }]}>
+                          {' '}
+                          {p.priceSuffix}
+                        </Text>
+                      ) : null}
+                    </Text>
+                    <Text style={[styles.tierGridHint, { color: t.muted }]}>{p.hint}</Text>
+                    {isCurrent ? (
+                      <Text style={[styles.tierGridCurrent, { color: t.calm }]}>Current</Text>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Levers. */}
         <Surface style={[styles.card, styles.leversCard, { borderColor: t.hairline }]}>
@@ -665,19 +966,31 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             onPress={() => nav.go('melo')}
           />
           <Hairline />
-          <AccountRow
-            label="Payday & income"
-            hint={
-              monthlyIncome > 0
-                ? `${incomeLabel} · £${Math.round(monthlyIncome).toLocaleString()} ${incomeCadenceLabel}`
-                : 'not set yet'
-            }
-            onPress={() => nav.openSheet('onboarding')}
-          />
+          {isBusiness ? (
+            <AccountRow
+              label="Dated commitments"
+              hint="confirmed money in, money out and deadlines"
+              onPress={() => nav.go('calendar')}
+            />
+          ) : (
+            <AccountRow
+              label="Payday & income"
+              hint={
+                monthlyIncome > 0
+                  ? `${incomeLabel} · £${Math.round(monthlyIncome).toLocaleString()} ${incomeCadenceLabel}`
+                  : 'not set yet'
+              }
+              onPress={() => nav.openSheet('onboarding')}
+            />
+          )}
           <Hairline />
           <AccountRow
             label="Data & privacy"
-            hint="what's saved, what stays local"
+            hint={
+              isBusiness
+                ? 'export this workspace; device-wide controls are labelled'
+                : "what's saved, what stays local"
+            }
             onPress={() => nav.go('privacy')}
           />
           <Hairline />
@@ -687,30 +1000,58 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             onPress={handleExport}
           />
           <Hairline />
-          {clerkConfigured ? (
-            <ClerkSignInRow onPressSignIn={() => setSignInVisible(true)} />
-          ) : (
-            <AccountRow label="Sign in" hint="save across devices — coming soon" muted />
-          )}
+          {!isBusiness && clerkConfigured ? (
+            <ClerkAccountRows
+              onPressCloudBackup={() => setCloudBackupVisible(true)}
+              onPressSignIn={() => setSignInVisible(true)}
+            />
+          ) : !isBusiness ? (
+            <AccountRow
+              label="Sign in"
+              hint="encrypted backup is not configured in this build"
+              muted
+            />
+          ) : null}
         </Surface>
 
-        <Surface style={[styles.card, styles.wipeCard, { borderColor: t.hairline }]}>
-          <AccountRow
-            label="Wipe this device"
-            hint="subs, pots, cycles, prefs — gone. can't undo"
-            onPress={handleWipe}
-            tone="negative"
-          />
-        </Surface>
+        {!isBusiness ? (
+          <Surface style={[styles.card, styles.wipeCard, { borderColor: t.hairline }]}>
+            <AccountRow
+              label="Clear local money & history"
+              hint="sign-in, cloud backup and bank links stay"
+              onPress={handleWipe}
+              tone="negative"
+            />
+          </Surface>
+        ) : null}
 
         <View style={styles.closing}>
-          <MeloLine text="Nothing here is guessed. You'll only see what you added or what Melo read from a statement." />
+          <MeloLine
+            text={
+              isBusiness
+                ? 'Only this workspace’s accounts and confirmed records are shown here.'
+                : "Nothing here is guessed. You'll only see what you added or what Melo read from a statement."
+            }
+          />
         </View>
 
         <Text style={[styles.footer, { color: t.muted }]}>{copy.global.app.name} · Android</Text>
       </ScrollView>
       {clerkConfigured ? (
-        <SignInSheet visible={signInVisible} onClose={() => setSignInVisible(false)} />
+        <>
+          <SignInSheet visible={signInVisible} onClose={() => setSignInVisible(false)} />
+          <CloudBackupSheet
+            visible={cloudBackupVisible}
+            onClose={() => setCloudBackupVisible(false)}
+          />
+          <BankConnectionSheet
+            visible={bankConnectionVisible}
+            onClose={() => setBankConnectionVisible(false)}
+            onRequestSignIn={() => setSignInVisible(true)}
+            onReview={() => nav.go('review')}
+            onStatusChange={setBankSummary}
+          />
+        </>
       ) : null}
     </Animated.View>
   );
@@ -719,27 +1060,134 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
 // Rendered ONLY when isClerkConfigured() is true (see AccountScreen body above), so a real
 // ClerkProvider ancestor is guaranteed here and these hooks never run unprovided. Shows the
 // signed-in email + sign-out once a session exists; otherwise the tappable "Sign in" row.
-function ClerkSignInRow({ onPressSignIn }: { onPressSignIn: () => void }) {
+function ClerkAccountRows({
+  onPressSignIn,
+  onPressCloudBackup,
+}: {
+  onPressSignIn: () => void;
+  onPressCloudBackup: () => void;
+}) {
   const { isSignedIn, user } = useUser();
-  const { signOut } = useAuth();
+  const { getToken, signOut } = useAuth();
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const performAccountDeletion = async () => {
+    if (user === null || user === undefined) return;
+    setDeletingAccount(true);
+    try {
+      const token = await getToken();
+      if (token === null) throw new Error('Sign in again before deleting your Melo account.');
+      const result = await deleteRemoteMeloAccount(token, () => user.delete());
+      await signOut().catch(() => undefined);
+      Alert.alert(
+        'Melo account deleted',
+        `Your sign-in, encrypted cloud backup and Melo's stored bank credentials were deleted. Money and history on this phone remain until you clear local data.${
+          result.localCloudSecretsCleared
+            ? ''
+            : ' Melo could not remove a stale local backup key; clear Android app storage before transferring this phone.'
+        }`,
+        [{ text: 'OK', style: 'cancel' }],
+      );
+    } catch (reason: unknown) {
+      const message =
+        reason instanceof RemoteAccountDeletionError || reason instanceof Error
+          ? reason.message
+          : 'Melo could not confirm account deletion. Your local money is unchanged.';
+      Alert.alert('Account deletion did not finish', message, [{ text: 'OK', style: 'cancel' }]);
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
+  const handleAccountDeletion = () => {
+    if (user?.deleteSelfEnabled !== true) {
+      Alert.alert(
+        'Account deletion unavailable',
+        'The sign-in provider has not enabled self-service deletion for this account. Nothing was deleted.',
+        [{ text: 'OK', style: 'cancel' }],
+      );
+      return;
+    }
+    Alert.alert(
+      'Delete account & cloud data?',
+      'This deletes your Melo sign-in, encrypted cloud backup, and Melo’s stored bank connections. Money and history on this phone stay until you clear local data separately.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () =>
+            Alert.alert(
+              'One bank permission remains separate',
+              'Melo deletes its provider credentials and stops future access. Your bank’s separate permission may remain until it expires, so revoke Melo in your bank too.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'I understand',
+                  onPress: () =>
+                    Alert.alert(
+                      'Delete your Melo account now?',
+                      'This cannot be undone. Local money and history will remain on this phone.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete account',
+                          style: 'destructive',
+                          onPress: () => void performAccountDeletion(),
+                        },
+                      ],
+                    ),
+                },
+              ],
+            ),
+        },
+      ],
+    );
+  };
 
   if (isSignedIn) {
     const email = user?.primaryEmailAddress?.emailAddress ?? 'Signed in';
     return (
-      <AccountRow
-        label="Sign out"
-        hint={email}
-        onPress={() =>
-          Alert.alert('Sign out?', "You'll still keep everything on this device.", [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
-          ])
-        }
-      />
+      <>
+        <AccountRow
+          label="Signed in"
+          hint={`${email} · tap to sign out`}
+          onPress={() =>
+            Alert.alert('Sign out?', "You'll still keep everything on this device.", [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
+            ])
+          }
+        />
+        <Hairline />
+        <AccountRow
+          label="Encrypted backup"
+          hint="back up or restore this device"
+          onPress={onPressCloudBackup}
+        />
+        <Hairline />
+        <AccountRow
+          busy={deletingAccount}
+          label={deletingAccount ? 'Deleting account…' : 'Delete account & cloud data'}
+          hint={
+            user?.deleteSelfEnabled === true
+              ? 'local money stays until you clear this device'
+              : 'self-service deletion is not enabled'
+          }
+          muted={deletingAccount}
+          onPress={handleAccountDeletion}
+          tone="negative"
+        />
+      </>
     );
   }
 
-  return <AccountRow label="Sign in" hint="save across devices" onPress={onPressSignIn} />;
+  return (
+    <AccountRow
+      label="Sign in"
+      hint="use optional encrypted cloud backup"
+      onPress={onPressSignIn}
+    />
+  );
 }
 
 function Stat({ n, label }: { n: number; label: string }) {
@@ -756,12 +1204,14 @@ function AccountRow({
   label,
   hint,
   onPress,
+  busy,
   muted,
   tone,
 }: {
   label: string;
   hint: string;
   onPress?: () => void;
+  busy?: boolean;
   muted?: boolean;
   tone?: 'negative';
 }) {
@@ -770,7 +1220,7 @@ function AccountRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!muted }}
+      accessibilityState={{ busy: !!busy, disabled: !!muted }}
       disabled={!!muted}
       onPress={onPress}
       style={({ pressed: isPressed }) => [
@@ -1074,6 +1524,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  accountEditActions: {
+    flexDirection: 'row',
+    gap: gap.sm,
+    marginTop: gap.md,
+  },
+  accountEditCancel: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  accountEditCancelLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  accountEditSave: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    flex: 1.4,
+    justifyContent: 'center',
+    minHeight: 50,
+  },
   wipeCard: {
     marginTop: gap.md,
   },
@@ -1111,6 +1585,21 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
+  },
+  evidenceActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: gap.xxs,
+  },
+  evidenceAction: {
+    justifyContent: 'center',
+    minHeight: 44,
+    minWidth: 48,
+    paddingHorizontal: gap.xs,
+  },
+  evidenceActionLabel: {
+    fontSize: 11.5,
+    fontWeight: '600',
   },
   chevron: {
     fontSize: 15,

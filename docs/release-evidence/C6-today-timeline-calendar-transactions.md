@@ -6,10 +6,12 @@ Phase 6. Primary task range: T087 through T098.
 
 ## Result
 
-Phase 6 is complete for the unblocked pure daily-loop contracts and for a synthetic-labelled Expo
-Today shell. It is not complete for release claims that require real vault-backed records, device
-notification scheduling, external calendar integration, manual screen-reader recordings or a real
-airplane-mode end-to-end run.
+Phase 6 remains the historical pure daily-loop baseline, and the current Melo Android app now also
+implements the formerly blocked local calendar-reminder boundary against real user-authored local
+state. The release APK has proven explicit notification permission, exact local scheduling,
+privacy-safe foreground delivery, quiet channels and persistence across a killed/relaunched app
+process. External calendar sync, iOS delivery, manual screen-reader recordings and a full
+real-device airplane-mode matrix are still outside the evidence claimed here.
 
 ## What was built
 
@@ -22,7 +24,8 @@ airplane-mode end-to-end run.
 - Transaction list/detail view models with provenance, relationships, split metadata and blocked
   correction placeholders.
 - Internal Today, week, month and timeline calendar view models.
-- Task/reminder planning with explicit blocked native notification scheduling metadata.
+- Task/reminder planning plus an Android native local-reminder adapter for real internal-calendar
+  events, absolute dates, quiet hours, budgets, owned replacement and restart-safe runtime state.
 - Bounded actual-versus-expected variance questions.
 - Accessible visual text helpers for chart-like values.
 - `@folio/search-engine`, a pure local search contract with workspace scoping, archive/privacy
@@ -32,20 +35,20 @@ airplane-mode end-to-end run.
 
 ## Task coverage
 
-| Task                         | Status                                           | Evidence                                                       |
-| ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
-| T087 Briefing engine         | Implemented and tested                           | `rankBriefingCandidates`, max-three nonurgent test             |
-| T088 Position summary        | Implemented and tested                           | `buildPositionSummary`, input/assumption tests                 |
-| T089 Event-first timeline    | Implemented and tested                           | `buildTimelineRows`, actual/expected ordering tests            |
-| T090 Transaction list/detail | Implemented as view model; writes blocked        | `buildTransactionListView`, `buildTransactionDetailView`       |
-| T091 Internal calendar views | Implemented and tested                           | `buildInternalCalendarViews`, mobile calendar shell            |
-| T092 Tasks/reminders         | Implemented as planner model; alerts blocked     | `planTasksAndReminders`, mobile task shell                     |
-| T093 Local notifications     | Policy copy implemented; scheduling blocked      | notification policy copy, blocked scheduling metadata          |
-| T094 Variance question       | Implemented and tested                           | `buildActualVarianceQuestion`, bounded answer options          |
-| T095 Universal local search  | Implemented and tested                           | `@folio/search-engine`, parser/index/ranking tests             |
-| T096 System calendar handoff | Blocked by design for launch                     | Internal calendar complete; external handoff requires opt-in   |
-| T097 Accessible visuals      | Implemented and tested                           | text equivalents, data rows, non-colour cues, no motion needed |
-| T098 Offline daily-loop E2E  | Shell/pure loop implemented; release E2E blocked | synthetic shell tests; live dev preview                        |
+| Task                         | Status                                           | Evidence                                                        |
+| ---------------------------- | ------------------------------------------------ | --------------------------------------------------------------- |
+| T087 Briefing engine         | Implemented and tested                           | `rankBriefingCandidates`, max-three nonurgent test              |
+| T088 Position summary        | Implemented and tested                           | `buildPositionSummary`, input/assumption tests                  |
+| T089 Event-first timeline    | Implemented and tested                           | `buildTimelineRows`, actual/expected ordering tests             |
+| T090 Transaction list/detail | Implemented as view model; writes blocked        | `buildTransactionListView`, `buildTransactionDetailView`        |
+| T091 Internal calendar views | Implemented and tested                           | `buildInternalCalendarViews`, mobile calendar shell             |
+| T092 Tasks/reminders         | Android MVP implemented and tested               | planner model, Add Event reminder controls, absolute requests   |
+| T093 Local notifications     | Android release scheduling live-proven           | permission, exact alarm, quiet channels, restart/delivery proof |
+| T094 Variance question       | Implemented and tested                           | `buildActualVarianceQuestion`, bounded answer options           |
+| T095 Universal local search  | Implemented and tested                           | `@folio/search-engine`, parser/index/ranking tests              |
+| T096 System calendar handoff | Blocked by design for launch                     | Internal calendar complete; external handoff requires opt-in    |
+| T097 Accessible visuals      | Implemented and tested                           | text equivalents, data rows, non-colour cues, no motion needed  |
+| T098 Offline daily-loop E2E  | Shell/pure loop implemented; release E2E blocked | synthetic shell tests; live dev preview                         |
 
 ## Verification evidence
 
@@ -68,6 +71,40 @@ Final Phase 6 gates completed on 2026-06-21:
   forecast vectors, 15 import vectors and 14 independently checked fixture cases.
 - `pnpm --filter @folio/mobile doctor`: passed, 21/21 checks.
 - `pnpm --filter @folio/mobile exec expo install --check`: passed.
+
+Android reminder completion checks on 2026-07-14:
+
+- `pnpm --filter @folio/mobile typecheck`: passed.
+- focused Vitest run passed 6 files and 45 tests across notification requests, calendar reminders,
+  settings migration/defaults, persisted runtime state, snapshot logic and Melo quiet-hour policy.
+- `gradlew.bat :app:assembleRelease -PreactNativeArchitectures=x86_64`: passed.
+- the release APK showed the real Add Event sheet with date, optional native time and Off / On day /
+  Day before / Week before controls; a stale AM selection was visibly rejected.
+- creating `Reminder verification` at 23:35 requested Android notification permission only after
+  the explicit reminder action.
+- `dumpsys alarm` reported Melo's `expo.modules.notifications.NOTIFICATION_EVENT` as an
+  `RTC_WAKEUP` for `2026-07-14 23:35:00.000`.
+- after `am kill com.folio.v2.greenfield` and a release-app relaunch, the same exact alarm remained
+  registered and no fatal Android/React error was logged.
+- `dumpsys notification --noredact` showed separate `melo-reminders` and `melo-updates` channels
+  with no sound, vibration or badge.
+- foreground delivery is owner-scoped: Melo calendar/insight notifications may appear quietly in
+  Android's notification list, while unrelated notification owners are not globally opted in.
+- a second release-build event, `Reminder delivery proof`, was scheduled for 23:55 while Melo
+  remained foregrounded. Android posted it at 23:55 on `melo-reminders`; the visible notification
+  contained only `Melo reminder` and `A reminder you chose is due.` and did not expose the event
+  title.
+- after capture, both diagnostic events were removed, the delivered notification was dismissed,
+  reminders were restored to the fresh-account off state, and `dumpsys` confirmed no active Melo
+  alarm or notification remained.
+
+Captured release-build artifacts:
+
+- `docs/release-evidence/android-melo-add-event-reminders.png`
+- `docs/release-evidence/android-melo-notification-permission.png`
+- `docs/release-evidence/android-melo-notification-delivered.png`
+- `docs/release-evidence/android-melo-reminder-clean-state.png`
+- `docs/release-evidence/android-melo-reminders-default-off.png`
 
 ## Android live preview evidence
 
@@ -135,12 +172,13 @@ Issues carried forward:
 - Run manual TalkBack, large text and reduced-motion checks before release claims.
 - Connect real transaction corrections only through the future vault-backed write adapter.
 - Keep external calendar read/sync disabled until explicit opt-in and native evidence exist.
-- Keep device notification scheduling disabled until native scheduling, quiet hours and lock-screen
-  privacy are proven.
+- Keep iOS notification delivery and the wider real-device matrix disabled until equivalent native
+  scheduling, quiet-hours and lock-screen privacy evidence is captured there.
 
 ## Boundary conclusion
 
 Phase 6 is complete for pure daily-loop contracts, deterministic local search, synthetic mobile
-shell evidence and design-review evidence. Real-data briefing, vault-backed transaction mutation,
-native notification scheduling, optional external calendar sync and real airplane-mode E2E remain
-explicit blockers. No V1 donor runtime code or assets were used.
+shell evidence, design-review evidence and the current Android local-reminder boundary. Real-data
+briefing, vault-backed transaction mutation, iOS notification delivery, optional external calendar
+sync and real airplane-mode E2E remain explicit blockers. No V1 donor runtime code or assets were
+used.

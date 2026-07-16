@@ -44,6 +44,46 @@ describe('errorReporting', () => {
     expect(opts['sendDefaultPii']).toBe(false);
     expect(opts['tracesSampleRate']).toBe(0);
     expect(opts['attachScreenshot']).toBe(false);
+    expect(opts['maxBreadcrumbs']).toBe(0);
+    expect(opts['beforeBreadcrumb']).toEqual(expect.any(Function));
+    expect(opts['beforeSend']).toEqual(expect.any(Function));
+  });
+
+  it('removes free-text and contextual payloads before a crash event leaves the app', async () => {
+    const m = await import('./errorReporting');
+    const originalEvent = {
+      type: undefined,
+      message: 'Failed for Sam at Tesco £42',
+      user: { email: 'sam@example.invalid' },
+      request: { url: 'file:///private/statement.pdf' },
+      extra: { balance: 4200 },
+      breadcrumbs: [{ message: 'merchant Tesco' }],
+      contexts: { device: { model: 'Galaxy S9' } },
+      exception: {
+        values: [
+          {
+            type: 'RangeError',
+            value: 'Bad amount £42 for Tesco',
+            stacktrace: { frames: [{ filename: 'store.ts', lineno: 10 }] },
+          },
+        ],
+      },
+    };
+
+    const sanitized = m.sanitizeErrorEvent(originalEvent);
+
+    expect(sanitized).not.toHaveProperty('user');
+    expect(sanitized).not.toHaveProperty('request');
+    expect(sanitized).not.toHaveProperty('extra');
+    expect(sanitized).not.toHaveProperty('breadcrumbs');
+    expect(sanitized.message).toBe('Application diagnostic');
+    expect(sanitized.exception?.values?.[0]).toMatchObject({
+      type: 'RangeError',
+      value: 'RangeError',
+      stacktrace: { frames: [{ filename: 'store.ts', lineno: 10 }] },
+    });
+    expect(sanitized.contexts).toEqual(originalEvent.contexts);
+    expect(originalEvent.message).toContain('Tesco');
   });
 
   it('falls back to extra, and repeat init is idempotent', async () => {

@@ -41,8 +41,15 @@ export type MeloMemoryId = EntityId<'MeloMemory'>;
 export type MeloProposalId = EntityId<'MeloProposal'>;
 export type AuditLogId = EntityId<'AuditLog'>;
 export type PotId = EntityId<'Pot'>;
+export type PotLedgerEntryId = EntityId<'PotLedgerEntry'>;
 export type SubscriptionId = EntityId<'Subscription'>;
+export type SubscriptionPreferenceId = EntityId<'SubscriptionPreference'>;
 export type CycleRecordId = EntityId<'CycleRecord'>;
+export type DebtId = EntityId<'Debt'>;
+export type FinancialContextId = EntityId<'FinancialContext'>;
+export type IncomeScheduleId = EntityId<'IncomeSchedule'>;
+export type TransactionIntelligenceStateId = EntityId<'TransactionIntelligenceState'>;
+export type CompanionRuntimeStateId = EntityId<'CompanionRuntimeState'>;
 
 export type AuthorityState =
   | 'confirmed'
@@ -106,6 +113,12 @@ export type Workspace = Readonly<{
 
 export type AccountKind = 'bank' | 'cash' | 'savings' | 'credit' | 'loan';
 export type AccountState = 'active' | 'closed' | 'archived';
+export type AccountProjectionRole =
+  | 'source'
+  | 'synthesized-default'
+  | 'unresolved-reference'
+  | 'reconciliation'
+  | 'canonical-baseline';
 
 export type Account = Readonly<{
   id: AccountId;
@@ -115,6 +128,10 @@ export type Account = Readonly<{
   currency: CurrencyCode;
   state: AccountState;
   version: EntityVersion;
+  /** Exact identifier used by the source application before canonical ID namespacing. */
+  sourceAccountId?: string;
+  createdAt?: InstantString;
+  projectionRole?: AccountProjectionRole;
 }>;
 
 export type BalanceReconciliationState = 'confirmed' | 'provisional' | 'unreconciled';
@@ -124,6 +141,14 @@ export type BalanceSourceKind =
   | 'provider-reported'
   | 'calculated'
   | 'migration';
+export type BalanceConfidence = 'rough' | 'statement-derived' | 'corrected' | 'sample';
+export type BalanceSourceVariant =
+  | 'user-entered'
+  | 'statement'
+  | 'pdf-derived'
+  | 'ocr-derived'
+  | 'corrected'
+  | 'sample';
 export type BalanceObservationKind =
   | 'opening-balance'
   | 'current-balance'
@@ -148,6 +173,8 @@ export type BalanceObservation = Readonly<{
   reconciliationState: BalanceReconciliationState;
   version: EntityVersion;
   observedAt?: InstantString;
+  sourceConfidence?: BalanceConfidence;
+  sourceVariant?: BalanceSourceVariant;
   sourceRecordId?: SourceRecordId;
   provenanceId?: ProvenanceId;
   replaces?: BalanceObservationId;
@@ -237,6 +264,7 @@ export type TransactionCertainty = AuthorityState;
 export type TransactionReviewStatus = 'proposed' | 'needs_review' | 'accepted' | 'rejected';
 export type TransactionSourceKind =
   | 'manual'
+  | 'melo'
   | 'csv'
   | 'text'
   | 'ofx'
@@ -278,6 +306,12 @@ export type FinancialTransaction = Readonly<{
   replacedBy?: TransactionId;
   fulfils?: ExpectationId;
   reversalOf?: TransactionId;
+  /** Exact source-application identity retained across canonical namespacing. */
+  sourceTransactionId?: string;
+  sourceEvidenceId?: string;
+  externalId?: string;
+  connectionId?: string;
+  sourceOrdinal?: number;
 }>;
 
 export type TransferLink = Readonly<{
@@ -304,6 +338,15 @@ export type FinancialExpectation = Readonly<{
   sourceRecordId?: SourceRecordId;
   provenanceId?: ProvenanceId;
   commitmentId?: CommitmentId;
+  bookedAt?: InstantString;
+  description?: string;
+  categoryId?: string;
+  sourceKind?: TransactionSourceKind;
+  sourceTransactionId?: string;
+  sourceEvidenceId?: string;
+  externalId?: string;
+  connectionId?: string;
+  sourceOrdinal?: number;
 }>;
 
 export type SourceRecordKind =
@@ -554,6 +597,12 @@ export type Plan = Readonly<{
   auditLogIds?: readonly AuditLogId[];
   sourceRecordId?: SourceRecordId;
   provenanceId?: ProvenanceId;
+  /** Exact AppState identity/order retained while the shipping planning lens migrates. */
+  sourcePlanId?: string;
+  sourceOrdinal?: number;
+  sourceAddedAt?: string;
+  savedAmount?: Money;
+  weeklyContribution?: Money;
 }>;
 
 export type PlanRule = Readonly<{
@@ -636,11 +685,35 @@ export type Forecast = Readonly<{
 export type Pot = Readonly<{
   id: PotId;
   workspaceId: WorkspaceId;
+  sourcePotId?: string;
+  sourceOrdinal?: number;
   name: string;
   goal: Money;
   saved: Money;
   perWeek: Money;
   accent: boolean;
+  cadence?:
+    | Readonly<{ kind: 'after-payday' }>
+    | Readonly<{ kind: 'weekly'; weekday: number }>
+    | Readonly<{ kind: 'monthly'; dayOfMonth: number }>
+    | Readonly<{ kind: 'custom'; nextDate: string }>;
+  allowNegative?: boolean;
+  version: EntityVersion;
+  provenanceId?: ProvenanceId;
+}>;
+
+export type PotLedgerEntry = Readonly<{
+  id: PotLedgerEntryId;
+  workspaceId: WorkspaceId;
+  potId: PotId;
+  sourceEntryId?: string;
+  sourcePotId?: string;
+  sourceOrdinal?: number;
+  sourceOccurredAt?: string;
+  occurredAt: InstantString;
+  kind: 'deposit' | 'borrow' | 'repay' | 'withdraw';
+  amount: Money;
+  source: string;
   version: EntityVersion;
   provenanceId?: ProvenanceId;
 }>;
@@ -649,20 +722,34 @@ export type Pot = Readonly<{
 // is getting from it (renewal timing, usage) so the user can decide to keep, pause, or cancel.
 // How often the charge recurs. cost is per-cadence (a weekly sub's cost is the weekly amount), so
 // downstream models must normalize to a per-month figure before summing or comparing across subs.
-export type SubscriptionCadence = 'weekly' | 'monthly' | 'yearly';
+export type SubscriptionCadence = 'weekly' | 'fortnightly' | 'monthly' | 'yearly' | 'custom-days';
 
 export type Subscription = Readonly<{
   id: SubscriptionId;
   workspaceId: WorkspaceId;
+  sourceName?: string;
+  sourceOrdinal?: number;
   name: string;
   cost: Money;
   cadence: SubscriptionCadence;
   nextRenewalDaysAway: number;
+  nextRenewalISO?: string;
+  renewalPeriodDays?: number;
   lastUsedDaysAgo: number;
   usesPerMonth: number;
+  trialEndsInDays?: number;
   paused: boolean;
   version: EntityVersion;
   provenanceId?: ProvenanceId;
+}>;
+
+export type SubscriptionPreference = Readonly<{
+  id: SubscriptionPreferenceId;
+  workspaceId: WorkspaceId;
+  sourceName: string;
+  paused?: boolean;
+  overrideDays?: number;
+  version: EntityVersion;
 }>;
 
 // A CycleRecord is a closed pay-cycle the user has finished — durable history, not a forecast.
@@ -670,6 +757,8 @@ export type Subscription = Readonly<{
 export type CycleRecord = Readonly<{
   id: CycleRecordId;
   workspaceId: WorkspaceId;
+  sourceOrdinal?: number;
+  sourceClosedAt?: string;
   closedAt: InstantString;
   label: string;
   spare: Money;
@@ -677,7 +766,247 @@ export type CycleRecord = Readonly<{
   setAside: Money;
   version: EntityVersion;
   note?: string;
+  reconstructed?: true;
   provenanceId?: ProvenanceId;
+}>;
+
+export type Debt = Readonly<{
+  id: DebtId;
+  workspaceId: WorkspaceId;
+  sourceDebtId?: string;
+  sourceOrdinal?: number;
+  name: string;
+  kind: 'loan' | 'card' | 'bnpl' | 'other';
+  balance: Money;
+  apr: number;
+  minimumPayment: Money;
+  dueDayOfMonth: number;
+  sourceAddedAt?: string;
+  addedAt: InstantString;
+  linkedSourceAccountId?: string;
+  version: EntityVersion;
+  provenanceId?: ProvenanceId;
+}>;
+
+export type FinancialMode =
+  | 'survival'
+  | 'stability'
+  | 'growth'
+  | 'debt'
+  | 'irregular'
+  | 'household'
+  | 'planning'
+  | 'optimizer'
+  | 'reset'
+  | 'lowVis';
+
+/** One lossless workspace-scoped profile for route-affecting financial settings. These values are
+ * cohesive user declarations rather than ledger events, but they must share the canonical
+ * generation and workspace boundary because they materially change payday, safety-floor and lens
+ * calculations throughout the shipping application. */
+export type FinancialContext = Readonly<{
+  id: FinancialContextId;
+  workspaceId: WorkspaceId;
+  onboarding: Readonly<{
+    done: boolean;
+    name: string;
+    payday: number;
+    monthlyIncome: Money;
+  }>;
+  nextYouNote: string;
+  tightPointGoal: Money | null;
+  droppedTransactionCount: number;
+  moneyMode: FinancialMode;
+  bufferAmount: Money;
+  modeExtras: Readonly<Partial<Record<FinancialMode, Money>>>;
+  household: Readonly<{
+    partnerName: string;
+    defaultShare: number;
+    subShareOverrides: Readonly<Record<string, number>>;
+  }>;
+  version: EntityVersion;
+}>;
+
+export type IncomeCadence =
+  | 'monthly'
+  | 'weekly'
+  | 'fortnightly'
+  | 'four-weekly'
+  | 'last-working-day';
+
+export type IncomeSchedule = Readonly<{
+  id: IncomeScheduleId;
+  workspaceId: WorkspaceId;
+  sourceIncomeId: string;
+  sourceOrdinal: number;
+  label: string;
+  cadence: IncomeCadence;
+  amount: Money;
+  source: 'onboarding' | 'inferred' | 'manual';
+  version: EntityVersion;
+  dayOfMonth?: number;
+  anchorDate?: LocalDate;
+}>;
+
+export type TransactionCorrectionField = 'merchant' | 'amount' | 'when' | 'category' | 'note';
+
+export type TransactionCorrectionState = Readonly<{
+  id?: string;
+  sourceTransactionId: string;
+  field: TransactionCorrectionField;
+  before: string | number | undefined;
+  after: string | number | undefined;
+  at: string;
+  by: 'user' | 'melo';
+}>;
+
+export type DriftCooldownState = Readonly<{
+  merchant: string;
+  at: string;
+}>;
+
+export type MerchantCategoryMemoryState = Readonly<{
+  category: string;
+  correctedAt: string;
+  hits: number;
+  pendingCategory?: string;
+  pendingCount?: number;
+}>;
+
+export type StatementImportState = Readonly<{
+  id: string;
+  source: 'paste' | 'pdf' | 'image' | 'csv' | 'txt' | 'manual' | 'unknown';
+  rowCount: number;
+  atISO: string;
+  accountId?: string;
+  filename?: string;
+  closingBalanceMinor?: number;
+  sourceEvidenceId?: string;
+}>;
+
+export type EvidenceDocumentState = Readonly<{
+  id: string;
+  filename: string;
+  mediaType: string;
+  byteSize: number;
+  addedAtISO: string;
+  sourceType: 'document' | 'image' | 'camera';
+  extractionStatus: 'read' | 'unreadable';
+  storageState: 'encrypted-device-vault';
+}>;
+
+export type TimelineEventState = Readonly<{
+  id: string;
+  at: string;
+  kind: 'sub-paused' | 'sub-resumed' | 'review-ignored';
+  subject: string;
+  note?: string;
+}>;
+
+export type ReviewQueueItemState = Readonly<{
+  id: string;
+  source: 'paste' | 'pdf' | 'image' | 'csv' | 'txt' | 'manual' | 'bank';
+  sourceEvidenceId?: string;
+  merchant: string;
+  amount: number;
+  date?: string;
+  accountId?: string;
+  externalId?: string;
+  bankConnectionId?: string;
+  hint?: string;
+  addedAt: string;
+  category?: string;
+  rememberedCategory?: true;
+}>;
+
+/** Workspace-scoped source-preserving state used by transaction intake and evidence workflows.
+ * These are durable user decisions and recovery metadata, not posted ledger events. Keeping them
+ * together prevents a canonical recovery from resurrecting dismissed proposals, losing correction
+ * history, or stranding an encrypted original while still preserving every nested field exactly. */
+export type TransactionIntelligenceState = Readonly<{
+  id: TransactionIntelligenceStateId;
+  workspaceId: WorkspaceId;
+  corrections: readonly TransactionCorrectionState[];
+  ignoredReviewSignatures: readonly string[];
+  ignoredBankExternalIds: readonly string[];
+  dismissedIncomeSignals: readonly string[];
+  dismissedBillSignals: readonly string[];
+  dismissedDriftSignals: readonly DriftCooldownState[];
+  dismissedAnnualSignals: readonly string[];
+  merchantCategories: Readonly<Record<string, MerchantCategoryMemoryState>>;
+  statementImports: readonly StatementImportState[];
+  evidenceDocuments: readonly EvidenceDocumentState[];
+  timelineEvents: readonly TimelineEventState[];
+  reviewQueue: readonly ReviewQueueItemState[];
+  reviewQueueSpillover: readonly ReviewQueueItemState[];
+  version: EntityVersion;
+}>;
+
+export type StatementReadCandidateState = Readonly<{
+  id: string;
+  sourceEvidenceId?: string;
+  source: 'csv' | 'paste' | 'pdf' | 'photo';
+  kind: 'income' | 'spend' | 'bill' | 'subscription' | 'debt-payment' | 'transfer' | 'unknown';
+  merchant: string;
+  amount: number;
+  date?: string;
+  category?: string;
+  confidence: 'high' | 'medium' | 'low';
+  note?: string;
+}>;
+
+export type ReaderClosingBalanceState = Readonly<{
+  amount: number;
+  asOfISO: string;
+  openingAmount?: number;
+  statedTotalDebits?: number;
+  statedTotalCredits?: number;
+}>;
+
+export type StatementReadCacheState = Readonly<{
+  candidates: readonly StatementReadCandidateState[];
+  closingBalance: ReaderClosingBalanceState | null;
+  at: string;
+}>;
+
+export type TinyWinState = Readonly<{
+  id: string;
+  kind:
+    | 'danger-date-pushed'
+    | 'first-10-saved'
+    | 'afford-streak-3'
+    | 'afford-streak-7'
+    | 'bill-week-survived'
+    | 'first-green-after-red'
+    | 'first-pot-funded'
+    | 'first-sub-caught';
+  awardedAt: string;
+  message: string;
+}>;
+
+/** Durable companion preferences, entitlement state and bounded local read cache. This is one
+ * recovery boundary because every field is workspace-local companion runtime state; none of it is
+ * a money fact and none may be silently reset merely because the exact AppState copy is damaged. */
+export type CompanionRuntimeState = Readonly<{
+  id: CompanionRuntimeStateId;
+  workspaceId: WorkspaceId;
+  aiReads: Readonly<{ monthKey: string; used: number }>;
+  aiReadCache: Readonly<Record<string, StatementReadCacheState>>;
+  whatChangedSeenISO: string | null;
+  lens: Readonly<{
+    plusUnlocked: boolean;
+    proUnlocked: boolean;
+    trialCycleId: string | null;
+    trialEndedCycleId: string | null;
+    trialEndAcknowledged: boolean;
+  }>;
+  melo: Readonly<{
+    quietMode: boolean;
+    wardrobe: readonly string[];
+    tone: 'calm' | 'honest' | 'dry' | 'coachy';
+  }>;
+  tinyWins: readonly TinyWinState[];
+  version: EntityVersion;
 }>;
 
 export type DecisionKind =
@@ -758,6 +1087,14 @@ export type CalendarItem = Readonly<{
   scenarioId?: ScenarioId;
   plannerItemId?: PlannerItemId;
   provenanceId?: ProvenanceId;
+  /** Lossless source fields for user-authored AppState calendar rows. */
+  sourceCalendarEventId?: string;
+  sourceOrdinal?: number;
+  sourceKind?: 'in' | 'out' | 'review' | 'deadline';
+  sourceTime?: string;
+  sourceNote?: string;
+  sourceAmount?: Money;
+  sourceReminderOffsetMinutes?: number;
 }>;
 
 export type TimelineEntryKind = 'fact' | 'expectation' | 'plan' | 'decision' | 'system';
@@ -1186,12 +1523,42 @@ export function createPotId(input: string): PotId {
   return createPrefixedId(input, 'pot') as PotId;
 }
 
+export function createPotLedgerEntryId(input: string): PotLedgerEntryId {
+  return createPrefixedId(input, 'potledger') as PotLedgerEntryId;
+}
+
 export function createSubscriptionId(input: string): SubscriptionId {
   return createPrefixedId(input, 'subscription') as SubscriptionId;
 }
 
+export function createSubscriptionPreferenceId(input: string): SubscriptionPreferenceId {
+  return createPrefixedId(input, 'subpref') as SubscriptionPreferenceId;
+}
+
 export function createCycleRecordId(input: string): CycleRecordId {
   return createPrefixedId(input, 'cycle') as CycleRecordId;
+}
+
+export function createDebtId(input: string): DebtId {
+  return createPrefixedId(input, 'debt') as DebtId;
+}
+
+export function createFinancialContextId(input: string): FinancialContextId {
+  return createPrefixedId(input, 'financialcontext') as FinancialContextId;
+}
+
+export function createIncomeScheduleId(input: string): IncomeScheduleId {
+  return createPrefixedId(input, 'incomeschedule') as IncomeScheduleId;
+}
+
+export function createTransactionIntelligenceStateId(
+  input: string,
+): TransactionIntelligenceStateId {
+  return createPrefixedId(input, 'transactionintelligence') as TransactionIntelligenceStateId;
+}
+
+export function createCompanionRuntimeStateId(input: string): CompanionRuntimeStateId {
+  return createPrefixedId(input, 'companionruntime') as CompanionRuntimeStateId;
 }
 
 export function createWorkspace(input: {
@@ -1235,10 +1602,21 @@ export function createAccount(input: {
   currency: string | CurrencyCode;
   state?: AccountState;
   version?: VersionInput;
+  sourceAccountId?: string;
+  createdAt?: string | InstantString;
+  projectionRole?: AccountProjectionRole;
 }): Account {
   const name = input.name.trim();
   if (name.length === 0 || name.length > 160) {
     throw new Error('Account name must be between 1 and 160 characters.');
+  }
+
+  const sourceAccountId = input.sourceAccountId?.trim();
+  if (
+    sourceAccountId !== undefined &&
+    (sourceAccountId.length === 0 || sourceAccountId.length > 256)
+  ) {
+    throw new Error('Source account ID must be between 1 and 256 characters.');
   }
 
   return {
@@ -1253,6 +1631,16 @@ export function createAccount(input: {
       typeof input.currency === 'string' ? createCurrencyCode(input.currency) : input.currency,
     state: input.state ?? 'active',
     version: createEntityVersion(input.version),
+    ...(sourceAccountId === undefined ? {} : { sourceAccountId }),
+    ...(input.createdAt === undefined
+      ? {}
+      : {
+          createdAt:
+            typeof input.createdAt === 'string'
+              ? createInstantString(input.createdAt)
+              : input.createdAt,
+        }),
+    ...(input.projectionRole === undefined ? {} : { projectionRole: input.projectionRole }),
   };
 }
 
@@ -1270,6 +1658,8 @@ export function createBalanceObservation(input: {
   reconciliationState?: BalanceReconciliationState;
   version?: VersionInput;
   observedAt?: string | InstantString;
+  sourceConfidence?: BalanceConfidence;
+  sourceVariant?: BalanceSourceVariant;
   sourceRecordId?: string | SourceRecordId;
   provenanceId?: string | ProvenanceId;
   replaces?: string | BalanceObservationId;
@@ -1308,6 +1698,8 @@ export function createBalanceObservation(input: {
               ? createInstantString(input.observedAt)
               : input.observedAt,
         }),
+    ...(input.sourceConfidence === undefined ? {} : { sourceConfidence: input.sourceConfidence }),
+    ...(input.sourceVariant === undefined ? {} : { sourceVariant: input.sourceVariant }),
     ...(input.sourceRecordId === undefined
       ? {}
       : {
@@ -2105,6 +2497,11 @@ export function createTransaction(input: {
   replacedBy?: string | TransactionId;
   fulfils?: string | ExpectationId;
   reversalOf?: string | TransactionId;
+  sourceTransactionId?: string;
+  sourceEvidenceId?: string;
+  externalId?: string;
+  connectionId?: string;
+  sourceOrdinal?: number;
 }): FinancialTransaction {
   const amount = createMoney(input.amount);
   const splits = (input.splits ?? []).map((split) => createTransactionSplit(split));
@@ -2134,6 +2531,11 @@ export function createTransaction(input: {
     replacedBy?: TransactionId;
     fulfils?: ExpectationId;
     reversalOf?: TransactionId;
+    sourceTransactionId?: string;
+    sourceEvidenceId?: string;
+    externalId?: string;
+    connectionId?: string;
+    sourceOrdinal?: number;
   } = {
     id: typeof input.id === 'string' ? createTransactionId(input.id) : input.id,
     workspaceId:
@@ -2201,6 +2603,29 @@ export function createTransaction(input: {
       typeof input.reversalOf === 'string'
         ? createTransactionId(input.reversalOf)
         : input.reversalOf;
+  }
+
+  for (const [label, value] of [
+    ['Source transaction ID', input.sourceTransactionId],
+    ['Source evidence ID', input.sourceEvidenceId],
+    ['External transaction ID', input.externalId],
+    ['Connection ID', input.connectionId],
+  ] as const) {
+    if (value !== undefined && (value.trim().length === 0 || value.length > 512)) {
+      throw new Error(`${label} must be between 1 and 512 characters.`);
+    }
+  }
+  if (input.sourceTransactionId !== undefined) {
+    transaction.sourceTransactionId = input.sourceTransactionId;
+  }
+  if (input.sourceEvidenceId !== undefined) transaction.sourceEvidenceId = input.sourceEvidenceId;
+  if (input.externalId !== undefined) transaction.externalId = input.externalId;
+  if (input.connectionId !== undefined) transaction.connectionId = input.connectionId;
+  if (input.sourceOrdinal !== undefined) {
+    if (!Number.isSafeInteger(input.sourceOrdinal) || input.sourceOrdinal < 0) {
+      throw new Error('Source transaction ordinal must be a non-negative safe integer.');
+    }
+    transaction.sourceOrdinal = input.sourceOrdinal;
   }
 
   return transaction;
@@ -2276,6 +2701,15 @@ export function createFinancialExpectation(input: {
   sourceRecordId?: string | SourceRecordId;
   provenanceId?: string | ProvenanceId;
   commitmentId?: string | CommitmentId;
+  bookedAt?: string | InstantString;
+  description?: string;
+  categoryId?: string;
+  sourceKind?: TransactionSourceKind;
+  sourceTransactionId?: string;
+  sourceEvidenceId?: string;
+  externalId?: string;
+  connectionId?: string;
+  sourceOrdinal?: number;
 }): FinancialExpectation {
   const expectation: {
     id: ExpectationId;
@@ -2291,6 +2725,15 @@ export function createFinancialExpectation(input: {
     sourceRecordId?: SourceRecordId;
     provenanceId?: ProvenanceId;
     commitmentId?: CommitmentId;
+    bookedAt?: InstantString;
+    description?: string;
+    categoryId?: string;
+    sourceKind?: TransactionSourceKind;
+    sourceTransactionId?: string;
+    sourceEvidenceId?: string;
+    externalId?: string;
+    connectionId?: string;
+    sourceOrdinal?: number;
   } = {
     id: typeof input.id === 'string' ? createExpectationId(input.id) : input.id,
     workspaceId:
@@ -2328,6 +2771,37 @@ export function createFinancialExpectation(input: {
       typeof input.commitmentId === 'string'
         ? createCommitmentId(input.commitmentId)
         : input.commitmentId;
+  }
+  if (input.bookedAt !== undefined) {
+    expectation.bookedAt =
+      typeof input.bookedAt === 'string' ? createInstantString(input.bookedAt) : input.bookedAt;
+  }
+  for (const [label, value] of [
+    ['Expectation description', input.description],
+    ['Expectation category ID', input.categoryId],
+    ['Source transaction ID', input.sourceTransactionId],
+    ['Source evidence ID', input.sourceEvidenceId],
+    ['External transaction ID', input.externalId],
+    ['Connection ID', input.connectionId],
+  ] as const) {
+    if (value !== undefined && (value.trim().length === 0 || value.length > 512)) {
+      throw new Error(`${label} must be between 1 and 512 characters.`);
+    }
+  }
+  if (input.description !== undefined) expectation.description = input.description;
+  if (input.categoryId !== undefined) expectation.categoryId = input.categoryId;
+  if (input.sourceKind !== undefined) expectation.sourceKind = input.sourceKind;
+  if (input.sourceTransactionId !== undefined) {
+    expectation.sourceTransactionId = input.sourceTransactionId;
+  }
+  if (input.sourceEvidenceId !== undefined) expectation.sourceEvidenceId = input.sourceEvidenceId;
+  if (input.externalId !== undefined) expectation.externalId = input.externalId;
+  if (input.connectionId !== undefined) expectation.connectionId = input.connectionId;
+  if (input.sourceOrdinal !== undefined) {
+    if (!Number.isSafeInteger(input.sourceOrdinal) || input.sourceOrdinal < 0) {
+      throw new Error('Source expectation ordinal must be a non-negative safe integer.');
+    }
+    expectation.sourceOrdinal = input.sourceOrdinal;
   }
 
   return expectation;

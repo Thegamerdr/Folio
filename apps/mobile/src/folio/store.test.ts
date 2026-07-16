@@ -24,6 +24,8 @@ import {
   addCardPayoffDetails,
   addCycle,
   addDebt,
+  addEvidenceDocument,
+  addIgnoredBankExternalId,
   addIgnoredReviewSig,
   addStatementAsHistory,
   addToPot,
@@ -35,6 +37,8 @@ import {
   clearReaderCandidates,
   clearReviewQueue,
   consumeLoadDegraded,
+  createEmptyWorkspacePartition,
+  deleteBankImportedHistory,
   dismissBillSignal,
   dismissIncomeSignal,
   editTransaction,
@@ -44,6 +48,8 @@ import {
   forgetMerchantCategory,
   getPersistBlob,
   getState,
+  getWorkspaceRowRepository,
+  hasConfiguredMoneyPicture,
   hasAnyUserData,
   hydrateFromBlob,
   isBankTxn,
@@ -56,6 +62,7 @@ import {
   pauseMany,
   queueInputFromCandidates,
   rememberMerchantCategory,
+  removeEvidenceDocument,
   removeIncomeSource,
   renameAccount,
   resetAll,
@@ -68,6 +75,7 @@ import {
   setCurrentBalance,
   setIncomeSources,
   setModeExtra,
+  setOnboarding,
   setPartial,
   setPotAllowNegative,
   setPots,
@@ -82,13 +90,25 @@ import {
   undoDebtPayment,
   upsertIncomeSource,
 } from './store';
+import { createWorkspaceId } from '@folio/domain';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import { subscribeMeloReaction, type MeloReactionPayload } from './lib/melo/reactionBus';
+import {
+  createBusinessWorkspace,
+  createPersonalWorkspaceRoot,
+  PERSONAL_WORKSPACE_ID,
+  PERSONAL_WORKSPACE_SUBKEY_ID,
+} from './lib/workspaceRoot';
+import { PERSISTED_WORKSPACE_ROW_COLLECTIONS } from './lib/workspaceRows';
 
 beforeEach(() => {
   // Clean, known seed before every test (defaults + seeded transactions).
   resetAll();
 });
+
+function owned<T extends object>(row: T): T & { workspaceId: typeof PERSONAL_WORKSPACE_ID } {
+  return { ...row, workspaceId: PERSONAL_WORKSPACE_ID };
+}
 
 // ---------------------------------------------------------------------------
 // addCycle — newest-first ordering + 24-cap
@@ -444,7 +464,7 @@ describe('resetAll', () => {
 });
 
 // ---------------------------------------------------------------------------
-// resetToEmpty — CLEAN-EMPTY reset (no demo reseed), keeps onboarding.done +
+// resetToEmpty — CLEAN-EMPTY reset (no demo reseed), keeps only onboarding.done +
 // schemaVersion; hasAnyUserData distinguishes a real app from a demo one.
 // ---------------------------------------------------------------------------
 describe('resetToEmpty', () => {
@@ -510,15 +530,18 @@ describe('resetToEmpty', () => {
     expect(getState().onboarding.done).toBe(true);
   });
 
-  it('zeroes the onboarding income figure — no "coming in" survives a clear-to-empty', () => {
+  it('clears identifying onboarding values — no name, payday or income survives', () => {
     // Live regression (owner's phone, 2026-07-11): after "Clear to empty" the Today screen
     // still showed the old monthly income as "coming in" — onboarding.monthlyIncome survived
-    // the wipe. Name (a preference) and payday (a rhythm) may stay; the money figure may not.
-    setPartial({ onboarding: { done: true, name: 'Ada', payday: 25, monthlyIncome: 2533 } });
+    // the wipe. A later release drill proved name and payday were also retained. All three are user
+    // data; only the non-identifying completion flag may remain after a local clear.
+    setPartial({ onboarding: { done: true, name: 'Ada', payday: 12, monthlyIncome: 2533 } });
     resetToEmpty();
     const onboarding = getState().onboarding;
     expect(onboarding.monthlyIncome).toBe(0);
-    expect(onboarding.name).toBe('Ada');
+    expect(onboarding.name).toBe('');
+    expect(onboarding.payday).toBe(25);
+    expect(onboarding.done).toBe(true);
     expect(getState().incomeSources).toEqual([]);
   });
 
@@ -557,6 +580,26 @@ describe('hasAnyUserData', () => {
     expect(hasAnyUserData(getState())).toBe(false);
     addTransaction({ merchant: 'Tesco', amount: -42.1, category: 'food', source: 'manual' });
     expect(hasAnyUserData(getState())).toBe(true);
+  });
+});
+
+describe('hasConfiguredMoneyPicture', () => {
+  it('is false after a local clear even though onboarding stays done and the £0 balance is non-sample', () => {
+    resetToEmpty();
+
+    expect(getState().onboarding.done).toBe(true);
+    expect(getState().currentBalance.source).not.toBe('sample');
+    expect(hasConfiguredMoneyPicture(getState())).toBe(false);
+  });
+
+  it('becomes true when a route-driving balance or income is present', () => {
+    resetToEmpty();
+    setCurrentBalance({ amount: 220, source: 'user-entered', confidence: 'rough' });
+    expect(hasConfiguredMoneyPicture(getState())).toBe(true);
+
+    resetToEmpty();
+    setOnboarding({ monthlyIncome: 1_000 });
+    expect(hasConfiguredMoneyPicture(getState())).toBe(true);
   });
 });
 
@@ -625,7 +668,7 @@ describe('accounts (ACCOUNTS_MODEL.md P1)', () => {
     resetAll();
     hydrateFromBlob(blob);
 
-    expect(getState().accounts).toEqual(existing);
+    expect(getState().accounts).toEqual(existing.map(owned));
   });
 
   it('resetToEmpty synthesizes one (empty-balance) Main account, never zero accounts', () => {
@@ -1478,7 +1521,7 @@ describe('editTransaction', () => {
 describe('schema migration v3', () => {
   it('defaults DEFAULTS/state to the current schema version with an empty edit history', () => {
     resetAll();
-    expect(getState().schemaVersion).toBe(8);
+    expect(getState().schemaVersion).toBe(11);
     expect(getState().edits).toEqual([]);
   });
 });
@@ -1495,7 +1538,7 @@ describe('schema migration v6', () => {
     hydrateFromBlob(JSON.stringify(v5Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(8);
+    expect(s.schemaVersion).toBe(11);
     expect(s.timelineEvents).toEqual([]);
   });
 
@@ -1581,7 +1624,7 @@ describe('persist blob round-trip', () => {
     hydrateFromBlob(blob);
 
     const s = getState();
-    expect(s.schemaVersion).toBe(8);
+    expect(s.schemaVersion).toBe(11);
     expect((s.edits ?? []).length).toBe(1);
     expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
   });
@@ -1742,6 +1785,158 @@ describe('readerCandidates staging slot', () => {
   });
 });
 
+describe('encrypted source evidence lifecycle', () => {
+  const evidenceId = 'evidence_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+  function registerEvidence() {
+    return addEvidenceDocument({
+      id: evidenceId,
+      filename: 'june-current-account.pdf',
+      mediaType: 'application/pdf',
+      byteSize: 4096,
+      addedAtISO: '2026-07-15T12:00:00.000Z',
+      sourceType: 'document',
+      extractionStatus: 'read',
+      storageState: 'encrypted-device-vault',
+    });
+  }
+
+  it('persists metadata only and stamps the active workspace owner', () => {
+    const stored = registerEvidence();
+
+    expect(stored.workspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(getState().evidenceDocuments).toEqual([stored]);
+    const persisted = JSON.parse(getPersistBlob()) as {
+      evidenceDocuments?: Array<Record<string, unknown>>;
+    };
+    expect(persisted.evidenceDocuments).toEqual([stored]);
+    expect(persisted.evidenceDocuments?.[0]).not.toHaveProperty('uri');
+  });
+
+  it('keeps the source link through staging, review and a confirmed transaction', () => {
+    registerEvidence();
+    const candidate: CandidateMoneyItem = {
+      id: 'reader-evidence-1',
+      source: 'pdf',
+      kind: 'spend',
+      merchant: 'Supplier Ltd',
+      amount: -42.1,
+      confidence: 'low',
+      sourceEvidenceId: evidenceId,
+    };
+    setReaderCandidates([candidate]);
+    const queued = enqueueReviewItems(queueInputFromCandidates([candidate], 'pdf')).fresh[0]!;
+    const transaction = addTransaction({
+      merchant: queued.merchant,
+      amount: queued.amount,
+      category: 'shopping',
+      source: 'manual',
+      sourceEvidenceId: evidenceId,
+    });
+
+    expect(getState().readerCandidates[0]?.sourceEvidenceId).toBe(evidenceId);
+    expect(queued.sourceEvidenceId).toBe(evidenceId);
+    expect(transaction.sourceEvidenceId).toBe(evidenceId);
+  });
+
+  it('keeps the source link and filename through bulk history and its import log', () => {
+    registerEvidence();
+    setPartial({ transactions: [], statementImports: [] });
+    addStatementAsHistory([
+      {
+        id: 'reader-evidence-history',
+        source: 'pdf',
+        kind: 'spend',
+        merchant: 'Supplier Ltd',
+        amount: -125,
+        date: '2026-07-12',
+        confidence: 'low',
+        sourceEvidenceId: evidenceId,
+      },
+    ]);
+
+    expect(getState().transactions[0]?.sourceEvidenceId).toBe(evidenceId);
+    expect(getState().statementImports?.[0]).toMatchObject({
+      filename: 'june-current-account.pdf',
+      sourceEvidenceId: evidenceId,
+    });
+  });
+
+  it('fails closed for missing, cross-workspace or conflicting evidence metadata', () => {
+    expect(() =>
+      setReaderCandidates([
+        {
+          id: 'missing-evidence-candidate',
+          source: 'pdf',
+          kind: 'spend',
+          merchant: 'Unknown',
+          amount: -1,
+          confidence: 'low',
+          sourceEvidenceId: evidenceId,
+        },
+      ]),
+    ).toThrow(/unavailable in this workspace/);
+
+    expect(() =>
+      addEvidenceDocument({
+        id: evidenceId,
+        workspaceId: createWorkspaceId('workspace_business_wrong'),
+        filename: 'wrong.pdf',
+        mediaType: 'application/pdf',
+        byteSize: 1,
+        addedAtISO: '2026-07-15T12:00:00.000Z',
+        sourceType: 'document',
+        extractionStatus: 'read',
+        storageState: 'encrypted-device-vault',
+      }),
+    ).toThrow(/belongs to workspace/);
+
+    registerEvidence();
+    expect(() =>
+      addEvidenceDocument({
+        id: evidenceId,
+        filename: 'different.pdf',
+        mediaType: 'application/pdf',
+        byteSize: 4096,
+        addedAtISO: '2026-07-15T12:00:00.000Z',
+        sourceType: 'document',
+        extractionStatus: 'read',
+        storageState: 'encrypted-device-vault',
+      }),
+    ).toThrow(/conflicts/);
+  });
+
+  it('removes metadata and every link atomically while keeping confirmed records', () => {
+    registerEvidence();
+    const candidate: CandidateMoneyItem = {
+      id: 'reader-remove-evidence',
+      source: 'pdf',
+      kind: 'spend',
+      merchant: 'Evidence row',
+      amount: -7,
+      confidence: 'low',
+      sourceEvidenceId: evidenceId,
+    };
+    setReaderCandidates([candidate]);
+    enqueueReviewItems(queueInputFromCandidates([candidate], 'pdf'));
+    setPartial({ transactions: [], statementImports: [] });
+    addStatementAsHistory([
+      { ...candidate, id: 'reader-remove-history', merchant: 'Confirmed evidence row' },
+    ]);
+
+    expect(removeEvidenceDocument(evidenceId)).toBe(true);
+    const after = getState();
+    expect(after.evidenceDocuments).toEqual([]);
+    expect(after.transactions).toHaveLength(1);
+    expect(after.statementImports).toHaveLength(1);
+    expect(after.transactions[0]).not.toHaveProperty('sourceEvidenceId');
+    expect(after.statementImports?.[0]).not.toHaveProperty('sourceEvidenceId');
+    expect(after.readerCandidates[0]).not.toHaveProperty('sourceEvidenceId');
+    expect(after.reviewQueue?.[0]).not.toHaveProperty('sourceEvidenceId');
+    expect(removeEvidenceDocument(evidenceId)).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // readerClosingBalance — the readerCandidates sibling threading the reader's
 // closing-balance result (StatementReadResult.closingBalance) through to
@@ -1840,7 +2035,7 @@ describe('schema migration v7', () => {
     hydrateFromBlob(JSON.stringify(v6Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(8);
+    expect(s.schemaVersion).toBe(11);
     expect(s.reviewQueue).toEqual([]);
   });
 
@@ -1920,7 +2115,7 @@ describe('demo/seed containment', () => {
       usesPerMonth: 30,
     };
     setPartial({ subs: [realSpotify] });
-    expect(stripSeedData(getState()).subs).toEqual([realSpotify]);
+    expect(stripSeedData(getState()).subs).toEqual([owned(realSpotify)]);
   });
 
   it('stripSeedData does NOT delete real onboarding pots that reuse seed pot ids', () => {
@@ -1942,7 +2137,7 @@ describe('demo/seed containment', () => {
       { id: 'christmas', name: 'Christmas', saved: 0, goal: 300, perWeek: 15, accent: false },
     ];
     setPartial({ onboarding: { ...getState().onboarding, done: true }, pots: onboardingPots });
-    expect(stripSeedData(getState()).pots).toEqual(onboardingPots);
+    expect(stripSeedData(getState()).pots).toEqual(onboardingPots.map(owned));
   });
 
   it('strips a seed debt even after another engine modified a field (matched by seed-* id), keeps real debts', () => {
@@ -2046,7 +2241,7 @@ describe('schema migration v8', () => {
     hydrateFromBlob(JSON.stringify(v7Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(8);
+    expect(s.schemaVersion).toBe(11);
     expect(s.incomeSources).toEqual([
       {
         id: 'income-migrated-pay',
@@ -2055,6 +2250,7 @@ describe('schema migration v8', () => {
         dayOfMonth: 28,
         amount: 2500,
         source: 'onboarding',
+        workspaceId: PERSONAL_WORKSPACE_ID,
       },
     ]);
   });
@@ -2107,12 +2303,301 @@ describe('schema migration v8', () => {
     resetAll();
     hydrateFromBlob(blob);
 
-    expect(getState().incomeSources).toEqual(existing);
+    expect(getState().incomeSources).toEqual(existing.map(owned));
   });
 
   it('a fresh install (DEFAULTS) has an empty incomeSources list', () => {
     resetAll();
     expect(getState().incomeSources).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// schema migration — v8 → v9 introduces the production workspace root. This version deliberately
+// locks the still-global top-level data partition to Personal; Business cannot be selected until
+// every row and query seam is workspace-scoped.
+// ---------------------------------------------------------------------------
+describe('schema migration v9 workspace root', () => {
+  it('assigns a pre-workspace persisted store to one immutable Personal data partition', () => {
+    resetToEmpty();
+    addTransaction({ merchant: 'Real shop', amount: -12.5, category: 'food', source: 'manual' });
+    const before = getState();
+    const v8Blob = { ...before, schemaVersion: 8 } as Record<string, unknown>;
+    delete v8Blob.workspaces;
+    delete v8Blob.activeWorkspaceId;
+    delete v8Blob.dataWorkspaceId;
+
+    hydrateFromBlob(JSON.stringify(v8Blob));
+
+    const after = getState();
+    expect(after.schemaVersion).toBe(11);
+    expect(after.activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(after.dataWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(after.workspaces).toEqual([
+      expect.objectContaining({
+        id: PERSONAL_WORKSPACE_ID,
+        kind: 'personal',
+        name: 'Personal',
+        encryptedSubkeyId: PERSONAL_WORKSPACE_SUBKEY_ID,
+        archivedAt: null,
+      }),
+    ]);
+    expect(after.transactions).toEqual(before.transactions);
+  });
+
+  it('does not trust a crafted Business activation before entity/query isolation exists', () => {
+    const blob = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    const personal = getState().workspaces[0]!;
+    blob.workspaces = [
+      personal,
+      {
+        ...personal,
+        id: 'workspace_business_injected',
+        kind: 'business',
+        name: 'Injected Ltd',
+        encryptedSubkeyId: 'workspace-subkey-business-injected',
+      },
+    ];
+    blob.activeWorkspaceId = 'workspace_business_injected';
+    blob.dataWorkspaceId = 'workspace_business_injected';
+
+    hydrateFromBlob(JSON.stringify(blob));
+
+    expect(getState().workspaces).toEqual([personal]);
+    expect(getState().activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(getState().dataWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+  });
+
+  it('persists the Personal workspace root across a native blob round-trip', () => {
+    const before = getState();
+    const blob = getPersistBlob();
+    resetAll();
+    hydrateFromBlob(blob);
+
+    expect(getState().workspaces).toEqual(before.workspaces);
+    expect(getState().activeWorkspaceId).toBe(before.activeWorkspaceId);
+    expect(getState().dataWorkspaceId).toBe(before.dataWorkspaceId);
+  });
+
+  it('clean reset cannot leave a Business selection or subkey behind', () => {
+    expect(() =>
+      setPartial({
+        activeWorkspaceId: 'workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID,
+        dataWorkspaceId: 'workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID,
+      }),
+    ).toThrow(/complete, verified partition replacement/);
+
+    resetToEmpty();
+
+    expect(getState().workspaces).toHaveLength(1);
+    expect(getState().activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(getState().dataWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(getState().workspaces[0]?.encryptedSubkeyId).toBe(PERSONAL_WORKSPACE_SUBKEY_ID);
+  });
+});
+
+describe('schema v11 isolated workspace partitions', () => {
+  it('builds and hydrates a genuinely empty Business partition without Personal or sample rows', () => {
+    resetToEmpty();
+    const personalBlob = getPersistBlob(PERSONAL_WORKSPACE_ID);
+    const personalRoot = createPersonalWorkspaceRoot();
+    const businessId = createWorkspaceId('workspace_business_partition_test');
+    const business = createBusinessWorkspace({
+      id: businessId,
+      name: 'Studio Ltd',
+      encryptedSubkeyId: 'workspace-subkey-business-partition-v1',
+    });
+    const businessRoot = {
+      workspaces: [...personalRoot.workspaces, business],
+      activeWorkspaceId: businessId,
+      dataWorkspaceId: businessId,
+    };
+    const partition = createEmptyWorkspacePartition(
+      businessRoot,
+      businessId,
+      '2026-07-15T20:00:00.000Z',
+    );
+
+    expect(partition.schemaVersion).toBe(11);
+    expect(partition.accounts).toEqual([]);
+    expect(partition.transactions).toEqual([]);
+    expect(partition.pots).toEqual([]);
+    expect(partition.subs).toEqual([]);
+    expect(partition.reviewQueue).toEqual([]);
+    expect(JSON.stringify(partition)).not.toContain('Pret');
+    expect(JSON.stringify(partition)).not.toContain('workspaceId":"workspace_personal_local');
+
+    const raw = JSON.stringify(partition);
+    hydrateFromBlob(raw, businessId);
+    expect(getState().activeWorkspaceId).toBe(businessId);
+    expect(getState().dataWorkspaceId).toBe(businessId);
+    expect(getState().workspaces).toHaveLength(2);
+    expect(getPersistBlob(businessId)).not.toContain('workspace_personal_local","merchant');
+    expect(() => hydrateFromBlob(raw, PERSONAL_WORKSPACE_ID)).toThrow(/does not belong/);
+
+    resetToEmpty();
+    expect(getState().activeWorkspaceId).toBe(businessId);
+    expect(getState().dataWorkspaceId).toBe(businessId);
+    expect(getState().workspaces).toEqual(businessRoot.workspaces);
+    expect(getState().accounts).toEqual([]);
+    expect(getState().transactions).toEqual([]);
+
+    hydrateFromBlob(personalBlob, PERSONAL_WORKSPACE_ID);
+    expect(getState().activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+  });
+});
+
+describe('schema migration v10 workspace-owned rows', () => {
+  it('assigns every legacy persisted row to Personal without dropping real values', () => {
+    resetToEmpty();
+    setPartial({
+      transactions: [
+        {
+          id: 'legacy-transaction',
+          when: '2026-07-14T12:00:00.000Z',
+          merchant: 'Real shop',
+          amount: -12.5,
+          category: 'food',
+          source: 'manual',
+        },
+      ],
+      calendarEvents: [
+        {
+          id: 'legacy-calendar',
+          date: '2026-07-20',
+          kind: 'deadline',
+          title: 'File return',
+        },
+      ],
+      reviewQueue: [
+        {
+          id: 'legacy-review',
+          source: 'pdf',
+          merchant: 'Needs review',
+          amount: -8,
+          addedAt: '2026-07-15T12:00:00.000Z',
+        },
+      ],
+      statementImports: [
+        {
+          id: 'legacy-import',
+          source: 'pdf',
+          rowCount: 1,
+          atISO: '2026-07-15T12:00:00.000Z',
+        },
+      ],
+    });
+
+    const v9Blob = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    v9Blob.schemaVersion = 9;
+    for (const collection of PERSISTED_WORKSPACE_ROW_COLLECTIONS) {
+      const rows = v9Blob[collection];
+      if (!Array.isArray(rows)) continue;
+      v9Blob[collection] = rows.map((candidate) => {
+        const { workspaceId: _legacyMissing, ...row } = candidate as Record<string, unknown>;
+        return row;
+      });
+    }
+
+    hydrateFromBlob(JSON.stringify(v9Blob));
+
+    const after = getState();
+    expect(after.schemaVersion).toBe(11);
+    expect(after.transactions[0]).toMatchObject({
+      id: 'legacy-transaction',
+      merchant: 'Real shop',
+      amount: -12.5,
+      workspaceId: PERSONAL_WORKSPACE_ID,
+    });
+    expect(after.calendarEvents[0]?.workspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(after.reviewQueue?.[0]?.workspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(after.statementImports?.[0]?.workspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    for (const collection of PERSISTED_WORKSPACE_ROW_COLLECTIONS) {
+      const rows = (after as unknown as Record<string, unknown>)[collection];
+      if (!Array.isArray(rows)) continue;
+      expect(
+        rows.every(
+          (candidate) =>
+            (candidate as Record<string, unknown>).workspaceId === PERSONAL_WORKSPACE_ID,
+        ),
+        collection,
+      ).toBe(true);
+    }
+  });
+
+  it('stamps ordinary writes and the native persist blob with the active Personal owner', () => {
+    setPartial({
+      transactions: [
+        {
+          id: 'new-write',
+          when: '2026-07-15T12:00:00.000Z',
+          merchant: 'Owner row',
+          amount: -3,
+          category: 'other',
+          source: 'manual',
+        },
+      ],
+    });
+
+    expect(getState().transactions[0]?.workspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    const persisted = JSON.parse(getPersistBlob()) as {
+      transactions: Array<{ workspaceId?: string }>;
+    };
+    expect(persisted.transactions[0]?.workspaceId).toBe(PERSONAL_WORKSPACE_ID);
+  });
+
+  it('rejects a crafted Business-owned row instead of rewriting or filtering it', () => {
+    const before = getState().transactions;
+
+    expect(() =>
+      setPartial({
+        transactions: [
+          {
+            id: 'business-leak',
+            when: '2026-07-15T12:00:00.000Z',
+            merchant: 'Must not land',
+            amount: -99,
+            category: 'other',
+            source: 'manual',
+            workspaceId: 'workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID,
+          },
+        ],
+      }),
+    ).toThrow(/belongs to workspace workspace_business_injected/);
+    expect(getState().transactions).toBe(before);
+  });
+
+  it('requires an explicit valid workspace for repository reads', () => {
+    setPartial({
+      transactions: [
+        {
+          id: 'repository-row',
+          when: '2026-07-15T12:00:00.000Z',
+          merchant: 'Scoped read',
+          amount: -4,
+          category: 'other',
+          source: 'manual',
+        },
+      ],
+    });
+
+    const repository = getWorkspaceRowRepository(PERSONAL_WORKSPACE_ID);
+    expect(repository.list('transactions')).toBe(getState().transactions);
+    expect(() =>
+      getWorkspaceRowRepository('workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID),
+    ).toThrow(/unavailable/);
+  });
+
+  it('rejects a crafted partial workspace switch before it can poison later reads or writes', () => {
+    expect(() =>
+      setPartial({
+        activeWorkspaceId: 'workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID,
+      }),
+    ).toThrow(/complete, verified partition replacement/);
+
+    expect(getState().activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    setPartial({ nextYouNote: 'still Personal' });
+    expect(getState().nextYouNote).toBe('still Personal');
   });
 });
 
@@ -2139,21 +2624,21 @@ describe('income sources setters', () => {
 
   it('setIncomeSources replaces the whole list', () => {
     setIncomeSources([weekly]);
-    expect(getState().incomeSources).toEqual([weekly]);
+    expect(getState().incomeSources).toEqual([owned(weekly)]);
     setIncomeSources([weekly, monthly]);
-    expect(getState().incomeSources).toEqual([weekly, monthly]);
+    expect(getState().incomeSources).toEqual([owned(weekly), owned(monthly)]);
   });
 
   it('setIncomeSources accepts an updater function over the previous list', () => {
     setIncomeSources([weekly]);
     setIncomeSources((prev) => [...prev, monthly]);
-    expect(getState().incomeSources).toEqual([weekly, monthly]);
+    expect(getState().incomeSources).toEqual([owned(weekly), owned(monthly)]);
   });
 
   it('upsertIncomeSource adds a new source by id', () => {
     setIncomeSources([weekly]);
     upsertIncomeSource(monthly);
-    expect(getState().incomeSources).toEqual([weekly, monthly]);
+    expect(getState().incomeSources).toEqual([owned(weekly), owned(monthly)]);
   });
 
   it('upsertIncomeSource replaces an existing source with the same id (immutable)', () => {
@@ -2162,19 +2647,19 @@ describe('income sources setters', () => {
     upsertIncomeSource(updated);
     const sources = getState().incomeSources ?? [];
     expect(sources.length).toBe(1);
-    expect(sources[0]).toEqual(updated);
+    expect(sources[0]).toEqual(owned(updated));
   });
 
   it('removeIncomeSource removes by id', () => {
     setIncomeSources([weekly, monthly]);
     removeIncomeSource(weekly.id);
-    expect(getState().incomeSources).toEqual([monthly]);
+    expect(getState().incomeSources).toEqual([owned(monthly)]);
   });
 
   it('removeIncomeSource is a no-op when the id is not present', () => {
     setIncomeSources([weekly]);
     removeIncomeSource('does-not-exist');
-    expect(getState().incomeSources).toEqual([weekly]);
+    expect(getState().incomeSources).toEqual([owned(weekly)]);
   });
 });
 
@@ -2802,7 +3287,7 @@ describe('syncHistoryCycles', () => {
     syncHistoryCycles();
 
     const cycles = getState().cycles;
-    expect(cycles).toEqual([livedMarch]); // untouched — no reconstructed duplicate for March
+    expect(cycles).toEqual([owned(livedMarch)]); // untouched — no reconstructed duplicate for March
   });
 
   it('is idempotent — re-running over the same ledger never duplicates a month', () => {
@@ -3528,5 +4013,102 @@ describe('addStatementAsHistory', () => {
 });
 
 // Type-only import smoke — keep Pot referenced so the import isn't pruned.
+describe('Open Banking review staging', () => {
+  it('dedupes provider-neutral external ids without collapsing legitimate same-value rows', () => {
+    setPartial({ transactions: [], reviewQueue: [], reviewQueueSpillover: [] });
+    const first = enqueueReviewItems([
+      {
+        source: 'bank',
+        merchant: 'Coffee shop',
+        amount: -4.5,
+        date: '2026-07-14',
+        externalId: 'bank-row-1',
+        bankConnectionId: 'connection-1',
+      },
+      {
+        source: 'bank',
+        merchant: 'Coffee shop',
+        amount: -4.5,
+        date: '2026-07-14',
+        externalId: 'bank-row-2',
+        bankConnectionId: 'connection-1',
+      },
+    ]);
+    expect(first.fresh).toHaveLength(2);
+    expect(
+      enqueueReviewItems([
+        {
+          source: 'bank',
+          merchant: 'Coffee shop',
+          amount: -4.5,
+          date: '2026-07-14',
+          externalId: 'bank-row-1',
+          bankConnectionId: 'connection-1',
+        },
+      ]).fresh,
+    ).toHaveLength(0);
+  });
+
+  it('does not requeue accepted or explicitly ignored bank rows', () => {
+    setPartial({ transactions: [], reviewQueue: [], reviewQueueSpillover: [] });
+    addTransaction({
+      merchant: 'Accepted row',
+      amount: -12,
+      category: 'other',
+      source: 'bank',
+      externalId: 'bank-accepted',
+      bankConnectionId: 'connection-1',
+    });
+    addIgnoredBankExternalId('bank-ignored');
+    const result = enqueueReviewItems([
+      {
+        source: 'bank',
+        merchant: 'Accepted row',
+        amount: -12,
+        externalId: 'bank-accepted',
+        bankConnectionId: 'connection-1',
+      },
+      {
+        source: 'bank',
+        merchant: 'Ignored row',
+        amount: -8,
+        externalId: 'bank-ignored',
+        bankConnectionId: 'connection-1',
+      },
+    ]);
+    expect(result.fresh).toHaveLength(0);
+  });
+
+  it('deletes only the chosen connection history when explicitly requested', () => {
+    setPartial({ transactions: [], reviewQueue: [], reviewQueueSpillover: [] });
+    addTransaction({
+      merchant: 'Connected bank',
+      amount: -12,
+      category: 'other',
+      source: 'bank',
+      externalId: 'bank-accepted',
+      bankConnectionId: 'connection-1',
+    });
+    addTransaction({ merchant: 'Manual row', amount: -2, category: 'other', source: 'manual' });
+    enqueueReviewItems([
+      {
+        source: 'bank',
+        merchant: 'Queued bank row',
+        amount: -8,
+        externalId: 'bank-queued',
+        bankConnectionId: 'connection-1',
+      },
+    ]);
+    expect(deleteBankImportedHistory('connection-1')).toEqual({
+      deletedTransactions: 1,
+      deletedReviewItems: 1,
+    });
+    expect(getState().transactions.map((transaction) => transaction.merchant)).toEqual([
+      'Manual row',
+    ]);
+    expect(getState().reviewQueue).toEqual([]);
+  });
+});
+
 const _potShape: Pot['accent'] = true;
 void _potShape;

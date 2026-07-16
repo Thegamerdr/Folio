@@ -61,12 +61,13 @@ format `node_modules\.bin\prettier.cmd --write <files>`.
 ## Scope
 
 **In scope**: the four files in the drift check + `apps/mobile/src/folio/lib/modes/safeZone.test.ts`
-+ `apps/mobile/src/folio/lib/modes/strategies/reset.ts` (only if exposing essentialsPerDay
-requires it) + `apps/mobile/src/folio/lib/widgetSnapshot.ts` (only if its types/tests need
-the negative-total case) + `apps/mobile/src/folio/lib/widgetSnapshot.test.ts` (same).
-**Out of scope**: the Today hero £0 floors in survival.ts/stability.ts/debt.ts/TodayScreen
-(deliberate design — see above); `lensPaywall.ts` (guard logic itself unchanged — only its
-input changes); any other screen.
+
+- `apps/mobile/src/folio/lib/modes/strategies/reset.ts` (only if exposing essentialsPerDay
+  requires it) + `apps/mobile/src/folio/lib/widgetSnapshot.ts` (only if its types/tests need
+  the negative-total case) + `apps/mobile/src/folio/lib/widgetSnapshot.test.ts` (same).
+  **Out of scope**: the Today hero £0 floors in survival.ts/stability.ts/debt.ts/TodayScreen
+  (deliberate design — see above); `lensPaywall.ts` (guard logic itself unchanged — only its
+  input changes); any other screen.
 
 ## Git workflow
 

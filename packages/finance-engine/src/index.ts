@@ -142,6 +142,52 @@ export type DebtSchedule = Readonly<{
   totalInterestMinor: number;
 }>;
 
+export type DebtPortfolioStrategy =
+  | 'contractual-minimums'
+  | 'highest-rate-first'
+  | 'lowest-balance-first';
+
+export type DebtPortfolioLine = Readonly<{
+  id: string;
+  principalMinor: number;
+  annualRateBps: number;
+  minimumPaymentMinor: number;
+}>;
+
+export type DebtPortfolioInput = Readonly<{
+  debts: readonly DebtPortfolioLine[];
+  strategy: DebtPortfolioStrategy;
+  startDate: string;
+  extraMonthlyMinor?: number;
+  currency?: string;
+  maxMonths?: number;
+}>;
+
+export type DebtPortfolioMonth = Readonly<{
+  period: number;
+  dueDate: LocalDate;
+  openingPrincipalMinor: number;
+  interestMinor: number;
+  paymentMinor: number;
+  closingPrincipalMinor: number;
+}>;
+
+export type DebtPortfolioProjection = Readonly<{
+  currency: CurrencyCode;
+  strategy: DebtPortfolioStrategy;
+  debtCount: number;
+  startingPrincipalMinor: number;
+  contractualMinimumMinor: number;
+  extraMonthlyMinor: number;
+  monthlyBudgetMinor: number;
+  months: number | null;
+  payoffDate: LocalDate | null;
+  totalInterestMinor: number;
+  totalPaidMinor: number;
+  stalled: boolean;
+  rows: readonly DebtPortfolioMonth[];
+}>;
+
 type NormalizedAccount = Readonly<{
   id: string;
   minor: number;
@@ -467,6 +513,191 @@ export function projectDebtSchedule(input: DebtScheduleInput): DebtSchedule {
   const payoffDate =
     rows.at(-1)?.closingPrincipalMinor === 0 ? (rows.at(-1)?.dueDate ?? null) : null;
   return { currency, rows, payoffDate, totalInterestMinor };
+}
+
+/**
+ * Model a debt portfolio under a user-selected neutral repayment rule.
+ *
+ * Contractual minimums remain attached to each debt and stop when that debt clears. The two
+ * ordering strategies keep the original portfolio minimum budget plus the explicit extra amount
+ * constant, rolling any freed payment into the next debt in the selected order. No strategy is
+ * selected implicitly and no domain row is changed.
+ */
+export function projectDebtPortfolio(input: DebtPortfolioInput): DebtPortfolioProjection {
+  const currency = createCurrencyCode(input.currency ?? 'GBP');
+  const maxMonths = input.maxMonths ?? 600;
+  if (!Number.isSafeInteger(maxMonths) || maxMonths < 1 || maxMonths > 600) {
+    throw new Error('Debt portfolio maxMonths must be between 1 and 600.');
+  }
+
+  const startDate = createLocalDate(input.startDate);
+  const anchorDay = Number(startDate.slice(8, 10));
+  const extraMonthlyMinor = input.extraMonthlyMinor ?? 0;
+  assertSafeInteger(extraMonthlyMinor, 'Debt portfolio extra payment');
+  if (extraMonthlyMinor < 0) throw new Error('Debt portfolio extra payment cannot be negative.');
+  if (input.strategy === 'contractual-minimums' && extraMonthlyMinor !== 0) {
+    throw new Error('Contractual-minimums projection cannot include an extra payment.');
+  }
+
+  const seenIds = new Set<string>();
+  const debts = input.debts
+    .map((debt) => {
+      if (seenIds.has(debt.id)) throw new Error(`Duplicate debt id: ${debt.id}`);
+      seenIds.add(debt.id);
+      assertSafeInteger(debt.principalMinor, `Debt ${debt.id} principal`);
+      assertSafeInteger(debt.annualRateBps, `Debt ${debt.id} annual rate`);
+      assertSafeInteger(debt.minimumPaymentMinor, `Debt ${debt.id} minimum payment`);
+      if (debt.principalMinor < 0 || debt.annualRateBps < 0 || debt.minimumPaymentMinor < 0) {
+        throw new Error('Debt portfolio inputs cannot be negative.');
+      }
+      return { ...debt, principalMinor: debt.principalMinor };
+    })
+    .filter((debt) => debt.principalMinor > 0);
+
+  const startingPrincipalMinor = debts.reduce((total, debt) => total + debt.principalMinor, 0);
+  const contractualMinimumMinor = debts.reduce(
+    (total, debt) => total + debt.minimumPaymentMinor,
+    0,
+  );
+  const monthlyBudgetMinor = contractualMinimumMinor + extraMonthlyMinor;
+  assertSafeInteger(startingPrincipalMinor, 'Debt portfolio principal');
+  assertSafeInteger(contractualMinimumMinor, 'Debt portfolio contractual minimum');
+  assertSafeInteger(monthlyBudgetMinor, 'Debt portfolio monthly budget');
+
+  if (startingPrincipalMinor === 0) {
+    return {
+      currency,
+      strategy: input.strategy,
+      debtCount: 0,
+      startingPrincipalMinor: 0,
+      contractualMinimumMinor: 0,
+      extraMonthlyMinor,
+      monthlyBudgetMinor,
+      months: 0,
+      payoffDate: startDate,
+      totalInterestMinor: 0,
+      totalPaidMinor: 0,
+      stalled: false,
+      rows: [],
+    };
+  }
+  if (monthlyBudgetMinor <= 0) {
+    return {
+      currency,
+      strategy: input.strategy,
+      debtCount: debts.length,
+      startingPrincipalMinor,
+      contractualMinimumMinor,
+      extraMonthlyMinor,
+      monthlyBudgetMinor,
+      months: null,
+      payoffDate: null,
+      totalInterestMinor: 0,
+      totalPaidMinor: 0,
+      stalled: true,
+      rows: [],
+    };
+  }
+
+  let totalInterestMinor = 0;
+  let totalPaidMinor = 0;
+  const rows: DebtPortfolioMonth[] = [];
+
+  for (let period = 1; period <= maxMonths; period += 1) {
+    const openingPrincipalMinor = debts.reduce((total, debt) => total + debt.principalMinor, 0);
+    let interestMinor = 0;
+    let paymentMinor = 0;
+
+    for (const debt of debts) {
+      if (debt.principalMinor <= 0) continue;
+      const charged = roundRatio(debt.principalMinor * debt.annualRateBps, 120_000);
+      debt.principalMinor += charged;
+      assertSafeInteger(debt.principalMinor, `Debt ${debt.id} balance after interest`);
+      interestMinor += charged;
+    }
+
+    for (const debt of debts) {
+      if (debt.principalMinor <= 0) continue;
+      const contractualPayment = Math.min(debt.minimumPaymentMinor, debt.principalMinor);
+      debt.principalMinor -= contractualPayment;
+      paymentMinor += contractualPayment;
+    }
+
+    if (input.strategy !== 'contractual-minimums') {
+      let remainingBudgetMinor = Math.max(0, monthlyBudgetMinor - paymentMinor);
+      const ordered = [...debts]
+        .filter((debt) => debt.principalMinor > 0)
+        .sort((left, right) =>
+          input.strategy === 'highest-rate-first'
+            ? right.annualRateBps - left.annualRateBps ||
+              left.principalMinor - right.principalMinor ||
+              left.id.localeCompare(right.id)
+            : left.principalMinor - right.principalMinor ||
+              right.annualRateBps - left.annualRateBps ||
+              left.id.localeCompare(right.id),
+        );
+      for (const debt of ordered) {
+        if (remainingBudgetMinor <= 0) break;
+        const allocated = Math.min(remainingBudgetMinor, debt.principalMinor);
+        debt.principalMinor -= allocated;
+        paymentMinor += allocated;
+        remainingBudgetMinor -= allocated;
+      }
+    }
+
+    const closingPrincipalMinor = debts.reduce((total, debt) => total + debt.principalMinor, 0);
+    assertSafeInteger(interestMinor, 'Debt portfolio monthly interest');
+    assertSafeInteger(paymentMinor, 'Debt portfolio monthly payment');
+    assertSafeInteger(closingPrincipalMinor, 'Debt portfolio closing principal');
+    totalInterestMinor += interestMinor;
+    totalPaidMinor += paymentMinor;
+    assertSafeInteger(totalInterestMinor, 'Debt portfolio total interest');
+    assertSafeInteger(totalPaidMinor, 'Debt portfolio total paid');
+
+    rows.push({
+      period,
+      dueDate: addMonthsToLocalDate(startDate, period - 1, anchorDay),
+      openingPrincipalMinor,
+      interestMinor,
+      paymentMinor,
+      closingPrincipalMinor,
+    });
+
+    if (closingPrincipalMinor === 0) {
+      const payoffDate = rows.at(-1)?.dueDate ?? null;
+      return {
+        currency,
+        strategy: input.strategy,
+        debtCount: debts.length,
+        startingPrincipalMinor,
+        contractualMinimumMinor,
+        extraMonthlyMinor,
+        monthlyBudgetMinor,
+        months: rows.length,
+        payoffDate,
+        totalInterestMinor,
+        totalPaidMinor,
+        stalled: false,
+        rows,
+      };
+    }
+  }
+
+  return {
+    currency,
+    strategy: input.strategy,
+    debtCount: debts.length,
+    startingPrincipalMinor,
+    contractualMinimumMinor,
+    extraMonthlyMinor,
+    monthlyBudgetMinor,
+    months: null,
+    payoffDate: null,
+    totalInterestMinor,
+    totalPaidMinor,
+    stalled: true,
+    rows,
+  };
 }
 
 function reconcileOccurrences(

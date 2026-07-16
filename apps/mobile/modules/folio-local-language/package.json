@@ -1,0 +1,7 @@
+{
+  "name": "folio-local-language",
+  "version": "0.1.0",
+  "description": "Private Android bridge for Melo's on-device LiteRT-LM language runtime.",
+  "main": "index.ts",
+  "private": true
+}

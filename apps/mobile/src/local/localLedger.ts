@@ -22,7 +22,7 @@ import {
 } from '@folio/domain';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
-export type LocalTransactionSource = 'seed' | 'manual' | 'import';
+export type LocalTransactionSource = 'seed' | 'manual' | 'melo' | 'import' | 'open_banking';
 export type LocalTransactionStatus = 'confirmed' | 'needs_review';
 export type LocalImportAuthorityState =
   | 'imported-claim'
@@ -42,9 +42,15 @@ export type LocalImportRejectionReason =
 
 export type LocalLedgerTransaction = Readonly<{
   id: string;
+  /** Optional source-account identity. The canonical adapter resolves this through the explicit
+   *  account projection when one is supplied; legacy local-ledger callers still use its single
+   *  workspace cash account. */
+  accountId?: string;
   title: string;
   amountMinor: number;
   date: string;
+  bookedAt?: string;
+  categoryId?: string;
   source: LocalTransactionSource;
   status: LocalTransactionStatus;
   protected: boolean;
@@ -56,6 +62,11 @@ export type LocalLedgerTransaction = Readonly<{
   certainty?: 'confirmed' | 'expected';
   sourceDocumentId?: string;
   sourceLabel?: string;
+  sourceTransactionId?: string;
+  sourceEvidenceId?: string;
+  externalId?: string;
+  connectionId?: string;
+  sourceOrdinal?: number;
 }>;
 
 export type LocalImportDraft = Readonly<{
@@ -918,10 +929,16 @@ export function buildMeloSnapshotFromLocalState(
   state: LocalLedgerState,
   route: LocalRouteSummary = buildLocalRouteSummary(state),
 ): MeloLocalFinancialSnapshot {
-  // The user's own subscription + pot names go into the snapshot so Melo can echo an EXACT stored
-  // name back in a suggestion. The model only ever sees these when the user has turned on sharing.
-  const subscriptionNames = state.subscriptions.map((subscription) => subscription.name);
-  const potNames = state.pots.map((pot) => pot.name);
+  const activeSubscriptions = state.subscriptions.filter((subscription) => !subscription.paused);
+  const monthlySubscriptionMinor = (subscription: Subscription): number => {
+    if (subscription.cadence === 'weekly') {
+      return Math.round((subscription.cost.minorUnits * 52) / 12);
+    }
+    if (subscription.cadence === 'yearly') {
+      return Math.round(subscription.cost.minorUnits / 12);
+    }
+    return subscription.cost.minorUnits;
+  };
   return {
     currency: state.currency,
     availableNowMinor: route.availableNowMinor,
@@ -930,8 +947,12 @@ export function buildMeloSnapshotFromLocalState(
     protectedItems: route.protectedItems,
     pendingReviewCount: route.pendingReviewCount,
     nextPaydayLabel: route.nextPaydayLabel,
-    subscriptionNames,
-    potNames,
+    hasMoneyPicture: true,
+    subscriptionCount: activeSubscriptions.length,
+    activeSubscriptionMonthlyMinor: activeSubscriptions.reduce(
+      (total, subscription) => total + monthlySubscriptionMinor(subscription),
+      0,
+    ),
   };
 }
 
@@ -2495,11 +2516,13 @@ function buildRoutePoints(input: {
               ? 'Reveal protected commitment'
               : 'Reveal record',
         authorityLabel:
-          transaction.source === 'manual'
+          transaction.source === 'manual' || transaction.source === 'melo'
             ? 'User-confirmed local record'
             : transaction.source === 'import'
               ? 'Confirmed imported record'
-              : 'Private example record',
+              : transaction.source === 'open_banking'
+                ? 'Confirmed Open Banking record'
+                : 'Private example record',
         date: transaction.date,
         dependsOn: [transaction.id],
         label: dayLabel(transaction.date, input.asOfDate),
@@ -2937,7 +2960,9 @@ function isProtectedTitle(title: string): boolean {
 
 function transactionSourceLabel(source: LocalTransactionSource): string {
   if (source === 'manual') return 'Manual';
+  if (source === 'melo') return 'Melo';
   if (source === 'import') return 'Statement';
+  if (source === 'open_banking') return 'Open Banking';
   return 'Private example';
 }
 

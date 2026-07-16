@@ -3,6 +3,7 @@
 Purpose: pass or fail the Phase-1 gate from `C:\dev\folio-v2-greenfield\MELO_BLUEPRINT.md` §15 before any product code is written. Ten minutes per person, no design knowledge needed from them, no explaining allowed from you.
 
 **The three questions this test answers (blueprint §14/§15):**
+
 1. Do people instantly understand the Safe Zone reveal?
 2. Does the mascot read ADULT (not childish)?
 3. Does the home screen answer "am I okay?" in under 3 seconds?
@@ -30,52 +31,58 @@ Test on the TESTER'S phone where possible. Portrait. No coaching.
 - If they ask "what should I do?", say: "whatever you'd naturally do."
 - Never say "Safe Zone," "weather," "mascot," or any product term before they do.
 - Write down their words verbatim — especially the wrong ones.
-- One warm-up line only: *"This is an early money app idea. Nothing you do is wrong; I'm testing the app, not you."*
+- One warm-up line only: _"This is an early money app idea. Nothing you do is wrong; I'm testing the app, not you."_
 
 ## 4. The script
 
 **T1 — The Reveal (comprehension).**
-Say: *"Set it up as if you're this person: paid monthly on a set date, £1,450 lands, rent £850, energy, phone."* Let them tap through onboarding themselves. When the big number appears (call it £N), ask:
-- *"In your own words — what is that £N?"*
+Say: _"Set it up as if you're this person: paid monthly on a set date, £1,450 lands, rent £850, energy, phone."_ Let them tap through onboarding themselves. When the big number appears (call it £N), ask:
+
+- _"In your own words — what is that £N?"_
 - ✅ PASS: any version of "what I can actually/safely spend (after bills) until payday."
 - ❌ FAIL: "my balance," "my budget" (vague), "no idea," or reads it as income.
-- Then: *"Where did the app get that number?"* (bonus pass: mentions bills/things taken out first)
+- Then: _"Where did the app get that number?"_ (bonus pass: mentions bills/things taken out first)
 
 **T2 — The Glance (3-second test).**
-From Home, tell them to look away. Say: *"I'll show you the screen for 3 seconds."* Show, hide. Ask:
-- *"Is this person okay this week? How do you know?"*
+From Home, tell them to look away. Say: _"I'll show you the screen for 3 seconds."_ Show, hide. Ask:
+
+- _"Is this person okay this week? How do you know?"_
 - ✅ PASS: correct read + cites the number, the sky/mood, or the creature. Record WHICH signal they cite first (this tells us what's carrying the glance).
 
 **T3 — The Storm (emotional register).**
 Use the ⚙ state chip to switch to **Storm** (do it casually: "imagine a worse week"). Ask:
-- *"How does this screen make you feel?"*
-- *"What would you do next?"*
+
+- _"How does this screen make you feel?"_
+- _"What would you do next?"_
 - ✅ PASS: concerned-but-calm, knows the next move (the plan/action card). Uses words like honest, calm, clear.
 - ❌ FAIL: panicked, "it's telling me off," "I'd close the app," confused.
 
 **T4 — The Creature (adult read).**
 Point at the mascot (any state). Ask:
-- *"Who is this app for? What age?"* then *"What's this character's deal — what's it doing here?"*
+
+- _"Who is this app for? What age?"_ then _"What's this character's deal — what's it doing here?"_
 - ✅ PASS: "adults / people like me"; gets that it reflects the money state ("it's worried because the money's tight").
 - ❌ HARD FAIL: "kids," "like a children's game." One of these = the art direction needs work regardless of other scores.
 
 **T5 — The Habit (afford-check).**
-Say: *"You're about to buy £60 trainers. Show me what you'd do in this app."*
+Say: _"You're about to buy £60 trainers. Show me what you'd do in this app."_
+
 - ✅ PASS: finds the "Can I afford…?" input unprompted, reads the verdict correctly ("£X left after").
-- Note whether they notice/use the Shelf. Then ask: *"Would you actually check this before buying something? Honestly."*
+- Note whether they notice/use the Shelf. Then ask: _"Would you actually check this before buying something? Honestly."_
 
 **Wrap (attitude + pricing).**
-- *"Would you put this on your phone's home screen?"* (the widget/glance proxy)
-- *"Score 1–10: how likely would you be to try this if it existed?"* (≥7 counts toward the gate)
-- *"It's free; a paid version with extras is £4.99/month — gut reaction?"*
-- *"What's missing? What would make you delete it?"*
+
+- _"Would you put this on your phone's home screen?"_ (the widget/glance proxy)
+- _"Score 1–10: how likely would you be to try this if it existed?"_ (≥7 counts toward the gate)
+- _"It's free; a paid version with extras is £4.99/month — gut reaction?"_
+- _"What's missing? What would make you delete it?"_
 
 ## 5. Scorecard (one row per tester)
 
-| # | T1 reveal (P/F) | T1 words used | T2 glance (P/F) | T2 first signal cited | T3 storm feel (calm/panic/judged) | T4 who-for | T4 "kids"? (Y=fail) | T5 found check (P/F) | Would home-screen it? | Try score /10 | £4.99 reaction | Verbatim gold |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | | | | | | | | | | | | |
-| … | | | | | | | | | | | | |
+| #   | T1 reveal (P/F) | T1 words used | T2 glance (P/F) | T2 first signal cited | T3 storm feel (calm/panic/judged) | T4 who-for | T4 "kids"? (Y=fail) | T5 found check (P/F) | Would home-screen it? | Try score /10 | £4.99 reaction | Verbatim gold |
+| --- | --------------- | ------------- | --------------- | --------------------- | --------------------------------- | ---------- | ------------------- | -------------------- | --------------------- | ------------- | -------------- | ------------- |
+| 1   |                 |               |                 |                       |                                   |            |                     |                      |                       |               |                |               |
+| …   |                 |               |                 |                       |                                   |            |                     |                      |                       |               |                |               |
 
 **Gate math after 10:** T1 pass ≥8 · try-score ≥7 for ≥7 people · T4 "kids" count = 0 · T3 calm ≥8. All four → Phase 2 green. Any miss → fix the failing surface in the prototype and re-run 5 fresh testers before writing product code (per §15: the prototype exists so this costs ~£0).
 

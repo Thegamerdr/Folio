@@ -16,9 +16,11 @@
 
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import type { WorkspaceId } from '@folio/domain';
 
 import { consumeLoadDegraded, hydrateFromBlob } from '@/folio/store';
 import { reconcileEntitlements } from '@/folio/lib/billing/entitlements';
+import { reconcileMissingEvidenceFiles } from '@/folio/lib/persist';
 
 import { summarizeRestore, validateRestoreJson } from './restore';
 import type { RestoreRejection, RestoreSummary } from './restore';
@@ -34,7 +36,7 @@ export type PickRestoreResult =
  * Folio export. Returns a STAGED payload (plus the summary the confirm sheet
  * shows) — the caller must confirm with the user before `applyRestore`.
  */
-export async function pickRestoreFile(): Promise<PickRestoreResult> {
+export async function pickRestoreFile(workspaceId: WorkspaceId): Promise<PickRestoreResult> {
   // JSON mime plus octet-stream: share/download chains (email attachments,
   // some file managers) strip or rewrite the JSON mime type, and the envelope
   // validation is the real gate — the picker filter is only a convenience.
@@ -50,7 +52,7 @@ export async function pickRestoreFile(): Promise<PickRestoreResult> {
     encoding: FileSystem.EncodingType.UTF8,
   });
 
-  const validation = validateRestoreJson(raw);
+  const validation = validateRestoreJson(raw, workspaceId);
   if (!validation.ok) return { status: 'invalid', reason: validation.reason };
 
   return {
@@ -76,9 +78,15 @@ export type ApplyRestoreResult = Readonly<{
  * flag, then reconciles purchase entitlements against the restored lens flags
  * (same ordering as app boot: hydrate first, entitlements after).
  */
-export async function applyRestore(raw: string): Promise<ApplyRestoreResult> {
-  hydrateFromBlob(raw);
+export async function applyRestore(
+  raw: string,
+  workspaceId: WorkspaceId,
+): Promise<ApplyRestoreResult> {
+  const validation = validateRestoreJson(raw, workspaceId);
+  if (!validation.ok) throw new Error('This backup cannot replace the selected Melo workspace.');
+  hydrateFromBlob(raw, workspaceId);
   const degraded = consumeLoadDegraded();
+  if (!degraded) await reconcileMissingEvidenceFiles(workspaceId);
   await reconcileEntitlements();
   return { degraded };
 }

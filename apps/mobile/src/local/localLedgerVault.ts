@@ -1,7 +1,14 @@
 ﻿import { buildLocalRouteSummary, type LocalLedgerState } from './localLedger.js';
 
-export const localLedgerWorkspaceId = 'workspace_personal_local';
+import { createWorkspaceId, type WorkspaceId } from '@folio/domain';
+
+export const localLedgerWorkspaceId = createWorkspaceId('workspace_personal_local');
 export const localLedgerSchemaVersion = 'folio-mobile-local-ledger-v1';
+
+/** Validate an explicit local-ledger owner; physical provisioning is handled by native storage. */
+export function requireLocalLedgerWorkspaceId(workspaceId: WorkspaceId): WorkspaceId {
+  return createWorkspaceId(String(workspaceId));
+}
 
 export type LocalLedgerVaultTable = Readonly<{
   name: string;
@@ -90,7 +97,9 @@ export function createLocalLedgerDataVersion(state: LocalLedgerState): string {
 export function createLocalLedgerPortableVault(
   state: LocalLedgerState,
   exportedAt = new Date('2026-06-21T12:00:00.000Z'),
+  workspaceId: WorkspaceId = localLedgerWorkspaceId,
 ): LocalLedgerVaultEnvelope {
+  const checkedWorkspaceId = requireLocalLedgerWorkspaceId(workspaceId);
   const route = buildLocalRouteSummary(state);
   const dataVersion = createLocalLedgerDataVersion(state);
 
@@ -103,8 +112,9 @@ export function createLocalLedgerPortableVault(
     tables: [
       createLocalVaultTable('workspaces', [
         {
-          id: localLedgerWorkspaceId,
-          name: 'Personal',
+          id: checkedWorkspaceId,
+          name:
+            String(checkedWorkspaceId) === String(localLedgerWorkspaceId) ? 'Personal' : 'Business',
           currency: state.currency,
           as_of_date: state.asOfDate,
           cash_on_hand_minor: state.cashOnHandMinor,
@@ -113,7 +123,7 @@ export function createLocalLedgerPortableVault(
       createLocalVaultTable(
         'transactions',
         state.transactions.map((transaction) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           id: transaction.id,
           title: transaction.title,
           amount_minor: transaction.amountMinor,
@@ -128,7 +138,7 @@ export function createLocalLedgerPortableVault(
       createLocalVaultTable(
         'import_drafts',
         state.importDrafts.map((draft) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           row_id: draft.rowId,
           transaction_id: draft.transactionId,
           original: draft.original,
@@ -148,7 +158,7 @@ export function createLocalLedgerPortableVault(
       createLocalVaultTable(
         'rejected_imports',
         state.rejectedImports.map((rejected) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           row_id: rejected.rowId,
           transaction_id: rejected.transactionId,
           original: rejected.original,
@@ -172,7 +182,7 @@ export function createLocalLedgerPortableVault(
       createLocalVaultTable(
         'document_stages',
         state.documentStages.map((stage) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           id: stage.id,
           filename: stage.filename,
           media_type: stage.mediaType,
@@ -184,7 +194,7 @@ export function createLocalLedgerPortableVault(
       ),
       createLocalVaultTable('forecast_snapshots', [
         {
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           kind: 'today',
           data_version: dataVersion,
           available_now_minor: route.availableNowMinor,
@@ -198,7 +208,7 @@ export function createLocalLedgerPortableVault(
       ]),
       createLocalVaultTable('search_index', [
         ...state.transactions.map((transaction) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           entity_type: 'transaction',
           entity_id: transaction.id,
           title: transaction.title,
@@ -206,7 +216,7 @@ export function createLocalLedgerPortableVault(
           tags: `${transaction.source} ${transaction.status}`,
         })),
         ...state.importDrafts.map((draft) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           entity_type: 'import_draft',
           entity_id: draft.rowId,
           title: draft.interpretation,
@@ -214,7 +224,7 @@ export function createLocalLedgerPortableVault(
           tags: `${draft.authorityState} ${draft.reviewState} ${draft.status}`,
         })),
         ...state.rejectedImports.map((rejected) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           entity_type: 'rejected_import',
           entity_id: rejected.rowId,
           title: rejected.interpretation,
@@ -222,7 +232,7 @@ export function createLocalLedgerPortableVault(
           tags: `evidence history ${rejected.status} ${rejected.rejectionReason}`,
         })),
         ...state.documentStages.map((stage) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           entity_type: 'document_stage',
           entity_id: stage.id,
           title: stage.filename,
@@ -233,7 +243,7 @@ export function createLocalLedgerPortableVault(
       createLocalVaultTable(
         'audit_log',
         state.history.map((entry) => ({
-          workspace_id: localLedgerWorkspaceId,
+          workspace_id: checkedWorkspaceId,
           id: entry.id,
           command_type: entry.kind,
           actor_kind: entry.kind === 'import_suggested' ? 'local_melo' : 'user',
@@ -247,6 +257,7 @@ export function createLocalLedgerPortableVault(
 
 export function validateLocalLedgerVault(
   input: LocalLedgerVaultEnvelope,
+  expectedWorkspaceId?: WorkspaceId,
 ): LocalLedgerVaultValidation {
   const issues: string[] = [];
   if (input.format !== 'folio.mobile_local_vault') {
@@ -264,6 +275,25 @@ export function validateLocalLedgerVault(
   if (Number.isNaN(Date.parse(input.exportedAt))) {
     issues.push('Local vault exportedAt must be an ISO date string.');
   }
+  const workspaceRows = input.tables.find((table) => table.name === 'workspaces')?.rows ?? [];
+  const rawWorkspaceId = workspaceRows.length === 1 ? workspaceRows[0]?.['id'] : undefined;
+  let vaultWorkspaceId: WorkspaceId | undefined;
+  if (typeof rawWorkspaceId !== 'string') {
+    issues.push('Local vault must contain exactly one valid workspace row.');
+  } else {
+    try {
+      vaultWorkspaceId = requireLocalLedgerWorkspaceId(createWorkspaceId(rawWorkspaceId));
+    } catch {
+      issues.push('Local vault workspace ID is invalid.');
+    }
+  }
+  if (
+    expectedWorkspaceId !== undefined &&
+    vaultWorkspaceId !== undefined &&
+    String(vaultWorkspaceId) !== String(requireLocalLedgerWorkspaceId(expectedWorkspaceId))
+  ) {
+    issues.push('Local vault belongs to a different workspace.');
+  }
   for (const table of input.tables) {
     if (table.rowCount !== table.rows.length) {
       issues.push(`Local vault table ${table.name} rowCount is inconsistent.`);
@@ -272,7 +302,10 @@ export function validateLocalLedgerVault(
       issues.push(`Local vault table ${table.name} checksum is missing.`);
     }
     for (const row of table.rows) {
-      if (row.workspace_id !== undefined && row.workspace_id !== localLedgerWorkspaceId) {
+      if (
+        row.workspace_id !== undefined &&
+        (vaultWorkspaceId === undefined || String(row.workspace_id) !== String(vaultWorkspaceId))
+      ) {
         issues.push(`Local vault table ${table.name} has a row outside the local workspace.`);
         break;
       }
@@ -285,8 +318,11 @@ export function validateLocalLedgerVault(
   };
 }
 
-export function summariseLocalLedgerVault(state: LocalLedgerState): LocalLedgerVaultSummary {
-  const vault = createLocalLedgerPortableVault(state);
+export function summariseLocalLedgerVault(
+  state: LocalLedgerState,
+  workspaceId: WorkspaceId = localLedgerWorkspaceId,
+): LocalLedgerVaultSummary {
+  const vault = createLocalLedgerPortableVault(state, undefined, workspaceId);
   const tableRows = new Map(vault.tables.map((table) => [table.name, table.rowCount]));
 
   return {
@@ -298,7 +334,7 @@ export function summariseLocalLedgerVault(state: LocalLedgerState): LocalLedgerV
     documentStageRows: tableRows.get('document_stages') ?? 0,
     historyRows: tableRows.get('audit_log') ?? 0,
     searchRows: tableRows.get('search_index') ?? 0,
-    validation: validateLocalLedgerVault(vault),
+    validation: validateLocalLedgerVault(vault, workspaceId),
   };
 }
 

@@ -880,20 +880,22 @@ describe('setCashOnHand — updating the money you have now', () => {
   });
 });
 
-describe('buildMeloSnapshotFromLocalState — names for tolerant matching', () => {
-  it('includes the user’s subscription and pot names so Melo can echo them exactly', () => {
+describe('buildMeloSnapshotFromLocalState — aggregate-only privacy boundary', () => {
+  it('includes subscription totals without subscription or pot names', () => {
     let state = createEmptyLocalLedgerState('2026-06-22');
     state = createSubscription(state, { name: 'Netflix', costMinor: 1099, cadence: 'monthly' });
     state = createPot(state, { name: 'Holiday', goalMinor: 50_000, perWeekMinor: 2_000 });
     const snapshot = buildMeloSnapshotFromLocalState(state);
 
-    expect(snapshot.subscriptionNames).toContain('Netflix');
-    expect(snapshot.potNames).toContain('Holiday');
+    expect(snapshot.subscriptionCount).toBe(1);
+    expect(snapshot.activeSubscriptionMonthlyMinor).toBe(1099);
+    expect(JSON.stringify(snapshot)).not.toContain('Netflix');
+    expect(JSON.stringify(snapshot)).not.toContain('Holiday');
   });
 
-  it('returns empty name lists when there are no subscriptions or pots', () => {
+  it('returns zero aggregate subscription context when there are no subscriptions', () => {
     const snapshot = buildMeloSnapshotFromLocalState(createEmptyLocalLedgerState('2026-06-22'));
-    expect(snapshot.subscriptionNames).toEqual([]);
-    expect(snapshot.potNames).toEqual([]);
+    expect(snapshot.subscriptionCount).toBe(0);
+    expect(snapshot.activeSubscriptionMonthlyMinor).toBe(0);
   });
 });

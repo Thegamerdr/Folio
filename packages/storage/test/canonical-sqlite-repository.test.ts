@@ -5,19 +5,23 @@ import {
   createBalanceAdjustment,
   createBalanceObservation,
   createCalendarItemId,
+  createCompanionRuntimeStateId,
   createCommitmentId,
   createCurrencyCode,
   createCurrentBalance,
   createDecisionRecordId,
+  createDebtId,
   createDocumentAttachment,
   createDocumentAttachmentId,
   createDocumentId,
   createEntityVersion,
   createEventId,
   createExpectationId,
+  createFinancialContextId,
   createForecastId,
   createImportedClaim,
   createImportedClaimId,
+  createIncomeScheduleId,
   createImportDraftId,
   createInstantString,
   createLocalDate,
@@ -32,10 +36,16 @@ import {
   createPlanRule,
   createPlanRuleId,
   createPlannerItemId,
+  createPotId,
+  createPotLedgerEntryId,
   createProvenanceId,
   createScenarioId,
   createSourceRecordId,
+  createSubscriptionId,
+  createSubscriptionPreferenceId,
+  createCycleRecordId,
   createTimelineEntryId,
+  createTransactionIntelligenceStateId,
   createTransaction,
   createUserCorrection,
   createUserCorrectionId,
@@ -79,9 +89,11 @@ import {
   applyCanonicalSqliteRepositoryMigrations,
   canonicalLocalRepositorySchema,
   canonicalSqliteCollectionTables,
+  createCompactAuditDelta,
   InMemoryDatabaseDriver,
   migrateCanonicalSnapshotToSqliteRepository,
   openSqliteCanonicalRepository,
+  runAtomicCommand,
   type CanonicalRepositorySnapshot,
   type CanonicalSqliteWriteEvent,
 } from '../src/index.js';
@@ -105,10 +117,10 @@ describe('canonical SQLite repository', () => {
       now: () => new Date('2026-06-22T10:00:00.000Z'),
     });
 
-    expect(firstPlan.pending).toHaveLength(4);
+    expect(firstPlan.pending).toHaveLength(8);
     expect(secondPlan.pending).toHaveLength(0);
     expect(driver.appliedMigrations).toEqual([]);
-    expect(driver.canonicalRepositoryAppliedMigrations).toHaveLength(4);
+    expect(driver.canonicalRepositoryAppliedMigrations).toHaveLength(8);
   });
 
   it('round-trips every canonical collection through SQLite tables', async () => {
@@ -158,6 +170,323 @@ describe('canonical SQLite repository', () => {
     expect(driver.canonicalTableEntries(canonicalSqliteCollectionTables.transactions)).toHaveLength(
       1,
     );
+  });
+
+  it('round-trips durable money containers through their first-class SQLite tables', async () => {
+    const driver = new InMemoryDatabaseDriver();
+    const base = createBaseRecords(personalWorkspaceId);
+    const potId = createPotId('pot_sqlite_buffer');
+    const snapshot = createSnapshot(personalWorkspaceId, base, {
+      pots: [
+        {
+          id: potId,
+          workspaceId: personalWorkspaceId,
+          sourcePotId: 'source-pot',
+          sourceOrdinal: 0,
+          name: 'Buffer',
+          goal: createMoney({ minorUnits: 50_000, currency: gbp }),
+          saved: createMoney({ minorUnits: 12_345, currency: gbp }),
+          perWeek: createMoney({ minorUnits: 2_500, currency: gbp }),
+          accent: true,
+          cadence: { kind: 'after-payday' },
+          allowNegative: true,
+          version,
+        },
+      ],
+      potLedgerEntries: [
+        {
+          id: createPotLedgerEntryId('potledger_sqlite_one'),
+          workspaceId: personalWorkspaceId,
+          potId,
+          sourceEntryId: 'source-entry',
+          sourcePotId: 'source-pot',
+          sourceOrdinal: 0,
+          sourceOccurredAt: String(now),
+          occurredAt: now,
+          kind: 'deposit',
+          amount: createMoney({ minorUnits: 1_000, currency: gbp }),
+          source: 'manual',
+          version,
+        },
+      ],
+      subscriptions: [
+        {
+          id: createSubscriptionId('subscription_sqlite_one'),
+          workspaceId: personalWorkspaceId,
+          sourceName: 'Studio plan',
+          sourceOrdinal: 0,
+          name: 'Studio plan',
+          cost: createMoney({ minorUnits: 1_234, currency: gbp }),
+          cadence: 'fortnightly',
+          nextRenewalDaysAway: 4,
+          nextRenewalISO: '2026-06-26',
+          renewalPeriodDays: 14,
+          lastUsedDaysAgo: 2,
+          usesPerMonth: 8,
+          trialEndsInDays: 1,
+          paused: true,
+          version,
+        },
+      ],
+      subscriptionPreferences: [
+        {
+          id: createSubscriptionPreferenceId('subpref_sqlite_one'),
+          workspaceId: personalWorkspaceId,
+          sourceName: 'Studio plan',
+          paused: true,
+          overrideDays: 2,
+          version,
+        },
+      ],
+      cycleRecords: [
+        {
+          id: createCycleRecordId('cycle_sqlite_one'),
+          workspaceId: personalWorkspaceId,
+          sourceOrdinal: 0,
+          sourceClosedAt: '2026-06-22',
+          closedAt: now,
+          label: 'June',
+          spare: createMoney({ minorUnits: 10_000, currency: gbp }),
+          tightPoint: createMoney({ minorUnits: 2_000, currency: gbp }),
+          setAside: createMoney({ minorUnits: 4_000, currency: gbp }),
+          note: 'Held the line.',
+          reconstructed: true,
+          version,
+        },
+      ],
+      debts: [
+        {
+          id: createDebtId('debt_sqlite_card'),
+          workspaceId: personalWorkspaceId,
+          sourceDebtId: 'source-debt',
+          sourceOrdinal: 0,
+          name: 'Card',
+          kind: 'card',
+          balance: createMoney({ minorUnits: 120_000, currency: gbp }),
+          apr: 24.9,
+          minimumPayment: createMoney({ minorUnits: 4_500, currency: gbp }),
+          dueDayOfMonth: 28,
+          sourceAddedAt: String(now),
+          addedAt: now,
+          linkedSourceAccountId: 'acct-card',
+          version,
+        },
+      ],
+      financialContexts: [
+        {
+          id: createFinancialContextId('financialcontext_sqlite_active'),
+          workspaceId: personalWorkspaceId,
+          onboarding: {
+            done: true,
+            name: 'Avery',
+            payday: 27,
+            monthlyIncome: createMoney({ minorUnits: 245_678, currency: gbp }),
+          },
+          nextYouNote: 'Keep the buffer intact.',
+          tightPointGoal: createMoney({ minorUnits: 15_000, currency: gbp }),
+          droppedTransactionCount: 7,
+          moneyMode: 'household',
+          bufferAmount: createMoney({ minorUnits: 32_100, currency: gbp }),
+          modeExtras: {
+            debt: createMoney({ minorUnits: 11_000, currency: gbp }),
+          },
+          household: {
+            partnerName: 'Morgan',
+            defaultShare: 0.6,
+            subShareOverrides: { 'Studio plan': 0.75 },
+          },
+          version,
+        },
+      ],
+      incomeSchedules: [
+        {
+          id: createIncomeScheduleId('incomeschedule_sqlite_salary'),
+          workspaceId: personalWorkspaceId,
+          sourceIncomeId: 'salary-source',
+          sourceOrdinal: 0,
+          label: 'Main pay',
+          cadence: 'monthly',
+          dayOfMonth: 27,
+          amount: createMoney({ minorUnits: 245_678, currency: gbp }),
+          source: 'manual',
+          version,
+        },
+      ],
+      transactionIntelligenceStates: [
+        {
+          id: createTransactionIntelligenceStateId('transactionintelligence_sqlite_active'),
+          workspaceId: personalWorkspaceId,
+          corrections: [
+            {
+              id: 'edit-private',
+              sourceTransactionId: 'transaction-private',
+              field: 'merchant',
+              before: 'Private old merchant',
+              after: 'Private new merchant',
+              at: String(now),
+              by: 'user',
+            },
+          ],
+          ignoredReviewSignatures: ['private|-1234|2026-06-22'],
+          ignoredBankExternalIds: ['neutral-private'],
+          dismissedIncomeSignals: ['private employer'],
+          dismissedBillSignals: ['private utility'],
+          dismissedDriftSignals: [{ merchant: 'private rail', at: String(now) }],
+          dismissedAnnualSignals: ['private annual'],
+          merchantCategories: {
+            'private merchant': { category: 'bills', correctedAt: String(now), hits: 2 },
+          },
+          statementImports: [
+            {
+              id: 'import-private',
+              source: 'pdf',
+              rowCount: 9,
+              atISO: String(now),
+              filename: 'private.pdf',
+              sourceEvidenceId: 'evidence-private',
+            },
+          ],
+          evidenceDocuments: [
+            {
+              id: 'evidence-private',
+              filename: 'private.pdf',
+              mediaType: 'application/pdf',
+              byteSize: 123,
+              addedAtISO: String(now),
+              sourceType: 'document',
+              extractionStatus: 'read',
+              storageState: 'encrypted-device-vault',
+            },
+          ],
+          timelineEvents: [
+            {
+              id: 'timeline-private',
+              at: String(now),
+              kind: 'review-ignored',
+              subject: 'Private subject',
+              note: 'Private note',
+            },
+          ],
+          reviewQueue: [
+            {
+              id: 'review-private',
+              source: 'bank',
+              merchant: 'Private proposal',
+              amount: -45.67,
+              addedAt: String(now),
+              externalId: 'neutral-review-private',
+            },
+          ],
+          reviewQueueSpillover: [],
+          version,
+        },
+      ],
+      companionRuntimeStates: [
+        {
+          id: createCompanionRuntimeStateId('companionruntime_sqlite_active'),
+          workspaceId: personalWorkspaceId,
+          aiReads: { monthKey: '2026-06', used: 2 },
+          aiReadCache: {
+            private: {
+              candidates: [
+                {
+                  id: 'candidate-private',
+                  source: 'pdf',
+                  kind: 'bill',
+                  merchant: 'Private utility',
+                  amount: -12.34,
+                  confidence: 'medium',
+                },
+              ],
+              closingBalance: { amount: 1_234.56, asOfISO: String(now) },
+              at: String(now),
+            },
+          },
+          whatChangedSeenISO: String(now),
+          lens: {
+            plusUnlocked: true,
+            proUnlocked: true,
+            trialCycleId: null,
+            trialEndedCycleId: null,
+            trialEndAcknowledged: true,
+          },
+          melo: { quietMode: true, wardrobe: ['touch-private'], tone: 'dry' },
+          tinyWins: [
+            {
+              id: 'win-private',
+              kind: 'first-sub-caught',
+              awardedAt: String(now),
+              message: 'Handled it.',
+            },
+          ],
+          version,
+        },
+      ],
+    });
+
+    await migrateCanonicalSnapshotToSqliteRepository(driver, snapshot);
+    const reloaded = await openSqliteCanonicalRepository(driver, personalWorkspaceId);
+
+    await expect(reloaded.snapshot()).resolves.toMatchObject({
+      collections: {
+        pots: snapshot.collections.pots,
+        potLedgerEntries: snapshot.collections.potLedgerEntries,
+        subscriptions: snapshot.collections.subscriptions,
+        subscriptionPreferences: snapshot.collections.subscriptionPreferences,
+        cycleRecords: snapshot.collections.cycleRecords,
+        debts: snapshot.collections.debts,
+        financialContexts: snapshot.collections.financialContexts,
+        incomeSchedules: snapshot.collections.incomeSchedules,
+        transactionIntelligenceStates: snapshot.collections.transactionIntelligenceStates,
+        companionRuntimeStates: snapshot.collections.companionRuntimeStates,
+      },
+    });
+  });
+
+  it('preserves typed command audits when a later canonical snapshot refreshes its own rows', async () => {
+    const driver = new InMemoryDatabaseDriver();
+    const base = createBaseRecords(personalWorkspaceId);
+    const snapshot = createSnapshot(personalWorkspaceId, base);
+    await migrateCanonicalSnapshotToSqliteRepository(driver, snapshot);
+
+    await runAtomicCommand(
+      driver,
+      {
+        type: 'folio.transaction.record.v1',
+        input: { commandId: 'typed-audit-preservation' },
+        actor: { kind: 'user' },
+        workspaceId: personalWorkspaceId,
+      },
+      async () => ({
+        result: null,
+        changedEntityIds: ['transaction-preserved'],
+        audit: {
+          entityRefs: [{ type: 'transaction', id: 'transaction-preserved' }],
+          delta: createCompactAuditDelta({
+            after: { transaction: { merchant: 'Private value', amount: -12.34 } },
+          }),
+        },
+      }),
+      {
+        idFactory: () => 'typed-audit-preservation',
+        now: () => new Date('2026-06-22T11:00:00.000Z'),
+      },
+    );
+
+    await migrateCanonicalSnapshotToSqliteRepository(driver, snapshot);
+    const stored = driver.auditEntries.filter(
+      (row) =>
+        row.workspace_id === personalWorkspaceId &&
+        row.command_type === 'folio.transaction.record.v1',
+    );
+
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({
+      id: 'typed-audit-preservation',
+      command_type: 'folio.transaction.record.v1',
+    });
+    expect(stored[0]?.delta_json).not.toContain('Private value');
+    expect(stored[0]?.delta_json).not.toContain('-12.34');
   });
 
   it('rolls back partial composite writes so provenance, audit and decisions stay atomic', async () => {
@@ -344,6 +673,16 @@ function createSnapshot(
       timelineEntries: [base.timelineEntry],
       meloMemory: [base.memory],
       meloProposals: [base.proposal],
+      pots: [],
+      potLedgerEntries: [],
+      subscriptions: [],
+      subscriptionPreferences: [],
+      cycleRecords: [],
+      debts: [],
+      financialContexts: [],
+      incomeSchedules: [],
+      transactionIntelligenceStates: [],
+      companionRuntimeStates: [],
       auditLog: [base.auditEntry],
       ...overrides,
     },

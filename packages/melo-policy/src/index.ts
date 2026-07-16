@@ -132,7 +132,11 @@ const escalationTriggerPatterns: readonly Readonly<{
     trigger: 'tax_eligibility_ambiguity',
     regex: /\b(?:am i eligible|can i claim|tax deductible)\b/i,
   },
-  { trigger: 'immediate_crisis', regex: /\b(?:can't eat|cannot eat|unsafe|emergency)\b/i },
+  {
+    trigger: 'immediate_crisis',
+    regex:
+      /\b(?:can't eat|cannot eat|unsafe|immediate danger|need emergency help|emergency (?:food|housing|support)|this is an emergency)\b/i,
+  },
 ];
 
 export function classifyAdviceLanguage(text: string): AdviceLanguageClassification {

@@ -1,34 +1,26 @@
-// The reschedule loop — subscribes to store changes (via `subscribeStore`, the store's own
-// non-React change seam, exactly like `lib/persist.ts` does) and, on every change, re-derives the
-// notification plan and reschedules local notifications. Self-contained: does not edit `store.ts`,
-// only reads it (`getState`, `subscribeStore` — both already exported for this purpose).
-//
-// Respects:
-//   • `state.melo.quietMode` (store, read-only) — the Melo companion's own "quiet mode" setting.
-//     When on, this bridge treats it the same as the reminders toggle being off: no scheduling.
-//   • `remindersEnabled` (./notifySettings, this lane's own persisted setting) — the user's
-//     explicit reminders on/off choice, surfaced on MoreScreen.
-//   • The engine's own quiet-hours + daily budget (`inQuietHours`, `DAILY_BUDGET` inside
-//     `planNotification` itself) — this hook does not duplicate that logic, it only supplies
-//     `hour`/`sentToday`/`dangerSentToday` and lets the engine decide.
-//
-// Debounced like `persist.ts`'s write-on-change (a burst of store writes recomputes the route once,
-// not once per write) — reuses the exact same pure debounce helper.
+// Store-driven local notification reconciler. It keeps the user's explicit calendar reminders in
+// sync with real event dates and emits at most one privacy-policy-aware Melo transition. Scheduling
+// is serialized so a burst of store writes cannot race two cancel/rebuild passes.
 
 import { planNotification } from '@folio/melo-engine';
 import type { PlannedNotification } from '@folio/melo-engine';
 
 import { getState, subscribeStore } from '../store';
+import { buildCalendarReminderRequests } from './calendarReminders';
+import { buildInsightNotificationRequest } from './notificationRequests';
 import { routeFromStore } from './storeRoute';
-import { deriveNotifyInputs, snapshotFromRoute, type NotifySnapshot } from './notifyState';
+import { deriveNotifyInputs, snapshotFromRoute } from './notifyState';
 import { loadRemindersSettings } from './notifySettings';
-import { reschedule } from './notifications';
+import {
+  EMPTY_NOTIFY_RUNTIME_STATE,
+  loadNotifyRuntimeState,
+  saveNotifyRuntimeState,
+  type NotifyRuntimeState,
+} from './notifyRuntimeState';
+import { cancelAll, replaceOwnedNotifications } from './notifications';
 
 const RESCHEDULE_DEBOUNCE_MS = 600;
 
-// Mirrors `lib/persist.ts` `makeDebounced` exactly (kept as its own copy — see that file's own
-// comment on why this one small helper is duplicated rather than shared: it is trivial, pure, and
-// each caller owns its own cancel lifecycle without an extra shared-module dependency).
 function makeDebounced(fn: () => void, ms: number): { run: () => void; cancel: () => void } {
   let handle: ReturnType<typeof setTimeout> | null = null;
   const cancel = () => {
@@ -47,92 +39,106 @@ function makeDebounced(fn: () => void, ms: number): { run: () => void; cancel: (
   return { run, cancel };
 }
 
-/** Day-scoped counters for the engine's daily budget. Reset whenever the local calendar day
- *  changes. This process-lifetime-only counter is intentionally simple: the engine's budget is a
- *  soft "don't spam today" rule, not a hard cross-restart guarantee. */
-let countersDay = '';
-let sentToday = 0;
-let dangerSentToday = 0;
-
-function rolloverCountersIfNewDay(now: Date): void {
-  const today = now.toISOString().slice(0, 10);
-  if (today !== countersDay) {
-    countersDay = today;
-    sentToday = 0;
-    dangerSentToday = 0;
-  }
+function localDayKey(now: Date): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+    now.getDate(),
+  ).padStart(2, '0')}`;
 }
 
-function recordSent(plan: PlannedNotification | null): void {
-  if (plan === null) return;
-  sentToday += 1;
-  if (plan.key === 'dangerEntered') dangerSentToday += 1;
+function rolloverRuntime(runtime: NotifyRuntimeState, now: Date): NotifyRuntimeState {
+  const today = localDayKey(now);
+  return runtime.localDay === today
+    ? runtime
+    : { ...runtime, localDay: today, sentToday: 0, dangerSentToday: 0 };
 }
 
-let lastSnapshot: NotifySnapshot | null = null;
+function withRecordedDelivery(
+  runtime: NotifyRuntimeState,
+  plan: PlannedNotification,
+): NotifyRuntimeState {
+  return {
+    ...runtime,
+    sentToday: runtime.sentToday + 1,
+    dangerSentToday: runtime.dangerSentToday + (plan.key === 'dangerEntered' ? 1 : 0),
+  };
+}
+
+const runtimeStateByWorkspace = new Map<string, NotifyRuntimeState>();
+let recomputeQueue: Promise<void> = Promise.resolve();
 
 async function recomputeAndReschedule(): Promise<void> {
-  try {
-    const state = getState();
-    const quietMode = state.melo?.quietMode ?? false;
-    if (quietMode) {
-      await reschedule([]);
-      return;
-    }
+  const appState = getState();
+  const workspaceId = appState.activeWorkspaceId;
+  const workspaceKey = String(workspaceId);
+  const now = new Date();
+  const settings = await loadRemindersSettings();
+  const route = routeFromStore(appState, now);
+  const nextSnapshot = snapshotFromRoute(appState, route, now);
 
-    const settings = await loadRemindersSettings();
-    if (!settings.remindersEnabled) {
-      await reschedule([]);
-      return;
-    }
+  let runtimeState = rolloverRuntime(
+    runtimeStateByWorkspace.get(workspaceKey) ??
+      (await loadNotifyRuntimeState(workspaceId)) ??
+      EMPTY_NOTIFY_RUNTIME_STATE,
+    now,
+  );
+  const previousSnapshot = runtimeState.lastSnapshot;
+  runtimeState = { ...runtimeState, lastSnapshot: nextSnapshot };
+  runtimeStateByWorkspace.set(workspaceKey, runtimeState);
+  // Save the transition baseline before native scheduling. A process death can lose a delivery
+  // count, but it must never replay a sensitive transition simply because the app restarted.
+  await saveNotifyRuntimeState(workspaceId, runtimeState);
 
-    const now = new Date();
-    rolloverCountersIfNewDay(now);
+  if (!settings.remindersEnabled || (appState.melo?.quietMode ?? false)) {
+    await cancelAll(workspaceId);
+    return;
+  }
 
-    const route = routeFromStore(state, now);
-    const nextSnapshot = snapshotFromRoute(state, route, now);
-    const built = deriveNotifyInputs(state, route, lastSnapshot, nextSnapshot, now, {
-      sentToday,
-      dangerSentToday,
-    });
-    lastSnapshot = nextSnapshot;
+  const calendarRequests = buildCalendarReminderRequests(
+    workspaceId,
+    appState.calendarEvents,
+    settings,
+    now,
+  );
+  await replaceOwnedNotifications(workspaceId, 'calendar', calendarRequests);
 
-    if (built === null) {
-      await reschedule([]);
-      return;
-    }
+  // A first run establishes a baseline. Current state is not a change and must not become a cold
+  // start notification (the old `prev === null` path incorrectly announced danger on restart).
+  if (previousSnapshot === null) return;
 
-    const planned = planNotification(built.inputs, built.ctx);
-    recordSent(planned);
-    await reschedule(planned ? [planned] : []);
-  } catch {
-    /* best-effort — never blocks/crashes the lane. */
+  const built = deriveNotifyInputs(appState, route, previousSnapshot, nextSnapshot, now, {
+    sentToday: runtimeState.sentToday,
+    dangerSentToday: runtimeState.dangerSentToday,
+  });
+  if (built === null) return;
+
+  const planned = planNotification({ ...built.inputs, quietHours: settings.quietHours }, built.ctx);
+  if (planned === null) return;
+  const request = buildInsightNotificationRequest(workspaceId, planned, settings, now);
+  if (request === null) return;
+
+  const scheduled = await replaceOwnedNotifications(workspaceId, 'insight', [request]);
+  if (scheduled > 0) {
+    runtimeState = withRecordedDelivery(runtimeState, planned);
+    runtimeStateByWorkspace.set(workspaceKey, runtimeState);
+    await saveNotifyRuntimeState(workspaceId, runtimeState);
   }
 }
 
-/**
- * Start the scheduler: recomputes once immediately, then again on every debounced store change.
- * Returns an unsubscribe function that cancels any pending recompute. Call once, at app mount
- * (alongside `startPersisting()` in `app/index.tsx`), AFTER `loadPersisted()` so the first
- * recompute sees the user's real hydrated state, not fresh defaults.
- */
+function queueRecompute(): void {
+  recomputeQueue = recomputeQueue.then(recomputeAndReschedule).catch(() => undefined);
+}
+
 export function startNotificationScheduler(): () => void {
-  const debounced = makeDebounced(() => {
-    void recomputeAndReschedule();
-  }, RESCHEDULE_DEBOUNCE_MS);
-
-  void recomputeAndReschedule(); // initial plan, un-debounced.
+  const debounced = makeDebounced(queueRecompute, RESCHEDULE_DEBOUNCE_MS);
+  queueRecompute();
   const unsubscribe = subscribeStore(debounced.run);
-
   return () => {
     debounced.cancel();
     unsubscribe();
   };
 }
 
-/** Exposed for MoreScreen's Reminders row: force an immediate recompute after the user flips the
- *  reminders toggle or grants permission, so the UI/state feels responsive rather than waiting for
- *  the next store write. */
+/** Explicit UI seam after a settings change or newly-created reminder. */
 export function forceRescheduleNow(): void {
-  void recomputeAndReschedule();
+  queueRecompute();
 }

@@ -75,14 +75,14 @@ not silently duplicated further.
 
 ## 1. Program phases (owner-ordered, execute in sequence)
 
-| Phase | Name | One-line target |
-|---|---|---|
-| ① | Income-source cadence model | `incomeSources[]` at the `deriveCalendarEvents`/`routeFromStore` choke point — replace day-of-month-only payday with real cadence (weekly/fortnightly/4-weekly/monthly) |
-| ② | Salary inference from statement credits | Detect recurring income from statement credit clustering (mirrors existing debit-clustering engine) |
-| ③ | Merchant→category memory | Persist user category corrections so re-imports stop re-asking the same question |
-| ④ | Historic cycle synthesis + transaction-cap lift | Reconstruct `CycleRecord`-shaped history from bulk-imported transactions; remove the silent 200-row cap that currently destroys bulk backfills |
-| ⑤ | Caught-bills + weekly-cadence unlock | Extend the shipped `caughtSubs.ts` pattern to bills, and un-hardcode `SHEET_CADENCE` so weekly-cadence detections aren't thrown away |
-| ⑥ | History-fed forecasts | Irregular-mode percentile math, category spend baselines, bill-drift detection — all fed by accumulated history instead of single-snapshot state |
+| Phase | Name                                            | One-line target                                                                                                                                                         |
+| ----- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ①     | Income-source cadence model                     | `incomeSources[]` at the `deriveCalendarEvents`/`routeFromStore` choke point — replace day-of-month-only payday with real cadence (weekly/fortnightly/4-weekly/monthly) |
+| ②     | Salary inference from statement credits         | Detect recurring income from statement credit clustering (mirrors existing debit-clustering engine)                                                                     |
+| ③     | Merchant→category memory                        | Persist user category corrections so re-imports stop re-asking the same question                                                                                        |
+| ④     | Historic cycle synthesis + transaction-cap lift | Reconstruct `CycleRecord`-shaped history from bulk-imported transactions; remove the silent 200-row cap that currently destroys bulk backfills                          |
+| ⑤     | Caught-bills + weekly-cadence unlock            | Extend the shipped `caughtSubs.ts` pattern to bills, and un-hardcode `SHEET_CADENCE` so weekly-cadence detections aren't thrown away                                    |
+| ⑥     | History-fed forecasts                           | Irregular-mode percentile math, category spend baselines, bill-drift detection — all fed by accumulated history instead of single-snapshot state                        |
 
 Each phase carries a **STANDING DISCOVERY lane**: while implementing, actively
 watch for and log any new gap the analyst reports didn't anticipate (schema
@@ -348,6 +348,7 @@ closedAt/label/spare/tightPoint/setAside/note — flat "ritual summary," no
 relation to the engine's model). Not interchangeable, no adapter.
 
 Only two writers of the app's real `cycles[]`:
+
 - `PaydayRitualScreen.tsx:880` — `addCycle(...)`, fires once at the end of a
   **live, walked-through** ritual. Forward-only, one record per completion.
 - `fastForwardMonth()` (`store.ts:1769-1799`) — debug-only synthetic-cycle
@@ -361,6 +362,7 @@ transaction volume, because it reads only `cycles.length`, never
 `transactions.length`.
 
 **What the three screens actually read (confirms the blast radius):**
+
 - **InsightsScreen** (`InsightsScreen.tsx:159-197`) — reads `cycles`, `pots`,
   `subPaused`, `moneyMode`, `transactions`, `tinyWins`. All headline figures
   (avgTight, stat tiles, 6-point trend chart, "notes from past you") aggregate
@@ -420,6 +422,7 @@ navigation; only the past-month data source is missing, not the UI shell.
 
 Two dedupe mechanisms exist, both scoped to the **Review queue only**, not to
 posted `transactions`:
+
 - `reviewCandidateSig(merchant, amount, date) = "merchant|amountCents|date"`
   (`store.ts:1412-1414`).
 - `enqueueReviewItems` (`store.ts:1460-1488`) skips a candidate if its sig is in
@@ -447,7 +450,7 @@ from `ignoredReviewSigs`, or extend its semantics to "seen" rather than only
 ### Ranked build order within phase ④
 
 1. Fix accepted-transaction dedupe gap (C) — currently actively harmful
-   (duplicates); cheapest fix; unblocks "every upload compounds" as a *safe*
+   (duplicates); cheapest fix; unblocks "every upload compounds" as a _safe_
    operation at all.
 2. Raise/redesign the transaction cap (A) — currently silently destroys the
    majority of any real 6-month backfill.
@@ -488,7 +491,7 @@ is thrown away at the sheet boundary** — `SHEET_CADENCE` hardcodes `'monthly'`
 so e.g. a weekly-charged subscription is detected by `detectRecurring` but
 silently dropped by `findCaughtSubs`'s filter. **This is a one-line-constraint
 fix**, not a build-from-scratch problem. But today it only ever suggests
-*subscriptions*, never *bills* or *income*, and only sources from already-
+_subscriptions_, never _bills_ or _income_, and only sources from already-
 confirmed transactions, never candidates sitting in Review.
 
 ### Build plan
@@ -577,7 +580,7 @@ hits** across `apps/mobile/src` and `packages` — the owner's reference to
    seasonal baseline) so unscheduled/discretionary spend projects from trailing
    averages instead of an implicit zero between now and the next known bill.
    This is what would let danger-date-style projections exist in the real
-   stack — today only *known* future outflows count.
+   stack — today only _known_ future outflows count.
 3. **`detectRecurringChargeCandidate`** (`recurringChargeDetection.ts:46`) —
    add a bill-drift detector: for merchants already confirmed as bills/subs,
    compare latest amount against the trailing median (function already computes
@@ -677,6 +680,7 @@ compounding). Decision recorded: live folio spine is the only work target;
 (income-source cadence model) begins execution next session against
 `store.ts` Onboarding type, `payday.ts`, `calendarEvents.ts`,
 `storeRoute.ts`, `lens.ts`, `OnboardingSheet.tsx`.
+
 - 07-05/06: PHASE 1 SHIPPED + OTA'd (income cadence model, 1057 tests). Discovery hardening: weekend shift for week-based paydays, ritual once/calendar-month, trial 21-day floor. Discovery lesson: run discovery AFTER verify (raced the build lanes, one stale false positive). Phase 2 (salary inference) launched.
 - 07-06: PHASE 2 SHIPPED + OTA'd (salary inference, 1094 tests). Discovery: CRITICAL double-count fixed pre-ship (same-income update-not-append); drift re-check folded into phase 6 scope; benefits-as-income = correct behavior, copy nuance noted. Machine restart mid-phase: workflow journal resume worked (cached lanes replayed, 92s). Phase 3 (merchant memory) launched.
 - 07-06: PHASE 3 SHIPPED + OTA'd (merchant memory + flip-threshold hardening, 1136 tests). Discovery: taxonomy-mismatch worry disproven by trace; export/wipe already correct; fuzzy merchant aliasing logged as future enhancement.
@@ -690,12 +694,15 @@ compounding). Decision recorded: live folio spine is the only work target;
 - 07-06 04:0x: PHASE 10 CLOSED. Night totals: 9 phases (incl. 2 pre-night), 8 OTAs, 1387 mobile + 357 engine tests (was 934+357 at nightfall), every discovery CRITICAL fixed pre-ship. NIGHT_SHIFT marked CLOSED; watchdog task melo-night-shift-watchdog can be deleted from the Scheduled sidebar.
 
 ## 2026-07-06 — OWNER DEVICE FEEDBACK: 'upload a PDF changes nothing' (the real deliverable was broken)
+
 The night's detection engines were all correct but wired to VisualizerScreen (batch), which a real PDF never reaches — PDFs land one-at-a-time in ReviewScreen. So syncHistoryCycles never ran (Insights stuck empty = 'weird colours'), income was filed as 'food', and no bulk 'add as history'. Diagnosed + fixed against the owner's REAL Monzo statement, proven not with unit tests but a harness running the real store pipeline over the real read:
+
 - bfdd858: bulk 'add all as history' flow + addStatementAsHistory (batch->syncHistoryCycles->detectors over full set) + closing-balance thread reader->store->screen->store + income category ('income' not 'food') + Insights terracotta de-overload. PROVEN on monzo-small: 14/14 txns, cycle, balance £1.96, 0 mis-filed.
 - 337f954: cadence-FIRST income clustering — real variable-amount payroll (Staffline weekly £112-£856) now detected instead of round-up 10p noise (guards: £25 median floor + savings-automation exclusion + rank-by-median). PROVEN on the real 133pp read (2523 txns): Staffline weekly ~£299 median surfaces as THE income offer, round-up excluded, 18 cycles, history-trim surfaced honestly.
-LESSON: green unit tests != working feature; verify the real entry path with real data through the real wiring (memory feedback-integration-over-green-tests).
-FOLLOW-UPS (honest, not yet done): reader date-misreads on dense pages (133pp parsed a 2002-2022 span, wrong for a Monzo account — accuracy pass); TRANSACTION_CAP 2000 trims oldest imported history (surfaced, not raised — perf); single monthly-salary upload still can't establish monthly cadence from one point (balance+manual covers it; weekly earners now detect from ~4 rows).
+  LESSON: green unit tests != working feature; verify the real entry path with real data through the real wiring (memory feedback-integration-over-green-tests).
+  FOLLOW-UPS (honest, not yet done): reader date-misreads on dense pages (133pp parsed a 2002-2022 span, wrong for a Monzo account — accuracy pass); TRANSACTION_CAP 2000 trims oldest imported history (surfaced, not raised — perf); single monthly-salary upload still can't establish monthly cadence from one point (balance+manual covers it; weekly earners now detect from ~4 rows).
 
 ## 2026-07-06 — WHOLE-APP COHERENCE (owner: 'ur fix was localized, didnt reflect everything')
+
 The PDF-populate fix filled the store but output surfaces stayed on stale-monthly + demo-empty. Root: routeFromStore/deriveCalendarEvents never read state.transactions. Fixed + PROVEN on the real 133pp populated store (b9899bb): selectMonthlyIncome canonical selector (6 legacy sites migrated), route reports realized income/spend (going-out was £0 on a full ledger -> £1506), onboarding step-5 cadence-aware (kills 4x weekly-as-monthly), Review tab -> real Timeline ledger, sample-nudge gated on hasAnyUserData, Account/Recovery correct, chunked reader carries last-chunk closing balance. 1840 tests.
 STILL OPEN (honest, not this pass): (1) TodayScreen primary Survival money-path SVG still has HARDCODED node labels (£2,180/£1,095/'27 Jun') — the trio is live but the path VISUAL is prototype; needs the SVG to plot the real route curve. (2) chunked balance-from-import is code-correct but NOT proven on the real 133pp read (single-page £1.96 was proven; multipage last-chunk balance unverified live). (3) payday ritual: correct data, poor discoverability. (4) reader date-misreads on dense pages (2002-2022 span). (5) 2000-txn cap trims oldest (surfaced).

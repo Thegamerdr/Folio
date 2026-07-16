@@ -54,12 +54,15 @@ import {
   subscribeSurfaceRepaint,
 } from '@/surfaces/pressureMap/sheetRepaint';
 import type { ProductScreen } from '@/surfaces/pressureMap/productScreen';
-import { Sheet } from '@/surfaces/pressureMap/Sheet';
+import { Sheet, SheetPortalProvider } from '@/surfaces/pressureMap/Sheet';
 
 import { StartScreen } from '@/folio/screens/StartScreen';
 import { TodayScreen } from '@/folio/screens/TodayScreen';
 import { TodayModeScreen } from '@/folio/screens/TodayModeScreen';
 import { TodayStabilityScreen } from '@/folio/screens/TodayStabilityScreen';
+import { BusinessTodayScreen } from '@/folio/screens/BusinessTodayScreen';
+import { BusinessMoreScreen } from '@/folio/screens/BusinessMoreScreen';
+import { BusinessMeloScreen } from '@/folio/screens/BusinessMeloScreen';
 import { IntakeScreen } from '@/folio/screens/IntakeScreen';
 import { AddEntryScreen } from '@/folio/screens/AddEntryScreen';
 import { VisualizerScreen } from '@/folio/screens/VisualizerScreen';
@@ -110,15 +113,25 @@ import { AddPlanSheet } from '@/folio/sheets/AddPlanSheet';
 import { AddDebtSheet } from '@/folio/sheets/AddDebtSheet';
 import { LogPaymentSheet } from '@/folio/sheets/LogPaymentSheet';
 import { HouseholdSetupSheet } from '@/folio/sheets/HouseholdSetupSheet';
+import { WorkspaceSheet } from '@/folio/sheets/WorkspaceSheet';
 import { BillCaughtSheet } from '@/folio/sheets/BillCaughtSheet';
 import { DriftCaughtSheet } from '@/folio/sheets/DriftCaughtSheet';
 import { AnnualCaughtSheet } from '@/folio/sheets/AnnualCaughtSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
+import { WorkspaceControl } from '@/folio/ui/WorkspaceControl';
 import { reanchorSubRenewals, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { endLensTrialIfExpired, useLens } from '@/folio/lib/lens';
-import { getHydrationOutcome, type HydrationOutcome } from '@/folio/lib/persist';
+import {
+  getHydrationOutcome,
+  requestPersistenceRetry,
+  type HydrationOutcome,
+} from '@/folio/lib/persist';
+import {
+  getPersistenceRuntimeState,
+  subscribePersistenceRuntime,
+} from '@/folio/lib/persistenceRuntime';
 import { derivePressure } from '@/folio/screens/today/pressure';
 import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from '@/folio/types';
 
@@ -279,6 +292,7 @@ export function FolioShell() {
   // frame (Start is reachable but is not a tab). One screen, one optional sheet.
   const [screen, setScreen] = useState<ScreenId>('today');
   const [sheet, setSheet] = useState<SheetId>(null);
+  const [workspaceSheetVisible, setWorkspaceSheetVisible] = useState(false);
   // Carried into the melo-chat sheet when a flow opens Melo with a prefill/seed (web intent.*).
   const [meloIntent, setMeloIntent] = useState<MeloIntent | undefined>(undefined);
   // Carried into the edit-txn sheet when a flow opens it with a real subject — the posted
@@ -329,6 +343,10 @@ export function FolioShell() {
   // `useAppStore((s) => s.onboarding.done)`). A returning, set-up user is never offered onboarding.
   const onboardingDone = useAppStore((st) => st.onboarding.done);
   const pendingReviewCount = useAppStore((st) => st.reviewQueue?.length ?? 0);
+  const workspaces = useAppStore((st) => st.workspaces);
+  const activeWorkspaceId = useAppStore((st) => st.activeWorkspaceId);
+  const activeWorkspace =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0]!;
 
   // App-wide money-pressure — the mood/tone the WHOLE app reads. DERIVED from the real route (the
   // tightest projected spare → a band), replacing the old hardcoded 'calm' so Today / What-if / Melo
@@ -359,6 +377,7 @@ export function FolioShell() {
   const go = useCallback((next: ScreenId) => {
     historyRef.current.push(next);
     setSheet(null);
+    setWorkspaceSheetVisible(false);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
@@ -376,6 +395,7 @@ export function FolioShell() {
     if (historyRef.current.length > 1) historyRef.current.pop();
     const prev = historyRef.current[historyRef.current.length - 1] ?? 'today';
     setSheet(null);
+    setWorkspaceSheetVisible(false);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
@@ -390,6 +410,7 @@ export function FolioShell() {
   // dayDetailDate slot and threaded into <SheetDayDetail date={...}>. Any other sheet ignores the
   // payload and both slots are cleared, so opening a different sheet never carries a stale target.
   const openSheet = useCallback((next: SheetId, payload?: SheetPayload) => {
+    setWorkspaceSheetVisible(false);
     setEditTxnTarget(next === 'edit-txn' ? payload?.id : undefined);
     setDayDetailDate(next === 'day-detail' ? payload?.date : undefined);
     setAddEventIntent(next === 'add-event' ? payload : undefined);
@@ -405,9 +426,10 @@ export function FolioShell() {
   }, []);
 
   // Open the Melo companion CHAT sheet, carrying any prefill/seed the flow provided (web intent).
-  // The Melo mood SCREEN is a separate surface reached via go('melo'); openMelo is the chat — the
-  // surface wired to the live gateway (sendMeloChat). Every "Ask Melo" CTA lands here.
+  // The Melo mood SCREEN is a separate surface reached via go('melo'); openMelo is the local
+  // companion sheet. Every "Ask Melo" CTA lands here.
   const openMelo = useCallback((opts?: MeloIntent) => {
+    setWorkspaceSheetVisible(false);
     setMeloIntent(opts);
     setSheet('melo-chat');
   }, []);
@@ -419,6 +441,23 @@ export function FolioShell() {
     [go, back, openSheet, openMelo],
   );
 
+  const openWorkspaceSheet = useCallback(() => {
+    closeSheet();
+    setWorkspaceSheetVisible(true);
+  }, [closeSheet]);
+
+  const workspaceActivated = useCallback((_workspaceId: typeof activeWorkspaceId) => {
+    historyRef.current = ['today'];
+    setWorkspaceSheetVisible(false);
+    setSheet(null);
+    setMeloIntent(undefined);
+    setEditTxnTarget(undefined);
+    setDayDetailDate(undefined);
+    setAddEventIntent(undefined);
+    setPressureOverride(null);
+    setScreen('today');
+  }, []);
+
   // Android hardware back — bridged to the shell's own nav machine, in UI-stack order: an open
   // sheet closes first, then the back-history pops, and only at the root (Today, empty trail) does
   // the event fall through to the OS so back can background the app. Without this the system back
@@ -427,6 +466,10 @@ export function FolioShell() {
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (workspaceSheetVisible) {
+        setWorkspaceSheetVisible(false);
+        return true;
+      }
       if (sheet !== null) {
         closeSheet();
         return true;
@@ -438,7 +481,7 @@ export function FolioShell() {
       return false; // at the root — let the OS handle it.
     });
     return () => subscription.remove();
-  }, [sheet, back, closeSheet]);
+  }, [workspaceSheetVisible, sheet, back, closeSheet]);
 
   // Lens-trial relock — the enforcement behind the "Auto-locks" trial copy. Checked once at mount
   // (the shell mounts only after the store hydrates, see app/index.tsx) and again every time the
@@ -492,127 +535,143 @@ export function FolioShell() {
     // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
     // (ENGINES §6) via useUndo(); its snackbar host renders above the screen + bottom nav.
     <UndoProvider>
-      <View collapsable={false} style={[shellStyles.root, { backgroundColor: t.canvas }]}>
-        {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
+      <SheetPortalProvider>
+        <View collapsable={false} style={[shellStyles.root, { backgroundColor: t.canvas }]}>
+          {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
           unreadable, say so ONCE, visibly, instead of booting an empty app that reads as a fresh
           install (silence must never look identical to success). */}
-        <HydrationNotice />
-        {/* Every screen renders inside the error boundary so one screen throwing renders a calm
+          <HydrationNotice />
+          <PersistenceSaveNotice />
+          {/* Every screen renders inside the error boundary so one screen throwing renders a calm
           fallback instead of taking down the whole shell (faithful to the web HeroPhone, which wraps
           its screen switch in ScreenErrorBoundary). `screenLabel` resets the boundary when the screen
           changes (a fresh navigation clears a prior crash); onReset returns to Today. */}
-        {/* Replace the screen and its tab bar as one opaque native frame. Keying only the React
+          {/* Replace the screen and its tab bar as one opaque native frame. Keying only the React
           boundary (or the two native siblings independently) lets Fabric commit the canvas and nav
           on different frames, which can expose stale/black pixels during More-subtree navigation.
           This grouped host gives Android one complete frame to paint, without a page-wide animation. */}
-        <View
-          collapsable={false}
-          key={`route-frame-${screen}`}
-          style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
-        >
-          <View collapsable={false} style={[shellStyles.screenHost, { backgroundColor: t.canvas }]}>
-            <ScreenErrorBoundary
-              key={`screen-${screen}`}
-              screenLabel={screen}
-              onReset={() => go('today')}
+          <View
+            collapsable={false}
+            key={`route-frame-${screen}`}
+            style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
+          >
+            <View
+              collapsable={false}
+              style={[shellStyles.screenHost, { backgroundColor: t.canvas }]}
             >
-              <ScreenView screen={screen} nav={nav} pressure={activePressure} />
-            </ScreenErrorBoundary>
+              <ScreenErrorBoundary
+                key={`screen-${screen}`}
+                screenLabel={screen}
+                onReset={() => go('today')}
+              >
+                <ScreenView screen={screen} nav={nav} pressure={activePressure} />
+              </ScreenErrorBoundary>
+            </View>
+            <WorkspaceControl
+              workspace={activeWorkspace}
+              expanded={workspaceSheetVisible}
+              onPress={openWorkspaceSheet}
+            />
+            <BottomNav
+              key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
+              active={activeTab}
+              onChange={onTabChange}
+              reviewCount={pendingReviewCount}
+            />
           </View>
-          <BottomNav
-            key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
-            active={activeTab}
-            onChange={onTabChange}
-            reviewCount={pendingReviewCount}
-          />
-        </View>
-        {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
+          {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
           sheets (onboarding, edit-item, edit-txn, log-spend, sub-caught, add-event, calendar-export,
           calendar-connect, route-detail, melo-chat, share, day-detail) each wrap the kit Sheet
           internally and are mounted as sibling hosts below, so they are excluded here (via
           SELF_HOSTING_SHEETS) to avoid double-nesting. With these wired, every SheetId now resolves
           to a real component. */}
-        {sheet !== null && !SELF_HOSTING_SHEETS.has(sheet) && (
-          <Sheet visible onClose={closeSheet} reduceMotion={reduceMotion}>
-            <SheetView sheet={sheet} />
-          </Sheet>
-        )}
-        {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
+          {sheet !== null && !SELF_HOSTING_SHEETS.has(sheet) && (
+            <Sheet visible onClose={closeSheet} reduceMotion={reduceMotion}>
+              <SheetView sheet={sheet} />
+            </Sheet>
+          )}
+          {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
           (never nested inside the generic one) and is visible only while it is the active sheet. */}
-        {sheet === 'onboarding' && <OnboardingSheet visible onClose={closeSheet} />}
-        {sheet === 'edit-item' && <EditItemSheet visible onClose={closeSheet} />}
-        {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
+          {sheet === 'onboarding' && <OnboardingSheet visible onClose={closeSheet} />}
+          {sheet === 'edit-item' && <EditItemSheet visible onClose={closeSheet} />}
+          {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
           (the row the opener chose) so Save corrects THAT transaction via the store; with no target
           (cold open) the sheet keeps its safe inert fallback and edits nothing. */}
-        {sheet === 'edit-txn' && (
-          <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />
-        )}
-        {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
-        {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
-        {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
-        {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
-        {sheet === 'drift-caught' && <DriftCaughtSheet visible onClose={closeSheet} />}
-        {sheet === 'annual-caught' && <AnnualCaughtSheet visible onClose={closeSheet} />}
-        {sheet === 'add-event' && (
-          <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
-        )}
-        {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
-        {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
-        {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
-        {sheet === 'afford-check' && <AffordCheckSheet visible onClose={closeSheet} />}
-        {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
-        {sheet === 'chart-style' && <ChartStyleSheet visible onClose={closeSheet} />}
-        {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
-        {sheet === 'add-plan' && <AddPlanSheet visible onClose={closeSheet} />}
-        {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
+          {sheet === 'edit-txn' && (
+            <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />
+          )}
+          {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
+          {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
+          {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
+          {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
+          {sheet === 'drift-caught' && <DriftCaughtSheet visible onClose={closeSheet} />}
+          {sheet === 'annual-caught' && <AnnualCaughtSheet visible onClose={closeSheet} />}
+          {sheet === 'add-event' && (
+            <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
+          )}
+          {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
+          {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
+          {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
+          {sheet === 'afford-check' && <AffordCheckSheet visible onClose={closeSheet} />}
+          {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
+          {sheet === 'chart-style' && <ChartStyleSheet visible onClose={closeSheet} />}
+          {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
+          {sheet === 'add-plan' && <AddPlanSheet visible onClose={closeSheet} />}
+          {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
           web's SheetAddDebt. Distinct from the ScreenId 'add-debt' (AddEntryScreen's unrelated
           recurring bill/debt-payment quick-add) — see the SheetId union's doc-comment in types.ts. */}
-        {sheet === 'declare-debt' && <AddDebtSheet visible onClose={closeSheet} />}
-        {sheet === 'log-payment' && <LogPaymentSheet visible onClose={closeSheet} />}
-        {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
-        {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
+          {sheet === 'declare-debt' && <AddDebtSheet visible onClose={closeSheet} />}
+          {sheet === 'log-payment' && <LogPaymentSheet visible onClose={closeSheet} />}
+          {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
+          {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
           sibling hosts like RouteDetailSheet/MeloChatSheet rather than through the generic host. */}
-        {sheet === 'lens-picker' && <LensPickerSheet visible onClose={closeSheet} nav={nav} />}
-        {sheet === 'safe-zone' && <SafeZoneSheet visible onClose={closeSheet} nav={nav} />}
-        {/* Route-detail — the money-path point sheet. Owns its own kit Sheet, so it is a sibling host;
+          {sheet === 'lens-picker' && <LensPickerSheet visible onClose={closeSheet} nav={nav} />}
+          {sheet === 'safe-zone' && <SafeZoneSheet visible onClose={closeSheet} nav={nav} />}
+          {/* Route-detail — the money-path point sheet. Owns its own kit Sheet, so it is a sibling host;
           it needs the shell's nav (its CTA bridges to the Calendar) and the shell's pressure default
           (the "Left after this" figure + Melo mood, threaded the same way as the screens). The tapped
           `point` is the money-path engine's job (@rn-engine), so it falls back to its own placeholder. */}
-        {sheet === 'route-detail' && (
-          <RouteDetailSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} />
-        )}
-        {/* Melo-chat — the companion sheet. Self-hosting like RouteDetailSheet: it needs the shell's nav
+          {sheet === 'route-detail' && (
+            <RouteDetailSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} />
+          )}
+          {/* Melo-chat — the companion sheet. Self-hosting like RouteDetailSheet: it needs the shell's nav
           (its replies bridge to screens) and the shell's pressure default (the RN Nav contract carries
           no `.pressure`, so the shell threads it alongside). The shell threads the openMelo intent
           (prefill/seed) so an "Ask Melo" CTA opens the chat with its draft. */}
-        {sheet === 'melo-chat' && (
-          <MeloChatSheet
-            visible
-            onClose={closeSheet}
-            nav={nav}
-            pressure={activePressure}
-            intent={meloIntent}
-          />
-        )}
-        {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
-        {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
-        {/* Day-detail — the Calendar's full-detail day drill-in (Month cell / "+N" chip / Week day
+          {sheet === 'melo-chat' && (
+            <MeloChatSheet
+              visible
+              onClose={closeSheet}
+              nav={nav}
+              pressure={activePressure}
+              intent={meloIntent}
+            />
+          )}
+          {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
+          {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
+          {/* Day-detail — the Calendar's full-detail day drill-in (Month cell / "+N" chip / Week day
           header). The shell threads the parked ISO day; a cold open (no payload, e.g. reached via
           the generic nav rather than a Calendar tap) falls back to today so the sheet always shows a
           meaningful day rather than an inert state. */}
-        {sheet === 'day-detail' && (
-          <SheetDayDetail
-            visible
-            onClose={closeSheet}
-            nav={nav}
-            date={dayDetailDate ?? todayIsoForDayDetail()}
+          {sheet === 'day-detail' && (
+            <SheetDayDetail
+              visible
+              onClose={closeSheet}
+              nav={nav}
+              date={dayDetailDate ?? todayIsoForDayDetail()}
+            />
+          )}
+          <WorkspaceSheet
+            visible={workspaceSheetVisible}
+            onClose={() => setWorkspaceSheetVisible(false)}
+            onActivated={workspaceActivated}
           />
-        )}
-        {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
+          {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
           ported). Mounted once at the top-level overlay, alongside the undo snackbar it never
           disturbs. */}
-        <ToastHost />
-      </View>
+          <ToastHost />
+        </View>
+      </SheetPortalProvider>
     </UndoProvider>
   );
 }
@@ -626,7 +685,7 @@ const shellStyles = StyleSheet.create({
 // ---------------------------------------------------------------------------
 // Hydration notice — the visible face of lib/persist.ts's do-not-destroy contract. Reads the
 // hydration outcome once at mount (it is set before the shell renders — app/index.tsx awaits
-// loadPersisted before flipping `ready`) and shows a calm, dismissible card for the two loss
+// loadPersisted before flipping `ready`) and shows a calm, dismissible card for recovery/loss
 // states. 'ok' / 'first-run' render nothing.
 // ---------------------------------------------------------------------------
 
@@ -634,9 +693,9 @@ const HYDRATION_NOTICE_COPY: Partial<Record<HydrationOutcome, { title: string; b
   unreadable: {
     title: 'Your saved numbers could not be read',
     body:
-      'The saved file on this device could not be opened, so the app has started with a blank ' +
-      'slate. The original file was kept exactly as it was — nothing was deleted or written ' +
-      'over. New numbers you add will save normally.',
+      'The protected storage and its recovery copies on this device could not be opened, so the ' +
+      'app has started with a blank slate. Melo has not treated that unreadable data as real ' +
+      'money. Check local recovery before adding new numbers.',
   },
   'recovered-backup': {
     title: 'Restored from the last good save',
@@ -644,6 +703,20 @@ const HYDRATION_NOTICE_COPY: Partial<Record<HydrationOutcome, { title: string; b
       'The newest saved file could not be read, so this picture comes from the previous good ' +
       'save. The unreadable file was kept, not deleted. Anything added after that save may be ' +
       'missing — worth a quick look at your balance.',
+  },
+  'recovered-legacy': {
+    title: 'Your local data was recovered',
+    body:
+      'A storage upgrade did not finish cleanly, so Melo opened the last complete local copy and ' +
+      'will keep trying to save it into the new protected storage. Your newer incomplete file was ' +
+      'kept for recovery. It is worth checking your latest balance and activity.',
+  },
+  'recovered-file': {
+    title: 'Your local data was recovered',
+    body:
+      'Melo could not use the newest protected database generation, so it opened the verified ' +
+      'encrypted rollback copy and will keep trying to repair protected storage. It is worth ' +
+      'checking your latest balance and activity.',
   },
 };
 
@@ -667,6 +740,49 @@ function HydrationNotice() {
         style={({ pressed }) => [noticeStyles.dismiss, pressed ? noticeStyles.pressed : undefined]}
       >
         <Text style={[noticeStyles.dismissLabel, { color: t.calm }]}>OK</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function PersistenceSaveNotice() {
+  const t = useTheme();
+  const runtime = useSyncExternalStore(
+    subscribePersistenceRuntime,
+    getPersistenceRuntimeState,
+    getPersistenceRuntimeState,
+  );
+  const retrying = runtime.status === 'saving' && runtime.consecutiveFailures > 0;
+  if (runtime.status !== 'failed' && !retrying) return null;
+
+  const body =
+    runtime.failureKind === 'storage'
+      ? 'Melo could not write the latest changes. Device storage may be full. The last complete save is still intact; free some space and keep Melo open while it retries.'
+      : runtime.failureKind === 'key-storage'
+        ? 'Melo could not reach protected device key storage. The last complete save is still intact. Unlock the device fully, then try again.'
+        : 'Melo could not write the latest changes. The last complete save is still intact, and Melo will keep trying while the app stays open.';
+
+  return (
+    <View
+      accessibilityRole="alert"
+      accessibilityLiveRegion="assertive"
+      style={[noticeStyles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}
+    >
+      <Text style={[noticeStyles.title, { color: t.ink }]}>
+        {retrying ? 'Trying to save again' : "Changes aren't saved yet"}
+      </Text>
+      <Text style={[noticeStyles.body, { color: t.muted }]}>{body}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Try saving again"
+        disabled={retrying}
+        onPress={requestPersistenceRetry}
+        style={({ pressed }) => [
+          noticeStyles.dismiss,
+          pressed || retrying ? noticeStyles.pressed : undefined,
+        ]}
+      >
+        <Text style={[noticeStyles.dismissLabel, { color: t.calm }]}>Try again</Text>
       </Pressable>
     </View>
   );
@@ -759,6 +875,16 @@ function TodayByMode({ nav, pressure }: { nav: Nav; pressure: Pressure }) {
 // ---------------------------------------------------------------------------
 
 function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pressure: Pressure }) {
+  const activeWorkspaceKind = useAppStore(
+    (state) =>
+      state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)?.kind ??
+      'personal',
+  );
+  if (activeWorkspaceKind === 'business') {
+    if (screen === 'today') return <BusinessTodayScreen nav={nav} />;
+    if (screen === 'more') return <BusinessMoreScreen nav={nav} />;
+    if (screen === 'melo') return <BusinessMeloScreen nav={nav} />;
+  }
   // Wave 1 — the real ported screens.
   if (screen === 'start') return <StartScreen nav={nav} />;
   // Today dispatches on the active Money Mode (Lens) — faithful to the web's HeroPhone

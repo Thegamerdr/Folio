@@ -255,6 +255,11 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
   const s = useMemo(() => makeStyles(t), [t]);
+  const isBusiness = useAppStore(
+    (current) =>
+      current.workspaces.find((workspace) => workspace.id === current.activeWorkspaceId)?.kind ===
+      'business',
+  );
 
   // The REAL store feeds — newest first (the store keeps `transactions`/`timelineEvents` newest-first,
   // both capped at 200). `edits` classifies a transaction as "Edited"; `timelineEvents` is the
@@ -317,7 +322,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
         <View style={[s.screen, { paddingTop: insets.top + gap.md }]}>
           <ScreenHeader
             onBack={nav.back}
-            eyebrow="Timeline"
+            eyebrow={isBusiness ? 'Business activity' : 'Timeline'}
             arrow="text"
             spacerWidth={20}
             backHitWidth={20}
@@ -339,7 +344,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
         <View style={[s.screen, { paddingTop: insets.top + gap.md }]}>
           <ScreenHeader
             onBack={nav.back}
-            eyebrow="Timeline"
+            eyebrow={isBusiness ? 'Business activity' : 'Timeline'}
             arrow="text"
             spacerWidth={20}
             backHitWidth={20}
@@ -349,20 +354,31 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
 
           <View style={s.titleBlock}>
             <Text accessibilityRole="header" style={s.headline}>
-              {"Everything you've "}
-              <Text style={s.headlineAccent}>added</Text>
-              {' or changed.'}
+              {isBusiness ? 'Every business ' : "Everything you've "}
+              <Text style={s.headlineAccent}>{isBusiness ? 'record' : 'added'}</Text>
+              {isBusiness ? ', in order.' : ' or changed.'}
             </Text>
-            <Text style={s.subhead}>Newest first. Nothing is hidden.</Text>
+            <Text style={s.subhead}>
+              {isBusiness
+                ? 'Confirmed and corrected records in this workspace only.'
+                : 'Newest first. Nothing is hidden.'}
+            </Text>
           </View>
 
           <View style={s.emptyBlock}>
             {/* STATES.md empty copy — a calm doorway, not an error. One accent word ("here"). */}
             <EmptyState
               mood="calm"
-              headline="Your story starts here"
-              body="The things you add or ignore will show up here, newest first."
-              cta={{ label: 'Add a statement', onPress: () => nav.go('intake') }}
+              headline={isBusiness ? 'Business activity starts empty' : 'Your story starts here'}
+              body={
+                isBusiness
+                  ? 'Confirmed income, expenses and corrections will appear here. Personal activity stays out.'
+                  : 'The things you add or ignore will show up here, newest first.'
+              }
+              cta={{
+                label: isBusiness ? 'Add a business record' : 'Add a statement',
+                onPress: () => nav.go('intake'),
+              }}
             />
           </View>
         </View>
@@ -382,7 +398,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
       >
         <ScreenHeader
           onBack={nav.back}
-          eyebrow="Timeline"
+          eyebrow={isBusiness ? 'Business activity' : 'Timeline'}
           arrow="text"
           spacerWidth={20}
           backHitWidth={20}
@@ -393,11 +409,15 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
         {/* Title block — Fraunces 28px, the single upright terracotta accent word. */}
         <View style={s.titleBlock}>
           <Text accessibilityRole="header" style={s.headline}>
-            {"Everything you've "}
-            <Text style={s.headlineAccent}>added</Text>
-            {' or changed.'}
+            {isBusiness ? 'Every business ' : "Everything you've "}
+            <Text style={s.headlineAccent}>{isBusiness ? 'record' : 'added'}</Text>
+            {isBusiness ? ', in order.' : ' or changed.'}
           </Text>
-          <Text style={s.subhead}>Newest first. Nothing is hidden.</Text>
+          <Text style={s.subhead}>
+            {isBusiness
+              ? 'Confirmed and corrected records in this workspace only.'
+              : 'Newest first. Nothing is hidden.'}
+          </Text>
         </View>
 
         {/* Timeline list — a vertical rail behind the nodes, newest first. */}
@@ -426,7 +446,14 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
 
         {/* The quiet companion line — soft (calm-family) Melo, always-on breathe. */}
         <View style={s.meloBlock}>
-          <MeloLine mood="calm" text="You can undo any of these. Nothing is locked." />
+          <MeloLine
+            mood="calm"
+            text={
+              isBusiness
+                ? 'Tap a confirmed transaction to inspect or correct it; the original value stays in history.'
+                : 'You can undo any of these. Nothing is locked.'
+            }
+          />
         </View>
       </ScrollView>
     </Animated.View>

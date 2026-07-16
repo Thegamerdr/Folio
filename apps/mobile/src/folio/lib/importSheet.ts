@@ -33,9 +33,8 @@
 // ---------------------------------------------------------------------------
 
 // The §0 candidate-source union. `csv` / `paste` are produced by THIS sheet engine.
-// `pdf` / `photo` are produced by the LLM statement/photo reader
-// (src/local/statementReaderClient.ts) — a statement file the model read (pdf) or a
-// photographed/screenshotted statement (photo). All four land in the SAME Review
+// `pdf` / `photo` are produced by the on-device statement/photo reader — a statement file read by
+// bundled OCR (pdf) or a photographed/screenshotted statement (photo). All four land in the SAME Review
 // screen as candidates; the source only labels where a row came from.
 export type CandidateSource = 'csv' | 'paste' | 'pdf' | 'photo';
 
@@ -52,6 +51,9 @@ export type CandidateConfidence = 'high' | 'medium' | 'low';
 
 export type CandidateMoneyItem = {
   id: string;
+  /** Encrypted original retained in this workspace's device vault, when the candidate came from a
+   *  selected file/photo. Metadata only; no file bytes or picker URI enter the candidate. */
+  sourceEvidenceId?: string;
   source: CandidateSource;
   kind: CandidateKind;
   merchant: string;
@@ -95,6 +97,8 @@ export type ColumnMapping = {
   date?: number;
   merchant?: number;
   amount?: number;
+  debit?: number;
+  credit?: number;
   type?: number;
   account?: number;
   category?: number;
@@ -134,7 +138,9 @@ export const FOLIO_CSV_TEMPLATE: string = [
 const HEADER_ALIASES: Readonly<Record<keyof ColumnMapping, readonly string[]>> = {
   date: ['date', 'when', 'day', 'transaction date', 'txn date', 'posted'],
   merchant: ['merchant', 'description', 'desc', 'name', 'payee', 'detail', 'details', 'narrative'],
-  amount: ['amount', 'value', 'sum', 'total', 'debit', 'credit', 'gbp', '£'],
+  amount: ['amount', 'value', 'sum', 'total', 'gbp', '£'],
+  debit: ['debit', 'out', 'money out', 'withdrawal', 'paid out', 'debit amount'],
+  credit: ['credit', 'in', 'money in', 'deposit', 'paid in', 'credit amount'],
   type: ['type', 'kind', 'direction', 'flow'],
   account: ['account', 'acct', 'source', 'bank', 'card'],
   category: ['category', 'cat', 'tag', 'bucket'],
@@ -452,7 +458,9 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
   }
 
   // Validate required columns up front — honest issues, no guessing.
-  if (mapping.amount === undefined) {
+  const hasMoneyColumns =
+    mapping.amount !== undefined || mapping.debit !== undefined || mapping.credit !== undefined;
+  if (!hasMoneyColumns) {
     issues.push({
       code: 'missing-amount',
       message:
@@ -468,7 +476,7 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
   }
 
   // Without the two required columns we produce nothing — never fabricate rows.
-  if (mapping.amount === undefined || mapping.merchant === undefined) {
+  if (!hasMoneyColumns || mapping.merchant === undefined) {
     return { candidates: [], issues };
   }
 
@@ -485,11 +493,19 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
 
     const merchant = cellAt(cells, mapping.merchant);
     const rawAmount = cellAt(cells, mapping.amount);
+    const rawDebit = cellAt(cells, mapping.debit);
+    const rawCredit = cellAt(cells, mapping.credit);
 
     // A row missing both its core cells is just blank padding — skip quietly.
-    if (merchant === undefined && rawAmount === undefined) return;
+    if (
+      merchant === undefined &&
+      rawAmount === undefined &&
+      rawDebit === undefined &&
+      rawCredit === undefined
+    )
+      return;
 
-    if (rawAmount === undefined) {
+    if (rawAmount === undefined && rawDebit === undefined && rawCredit === undefined) {
       issues.push({
         code: 'bad-amount',
         message: `Row ${rowNumber} has no amount — we left it out rather than guess.`,
@@ -498,11 +514,22 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
       return;
     }
 
-    const parsed = parseAmount(rawAmount);
-    if (parsed === null) {
+    if (rawAmount === undefined && rawDebit !== undefined && rawCredit !== undefined) {
       issues.push({
         code: 'bad-amount',
-        message: `Row ${rowNumber}: "${rawAmount}" did not read as money — we left it out rather than guess.`,
+        message: `Row ${rowNumber} has money in both debit and credit columns — we left it out rather than guess.`,
+        row: rowNumber,
+      });
+      return;
+    }
+
+    const splitRaw = rawDebit ?? rawCredit;
+    const parsed = parseAmount(rawAmount ?? splitRaw ?? '');
+    if (parsed === null) {
+      const shown = rawAmount ?? splitRaw ?? '';
+      issues.push({
+        code: 'bad-amount',
+        message: `Row ${rowNumber}: "${shown}" did not read as money — we left it out rather than guess.`,
         row: rowNumber,
       });
       return;
@@ -518,9 +545,17 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
     }
 
     const typeCell = cellAt(cells, mapping.type);
-    const explicitSign = hasExplicitSign(rawAmount);
-    // If the raw amount had no sign, let an explicit type column decide it.
-    const amount = explicitSign ? parsed : signByType(parsed, typeCell);
+    const splitDirection = rawAmount === undefined;
+    const explicitSign = splitDirection || hasExplicitSign(rawAmount);
+    // Separate debit/credit columns are an explicit direction. For a single unsigned amount, an
+    // explicit type column may decide the sign; otherwise the magnitude stays positive for Review.
+    const amount = splitDirection
+      ? rawDebit !== undefined
+        ? -Math.abs(parsed)
+        : Math.abs(parsed)
+      : explicitSign
+        ? parsed
+        : signByType(parsed, typeCell);
 
     const dateCell = cellAt(cells, mapping.date);
     const isoDate = dateCell !== undefined ? normaliseDate(dateCell) : null;

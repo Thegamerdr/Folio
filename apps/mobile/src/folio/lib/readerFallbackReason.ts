@@ -2,7 +2,7 @@
 // fallback screens (PdfFallbackScreen / ImageFallbackScreen).
 //
 // The Nav contract (`nav.go(screen: ScreenId)`) carries no payload, so a reader that DOES know why a
-// read failed (long export, timeout, gateway trouble — see statementReaderClient's `error.message`)
+// local read failed (unsupported file, low-confidence OCR, encrypted export)
 // had nowhere to hand that reason to the fallback screen; today it only reaches a toast, which the
 // fallback screen never sees once it has dismissed. This mirrors the existing module-level handoff
 // pattern already used by Toast.tsx's `showToast` (a plain function + module-level state, no
@@ -14,6 +14,7 @@
 // failed — the fallback must fall back to its generic copy, not repeat the previous file's reason).
 
 let pendingReason: string | undefined;
+let pendingEvidenceId: string | undefined;
 
 /** Called by the reader right before routing to a fallback screen, when it has a specific reason. */
 export function setReaderFallbackReason(reason: string | undefined): void {
@@ -25,4 +26,16 @@ export function consumeReaderFallbackReason(): string | undefined {
   const reason = pendingReason;
   pendingReason = undefined;
   return reason;
+}
+
+/** Binds the next fallback surface to the exact encrypted original retained by the reader. */
+export function setReaderFallbackEvidenceId(evidenceId: string | undefined): void {
+  pendingEvidenceId = evidenceId;
+}
+
+/** Reads and clears the encrypted-original handoff so it cannot leak into a later import. */
+export function consumeReaderFallbackEvidenceId(): string | undefined {
+  const evidenceId = pendingEvidenceId;
+  pendingEvidenceId = undefined;
+  return evidenceId;
 }

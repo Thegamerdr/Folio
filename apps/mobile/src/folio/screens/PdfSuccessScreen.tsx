@@ -23,18 +23,12 @@
 //               (ritual/visualizer), NOT this screen — it is not fired here.
 //
 // @rn-engine statement-reader — WIRED to the real reader. When the Intake screen has STAGED
-//   candidates in the store (`readerCandidates`) — the LLM reader's output for a picked PDF, or the
+//   candidates in the store (`readerCandidates`) — the on-device reader's output, or the
 //   pure `parseSheet` output for a picked CSV / TSV / TXT — this screen renders THOSE real candidates
-//   (review-before-truth — candidates only, never auto-counted). When the slot is empty (a cold /
-//   dev open of this screen, e.g. FolioShell rendering it with `nav` only), it falls back to the
-//   faithful SAMPLE below: the web source's exact three items, restated as statement text and run
-//   through the real `parseSheet` engine (no hand-built array, no fabricated merchants / numbers).
-//   The file name + page count are the reader's metadata; the sample keeps the web source's values,
-//   and a live read shows an honest "read from your statement" label since the reader stages only the
-//   money movements, not the file's page count.
-// @rn-engine ocr-extraction — the extractor for a real PDF is the LLM reader (gateway vision model,
-//   src/local/statementReaderClient.ts), reached from the Intake screen. The native PdfRenderer +
-//   ML Kit module is NOT the blocker anymore; this success preview is reached when the reader staged
+//   (review-before-truth — candidates only, never auto-counted). When the slot is empty, the screen
+//   renders an EmptyState. There is no runtime sample fallback.
+// @rn-engine ocr-extraction — PdfRenderer + bundled ML Kit on-device, reached from Intake. This
+//   success preview is reached when the reader staged
 //   real candidates, and a read that found nothing routes to the honest pdf-fallback instead.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
@@ -110,10 +104,12 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
 import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
 import { isBulkStatement } from '@/folio/lib/bulkLanding';
+import { statementPreviewPresentation } from '@/folio/lib/statementPreview';
 import {
   clearReaderCandidates,
   enqueueReviewItems,
   queueInputFromCandidates,
+  useAppStore,
   useReaderCandidates,
   useReaderClosingBalance,
 } from '@/folio/store';
@@ -206,18 +202,18 @@ function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
   }));
 }
 
-// The honest file label for a LIVE read: the reader stages the money movements, not the file's name
-// or page count, so we never invent a filename or a page total. A single calm line tells the truth
-// about where the items came from.
-const LIVE_READ_FILE_LABEL = 'Your statement';
-const LIVE_READ_PAGE_COUNT = 1;
-
-// Build the FoundStatement for a live read from the store's staged candidates. Honest metadata (no
-// fabricated filename / page count); the money movements are the reader's real output.
-function liveStatementFrom(candidates: readonly CandidateMoneyItem[]): FoundStatement {
+// Live reads carry the encrypted source's filename through evidence metadata when a file was picked.
+// The reader does not expose a page count, so the source-specific detail line never invents one.
+// Build the FoundStatement for a live read from the store's staged candidates. The retained source
+// metadata supplies the real filename when this came from a file; pageCount stays zero because the
+// native reader does not expose one and the render uses the source-specific detail line instead.
+function liveStatementFrom(
+  candidates: readonly CandidateMoneyItem[],
+  evidenceFilename: string | undefined,
+): FoundStatement {
   return {
-    fileName: LIVE_READ_FILE_LABEL,
-    pageCount: LIVE_READ_PAGE_COUNT,
+    fileName: statementPreviewPresentation(candidates, evidenceFilename).fileName,
+    pageCount: 0,
     items: toFoundItems(candidates),
   };
 }
@@ -264,15 +260,22 @@ export function PdfSuccessScreen({
   const reduceMotion = useReduceMotion();
 
   // The REAL staged candidates the Intake reader produced for this statement (review-before-truth).
-  // When the slot is non-empty we render those; when it is empty (a cold / dev open of this screen)
-  // we fall back to the faithful sample. An explicit `statement` prop still wins (fixtures / tests).
+  // When the slot is non-empty we render those; when it is empty, EmptyState renders. An explicit
+  // `statement` prop still wins for fixtures/tests.
   const staged = useReaderCandidates();
+  const firstEvidenceId = staged[0]?.sourceEvidenceId;
+  const evidenceFilename = useAppStore(
+    (current) =>
+      current.evidenceDocuments?.find((document) => document.id === firstEvidenceId)?.filename,
+  );
+  const sourcePresentation = statementPreviewPresentation(staged, evidenceFilename);
   // The closing balance the reader staged alongside `staged` (null when the read didn't carry
   // one, or came from a path that never does — see setReaderClosingBalance's doc). Only
-  // meaningful for the REAL staged read, never for the fixture sample below.
+  // meaningful for the REAL staged read, never for a fixture.
   const stagedClosingBalance = useReaderClosingBalance();
   const statement: FoundStatement =
-    statementProp ?? (staged.length > 0 ? liveStatementFrom(staged) : EMPTY_FOUND);
+    statementProp ??
+    (staged.length > 0 ? liveStatementFrom(staged, evidenceFilename) : EMPTY_FOUND);
 
   // The raw candidates this screen would enqueue/land — a fixture-driven `statement` prop carries
   // none (tests only); otherwise the real staged read. NO sample fallback: a cold open with no
@@ -363,7 +366,9 @@ export function PdfSuccessScreen({
           <PressIcon onPress={nav.back} accessibilityLabel="Go back">
             <BackArrow color={t.muted} />
           </PressIcon>
-          <Text style={[styles.headerLabel, { color: t.muted }]}>PDF</Text>
+          <Text style={[styles.headerLabel, { color: t.muted }]}>
+            {statementProp ? 'PDF' : sourcePresentation.headerLabel}
+          </Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -390,7 +395,9 @@ export function PdfSuccessScreen({
                 {statement.fileName}
               </Text>
               <Text style={[styles.fileSub, { color: t.muted }]}>
-                {`${statement.pageCount} page${statement.pageCount === 1 ? '' : 's'}`}
+                {statementProp
+                  ? `${statement.pageCount} page${statement.pageCount === 1 ? '' : 's'}`
+                  : sourcePresentation.fileDetail}
               </Text>
             </View>
           </View>
@@ -432,7 +439,7 @@ export function PdfSuccessScreen({
             onAdded={() => clearReaderCandidates()}
             onReviewOneByOne={(accountId) => {
               const { dropped } = enqueueReviewItems(
-                queueInputFromCandidates(rawCandidates, 'pdf', accountId),
+                queueInputFromCandidates(rawCandidates, sourcePresentation.reviewSource, accountId),
               );
               if (dropped > 0) {
                 showToast(
@@ -469,7 +476,9 @@ export function PdfSuccessScreen({
             <PressButton
               onPress={() => {
                 const showing = statementProp ? [] : staged;
-                const { dropped } = enqueueReviewItems(queueInputFromCandidates(showing, 'pdf'));
+                const { dropped } = enqueueReviewItems(
+                  queueInputFromCandidates(showing, sourcePresentation.reviewSource),
+                );
                 if (dropped > 0) {
                   showToast(
                     'Showing the newest 60 to check first',

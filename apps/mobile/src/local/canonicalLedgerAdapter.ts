@@ -1,5 +1,6 @@
 import {
   createAccount,
+  createAccountId,
   createAvailablePositionSnapshot,
   createAuditLogId,
   createBalanceObservation,
@@ -13,6 +14,7 @@ import {
   createDocumentId,
   createEntityVersion,
   createEventId,
+  createFinancialExpectation,
   createExpectationId,
   createImportDraftId,
   createImportedClaim,
@@ -34,6 +36,7 @@ import {
   createSourceRecordId,
   createTimeZoneId,
   createTimelineEntryId,
+  createTransactionSplit,
   createTransactionId,
   createUserCorrection,
   createUserCorrectionId,
@@ -150,6 +153,30 @@ export type CanonicalMobileLedgerValidation = Readonly<{
   issues: readonly string[];
 }>;
 
+/** A balance-bearing account supplied by a richer application state. `balanceMinor` is always
+ * integer minor units here, even when the source store uses decimal major units. */
+export type CanonicalMobileAccountInput = Readonly<{
+  id: string;
+  name: string;
+  kind: Account['kind'];
+  currency: string;
+  state?: Account['state'];
+  addedAt?: string;
+  projectionRole?: Account['projectionRole'];
+  balanceMinor: number;
+  balanceAsOfISO: string;
+  balanceSourceKind?: BalanceObservation['sourceKind'];
+  balanceConfidence?: BalanceObservation['sourceConfidence'];
+  balanceSourceVariant?: BalanceObservation['sourceVariant'];
+  authorityState?: AuthorityState;
+  includeInAvailablePosition?: boolean;
+}>;
+
+export type CanonicalMobileLedgerProjectionOptions = Readonly<{
+  accounts?: readonly CanonicalMobileAccountInput[];
+  defaultAccountId?: string;
+}>;
+
 export type CanonicalMobileLedgerSnapshot = Readonly<{
   schema: typeof canonicalMobileLedgerSchema;
   dataVersion: string;
@@ -194,7 +221,20 @@ type CanonicalBuildContext = Readonly<{
   dataVersion: string;
   version: ReturnType<typeof createEntityVersion>;
   workspaceId: WorkspaceId;
-  accountId: AccountId;
+}>;
+
+type CanonicalAccountProjection = Readonly<{
+  sourceId: string;
+  account: Account;
+  balanceMinor: number;
+  observedOn: LocalDate;
+  observedAt: InstantString;
+  balanceSourceKind: BalanceObservation['sourceKind'];
+  balanceConfidence?: BalanceObservation['sourceConfidence'];
+  balanceSourceVariant?: BalanceObservation['sourceVariant'];
+  authorityState: AuthorityState;
+  includeInAvailablePosition: boolean;
+  explicit: boolean;
 }>;
 
 type TransactionProjection = Readonly<{
@@ -215,8 +255,18 @@ type TransactionProjection = Readonly<{
 
 export function createCanonicalMobileLedgerSnapshot(
   state: LocalLedgerState,
+  workspaceInput?: Workspace,
+  options: CanonicalMobileLedgerProjectionOptions = {},
 ): CanonicalMobileLedgerSnapshot {
+  const workspaceId = workspaceInput?.id ?? canonicalMobileWorkspaceId;
+  if (
+    workspaceInput !== undefined &&
+    String(workspaceInput.baseCurrency) !== String(state.currency)
+  ) {
+    throw new Error('Canonical local ledger currency must match its workspace currency.');
+  }
   const dataVersion = createCanonicalDataVersion({
+    workspaceId,
     asOfDate: state.asOfDate,
     cashOnHandMinor: state.cashOnHandMinor,
     transactions: state.transactions,
@@ -224,34 +274,31 @@ export function createCanonicalMobileLedgerSnapshot(
     rejectedImports: state.rejectedImports,
     documentStages: state.documentStages,
     history: state.history,
+    accounts: options.accounts ?? [],
   });
   const context: CanonicalBuildContext = {
-    accountId: canonicalMobileAccountId,
     asOfDate: createLocalDate(state.asOfDate),
     capturedAt: createInstantString(`${state.asOfDate}T10:00:00.000Z`),
     currency: createCurrencyCode(state.currency),
     dataVersion,
     version: createEntityVersion({ dataVersion }),
-    workspaceId: canonicalMobileWorkspaceId,
+    workspaceId,
   };
   const workspace = createWorkspace({
     id: context.workspaceId,
-    kind: 'personal',
-    name: 'Personal',
+    kind: workspaceInput?.kind ?? 'personal',
+    name: workspaceInput?.name ?? 'Personal',
     baseCurrency: context.currency,
-    jurisdiction: 'GB',
-    timeZone: canonicalMobileTimeZone,
+    jurisdiction: workspaceInput?.jurisdiction ?? 'GB',
+    timeZone: workspaceInput?.timeZone ?? canonicalMobileTimeZone,
     version: { dataVersion },
   });
-  const account = createAccount({
-    id: context.accountId,
-    workspaceId: context.workspaceId,
-    name: 'Local cash',
-    kind: 'cash',
-    currency: context.currency,
-    state: 'active',
-    version: { dataVersion },
-  });
+  const accountProjections = createAccountProjections(context, state, options);
+  const accounts = accountProjections.map((projection) => projection.account);
+  const transactionAccountIds = new Map(
+    accountProjections.map((projection) => [projection.sourceId, projection.account.id]),
+  );
+  const defaultAccountId = resolveDefaultAccountId(accountProjections, options.defaultAccountId);
 
   const sourceRecords: SourceRecord[] = [];
   const provenance: Provenance[] = [];
@@ -271,35 +318,42 @@ export function createCanonicalMobileLedgerSnapshot(
   const meloMemories: MeloMemory[] = [];
   const meloProposals: MeloProposalRecord[] = [];
   const auditLog: AuditLogEntry[] = [];
-  const emptyBaseline = isEmptyFinancialLedger(state);
-  const openingBalanceAuthorityState: AuthorityState = emptyBaseline
-    ? 'estimated'
-    : 'user-confirmed';
-  const openingBalanceSourceRecord = createSourceRecordForOpeningBalance(context, state);
-  const openingBalanceProvenance = createProvenanceForSource(
-    context,
-    openingBalanceSourceRecord,
-    openingBalanceAuthorityState,
-    'balance_observation',
-    canonicalId('balance', `opening_${state.asOfDate}`),
-  );
-  const openingBalanceObservation = createOpeningBalanceObservation(
-    context,
-    state,
-    openingBalanceSourceRecord.id,
-    openingBalanceProvenance.id,
-  );
-  const currentBalance = createCurrentBalanceFromObservation(
-    context,
-    openingBalanceObservation,
-    openingBalanceProvenance.id,
-  );
-  sourceRecords.push(openingBalanceSourceRecord);
-  provenance.push(openingBalanceProvenance);
-  balanceObservations.push(openingBalanceObservation);
-  currentBalances.push(currentBalance);
+  for (const accountProjection of accountProjections) {
+    const openingBalanceSourceRecord = createSourceRecordForOpeningBalance(
+      context,
+      state,
+      accountProjection,
+    );
+    const openingBalanceProvenance = createProvenanceForSource(
+      context,
+      openingBalanceSourceRecord,
+      accountProjection.authorityState,
+      'balance_observation',
+      openingBalanceId(accountProjection),
+    );
+    const openingBalanceObservation = createOpeningBalanceObservation(
+      context,
+      accountProjection,
+      openingBalanceSourceRecord.id,
+      openingBalanceProvenance.id,
+    );
+    const currentBalance = createCurrentBalanceFromObservation(
+      context,
+      openingBalanceObservation,
+      openingBalanceProvenance.id,
+    );
+    sourceRecords.push(openingBalanceSourceRecord);
+    provenance.push(openingBalanceProvenance);
+    balanceObservations.push(openingBalanceObservation);
+    currentBalances.push(currentBalance);
+  }
 
   for (const transaction of state.transactions) {
+    const accountId = resolveTransactionAccountId(
+      transaction.accountId,
+      transactionAccountIds,
+      defaultAccountId,
+    );
     const sourceRecord = createSourceRecordForLocalTransaction(context, transaction);
     const transactionProvenance = createProvenanceForSource(
       context,
@@ -313,6 +367,7 @@ export function createCanonicalMobileLedgerSnapshot(
       transaction,
       sourceRecord.id,
       transactionProvenance.id,
+      accountId,
     );
     sourceRecords.push(sourceRecord);
     provenance.push(transactionProvenance);
@@ -486,27 +541,49 @@ export function createCanonicalMobileLedgerSnapshot(
       : { ...scenario, affectedPlanIds: plans.map((plan) => plan.id) },
   );
   const planRules = plans.map((plan) => createPlanRuleFromPlan(context, plan));
-  const planImpacts = plans.map((plan) =>
-    createPlanImpactFromPlan(context, plan, {
+  const planImpacts = plans.map((plan, index) => {
+    const commitment = commitments[index];
+    const currentBalance = currentBalances.find(
+      (balance) => balance.accountId === commitment?.accountId,
+    );
+    if (currentBalance === undefined) {
+      throw new Error(`Canonical plan ${String(plan.id)} is missing its account balance.`);
+    }
+    return createPlanImpactFromPlan(context, plan, {
       currentBalance,
       scenarios: linkedScenarios,
-    }),
-  );
+    });
+  });
   const forecastSnapshots = createForecastSnapshots(context, {
     transactions,
     expectations,
     commitments,
     scenarios: linkedScenarios,
   });
-  const availablePositionSnapshots = [
-    createAvailablePositionFromCanonicalRecords(context, {
-      commitments,
-      currentBalance,
-      expectations,
-      openingBalanceObservation,
-      transactions,
-    }),
-  ];
+  const availableAccountIds = new Set(
+    accountProjections
+      .filter((projection) => projection.includeInAvailablePosition)
+      .map((projection) => projection.account.id),
+  );
+  const availableCurrentBalances = currentBalances.filter((balance) =>
+    availableAccountIds.has(balance.accountId),
+  );
+  const availableBalanceObservations = balanceObservations.filter((observation) =>
+    availableAccountIds.has(observation.accountId),
+  );
+  const availablePositionSnapshots =
+    availableCurrentBalances.length === 0
+      ? []
+      : [
+          createAvailablePositionFromCanonicalRecords(context, {
+            accountIds: availableAccountIds,
+            commitments,
+            currentBalances: availableCurrentBalances,
+            expectations,
+            openingBalanceObservations: availableBalanceObservations,
+            transactions,
+          }),
+        ];
   const calendarItems = [
     ...projections.map((projection) => projection.calendarItem),
     ...plannerItems.map((item) => createCalendarItemForPlannerItem(context, item)),
@@ -534,7 +611,7 @@ export function createCanonicalMobileLedgerSnapshot(
     schema: canonicalMobileLedgerSchema,
     dataVersion,
     workspace,
-    accounts: [account],
+    accounts,
     balanceObservations,
     currentBalances,
     balanceAdjustments,
@@ -578,19 +655,37 @@ export function createCanonicalMobileLedgerSnapshot(
   };
 }
 
+export function canonicalAccountIdForWorkspace(workspaceId: WorkspaceId): AccountId {
+  if (String(workspaceId) === String(canonicalMobileWorkspaceId)) {
+    return canonicalMobileAccountId;
+  }
+  return `account_workspace_cash_${hashStableString(String(workspaceId))}` as AccountId;
+}
+
+/** Deterministic canonical identity for a named source account inside one workspace. */
+export function canonicalAccountIdForSource(
+  workspaceId: WorkspaceId,
+  sourceAccountId: string,
+): AccountId {
+  const checked = sourceAccountId.trim();
+  if (checked.length === 0) throw new Error('Canonical source account ID is required.');
+  return createAccountId(canonicalId('account', `${String(workspaceId)}_${checked}`));
+}
+
 export function validateCanonicalMobileLedgerSnapshot(
   snapshot: CanonicalMobileLedgerSnapshot,
 ): CanonicalMobileLedgerValidation {
   const issues: string[] = [];
   const workspaceId = snapshot.workspace.id;
+  const accountIds = new Set(snapshot.accounts.map((account) => account.id));
   const sourceRecordIds = new Set(snapshot.sourceRecords.map((record) => record.id));
   const provenanceIds = new Set(snapshot.provenance.map((record) => record.id));
 
   if (snapshot.schema !== canonicalMobileLedgerSchema) {
     issues.push('Canonical mobile ledger schema is not supported.');
   }
-  if (snapshot.workspace.kind !== 'personal') {
-    issues.push('Canonical mobile ledger must remain in the personal workspace.');
+  if (snapshot.workspace.kind !== 'personal' && snapshot.workspace.kind !== 'business') {
+    issues.push('Canonical mobile ledger workspace kind is not supported.');
   }
   if (snapshot.accounts.length === 0) {
     issues.push('Canonical mobile ledger requires at least one local account.');
@@ -604,10 +699,13 @@ export function validateCanonicalMobileLedgerSnapshot(
 
   for (const record of allWorkspaceRecords(snapshot)) {
     if (record.workspaceId !== workspaceId) {
-      issues.push(`Record ${String(record.id)} is outside the personal workspace.`);
+      issues.push(`Record ${String(record.id)} is outside the canonical workspace.`);
     }
   }
   for (const observation of snapshot.balanceObservations) {
+    if (!accountIds.has(observation.accountId)) {
+      issues.push(`Balance observation ${observation.id} is missing its account.`);
+    }
     if (
       observation.sourceRecordId === undefined ||
       !sourceRecordIds.has(observation.sourceRecordId)
@@ -619,6 +717,9 @@ export function validateCanonicalMobileLedgerSnapshot(
     }
   }
   for (const balance of snapshot.currentBalances) {
+    if (!accountIds.has(balance.accountId)) {
+      issues.push(`Current balance ${balance.id} is missing its account.`);
+    }
     if (
       !snapshot.balanceObservations.some(
         (observation) => observation.id === balance.sourceObservationId,
@@ -720,6 +821,9 @@ export function validateCanonicalMobileLedgerSnapshot(
     }
   }
   for (const transaction of snapshot.transactions) {
+    if (!accountIds.has(transaction.accountId)) {
+      issues.push(`Transaction ${transaction.id} is missing its account.`);
+    }
     if (
       transaction.sourceRecordId === undefined ||
       !sourceRecordIds.has(transaction.sourceRecordId)
@@ -733,6 +837,16 @@ export function validateCanonicalMobileLedgerSnapshot(
     // ledger already models), so it is NOT a validation failure. Treating it as fatal made the
     // canonical repository throw during render and crashed the app on launch once the device date
     // advanced past a seeded/imported row.
+  }
+  for (const expectation of snapshot.expectations) {
+    if (expectation.accountId !== undefined && !accountIds.has(expectation.accountId)) {
+      issues.push(`Expectation ${expectation.id} is missing its account.`);
+    }
+  }
+  for (const commitment of snapshot.commitments) {
+    if (commitment.accountId !== undefined && !accountIds.has(commitment.accountId)) {
+      issues.push(`Commitment ${commitment.id} is missing its account.`);
+    }
   }
   for (const proposal of snapshot.meloProposals) {
     if (proposal.canWriteDirectly !== false) {
@@ -797,6 +911,9 @@ export function createCanonicalMobileStorageRows(
       kind: account.kind,
       currency: account.currency,
       state: account.state,
+      source_account_id: account.sourceAccountId ?? null,
+      created_at: account.createdAt ?? null,
+      projection_role: account.projectionRole ?? null,
       data_version: account.version.dataVersion,
     })),
     balanceObservations: snapshot.balanceObservations.map((observation) => ({
@@ -982,14 +1099,20 @@ export function createCanonicalMobileStorageRows(
       amount_minor: transaction.amount.minorUnits,
       currency: transaction.amount.currency,
       local_date: transaction.localDate,
+      booked_at: transaction.bookedAt ?? null,
       description: transaction.description ?? null,
       reference: transaction.reference ?? null,
+      splits_json: JSON.stringify(transaction.splits),
       source_kind: transaction.sourceKind,
       authority_state: authorityStateToSql(transaction.authorityState),
       review_status: transaction.reviewStatus,
       source_record_id: transaction.sourceRecordId ?? null,
       provenance_id: transaction.provenanceId ?? null,
       event_id: transaction.eventId ?? null,
+      source_transaction_id: transaction.sourceTransactionId ?? null,
+      source_evidence_id: transaction.sourceEvidenceId ?? null,
+      external_id: transaction.externalId ?? null,
+      connection_id: transaction.connectionId ?? null,
       data_version: transaction.version.dataVersion,
     })),
     events: snapshot.events.map((event) => ({
@@ -1266,24 +1389,147 @@ export function canonicalMobileLedgerRowCount(
   return snapshot.rows[key].length;
 }
 
+function createAccountProjections(
+  context: CanonicalBuildContext,
+  state: LocalLedgerState,
+  options: CanonicalMobileLedgerProjectionOptions,
+): readonly CanonicalAccountProjection[] {
+  const inputs = options.accounts ?? [];
+  if (inputs.length === 0) {
+    const emptyBaseline = isEmptyFinancialLedger(state);
+    const account = createAccount({
+      id: canonicalAccountIdForWorkspace(context.workspaceId),
+      workspaceId: context.workspaceId,
+      name: 'Local cash',
+      kind: 'cash',
+      currency: context.currency,
+      state: 'active',
+      projectionRole: 'canonical-baseline',
+      version: { dataVersion: context.dataVersion },
+    });
+    return [
+      {
+        sourceId: String(account.id),
+        account,
+        balanceMinor: state.cashOnHandMinor,
+        observedOn: context.asOfDate,
+        observedAt: context.capturedAt,
+        balanceSourceKind: emptyBaseline ? 'calculated' : 'user-entered',
+        authorityState: emptyBaseline ? 'estimated' : 'user-confirmed',
+        includeInAvailablePosition: true,
+        explicit: false,
+      },
+    ];
+  }
+
+  const seen = new Set<string>();
+  return inputs.map((input) => {
+    const sourceId = input.id.trim();
+    if (sourceId.length === 0) throw new Error('Canonical source account ID is required.');
+    if (seen.has(sourceId)) throw new Error(`Canonical source account ${sourceId} is duplicated.`);
+    seen.add(sourceId);
+    if (!Number.isSafeInteger(input.balanceMinor)) {
+      throw new Error(`Canonical account ${sourceId} balance must use integer minor units.`);
+    }
+    const currency = createCurrencyCode(input.currency);
+    if (String(currency) !== String(context.currency)) {
+      throw new Error(`Canonical account ${sourceId} currency must match its workspace currency.`);
+    }
+    const observedAt = createInstantString(input.balanceAsOfISO);
+    const observedOn = createLocalDate(input.balanceAsOfISO.slice(0, 10));
+    const account = createAccount({
+      id: canonicalAccountIdForSource(context.workspaceId, sourceId),
+      workspaceId: context.workspaceId,
+      name: input.name,
+      kind: input.kind,
+      currency,
+      state: input.state ?? 'active',
+      sourceAccountId: sourceId,
+      ...(input.addedAt === undefined ? {} : { createdAt: input.addedAt }),
+      projectionRole: input.projectionRole ?? 'source',
+      version: { dataVersion: context.dataVersion },
+    });
+    return {
+      sourceId,
+      account,
+      balanceMinor: input.balanceMinor,
+      observedOn,
+      observedAt,
+      balanceSourceKind: input.balanceSourceKind ?? 'user-entered',
+      ...(input.balanceConfidence === undefined
+        ? {}
+        : { balanceConfidence: input.balanceConfidence }),
+      ...(input.balanceSourceVariant === undefined
+        ? {}
+        : { balanceSourceVariant: input.balanceSourceVariant }),
+      authorityState: input.authorityState ?? 'user-confirmed',
+      includeInAvailablePosition:
+        input.includeInAvailablePosition ?? (input.kind !== 'credit' && input.kind !== 'loan'),
+      explicit: true,
+    };
+  });
+}
+
+function resolveDefaultAccountId(
+  accounts: readonly CanonicalAccountProjection[],
+  requestedSourceId: string | undefined,
+): AccountId {
+  const requested =
+    requestedSourceId === undefined
+      ? undefined
+      : accounts.find((projection) => projection.sourceId === requestedSourceId)?.account.id;
+  if (requestedSourceId !== undefined && requested === undefined) {
+    throw new Error(`Canonical default account ${requestedSourceId} is unavailable.`);
+  }
+  const resolved = requested ?? accounts[0]?.account.id;
+  if (resolved === undefined) throw new Error('Canonical ledger requires an account.');
+  return resolved;
+}
+
+function resolveTransactionAccountId(
+  sourceAccountId: string | undefined,
+  accountIds: ReadonlyMap<string, AccountId>,
+  defaultAccountId: AccountId,
+): AccountId {
+  if (sourceAccountId === undefined) return defaultAccountId;
+  const resolved = accountIds.get(sourceAccountId);
+  if (resolved === undefined) {
+    throw new Error(`Canonical transaction account ${sourceAccountId} is unavailable.`);
+  }
+  return resolved;
+}
+
+function openingBalanceId(account: CanonicalAccountProjection): string {
+  return canonicalId(
+    'balance',
+    `opening_${String(account.account.id)}_${String(account.observedOn)}`,
+  );
+}
+
 function createSourceRecordForOpeningBalance(
   context: CanonicalBuildContext,
   state: LocalLedgerState,
+  account: CanonicalAccountProjection,
 ): SourceRecord {
-  const emptyBaseline = isEmptyFinancialLedger(state);
+  const emptyBaseline = !account.explicit && isEmptyFinancialLedger(state);
   return {
-    id: createSourceRecordId(canonicalId('source', `opening_balance_${state.asOfDate}`)),
+    id: createSourceRecordId(
+      canonicalId(
+        'source',
+        `opening_balance_${String(account.account.id)}_${String(account.observedOn)}`,
+      ),
+    ),
     workspaceId: context.workspaceId,
     kind: emptyBaseline ? 'system-derived' : 'manual-entry',
-    authorityState: emptyBaseline ? 'estimated' : 'user-confirmed',
+    authorityState: account.authorityState,
     label: emptyBaseline
-      ? `Empty workspace baseline for ${state.asOfDate}`
-      : `Opening balance for ${state.asOfDate}`,
-    capturedAt: context.capturedAt,
+      ? `Empty workspace baseline for ${String(account.observedOn)}`
+      : `${account.account.name} balance for ${String(account.observedOn)}`,
+    capturedAt: account.observedAt,
     sourceHash: createCanonicalDataVersion({
-      accountId: context.accountId,
-      asOfDate: state.asOfDate,
-      cashOnHandMinor: state.cashOnHandMinor,
+      accountId: account.account.id,
+      asOfDate: account.observedOn,
+      balanceMinor: account.balanceMinor,
       currency: state.currency,
     }),
     ...(emptyBaseline ? { reviewState: 'needs-review' as const } : {}),
@@ -1293,22 +1539,32 @@ function createSourceRecordForOpeningBalance(
 
 function createOpeningBalanceObservation(
   context: CanonicalBuildContext,
-  state: LocalLedgerState,
+  account: CanonicalAccountProjection,
   sourceRecordId: SourceRecordId,
   provenanceId: ProvenanceId,
 ): BalanceObservation {
-  const emptyBaseline = isEmptyFinancialLedger(state);
+  const emptyBaseline = !account.explicit && account.authorityState === 'estimated';
   return createBalanceObservation({
-    id: canonicalId('balance', `opening_${state.asOfDate}`),
+    id: openingBalanceId(account),
     workspaceId: context.workspaceId,
-    accountId: context.accountId,
-    observedOn: context.asOfDate,
-    observedAt: context.capturedAt,
-    balance: { minorUnits: state.cashOnHandMinor, currency: context.currency },
-    source: emptyBaseline ? 'Empty workspace baseline' : 'Local opening balance',
-    sourceKind: emptyBaseline ? 'calculated' : 'user-entered',
-    observationKind: emptyBaseline ? 'calculated-balance' : 'opening-balance',
-    authorityState: emptyBaseline ? 'estimated' : 'user-confirmed',
+    accountId: account.account.id,
+    observedOn: account.observedOn,
+    observedAt: account.observedAt,
+    balance: { minorUnits: account.balanceMinor, currency: context.currency },
+    source: emptyBaseline ? 'Empty workspace baseline' : `${account.account.name} balance`,
+    sourceKind: emptyBaseline ? 'calculated' : account.balanceSourceKind,
+    ...(account.balanceConfidence === undefined
+      ? {}
+      : { sourceConfidence: account.balanceConfidence }),
+    ...(account.balanceSourceVariant === undefined
+      ? {}
+      : { sourceVariant: account.balanceSourceVariant }),
+    observationKind: emptyBaseline
+      ? 'calculated-balance'
+      : account.explicit
+        ? 'current-balance'
+        : 'opening-balance',
+    authorityState: account.authorityState,
     reviewState: emptyBaseline ? 'needs-review' : 'not-required',
     reconciliationState: 'provisional',
     sourceRecordId,
@@ -1333,16 +1589,16 @@ function createCurrentBalanceFromObservation(
   provenanceId: ProvenanceId,
 ): CurrentBalance {
   return createCurrentBalance({
-    id: canonicalId('currentbalance', `${context.accountId}_${context.asOfDate}`),
+    id: canonicalId('currentbalance', `${observation.accountId}_${observation.observedOn}`),
     workspaceId: context.workspaceId,
-    accountId: context.accountId,
-    asOf: context.asOfDate,
+    accountId: observation.accountId,
+    asOf: observation.observedOn,
     balance: observation.balance,
     sourceKind: observation.sourceKind,
     authorityState: observation.authorityState,
     reviewState: observation.reviewState,
     sourceObservationId: observation.id,
-    updatedAt: context.capturedAt,
+    updatedAt: observation.observedAt ?? context.capturedAt,
     provenanceId,
     version: { dataVersion: context.dataVersion },
   });
@@ -1351,33 +1607,61 @@ function createCurrentBalanceFromObservation(
 function createAvailablePositionFromCanonicalRecords(
   context: CanonicalBuildContext,
   input: Readonly<{
+    accountIds: ReadonlySet<AccountId>;
     commitments: readonly Commitment[];
-    currentBalance: CurrentBalance;
+    currentBalances: readonly CurrentBalance[];
     expectations: readonly FinancialExpectation[];
-    openingBalanceObservation: BalanceObservation;
+    openingBalanceObservations: readonly BalanceObservation[];
     transactions: readonly FinancialTransaction[];
   }>,
 ): AvailablePositionSnapshot {
   const actualNetMinor = input.transactions
-    .filter((transaction) => transaction.localDate >= context.asOfDate)
+    .filter(
+      (transaction) =>
+        input.accountIds.has(transaction.accountId) && transaction.localDate >= context.asOfDate,
+    )
     .reduce((total, transaction) => total + transaction.amount.minorUnits, 0);
   const expectedNetMinor = input.expectations
-    .filter((expectation) => expectation.localDate >= context.asOfDate)
+    .filter(
+      (expectation) =>
+        expectation.accountId !== undefined &&
+        input.accountIds.has(expectation.accountId) &&
+        expectation.localDate >= context.asOfDate,
+    )
     .reduce((total, expectation) => total + expectation.amount.minorUnits, 0);
   const protectedFloorMinor = input.commitments
     .filter(
-      (commitment) => commitment.dueDate >= context.asOfDate && commitment.amount.minorUnits < 0,
+      (commitment) =>
+        commitment.accountId !== undefined &&
+        input.accountIds.has(commitment.accountId) &&
+        commitment.dueDate >= context.asOfDate &&
+        commitment.amount.minorUnits < 0,
     )
     .reduce((total, commitment) => total + Math.abs(commitment.amount.minorUnits), 0);
-  const projectedMinor =
-    input.currentBalance.balance.minorUnits + actualNetMinor + expectedNetMinor;
+  const currentBalanceMinor = input.currentBalances.reduce(
+    (total, balance) => total + balance.balance.minorUnits,
+    0,
+  );
+  const projectedMinor = currentBalanceMinor + actualNetMinor + expectedNetMinor;
   const availableMinor = Math.max(0, projectedMinor - protectedFloorMinor);
   const sourceIds = [
-    input.currentBalance.id,
-    input.openingBalanceObservation.id,
-    ...input.transactions.map((transaction) => transaction.id),
-    ...input.expectations.map((expectation) => expectation.id),
-    ...input.commitments.map((commitment) => commitment.id),
+    ...input.currentBalances.map((balance) => balance.id),
+    ...input.openingBalanceObservations.map((observation) => observation.id),
+    ...input.transactions
+      .filter((transaction) => input.accountIds.has(transaction.accountId))
+      .map((transaction) => transaction.id),
+    ...input.expectations
+      .filter(
+        (expectation) =>
+          expectation.accountId !== undefined && input.accountIds.has(expectation.accountId),
+      )
+      .map((expectation) => expectation.id),
+    ...input.commitments
+      .filter(
+        (commitment) =>
+          commitment.accountId !== undefined && input.accountIds.has(commitment.accountId),
+      )
+      .map((commitment) => commitment.id),
   ].map(String);
 
   return createAvailablePositionSnapshot({
@@ -1385,13 +1669,13 @@ function createAvailablePositionFromCanonicalRecords(
     workspaceId: context.workspaceId,
     asOf: context.asOfDate,
     currency: context.currency,
-    openingBalance: input.currentBalance.balance,
+    openingBalance: { minorUnits: currentBalanceMinor, currency: context.currency },
     availableBalance: { minorUnits: availableMinor, currency: context.currency },
     protectedFloor: { minorUnits: protectedFloorMinor, currency: context.currency },
     actualNet: { minorUnits: actualNetMinor, currency: context.currency },
     expectedNet: { minorUnits: expectedNetMinor, currency: context.currency },
-    currentBalanceIds: [input.currentBalance.id],
-    balanceObservationIds: [input.openingBalanceObservation.id],
+    currentBalanceIds: input.currentBalances.map((balance) => balance.id),
+    balanceObservationIds: input.openingBalanceObservations.map((observation) => observation.id),
     sourceIds,
     authorityState: 'inferred',
     reviewState: 'not-required',
@@ -1409,7 +1693,9 @@ function createSourceRecordForLocalTransaction(
       ? 'manual-entry'
       : transaction.source === 'import'
         ? 'statement-row'
-        : 'system-derived';
+        : transaction.source === 'open_banking'
+          ? 'open-banking-row'
+          : 'system-derived';
 
   return {
     id: createSourceRecordId(canonicalId('source', `transaction_${transaction.id}`)),
@@ -1417,13 +1703,26 @@ function createSourceRecordForLocalTransaction(
     kind: sourceKind,
     authorityState: transactionAuthorityState(transaction),
     label: transaction.original ?? transaction.title,
-    capturedAt: instantForLocalDate(transaction.date),
+    capturedAt:
+      transaction.bookedAt === undefined
+        ? instantForLocalDate(transaction.date)
+        : createInstantString(transaction.bookedAt),
     sourceHash: createCanonicalDataVersion({
       id: transaction.id,
+      accountId: transaction.accountId ?? null,
       original: transaction.original ?? transaction.title,
       amountMinor: transaction.amountMinor,
       date: transaction.date,
+      bookedAt: transaction.bookedAt ?? null,
+      categoryId: transaction.categoryId ?? null,
+      source: transaction.source,
+      sourceTransactionId: transaction.sourceTransactionId ?? null,
+      sourceEvidenceId: transaction.sourceEvidenceId ?? null,
+      externalId: transaction.externalId ?? null,
+      connectionId: transaction.connectionId ?? null,
+      sourceOrdinal: transaction.sourceOrdinal ?? null,
     }),
+    externalId: transaction.externalId ?? transaction.sourceTransactionId ?? transaction.id,
     version: context.version,
   };
 }
@@ -1543,7 +1842,10 @@ function createParsedRowForAcceptedImport(
     sourceRecordId,
     rowIndex: 0,
     rawText: transaction.original ?? transaction.title,
-    parsedAt: instantForLocalDate(transaction.date),
+    parsedAt:
+      transaction.bookedAt === undefined
+        ? instantForLocalDate(transaction.date)
+        : createInstantString(transaction.bookedAt),
     parserName: 'local statement import',
     parserIssues: [],
     authorityState: 'imported-claim',
@@ -1676,6 +1978,7 @@ function createTransactionProjection(
   transaction: LocalLedgerState['transactions'][number],
   sourceRecordId: SourceRecordId,
   provenanceId: ProvenanceId,
+  accountId: AccountId,
 ): TransactionProjection {
   const localDate = createLocalDate(transaction.date);
   const authorityState = transactionAuthorityState(transaction);
@@ -1688,33 +1991,50 @@ function createTransactionProjection(
   const isFutureAssumption = localDate > context.asOfDate;
   const amount = createMoney({ minorUnits: transaction.amountMinor, currency: context.currency });
   const eventKind = transaction.amountMinor >= 0 ? 'income' : 'payment';
+  const expectationAuthorityState =
+    authorityState === 'reversed' || authorityState === 'superseded' ? 'estimated' : authorityState;
 
   const expectation: FinancialExpectation | undefined = isFutureAssumption
-    ? {
+    ? createFinancialExpectation({
         id: expectationId,
         workspaceId: context.workspaceId,
         localDate,
         amount,
-        authorityState,
-        certainty:
-          authorityState === 'reversed' || authorityState === 'superseded'
-            ? 'estimated'
-            : authorityState,
+        authorityState: expectationAuthorityState,
+        certainty: expectationAuthorityState,
         fulfilled: false,
         version: context.version,
-        accountId: context.accountId,
+        accountId,
         reference: transaction.original ?? transaction.title,
         sourceRecordId,
         provenanceId,
+        bookedAt:
+          transaction.bookedAt === undefined
+            ? instantForLocalDate(transaction.date)
+            : createInstantString(transaction.bookedAt),
+        description: transaction.title,
+        ...(transaction.categoryId === undefined ? {} : { categoryId: transaction.categoryId }),
+        sourceKind: transactionSourceKind(transaction.source),
+        sourceTransactionId: transaction.sourceTransactionId ?? transaction.id,
+        ...(transaction.sourceEvidenceId === undefined
+          ? {}
+          : { sourceEvidenceId: transaction.sourceEvidenceId }),
+        ...(transaction.externalId === undefined ? {} : { externalId: transaction.externalId }),
+        ...(transaction.connectionId === undefined
+          ? {}
+          : { connectionId: transaction.connectionId }),
+        ...(transaction.sourceOrdinal === undefined
+          ? {}
+          : { sourceOrdinal: transaction.sourceOrdinal }),
         ...(commitmentId === undefined ? {} : { commitmentId }),
-      }
+      })
     : undefined;
   const canonicalTransaction: FinancialTransaction | undefined = isFutureAssumption
     ? undefined
     : {
         id: transactionId,
         workspaceId: context.workspaceId,
-        accountId: context.accountId,
+        accountId,
         status: transaction.status === 'confirmed' ? 'posted' : 'pending',
         authorityState,
         amount,
@@ -1722,14 +2042,38 @@ function createTransactionProjection(
         sourceKind: transactionSourceKind(transaction.source),
         certainty: authorityState,
         reviewStatus: transaction.status === 'confirmed' ? 'accepted' : 'needs_review',
-        splits: [],
+        splits:
+          transaction.categoryId === undefined
+            ? []
+            : [
+                createTransactionSplit({
+                  id: canonicalId('split', `${transaction.id}_${transaction.categoryId}`),
+                  amount,
+                  label: transaction.title,
+                  categoryId: transaction.categoryId,
+                }),
+              ],
         version: context.version,
-        bookedAt: instantForLocalDate(transaction.date),
+        bookedAt:
+          transaction.bookedAt === undefined
+            ? instantForLocalDate(transaction.date)
+            : createInstantString(transaction.bookedAt),
         description: transaction.title,
         reference: transaction.original ?? transaction.title,
         sourceRecordId,
         provenanceId,
         eventId,
+        sourceTransactionId: transaction.sourceTransactionId ?? transaction.id,
+        ...(transaction.sourceEvidenceId === undefined
+          ? {}
+          : { sourceEvidenceId: transaction.sourceEvidenceId }),
+        ...(transaction.externalId === undefined ? {} : { externalId: transaction.externalId }),
+        ...(transaction.connectionId === undefined
+          ? {}
+          : { connectionId: transaction.connectionId }),
+        ...(transaction.sourceOrdinal === undefined
+          ? {}
+          : { sourceOrdinal: transaction.sourceOrdinal }),
       };
   const commitment: Commitment | undefined =
     commitmentId === undefined || transaction.amountMinor >= 0
@@ -1744,7 +2088,7 @@ function createTransactionProjection(
           authorityState,
           reviewState: reviewStateForAuthority(authorityState),
           version: context.version,
-          accountId: context.accountId,
+          accountId,
           sourceRecordId,
           provenanceId,
         };
@@ -2323,7 +2667,9 @@ function transactionSourceKind(
   source: LocalLedgerState['transactions'][number]['source'],
 ): TransactionSourceKind {
   if (source === 'manual') return 'manual';
+  if (source === 'melo') return 'melo';
   if (source === 'import') return 'csv';
+  if (source === 'open_banking') return 'open_banking';
   return 'migration';
 }
 

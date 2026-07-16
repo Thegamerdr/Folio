@@ -6,10 +6,15 @@ Phase 9. Primary task range: T122 through T133.
 
 ## Result
 
-Phase 9 is complete for deterministic release-readiness contracts and a synthetic-labelled Expo
-Today shell. It is not complete for release claims requiring native encrypted document storage,
-platform app-lock proof, independent security/MASVS clearance, DPIA approval, independent
-accessibility audit, destructive native resilience drills or private-beta operations signoff.
+Phase 9 now has both its deterministic contracts and a production Android implementation for the
+main encrypted local state, optional device-credential app lock, complete local-data clearing and
+human export. The app-lock unavailable/recovery path is release-built and emulator-proven. It is
+not complete for claims requiring a live successful app-lock authentication recording, independent
+security/MASVS clearance, DPIA approval, independent accessibility audit, destructive native
+resilience drills or private-beta operations signoff. Android encrypted source retention is now
+implemented and device-proven in `ANDROID_ENCRYPTED_SOURCE_RETENTION_2026-07-16.md`. Folio-state
+write-failure visibility, intact-generation recovery and retry are partially proven in
+`ANDROID_PERSISTENCE_FAILURE_RECOVERY_2026-07-16.md`.
 
 ## What was built
 
@@ -32,23 +37,37 @@ accessibility audit, destructive native resilience drills or private-beta operat
   and restore drills.
 - Private-beta readiness summary that remains blocked until external and native gates close.
 - `apps/mobile/src/phase9` mobile evidence adapter and integrated Expo Today section.
+- AES-256-GCM main-state persistence with a device-only Android Keystore data key, staged writes,
+  a verified previous generation and corruption parking.
+- A real optional app-lock gate using Android device credentials through
+  `expo-local-authentication`; it locks whenever Melo leaves the active screen and recovers safely
+  if the device credential is later removed.
+- A comprehensive local clear adapter that removes live money/history, SQLCipher ledger rows,
+  reminder state and presented notifications, widget state, backup/parked state files and
+  app-owned plaintext exports before writing one canonical encrypted empty state.
+- An app-private AES-256-GCM source-document vault with workspace/evidence-bound authentication,
+  short-lived plaintext viewing, boot cleanup, evidence-link integrity and complete deletion.
 
 ## Task coverage
 
-| Task                     | Status                 | Evidence                                                                                    |
-| ------------------------ | ---------------------- | ------------------------------------------------------------------------------------------- |
-| T122 Document library    | Blocked for acceptance | Pure state built; native encrypted file store and workspace document subkeys still required |
-| T123 Extraction review   | Implemented and tested | Low-confidence or unreviewed candidates cannot commit                                       |
-| T124 Privacy/data centre | Implemented and tested | Data routes, cloud status, export/delete and memory reset modelled                          |
-| T125 Human export        | Implemented and tested | CSV, JSON and PDF-style summary surfaces require no cloud or subscription                   |
-| T126 Threat model        | Blocked for release    | Draft controls modelled; independent review/signoff required                                |
-| T127 MASVS               | Blocked for release    | Storage, crypto and auth high-severity checks remain open until independent verification    |
-| T128 DPIA/processors     | Blocked for release    | Processor inventory modelled; privacy/legal approval required                               |
-| T129 Accessibility audit | Blocked for release    | Audit matrix modelled; independent device audit required                                    |
-| T130 Diagnostics         | Implemented and tested | Sanitised diagnostic bundle state has no financial content                                  |
-| T131 Reviewer vault      | Implemented and tested | Synthetic labelled vault is isolated and account-free                                       |
-| T132 Resilience drills   | Blocked for release    | Drill report modelled; native destructive drills required                                   |
-| T133 Private beta        | Blocked for release    | Gate summary modelled; beta not ready while T122/T126/T127/T128/T129/T132 blockers remain   |
+| Task                     | Status                                | Evidence                                                                                                                                                                  |
+| ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T122 Document library    | Android implemented and device-proven | Encrypted vault, authenticated viewer, cleanup and library evidence recorded on 2026-07-16                                                                                |
+| T123 Extraction review   | Implemented and tested                | Low-confidence or unreviewed candidates cannot commit                                                                                                                     |
+| T124 Privacy/data centre | Implemented and tested                | Data routes, cloud status, export/delete and memory reset modelled                                                                                                        |
+| T125 Human export        | Implemented and tested                | CSV, JSON and PDF-style summary surfaces require no cloud or subscription                                                                                                 |
+| T126 Threat model        | Blocked for release                   | Draft controls modelled; independent review/signoff required                                                                                                              |
+| T127 MASVS               | Blocked for release                   | Storage, crypto and auth high-severity checks remain open until independent verification                                                                                  |
+| T128 DPIA/processors     | Blocked for release                   | Processor inventory modelled; privacy/legal approval required                                                                                                             |
+| T129 Accessibility audit | Blocked for release                   | Audit matrix modelled; independent device audit required                                                                                                                  |
+| T130 Diagnostics         | Implemented and tested                | Sanitised diagnostic bundle state has no financial content                                                                                                                |
+| T131 Reviewer vault      | Implemented and tested                | Synthetic labelled vault is isolated and account-free                                                                                                                     |
+| T132 Resilience drills   | Partial; blocked for release          | Kernel ENOSPC state/PDF retry, corruption recovery, Personal migration interruption, airplane loop and clean-sandbox restore proven on Android; remaining matrix required |
+| T133 Private beta        | Blocked for release                   | Gate summary modelled; beta not ready while T122/T126/T127/T128/T129/T132 blockers remain                                                                                 |
+
+The production implementation closes the Android T122 implementation gap and materially advances
+T124. The persistence recovery work materially advances T132, but it does not convert the
+independent T126-T129 or full destructive-drill T132 gates into passes.
 
 ## Verification evidence
 
@@ -71,6 +90,21 @@ Full gates completed on 2026-06-21:
 - `pnpm --filter @folio/mobile exec expo install --check`: passed.
 - `pnpm check:v1-boundary`: passed; 111 authored V2 runtime/package files checked against
   859 V1 freeze hashes.
+
+Focused production checks completed on 2026-07-15:
+
+- `pnpm vitest run apps/mobile/src/folio/lib/localDataDeletion.test.ts apps/mobile/src/folio/lib/appLock.test.ts apps/mobile/src/folio/lib/notifications.test.ts`: passed, 3 files and 17 tests.
+- Expanded release-critical run covering local/remote deletion, app lock, notifications, runtime
+  reminder state, calendar reminders, encrypted backup, billing grants and all three backend purge /
+  entitlement services: passed, 12 files and 56 tests.
+- `pnpm --filter @folio/mobile typecheck`: passed.
+- Android release runtime showed the real `App lock` switch and the correct device-lock-required
+  recovery alert on an emulator without a PIN, pattern, password or biometric. The emulator
+  security configuration was not changed merely to manufacture a success capture.
+- A fresh release install showed an empty first run with no inherited sample-money values. Android
+  reduced-motion (`0` animation scales) and 1.3 large-text passes are captured, and the shared sheet
+  transition/keyboard bug discovered by that pass was fixed. TalkBack binding and Back-control
+  focus are captured; full spoken traversal remains independent acceptance work.
 
 ## Android live preview evidence
 
@@ -113,6 +147,23 @@ The preview proves only that the synthetic Phase 9 shell renders in the Android 
 client. It does not prove native encrypted document files, app lock, independent reviews,
 destructive drills or private-beta launch readiness.
 
+The newer production-app evidence is separate from that historical preview:
+
+- `docs/release-evidence/android-melo-app-lock-unavailable.png` and `.xml`: Privacy exposes the
+  actual switch as an accessibility `switch`, state off.
+- `docs/release-evidence/android-melo-app-lock-device-requirement.png` and `.xml`: enabling without
+  an enrolled Android device credential produces a truthful requirement and does not enable the
+  lock.
+- `docs/release-evidence/android-melo-release-first-run.png` and `.xml`: clean release first run,
+  empty money state and no inherited sample values.
+- `docs/release-evidence/android-melo-reduced-motion-onboarding.png` and `.xml`: onboarding remains
+  visible and operable with Android system animation scales at zero.
+- `docs/release-evidence/android-melo-large-text-onboarding.png`,
+  `android-melo-large-text-more.png`, `android-melo-large-text-privacy.png` and matching XML: 1.3
+  Android font-scale reflow evidence.
+- `docs/release-evidence/android-melo-talkback-back-focus.png` and `.xml`: TalkBack bound with a
+  visible focus indicator on Back; not a claim of complete spoken traversal.
+
 ## Figma evidence
 
 Editable Figma evidence was created from the Phase 9 repo contracts and mobile shell.
@@ -141,15 +192,28 @@ Huashu review outcome:
 
 Issues carried forward:
 
-- Native encrypted document file handling and workspace subkeys remain required.
-- App lock, timeout and recovery proof remain required.
+- Android encrypted document handling and workspace-bound document keys are implemented and
+  device-proven; the iOS counterpart and independent cryptographic review remain required.
+- Successful device-credential authentication, timeout policy and credential-change recovery need
+  a controlled emulator/device recording; the unavailable/recovery path is already proven.
 - Independent security/MASVS, DPIA/legal and accessibility audit evidence remain required.
-- Native destructive resilience drills remain required.
+- The current persistence writer has a 47-case recovery suite plus release-built Android
+  kernel-ENOSPC retry/cold-start, encrypted-PDF-source ENOSPC recovery,
+  corrupted-main-to-verified-backup proof, Personal legacy-to-schema-v11 interrupted-migration
+  recovery, clean-sandbox portable-export restore, lossless state/root SQLCipher authority,
+  SQL-only cold start, native whole-database quarantine/rebuild and a transactionally verified
+  schema-v8 canonical mirror, generation-bound inverse parity for all 44 durable AppState fields
+  and privacy-minimal typed-command writes for mapped shipping mutations. Automated encrypted-file
+  orphan reconciliation plus source-promotion `ENOSPC` and deletion `EIO` behavior are covered. The
+  remaining destructive matrix still requires release-build staged/backup drills,
+  kill-during-import, physical low-storage edit/restore boundaries, real-format endurance, iOS and
+  cloud/cross-device restore runs.
 - Private beta cannot open until the release-blocking rows above are closed.
 
 ## Boundary conclusion
 
-Phase 9 is complete for deterministic security/export/local-launch readiness contracts and
-synthetic mobile shell evidence. It remains blocked for actual local-only private beta release
-until native storage/app-lock proof, independent reviews, DPIA approval, destructive resilience
-drills and beta operations signoff exist. No V1 donor runtime code or assets were used.
+Phase 9 has a real encrypted-state, export, local-deletion and optional app-lock Android foundation
+in addition to its deterministic contracts and historical synthetic shell. It remains blocked for
+public or private-beta security claims until iOS encrypted-source parity, the remaining app-lock
+device path, independent reviews, DPIA approval, the full destructive resilience matrix and beta
+operations signoff exist. No V1 donor runtime code or assets were used.

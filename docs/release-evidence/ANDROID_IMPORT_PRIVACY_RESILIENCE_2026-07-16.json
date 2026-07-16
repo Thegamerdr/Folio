@@ -1,0 +1,76 @@
+{
+  "recordedOn": "2026-07-16",
+  "scope": "Current Android import, provider-egress, persistence-recovery and source-aware review boundary",
+  "verification": {
+    "typecheck": "passed",
+    "formatCheck": "passed",
+    "testFiles": 205,
+    "tests": 2510,
+    "persistenceRecoveryTests": 47,
+    "importCorpusCases": 18,
+    "shippingParserRows": 100000,
+    "shippingParserFinalFullSuiteMs": 822
+  },
+  "artifacts": {
+    "apk": {
+      "path": "apps/mobile/android/app/build/outputs/apk/release/app-release.apk",
+      "bytes": 109035615,
+      "sha256": "08D73315D240EB9996D1C4D14D73A327D7468A0367B9F8B37A5D2AEE0D16FA72",
+      "abis": ["arm64-v8a", "x86_64"],
+      "signature": "APK Signature Scheme v2 verified"
+    },
+    "aab": {
+      "path": "apps/mobile/android/app/build/outputs/bundle/release/app-release.aab",
+      "bytes": 76959006,
+      "sha256": "50E1952891C137D2F98899F314A4BB24CB4700510A6A6DB8A9644DEE0E1D5532",
+      "abis": ["arm64-v8a", "x86_64"],
+      "signature": "JAR signature verified"
+    },
+    "releaseJs": {
+      "path": "apps/mobile/android/app/build/generated/assets/react/release/index.android.bundle",
+      "bytes": 7925292,
+      "sha256": "4C7BFAC2512C5BFD62EB672F8E26E2806ECC421A29020F5FF9C364FE27CBA629"
+    },
+    "signerCertificateSha256": "547396E1FD99681C2A6D768B8B7D1B4484B5F42A17597CAD6C495221267A5488"
+  },
+  "emulator": {
+    "serial": "emulator-5554",
+    "abi": "x86_64",
+    "finalColdLaunchMs": 8124,
+    "finalPid": 10759,
+    "fatalMatches": 0,
+    "syntheticRowsAfterCleanup": 0,
+    "stagedReviewCandidatesAfterCleanup": 0,
+    "externalMeloTempFilesAfterCleanup": 0,
+    "physicalGalaxyTargeted": false
+  },
+  "releaseUiProof": {
+    "fixture": "docs/release-evidence/import-fixtures/android-import-interruption.csv",
+    "stagedRows": 5,
+    "assertedPresent": [
+      "CSV",
+      "android-import-interruption.csv",
+      "5 rows read on this device",
+      "5 THINGS FOUND"
+    ],
+    "assertedAbsent": ["PDF", "1 page"],
+    "beforeScreenshot": "docs/release-evidence/melo-import-staged-review-2026-07-16.png",
+    "afterScreenshot": "docs/release-evidence/melo-csv-source-correct-2026-07-16.png",
+    "finalEmptyScreenshot": "docs/release-evidence/melo-final-empty-after-import-proof-2026-07-16.png"
+  },
+  "providerBoundary": {
+    "rawStatementOrImageAiEgress": false,
+    "rawMeloChatAiEgress": false,
+    "statementExtraction": "on-device",
+    "companion": "local deterministic",
+    "sentryFreeTextAndIdentityScrubbed": true
+  },
+  "remainingReleaseBoundaries": [
+    "release-device process-kill and physical low-storage matrix",
+    "reviewed real-format bank corpus and endurance",
+    "iOS parity",
+    "cloud and cross-device restore",
+    "independent security, privacy, legal and accessibility review",
+    "store, provider and operations readiness"
+  ]
+}

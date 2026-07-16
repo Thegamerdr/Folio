@@ -11,10 +11,19 @@ nodeLinker: hoisted
 #   esbuild / dtrace-provider -> true: their native binary is needed by the toolchain (vitest/tsx).
 #   sharp (image processing) / workerd (Cloudflare runtime, services/ai-gateway) -> false: they ship
 #   prebuilt binaries and their build scripts are not needed for lint / typecheck / test or the RN app.
+#   Clerk / browser-tabs-lock / core-js -> false: their scripts only print notices or write user-level
+#   telemetry-notice state. Sentry CLI ships a platform package; bufferutil and utf-8-validate are optional
+#   native accelerators. None of those scripts are required for Melo builds.
 allowBuilds:
+  '@clerk/shared': false
+  '@sentry/cli': false
+  browser-tabs-lock: false
+  bufferutil: false
+  core-js: false
   dtrace-provider: true
   esbuild: true
   sharp: false
+  utf-8-validate: false
   workerd: false
 patchedDependencies:
   '@react-native/gradle-plugin@0.85.3': patches/@react-native__gradle-plugin@0.85.3.patch

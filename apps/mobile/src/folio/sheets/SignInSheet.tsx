@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSignIn } from '@clerk/clerk-expo';
+import { isClerkAPIResponseError, useSignIn, useSignUp } from '@clerk/clerk-expo';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 
@@ -22,13 +22,23 @@ export type SignInSheetProps = {
 };
 
 type Step = 'email' | 'code';
+type AuthFlow = 'sign_in' | 'sign_up';
+
+function isIdentifierNotFound(error: unknown): boolean {
+  return (
+    isClerkAPIResponseError(error) &&
+    error.errors.some((item) => item.code === 'form_identifier_not_found')
+  );
+}
 
 export function SignInSheet({ visible, onClose }: SignInSheetProps) {
   const t = useTheme();
   const s = makeStyles(t);
-  const { isLoaded, signIn, setActive } = useSignIn();
+  const signInState = useSignIn();
+  const signUpState = useSignUp();
 
   const [step, setStep] = useState<Step>('email');
+  const [authFlow, setAuthFlow] = useState<AuthFlow>('sign_in');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,6 +46,7 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
 
   function reset() {
     setStep('email');
+    setAuthFlow('sign_in');
     setEmail('');
     setCode('');
     setBusy(false);
@@ -48,43 +59,69 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
   }
 
   async function handleSendCode() {
-    if (!isLoaded || busy) return;
+    if (!signInState.isLoaded || !signUpState.isLoaded || busy) return;
     const trimmed = email.trim();
     if (trimmed.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      const attempt = await signIn.create({ identifier: trimmed });
+      const attempt = await signInState.signIn.create({ identifier: trimmed });
       const emailFactor = attempt.supportedFirstFactors?.find((f) => f.strategy === 'email_code');
       if (!emailFactor || !('emailAddressId' in emailFactor)) {
         setError('We could not find a way to email you a code. Give it a moment, then retry.');
         return;
       }
-      await signIn.prepareFirstFactor({
+      await signInState.signIn.prepareFirstFactor({
         strategy: 'email_code',
         emailAddressId: emailFactor.emailAddressId,
       });
+      setAuthFlow('sign_in');
       setStep('code');
-    } catch {
-      setError('Check the email address and retry.');
+    } catch (error) {
+      if (!isIdentifierNotFound(error)) {
+        setError('Check the email address and retry.');
+        return;
+      }
+
+      try {
+        const attempt = await signUpState.signUp.create({ emailAddress: trimmed });
+        await attempt.prepareEmailAddressVerification({ strategy: 'email_code' });
+        setAuthFlow('sign_up');
+        setStep('code');
+      } catch {
+        setError('We could not start your account. Check the email address and retry.');
+      }
     } finally {
       setBusy(false);
     }
   }
 
   async function handleVerifyCode() {
-    if (!isLoaded || busy) return;
+    if (!signInState.isLoaded || !signUpState.isLoaded || busy) return;
     const trimmed = code.trim();
     if (trimmed.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      const attempt = await signIn.attemptFirstFactor({ strategy: 'email_code', code: trimmed });
-      if (attempt.status === 'complete') {
-        await setActive({ session: attempt.createdSessionId });
+      const attempt =
+        authFlow === 'sign_up'
+          ? await signUpState.signUp.attemptEmailAddressVerification({ code: trimmed })
+          : await signInState.signIn.attemptFirstFactor({ strategy: 'email_code', code: trimmed });
+      if (attempt.status === 'complete' && attempt.createdSessionId) {
+        await signInState.setActive({ session: attempt.createdSessionId });
         handleClose();
       } else {
-        setError('That code did not match. Check it and retry.');
+        if ('missingFields' in attempt) {
+          console.info(
+            '[Melo account] Clerk sign-up incomplete',
+            JSON.stringify({
+              status: attempt.status,
+              missingFields: attempt.missingFields,
+              unverifiedFields: attempt.unverifiedFields,
+            }),
+          );
+        }
+        setError('Your account needs more information before Melo can sign you in.');
       }
     } catch {
       setError('That code did not match. Check it and retry.');
@@ -96,13 +133,13 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
   return (
     <Sheet visible={visible} onClose={handleClose}>
       <View style={s.body}>
-        <Text style={s.eyebrow}>Sign in</Text>
+        <Text style={s.eyebrow}>Account</Text>
         <Text style={s.headline}>
-          Save across <Text style={s.accentWord}>devices.</Text>
+          Use encrypted <Text style={s.accentWord}>backup.</Text>
         </Text>
         <Text style={s.subline}>
           {step === 'email'
-            ? "We'll email you a one-time code — no password to remember."
+            ? "We'll email you a one-time code. New here? Melo creates your account after verification. The app still works without one."
             : `Enter the code we sent to ${email.trim()}.`}
         </Text>
 
@@ -146,7 +183,7 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
           style={[s.primary, { backgroundColor: busy ? `${t.muted}66` : t.calm }]}
         >
           <Text style={[s.primaryLabel, { color: t.inverse }]}>
-            {busy ? 'One moment…' : step === 'email' ? 'Send code' : 'Verify & sign in'}
+            {busy ? 'One moment…' : step === 'email' ? 'Continue with email' : 'Verify & continue'}
           </Text>
         </Pressable>
         {step === 'code' ? (

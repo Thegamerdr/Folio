@@ -9,15 +9,15 @@ Status: Phase 1 design settled — **Version A (blueprint-led "Warm Paper") chos
 
 ## 1. Reuse map (what already exists in this repo)
 
-| MVP need (§14) | Existing asset | Gap |
-|---|---|---|
-| Bills / recurrence / danger-date math | recurrence engine (packages, 300+ tests) | wire to Safe Zone formula; hysteresis bands are new |
-| Statement import (accuracy path, no open banking) | statement reader (Folio's chosen wedge) | map output → balance + recurring-bill candidates |
-| Local-first persistence + privacy stance | E2EE store | new melo state slices only |
-| Ask-Melo conversational layer (post-MVP) | services/ai-gateway (CF Worker) | NOT MVP-critical; deploy status per MELO_AI_SETUP.md |
-| Theming (Warm Paper + Night Ledger later) | kitTheme/useTheme makeStyles pattern + dark mode | add Warm Paper token set |
-| Test/verify toolchain | vitest/tsc/prettier direct binaries (pnpm gate workaround), emulator-5554 loop | none |
-| Design reference | Lovable Version A + local `prototypes/melo-phase1/index.html` | port 1:1, RN-native |
+| MVP need (§14)                                    | Existing asset                                                                 | Gap                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Bills / recurrence / danger-date math             | recurrence engine (packages, 300+ tests)                                       | wire to Safe Zone formula; hysteresis bands are new  |
+| Statement import (accuracy path, no open banking) | statement reader (Folio's chosen wedge)                                        | map output → balance + recurring-bill candidates     |
+| Local-first persistence + privacy stance          | E2EE store                                                                     | new melo state slices only                           |
+| Ask-Melo conversational layer (post-MVP)          | services/ai-gateway (CF Worker)                                                | NOT MVP-critical; deploy status per MELO_AI_SETUP.md |
+| Theming (Warm Paper + Night Ledger later)         | kitTheme/useTheme makeStyles pattern + dark mode                               | add Warm Paper token set                             |
+| Test/verify toolchain                             | vitest/tsc/prettier direct binaries (pnpm gate workaround), emulator-5554 loop | none                                                 |
+| Design reference                                  | Lovable Version A + local `prototypes/melo-phase1/index.html`                  | port 1:1, RN-native                                  |
 
 ## 2. Genuinely new (the actual Phase-2 work)
 
@@ -35,18 +35,18 @@ Explicitly deferred (per §14): bank connections, leaks engine, scenarios/Later 
 
 - **Branch:** `claude/melo-mvp` — new surface at `apps/mobile/src/melo/` following the repo's surface pattern. Engines consumed as dependencies, never edited on this branch.
 - **Zero contact** with `claude/folio-rn-faithful-port` and the shipping `apps/mobile/src/folio/` surface — no shared file edits, no conflicts by construction.
-- **The owner's call, stated plainly:** the faithful-port program is the active mandated track for Folio-the-product. Melo MVP can be built in parallel without touching it, but *owner attention* (device testing, dogfooding, direction) is the scarce resource — running both dilutes both. Recommended sequence: run the Phase-1 test kit (days 1–3, no code), and green-light Melo Phase 2 only on a passed gate; if the gate passes, decide then whether Melo MVP replaces or queues behind the port work. This plan makes either order cheap.
+- **The owner's call, stated plainly:** the faithful-port program is the active mandated track for Folio-the-product. Melo MVP can be built in parallel without touching it, but _owner attention_ (device testing, dogfooding, direction) is the scarce resource — running both dilutes both. Recommended sequence: run the Phase-1 test kit (days 1–3, no code), and green-light Melo Phase 2 only on a passed gate; if the gate passes, decide then whether Melo MVP replaces or queues behind the port work. This plan makes either order cheap.
 
 ## 4. 30-day scope with gates
 
-| Days | Work | Gate (owner-visible) |
-|---|---|---|
-| 1–3 | Run the user test kit (no code) | Phase-1 gates pass → proceed / fail → fix prototype, retest |
-| 4–8 | melo-engine package: formula + state machine + hysteresis, full test suite | engine demo: given inputs → number + state + danger date, 100% deterministic, tests green |
-| 9–14 | Mascot rig + weather layer + Home Glance Stack on device | **Gate 1:** the glance works on the emulator — state chip cycles all six states natively |
-| 15–20 | Onboarding + reveal + afford-check + Shelf + math sheet | **Gate 2:** cold install → Safe Zone reveal < 3 min on device; reveal number auditable via math sheet |
-| 21–26 | Payday ritual v1 + Recovery v1 + tiny wins + notifications v1 | **Gate 3:** full cycle simulated on device (payday → spend → warning → storm → recovery → rebuild) |
-| 27–30 | Statement import wiring + weekly review + polish + owner dogfood script | APK to owner; dogfood per script; §14 success metrics instrumented |
+| Days  | Work                                                                       | Gate (owner-visible)                                                                                  |
+| ----- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1–3   | Run the user test kit (no code)                                            | Phase-1 gates pass → proceed / fail → fix prototype, retest                                           |
+| 4–8   | melo-engine package: formula + state machine + hysteresis, full test suite | engine demo: given inputs → number + state + danger date, 100% deterministic, tests green             |
+| 9–14  | Mascot rig + weather layer + Home Glance Stack on device                   | **Gate 1:** the glance works on the emulator — state chip cycles all six states natively              |
+| 15–20 | Onboarding + reveal + afford-check + Shelf + math sheet                    | **Gate 2:** cold install → Safe Zone reveal < 3 min on device; reveal number auditable via math sheet |
+| 21–26 | Payday ritual v1 + Recovery v1 + tiny wins + notifications v1              | **Gate 3:** full cycle simulated on device (payday → spend → warning → storm → recovery → rebuild)    |
+| 27–30 | Statement import wiring + weekly review + polish + owner dogfood script    | APK to owner; dogfood per script; §14 success metrics instrumented                                    |
 
 ## 5. Success metrics (instrument from day one, §14)
 

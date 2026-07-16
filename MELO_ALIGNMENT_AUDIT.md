@@ -13,7 +13,7 @@
 
 ## 0. Final decision (output 9, up front)
 
-**TARGETED FIXES — no rebuild of the app.** Plus exactly two surgical *layer* rebuilds:
+**TARGETED FIXES — no rebuild of the app.** Plus exactly two surgical _layer_ rebuilds:
 the recurring-bill data model (relative-day counters → date-anchored records) and the
 monetization product layer (subscriptions-only Plus/Pro → the owner-confirmed
 Free / Full one-time / Live metered model).
@@ -68,6 +68,7 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
 ## 2. What exists — the asset register (output 2)
 
 **Protected assets (the new direction already lives here — do not lose in any pass):**
+
 - **Mode engine**: 10 lens strategies (`src\folio\lib\modes\strategies\`), each a pure
   `derive(ModeInputs) → ModeState` with its own safe-zone formula, verdict, weather
   thresholds, Melo mood/pose, AI voice tint. Real per-mode heroes in `TodayModeScreen`
@@ -96,22 +97,23 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
 
 **Core-system scorecard vs the 10 named systems:**
 
-| System | Status | Evidence |
-|---|---|---|
-| Money Weather | PARTIAL | Per-mode weather engine complete (8-word vocab in `modes\types.ts`); UI = 12px glyph in the lens pill + widget word. No weather surface/forecast. |
-| Safe Zone | BUILT, DOOR MISSING — **FIXED 2026-07-11** | `modes\safeZone.ts` math + Stability/Mode heroes render it; `SafeZoneSheet` (decomposition + buffer stepper) has **zero openers**; the hero number is not tappable. **FIXED (2026-07-11, per plan 111):** wired since `bc50cad` — `TodayScreen.tsx:616` and `TodayStabilityScreen.tsx:306` both call `nav.openSheet('safe-zone')`; the hero is tappable. |
-| Bill Shield | ENGINE-ONLY | `shieldedBills()` line inside safeZoneMath + paywall copy. No surface; only visible via the unreachable SafeZoneSheet. _(Note 2026-07-11: SafeZoneSheet is no longer unreachable — see Safe Zone row — but Bill Shield still has no standing surface of its own; this row is otherwise unchanged.)_ |
-| Before You Spend | BUILT, DOOR MISSING — **FIXED 2026-07-11** | `affordCheck.ts` (safe/tight/not-now/safe-later) + `AffordCheckSheet` — **zero openers**. **FIXED (2026-07-11, per plan 111):** wired since `bc50cad` — `TodayScreen.tsx:604`, `TodayStabilityScreen.tsx:298`, and `TodayModeScreen.tsx:1070` all call `nav.openSheet('afford-check')`. |
-| What Changed | PARTIAL | Detection engines strong (drift/caught-*), `TodayAfterScreen` after user actions. No standing "since you last looked" briefing on home. |
-| Next Best Action | PARTIAL | `TodayNudges` = real prioritised single chip, framed as chores; per-mode action copy in `modes\action.ts`; no unified named system. |
-| Recovery Mode | BUILT (as screen) | `RecoveryScreen` is real; "Recovery" is a screen, not a mode — naming/IA reconciliation with the reset lens needed. |
-| Reset Mode | BUILT | `strategies\reset.ts` — days-of-essentials safe zone. Paywalled (Plus). |
-| Growth Mode | BUILT | `strategies\growth.ts` + pots-pace hero. Paywalled (Plus). |
-| Low Visibility | BUILT | `strategies\lowVis.ts` — signal coverage 0–100 instead of fake numbers. Paywalled (**Pro** — dearest tier for the "just let me see" entry mode). |
+| System           | Status                                     | Evidence                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Money Weather    | PARTIAL                                    | Per-mode weather engine complete (8-word vocab in `modes\types.ts`); UI = 12px glyph in the lens pill + widget word. No weather surface/forecast.                                                                                                                                                                                                        |
+| Safe Zone        | BUILT, DOOR MISSING — **FIXED 2026-07-11** | `modes\safeZone.ts` math + Stability/Mode heroes render it; `SafeZoneSheet` (decomposition + buffer stepper) has **zero openers**; the hero number is not tappable. **FIXED (2026-07-11, per plan 111):** wired since `bc50cad` — `TodayScreen.tsx:616` and `TodayStabilityScreen.tsx:306` both call `nav.openSheet('safe-zone')`; the hero is tappable. |
+| Bill Shield      | ENGINE-ONLY                                | `shieldedBills()` line inside safeZoneMath + paywall copy. No surface; only visible via the unreachable SafeZoneSheet. _(Note 2026-07-11: SafeZoneSheet is no longer unreachable — see Safe Zone row — but Bill Shield still has no standing surface of its own; this row is otherwise unchanged.)_                                                      |
+| Before You Spend | BUILT, DOOR MISSING — **FIXED 2026-07-11** | `affordCheck.ts` (safe/tight/not-now/safe-later) + `AffordCheckSheet` — **zero openers**. **FIXED (2026-07-11, per plan 111):** wired since `bc50cad` — `TodayScreen.tsx:604`, `TodayStabilityScreen.tsx:298`, and `TodayModeScreen.tsx:1070` all call `nav.openSheet('afford-check')`.                                                                  |
+| What Changed     | PARTIAL                                    | Detection engines strong (drift/caught-\*), `TodayAfterScreen` after user actions. No standing "since you last looked" briefing on home.                                                                                                                                                                                                                 |
+| Next Best Action | PARTIAL                                    | `TodayNudges` = real prioritised single chip, framed as chores; per-mode action copy in `modes\action.ts`; no unified named system.                                                                                                                                                                                                                      |
+| Recovery Mode    | BUILT (as screen)                          | `RecoveryScreen` is real; "Recovery" is a screen, not a mode — naming/IA reconciliation with the reset lens needed.                                                                                                                                                                                                                                      |
+| Reset Mode       | BUILT                                      | `strategies\reset.ts` — days-of-essentials safe zone. Paywalled (Plus).                                                                                                                                                                                                                                                                                  |
+| Growth Mode      | BUILT                                      | `strategies\growth.ts` + pots-pace hero. Paywalled (Plus).                                                                                                                                                                                                                                                                                               |
+| Low Visibility   | BUILT                                      | `strategies\lowVis.ts` — signal coverage 0–100 instead of fake numbers. Paywalled (**Pro** — dearest tier for the "just let me see" entry mode).                                                                                                                                                                                                         |
 
 ## 3. What conflicts with the new direction (output 3)
 
 **A. Payday-survival is structural, not stray copy.**
+
 - The route engine window is payday-bounded: every mode's `tightestSpare`, the app-wide
   pressure band, and Melo's mood derive from a today→next-payday projection
   (`storeRoute.ts`/`moneyPath.ts`). Pay-period math is the single lens under all ten modes.
@@ -122,6 +124,7 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
   Execution is calm (never red, never alarmed) — this is a reframe, not a tone fix.
 
 **B. Monetization inverts the confirmed money model (MONEY_MODEL.md §2b).**
+
 - Code implements superseded Plus £4.99 / Pro £8.99 subscriptions (`lib\lens.ts`,
   `lib\billing\iap.ts` — subscription SKUs only). Owner-confirmed: Free / Full one-time
   ~£29.99 / Live metered. Nothing in code reflects it.
@@ -137,6 +140,7 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
 - Gateway has no per-user identity/metering/read-cache — every §4 cost lever unbuilt.
 
 **C. Brand-layer violations (small, contained).**
+
 - `MeloScreen.tsx` "Companion touches" wardrobe (Ember scarf / Paper crown / Listener
   cups, two Plus-gated) = the one dress-up pet-UI element, and it's monetized. The
   4-dot "Plumage" meter reads as XP despite the code insisting otherwise.
@@ -146,6 +150,7 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
 - `TodayAfterScreen` renders Melo twice; `SafeZoneWidget` is light-palette-only.
 
 **D. Fake certainty (violates the core promise).**
+
 - Melo chat is fed a **fabricated tight point** — hardcoded per-band table
   (612/325/184/42/−86) instead of the real route number (`lib\meloSnapshot.ts:27-34,97`).
   **FIXED (2026-07-11, per plan 111):** `meloSnapshot.ts:98` now derives `tightPoint` from
@@ -159,6 +164,7 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
 - `EditTxnSheet` cold-opens on a frozen fake row (Tesco · £42 · 26 Jun).
 
 **E. Data-model conflicts.**
+
 - **Bills**: no Bill entity; recurring outflows are `Sub` records keyed by name with
   `nextRenewalDaysAway` — a stored **relative** integer only decremented at ritual close.
   Skip the ritual 3 weeks → every bill date, the Bills Shield amount, and calendar events
@@ -172,6 +178,7 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
   the app's own payment-facts-only honesty rule.
 
 **F. Structure/platform conflicts.**
+
 - **No Android back handling anywhere** — system back exits the app from any depth;
   the shell's `historyRef` never connects to `BackHandler`.
 - ~55–60k dead lines inside tsconfig/vitest globs; duplicated screen/sheet/nudge sets
@@ -184,6 +191,7 @@ pre-port screen set) of which only the kit subset (~3.4k lines: `kit.tsx`, `kitT
   blueprint §1/§3/§8/§15 contradict the locked brand and money model.
 
 **G. Scope deltas needing an owner call.**
+
 - Build has a 10th mode (`optimizer`) the new direction omits — kill or keep.
 - "Survival" as a user-facing mode NAME collides with the new positioning (~10 files).
 - Weather vocabulary: build ~5–6 states vs blueprint 8.
@@ -290,9 +298,10 @@ transaction detail view + date edit; remove sub usage-theater fields.
 
 **Phase 3 — Product layers (~2 weeks).** Goals P5 entity + surfaces; tone P6 (persist,
 settings row, app-wide gating of guidance); monetization rebuild — Full (non-consumable)
-+ Live (metered) SKUs, gateway per-user auth + usage counting + read-cache + free-read
-allowance; paywall restructured to the three-door model with the suppressed-state guard
-kept intact.
+
+- Live (metered) SKUs, gateway per-user auth + usage counting + read-cache + free-read
+  allowance; paywall restructured to the three-door model with the suppressed-state guard
+  kept intact.
 
 **Phase 4 — Brand & experience polish (~1 week).** Replace wardrobe/plumage with an
 adult companion treatment; Money Weather forecast surface; font-scale ceiling; widget
@@ -351,8 +360,8 @@ with the direction docs, implemented same-day, and is one commit to overturn:
 
 ---
 
-*Full agent evidence (file:line for every claim) lives in the six audit transcripts of
+_Full agent evidence (file:line for every claim) lives in the six audit transcripts of
 session `d2af3fcf` (2026-07-10). Companion docs: `MELO_DRIFT_AUDIT.md` (blueprint→build,
 07-02, partly historical — audited the since-archived surface), `MONEY_MODEL.md` (§2b
 confirmed model), `ACCOUNTS_MODEL.md` (P3–P6 specs), `GAP_MAP.md`/`PARITY_GAPS.md`
-(Lovable→RN parity, mostly closed).*
+(Lovable→RN parity, mostly closed)._

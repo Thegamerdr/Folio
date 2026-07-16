@@ -6,11 +6,12 @@ Phase 10. Primary task range: T134 through T148.
 
 ## Result
 
-Phase 10 is complete for deterministic cloud/sync contracts and a synthetic-labelled Expo Today
-shell. It is not complete for release claims requiring real passkey/Apple/Google providers,
-native key wrapping, recovery KDF benchmarking, qualified cryptographic review, server-blind
-restore, cloud backend drills, web deletion, DPIA/privacy declaration approval, independent
-cloud-vault/auth/sync pen-test or staged encrypted-backup/sync beta operations.
+Phase 10 now includes a real optional Clerk email-code account, client-encrypted snapshot backup,
+recovery-code restore and account/cloud purge foundation in the Android app and Cloudflare Worker,
+in addition to the older deterministic contracts. It is not complete for release claims requiring
+deployed production credentials, signed create/backup/restore/delete E2E proof, a public web
+deletion route, bank-side consent revocation, multi-device sync, qualified cryptographic review,
+DPIA/privacy declaration approval, an independent cloud-vault/auth pen-test or staged operations.
 
 ## What was built
 
@@ -32,22 +33,29 @@ cloud-vault/auth/sync pen-test or staged encrypted-backup/sync beta operations.
 - Cloud data inventory/status state for payload type, location, processor role and delete controls.
 - Multi-device conflict-suite, external security review and encrypted-backup/sync beta gates.
 - `apps/mobile/src/phase10` mobile evidence adapter and integrated Expo Today section.
+- Production `CloudBackupSheet` and `cloudBackupNative.ts` encrypt the complete local state before
+  upload, verify it locally, retain two opaque server generations and require the recovery code for
+  restore; the Worker never receives the recovery key or plaintext.
+- The signed-in Account surface exposes a three-confirmation account deletion path. It attempts the
+  cloud-vault and Open Banking purges before calling Clerk identity deletion, keeps the identity
+  when either service cannot confirm deletion, and deliberately leaves local money for the
+  separately gated device-clear flow.
 
 ## Task coverage
 
 | Task                                | Status                        | Evidence                                                                 |
 | ----------------------------------- | ----------------------------- | ------------------------------------------------------------------------ |
-| T134 Optional account/auth          | Blocked for release           | Local signed-out use modelled; Apple/Google/web deletion route blocked   |
+| T134 Optional account/auth          | Implemented; release blocked  | Clerk email-code flow exists; production config and signed E2E blocked   |
 | T135 Crypto key hierarchy           | Blocked for release           | Subkeys modelled; Keychain/Keystore proof and crypto review blocked      |
 | T136 Recovery setup                 | Blocked for release           | Recovery methods and zero-knowledge copy modelled; clean restore blocked |
 | T137 Cloud device registry          | Blocked for release           | Device rows/revocation modelled; cloud backend and revoke drill blocked  |
 | T138 Encrypted outbox envelopes     | Implemented and tested        | Append-only, idempotent, ciphertext-only envelope contract               |
 | T139 Inbox apply pipeline           | Implemented and tested        | Duplicate and malformed envelopes are rejected safely                    |
 | T140 Conflict policies              | Implemented and tested        | Deterministic policies avoid universal last-write-wins                   |
-| T141 Encrypted backup snapshots     | Blocked for release           | Generations modelled; exact restore plus replay proof blocked            |
+| T141 Encrypted backup snapshots     | Implemented; release blocked  | Real client encryption/two generations; deployed clean restore blocked   |
 | T142 Compaction ack cursors         | Implemented as contract       | Compaction waits for every active-device acknowledgement                 |
 | T143 Device/recovery manager UI     | Implemented as shell contract | No secret exposure, accessible controls and reduced-motion copy          |
-| T144 Web account-deletion portal    | Blocked for release           | In-app state modelled; web route/token revocation/purge proof blocked    |
+| T144 Account deletion               | Partially implemented         | In-app + service purge built/tested; public web route and E2E blocked    |
 | T145 Cloud data inventory/status    | Implemented as contract       | Payload, processor, delete and local-vault-disable rules visible         |
 | T146 Multi-device offline conflict  | Blocked for release           | Contract rows modelled; true restore/revoke drill blocked                |
 | T147 Cloud vault/auth/sync pen-test | Blocked for release           | External assessment required; high/critical findings must close          |
@@ -74,6 +82,18 @@ Full gates completed on 2026-06-21:
 - `pnpm --filter @folio/mobile exec expo install --check`: passed.
 - `pnpm check:v1-boundary`: passed; 114 authored V2 runtime/package files checked against
   859 V1 freeze hashes.
+
+Production-path checks completed on 2026-07-15:
+
+- `pnpm vitest run apps/mobile/src/folio/lib/remoteAccountDeletion.test.ts services/cloud-vault/src/index.test.ts services/open-banking/src/index.test.ts`: passed, 3 files and 15 tests.
+- `pnpm --filter @folio/mobile typecheck`, `pnpm --filter @melo/cloud-vault typecheck` and
+  `pnpm --filter @melo/open-banking-service typecheck`: passed.
+- Cloud `DELETE /v1/account` is idempotent and deletes both backup generations.
+- Open Banking `DELETE /v1/account` removes every indexed connection record and encrypted provider
+  credential. It cannot revoke the separate provider/bank consent; pending callback metadata holds
+  no provider secret and expires within 1,200 seconds.
+- No production account was destructively exercised in this local pass; deployed signed E2E proof
+  remains required.
 - Non-ASCII scan of touched text files: passed, no matches.
 
 ## Android live preview evidence
@@ -144,13 +164,17 @@ Huashu review outcome:
 
 Issues carried forward:
 
-- Real provider screens need the same hierarchy after passkey, Apple and Google wiring.
+- Clerk production settings, a public web deletion route and signed account lifecycle E2E remain.
 - Manual TalkBack/VoiceOver, large text and reduced-motion review remains required.
-- A real cloud backend must prove server-blind restore, lost-device revoke and no plaintext logs.
+- Deployed cloud-vault restore must prove server-blind operation and no plaintext logs.
+- Bank-side provider-consent revocation is not supported by the current adapter. Melo deletes its
+  stored credential and stops future access, while the user must also revoke the permission at the
+  bank when immediate provider-side revocation is required.
 
 ## Boundary conclusion
 
-Phase 10 is complete for deterministic optional-cloud account, encrypted envelope, backup/snapshot,
-conflict, deletion, inventory and beta-gate contracts plus synthetic mobile shell evidence. It
-remains blocked for encrypted backup/sync release until native, cloud, legal/privacy,
-independent-security and beta-operations gates close. No V1 donor runtime code or assets were used.
+Phase 10 has a real Android optional-account, encrypted-backup/restore and fail-closed account-purge
+foundation alongside its deterministic contracts. It remains blocked for public release until
+production configuration, web deletion, provider revocation policy, destructive E2E, multi-device,
+legal/privacy, independent-security and operations gates close. No V1 donor runtime code or assets
+were used.

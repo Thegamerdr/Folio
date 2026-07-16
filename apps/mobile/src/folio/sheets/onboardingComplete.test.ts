@@ -1,11 +1,8 @@
-// OnboardingSheet complete → store contract tests — the demo is a PRE-ONBOARDING regime, not the
-// 24/7 state.
+// OnboardingSheet complete/skip → clean store contract tests.
 //
 // What this proves (the behaviour wired in this change): completing onboarding (the primary
-// "make them yours" path, OnboardingSheet.done()) takes the app OUT of the demo and into a
-// genuinely empty app carrying only the user's real data. Skipping ("Skip for now" → onClose) does
-// the opposite: it KEEPS the sample and never flips onboarding.done, so the demo survives as a
-// deliberate "explore the sample" choice rather than the default.
+// "make them yours" path, OnboardingSheet.done()) removes any legacy development fixture before it
+// writes real values. Skipping also clears that fixture, but keeps onboarding incomplete.
 //
 // done() runs this exact store sequence:
 //   resetToEmpty()                              // wipe the demo → clean empty + onboarding.done=true
@@ -27,6 +24,7 @@ import {
   type Pot,
   getState,
   hasAnyUserData,
+  isEmptyForMeloImport,
   resetAll,
   resetToEmpty,
   setCurrentBalance,
@@ -247,15 +245,15 @@ describe('OnboardingSheet complete → clean app (demo is pre-onboarding only)',
   });
 });
 
-describe('OnboardingSheet skip → keeps the sample (an explicit demo choice, not the default)', () => {
-  it('skipping (no store writes, never flips done) leaves the demo intact', () => {
-    // "Skip for now" → onClose() only: it does NOT run resetToEmpty / setOnboarding(done:true). The
-    // demo regime survives so the user can keep exploring the sample.
+describe('OnboardingSheet skip → honest empty account', () => {
+  it('clears any legacy sample state while leaving onboarding incomplete', () => {
+    resetToEmpty({ onboardingDone: false });
     const s = getState();
-    expect(s.onboarding.done).toBe(false); // never finished
-    expect(hasAnyUserData(s)).toBe(true); // sample data still present
-    expect(s.currentBalance.source).toBe('sample'); // sample balance still shown
-    expect(s.transactions.length).toBeGreaterThan(0);
+    expect(s.onboarding.done).toBe(false);
+    expect(hasAnyUserData(s)).toBe(false);
+    expect(s.currentBalance).toMatchObject({ amount: 0, source: 'user-entered' });
+    expect(s.transactions).toEqual([]);
+    expect(isEmptyForMeloImport(s)).toBe(true);
   });
 });
 

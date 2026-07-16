@@ -18,8 +18,11 @@ import { safeZoneMath } from './modes/safeZone';
 import { routeFromStore } from './storeRoute';
 import { deriveModeState, type MeloWeather } from './modes';
 import type { AppState } from '../store';
+import type { WorkspaceId } from '@folio/domain';
 
 export type SafeZoneWidgetSnapshot = {
+  /** Owner of this active-workspace projection; required before any native write. */
+  workspaceId: WorkspaceId;
   /** Safe Zone amount, signed, in PENCE. Matches `safeZoneMath(...).total` (floored to
    *  whole pounds by that engine) × 100 — never re-derives its own rounding. */
   safeZonePence: number;
@@ -103,6 +106,7 @@ export function buildWidgetSnapshot(
   });
 
   return {
+    workspaceId: state.activeWorkspaceId,
     safeZonePence: toPence(safeZone.total),
     perDayPence: toPence(safeZone.perDay),
     paydayISO: state.currentBalance.source === 'sample' ? null : paydayISO,

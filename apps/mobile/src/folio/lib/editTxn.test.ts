@@ -17,7 +17,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Transaction } from '../store';
-import { type EditTxnContext, type ImportedTransaction, applyTxnEdit } from './editTxn';
+import {
+  type EditTxnContext,
+  type ImportedTransaction,
+  applyTxnEdit,
+  previewTxnEdit,
+} from './editTxn';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -72,6 +77,32 @@ describe('applyTxnEdit — single amount edit', () => {
   it('records who made the edit — "melo" is carried through', () => {
     const { edits } = applyTxnEdit(baseTxn(), { merchant: 'Greggs' }, ctx({ by: 'melo' }));
     expect(edits[0]!.by).toBe('melo');
+  });
+});
+
+describe('previewTxnEdit — review before commit', () => {
+  it('returns the same changed fields and before/after values the edit engine will record', () => {
+    const original = baseTxn();
+    const patch = { amount: -50, when: '2026-06-25', merchant: 'Tesco' } as const;
+
+    expect(previewTxnEdit(original, patch)).toEqual([
+      { field: 'amount', before: -42.1, after: -50 },
+      { field: 'when', before: '2026-06-20T10:00:00.000Z', after: '2026-06-25' },
+    ]);
+    expect(
+      applyTxnEdit(original, patch, ctx()).edits.map(({ field, before, after }) => ({
+        field,
+        before,
+        after,
+      })),
+    ).toEqual(previewTxnEdit(original, patch));
+  });
+
+  it('is read-only and returns no rows for a no-op patch', () => {
+    const original = baseTxn();
+    expect(previewTxnEdit(original, { merchant: 'Tesco', amount: -42.1 })).toEqual([]);
+    expect(previewTxnEdit(original, { note: undefined })).toEqual([]);
+    expect(original).toEqual(baseTxn());
   });
 });
 

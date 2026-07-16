@@ -21,17 +21,12 @@
 //               (from MeloLine, calm mood — the only continuous motion on this quiet screen).
 //
 // @rn-engine photo-reader — WIRED to the real reader. When the Intake screen has STAGED candidates
-//   in the store (`readerCandidates`) — the LLM reader's output for a picked photo, or the pure
+//   in the store (`readerCandidates`) — the on-device reader's output, or the pure
 //   `parseSheet` output for a picked CSV / TSV / TXT — this screen renders THOSE real candidates
-//   (review-before-truth — candidates only, never auto-counted). When the slot is empty (a cold /
-//   dev open, e.g. FolioShell rendering it with `nav` only), it falls back to the faithful SAMPLE
-//   below: the web source's exact two items, restated as text and run through the real `parseSheet`
-//   engine (no hand-built array, no fabricated merchants / numbers). The image name is the reader's
-//   metadata; the sample keeps the web source's value, and a live read shows an honest label since
-//   the reader stages only the money movements, not the photo's filename.
-// @rn-engine ocr-extraction — the extractor for a real photo is the LLM reader (gateway vision
-//   model, src/local/statementReaderClient.ts), reached from the Intake screen. The native ML Kit
-//   Text Recognition module is NOT the blocker anymore; this success preview is reached when the
+//   (review-before-truth — candidates only, never auto-counted). When the slot is empty, the screen
+//   renders an EmptyState. There is no runtime sample fallback.
+// @rn-engine ocr-extraction — bundled on-device ML Kit, reached from Intake. This success preview
+//   is reached when the
 //   reader staged real candidates, and a read that found nothing routes to the honest image-fallback.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
@@ -103,8 +98,7 @@ export type FoundItem = {
   amount: string;
 };
 
-// What a completed read hands this screen. Until the reader lands, the shell passes the SAMPLE below
-// (the web source's exact image name + two items), so the screen renders honestly off real-shaped data.
+// What a completed read hands this screen. With nothing staged, the screen renders EmptyState.
 export type FoundImage = {
   imageName: string;
   items: readonly FoundItem[];
@@ -119,13 +113,9 @@ export type ImageSuccessScreenProps = {
   state?: ImageSuccessState;
 };
 
-// Per-merchant hint wording (the photo reader's voice line), layered on top of a live parse's money
-// facts (the same metadata-map role SAMPLE_ROW_META plays in the Visualizer). Kept beside the text so
-// the render stays byte-identical. Both rows are `spend` to the engine; the web hand-wrote a distinct
-// 'looks like cash out' for the ATM row, so an explicit override preserves it. Anything not overridden
-// falls back to the kind-derived hint below.
-const SAMPLE_HINTS: Readonly<Record<string, string>> = {
-  "Sainsbury's": 'likely spending',
+// Per-merchant hint wording layered on top of a live parse's money facts. ATM rows get the more
+// precise cash-withdrawal label; every other row falls back to the kind-derived hint below.
+const MERCHANT_HINTS: Readonly<Record<string, string>> = {
   'ATM withdrawal': 'looks like cash out',
 };
 
@@ -167,7 +157,7 @@ function toFoundItems(candidates: readonly CandidateMoneyItem[]): FoundItem[] {
   return candidates.map((candidate) => ({
     id: candidate.id,
     merchant: candidate.merchant,
-    hint: SAMPLE_HINTS[candidate.merchant] ?? hintForKind(candidate.kind),
+    hint: MERCHANT_HINTS[candidate.merchant] ?? hintForKind(candidate.kind),
     amount: formatSignedAmount(candidate.amount),
   }));
 }

@@ -1,0 +1,124 @@
+{
+  "capturedAt": "2026-07-16",
+  "package": "com.folio.v2.greenfield",
+  "versionName": "0.0.1",
+  "versionCode": 1,
+  "canonicalSchemaVersion": 8,
+  "authority": {
+    "exactRecoveryEnvelope": "encrypted-app-state-generation",
+    "readCandidate": "generation-bound-canonical-sqlcipher",
+    "adoptionRule": "generation-binding-fingerprint-and-inverse-parity",
+    "fallback": "exact-app-state"
+  },
+  "authorityManifest": {
+    "totalFields": 48,
+    "durableFields": 44,
+    "workspaceRoot": 4,
+    "canonicalLedgerContainer": 10,
+    "canonicalFinancialContext": 8,
+    "canonicalRoutePlanning": 3,
+    "canonicalTransactionIntelligence": 13,
+    "canonicalCompanionRuntime": 6,
+    "exactEncryptedAuthority": 0,
+    "transientNotPersisted": 4
+  },
+  "fields": {
+    "workspaceRoot": ["schemaVersion", "workspaces", "activeWorkspaceId", "dataWorkspaceId"],
+    "canonicalLedgerContainer": [
+      "pots",
+      "subs",
+      "subPaused",
+      "subOverrides",
+      "cycles",
+      "currentBalance",
+      "potLedger",
+      "transactions",
+      "debts",
+      "accounts"
+    ],
+    "canonicalFinancialContext": [
+      "onboarding",
+      "nextYouNote",
+      "tightPointGoal",
+      "droppedTransactionCount",
+      "moneyMode",
+      "bufferAmount",
+      "modeExtras",
+      "household"
+    ],
+    "canonicalRoutePlanning": ["calendarEvents", "plans", "incomeSources"],
+    "canonicalTransactionIntelligence": [
+      "timelineEvents",
+      "reviewQueue",
+      "reviewQueueSpillover",
+      "edits",
+      "ignoredReviewSigs",
+      "ignoredBankExternalIds",
+      "dismissedIncomeSignals",
+      "dismissedBillSignals",
+      "dismissedDriftSignals",
+      "dismissedAnnualSignals",
+      "merchantCategories",
+      "statementImports",
+      "evidenceDocuments"
+    ],
+    "canonicalCompanionRuntime": [
+      "aiReads",
+      "aiReadCache",
+      "whatChangedSeenISO",
+      "lens",
+      "melo",
+      "tinyWins"
+    ],
+    "exactEncryptedAuthority": [],
+    "transientNotPersisted": [
+      "calendarFocusDate",
+      "routeFocusDate",
+      "readerCandidates",
+      "readerClosingBalance"
+    ]
+  },
+  "verification": {
+    "testFiles": 203,
+    "tests": 2474,
+    "typecheck": "passed",
+    "formatCheckBeforeEvidenceDocs": "passed",
+    "apkSignatureV2": "passed",
+    "aabJarVerification": "passed",
+    "emulatorInstall": "passed",
+    "emulatorSerial": "emulator-5554",
+    "emulatorColdLaunchTotalMs": 6988,
+    "emulatorColdLaunchWaitMs": 7313,
+    "emulatorPid": 8551,
+    "emulatorPrimaryCpuAbi": "x86_64",
+    "appFatalOrDatabaseErrors": 0,
+    "placeholderMatches": 0,
+    "sampleDataMatches": 0,
+    "explanatorySampleCopyMatches": 1,
+    "remoteMeloTempFiles": 0,
+    "physicalGalaxyS9Targeted": false
+  },
+  "artifacts": {
+    "apk": {
+      "path": "apps/mobile/android/app/build/outputs/apk/release/app-release.apk",
+      "bytes": 109030815,
+      "sha256": "B746CF1CB0CAB30038F3EC1FB0A5F92B4006A515B0D144D8E7E4504687B81F20"
+    },
+    "aab": {
+      "path": "apps/mobile/android/app/build/outputs/bundle/release/app-release.aab",
+      "bytes": 76956279,
+      "sha256": "C2A7B68DB3D1967F05E08B51B87CB72BF77286B2A0981896C844F94F62E6884B"
+    },
+    "javascriptBundle": {
+      "path": "apps/mobile/android/app/build/generated/assets/react/release/index.android.bundle",
+      "bytes": 7920492,
+      "sha256": "FDC4CB008F32A6CB0082B8B196B19A006DFCA883EB2DBC515A880409AECC15C7"
+    },
+    "signerCertificateSha256": "547396E1FD99681C2A6D768B8B7D1B4484B5F42A17597CAD6C495221267A5488"
+  },
+  "evidence": [
+    "docs/release-evidence/melo-canonical-full-authority-final-2026-07-16.png",
+    "docs/release-evidence/melo-canonical-full-authority-final-2026-07-16.xml"
+  ],
+  "releaseComplete": false
+}

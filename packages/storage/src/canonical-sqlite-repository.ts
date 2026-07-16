@@ -6,15 +6,20 @@ import type {
   BalanceObservation,
   CalendarItem,
   Commitment,
+  CompanionRuntimeState,
   CurrentBalance,
+  CycleRecord,
   DecisionRecord,
+  Debt,
   DocumentAttachment,
   DocumentRecord,
   Event,
   FinancialExpectation,
+  FinancialContext,
   FinancialTransaction,
   Forecast,
   ImportedClaim,
+  IncomeSchedule,
   ImportDraft,
   MeloMemory,
   MeloProposalRecord,
@@ -23,10 +28,15 @@ import type {
   PlanImpact,
   PlanRule,
   PlannerItem,
+  Pot,
+  PotLedgerEntry,
   Provenance,
   Scenario,
   SourceRecord,
+  Subscription,
+  SubscriptionPreference,
   TimelineEntry,
+  TransactionIntelligenceState,
   UserCorrection,
   Workspace,
   WorkspaceId,
@@ -90,6 +100,16 @@ type EntityForCollection<TName extends EntityCollectionName> = {
   timelineEntries: TimelineEntry;
   meloMemory: MeloMemory;
   meloProposals: MeloProposalRecord;
+  pots: Pot;
+  potLedgerEntries: PotLedgerEntry;
+  subscriptions: Subscription;
+  subscriptionPreferences: SubscriptionPreference;
+  cycleRecords: CycleRecord;
+  debts: Debt;
+  financialContexts: FinancialContext;
+  incomeSchedules: IncomeSchedule;
+  transactionIntelligenceStates: TransactionIntelligenceState;
+  companionRuntimeStates: CompanionRuntimeState;
   auditLog: AuditLogEntry;
 }[TName];
 
@@ -168,6 +188,16 @@ export interface AsyncCanonicalRepository {
   readonly auditLog: AsyncCanonicalEntityRepository<AuditLogEntry>;
   readonly meloMemory: AsyncCanonicalEntityRepository<MeloMemory>;
   readonly meloProposals: AsyncCanonicalEntityRepository<MeloProposalRecord>;
+  readonly pots: AsyncCanonicalEntityRepository<Pot>;
+  readonly potLedgerEntries: AsyncCanonicalEntityRepository<PotLedgerEntry>;
+  readonly subscriptions: AsyncCanonicalEntityRepository<Subscription>;
+  readonly subscriptionPreferences: AsyncCanonicalEntityRepository<SubscriptionPreference>;
+  readonly cycleRecords: AsyncCanonicalEntityRepository<CycleRecord>;
+  readonly debts: AsyncCanonicalEntityRepository<Debt>;
+  readonly financialContexts: AsyncCanonicalEntityRepository<FinancialContext>;
+  readonly incomeSchedules: AsyncCanonicalEntityRepository<IncomeSchedule>;
+  readonly transactionIntelligenceStates: AsyncCanonicalEntityRepository<TransactionIntelligenceState>;
+  readonly companionRuntimeStates: AsyncCanonicalEntityRepository<CompanionRuntimeState>;
   readonly documents: AsyncCanonicalEntityRepository<DocumentRecord>;
   readonly documentAttachments: AsyncCanonicalEntityRepository<DocumentAttachment>;
   readonly calendarItems: AsyncCanonicalEntityRepository<CalendarItem>;
@@ -296,6 +326,16 @@ class SqliteCanonicalRepository implements AsyncCanonicalRepository {
   readonly timelineEntries: AsyncCanonicalEntityRepository<TimelineEntry>;
   readonly meloMemory: AsyncCanonicalEntityRepository<MeloMemory>;
   readonly meloProposals: AsyncCanonicalEntityRepository<MeloProposalRecord>;
+  readonly pots: AsyncCanonicalEntityRepository<Pot>;
+  readonly potLedgerEntries: AsyncCanonicalEntityRepository<PotLedgerEntry>;
+  readonly subscriptions: AsyncCanonicalEntityRepository<Subscription>;
+  readonly subscriptionPreferences: AsyncCanonicalEntityRepository<SubscriptionPreference>;
+  readonly cycleRecords: AsyncCanonicalEntityRepository<CycleRecord>;
+  readonly debts: AsyncCanonicalEntityRepository<Debt>;
+  readonly financialContexts: AsyncCanonicalEntityRepository<FinancialContext>;
+  readonly incomeSchedules: AsyncCanonicalEntityRepository<IncomeSchedule>;
+  readonly transactionIntelligenceStates: AsyncCanonicalEntityRepository<TransactionIntelligenceState>;
+  readonly companionRuntimeStates: AsyncCanonicalEntityRepository<CompanionRuntimeState>;
   readonly auditLog: AsyncCanonicalEntityRepository<AuditLogEntry>;
 
   constructor(
@@ -332,6 +372,16 @@ class SqliteCanonicalRepository implements AsyncCanonicalRepository {
     this.timelineEntries = this.entityRepository('timelineEntries');
     this.meloMemory = this.entityRepository('meloMemory');
     this.meloProposals = this.entityRepository('meloProposals');
+    this.pots = this.entityRepository('pots');
+    this.potLedgerEntries = this.entityRepository('potLedgerEntries');
+    this.subscriptions = this.entityRepository('subscriptions');
+    this.subscriptionPreferences = this.entityRepository('subscriptionPreferences');
+    this.cycleRecords = this.entityRepository('cycleRecords');
+    this.debts = this.entityRepository('debts');
+    this.financialContexts = this.entityRepository('financialContexts');
+    this.incomeSchedules = this.entityRepository('incomeSchedules');
+    this.transactionIntelligenceStates = this.entityRepository('transactionIntelligenceStates');
+    this.companionRuntimeStates = this.entityRepository('companionRuntimeStates');
     this.auditLog = this.entityRepository('auditLog');
   }
 
@@ -455,6 +505,16 @@ class SqliteCanonicalRepository implements AsyncCanonicalRepository {
         timelineEntries: await this.timelineEntries.list(),
         meloMemory: await this.meloMemory.list(),
         meloProposals: await this.meloProposals.list(),
+        pots: await this.pots.list(),
+        potLedgerEntries: await this.potLedgerEntries.list(),
+        subscriptions: await this.subscriptions.list(),
+        subscriptionPreferences: await this.subscriptionPreferences.list(),
+        cycleRecords: await this.cycleRecords.list(),
+        debts: await this.debts.list(),
+        financialContexts: await this.financialContexts.list(),
+        incomeSchedules: await this.incomeSchedules.list(),
+        transactionIntelligenceStates: await this.transactionIntelligenceStates.list(),
+        companionRuntimeStates: await this.companionRuntimeStates.list(),
         auditLog: await this.auditLog.list(),
       },
     };
@@ -647,6 +707,32 @@ class SqliteCanonicalRepository implements AsyncCanonicalRepository {
     }
     for (const proposal of snapshot.collections.meloProposals) {
       await this.writeEntity('meloProposals', proposal);
+    }
+    for (const pot of snapshot.collections.pots) await this.writeEntity('pots', pot);
+    for (const entry of snapshot.collections.potLedgerEntries) {
+      await this.writeEntity('potLedgerEntries', entry);
+    }
+    for (const subscription of snapshot.collections.subscriptions) {
+      await this.writeEntity('subscriptions', subscription);
+    }
+    for (const preference of snapshot.collections.subscriptionPreferences) {
+      await this.writeEntity('subscriptionPreferences', preference);
+    }
+    for (const cycle of snapshot.collections.cycleRecords) {
+      await this.writeEntity('cycleRecords', cycle);
+    }
+    for (const debt of snapshot.collections.debts) await this.writeEntity('debts', debt);
+    for (const context of snapshot.collections.financialContexts) {
+      await this.writeEntity('financialContexts', context);
+    }
+    for (const schedule of snapshot.collections.incomeSchedules) {
+      await this.writeEntity('incomeSchedules', schedule);
+    }
+    for (const intelligence of snapshot.collections.transactionIntelligenceStates) {
+      await this.writeEntity('transactionIntelligenceStates', intelligence);
+    }
+    for (const runtime of snapshot.collections.companionRuntimeStates) {
+      await this.writeEntity('companionRuntimeStates', runtime);
     }
     for (const entry of snapshot.collections.auditLog) await this.writeEntity('auditLog', entry);
   }
@@ -911,6 +997,16 @@ const entityCollectionNames = [
   'timelineEntries',
   'meloMemory',
   'meloProposals',
+  'pots',
+  'potLedgerEntries',
+  'subscriptions',
+  'subscriptionPreferences',
+  'cycleRecords',
+  'debts',
+  'financialContexts',
+  'incomeSchedules',
+  'transactionIntelligenceStates',
+  'companionRuntimeStates',
   'auditLog',
 ] as const satisfies readonly EntityCollectionName[];
 

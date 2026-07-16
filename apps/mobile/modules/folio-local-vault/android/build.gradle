@@ -1,0 +1,16 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.folio.foliolocalvault'
+version = '0.1.0'
+
+android {
+  namespace 'expo.modules.foliolocalvault'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    minSdkVersion 24
+  }
+}

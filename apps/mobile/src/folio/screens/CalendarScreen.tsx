@@ -1508,6 +1508,12 @@ export function EventRow({
         </View>
 
         {!compact && e.note ? <Text style={s.eventNote}>{e.note}</Text> : null}
+        {!compact && (e.time !== undefined || e.reminderOffsetMinutes !== undefined) ? (
+          <Text style={s.eventNote}>
+            {e.time !== undefined ? e.time : 'All day'}
+            {e.reminderOffsetMinutes !== undefined ? ' · reminder set' : ''}
+          </Text>
+        ) : null}
         {!compact && recurringLabel ? (
           <View style={layout.recurringRow}>
             <Text style={s.recurringGlyph}>↻</Text>

@@ -1,22 +1,24 @@
 // On-device image & camera intake.
 //
 // Lets the user bring a money picture in from their photo library or the camera. The image is saved
-// to the app's local cache only (never uploaded), then handed to the on-device extraction seam
-// (`extractTextFromDocument`). Today that seam returns `none` (the native OCR module isn't built —
-// see nativeTextExtraction.ts), so every image routes to the manual-from-image workbench: the file
-// is saved, and the user adds the important numbers from it. When the ML Kit OCR module lands, a
-// successful extract will flow straight into the same review path with NO change here.
+// to the app's local cache only, then handed to the bundled on-device ML Kit extraction seam. A
+// successful extract flows into Review; an unreadable image remains saved for manual fallback.
 //
 // Privacy: everything stays on this device. No bytes leave the phone.
 
 import * as ImagePicker from 'expo-image-picker';
 
-import { extractTextFromDocument } from './nativeTextExtraction';
+import { extractTextFromDocument, type ExtractedText } from './nativeTextExtraction';
 import type { LocalDocumentStageInput } from './localLedger';
 
 export type ImageIntakeResult =
-  // Text was extracted from the image (future OCR path) — feed it into the import engine.
-  | Readonly<{ kind: 'picked'; text: string; source: LocalDocumentStageInput }>
+  // Text was extracted from the image on-device — feed it into the import engine.
+  | Readonly<{
+      kind: 'picked';
+      text: string;
+      source: LocalDocumentStageInput;
+      extraction: ExtractedText;
+    }>
   // The image was saved but not read — fall back to the manual-from-image workbench.
   | Readonly<{ kind: 'saved'; message: string; source: LocalDocumentStageInput }>
   // The user backed out.
@@ -53,11 +55,10 @@ async function handlePicked(result: ImagePicker.ImagePickerResult): Promise<Imag
     uri: asset.uri,
   };
 
-  // Attempt on-device extraction. Returns { text:'', source:'none' } until the native OCR module
-  // exists, in which case we fall through to the saved/manual path.
+  // Attempt bundled on-device extraction first.
   const extracted = await extractTextFromDocument(asset.uri, mediaType);
   if (extracted.source !== 'none' && extracted.text.trim().length > 0) {
-    return { kind: 'picked', text: extracted.text, source };
+    return { kind: 'picked', text: extracted.text, source, extraction: extracted };
   }
 
   return { kind: 'saved', message: SAVED_MESSAGE, source };

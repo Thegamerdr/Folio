@@ -471,10 +471,10 @@ export type Goal = {
   targetDateISO?: string; // optional deadline; goals are allowed to have none
   linkedDebtId?: string; // for 'clear-specific-debt' — Debt.id (store.ts:104-118)
   linkedAccountId?: string; // for 'buffer'/'save-target' — Account.id (§2.1), the account the
-                            // goal is tracked against (e.g. a savings account balance)
+  // goal is tracked against (e.g. a savings account balance)
   createdAt: string; // ISO
   achievedAt?: string; // ISO — set once, never cleared; achieved goals stay visible as a win,
-                        // not deleted (matches the app's no-shame/honesty posture elsewhere)
+  // not deleted (matches the app's no-shame/honesty posture elsewhere)
   dismissed?: boolean; // soft-hide without deleting history
 };
 ```
@@ -514,7 +514,7 @@ additive, not blocking).
 
 **Where goals show:** Insights (net-worth-style framing, alongside `netPosition` from §2.4) is
 the natural home for a goals list/progress view; the Today action card (P6 below) is where an
-*active* goal surfaces as a nudge-shaped suggestion when tone permits. Not in scope for P5 itself
+_active_ goal surfaces as a nudge-shaped suggestion when tone permits. Not in scope for P5 itself
 to wire every surface — P5 ships the data model + selectors + the Melo-offer entry point;
 surfacing is P6's job where it's guidance-shaped, and a fast-follow UI item where it's a plain
 list view.
@@ -552,11 +552,11 @@ local state.
 **Guidance intensity mapping** — applied at every surface that has Melo "speak" (Today action
 card, `TodayNudges.tsx`'s nudge array, and any future goal-progress nudge from P5):
 
-| Tone | Behavior |
-|---|---|
-| `calm` | Answer-only. Shows numbers/state, no suggested action. If a nudge would normally carry a CTA suggestion, it either doesn't appear or appears as a neutral statement with no imperative verb. |
-| `honest` | States the situation plainly, including uncomfortable numbers (matches the app's existing no-euphemism copy discipline elsewhere), but still no pushed suggestion. |
-| `dry` | Same information as `honest`, terser/deadpan phrasing; still no pushed suggestion — `dry` is a voice change, not an intensity change. |
+| Tone     | Behavior                                                                                                                                                                                                                                                                       |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `calm`   | Answer-only. Shows numbers/state, no suggested action. If a nudge would normally carry a CTA suggestion, it either doesn't appear or appears as a neutral statement with no imperative verb.                                                                                   |
+| `honest` | States the situation plainly, including uncomfortable numbers (matches the app's existing no-euphemism copy discipline elsewhere), but still no pushed suggestion.                                                                                                             |
+| `dry`    | Same information as `honest`, terser/deadpan phrasing; still no pushed suggestion — `dry` is a voice change, not an intensity change.                                                                                                                                          |
 | `coachy` | The only tone that surfaces goal-directed suggestions — pulls from the active mode's strategy (`lib/modes/strategies/*.ts`) and any active P5 `Goal`, e.g. "£40 spare — put it toward the Klarna?" (referencing the user's own linked debt/goal, never a third-party product). |
 
 Concretely: `TodayNudges.tsx` (`screens/today/TodayNudges.tsx:146` builds the `nudges: Nudge[]`
@@ -570,6 +570,7 @@ to the whole nudge system.
 **HARD GUARDRAIL — read before writing any Melo copy in this phase:**
 
 Every `coachy`-tier suggestion MUST be:
+
 - about the user's OWN money (an amount they already have, e.g. "spare"/"tightest point" derived
   from `storeRoute.ts`), directed at a goal or debt THEY already declared (a P5 `Goal` or an
   existing `Debt`/liability `Account`) — never a suggestion to acquire new credit, open a new
@@ -588,12 +589,12 @@ Every `coachy`-tier suggestion MUST be:
 
 **Allowed vs banned examples (use these as the litmus test for any new copy in P6):**
 
-| Allowed (coachy) | Banned |
-|---|---|
-| "£40 spare this week — toward the Klarna, or let it sit?" | "You should pay down the Klarna before your other debts." |
-| "Buffer goal is £180 short — want to earmark this month's spare?" | "Consider opening a savings account for this." |
+| Allowed (coachy)                                                             | Banned                                                     |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| "£40 spare this week — toward the Klarna, or let it sit?"                    | "You should pay down the Klarna before your other debts."  |
+| "Buffer goal is £180 short — want to earmark this month's spare?"            | "Consider opening a savings account for this."             |
 | "Card balance ticked up £60 since last statement." (informational, any tone) | "You could save on interest by transferring this balance." |
-| "£300 left to your debt-free goal at this pace." | "A personal loan at a lower rate could clear this faster." |
+| "£300 left to your debt-free goal at this pace."                             | "A personal loan at a lower rate could clear this faster." |
 
 **Proof:** unit-test `TodayNudges` (or its nudge-building function) with `meloTone: 'calm'` and
 assert no money-direction suggestion nudge is present even when a P5 goal + spare money both

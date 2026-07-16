@@ -86,8 +86,8 @@ Conventional commit: `fix(store): setCurrentBalance recomputes the bank total ac
 2. Tests — new describe `setCurrentBalance — multi-account bank total`:
    a. Single account: behavior identical (existing test green + assert amount === input).
    b. Two bank accounts (default 500 + savings 300 via the store's own account mutators):
-      `setCurrentBalance({ amount: 1000, ... })` → default account 1000, savings 300,
-      `currentBalance.amount === 1300`.
+   `setCurrentBalance({ amount: 1000, ... })` → default account 1000, savings 300,
+   `currentBalance.amount === 1300`.
    c. No accounts array: `currentBalance.amount === input` (fallback).
    Verify: full suite green.
 

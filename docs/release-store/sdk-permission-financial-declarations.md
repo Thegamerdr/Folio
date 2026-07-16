@@ -25,7 +25,8 @@ or regulated financial execution unless a separately approved programme exists.
 
 ## Current Folio Position
 
-- Native billing and Open Banking providers are blocked.
+- Android billing and Open Banking adapters now exist, but their real external providers remain
+  blocked on Play/provider configuration, declarations and end-to-end proof.
 - Direct HMRC MTD is a blocked roadmap programme.
 - Public financial-feature declarations cannot be completed from synthetic shell evidence alone.
 

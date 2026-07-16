@@ -20,6 +20,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import type { WorkspaceId } from '@folio/domain';
 
 import { getState } from '@/folio/store';
 
@@ -37,9 +38,6 @@ export type RunExportResult = Readonly<{
   shared: boolean;
 }>;
 
-/** The canonical export file name — the complete, loss-free `AppState` record. */
-const JSON_FILENAME = 'folio-export.json';
-
 /**
  * Run the full data export: build the bundle from live state, write the JSON
  * and every CSV to the document directory, and open the OS share sheet on the
@@ -51,39 +49,52 @@ const JSON_FILENAME = 'folio-export.json';
  * sharing is unavailable on the device, the files are still written and
  * `shared` comes back false — the export itself never fails for that reason.
  */
-export async function runExport(): Promise<RunExportResult> {
+export async function runExport(workspaceId: WorkspaceId): Promise<RunExportResult> {
   const dir = FileSystem.documentDirectory;
   if (dir === null) {
     throw new Error('Export storage is unavailable on this device.');
   }
 
-  const { json, csvs } = buildExport(getState());
+  const snapshot = getState();
+  const workspace = snapshot.workspaces.find((candidate) => candidate.id === workspaceId);
+  if (workspace === undefined || workspace.archivedAt !== null) {
+    throw new Error('The selected workspace is unavailable for export.');
+  }
+  const stem = workspace.kind === 'business' ? 'melo-business' : 'melo-personal';
+  const jsonFilename = `${stem}-export.json`;
+  const { json, csvs } = buildExport(snapshot, workspaceId, new Date().toISOString());
 
-  const jsonUri = `${dir}${JSON_FILENAME}`;
+  const jsonUri = `${dir}${jsonFilename}`;
   await FileSystem.writeAsStringAsync(jsonUri, json, {
     encoding: FileSystem.EncodingType.UTF8,
   });
 
-  const filenames: string[] = [JSON_FILENAME];
+  const filenames: string[] = [jsonFilename];
+  const writtenCsvUris = new Map<string, string>();
   for (const [name, csv] of Object.entries(csvs)) {
-    await FileSystem.writeAsStringAsync(`${dir}${name}`, csv, {
+    const filename = `${stem}-${name}`;
+    const uri = `${dir}${filename}`;
+    await FileSystem.writeAsStringAsync(uri, csv, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    filenames.push(name);
+    filenames.push(filename);
+    writtenCsvUris.set(name, uri);
   }
 
   const available = await Sharing.isAvailableAsync();
   if (available) {
-    await Sharing.shareAsync(jsonUri, {
-      mimeType: 'application/json',
-      dialogTitle: 'Export your data',
-      UTI: 'public.json',
+    const businessCsvUri = writtenCsvUris.get('accountant-records.csv');
+    const shareBusinessCsv = workspace.kind === 'business' && businessCsvUri !== undefined;
+    await Sharing.shareAsync(shareBusinessCsv ? businessCsvUri : jsonUri, {
+      mimeType: shareBusinessCsv ? 'text/csv' : 'application/json',
+      dialogTitle: workspace.kind === 'business' ? 'Share business records' : 'Export your data',
+      UTI: shareBusinessCsv ? 'public.comma-separated-values-text' : 'public.json',
     });
   }
 
   return {
     jsonUri,
-    jsonFilename: JSON_FILENAME,
+    jsonFilename,
     filenames,
     shared: available,
   };

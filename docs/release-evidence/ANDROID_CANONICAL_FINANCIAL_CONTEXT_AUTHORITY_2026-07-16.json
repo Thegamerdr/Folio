@@ -1,0 +1,83 @@
+{
+  "capturedAt": "2026-07-16",
+  "package": "com.folio.v2.greenfield",
+  "versionName": "0.0.1",
+  "versionCode": 1,
+  "canonicalSchemaVersion": 6,
+  "authority": {
+    "exactRecoveryEnvelope": "encrypted-app-state-generation",
+    "readCandidate": "generation-bound-canonical-sqlcipher",
+    "adoptionRule": "generation-binding-fingerprint-and-inverse-parity",
+    "fallback": "exact-app-state"
+  },
+  "canonicalLedgerContainerFields": [
+    "currentBalance",
+    "accounts",
+    "transactions",
+    "pots",
+    "potLedger",
+    "subs",
+    "subPaused",
+    "subOverrides",
+    "cycles",
+    "debts"
+  ],
+  "canonicalFinancialContextFields": [
+    "onboarding",
+    "nextYouNote",
+    "tightPointGoal",
+    "droppedTransactionCount",
+    "moneyMode",
+    "bufferAmount",
+    "modeExtras",
+    "household"
+  ],
+  "authorityManifest": {
+    "totalFields": 48,
+    "workspaceRoot": 4,
+    "canonicalLedgerContainer": 10,
+    "canonicalFinancialContext": 8,
+    "canonicalSidecarExactAuthority": 3,
+    "exactEncryptedAuthority": 19,
+    "transientNotPersisted": 4
+  },
+  "verification": {
+    "testFiles": 203,
+    "tests": 2472,
+    "focusedTestFiles": 5,
+    "focusedTests": 313,
+    "typecheck": "passed",
+    "formatCheck": "passed",
+    "apkSignatureV2": "passed",
+    "aabJarVerification": "passed",
+    "emulatorInstall": "passed",
+    "emulatorColdLaunchMs": 4514,
+    "emulatorPrimaryCpuAbi": "x86_64",
+    "appFatalOrDatabaseErrors": 0,
+    "fabricatedFinancialRecordsVisible": 0,
+    "remoteMeloTempFiles": 0,
+    "physicalGalaxyS9Targeted": false
+  },
+  "artifacts": {
+    "apk": {
+      "path": "apps/mobile/android/app/build/outputs/apk/release/app-release.apk",
+      "bytes": 108995223,
+      "sha256": "7313101ED0565B2A73D5127BC8E2EF29B1D39080FDBB411CC22790174075F44F"
+    },
+    "aab": {
+      "path": "apps/mobile/android/app/build/outputs/bundle/release/app-release.aab",
+      "bytes": 76943003,
+      "sha256": "771E710226BFB4D66C65F02DA68799D0D8022CF3B68010992D10331CC411B550"
+    },
+    "javascriptBundle": {
+      "path": "apps/mobile/android/app/build/generated/assets/react/release/index.android.bundle",
+      "bytes": 7884900,
+      "sha256": "6428A7BF9B64C650C7AD363ADB248749FE2E56E09AD71C02A8199C39987289F6"
+    },
+    "signerCertificateSha256": "547396E1FD99681C2A6D768B8B7D1B4484B5F42A17597CAD6C495221267A5488"
+  },
+  "evidence": [
+    "docs/release-evidence/melo-financial-context-authority-final-2026-07-16.png",
+    "docs/release-evidence/melo-financial-context-authority-final-2026-07-16.xml"
+  ]
+}

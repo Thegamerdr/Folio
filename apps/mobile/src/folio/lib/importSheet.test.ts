@@ -186,6 +186,25 @@ describe('parseSheet — amount format', () => {
     expect(byMerchant(candidates, 'Salary')?.amount).toBe(2180);
     expect(byMerchant(candidates, 'Salary')?.kind).toBe('income');
   });
+
+  it('combines auto-detected Out/In columns without guessing direction', () => {
+    const csv = ['When,Payee,Out,In', '21/06/2026,Tesco,42.16,', '22/06/2026,Salary,,1840.00'].join(
+      '\n',
+    );
+    const { candidates, issues } = parseSheet(csv);
+
+    expect(issues).toEqual([]);
+    expect(byMerchant(candidates, 'Tesco')).toMatchObject({ amount: -42.16, kind: 'spend' });
+    expect(byMerchant(candidates, 'Salary')).toMatchObject({ amount: 1840, kind: 'income' });
+  });
+
+  it('fails closed when both debit and credit are populated on one row', () => {
+    const csv = ['Date,Description,Debit,Credit', '2026-06-20,Ambiguous,10.00,20.00'].join('\n');
+    const { candidates, issues } = parseSheet(csv);
+
+    expect(candidates).toEqual([]);
+    expect(issues).toEqual([expect.objectContaining({ code: 'bad-amount', row: 1 })]);
+  });
 });
 
 // ---------------------------------------------------------------------------

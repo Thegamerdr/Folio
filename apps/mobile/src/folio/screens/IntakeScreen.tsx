@@ -1,9 +1,5 @@
-// @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review (see BUILD_PLAN §3)
-// @rn-engine ocr-extraction — the EXTRACTOR is now the LLM reader (gateway vision model,
-//   src/local/statementReaderClient.ts), NOT the native PdfRenderer + ML Kit module. A real PDF /
-//   photo is handed to `extractStatementCandidates`, which reads the page through the multimodal
-//   gateway and returns money movements as candidates. The unbuilt native module is therefore no
-//   longer the blocker for reading a PDF/photo — it only matters for a fully offline OCR path.
+// @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review.
+// @rn-engine ocr-extraction — Android PdfRenderer + bundled ML Kit runs on-device.
 //
 // IntakeScreen — the faithful 1:1 React Native port of the web "Add what you have" picker
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenIntake.tsx).
@@ -40,14 +36,8 @@
 //         `parseSheet` engine into CandidateMoneyItem[]. If that produces real candidates they are
 //         STAGED via `setReaderCandidates` and the user is routed to the success preview
 //         (`pdf-success` / `image-success`), where they review-before-truth.
-//       — PDF / PHOTO: the picked file's `uri` + `mediaType` are handed to the LLM reader
-//         (`extractStatementCandidates`, src/local/statementReaderClient.ts → the gateway vision
-//         model). While that call is in flight the screen shows a calm in-place "reading…" moment
-//         (a Melo line, NEVER a spinner). On `ok` with >=1 candidate the candidates are STAGED via
-//         `setReaderCandidates` and the user is routed to the success preview. On `no-provider` /
-//         `error` / an empty read the file is still saved and the user is routed to the HONEST
-//         fallback (`pdf-fallback` / `image-fallback`: "File saved" / "will read later"). We never
-//         pretend a read happened — an unread file always lands on the honest fallback.
+//       — PDF / PHOTO: bundled on-device OCR runs first and its low-confidence candidates are staged
+//         locally. If it produces no reliable rows, the app opens the manual fallback.
 //     A cancel / permission-refusal leaves the picker exactly where it was.
 //   • The accent word in the headline ("**what**") renders terracotta and UPRIGHT (the web uses
 //     <em class="not-italic text-[accent]"> — NOT italic). The headline string is read VERBATIM
@@ -69,9 +59,7 @@
 //     populated — local-first, nothing fetched). All five branches are rendered for completeness:
 //     populated/offline = the picker; loading = Melo curious + a line (NEVER a spinner, max ~4s
 //     then fall through to the picker); empty/error = the calm EmptyState doorway that still
-//     routes into the picker so it never dead-ends. A sixth, transient READING moment (also Melo
-//     curious + a line, NEVER a spinner) shows while the LLM reader reads a picked PDF / photo; it
-//     resolves to the success preview or the honest fallback the instant the read returns.
+//     routes into the picker so it never dead-ends.
 //   • Layout: the web root is a scroll container with a flex-1 spacer before the footer, so the
 //     footer pins to the bottom on tall screens and the list scrolls on short ones. RN: a
 //     ScrollView with contentContainerStyle flexGrow:1 + a flex:1 spacer View reproduces the
@@ -84,6 +72,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   Clipboard,
   Pressable,
   ScrollView,
@@ -105,39 +94,28 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
-  cacheAiRead,
-  getCachedAiRead,
+  addEvidenceDocument,
   getState,
-  recordAiRead,
   setReaderCandidates,
   setReaderClosingBalance,
   useAppStore,
 } from '@/folio/store';
-import { useLens } from '@/folio/lib/lens';
-import { loadActiveEntitlement } from '@/folio/lib/billing/entitlements';
 import {
-  allowanceFor,
-  canReadNow,
-  monthKeyOf,
-  READ_ALLOWANCE,
-  readsLeft,
-  statementCacheKey,
-  type ReadTier,
-} from '@/folio/lib/billing/readAllowance';
-import { setReaderFallbackReason } from '@/folio/lib/readerFallbackReason';
+  setReaderFallbackEvidenceId,
+  setReaderFallbackReason,
+} from '@/folio/lib/readerFallbackReason';
+import {
+  deleteEvidenceDocumentFile,
+  evidenceRetentionFailureCopy,
+  retainEvidenceDocument,
+} from '@/folio/lib/documentVault';
 import { showToast } from '@/folio/ui/Toast';
-import * as FileSystem from 'expo-file-system/legacy';
 
 import { pickLocalStatementDocument } from '../../local/nativeDocumentImport';
-import { pickStatementImage } from '../../local/nativeImageIntake';
-import { base64ToBinaryString, planPdfChunks, PAGES_PER_CHUNK } from '../../local/pdfChunkSplitter';
-import {
-  extractStatementCandidates,
-  extractStatementCandidatesChunked,
-  MAX_STATEMENT_BYTES,
-  type StatementReaderChunkProgress,
-  type StatementReaderKind,
-} from '../../local/statementReaderClient';
+import { captureStatementPhoto, pickStatementImage } from '../../local/nativeImageIntake';
+import { parseLocalDocumentCandidates } from '../../local/localDocumentCandidates';
+import { parseLocalOcrCandidates } from '../../local/localOcrCandidates';
+import type { ExtractedText } from '../../local/nativeTextExtraction';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Intake is populated-only and offline is
@@ -184,7 +162,7 @@ const OPTIONS: readonly IntakeOption[] = [
   },
   {
     title: 'Screenshot or photo',
-    hint: 'from your phone',
+    hint: 'take or choose one',
     icon: '▢',
     to: 'image-success',
     pick: 'photo',
@@ -224,6 +202,27 @@ const SLIDE_MS = 360;
 // fallback)".
 const LOADING_FALLBACK_MS = 4000;
 
+function chooseImageSource(): Promise<'camera' | 'library' | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: 'camera' | 'library' | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    Alert.alert(
+      'Add a statement image',
+      'Take a new photo or choose one already on this phone.',
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => finish(null) },
+        { text: 'Choose image', onPress: () => finish('library') },
+        { text: 'Take photo', onPress: () => finish('camera') },
+      ],
+      { cancelable: true, onDismiss: () => finish(null) },
+    );
+  });
+}
+
 // Local reduce-motion read, mirroring Melo.tsx / StartScreen exactly: read once, then subscribe to
 // changes. Kept self-contained so this screen pulls no heavy module graph.
 function useReduceMotion(): boolean {
@@ -250,16 +249,25 @@ function useReduceMotion(): boolean {
 // issues are not hard; a single bad row still lets the good rows through to the preview. Returns the
 // candidate list to STAGE when the read succeeded, or `null` when it did not — so the caller stages
 // the real candidates before routing to the preview, never an empty list.
-function readTextCandidates(text: string): CandidateMoneyItem[] | null {
-  const { candidates, issues } = parseSheet(text);
+function readTextCandidates(
+  text: string,
+  source: Extract<CandidateMoneyItem['source'], 'csv' | 'paste'>,
+  filename: string,
+): CandidateMoneyItem[] | null {
+  const { candidates, issues } = parseSheet(text, { source });
   const hasHardIssue = issues.some(
     (issue) =>
       issue.code === 'missing-amount' ||
       issue.code === 'missing-merchant' ||
       issue.code === 'empty-input',
   );
-  if (candidates.length === 0 || hasHardIssue) return null;
-  return candidates;
+  if (candidates.length > 0 && !hasHardIssue) return candidates;
+
+  // Common bank clipboard/TXT exports are line-oriented rather than spreadsheets (for example
+  // `25 Jun Tesco -42.00`). The shipping import engine already parses that shape for local OCR.
+  // Reuse it as a review-only fallback instead of sending the user to a blank manual form.
+  const unstructured = parseLocalOcrCandidates({ text, source, filename });
+  return unstructured.candidates.length > 0 ? unstructured.candidates : null;
 }
 
 // Split a deck string carrying a single **accent** run into its three parts. The headline is read
@@ -283,6 +291,11 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
+  const isBusiness = useAppStore(
+    (current) =>
+      current.workspaces.find((workspace) => workspace.id === current.activeWorkspaceId)?.kind ===
+      'business',
+  );
 
   // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
   // we resolve straight to the final state instead of animating.
@@ -309,323 +322,169 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     return () => clearTimeout(id);
   }, [state]);
 
-  // reading — the calm in-place moment while the LLM reader is reading a picked PDF / photo. It is
-  // driven by the real in-flight read (not a timer): the read either lands candidates (→ success),
-  // or honestly falls back (→ fallback), and either way clears this state before routing. It is a
-  // Melo line, NEVER a spinner — the same "no spinner" hard rule the loading branch obeys.
-  const [reading, setReading] = useState(false);
-  // Chunked-read progress (long PDF exports only) — null outside a chunked read. Drives the honest
-  // "reading pages… N of M" line; the single-shot path (small files) never sets this.
-  const [chunkProgress, setChunkProgress] = useState<StatementReaderChunkProgress | null>(null);
-  // Lets the reading moment's "Stop here" affordance cancel an in-flight CHUNKED read. The chunked
-  // reader keeps whatever chunks already succeeded before the abort — see runChunkedReader — so
-  // cancelling still routes to the success preview with a partial, honestly-covered set rather than
-  // discarding work already done. Single-shot reads have no meaningful partial state to keep, so
-  // this affordance only shows during a chunked read (chunkProgress !== null).
-  const [readAbortController, setReadAbortController] = useState<AbortController | null>(null);
-
-  // AI-read allowance (MONEY_MODEL.md §2b — tiers differ in read QUANTITY, never quality; all the
-  // maths live in lib/billing/readAllowance.ts). Tier resolves from real ownership: Live from the
-  // billing entitlement record, Full from the lens store. The one-cycle lens TRIAL does not raise
-  // the allowance — it trials software (zero marginal cost); reads cost real money per use.
-  const { fullUnlocked } = useLens();
-  const [liveActive, setLiveActive] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    void loadActiveEntitlement().then((record) => {
-      if (mounted && record?.tier === 'live') setLiveActive(true);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-  const readTier: ReadTier = liveActive ? 'live' : fullUnlocked ? 'full' : 'free';
-  const aiReads = useAppStore((s) => s.aiReads);
-  const readAllowance = allowanceFor(readTier);
-  const readsRemaining = readsLeft(aiReads, readTier, monthKeyOf(new Date()));
-
   const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.title), []);
 
-  // Pre-read gate, shared by the single-shot and chunked paths. Three outcomes:
-  //  • 'cached' — Folio has read this exact file before: the cached candidates are staged and the
-  //    success screen is already routed to. No gateway call, no allowance burned.
-  //  • 'blocked' — this month's allowance is spent: an honest toast says so and the fallback
-  //    screen (manual paths) is routed to. Nothing was read.
-  //  • 'allowed' — proceed with a real read; `key` (when computable) is the cache key to write
-  //    back on success so the NEXT pick of this file is free.
-  async function gateAiRead(
-    uri: string,
+  function stageLocalOcrRead(
+    text: string,
+    source: 'pdf' | 'photo',
+    filename: string,
     successScreen: ScreenId,
-    fallbackScreen: ScreenId,
-  ): Promise<{ kind: 'cached' | 'blocked' } | { kind: 'allowed'; key: string | null }> {
-    let key: string | null = null;
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      if (base64.trim().length > 0) key = statementCacheKey(base64);
-    } catch {
-      // Unreadable here — the reader itself will surface its own honest error; the gate only
-      // loses the cache shortcut, never blocks on a hashing failure.
-    }
-    if (key !== null) {
-      const cached = getCachedAiRead(key);
-      if (cached !== null) {
-        setReaderCandidates(cached.candidates);
-        setReaderClosingBalance(cached.closingBalance);
-        showToast('Read from memory', 'Melo has read this exact file — no read used.');
-        nav.go(successScreen);
-        return { kind: 'cached' };
-      }
-    }
-    const monthKey = monthKeyOf(new Date());
-    if (!canReadNow(getState().aiReads, readTier, monthKey)) {
-      const body =
-        readTier === 'full'
-          ? `Full includes ${READ_ALLOWANCE.full} AI statement reads a month. Live makes them unlimited.`
-          : `Free includes ${READ_ALLOWANCE.free} AI statement reads a month. Full raises it to ${READ_ALLOWANCE.full} — Live makes them unlimited.`;
-      showToast('Monthly reads used', body);
-      setReaderFallbackReason(
-        'This month’s AI reads are used. The manual paths below still work — the allowance resets next month.',
+    sourceEvidenceId: string,
+    extraction?: ExtractedText,
+  ): boolean {
+    const local = parseLocalDocumentCandidates({
+      text,
+      source,
+      filename,
+      ...(extraction === undefined ? {} : { extraction }),
+    });
+    if (local.candidates.length === 0) return false;
+    setReaderCandidates(local.candidates.map((candidate) => ({ ...candidate, sourceEvidenceId })));
+    setReaderClosingBalance(local.closingBalance);
+    setReaderFallbackReason(undefined);
+    setReaderFallbackEvidenceId(undefined);
+    if (
+      extraction?.truncated === true &&
+      extraction.pages !== undefined &&
+      extraction.totalPages !== undefined
+    ) {
+      showToast(
+        'Read part on this device',
+        `Pages 1-${extraction.pages} of ${extraction.totalPages} are ready to check. Later pages are not included.`,
       );
-      nav.go(fallbackScreen);
-      return { kind: 'blocked' };
+    } else {
+      showToast(
+        'Read on this device',
+        `${local.candidates.length} ${local.candidates.length === 1 ? 'row is' : 'rows are'} ready to check.`,
+      );
     }
-    return { kind: 'allowed', key };
+    nav.go(successScreen);
+    return true;
   }
 
-  // Success bookkeeping for a real (non-cached) read that yielded candidates: count it against
-  // this month and cache it by file content so re-picking the same file is free. Failed/empty
-  // reads never reach here — they burn no allowance (see readAllowance.ts's rules).
-  function settleAiRead(
-    key: string | null,
-    candidates: CandidateMoneyItem[],
-    closingBalance: Parameters<typeof setReaderClosingBalance>[0],
-    cacheable: boolean,
-  ) {
-    recordAiRead(monthKeyOf(new Date()));
-    if (key !== null && cacheable) {
-      cacheAiRead(key, { candidates, closingBalance, at: new Date().toISOString() });
-    }
-  }
-
-  // Run the LLM reader over a picked PDF / photo and route honestly. The picked file's `uri` +
-  // `mediaType` go to `extractStatementCandidates` (the gateway vision model). While the call is in
-  // flight the screen shows the calm "reading…" Melo moment (reading=true). On `ok` with >=1
-  // candidate the candidates are STAGED via setReaderCandidates and we route to the success preview
-  // (review-before-truth — they are staged, not counted). On `no-provider` / `error` / an empty read
-  // we route to the honest fallback (the file is already saved on-device by the adapter; we never
-  // fake a parse). Always clears `reading` before routing.
-  //
-  // A PDF at or above MAX_STATEMENT_BYTES routes to the CHUNKED reader (runChunkedReader) instead —
-  // see extractStatementCandidatesChunked's doc comment for why byte-level page splitting is the
-  // approach that actually works for a long export, measured against the live gateway.
-  async function runReader(
-    uri: string,
-    mediaType: string,
-    kind: StatementReaderKind,
-    successScreen: ScreenId,
-    fallbackScreen: ScreenId,
-  ) {
-    // Allowance + cache gate BEFORE any read path (single-shot or chunked): a cached repeat is
-    // served instantly and free; a spent allowance stops honestly before the spinnerless wait.
-    const gate = await gateAiRead(uri, successScreen, fallbackScreen);
-    if (gate.kind !== 'allowed') return;
-
-    if (kind === 'pdf') {
-      const info = await FileSystem.getInfoAsync(uri);
-      if (info.exists && typeof info.size === 'number' && info.size > MAX_STATEMENT_BYTES) {
-        await runChunkedReader(uri, mediaType, successScreen, fallbackScreen, gate.key);
-        return;
-      }
-    }
-
-    setReading(true);
+  async function retainSource(
+    source: Parameters<typeof retainEvidenceDocument>[0]['source'],
+    sourceType: Parameters<typeof retainEvidenceDocument>[0]['sourceType'],
+    extractionStatus: Parameters<typeof retainEvidenceDocument>[0]['extractionStatus'],
+  ): Promise<string | null> {
+    const current = getState();
+    const workspace = current.workspaces.find(
+      (candidate) => candidate.id === current.activeWorkspaceId,
+    );
+    if (workspace === undefined) return null;
+    let retained: Awaited<ReturnType<typeof retainEvidenceDocument>> | undefined;
     try {
-      const result = await extractStatementCandidates({ uri, mediaType, kind });
-      if (result.kind === 'ok' && result.candidates.length > 0) {
-        setReaderCandidates(result.candidates);
-        setReaderClosingBalance(result.closingBalance);
-        settleAiRead(gate.key, result.candidates, result.closingBalance, true);
-        nav.go(successScreen);
-        return;
-      }
-      // no-provider / error / empty read → the file is saved, but nothing was read. Honest
-      // fallback — and when the reader knows WHY (long export, timeout, gateway trouble), say it:
-      // the fallback screen's copy is generic, and the specific guidance ("one month works best")
-      // is the difference between a retry that works and giving up on the feature. The toast covers
-      // the in-the-moment read; the module-level handoff below lets the fallback screen itself carry
-      // the same reason once it mounts (see readerFallbackReason.ts).
-      setReaderFallbackReason(result.kind === 'error' ? result.message : undefined);
-      if (result.kind === 'error') {
-        showToast("Couldn't read that", result.message);
-      }
-      nav.go(fallbackScreen);
-    } finally {
-      setReading(false);
-    }
-  }
-
-  // Run the CHUNKED reader over a long PDF export, driving honest per-chunk progress
-  // ("reading pages… N of M") and a "Stop here" cancel that keeps whatever chunks already
-  // succeeded (review-before-truth extended to coverage: the user always knows what range was
-  // actually read). `kind === 'partial'` (some chunks failed, or the user cancelled mid-read) still
-  // routes to the success preview when at least one candidate exists — the coverage gaps are
-  // reported via toast so the user knows which pages weren't read, rather than silently missing
-  // rows. Only a TOTAL failure (kind 'error', or 'ok'/'partial' with zero candidates) falls back.
-  //
-  // PRE-READ SCOPE LINE (phase ⑦): before the first request goes out, plan the chunk split
-  // ourselves (the exact same `planPdfChunks` call `extractStatementCandidatesChunked` makes
-  // internally) so we know `plan.ranges.length` up front and can tell the user honestly how many
-  // parts this is going to take — rather than the per-chunk progress line mid-read being the first
-  // the user hears about scope. Best-effort: if the file can't be planned here (encrypted,
-  // malformed, unreadable), we say nothing and let the real read below surface its own honest error
-  // — this pre-read line is a courtesy heads-up, never a second source of truth for whether the
-  // read can proceed.
-  async function announceChunkedReadScope(uri: string): Promise<void> {
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+      retained = await retainEvidenceDocument({
+        workspace,
+        source,
+        sourceType,
+        extractionStatus,
       });
-      if (base64.trim().length === 0) return;
-      const plan = planPdfChunks(base64ToBinaryString(base64), PAGES_PER_CHUNK);
-      if (plan.ranges.length > 1) {
-        showToast(
-          'A long export',
-          `Melo will read it in ${plan.ranges.length} parts, a few minutes.`,
-        );
+      addEvidenceDocument(retained);
+      return retained.id;
+    } catch (reason: unknown) {
+      if (retained !== undefined) {
+        await deleteEvidenceDocumentFile(workspace, retained).catch(() => undefined);
       }
-    } catch {
-      // Unplannable here — the real read below will report its own honest error if it can't proceed.
+      const failure = evidenceRetentionFailureCopy(reason);
+      Alert.alert(failure.title, failure.body);
+      return null;
     }
   }
 
-  async function runChunkedReader(
-    uri: string,
-    mediaType: string,
-    successScreen: ScreenId,
-    fallbackScreen: ScreenId,
-    cacheKey: string | null,
-  ) {
-    const controller = new AbortController();
-    setReadAbortController(controller);
-    setReading(true);
-    setChunkProgress(null);
-    try {
-      await announceChunkedReadScope(uri);
-      const result = await extractStatementCandidatesChunked({
-        uri,
-        mediaType,
-        kind: 'pdf',
-        signal: controller.signal,
-        onProgress: setChunkProgress,
-      });
-
-      if (result.kind === 'ok' || result.kind === 'partial') {
-        if (result.candidates.length > 0) {
-          setReaderCandidates(result.candidates);
-          // The chunked reader now threads through a closing balance when any chunk returned one —
-          // the LAST such chunk by page order (see extractStatementCandidatesChunked's doc for the
-          // "last chunk with a balance wins" rule). Pass it straight through the same way the
-          // single-shot path does; `null` when no chunk supplied one, which also correctly clears
-          // any balance staged by a prior single-shot read rather than letting it leak in.
-          setReaderClosingBalance(result.closingBalance);
-          // One statement = ONE read against the allowance, however many chunks it took. Only a
-          // FULL-coverage read is cached — caching a partial forever would keep serving the gaps.
-          settleAiRead(cacheKey, result.candidates, result.closingBalance, result.kind === 'ok');
-          if (result.kind === 'partial') {
-            const failed = result.coverage.filter((outcome) => !outcome.ok);
-            const pages = failed
-              .map((outcome) => `${outcome.startPage}-${outcome.endPage}`)
-              .join(', ');
-            showToast(
-              'Read part of that statement',
-              failed.length > 0
-                ? `Pages ${pages} didn't read — the rest is ready to check.`
-                : 'Reading was stopped early — what came in is ready to check.',
-            );
-          }
-          nav.go(successScreen);
-          return;
-        }
-        setReaderFallbackReason(undefined);
-        nav.go(fallbackScreen);
-        return;
-      }
-      setReaderFallbackReason(result.kind === 'error' ? result.message : undefined);
-      if (result.kind === 'error') {
-        showToast("Couldn't read that", result.message);
-      }
-      nav.go(fallbackScreen);
-    } finally {
-      setReading(false);
-      setChunkProgress(null);
-      setReadAbortController(null);
-    }
+  function finishLocalReaderFallback(fallbackScreen: ScreenId, sourceEvidenceId: string): void {
+    setReaderFallbackReason(
+      'On-device reading could not find reliable rows. You can add the important numbers yourself.',
+    );
+    setReaderFallbackEvidenceId(sourceEvidenceId);
+    nav.go(fallbackScreen);
   }
 
-  // Fire the real on-device picker for a file-shaped option, then route honestly:
-  //   • document (PDF statement): pickLocalStatementDocument copies the chosen file to the app cache.
-  //     A CSV / TSV / TXT statement comes back as extracted TEXT (`picked`) — parseSheet reads it into
-  //     candidates, which are STAGED before routing to the success preview ('pdf-success'); a hollow /
-  //     hard-issue read falls to the honest 'pdf-fallback'. A real PDF comes back `unsupported` (the
-  //     adapter saved it but read no text) — its `uri` + `mediaType` go to the LLM reader (runReader),
-  //     which stages the model's candidates → 'pdf-success' or honestly falls back → 'pdf-fallback'.
-  //     Cancel = no nav.
-  //   • photo (screenshot / camera-roll image): pickStatementImage saves the image on-device only.
-  //     Extracted TEXT (`picked`) → parseSheet → staged → 'image-success'. A real photo comes back
-  //     `saved` (no text extracted) — its `uri` + `mediaType` go to the LLM reader → staged →
-  //     'image-success', or honest 'image-fallback'. `denied` / `cancelled` = no nav.
-  // The pick never throws (the adapters swallow + report). Nothing is counted here — review-before-truth.
+  // Pick or capture locally and use bundled on-device reading. Nothing is counted here; every
+  // found row remains a Review candidate.
   async function runPick(option: IntakeOption) {
     if (option.pick === 'document') {
       const result = await pickLocalStatementDocument();
       if (result.kind === 'cancelled') return;
       const src = result.source;
-      // ROUTE BY FILE TYPE, not by whether text was extracted. Only a genuinely DELIMITED statement
-      // (CSV / TSV / TXT) goes to the offline column parser. A PDF — even one whose embedded text
-      // layer the picker read — is unstructured prose, NOT CSV columns, so parseSheet always fails on
-      // it; the LLM vision reader is the right tool and handles arbitrary statement layouts.
+      const sourceEvidenceId = await retainSource(
+        src,
+        'document',
+        result.kind === 'picked' ? 'read' : 'unreadable',
+      );
+      if (sourceEvidenceId === null) return;
       const looksDelimited =
         /text\/csv|application\/csv|tab-separated|text\/plain/i.test(src.mediaType) ||
         /\.(csv|tsv|txt)$/i.test(src.filename);
       if (result.kind === 'picked' && looksDelimited) {
-        const candidates = readTextCandidates(result.text);
+        const candidates = readTextCandidates(result.text, 'csv', src.filename);
         if (candidates !== null) {
-          setReaderCandidates(candidates);
+          setReaderCandidates(candidates.map((candidate) => ({ ...candidate, sourceEvidenceId })));
           // A delimited (CSV/TSV/TXT) statement never carries a closing balance — the offline
           // column parser has no such concept — so explicitly clear any balance staged by a
           // prior reader read rather than letting it leak into this landing.
           setReaderClosingBalance(null);
+          setReaderFallbackEvidenceId(undefined);
           nav.go('pdf-success');
         } else {
-          // The column parser found nothing readable — no reader-side reason to hand over.
-          setReaderFallbackReason(undefined);
-          nav.go('pdf-fallback');
+          finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
         }
-      } else if (src.uri !== undefined) {
-        await runReader(src.uri, src.mediaType, 'pdf', 'pdf-success', 'pdf-fallback');
-      } else {
-        setReaderFallbackReason(undefined);
-        nav.go('pdf-fallback');
+        return;
       }
+      if (
+        result.kind === 'picked' &&
+        stageLocalOcrRead(
+          result.text,
+          'pdf',
+          src.filename,
+          'pdf-success',
+          sourceEvidenceId,
+          result.extraction,
+        )
+      ) {
+        return;
+      }
+      if (src.uri !== undefined) {
+        finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
+        return;
+      }
+      finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
       return;
     }
-    // option.pick === 'photo' — a photographed/screenshotted statement is an image. OCR-text → CSV
-    // parser is wrong for a photo, so route the image itself to the LLM reader. Cancelled/denied stop.
-    const result = await pickStatementImage();
-    if ('source' in result && result.source.uri !== undefined) {
-      await runReader(
-        result.source.uri,
-        result.source.mediaType,
-        'image',
-        'image-success',
-        'image-fallback',
-      );
-    } else if (result.kind === 'picked' || result.kind === 'saved') {
-      setReaderFallbackReason(undefined);
-      nav.go('image-fallback');
+
+    const imageSource = await chooseImageSource();
+    if (imageSource === null) return;
+    const result =
+      imageSource === 'camera' ? await captureStatementPhoto() : await pickStatementImage();
+    if (result.kind === 'cancelled') return;
+    if (result.kind === 'denied') {
+      showToast('Permission is off', result.message);
+      return;
     }
+    const sourceEvidenceId = await retainSource(
+      result.source,
+      imageSource === 'camera' ? 'camera' : 'image',
+      result.kind === 'picked' ? 'read' : 'unreadable',
+    );
+    if (sourceEvidenceId === null) return;
+    if (
+      result.kind === 'picked' &&
+      stageLocalOcrRead(
+        result.text,
+        'photo',
+        result.source.filename,
+        'image-success',
+        sourceEvidenceId,
+        result.extraction,
+      )
+    ) {
+      return;
+    }
+    if (result.source.uri !== undefined) {
+      finishLocalReaderFallback('image-fallback', sourceEvidenceId);
+      return;
+    }
+    finishLocalReaderFallback('image-fallback', sourceEvidenceId);
   }
 
   // A paste row must actually read the clipboard before it claims anything was found. Parsed rows
@@ -637,7 +496,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       showToast('Nothing copied yet', 'Copy the transaction rows, then tap Paste from clipboard.');
       return;
     }
-    const candidates = readTextCandidates(text);
+    const candidates = readTextCandidates(text, 'paste', 'pasted transactions');
     setReaderCandidates(candidates ?? []);
     setReaderClosingBalance(null);
     nav.go('paste-success');
@@ -667,9 +526,18 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness). The
   // single CTA still routes into the picker so the doorway never dead-ends.
   if (state === 'empty' || state === 'error') {
-    const headline = state === 'error' ? copy.err.generic : 'Add what you have.';
+    const headline =
+      state === 'error'
+        ? copy.err.generic
+        : isBusiness
+          ? 'Add business records.'
+          : 'Add what you have.';
     const body =
-      state === 'error' ? undefined : 'Melo shows what it finds before anything is added.';
+      state === 'error'
+        ? undefined
+        : isBusiness
+          ? 'Statements and receipts stay in this Business workspace and wait for your review.'
+          : 'Melo shows what it finds before anything is added.';
     return (
       <EmptyState
         mood="calm"
@@ -688,43 +556,6 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
         <MeloLine mood="curious" text="One second — getting your options ready." />
-      </View>
-    );
-  }
-
-  // reading — the LLM reader is reading the picked PDF / photo. A calm Melo line, NEVER a spinner
-  // (the same hard rule). Driven by the real in-flight read, not a timer: it resolves the moment the
-  // read lands candidates (→ success) or honestly falls back (→ fallback). Curious is the reading
-  // mood (MELO_MOODS.md), matching the success screens' own "Folio is reading…" line.
-  //
-  // A CHUNKED read (long PDF export) additionally shows honest per-chunk progress ("reading
-  // pages… N of M") and a "Stop here" affordance — cancelling keeps whatever chunks already
-  // succeeded (runChunkedReader routes to the success preview with that partial set + a toast
-  // naming the gap, rather than discarding the work already done).
-  if (reading) {
-    const progressText =
-      chunkProgress !== null
-        ? `Reading pages ${chunkProgress.startPage}-${chunkProgress.endPage} of ${chunkProgress.totalPages} — part ${chunkProgress.chunkIndex + 1} of ${chunkProgress.chunkCount}…`
-        : "Reading what's here…";
-    return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text={progressText} />
-        {readAbortController !== null ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Stop here and use what's been read so far"
-            onPress={() => readAbortController.abort()}
-            style={({ pressed: isPressed }) => [
-              styles.stopReading,
-              { borderColor: t.hairline },
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.stopReadingLabel, { color: t.muted }]}>Stop here</Text>
-          </Pressable>
-        ) : null}
       </View>
     );
   }
@@ -752,7 +583,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           >
             <Text style={[styles.back, { color: t.muted }]}>←</Text>
           </Pressable>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>Add</Text>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>
+            {isBusiness ? 'Business records' : 'Add'}
+          </Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -760,12 +593,24 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             Headline is VERBATIM from copy.add.title; subhead is a @copy FROZEN inline literal. */}
         <View style={styles.titleBlock}>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {lead}
-            <Text style={[styles.headlineAccent, { color: t.calm }]}>{accent}</Text>
-            {tail}
+            {isBusiness ? (
+              <>
+                {'Add business '}
+                <Text style={[styles.headlineAccent, { color: t.calm }]}>records</Text>
+                {'.'}
+              </>
+            ) : (
+              <>
+                {lead}
+                <Text style={[styles.headlineAccent, { color: t.calm }]}>{accent}</Text>
+                {tail}
+              </>
+            )}
           </Text>
           <Text style={[styles.subhead, { color: t.muted }]}>
-            Melo shows what it finds before anything is added.
+            {isBusiness
+              ? 'Read a statement or receipt here. Nothing reaches Business activity until you confirm it.'
+              : 'Melo shows what it finds before anything is added.'}
           </Text>
         </View>
 
@@ -776,21 +621,18 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           ))}
         </View>
 
-        {/* AI-read allowance line — honest quantity read (MONEY_MODEL.md §2b). Only the PDF/photo
-            rows use an AI read; paste/CSV/manual are always free. Hidden on Live (unlimited). */}
-        {readAllowance !== null && readsRemaining !== null ? (
-          <Text style={[styles.allowanceLine, { color: t.muted }]}>
-            {readsRemaining === 0
-              ? 'AI reads for this month are used · paste, CSV and manual entry stay open'
-              : `${readsRemaining} of ${readAllowance} AI statement reads left this month`}
-          </Text>
-        ) : null}
-
         {/* Melo reassurance — the only Melo on this screen, calm mood (the resting state, not the
             curious reading state). The quote is a @copy FROZEN inline literal; MeloLine adds the
             straight quotes, so we pass the raw text. */}
         <View style={[styles.meloBox, { backgroundColor: t.inset }]}>
-          <MeloLine mood="calm" text="Use what you have. Nothing is added until you say so." />
+          <MeloLine
+            mood="calm"
+            text={
+              isBusiness
+                ? 'This read stays inside the active Business workspace and waits for your decision.'
+                : 'Use what you have. Nothing is added until you say so.'
+            }
+          />
         </View>
 
         {/* Spacer pins the footer to the bottom on tall screens, mirroring the web flex-1 spacer. */}
@@ -798,7 +640,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
 
         {/* Footer reassurance — @copy FROZEN inline literal. */}
         <Text style={[styles.footer, { color: t.muted }]}>
-          PDF and photo files are sent to Melo for reading. Nothing is added until you confirm it.
+          {isBusiness
+            ? 'PDF and photo files are read on this device. Found items stay unconfirmed until Business Review.'
+            : 'PDF and photo files are read on this device. Nothing is added until you confirm it.'}
         </Text>
       </ScrollView>
     </Animated.View>
@@ -849,20 +693,6 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     paddingHorizontal: gap.xl,
-  },
-  // "Stop here" — a quiet, secondary affordance under the reading Melo line (chunked reads only).
-  // Hairline-bordered, muted text, no fill — visually subordinate to the reading moment itself.
-  stopReading: {
-    alignSelf: 'flex-start',
-    borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginTop: gap.lg,
-    paddingHorizontal: gap.lg,
-    paddingVertical: gap.sm,
-  },
-  stopReadingLabel: {
-    fontSize: 12.5,
-    fontWeight: '500',
   },
   // flexGrow:1 lets the flex-1 spacer pin the footer to the bottom on tall screens while the list
   // still scrolls on short ones (web overflow-y-auto + flex-1 spacer).

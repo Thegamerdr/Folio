@@ -250,7 +250,15 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   const onPauseResume = (sub: StoreSub) => {
     const isPaused = !!paused[sub.name];
     if (isPaused) {
-      togglePaused(sub.name);
+      // Resume is the same reversible Tier-1 state change as pause. Keep the monthly effect
+      // inspectable and give the user the same 30-second escape hatch instead of silently flipping
+      // the row with no feedback.
+      const beforeMonthly = monthly;
+      togglePaused(sub.name, false);
+      showUndo(
+        `Resumed ${sub.name} · recurring total ${pounds(beforeMonthly)} → ${pounds(beforeMonthly + sub.cost)}`,
+        () => togglePaused(sub.name, true),
+      );
       return;
     }
     // Pausing — measure the tight-day lift THIS one sub buys, off a hypothetical copy, before the

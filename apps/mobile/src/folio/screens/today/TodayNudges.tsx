@@ -36,6 +36,7 @@ import { daysToNextIncome } from '@/folio/lib/income';
 import { resolvePayday } from '@/folio/lib/payday';
 import { latestLivedCycle } from '@/folio/lib/historyCycles';
 import { suggestMode } from '@/folio/lib/modes/suggest';
+import { selectMeloTodayMoneyNudge } from '@/folio/lib/meloToneGuidance';
 import type { Nav } from '@/folio/types';
 
 // Stable empty fallback for the optional store slot — DEFAULTS/load always populate `reviewQueue`,
@@ -124,6 +125,7 @@ export function TodayNudges({
   const currentBalance = useAppStore((st) => st.currentBalance);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const meloTone = useAppStore((st) => st.melo?.tone ?? 'calm');
   const shelf = useShelf();
 
   // Age out expired queue items once on mount (web: `sweepReviewQueue()` in the mount effect).
@@ -221,7 +223,14 @@ export function TodayNudges({
     });
   }
 
-  if (nextSub) {
+  const meloMoneyNudge = selectMeloTodayMoneyNudge({
+    tone: meloTone,
+    hasUpcomingSubscription: nextSub !== undefined,
+    tightPointGoal: tightPointGoal ?? null,
+    tightestSpare,
+    recentSpend,
+  });
+  if (nextSub && meloMoneyNudge === 'subscription-pause') {
     nudges.push({
       key: 'melo-sub',
       tone: 'melo',
@@ -229,7 +238,12 @@ export function TodayNudges({
       cta: 'Pause →',
       onPress: () => nav.openMelo({ prefill: `Yes — pause ${nextSub.name} for a month.` }),
     });
-  } else if (tightPointGoal && tightestSpare !== null && tightestSpare < tightPointGoal) {
+  } else if (
+    meloMoneyNudge === 'tight-point' &&
+    tightPointGoal !== null &&
+    tightPointGoal !== undefined &&
+    tightestSpare !== null
+  ) {
     const gapToFind = Math.round(tightPointGoal - tightestSpare);
     nudges.push({
       key: 'melo-tight',
@@ -238,7 +252,7 @@ export function TodayNudges({
       cta: 'Talk it through →',
       onPress: () => nav.openMelo({ prefill: `Help me find £${gapToFind} before the low point.` }),
     });
-  } else if (recentSpend > 0) {
+  } else if (meloMoneyNudge === 'spending-review') {
     nudges.push({
       key: 'melo-spend',
       tone: 'melo',

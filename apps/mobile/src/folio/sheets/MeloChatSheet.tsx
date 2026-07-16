@@ -1,16 +1,14 @@
 // @rn-sheet     MeloChatSheet
-// @purpose      Melo conversation surface — a snapshot of app state + a proactive opener, hosting the
-//               full Melo chat (transcript, tone/share settings, approval-gated store suggestions
+// @purpose      Melo conversation surface — an aggregate local snapshot + a proactive opener,
+//               hosting Melo chat (transcript, tone settings, approval-gated store suggestions
 //               with a 30s undo window after confirmation, composer).
-// @reads        Full app snapshot (pots, subs, subPaused, tightPointGoal, onboarding, last-14d txns)
+// @reads        Aggregate local snapshot only; no names, merchants, transaction rows or identifiers.
 // @writes       applyMeloTool only after the user confirms a pending suggestion — the log_* family
 //               (log spend / log income / log refund / log transfer), each recorded as a Transaction
-//               with a captured undo closure. Dismiss never writes. Pot moves are NOT a Melo tool.
-// @copy         FROZEN — most assistant lines come from the gateway persona, not this file. The
-//               keyed strings (Melo name, currency) read VERBATIM from '@/folio/copy/copy'. The
-//               web's share-row line "Stays on this device" is a BANNED honest-claim (COPY_DECK
-//               "Honest claims only") and is NOT shipped — replaced with a truthful line that does
-//               not assert a privacy property the RN app cannot guarantee today.
+//               with a captured undo closure. Subscription requests remain read-only here and route
+//               to the dedicated reversible Subscriptions surface. Dismiss never writes.
+// @copy         FROZEN — assistant lines come from deterministic local contracts. Keyed strings
+//               (Melo name, currency) read VERBATIM from '@/folio/copy/copy'.
 // @tokens       --paper(canvas) --surface --inset --ink --muted-ink(muted) --hairline
 //               --accent(calm) --hairlineStrong (grip) — all via '@/folio/theme'.
 // @motion       sheet-rise + scrim-in (inherited from the kit Sheet) · press (scale 0.97) on every
@@ -28,27 +26,21 @@
 // spec (plans/rn-port/specs/MeloChatSheet.spec.md). Layout, copy, every STATES branch, the named
 // motions and the calm Melo mood are reproduced unit-for-unit.
 //
-// ENGINE SEAM — the LIVE AI gateway / streaming is NOT wired here.
-//   The web hosted @ai-sdk/react `useChat` + DefaultChatTransport('/api/melo-chat'); RN must instead
-//   talk to the standalone ai-gateway through the existing client at
-//   apps/mobile/src/local/meloAiClient.ts (`sendMeloChat` → MeloChatResult), which is intentionally
-//   not invoked from this file yet. This sheet renders the chat SHELL and the REAL local
-//   tool-application path; the assistant turn is produced by a local stub/echo handler tagged as the
-//   engine seam below. It NEVER fabricates an AI answer — it surfaces an honest "not wired yet" line
-//   so the seam is visible, not faked. Wire `sendMeloChat` here to go live.
-//   // @rn-engine melo-gateway (existing apps/mobile/src/local/meloAiClient.ts)
+// ENGINE — `buildLocalMeloTurn` drafts replies and completed-event suggestions on-device. The
+// retired `meloAiClient` cannot perform network I/O; confirmation and undo remain the only write path.
 //
 // Design-system discipline: every colour/font/spacing/radius token comes from '@/folio/theme' (which
 // re-exports the pressure-map kit). Nothing new is defined — no colour, no font, no spacing value, no
 // dependency. The assistant body is rendered as plain prose Text on --ink (no markdown library is
 // added; adding a dependency is out of scope and the persona lines are short prose).
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Alert,
   Animated,
   Easing,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -65,6 +57,7 @@ import { copy } from '@/folio/copy/copy';
 import { Melo } from '@/folio/melo/Melo';
 import {
   applyMeloTool,
+  purgeSeedIfReal,
   setMelo,
   useAppStore,
   type MeloTone,
@@ -73,6 +66,10 @@ import {
 } from '@/folio/store';
 import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
 import { buildMeloSnapshot } from '@/folio/lib/meloSnapshot';
+import { buildMeloLocalCalculation } from '@/folio/lib/meloCalculations';
+import { resolveMeloAccountSelection } from '@/folio/lib/meloAccountSelection';
+import { resolveMeloSubscriptionRequest } from '@/folio/lib/meloSubscriptionRequest';
+import { DEFAULT_MELO_TONE, describeMeloTone } from '@/folio/lib/meloToneGuidance';
 import type { MeloIntent, Nav, Pressure } from '@/folio/types';
 import {
   MELO_TOOL_APPROVAL_DENIED,
@@ -84,20 +81,32 @@ import {
   settleMeloToolUndo,
   type MeloToolSuggestionSettlement,
 } from '@/folio/sheets/meloToolSuggestion';
+import { filterMeloFollowUpChips, resolveMeloLocalAction } from '@/folio/sheets/meloLocalAction';
 import {
-  isMeloAiConfigured,
-  sendMeloChat,
-  type MeloChatMessage,
-  type MeloChatResult,
-  type MeloToolSuggestion,
-} from '@/local/meloAiClient';
-import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
+  buildLocalMeloTurn,
+  type LocalMeloCalculationBuilder,
+  type LocalMeloAccountSelector,
+  type LocalMeloConversationContext,
+  type LocalMeloSubscriptionActionResolver,
+  type LocalMeloTurn,
+} from '@/local/localMeloTurn';
+import { enrichLocalMeloTurn } from '@/local/localMeloLanguage';
+import {
+  getLocalLanguagePackState,
+  installLocalLanguagePack,
+  type LocalLanguagePackState,
+} from '@/local/localLanguagePack';
+import type {
+  MeloLocalAiAction,
+  MeloLocalFinancialSnapshot,
+  MeloLocalIntent,
+} from '@folio/ai-contracts';
 
 // ---------------------------------------------------------------------------
 // Constants — mirrored from the web original
 // ---------------------------------------------------------------------------
 
-// The four tones (web TONES). `id` is the gateway tone key; `label` is the visible word.
+// The four tones (web TONES). `id` is the local drafting tone key; `label` is the visible word.
 type Tone = MeloTone;
 const TONES: readonly { id: Tone; label: string }[] = [
   { id: 'calm', label: 'Calm' },
@@ -113,11 +122,15 @@ const STARTERS: readonly string[] = [
   'Talk me out of this Spotify charge',
   "How's the month going?",
 ];
+const BUSINESS_STARTERS: readonly string[] = [
+  'Explain my business cash position',
+  'What needs my review?',
+  'Show my business accounts',
+  'How has the last 30 days gone?',
+];
 
 // pressureLow (the web's tightPoint-by-pressure table) now lives in lib/meloSnapshot.ts, next to the
 // rest of the pure snapshot-building logic it only ever fed.
-
-const DEFAULT_SETTINGS: Settings = { tone: 'calm', share: false };
 
 // UNDO_WINDOW_MS — the Tier-1 undo window — is imported from the policy engine (lib/undoPolicy),
 // which is now the canonical 30s (ENGINES §6 D3 >= 30s floor). The prior local 8000 shadowed it
@@ -126,11 +139,6 @@ const PRESS_SCALE = 0.97; // .press — scale 0.97 on :active
 const SHIMMER_MS = 2000; // Melo's-thinking shimmer cycle (web 2s linear infinite)
 const FADE_IN_MS = 260; // message fade-in
 const SCROLL_BOTTOM_EPSILON = 24; // px from the bottom still counted as "at the bottom"
-
-type Settings = {
-  tone: Tone;
-  share: boolean;
-};
 
 // The chat message model — a faithful subset of the web UIMessage `parts[]` shape, kept so persisted
 // history and rendered tool pills round-trip identically. A part is either rendered text or a tool
@@ -148,6 +156,9 @@ type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   parts: ChatPart[];
+  intent?: MeloLocalIntent;
+  actions?: readonly MeloLocalAiAction[];
+  followUpChips?: readonly string[];
 };
 
 // status mirrors the web useChat status union the UI branches on.
@@ -210,15 +221,15 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
   const subs = useAppStore((s) => s.subs);
   const subPaused = useAppStore((s) => s.subPaused);
   const onboarding = useAppStore((s) => s.onboarding);
+  const activeWorkspace = useAppStore(
+    (s) => s.workspaces.find((workspace) => workspace.id === s.activeWorkspaceId)!,
+  );
 
   const prefill = intent?.prefill;
   const seedIntent = intent?.seed;
 
-  // Snapshot — the pure builder (lib/meloSnapshot.ts) folds in only the last 14 days of transactions,
-  // so the prompt stays small and "recent" means recent.
-  // @rn-engine melo-gateway — `daysToPayday` and `monthlyIncome` are now the LIVE cycle/payday +
-  // income-cadence engines' own figures (see meloSnapshot.ts's header), not the frozen web-prototype
-  // literals they used to carry — a stale number must never be quoted back at the user as if it were
+  // Snapshot — the pure builder (lib/meloSnapshot.ts) exposes aggregate, live-derived values only.
+  // It excludes names, merchants, transaction rows, identifiers and seeded/sample money.
   // live. `now` is read fresh on every snapshot build (not memoised across renders) so a chat opened on
   // a different day gets a current count.
   const snapshot = useMemo(
@@ -233,6 +244,9 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
   // thing to say first, based on real state. Ported as-is from the web autoSeed heuristic.
   const autoSeed = useMemo(() => {
     if (prefill || seedIntent) return undefined;
+    if (activeWorkspace.kind === 'business') {
+      return `I'm looking only at ${activeWorkspace.name}. What would you like to check?`;
+    }
     const liveSubs = subs.filter((s) => !subPaused[s.name]);
     const soon = [...liveSubs].sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)[0] as
       | Sub
@@ -248,16 +262,29 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
     if (soon && soon.nextRenewalDaysAway <= 7) {
       return `${name}heads up — ${soon.name} (£${soon.cost.toFixed(2)}) renews in ${soon.nextRenewalDaysAway} day${soon.nextRenewalDaysAway === 1 ? '' : 's'}. want a look before it goes out?`;
     }
-    if (snapshot.recentSpend.totalLast14Days > 0) {
-      const top = Object.entries(snapshot.recentSpend.byCategory).sort(
-        (a, b) => (b[1] as number) - (a[1] as number),
-      )[0];
-      if (top) {
-        return `${name}here when you need me. last two weeks you've spent £${snapshot.recentSpend.totalLast14Days.toFixed(0)} — mostly ${top[0]}. anything you want to look at?`;
-      }
+    if (snapshot.hasMoneyPicture) {
+      return `${name}your latest money picture is ready here. what do you want to check?`;
     }
     return `${name}here when you need me. what's on your mind?`;
-  }, [prefill, seedIntent, subs, subPaused, onboarding, snapshot]);
+  }, [prefill, seedIntent, activeWorkspace, subs, subPaused, onboarding, snapshot]);
+
+  const calculate = useCallback<LocalMeloCalculationBuilder>(
+    (request) =>
+      buildMeloLocalCalculation({
+        state,
+        snapshot,
+        request,
+        now: new Date(),
+        workspaceId: state.activeWorkspaceId,
+      }),
+    [snapshot, state],
+  );
+  const selectAccount = useCallback<LocalMeloAccountSelector>(
+    (prompt, currentAccountId) =>
+      resolveMeloAccountSelection(state, prompt, currentAccountId, state.activeWorkspaceId),
+    [state],
+  );
+  const subscriptionState = useMemo(() => purgeSeedIfReal(state), [state]);
 
   // Avatar mood is canonically calm for the chat sheet (MELO_MOODS.md); the web's pressureMood alias
   // is intentionally dropped (spec `moods` row + fidelity note). One avatar instance, re-keyed on
@@ -270,6 +297,9 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         seed={seedIntent ?? autoSeed}
         reduceMotion={reduceMotion}
         nav={nav}
+        calculate={calculate}
+        selectAccount={selectAccount}
+        subscriptionState={subscriptionState}
       />
     </Sheet>
   );
@@ -285,23 +315,25 @@ function MeloChat({
   seed,
   reduceMotion,
   nav,
+  calculate,
+  selectAccount,
+  subscriptionState,
 }: {
-  snapshot: Record<string, unknown>;
+  snapshot: MeloLocalFinancialSnapshot;
   prefill?: string | undefined;
   seed?: string | undefined;
   reduceMotion: boolean;
   nav: Nav;
+  calculate: LocalMeloCalculationBuilder;
+  selectAccount: LocalMeloAccountSelector;
+  subscriptionState: Parameters<LocalMeloSubscriptionActionResolver>[1];
 }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
 
-  // Tone is a companion preference, not a throwaway sheet state. Retain it in the existing local
-  // Melo settings slice; context sharing remains deliberately session-only and off by default.
-  const savedTone = useAppStore((s) => s.melo?.tone ?? DEFAULT_SETTINGS.tone);
-  const [settings, setSettings] = useState<Settings>(() => ({
-    ...DEFAULT_SETTINGS,
-    tone: savedTone,
-  }));
+  // Tone is a global companion preference, not throwaway sheet state. Chat phrasing and the narrow
+  // proactive-money gate on Today both read this same persisted Melo settings slice.
+  const savedTone = useAppStore((s) => s.melo?.tone ?? DEFAULT_MELO_TONE);
   const [showSettings, setShowSettings] = useState(false);
   const [input, setInput] = useState(prefill ?? '');
   useEffect(() => {
@@ -315,16 +347,60 @@ function MeloChat({
   }, [seed]);
 
   const [messages, setMessages] = useState<ChatMessage[]>(seededMessages);
+  const [conversationContext, setConversationContext] =
+    useState<LocalMeloConversationContext | null>(null);
   const [status, setStatus] = useState<ChatStatus>('ready');
-  const [error, setError] = useState<{ message: string } | null>(null);
-
+  const [languagePackState, setLanguagePackState] = useState<
+    LocalLanguagePackState | Readonly<{ kind: 'checking' | 'installing'; fraction?: number }>
+  >({ kind: 'checking' });
   const isLoading = status === 'submitted' || status === 'streaming';
-  const toneLabel = TONES.find((tn) => tn.id === settings.tone)?.label ?? 'Calm';
+  const toneLabel = TONES.find((tn) => tn.id === savedTone)?.label ?? 'Calm';
+  const starters = snapshot.workspaceKind === 'business' ? BUSINESS_STARTERS : STARTERS;
+
+  useEffect(() => {
+    if (!showSettings) return;
+    let active = true;
+    setLanguagePackState({ kind: 'checking' });
+    void getLocalLanguagePackState()
+      .then((state) => {
+        if (active) setLanguagePackState(state);
+      })
+      .catch(() => {
+        if (active) {
+          setLanguagePackState({
+            kind: 'unavailable',
+            message: 'The local language pack status could not be checked.',
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [showSettings]);
+
+  async function installLanguagePack() {
+    if (languagePackState.kind === 'installing') return;
+    setLanguagePackState({ kind: 'installing', fraction: 0 });
+    const result = await installLocalLanguagePack((progress) => {
+      setLanguagePackState({ kind: 'installing', fraction: progress.fraction });
+    });
+    if (result.kind === 'ready') {
+      setLanguagePackState({
+        kind: 'installed',
+        uri: result.uri,
+        bytes: result.bytes,
+        initialized: true,
+      });
+      return;
+    }
+    setLanguagePackState({ kind: 'unavailable', message: result.message });
+  }
 
   // --- Tool approval gate -------------------------------------------------------------------------
   // Suggestions remain transcript-only until Confirm. Dismiss only settles the visible part.
   // `decidedRef` protects against double taps; a confirmed write keeps the existing 30s Undo window.
   const decidedRef = useRef<Set<string>>(new Set());
+  const turnRequestRef = useRef(0);
   const undoTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [undoMap, setUndoMap] = useState<Record<string, { undo: () => void }>>({});
 
@@ -409,27 +485,13 @@ function MeloChat({
     });
   }
 
-  // --- Send: append the user turn, then drive the LIVE gateway. -----------------------------------
-  // @rn-engine melo-gateway (existing apps/mobile/src/local/meloAiClient.ts) — WIRED. On send we call
-  // `sendMeloChat` with the visible thread + the snapshot (shared ONLY when "let Melo see my money"
-  // is on; blind otherwise). The discriminated result drives the render:
-  //   • ok          → the returned assistant prose, plus one pending pill per advisory suggestion.
-  //                   Nothing writes until Confirm. Dismiss is transcript-only. A confirmed call
-  //                   shows applyMeloTool's exact summary/reason and opens the 30s Undo only when the
-  //                   local mutation actually succeeded.
-  //   • no-provider → the client's honest "Melo isn't configured yet…" line, surfaced verbatim. We
-  //                   never fabricate an AI reply when the gateway URL is unset.
-  //   • error       → the existing inline accent error line (no transcript pollution, no faked answer).
-  // An AbortController lets an unmount cancel the in-flight turn (see cleanup effect below).
-  const abortRef = useRef<AbortController | null>(null);
-  useEffect(() => {
-    return () => abortRef.current?.abort();
-  }, []);
-
-  function send(text: string) {
+  // Deterministic finance first, with an optional on-device language pass. Neither the typed prompt
+  // nor the aggregate result crosses a network boundary; any model output is gated before display.
+  async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
-    setError(null);
+    const requestId = turnRequestRef.current + 1;
+    turnRequestRef.current = requestId;
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       role: 'user',
@@ -439,80 +501,77 @@ function MeloChat({
     setMessages(nextMessages);
     setInput('');
 
-    // Gateway not configured → keep the honest, non-fabricated line. No network is attempted.
-    if (!isMeloAiConfigured()) {
-      setStatus('submitted');
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: 'assistant',
-          parts: [{ type: 'text', text: NOT_CONFIGURED_LINE }],
-        },
-      ]);
-      setStatus('ready');
-      return;
-    }
-
     setStatus('submitted');
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    void sendMeloChat({
-      messages: toClientMessages(nextMessages),
-      tone: settings.tone,
-      // Snapshot leaves the device ONLY when the user has turned sharing on. Off = blind turn.
-      snapshot: settings.share ? toRequestSnapshot(snapshot) : undefined,
-      signal: controller.signal,
-    })
-      .then((result) => {
-        if (controller.signal.aborted) return;
-        applyResult(result);
-      })
-      .finally(() => {
-        if (abortRef.current === controller) abortRef.current = null;
+    const buildTurn = (prompt: string): LocalMeloTurn =>
+      buildLocalMeloTurn({
+        prompt,
+        snapshot,
+        tone: savedTone,
+        context: conversationContext,
+        calculate,
+        selectAccount,
+        resolveSubscriptionAction: resolveMeloSubscriptionRequest,
+        subscriptionState,
       });
-  }
-
-  // Stop the in-flight turn. Faithful to the web design's stop affordance (the AI SDK's `stop`
-  // aborts the streaming request and returns the chat to a ready state) — NOT a sheet close. We abort
-  // the AbortController so the settled `.then` short-circuits on `signal.aborted` and never appends a
-  // partial reply, then reset status to ready. The transcript (including the user's turn) stays
-  // intact; the sheet stays open. No-op when nothing is in flight.
-  function stop() {
-    const controller = abortRef.current;
-    if (!controller) return;
-    controller.abort();
-    abortRef.current = null;
+    const deterministic = buildTurn(trimmed);
+    let result = deterministic;
+    try {
+      result = await enrichLocalMeloTurn({
+        prompt: trimmed,
+        turn: deterministic,
+        tone: savedTone,
+        workspaceKind: snapshot.workspaceKind ?? 'personal',
+        rerun: buildTurn,
+      });
+    } catch {
+      // Local model installation, initialization or inference can fail without weakening the
+      // deterministic Companion. The original authoritative turn remains the answer.
+      result = deterministic;
+    }
+    if (turnRequestRef.current !== requestId) return;
+    if (result.control === 'cancel' || result.control === 'back') {
+      for (const message of messages) {
+        for (const part of message.parts) {
+          if (!isToolPart(part) || getMeloToolSuggestionPhase(part) !== 'pending') continue;
+          decidedRef.current.add(part.toolCallId ?? `${message.id}-${part.type}`);
+        }
+      }
+      setMessages((prev) =>
+        prev.map((message) => ({
+          ...message,
+          parts: message.parts.map((part) => {
+            if (!isToolPart(part) || getMeloToolSuggestionPhase(part) !== 'pending') return part;
+            const { output: _discardedOutput, ...withoutOutput } = part;
+            return { ...withoutOutput, state: MELO_TOOL_APPROVAL_DENIED };
+          }),
+        })),
+      );
+    }
+    setConversationContext(result.context);
+    setMessages((prev) => [...prev, assistantMessageFromResult(result)]);
     setStatus('ready');
   }
 
-  // Render a settled gateway result into the transcript / error line.
-  function applyResult(result: MeloChatResult) {
-    if (result.status === 'ok') {
-      setMessages((prev) => [
-        ...prev,
-        assistantMessageFromResult(result.reply, result.suggestions),
-      ]);
-      setStatus('ready');
+  function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) {
+    const destination = resolveMeloLocalAction(action.kind, intent);
+    if (destination.kind === 'screen') {
+      nav.go(destination.screen);
       return;
     }
-    if (result.status === 'no-provider') {
-      // Surface the client's honest line verbatim — never a fabricated answer.
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: 'assistant',
-          parts: [{ type: 'text', text: result.message }],
-        },
-      ]);
-      setStatus('ready');
+    if (destination.kind === 'sheet') {
+      nav.openSheet(destination.sheet);
       return;
     }
-    // error — the existing accent line already prefixes "Couldn't reach Melo just now.", so strip a
-    // duplicate lead from the client message before handing it over.
-    setError({ message: stripErrorLead(result.message) });
+    if (destination.kind === 'external') {
+      void Linking.openURL(destination.url).catch(() => undefined);
+      return;
+    }
+    void send(destination.prompt);
+  }
+
+  // Kept for the shared submit-button contract; local turns settle immediately.
+  function stop() {
+    turnRequestRef.current += 1;
     setStatus('ready');
   }
 
@@ -521,10 +580,13 @@ function MeloChat({
   // happens once the user taps "Clear". This is the low-stakes CONVERSATION clear (the seed
   // re-appears next open) — NOT the data wipe — so the dialog is light, with a plain Cancel.
   function performClear() {
+    turnRequestRef.current += 1;
+    setStatus('ready');
     for (const id of Object.keys(undoTimers.current)) clearTimeout(undoTimers.current[id]);
     undoTimers.current = {};
     decidedRef.current = new Set();
     setUndoMap({});
+    setConversationContext(null);
     setMessages([]);
   }
 
@@ -567,7 +629,7 @@ function MeloChat({
         <View style={s.headerText}>
           <Text style={s.headerTitle}>{copy.global.melo.name}</Text>
           <Text style={s.headerSub} numberOfLines={1}>
-            {`${settings.share ? 'Knows your money' : 'Just listening'} · ${toneLabel}`}
+            {`On this phone · ${toneLabel}`}
           </Text>
         </View>
         <PressText
@@ -584,42 +646,40 @@ function MeloChat({
       {showSettings ? (
         <View style={s.settings}>
           <View>
-            <Text style={s.sectionLabel}>Voice</Text>
+            <Text style={s.sectionLabel}>Melo style</Text>
             <View style={s.toneRow}>
               {TONES.map((tn) => (
                 <ToneButton
                   key={tn.id}
                   label={tn.label}
-                  selected={settings.tone === tn.id}
-                  onPress={() => {
-                    setSettings((prev) => ({ ...prev, tone: tn.id }));
-                    setMelo({ tone: tn.id });
-                  }}
+                  selected={savedTone === tn.id}
+                  onPress={() => setMelo({ tone: tn.id })}
                   styles={s}
                   reduceMotion={reduceMotion}
                 />
               ))}
             </View>
+            <Text style={s.toneDescription}>{describeMeloTone(savedTone)}</Text>
           </View>
 
-          {/* Share row. HONEST CLAIMS: the web body ended "Stays on this device." — a banned claim
-              (COPY_DECK "Honest claims only"). It is dropped; the truthful body states only what is
-              true today: the snapshot is shared as context only when this is on, and stays off by
-              default. */}
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityState={{ checked: settings.share }}
-            onPress={() => setSettings((prev) => ({ ...prev, share: !prev.share }))}
-            style={s.shareRow}
-          >
-            <View style={s.shareText}>
-              <Text style={s.shareTitle}>Let Melo see my money</Text>
-              <Text style={s.shareBody}>
-                Shares your path, pots, and subs as context. Off unless you turn it on.
-              </Text>
+          <View style={s.languagePackRow}>
+            <View style={s.languagePackCopy}>
+              <Text style={s.languagePackTitle}>Natural conversation</Text>
+              <Text style={s.languagePackBody}>{describeLanguagePackState(languagePackState)}</Text>
             </View>
-            <Toggle checked={settings.share} palette={t} />
-          </Pressable>
+            {languagePackState.kind === 'not-installed' ||
+            languagePackState.kind === 'invalid' ||
+            languagePackState.kind === 'unavailable' ? (
+              <PressText
+                label="Install · 648 MB"
+                onPress={() => void installLanguagePack()}
+                style={s.languagePackAction}
+                labelStyle={s.languagePackActionLabel}
+                reduceMotion={reduceMotion}
+                accessibilityLabel="Install local language pack, 648 megabytes"
+              />
+            ) : null}
+          </View>
 
           {messages.length > 0 && Object.keys(undoMap).length === 0 ? (
             <PressText
@@ -657,7 +717,7 @@ function MeloChat({
             <View style={s.empty}>
               <Text style={s.emptyHeadline}>What's on your mind?</Text>
               <View style={s.starters}>
-                {STARTERS.map((starter) => (
+                {starters.map((starter) => (
                   <StarterChip
                     key={starter}
                     label={starter}
@@ -672,6 +732,7 @@ function MeloChat({
 
           {messages.map((m) => {
             const text = partsToText(m);
+            const followUpChips = filterMeloFollowUpChips(m.actions ?? [], m.followUpChips ?? []);
             if (m.role === 'user') {
               return (
                 <FadeIn key={m.id} reduceMotion={reduceMotion} style={s.userRow}>
@@ -757,6 +818,35 @@ function MeloChat({
                     </View>
                   );
                 })}
+                {m.role === 'assistant' && m.intent && (m.actions?.length ?? 0) > 0 ? (
+                  <View style={s.localActionList}>
+                    {m.actions?.map((action) => (
+                      <PressText
+                        key={`${m.id}-${action.kind}-${action.label}`}
+                        label={action.label}
+                        onPress={() => runAssistantAction(action, m.intent!)}
+                        style={s.localAction}
+                        labelStyle={s.localActionLabel}
+                        reduceMotion={reduceMotion}
+                        accessibilityLabel={action.label}
+                        accessibilityHint={action.detail}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+                {m.role === 'assistant' && followUpChips.length > 0 ? (
+                  <View style={s.followUpList}>
+                    {followUpChips.map((chip) => (
+                      <StarterChip
+                        key={`${m.id}-${chip}`}
+                        label={chip}
+                        onPress={() => send(chip)}
+                        styles={s}
+                        reduceMotion={reduceMotion}
+                      />
+                    ))}
+                  </View>
+                ) : null}
               </FadeIn>
             );
           })}
@@ -769,9 +859,6 @@ function MeloChat({
           ) : null}
 
           {/* Error — accent-coloured line. */}
-          {error ? (
-            <Text style={s.errorText}>{`Couldn't reach Melo just now. ${error.message}`}</Text>
-          ) : null}
         </ScrollView>
 
         {/* Scroll-to-bottom FAB — only when not already at the bottom. */}
@@ -805,8 +892,8 @@ function MeloChat({
             style={s.input}
             accessibilityLabel="Say anything to Melo"
             onSubmitEditing={() => send(input)}
-            blurOnSubmit={false}
             returnKeyType="send"
+            submitBehavior="submit"
           />
         </View>
         <View style={s.submitRow}>
@@ -824,60 +911,33 @@ function MeloChat({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Engine bridge — pure helpers between this sheet's ChatMessage model and the meloAiClient contract.
-// @rn-engine melo-gateway (existing apps/mobile/src/local/meloAiClient.ts) — WIRED via `sendMeloChat`.
-// ---------------------------------------------------------------------------
-
-// Honest fallback when EXPO_PUBLIC_MELO_GATEWAY_URL is unset. We do NOT fabricate an AI reply; we say
-// plainly that Melo isn't connected. Kept short and in Melo's lowercase-y voice.
-const NOT_CONFIGURED_LINE =
-  "i'm not connected to the gateway yet — set it up and i'll be right here.";
-
-// Flatten this sheet's ChatMessage[] into the client's MeloChatMessage[] (role + concatenated text,
-// most recent last). Empty turns (e.g. a tool-only assistant message) are dropped — the gateway only
-// needs the spoken thread.
-function toClientMessages(messages: readonly ChatMessage[]): readonly MeloChatMessage[] {
-  const out: MeloChatMessage[] = [];
-  for (const m of messages) {
-    const text = partsToText(m).trim();
-    if (text.length === 0) continue;
-    out.push({ id: m.id, role: m.role, text });
+function describeLanguagePackState(
+  state: LocalLanguagePackState | Readonly<{ kind: 'checking' | 'installing'; fraction?: number }>,
+): string {
+  switch (state.kind) {
+    case 'checking':
+      return 'Checking this phone…';
+    case 'installing':
+      return `Installing on this phone · ${Math.round((state.fraction ?? 0) * 100)}%`;
+    case 'installed':
+      return 'Ready on this phone for broader wording and more natural replies.';
+    case 'not-installed':
+      return 'Add the private language pack for broader wording and more natural replies.';
+    case 'invalid':
+      return 'The saved pack did not pass verification. Install a clean copy.';
+    case 'unavailable':
+      return state.message;
   }
-  return out;
-}
-
-// Build the typed snapshot the client expects from the sheet's rich snapshot object. The snapshot is
-// the web-prototype context shape (Record<string, unknown>); the persona only JSON.stringifies it and
-// reads the name arrays, so we hand the whole object through (richer context) while ensuring the
-// subscription + pot NAMES are present so a suggestion can echo a stored name verbatim and match.
-function toRequestSnapshot(snapshot: Record<string, unknown>): MeloLocalFinancialSnapshot {
-  const subscriptions = Array.isArray(snapshot.subscriptions) ? snapshot.subscriptions : [];
-  const pots = Array.isArray(snapshot.pots) ? snapshot.pots : [];
-  const subscriptionNames = subscriptions
-    .map((entry) => (entry as { name?: unknown }).name)
-    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
-  const potNames = pots
-    .map((entry) => (entry as { name?: unknown }).name)
-    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
-  // The rich snapshot carries the web-prototype context shape, not the contract's exact fields; the
-  // persona only stringifies it + reads the name arrays, so the conversion is intentional (via
-  // unknown). The names are normalised above so a suggestion can echo a stored name and match.
-  const withNames: Record<string, unknown> = { ...snapshot, subscriptionNames, potNames };
-  return withNames as unknown as MeloLocalFinancialSnapshot;
 }
 
 // Turn an ok result into one assistant message: the prose text part (when non-empty) plus one explicit
 // approval request per advisory suggestion. These are transcript-only until the user presses Confirm.
-function assistantMessageFromResult(
-  reply: string,
-  suggestions: readonly MeloToolSuggestion[],
-): ChatMessage {
+function assistantMessageFromResult(result: LocalMeloTurn): ChatMessage {
   const baseId = `a-${Date.now()}`;
   const parts: ChatPart[] = [];
-  const prose = reply.trim();
+  const prose = result.reply.trim();
   if (prose.length > 0) parts.push({ type: 'text', text: prose });
-  suggestions.forEach((suggestion) => {
+  result.suggestions.forEach((suggestion) => {
     parts.push({
       type: `tool-${suggestion.name}`,
       state: MELO_TOOL_APPROVAL_REQUESTED,
@@ -885,13 +945,14 @@ function assistantMessageFromResult(
       input: suggestion.args as Record<string, unknown>,
     });
   });
-  return { id: baseId, role: 'assistant', parts };
-}
-
-// The inline error line already opens with "Couldn't reach Melo just now."; drop a duplicate lead from
-// the client message so the surfaced text reads cleanly.
-function stripErrorLead(message: string): string {
-  return message.replace(/^Couldn't reach Melo just now\.\s*/i, '').trim();
+  return {
+    id: baseId,
+    role: 'assistant',
+    parts,
+    intent: result.intent,
+    actions: result.actions,
+    followUpChips: result.followUpChips,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1020,38 +1081,6 @@ function PressText({
     </Pressable>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Toggle — the share switch (web checkbox accent --accent). A compact track + knob tinted --accent.
-// ---------------------------------------------------------------------------
-
-function Toggle({ checked, palette: t }: { checked: boolean; palette: Palette }) {
-  return (
-    <View style={[toggleStyles.track, { backgroundColor: checked ? t.calm : t.hairlineStrong }]}>
-      <View
-        style={[
-          toggleStyles.knob,
-          { backgroundColor: t.surface, alignSelf: checked ? 'flex-end' : 'flex-start' },
-        ]}
-      />
-    </View>
-  );
-}
-
-const toggleStyles = StyleSheet.create({
-  knob: {
-    borderRadius: 9,
-    height: 18,
-    width: 18,
-  },
-  track: {
-    borderRadius: 11,
-    height: 22,
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-    width: 38,
-  },
-});
 
 // ---------------------------------------------------------------------------
 // Submit button — circular send; loading shows a stop square (web SubmitButton status='streaming').
@@ -1267,6 +1296,30 @@ function makeStyles(t: Palette) {
       fontSize: 13.5,
       lineHeight: 21,
     },
+    followUpList: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: gap.xs + gap.xxs,
+    },
+    localAction: {
+      backgroundColor: t.calmSoft,
+      borderColor: t.calm,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      minHeight: 36,
+      paddingHorizontal: gap.md,
+      paddingVertical: gap.sm,
+    },
+    localActionLabel: {
+      color: t.ink,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    localActionList: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: gap.xs + gap.xxs,
+    },
     body: {
       // The web sheet is h-[640px] max-h-[78vh]; the kit Sheet already caps height (85% window) and
       // scrolls inside, so the body fills the available column rather than pinning a px height.
@@ -1275,6 +1328,9 @@ function makeStyles(t: Palette) {
       minHeight: 360,
     },
     composer: {
+      alignItems: 'flex-end',
+      flexDirection: 'row',
+      gap: gap.sm,
       paddingTop: gap.sm,
     },
     emptyHeadline: {
@@ -1327,6 +1383,7 @@ function makeStyles(t: Palette) {
       borderColor: t.hairline,
       borderRadius: radius.md,
       borderWidth: StyleSheet.hairlineWidth,
+      flex: 1,
       paddingHorizontal: gap.md,
       paddingVertical: gap.sm,
     },
@@ -1366,6 +1423,41 @@ function makeStyles(t: Palette) {
       letterSpacing: 1.6, // tracking-[0.14em] on an 11.5px label
       marginBottom: gap.sm,
       textTransform: 'uppercase',
+    },
+    languagePackAction: {
+      alignItems: 'center',
+      backgroundColor: t.inset,
+      borderRadius: radius.pill,
+      minHeight: 34,
+      justifyContent: 'center',
+      paddingHorizontal: gap.md,
+    },
+    languagePackActionLabel: {
+      color: t.ink,
+      fontSize: 11.5,
+      fontWeight: '600',
+    },
+    languagePackBody: {
+      color: t.muted,
+      fontSize: 11.5,
+      lineHeight: 16,
+      marginTop: 2,
+    },
+    languagePackCopy: {
+      flex: 1,
+      paddingRight: gap.md,
+    },
+    languagePackRow: {
+      alignItems: 'center',
+      borderTopColor: t.hairline,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      paddingTop: gap.md,
+    },
+    languagePackTitle: {
+      color: t.ink,
+      fontSize: 13,
+      fontWeight: '600',
     },
     settings: {
       borderBottomColor: t.hairline,
@@ -1415,7 +1507,7 @@ function makeStyles(t: Palette) {
     },
     submitRow: {
       alignItems: 'flex-end',
-      paddingTop: gap.xs + gap.xxs, // p-1.5 ≈ 6
+      paddingBottom: gap.xxs,
     },
     thinking: {
       marginVertical: gap.sm,
@@ -1428,6 +1520,12 @@ function makeStyles(t: Palette) {
     },
     toneCell: {
       flex: 1,
+    },
+    toneDescription: {
+      color: t.muted,
+      fontSize: 11.5,
+      lineHeight: 16,
+      marginTop: gap.sm,
     },
     toneLabelSelected: {
       color: t.canvas, // --paper → the canvas ground (selected label knocks out on --ink)
