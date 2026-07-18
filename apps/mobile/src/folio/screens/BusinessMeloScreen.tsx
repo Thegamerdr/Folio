@@ -1,16 +1,13 @@
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { selectBusinessOneMove } from '@folio/business-workspace';
 
+import { Melo, type MeloMood } from '@/folio/melo/Melo';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
-import type { Nav } from '@/folio/types';
-
-const STARTERS = [
-  'What needs my review?',
-  'What changed recently?',
-  'Show my business accounts',
-] as const;
+import type { Nav, ScreenId } from '@/folio/types';
+import { useBusinessOperations } from './business/useBusinessOperations';
 
 export function BusinessMeloScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
@@ -18,9 +15,26 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
   const workspace = useAppStore(
     (state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId)!,
   );
-  const hasMoneyPicture = useAppStore(
-    (state) => (state.accounts?.length ?? 0) > 0 || state.transactions.length > 0,
+  const accounts = useAppStore((state) => state.accounts ?? []);
+  const business = useBusinessOperations();
+  const move = useMemo(
+    () =>
+      selectBusinessOneMove(
+        business,
+        accounts.map((account) => ({
+          ...account,
+          balanceMinor: Math.round(account.balanceMinor * 100),
+        })),
+      ),
+    [accounts, business],
   );
+  const memory = business.memory.slice(0, 4);
+  const mood: MeloMood =
+    move.kind === 'runway' || move.kind === 'vat'
+      ? 'concern'
+      : move.kind === 'invoice' || move.kind === 'obligation'
+        ? 'curious'
+        : 'calm';
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
@@ -37,33 +51,69 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
         </View>
 
         <View style={styles.hero}>
-          <Melo mood={hasMoneyPicture ? 'curious' : 'calm'} size={74} />
+          <Melo mood={mood} size={74} />
           <Text style={[styles.eyebrow, { color: t.muted }]}>{workspace.name}</Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            Melo stays with the business side.
+            {move.headline}
           </Text>
-          <Text style={[styles.intro, { color: t.muted }]}>
-            Questions here use this workspace's local accounts, activity and review state. Personal
-            money and Personal companion context stay out.
-          </Text>
+          <Text style={[styles.intro, { color: t.muted }]}>{move.body}</Text>
         </View>
 
-        {!hasMoneyPicture ? (
-          <View style={[styles.emptyWell, { backgroundColor: t.inset }]}>
-            <Text style={[styles.emptyTitle, { color: t.ink }]}>Nothing to read yet.</Text>
-            <Text style={[styles.emptyBody, { color: t.muted }]}>
-              Add a real account or record first. Melo will wait rather than make up a business
-              picture.
+        {move.action ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.go(actionRoute(move.action!.target))}
+            style={({ pressed }) => [
+              styles.move,
+              { backgroundColor: t.inset, opacity: pressed ? 0.62 : 1 },
+            ]}
+          >
+            <Text style={[styles.moveLabel, { color: t.ink }]}>{move.action.label}</Text>
+            <Text accessibilityElementsHidden style={[styles.arrow, { color: t.calmStrong }]}>
+              →
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => nav.go('account')}
-              style={({ pressed }) => [styles.emptyAction, { opacity: pressed ? 0.62 : 1 }]}
-            >
-              <Text style={[styles.emptyActionLabel, { color: t.calmStrong }]}>
-                Add an account →
-              </Text>
-            </Pressable>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.watching}>
+          <Text style={[styles.sectionTitle, { color: t.muted }]}>What Melo watches here</Text>
+          {[
+            'Cash across business accounts and 30-day burn.',
+            'Invoices ageing past their due date.',
+            'VAT pot against the current return.',
+            'Recurring costs landing inside the runway.',
+            'Tax and filing dates tied to the saved entity.',
+          ].map((line) => (
+            <Text key={line} style={[styles.watchLine, { color: t.muted }]}>
+              · {line}
+            </Text>
+          ))}
+        </View>
+
+        {memory.length > 0 ? (
+          <View style={styles.memory}>
+            <Text style={[styles.sectionTitle, { color: t.muted }]}>What I remember</Text>
+            <View style={[styles.memoryCard, { backgroundColor: t.surface }]}>
+              {memory.map((entry, index) => (
+                <View
+                  key={entry.id}
+                  style={[
+                    styles.memoryRow,
+                    index > 0
+                      ? {
+                          borderTopColor: t.hairline,
+                          borderTopWidth: StyleSheet.hairlineWidth,
+                        }
+                      : undefined,
+                  ]}
+                >
+                  <Text style={[styles.memoryBody, { color: t.ink }]}>{entry.summary}</Text>
+                  <Text style={[styles.memoryDate, { color: t.muted }]}>
+                    {formatMemoryDate(entry.at)}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
 
@@ -72,45 +122,34 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
           accessibilityRole="button"
           onPress={() =>
             nav.openMelo({
-              seed: `I'm looking only at ${workspace.name}. What would you like to check?`,
+              seed: `I'm looking only at ${workspace.name}. ${move.headline}`,
             })
           }
           style={({ pressed }) => [
             styles.primary,
-            { backgroundColor: t.calmStrong, opacity: pressed ? 0.68 : 1 },
+            { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
           ]}
         >
           <Text style={[styles.primaryLabel, { color: t.inverse }]}>Ask Melo</Text>
         </Pressable>
-
-        {hasMoneyPicture ? (
-          <View style={styles.starters}>
-            <Text style={[styles.starterTitle, { color: t.muted }]}>Start with</Text>
-            {STARTERS.map((starter) => (
-              <Pressable
-                accessibilityRole="button"
-                key={starter}
-                onPress={() => nav.openMelo({ prefill: starter })}
-                style={({ pressed }) => [
-                  styles.starter,
-                  {
-                    backgroundColor: t.surface,
-                    borderColor: t.hairline,
-                    opacity: pressed ? 0.62 : 1,
-                  },
-                ]}
-              >
-                <Text style={[styles.starterLabel, { color: t.ink }]}>{starter}</Text>
-                <Text accessibilityElementsHidden style={[styles.arrow, { color: t.calmStrong }]}>
-                  →
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
       </ScrollView>
     </View>
   );
+}
+
+function actionRoute(target: NonNullable<ReturnType<typeof selectBusinessOneMove>['action']>['target']): ScreenId {
+  if (target === 'account') return 'account';
+  if (target === 'runway') return 'business-runway';
+  if (target === 'vat') return 'business-vat';
+  if (target === 'invoices') return 'business-invoices';
+  return 'business-obligations';
+}
+
+function formatMemoryDate(value: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    : value;
 }
 
 const styles = StyleSheet.create({
@@ -128,12 +167,31 @@ const styles = StyleSheet.create({
     lineHeight: 37,
     marginTop: gap.xs,
   },
-  intro: { fontSize: 14, lineHeight: 21, marginTop: gap.md, maxWidth: 520 },
-  emptyWell: { borderRadius: radius.xl, marginTop: gap.xl, padding: gap.xl },
-  emptyTitle: { fontFamily: serif.medium, fontSize: 20, lineHeight: 25 },
-  emptyBody: { fontSize: 13.5, lineHeight: 20, marginTop: gap.sm },
-  emptyAction: { justifyContent: 'center', marginTop: gap.md, minHeight: 44 },
-  emptyActionLabel: { fontSize: 13.5, fontWeight: '600' },
+  intro: { fontSize: 13.5, lineHeight: 21, marginTop: gap.md, maxWidth: 520 },
+  move: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    marginTop: gap.lg,
+    minHeight: 50,
+    paddingHorizontal: gap.lg,
+  },
+  moveLabel: { flex: 1, fontSize: 13, fontWeight: '600' },
+  arrow: { fontSize: 18, marginLeft: gap.md },
+  watching: { marginTop: gap.xl },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: gap.sm,
+    textTransform: 'uppercase',
+  },
+  watchLine: { fontSize: 12.5, lineHeight: 20 },
+  memory: { marginTop: gap.xl },
+  memoryCard: { borderRadius: radius.lg, overflow: 'hidden', paddingHorizontal: gap.lg },
+  memoryRow: { paddingVertical: gap.md },
+  memoryBody: { fontSize: 12.5, lineHeight: 18 },
+  memoryDate: { fontSize: 10.5, marginTop: gap.xs },
   primary: {
     alignItems: 'center',
     borderRadius: radius.md,
@@ -143,22 +201,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.lg,
   },
   primaryLabel: { fontSize: 15, fontWeight: '700' },
-  starters: { gap: gap.sm, marginTop: gap.xl },
-  starterTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  starter: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    minHeight: 50,
-    paddingHorizontal: gap.lg,
-    paddingVertical: gap.sm,
-  },
-  starterLabel: { flex: 1, fontSize: 13.5, lineHeight: 18 },
-  arrow: { fontSize: 18, marginLeft: gap.md },
 });

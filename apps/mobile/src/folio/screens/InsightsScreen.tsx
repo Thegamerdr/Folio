@@ -81,6 +81,7 @@ import { copy } from '@/folio/copy/copy';
 import { useAppStore, type CycleRecord } from '@/folio/store';
 import { getRetrospect, formatDelta } from '@/folio/lib/modes/retrospect';
 import { expectedMonthLabel, useCaughtAnnual } from '@/folio/lib/caughtAnnual';
+import { computeGreenStreak } from '@/folio/lib/streaks';
 import type { Nav } from '@/folio/types';
 
 // DATA_INTELLIGENCE.md phase ④ — true only for a cycle synthesized from bulk-imported statement
@@ -170,6 +171,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const transactions = useAppStore((st) => st.transactions);
   const tinyWins = useAppStore((st) => st.tinyWins ?? []);
+  const cancelledSubs = useAppStore((st) => st.cancelledSubs ?? []);
   const onboardingDone = useAppStore((st) => st.onboarding.done);
 
   // Annual-radar candidates (DATA_INTELLIGENCE.md phase ⑥ item 5) — NOT part of the frozen web
@@ -194,6 +196,10 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
     ? Math.round(livedCycles.reduce((acc, c) => acc + c.tightPoint, 0) / livedCycles.length)
     : 0;
   const pausedCount = Object.values(subPaused).filter(Boolean).length;
+  const greenStreak = useMemo(() => computeGreenStreak(cycles), [cycles]);
+  const cancelSavingsMonthly = Math.round(
+    cancelledSubs.reduce((sum, subscription) => sum + subscription.monthlyAmount, 0),
+  );
   const potsTotal = pots.reduce((acc, p) => acc + p.saved, 0);
   // spareDelta compares the two most recent LIVED cycles — a reconstructed month sitting between
   // them (or as the latest entry) must never enter this comparison, since its `spare` is derived
@@ -428,6 +434,33 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             </View>
           </View>
         </View>
+
+        {greenStreak >= 2 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${greenStreak} cycles closed in the safe zone`}
+            onPress={() => nav.go('ritual')}
+            style={({ pressed }) => [s.streakCard, pressed ? s.pressed : undefined]}
+          >
+            <View style={s.streakMarker} />
+            <View style={s.streakCopy}>
+              <Text style={s.streakEyebrow}>Safe-zone rhythm</Text>
+              <Text style={s.streakLine}>
+                <Text style={s.streakValue}>{greenStreak}</Text> cycles closed in the safe zone in a
+                row.
+              </Text>
+            </View>
+          </Pressable>
+        ) : null}
+
+        {cancelSavingsMonthly > 0 ? (
+          <View style={s.cancelSavingsBlock}>
+            <MeloLine
+              mood="calm"
+              text={`Still saving £${cancelSavingsMonthly}/mo since you cancelled ${cancelledSubs.length} subscription${cancelledSubs.length === 1 ? '' : 's'}.`}
+            />
+          </View>
+        ) : null}
 
         {/* Tiny wins — up to 4, newest first (web `tinyWins.slice(0,4)`). Only renders once the
             award engine (lib/wins.ts) has actually awarded one; empty state shows nothing, matching
@@ -938,6 +971,39 @@ function makeStyles(t: Palette) {
       fontWeight: '700',
       marginTop: gap.xxs,
     },
+    streakCard: {
+      alignItems: 'center',
+      backgroundColor: t.calmSoft,
+      borderColor: t.hairline,
+      borderRadius: radius.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      gap: gap.md,
+      marginTop: gap.md,
+      padding: gap.md,
+    },
+    streakMarker: {
+      backgroundColor: t.positive,
+      borderRadius: 4,
+      height: 8,
+      width: 8,
+    },
+    streakCopy: { flex: 1 },
+    streakEyebrow: {
+      color: t.muted,
+      fontSize: 10.5,
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    streakLine: {
+      color: t.ink,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      lineHeight: 18,
+      marginTop: 3,
+    },
+    streakValue: { color: t.calm, fontStyle: 'normal' },
+    cancelSavingsBlock: { marginTop: gap.md },
 
     // Annual radar card — NOT part of the frozen web source (DATA_INTELLIGENCE.md phase ⑥ item 5).
     // Mirrors weeklyCard's surface/hairline/radius treatment so it reads as a sibling of the other

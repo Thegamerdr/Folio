@@ -5,6 +5,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
+import { useBusinessOperations } from './business/useBusinessOperations';
 
 type BusinessRow = Readonly<{ label: string; hint: string; to: ScreenId }>;
 
@@ -14,9 +15,38 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
   const workspace = useAppStore(
     (state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId)!,
   );
+  const business = useBusinessOperations();
   const groups: readonly Readonly<{ title: string; rows: readonly BusinessRow[] }>[] = [
     {
-      title: 'Business records',
+      title: 'Money',
+      rows: [
+        { label: 'Cash runway', hint: 'days of runway on current burn', to: 'business-runway' },
+        { label: 'Invoices', hint: 'who owes you, and how late', to: 'business-invoices' },
+        { label: 'VAT return', hint: 'pot, boxes 1–9, next due', to: 'business-vat' },
+        {
+          label: 'Recurring money out',
+          hint: 'rent, payroll, software and loans',
+          to: 'business-obligations',
+        },
+        {
+          label: 'Deductions',
+          hint: 'mileage, home office, pension, CIS and IR35',
+          to: 'business-deductions',
+        },
+        {
+          label: 'Filings',
+          hint: 'VAT, Self-Assessment, CT600 and Companies House',
+          to: 'business-filings',
+        },
+        {
+          label: 'Insights',
+          hint: 'revenue, top clients and tax-year story',
+          to: 'business-insights',
+        },
+      ],
+    },
+    {
+      title: 'Business tools',
       rows: [
         { label: 'Accounts', hint: 'business balances and account details', to: 'account' },
         { label: 'Activity', hint: 'everything confirmed or corrected', to: 'timeline' },
@@ -38,6 +68,50 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
           label: 'Data, export & recovery',
           hint: 'export this workspace; device-wide controls are labelled',
           to: 'privacy',
+        },
+      ],
+    },
+    ...(business.entity?.kind === 'ltd'
+      ? [
+          {
+            title: 'Limited Company tools',
+            rows: [
+              {
+                label: 'Corporation Tax',
+                hint: 'pot balance and next payment',
+                to: 'business-corp-tax' as ScreenId,
+              },
+              {
+                label: 'Payroll',
+                hint: 'PAYE runs and HMRC liability',
+                to: 'business-payroll' as ScreenId,
+              },
+              {
+                label: 'Dividends',
+                hint: 'distributable reserves and vouchers',
+                to: 'business-dividends' as ScreenId,
+              },
+              {
+                label: "Director's loan",
+                hint: 'running balance and warnings',
+                to: 'business-dla' as ScreenId,
+              },
+              {
+                label: 'Companies House',
+                hint: 'Confirmation Statement and accounts due',
+                to: 'business-companies-house' as ScreenId,
+              },
+            ],
+          },
+        ]
+      : []),
+    {
+      title: 'Business type',
+      rows: [
+        {
+          label: business.entity ? entityLabel(business.entity) : 'Set up business type',
+          hint: business.entity ? 'Change entity or details' : 'Sole Trader or Limited Company',
+          to: 'business-entity-setup',
         },
       ],
     },
@@ -107,6 +181,11 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
       </ScrollView>
     </View>
   );
+}
+
+function entityLabel(entity: NonNullable<ReturnType<typeof useBusinessOperations>['entity']>) {
+  if (entity.kind === 'ltd') return `Limited Company — ${entity.companyName}`;
+  return entity.tradingName ? `Sole Trader — ${entity.tradingName}` : 'Sole Trader';
 }
 
 const styles = StyleSheet.create({

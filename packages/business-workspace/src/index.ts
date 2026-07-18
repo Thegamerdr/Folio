@@ -11,6 +11,8 @@ export const businessWorkspaceBoundary = {
   sharesMeloMemoryAcrossWorkspaces: false,
 } as const;
 
+export * from './operations.js';
+
 export type BusinessReadinessState = 'implemented' | 'passed' | 'needs_review' | 'blocked';
 
 export type EvidenceRow = Readonly<{

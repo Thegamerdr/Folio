@@ -6,8 +6,8 @@ import {
 } from './appStateAuthorityManifest';
 
 describe('AppState authority manifest', () => {
-  it('keeps the current 48-field shipping contract explicitly classified', () => {
-    expect(Object.keys(appStateAuthorityManifest)).toHaveLength(48);
+  it('keeps the current 55-field shipping contract explicitly classified', () => {
+    expect(Object.keys(appStateAuthorityManifest)).toHaveLength(56);
     expect(appStateFieldsWithAuthority('workspace-root')).toEqual([
       'schemaVersion',
       'workspaces',
@@ -25,6 +25,7 @@ describe('AppState authority manifest', () => {
       'transactions',
       'debts',
       'accounts',
+      'cancelledSubs',
     ]);
     expect(appStateFieldsWithAuthority('canonical-financial-context-authority')).toEqual([
       'onboarding',
@@ -38,6 +39,8 @@ describe('AppState authority manifest', () => {
     ]);
     expect(appStateFieldsWithAuthority('canonical-route-planning-authority')).toEqual([
       'calendarEvents',
+      'spendHold',
+      'whatIfHolds',
       'plans',
       'incomeSources',
     ]);
@@ -60,6 +63,10 @@ describe('AppState authority manifest', () => {
       'aiReads',
       'aiReadCache',
       'whatChangedSeenISO',
+      'meloPrimerSeen',
+      'lastOpenedAt',
+      'oneMoveHistory',
+      'meloDismissLog',
       'lens',
       'melo',
       'tinyWins',
@@ -80,6 +87,6 @@ describe('AppState authority manifest', () => {
       'calendarEvents',
     );
     expect(appStateFieldsWithAuthority('canonical-companion-runtime-authority')).toContain('melo');
-    expect(appStateFieldsWithAuthority('exact-encrypted-authority')).toEqual([]);
+    expect(appStateFieldsWithAuthority('exact-encrypted-authority')).toEqual(['business']);
   });
 });

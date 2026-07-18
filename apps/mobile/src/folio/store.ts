@@ -36,6 +36,8 @@ import {
 import { normaliseMerchant } from './lib/subSignals';
 import { synthesizeHistoryCycles } from './lib/historyCycles';
 import { makeWin, hasWin, type TinyWin, type TinyWinKind } from './lib/wins';
+import type { DismissReason, DismissRecord } from './lib/melo/dismissReasons';
+import type { OneMoveImpression } from './lib/melo/oneMove';
 import {
   buildStatementSummary,
   candidateToTransactionDraft,
@@ -74,6 +76,12 @@ import {
   type PendingAppStateCommandInput,
 } from './lib/typedCommandBridge';
 import type { WorkspaceId } from '@folio/domain';
+import {
+  emptyBusinessOperationsState,
+  hasBusinessOperationsData,
+  normaliseBusinessOperationsState,
+  type BusinessOperationsState,
+} from '@folio/business-workspace';
 
 /** The element type of the persisted `AppState.edits` slot. It is the engine's
  *  full `TxnEdit` with `id` relaxed to optional: every record this store writes
@@ -141,6 +149,44 @@ export type Sub = {
   /** Free trial ends in N days. The single highest-regret category — every
    *  surface that mentions this sub should flag it. Undefined = no trial. */
   trialEndsInDays?: number;
+  /** ISO day after the skipped renewal. Paused subscriptions resume when this
+   *  day arrives, so "pause for a month" means skip one occurrence rather
+   *  than an arbitrary 30-day timer. */
+  pausedUntil?: string;
+  /** Per-sub ritual behaviour. Prompt is the safe/default choice. */
+  autoResume?: 'prompt' | 'silent';
+  /** Plain-language memory retained while paused so restore surfaces can
+   *  explain why the user made the choice. */
+  pauseReason?: string;
+  /** ISO day on which the subscription was paused. */
+  pausedAt?: string;
+};
+
+export type CancelledSub = {
+  name: string;
+  workspaceId?: WorkspaceId;
+  monthlyAmount: number;
+  cancelledAt: string;
+};
+
+/** A bounded discretionary-spend cap created by Recovery. */
+export type SpendHold = {
+  start: string;
+  end: string;
+  dailyCap: number;
+  setAt: string;
+  /** Breaches are recorded for review; they never cancel the hold. */
+  breachedDates?: string[];
+};
+
+/** A scenario the user explicitly chose to keep on the active cycle. */
+export type WhatIfHold = {
+  id: string;
+  workspaceId?: WorkspaceId;
+  amount: number;
+  recurrence: 'once' | 'weekly' | 'monthly';
+  addedAt: string;
+  label?: string;
 };
 
 /** A single outstanding debt line — loan, credit card, BNPL, or "other".
@@ -659,6 +705,28 @@ export type AppState = {
    *  available, required-per-week. Empty when the user hasn't declared any.
    *  Optional for shape back-compat. */
   plans?: Plan[];
+  /** Recoverable subscription archive. Removing a subscription never destroys
+   *  the last-known cost or cancellation date. */
+  cancelledSubs?: CancelledSub[];
+  /** Active Recovery cap. Cleared when the cycle closes. */
+  spendHold?: SpendHold | null;
+  /** Scenario holds deliberately committed from What-if. Cleared at cycle close. */
+  whatIfHolds?: WhatIfHold[];
+  /** One-time Melo introduction acknowledgement. */
+  meloPrimerSeen?: boolean;
+  /** Previous Today-open stamp used for the honest since-last-open delta. */
+  lastOpenedAt?: string | null;
+  /** Rolling local continuity log for the single ranked action shown on Today. */
+  oneMoveHistory?: OneMoveImpression[];
+  /** Recent ranked-action dismissals, used only to dampen the same suggestion kind. */
+  meloDismissLog?: DismissRecord[];
+  /**
+   * Local Business operations owned by this encrypted workspace partition.
+   * Personal partitions keep the neutral empty shape; a Business partition
+   * persists entity, invoice, obligation, tax-preparation and companion
+   * continuity here without mixing it into Personal money.
+   */
+  business?: BusinessOperationsState;
   /** Lens / Plus-Pro entitlement state (`lib/lens.ts`). See `LensState`.
    *  Optional for shape back-compat; `DEFAULTS`/`load()` always populate it. */
   lens?: LensState;
@@ -881,7 +949,7 @@ export type MeloState = {
 const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 11;
+const CURRENT_SCHEMA_VERSION = 13;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -1094,6 +1162,14 @@ const DEFAULTS: AppState = normaliseWorkspaceRows(
         addedAt: '2026-06-01T00:00:00.000Z',
       },
     ],
+    cancelledSubs: [],
+    spendHold: null,
+    whatIfHolds: [],
+    meloPrimerSeen: false,
+    lastOpenedAt: null,
+    oneMoveHistory: [],
+    meloDismissLog: [],
+    business: emptyBusinessOperationsState(),
     lens: {
       plusUnlocked: false,
       proUnlocked: false,
@@ -1322,6 +1398,34 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
     });
     return { ...prev, schemaVersion: 11, ...workspaceRoot };
   },
+  // v11 → v12: add the Lovable rework's durable subscription archive,
+  // Recovery/What-if holds, and companion introduction/open-memory fields.
+  // All additions are neutral so existing money totals remain unchanged.
+  12: (prev) => ({
+    ...prev,
+    schemaVersion: 12,
+    cancelledSubs: Array.isArray(prev['cancelledSubs']) ? prev['cancelledSubs'] : [],
+    spendHold: prev['spendHold'] ?? null,
+    whatIfHolds: Array.isArray(prev['whatIfHolds']) ? prev['whatIfHolds'] : [],
+    meloPrimerSeen: prev['meloPrimerSeen'] === true,
+    lastOpenedAt: typeof prev['lastOpenedAt'] === 'string' ? prev['lastOpenedAt'] : null,
+    oneMoveHistory: Array.isArray(prev['oneMoveHistory'])
+      ? (prev['oneMoveHistory'] as OneMoveImpression[]).slice(0, 7)
+      : [],
+    meloDismissLog: Array.isArray(prev['meloDismissLog'])
+      ? (prev['meloDismissLog'] as DismissRecord[]).slice(0, 20)
+      : [],
+  }),
+  // v12 → v13: add the approved local Business operating model. The neutral
+  // empty value changes no Personal totals and is owned by the same encrypted
+  // workspace partition as accounts and transactions.
+  13: (prev) => ({
+    ...prev,
+    schemaVersion: 13,
+    business: normaliseBusinessOperationsState(
+      prev['business'] as Partial<BusinessOperationsState> | null | undefined,
+    ),
+  }),
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -1417,7 +1521,46 @@ export function isRealUser(s: AppState): boolean {
     s.onboarding.done === true ||
     s.currentBalance.source !== 'sample' ||
     s.transactions.some((t) => t.source !== 'seed') ||
-    (s.statementImports?.length ?? 0) > 0
+    s.pots.some((pot) => !isShippedSeedRecord(pot, DEFAULTS.pots)) ||
+    s.subs.some((subscription) => !isShippedSeedRecord(subscription, DEFAULT_SUBS)) ||
+    s.cycles.some((cycle) => !isShippedSeedRecord(cycle, DEFAULTS.cycles)) ||
+    (s.debts ?? []).some(
+      (debt) =>
+        !debt.id.startsWith('seed-') && !isShippedSeedRecord(debt, DEFAULTS.debts ?? []),
+    ) ||
+    (s.plans ?? []).some(
+      (plan) =>
+        !plan.id.startsWith('seed-') && !isShippedSeedRecord(plan, DEFAULTS.plans ?? []),
+    ) ||
+    (s.accounts ?? []).some(
+      (account) =>
+        account.id !== DEFAULT_ACCOUNT_ID ||
+        account.name !== 'Main' ||
+        account.balanceMinor !== s.currentBalance.amount,
+    ) ||
+    (s.incomeSources ?? []).some((income) => income.source !== 'onboarding') ||
+    s.potLedger.length > 0 ||
+    (s.edits?.length ?? 0) > 0 ||
+    s.calendarEvents.length > 0 ||
+    (s.timelineEvents?.length ?? 0) > 0 ||
+    (s.reviewQueue?.length ?? 0) > 0 ||
+    (s.reviewQueueSpillover?.length ?? 0) > 0 ||
+    (s.statementImports?.length ?? 0) > 0 ||
+    (s.evidenceDocuments?.length ?? 0) > 0 ||
+    Object.keys(s.subPaused).length > 0 ||
+    Object.keys(s.subOverrides).length > 0 ||
+    Object.keys(s.modeExtras ?? {}).length > 0 ||
+    Object.keys(s.merchantCategories ?? {}).length > 0 ||
+    (s.cancelledSubs?.length ?? 0) > 0 ||
+    s.spendHold != null ||
+    (s.whatIfHolds?.length ?? 0) > 0 ||
+    s.meloPrimerSeen === true ||
+    s.lastOpenedAt != null ||
+    (s.oneMoveHistory?.length ?? 0) > 0 ||
+    (s.meloDismissLog?.length ?? 0) > 0 ||
+    hasBusinessOperationsData(
+      normaliseBusinessOperationsState(s.business),
+    )
   );
 }
 
@@ -1620,6 +1763,18 @@ function load(): AppState {
       debts: Array.isArray(migrated.debts) ? migrated.debts : DEFAULT_DEBTS,
       household: migrated.household ?? DEFAULT_HOUSEHOLD,
       plans: Array.isArray(migrated.plans) ? migrated.plans : DEFAULT_PLANS,
+      cancelledSubs: Array.isArray(migrated.cancelledSubs) ? migrated.cancelledSubs : [],
+      spendHold: migrated.spendHold ?? null,
+      whatIfHolds: Array.isArray(migrated.whatIfHolds) ? migrated.whatIfHolds : [],
+      meloPrimerSeen: migrated.meloPrimerSeen === true,
+      lastOpenedAt: typeof migrated.lastOpenedAt === 'string' ? migrated.lastOpenedAt : null,
+      oneMoveHistory: Array.isArray(migrated.oneMoveHistory)
+        ? migrated.oneMoveHistory.slice(0, 7)
+        : [],
+      meloDismissLog: Array.isArray(migrated.meloDismissLog)
+        ? migrated.meloDismissLog.slice(0, 20)
+        : [],
+      business: normaliseBusinessOperationsState(migrated.business),
       lens: migrated.lens ?? DEFAULT_LENS,
       melo: migrated.melo ?? DEFAULT_MELO,
       tinyWins: Array.isArray(migrated.tinyWins) ? migrated.tinyWins : [],
@@ -1648,11 +1803,14 @@ function load(): AppState {
     // device (idempotent; a no-op for genuine demo/preview states). This is the
     // step that cleans an already-contaminated install — first-run seeding
     // changes cannot, since the demo data is already persisted in the blob.
+    const resumed = sweepAutoResume(loaded.subs, loaded.subPaused);
     const cleaned = purgeSeedIfReal(
       normaliseWorkspaceRows(
         {
           ...loaded,
-          subOverrides: sweepStaleOverrides(loaded.subs, loaded.subOverrides),
+          subs: resumed.subs,
+          subPaused: resumed.paused,
+          subOverrides: sweepStaleOverrides(resumed.subs, loaded.subOverrides),
         },
         workspaceRoot.dataWorkspaceId,
       ),
@@ -1684,6 +1842,34 @@ function sweepStaleOverrides(
   return next;
 }
 
+/** Pause-for-one-occurrence expiry. A pause remains active through its
+ *  skipped renewal and resumes on the following day. */
+function sweepAutoResume(
+  subs: Sub[],
+  paused: Record<string, boolean>,
+  today: string = new Date().toISOString().slice(0, 10),
+): { subs: Sub[]; paused: Record<string, boolean>; resumedNames: string[] } {
+  const resumedNames: string[] = [];
+  const pausedNext = { ...paused };
+  const subsNext = subs.map((subscription) => {
+    if (!subscription.pausedUntil || subscription.pausedUntil > today) return subscription;
+    resumedNames.push(subscription.name);
+    pausedNext[subscription.name] = false;
+    const {
+      pausedUntil: _pausedUntil,
+      pauseReason: _pauseReason,
+      pausedAt: _pausedAt,
+      ...rest
+    } = subscription;
+    return rest as Sub;
+  });
+  return {
+    subs: resumedNames.length > 0 ? subsNext : subs,
+    paused: pausedNext,
+    resumedNames,
+  };
+}
+
 /** Public sweep — Today calls this on mount so an override that aged
  *  out between sessions is dropped before any reads. */
 export function sweepSubOverrides() {
@@ -1711,6 +1897,32 @@ export function sweepSubOverrides() {
       },
     );
   }
+}
+
+/** Public foreground sweep for one-occurrence subscription pauses. */
+export function sweepAutoResumeNow(
+  today: string = new Date().toISOString().slice(0, 10),
+): string[] {
+  const swept = sweepAutoResume(state.subs, state.subPaused, today);
+  if (swept.resumedNames.length === 0) return [];
+  const timelineEvents = [
+    ...swept.resumedNames.map((name) =>
+      createTimelineEvent('sub-resumed', name, 'One paused renewal has passed.'),
+    ),
+    ...(state.timelineEvents ?? []),
+  ].slice(0, 200);
+  setPartialWithTypedCommand(
+    { subs: swept.subs, subPaused: swept.paused, timelineEvents },
+    {
+      commandType: 'folio.subscriptions.auto_resume.v1',
+      actorKind: 'system',
+      entityRefs: uniqueOpaqueContainerEntityRefs('subscription', swept.resumedNames),
+      before: { paused: Object.fromEntries(swept.resumedNames.map((name) => [name, true])) },
+      after: { paused: Object.fromEntries(swept.resumedNames.map((name) => [name, false])) },
+      invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+    },
+  );
+  return swept.resumedNames;
 }
 
 let state: AppState = load();
@@ -1970,18 +2182,35 @@ export function setSubs(subs: Sub[] | ((prev: Sub[]) => Sub[])) {
   );
 }
 
-export function removeSub(name: string) {
+export function removeSub(name: string): TinyWin | null {
+  const removed = state.subs.find((subscription) => subscription.name === name);
   const { [name]: _gone, ...restPaused } = state.subPaused;
   const { [name]: _gone2, ...restOverrides } = state.subOverrides;
   const subscriptions = state.subs.filter((s) => s.name !== name);
+  const cancelledSubs: CancelledSub[] = removed
+    ? [
+        {
+          name: removed.name,
+          workspaceId: removed.workspaceId ?? state.activeWorkspaceId,
+          monthlyAmount: removed.cost,
+          cancelledAt: new Date().toISOString().slice(0, 10),
+        },
+        ...(state.cancelledSubs ?? []).filter((subscription) => subscription.name !== removed.name),
+      ].slice(0, 60)
+    : (state.cancelledSubs ?? []);
   const changed =
     subscriptions.length !== state.subs.length ||
     Object.prototype.hasOwnProperty.call(state.subPaused, name) ||
     Object.prototype.hasOwnProperty.call(state.subOverrides, name);
-  const patch = { subs: subscriptions, subPaused: restPaused, subOverrides: restOverrides };
+  const patch = {
+    subs: subscriptions,
+    subPaused: restPaused,
+    subOverrides: restOverrides,
+    cancelledSubs,
+  };
   if (!changed) {
     setPartial(patch);
-    return;
+    return null;
   }
   setPartialWithTypedCommand(patch, {
     commandType: 'folio.subscription.remove.v1',
@@ -1992,9 +2221,53 @@ export function removeSub(name: string) {
       paused: state.subPaused[name] ?? null,
       overrideDays: state.subOverrides[name] ?? null,
     },
-    after: {},
+    after: {
+      archived: cancelledSubs.find((subscription) => subscription.name === name) ?? null,
+    },
     invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
   });
+  return removed ? awardTinyWin('first-sub-cancelled') : null;
+}
+
+/** Restore a recoverably cancelled subscription using its last-known cost.
+ *  The renewal date is deliberately marked as an editable 30-day estimate. */
+export function restoreSub(name: string): boolean {
+  const archived = (state.cancelledSubs ?? []).find((subscription) => subscription.name === name);
+  if (!archived) return false;
+  const cancelledSubs = (state.cancelledSubs ?? []).filter(
+    (subscription) => subscription.name !== name,
+  );
+  if (state.subs.some((subscription) => subscription.name === archived.name)) {
+    setPartial({ cancelledSubs });
+    return false;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const restored: Sub = {
+    name: archived.name,
+    workspaceId: archived.workspaceId ?? state.activeWorkspaceId,
+    cost: archived.monthlyAmount,
+    nextRenewalDaysAway: 30,
+    nextRenewalISO: anchorIsoFor(30, today),
+    lastUsedDaysAgo: 0,
+    usesPerMonth: 0,
+  };
+  setPartialWithTypedCommand(
+    { subs: [restored, ...state.subs], cancelledSubs },
+    {
+      commandType: 'folio.subscription.restore.v1',
+      actorKind: 'user',
+      entityRefs: [opaqueContainerEntityRef('subscription', restored.name)],
+      before: { archived },
+      after: { subscription: restored },
+      invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
+    },
+  );
+  return true;
+}
+
+/** Rolling monthly amount no longer leaving the account after cancellations. */
+export function getMonthlyCancelSavings(cancelled: readonly CancelledSub[]): number {
+  return Math.round(cancelled.reduce((sum, subscription) => sum + subscription.monthlyAmount, 0));
 }
 
 export function addToPot(id: string, amount: number, source: string = 'manual') {
@@ -2032,6 +2305,7 @@ export function addToPot(id: string, amount: number, source: string = 'manual') 
     if (after) {
       const beforeRatio = before.saved / before.goal;
       const afterRatio = after.saved / after.goal;
+      if (beforeRatio < 1 && afterRatio >= 1) awardTinyWin('first-pot-fully-funded');
       void import('./lib/melo/reactionBus').then(({ emitMeloReaction }) => {
         if (beforeRatio < 1 && afterRatio >= 1) {
           emitMeloReaction('pots-inline', {
@@ -2180,6 +2454,14 @@ export function awardTinyWin(kind: TinyWinKind): TinyWin | null {
   return win;
 }
 
+/** Remove a just-awarded win when its reversible action is undone in the same interaction. */
+export function revokeTinyWin(kind: TinyWinKind) {
+  const existing = state.tinyWins ?? [];
+  const tinyWins = existing.filter((win) => win.kind !== kind);
+  if (tinyWins.length === existing.length) return;
+  setPartial({ tinyWins });
+}
+
 /** Mark a sub as "just used" — resets lastUsedDaysAgo to 0 and nudges
  *  the monthly count up by one, so the Subs screen pulse turns green. */
 export function markSubUsed(name: string) {
@@ -2207,11 +2489,61 @@ export function markSubUsed(name: string) {
   );
 }
 
+function derivePauseReason(subscription: Sub): string {
+  if (typeof subscription.trialEndsInDays === 'number') return 'trial was about to charge';
+  if (subscription.usesPerMonth === 0) return "you hadn't used it";
+  const costPerUsePence = (subscription.cost * 100) / Math.max(1, subscription.usesPerMonth);
+  if (costPerUsePence > 200) return 'cost per use was high';
+  if (subscription.lastUsedDaysAgo > 21) return "you hadn't opened it in weeks";
+  return 'you chose to rest it';
+}
+
+function addDaysToIso(iso: string, days: number): string {
+  const parsed = Date.parse(`${iso}T00:00:00.000Z`);
+  const safe = Number.isFinite(parsed) ? parsed : Date.now();
+  return new Date(safe + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+function subscriptionWithPause(
+  subscription: Sub,
+  paused: boolean,
+  today: string,
+): Sub {
+  if (!paused) {
+    const {
+      pausedUntil: _pausedUntil,
+      pauseReason: _pauseReason,
+      pausedAt: _pausedAt,
+      ...rest
+    } = subscription;
+    return rest as Sub;
+  }
+  const renewal =
+    subscription.nextRenewalISO ??
+    anchorIsoFor(Math.max(0, subscription.nextRenewalDaysAway), today);
+  return {
+    ...subscription,
+    pausedUntil: addDaysToIso(renewal, 1),
+    autoResume: subscription.autoResume ?? 'prompt',
+    pauseReason: derivePauseReason(subscription),
+    pausedAt: today,
+  };
+}
+
 export function togglePaused(name: string, value?: boolean) {
   const current = !!state.subPaused[name];
   const next = value ?? !current;
   const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subPaused, name);
   const subPaused = { ...state.subPaused, [name]: next };
+  const today = new Date().toISOString().slice(0, 10);
+  const subs =
+    current === next
+      ? state.subs
+      : state.subs.map((subscription) =>
+          subscription.name === name
+            ? subscriptionWithPause(subscription, next, today)
+            : subscription,
+        );
   const timelineEvent =
     current === next ? null : createTimelineEvent(next ? 'sub-paused' : 'sub-resumed', name);
   const timelineEvents =
@@ -2219,16 +2551,22 @@ export function togglePaused(name: string, value?: boolean) {
       ? undefined
       : [timelineEvent, ...(state.timelineEvents ?? [])].slice(0, 200);
   if (current === next && hadStoredValue) {
-    setPartial({ subPaused });
+    setPartial({ subPaused, subs });
   } else {
     setPartialWithTypedCommand(
-      { subPaused, ...(timelineEvents === undefined ? {} : { timelineEvents }) },
+      { subPaused, subs, ...(timelineEvents === undefined ? {} : { timelineEvents }) },
       {
         commandType: next ? 'folio.subscription.pause.v1' : 'folio.subscription.resume.v1',
         actorKind: 'user',
         entityRefs: [opaqueContainerEntityRef('subscription', name)],
-        before: { paused: hadStoredValue ? state.subPaused[name] : null },
-        after: { paused: next },
+        before: {
+          paused: hadStoredValue ? state.subPaused[name] : null,
+          subscription: state.subs.find((subscription) => subscription.name === name) ?? null,
+        },
+        after: {
+          paused: next,
+          subscription: subs.find((subscription) => subscription.name === name) ?? null,
+        },
         invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
       },
     );
@@ -2257,12 +2595,19 @@ export function pauseMany(names: string[], value: boolean) {
   if (uniqueNames.length === 0) return;
   const next = { ...state.subPaused };
   for (const n of uniqueNames) next[n] = value;
-  if (structurallyEqual(state.subPaused, next)) {
-    setPartial({ subPaused: next });
+  const targetNames = new Set(uniqueNames);
+  const today = new Date().toISOString().slice(0, 10);
+  const subs = state.subs.map((subscription) =>
+    targetNames.has(subscription.name) && !!state.subPaused[subscription.name] !== value
+      ? subscriptionWithPause(subscription, value, today)
+      : subscription,
+  );
+  if (structurallyEqual(state.subPaused, next) && structurallyEqual(state.subs, subs)) {
+    setPartial({ subPaused: next, subs });
     return;
   }
   setPartialWithTypedCommand(
-    { subPaused: next },
+    { subPaused: next, subs },
     {
       commandType: value
         ? 'folio.subscriptions.pause_many.v1'
@@ -2274,7 +2619,10 @@ export function pauseMany(names: string[], value: boolean) {
           uniqueNames.map((name) => [name, state.subPaused[name] ?? null]),
         ),
       },
-      after: { paused: Object.fromEntries(uniqueNames.map((name) => [name, value])) },
+      after: {
+        paused: Object.fromEntries(uniqueNames.map((name) => [name, value])),
+        subscriptions: subs.filter((subscription) => targetNames.has(subscription.name)),
+      },
       invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
     },
   );
@@ -2286,17 +2634,35 @@ export function addCycle(c: CycleRecord) {
   // a blank input rather than echoing the same note forever.
   const cycles = [c, ...state.cycles].slice(0, 24);
   setPartialWithTypedCommand(
-    { cycles, nextYouNote: '' },
+    {
+      cycles,
+      nextYouNote: '',
+      subOverrides: {},
+      spendHold: null,
+      whatIfHolds: [],
+    },
     {
       commandType: 'folio.cycle.close.v1',
       actorKind: 'user',
       entityRefs: [opaqueContainerEntityRef('cycle', `${c.closedAt}\u001f${c.label}`)],
-      before: {},
+      before: {
+        subOverrides: state.subOverrides,
+        spendHold: state.spendHold ?? null,
+        whatIfHolds: state.whatIfHolds ?? [],
+      },
       after: { cycle: c },
-      invalidatedProjectionKinds: ['cycles', 'insights', 'cashflow'],
+      invalidatedProjectionKinds: ['cycles', 'insights', 'cashflow', 'calendar'],
       occurredAt: new Date(c.closedAt).toISOString(),
     },
   );
+  if (
+    cycles.length >= 4 &&
+    cycles
+      .slice(0, 4)
+      .every((cycle) => cycle.tightPoint >= 0 && cycle.spare >= 0)
+  ) {
+    awardTinyWin('four-week-green-streak');
+  }
 }
 
 export function setOnboarding(o: Partial<Onboarding>) {
@@ -3633,6 +3999,142 @@ export function addTransaction(
   return full;
 }
 
+export type WorkspaceOwnerTransferLeg = Readonly<{
+  transferId: string;
+  label: string;
+  amount: number;
+  direction: 'in' | 'out';
+  when: string;
+}>;
+
+/**
+ * Record one side of an owner transfer in the currently loaded encrypted partition.
+ *
+ * Transaction and account balance change publish together, so a screen never observes a ledger
+ * entry without the matching cash movement. The persistence orchestrator writes the two workspace
+ * legs and restores the original workspace before returning.
+ */
+export function recordWorkspaceOwnerTransferLeg(
+  input: WorkspaceOwnerTransferLeg,
+): Readonly<{ transactionId: string; accountId: string }> {
+  if (!input.transferId.trim() || !input.label.trim() || !(input.amount > 0)) {
+    throw new Error('Owner transfer leg requires an id, label and positive amount.');
+  }
+  if (!Number.isFinite(Date.parse(input.when))) {
+    throw new Error('Owner transfer leg requires a valid time.');
+  }
+  const account = (state.accounts ?? []).find(
+    (candidate) => !candidate.isLiability && candidate.closed !== true,
+  );
+  if (!account) throw new Error('Add an active cash account before moving money between workspaces.');
+  const delta = input.direction === 'in' ? input.amount : -input.amount;
+  if (account.balanceMinor + delta < 0) {
+    throw new Error('The selected workspace account does not hold enough cash for this move.');
+  }
+  const transaction: Transaction = {
+    id: `${input.transferId}:${input.direction}`,
+    workspaceId: state.activeWorkspaceId,
+    when: input.when,
+    merchant: input.label,
+    amount: delta,
+    category: 'other',
+    source: 'manual',
+    accountId: account.id,
+    externalId: input.transferId,
+  };
+  const { transactions, droppedTransactionCount } = applyTransactionRetention(
+    [transaction, ...state.transactions.filter((row) => row.id !== transaction.id)],
+    state.droppedTransactionCount ?? 0,
+  );
+  const accounts = (state.accounts ?? []).map((candidate) =>
+    candidate.id === account.id
+      ? {
+          ...candidate,
+          balanceMinor: candidate.balanceMinor + delta,
+          balanceAsOfISO: input.when,
+        }
+      : candidate,
+  );
+  const bankTotal = accounts
+    .filter((candidate) => !candidate.isLiability && candidate.closed !== true)
+    .reduce((sum, candidate) => sum + candidate.balanceMinor, 0);
+  const currentBalance: CurrentBalance = {
+    ...state.currentBalance,
+    amount: bankTotal,
+    source: 'user-entered',
+    confidence: 'corrected',
+    setAt: input.when,
+  };
+  setPartialWithTypedCommand(
+    { accounts, currentBalance, transactions, droppedTransactionCount },
+    {
+      commandType: 'folio.workspace.owner_transfer_leg.record.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'transaction', id: transaction.id },
+        { type: 'account', id: account.id },
+      ],
+      before: { account },
+      after: {
+        account: accounts.find((candidate) => candidate.id === account.id),
+        transaction,
+      },
+      changedEntityIds: [transaction.id, account.id],
+      invalidatedProjectionKinds: ['transactions', 'account-balances', 'cashflow'],
+      occurredAt: input.when,
+    },
+  );
+  return { transactionId: transaction.id, accountId: account.id };
+}
+
+/** Compensating rollback used only when the second encrypted workspace leg cannot be committed. */
+export function rollbackWorkspaceOwnerTransferLeg(transactionId: string): boolean {
+  const transaction = state.transactions.find((row) => row.id === transactionId);
+  if (!transaction || !transaction.accountId) return false;
+  const account = (state.accounts ?? []).find(
+    (candidate) => candidate.id === transaction.accountId,
+  );
+  if (!account) return false;
+  const accounts = (state.accounts ?? []).map((candidate) =>
+    candidate.id === account.id
+      ? {
+          ...candidate,
+          balanceMinor: candidate.balanceMinor - transaction.amount,
+          balanceAsOfISO: new Date().toISOString(),
+        }
+      : candidate,
+  );
+  const currentBalance: CurrentBalance = {
+    ...state.currentBalance,
+    amount: accounts
+      .filter((candidate) => !candidate.isLiability && candidate.closed !== true)
+      .reduce((sum, candidate) => sum + candidate.balanceMinor, 0),
+    source: 'user-entered',
+    confidence: 'corrected',
+    setAt: new Date().toISOString(),
+  };
+  setPartialWithTypedCommand(
+    {
+      accounts,
+      currentBalance,
+      transactions: state.transactions.filter((row) => row.id !== transactionId),
+    },
+    {
+      commandType: 'folio.workspace.owner_transfer_leg.rollback.v1',
+      actorKind: 'system',
+      entityRefs: [
+        { type: 'transaction', id: transaction.id },
+        { type: 'account', id: account.id },
+      ],
+      before: { account, transaction },
+      after: { account: accounts.find((candidate) => candidate.id === account.id) },
+      changedEntityIds: [transaction.id, account.id],
+      invalidatedProjectionKinds: ['transactions', 'account-balances', 'cashflow'],
+    },
+  );
+  return true;
+}
+
 /** Batch import entrance to the same retention policy as `addTransaction` —
  *  one `setPartial` for the whole batch instead of one per row, so a bulk
  *  statement import (potentially hundreds of rows) doesn't force hundreds of
@@ -4965,6 +5467,212 @@ export function resetSubOverrides(name?: string) {
   }
 }
 
+/** Commit Recovery's bounded daily discretionary cap to the active cycle. */
+export function setSpendHold(dailyCap: number, days: number, now: Date = new Date()) {
+  const durationDays = Math.max(1, Math.round(days));
+  const start = now.toISOString().slice(0, 10);
+  const end = new Date(now.getTime() + (durationDays - 1) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const spendHold: SpendHold = {
+    start,
+    end,
+    dailyCap: Math.max(0, Math.round(dailyCap)),
+    setAt: now.toISOString(),
+  };
+  setPartialWithTypedCommand(
+    { spendHold },
+    {
+      commandType: 'folio.recovery.spend_hold.set.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'spend-hold', id: `${start}\u001f${end}` }],
+      before: { spendHold: state.spendHold ?? null },
+      after: { spendHold },
+      invalidatedProjectionKinds: ['cashflow', 'calendar', 'route'],
+      occurredAt: spendHold.setAt,
+    },
+  );
+}
+
+export function clearSpendHold() {
+  if (!state.spendHold) return;
+  const previous = state.spendHold;
+  setPartialWithTypedCommand(
+    { spendHold: null },
+    {
+      commandType: 'folio.recovery.spend_hold.clear.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'spend-hold', id: `${previous.start}\u001f${previous.end}` }],
+      before: { spendHold: previous },
+      after: {},
+      invalidatedProjectionKinds: ['cashflow', 'calendar', 'route'],
+    },
+  );
+}
+
+/** Record, but never auto-cancel, a day on which a spend hold was exceeded. */
+export function recordSpendHoldBreach(day: string): boolean {
+  const current = state.spendHold;
+  if (!current || day < current.start || day > current.end) return false;
+  if ((current.breachedDates ?? []).includes(day)) return false;
+  const spendHold: SpendHold = {
+    ...current,
+    breachedDates: [...(current.breachedDates ?? []), day].sort(),
+  };
+  setPartialWithTypedCommand(
+    { spendHold },
+    {
+      commandType: 'folio.recovery.spend_hold.breach.v1',
+      actorKind: 'system',
+      entityRefs: [{ type: 'spend-hold', id: `${current.start}\u001f${current.end}` }],
+      before: { breachedDates: current.breachedDates ?? [] },
+      after: { breachedDates: spendHold.breachedDates },
+      invalidatedProjectionKinds: ['recovery', 'insights'],
+    },
+  );
+  return true;
+}
+
+export function addWhatIfHold(input: {
+  amount: number;
+  recurrence: WhatIfHold['recurrence'];
+  label?: string;
+}): WhatIfHold | null {
+  const amount = Math.max(0, Math.round(input.amount));
+  if (!(amount > 0)) return null;
+  const addedAt = new Date().toISOString();
+  const hold: WhatIfHold = {
+    id: `hold-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    workspaceId: state.activeWorkspaceId,
+    amount,
+    recurrence: input.recurrence,
+    addedAt,
+    ...(input.label?.trim() ? { label: input.label.trim() } : {}),
+  };
+  const whatIfHolds = [hold, ...(state.whatIfHolds ?? [])].slice(0, 24);
+  setPartialWithTypedCommand(
+    { whatIfHolds },
+    {
+      commandType: 'folio.what_if.hold.add.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'what-if-hold', id: hold.id }],
+      before: {},
+      after: { hold },
+      invalidatedProjectionKinds: ['cashflow', 'calendar', 'route'],
+      occurredAt: addedAt,
+    },
+  );
+  return hold;
+}
+
+export function removeWhatIfHold(id: string): boolean {
+  const previous = (state.whatIfHolds ?? []).find((hold) => hold.id === id);
+  if (!previous) return false;
+  setPartialWithTypedCommand(
+    { whatIfHolds: (state.whatIfHolds ?? []).filter((hold) => hold.id !== id) },
+    {
+      commandType: 'folio.what_if.hold.remove.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'what-if-hold', id }],
+      before: { hold: previous },
+      after: {},
+      invalidatedProjectionKinds: ['cashflow', 'calendar', 'route'],
+    },
+  );
+  return true;
+}
+
+export function clearWhatIfHolds() {
+  const previous = state.whatIfHolds ?? [];
+  if (previous.length === 0) return;
+  setPartialWithTypedCommand(
+    { whatIfHolds: [] },
+    {
+      commandType: 'folio.what_if.hold.clear_all.v1',
+      actorKind: 'user',
+      entityRefs: previous.map((hold) => ({ type: 'what-if-hold', id: hold.id })),
+      before: { holds: previous },
+      after: {},
+      invalidatedProjectionKinds: ['cashflow', 'calendar', 'route'],
+    },
+  );
+}
+
+/** Stamp Today-open time and return the previous value for a stable per-mount recap. */
+export function touchOpened(now = new Date()): string | null {
+  const previous = state.lastOpenedAt ?? null;
+  setPartial({ lastOpenedAt: now.toISOString() });
+  return previous;
+}
+
+export function daysSinceLastOpen(now = new Date()): number | null {
+  if (!state.lastOpenedAt) return null;
+  const openedAt = Date.parse(state.lastOpenedAt);
+  if (!Number.isFinite(openedAt)) return null;
+  return Math.max(0, Math.floor((now.getTime() - openedAt) / 86_400_000));
+}
+
+export function setMeloPrimerSeen(seen = true) {
+  if ((state.meloPrimerSeen ?? false) === seen) return;
+  setPartial({ meloPrimerSeen: seen });
+}
+
+export function recordOneMoveShown(key: string, now = new Date()) {
+  if (!key) return;
+  const current = state.oneMoveHistory ?? [];
+  const today = now.toISOString().slice(0, 10);
+  const latest = current[0];
+  if (latest?.key === key && latest.tappedAt === undefined && latest.shownAt === today) return;
+  setPartial({ oneMoveHistory: [{ key, shownAt: today }, ...current].slice(0, 7) });
+}
+
+export function recordOneMoveTapped(key: string, now = new Date()) {
+  const current = state.oneMoveHistory ?? [];
+  const index = current.findIndex((entry) => entry.key === key && entry.tappedAt === undefined);
+  if (index < 0) return;
+  const next = current.slice();
+  next[index] = { ...next[index]!, tappedAt: now.toISOString() };
+  setPartial({ oneMoveHistory: next });
+}
+
+export function recordOneMoveDismissed(
+  key: string,
+  reason: DismissReason | null,
+  now = new Date(),
+) {
+  if (!key) return;
+  const entry: DismissRecord = { kind: key, reason, at: now.toISOString() };
+  setPartial({ meloDismissLog: [entry, ...(state.meloDismissLog ?? [])].slice(0, 20) });
+}
+
+/**
+ * Apply one atomic update to the active Business partition. This deliberately
+ * refuses to write while Personal is active, so a route bug cannot leak
+ * Business records into the Personal companion/export context.
+ */
+export function updateBusinessOperations(
+  update:
+    | Partial<BusinessOperationsState>
+    | ((
+        current: BusinessOperationsState,
+      ) => Partial<BusinessOperationsState> | BusinessOperationsState),
+) {
+  const active = state.workspaces.find(
+    (workspace) => workspace.id === state.activeWorkspaceId,
+  );
+  if (active?.kind !== 'business') {
+    throw new Error('Business operations require an active Business workspace.');
+  }
+  const current = normaliseBusinessOperationsState(state.business);
+  const patch = typeof update === 'function' ? update(current) : update;
+  setPartial({
+    business: normaliseBusinessOperationsState({
+      ...current,
+      ...patch,
+    }),
+  });
+}
+
 export function resetAll() {
   clearPendingAppStateCommands();
   state = normaliseWorkspaceRows(
@@ -5049,6 +5757,14 @@ export function createEmptyWorkspacePartition(
     debts: [],
     household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
     plans: [],
+    cancelledSubs: [],
+    spendHold: null,
+    whatIfHolds: [],
+    meloPrimerSeen: false,
+    lastOpenedAt: null,
+    oneMoveHistory: [],
+    meloDismissLog: [],
+    business: emptyBusinessOperationsState(),
     lens: { ...DEFAULT_LENS },
     melo: { ...DEFAULT_MELO, wardrobe: [] },
     tinyWins: [],
@@ -5133,6 +5849,14 @@ export function resetToEmpty(options?: Readonly<{ onboardingDone?: boolean }>) {
     debts: [],
     household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
     plans: [],
+    cancelledSubs: [],
+    spendHold: null,
+    whatIfHolds: [],
+    meloPrimerSeen: false,
+    lastOpenedAt: null,
+    oneMoveHistory: [],
+    meloDismissLog: [],
+    business: emptyBusinessOperationsState(),
     lens: {
       plusUnlocked: false,
       proUnlocked: false,

@@ -46,6 +46,18 @@ export function resolveMeloLocalAction(
   switch (action) {
     case 'open_what_if':
       return { kind: 'screen', screen: 'whatif' };
+    case 'open_business_invoices':
+      return { kind: 'screen', screen: 'business-invoices' };
+    case 'open_business_vat':
+      return { kind: 'screen', screen: 'business-vat' };
+    case 'open_business_tax':
+      return { kind: 'screen', screen: 'business-filings' };
+    case 'open_business_payroll':
+      return { kind: 'screen', screen: 'business-payroll' };
+    case 'open_business_filings':
+      return { kind: 'screen', screen: 'business-filings' };
+    case 'open_business_clients':
+      return { kind: 'screen', screen: 'business-clients' };
     case 'review_imports':
       return { kind: 'screen', screen: 'review' };
     case 'build_recovery_route':

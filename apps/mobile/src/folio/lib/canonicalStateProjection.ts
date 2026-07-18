@@ -19,6 +19,7 @@ import {
   createTransactionIntelligenceStateId,
 } from '@folio/domain';
 import type { CanonicalRepository, CanonicalRepositorySnapshot } from '@folio/storage';
+import { normaliseBusinessOperationsState } from '@folio/business-workspace';
 
 import {
   DEFAULT_ACCOUNT_ID,
@@ -249,12 +250,81 @@ function projectDurableMoneyContainers(
             ),
           }),
       paused: state.subPaused[subscription.name] === true,
+      ...(subscription.pausedUntil === undefined
+        ? {}
+        : {
+            pausedUntil: createLocalDate(
+              requireLocalDate(
+                subscription.pausedUntil,
+                `Subscription ${subscription.name} resume date`,
+              ),
+            ),
+          }),
+      ...(subscription.autoResume === undefined
+        ? {}
+        : { autoResume: subscription.autoResume }),
+      ...(subscription.pauseReason === undefined
+        ? {}
+        : {
+            pauseReason: requireString(
+              subscription.pauseReason,
+              `Subscription ${subscription.name} pause reason`,
+            ),
+          }),
+      ...(subscription.pausedAt === undefined
+        ? {}
+        : {
+            pausedAt: createLocalDate(
+              requireLocalDate(
+                subscription.pausedAt,
+                `Subscription ${subscription.name} pause date`,
+              ),
+            ),
+          }),
       version: canonicalContainerVersion(
         'subscription',
         workspace,
         subscription.name,
         sourceOrdinal,
       ),
+    });
+  }
+
+  for (const [archiveOrdinal, subscription] of (state.cancelledSubs ?? []).entries()) {
+    assertRowWorkspace(subscription, workspace, 'Cancelled subscription');
+    const sourceOrdinal = state.subs.length + archiveOrdinal;
+    const sourceId = `cancelled:${subscription.name}`;
+    repository.subscriptions.put({
+      id: canonicalContainerId(
+        'subscription',
+        workspace,
+        sourceId,
+        sourceOrdinal,
+        createSubscriptionId,
+      ),
+      workspaceId: workspace.id,
+      sourceName: subscription.name,
+      sourceOrdinal,
+      name: subscription.name,
+      cost: createMoney({
+        minorUnits: majorToMinor(
+          subscription.monthlyAmount,
+          `Cancelled subscription ${subscription.name} cost`,
+        ),
+        currency,
+      }),
+      cadence: 'monthly',
+      nextRenewalDaysAway: 0,
+      lastUsedDaysAgo: 0,
+      usesPerMonth: 0,
+      paused: false,
+      cancelledAt: createLocalDate(
+        requireLocalDate(
+          subscription.cancelledAt,
+          `Cancelled subscription ${subscription.name} cancellation date`,
+        ),
+      ),
+      version: canonicalContainerVersion('subscription', workspace, sourceId, sourceOrdinal),
     });
   }
 
@@ -408,6 +478,37 @@ function projectDurableMoneyContainers(
         ]),
       ),
     },
+    spendHold:
+      state.spendHold === undefined || state.spendHold === null
+        ? null
+        : {
+            start: createLocalDate(requireLocalDate(state.spendHold.start, 'Spend hold start')),
+            end: createLocalDate(requireLocalDate(state.spendHold.end, 'Spend hold end')),
+            dailyCap: createMoney({
+              minorUnits: majorToMinor(state.spendHold.dailyCap, 'Spend hold daily cap'),
+              currency,
+            }),
+            setAt: canonicalInstant(state.spendHold.setAt, 'Spend hold creation time'),
+            breachedDates: (state.spendHold.breachedDates ?? []).map((day) =>
+              createLocalDate(requireLocalDate(day, 'Spend hold breached date')),
+            ),
+          },
+    whatIfHolds: (state.whatIfHolds ?? []).map((hold, index) => {
+      assertRowWorkspace(hold, workspace, 'What-if hold');
+      return {
+        id: requireString(hold.id, `What-if hold ${index} ID`),
+        amount: createMoney({
+          minorUnits: majorToMinor(hold.amount, `What-if hold ${hold.id} amount`),
+          currency,
+        }),
+        recurrence: hold.recurrence,
+        addedAt: canonicalInstant(hold.addedAt, `What-if hold ${hold.id} creation time`),
+        ...(hold.label === undefined
+          ? {}
+          : { label: requireString(hold.label, `What-if hold ${hold.id} label`) }),
+      };
+    }),
+    businessOperationsJson: JSON.stringify(normaliseBusinessOperationsState(state.business)),
     version: canonicalContainerVersion('financialcontext', workspace, financialContextSourceId, 0),
   });
 
@@ -833,6 +934,36 @@ function projectCompanionRuntimeState(
       kind: win.kind,
       awardedAt: requireIsoInstant(win.awardedAt, `Tiny win ${win.id} time`),
       message: requireString(win.message, `Tiny win ${win.id} message`),
+    })),
+    meloPrimerSeen: state.meloPrimerSeen === true,
+    lastOpenedAt:
+      state.lastOpenedAt === undefined || state.lastOpenedAt === null
+        ? null
+        : canonicalInstant(state.lastOpenedAt, 'Last-opened time'),
+    oneMoveHistory: (state.oneMoveHistory ?? []).map((entry, index) => ({
+      key: requireString(entry.key, `One-move history ${index} key`),
+      shownAt: createLocalDate(
+        requireLocalDate(entry.shownAt, `One-move history ${index} shown date`),
+      ),
+      ...(entry.tappedAt === undefined
+        ? {}
+        : {
+            tappedAt: canonicalInstant(
+              entry.tappedAt,
+              `One-move history ${index} tapped time`,
+            ),
+          }),
+    })),
+    meloDismissLog: (state.meloDismissLog ?? []).map((entry, index) => ({
+      kind: requireString(entry.kind, `Melo dismissal ${index} kind`),
+      reason: entry.reason,
+      at: canonicalInstant(entry.at, `Melo dismissal ${index} time`),
+      ...(entry.amount === undefined
+        ? {}
+        : { amount: requireFiniteNumber(entry.amount, `Melo dismissal ${index} amount`) }),
+      ...(entry.potId === undefined
+        ? {}
+        : { potId: requireString(entry.potId, `Melo dismissal ${index} pot ID`) }),
     })),
     version: canonicalContainerVersion('companionruntime', workspace, sourceId, 0),
   });

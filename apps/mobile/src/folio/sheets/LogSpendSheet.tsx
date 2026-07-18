@@ -55,6 +55,7 @@ export type LogSpendSheetProps = {
   // Whether the sheet is mounted/visible — wired straight to the kit Sheet primitive.
   visible: boolean;
   onClose: () => void;
+  initialAmount?: number | undefined;
 };
 
 // Spend-only chip set — the Transaction.category union EXCLUDING 'income' (the web's literal `cats`).
@@ -98,14 +99,20 @@ function useReduceMotion(): boolean {
 // LogSpendSheet
 // ---------------------------------------------------------------------------
 
-export function LogSpendSheet({ visible, onClose }: LogSpendSheetProps) {
+export function LogSpendSheet({ visible, onClose, initialAmount }: LogSpendSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReduceMotion();
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
-      <LogSpendForm styles={s} palette={t} reduceMotion={reduceMotion} onClose={onClose} />
+      <LogSpendForm
+        styles={s}
+        palette={t}
+        reduceMotion={reduceMotion}
+        onClose={onClose}
+        initialAmount={initialAmount}
+      />
     </Sheet>
   );
 }
@@ -119,14 +126,18 @@ function LogSpendForm({
   palette: t,
   reduceMotion,
   onClose,
+  initialAmount,
 }: {
   styles: ReturnType<typeof makeStyles>;
   palette: Palette;
   reduceMotion: boolean;
   onClose: () => void;
+  initialAmount?: number | undefined;
 }) {
   const [merchant, setMerchant] = useState('');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(
+    typeof initialAmount === 'number' && initialAmount > 0 ? String(Math.round(initialAmount)) : '',
+  );
   const [category, setCategory] = useState<Transaction['category']>('food');
   const [merchantFocused, setMerchantFocused] = useState(false);
 

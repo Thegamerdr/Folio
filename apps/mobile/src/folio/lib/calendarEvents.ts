@@ -15,7 +15,16 @@
  * Types come from the data spine: `@/folio/store` (alias `@/*` -> `src/*`),
  * imported relatively as `../store` so the pure-logic test runner resolves it.
  */
-import type { Sub, Onboarding, CalendarEvent, Pot, IncomeSource, Transaction } from '../store';
+import type {
+  Sub,
+  Onboarding,
+  CalendarEvent,
+  Pot,
+  IncomeSource,
+  Transaction,
+  SpendHold,
+  WhatIfHold,
+} from '../store';
 import { resolvePayday } from './payday';
 import { resolveNextTopUp } from './potCadence';
 import { projectIncomeEvents } from './income';
@@ -29,6 +38,7 @@ export type DerivedEventSource =
   | 'review'
   | 'manual'
   | 'pot'
+  | 'hold'
   // A real past transaction, read-only enrichment for past-month rendering (see
   // `deriveHistoricalDayEvents` below) — never produced by the forward `deriveCalendarEvents`
   // projection itself. Deliberately NOT actionable (EventRow's per-event actions block only fires
@@ -123,6 +133,8 @@ export function deriveCalendarEvents({
   manualEvents,
   pots = [],
   incomeSources = [],
+  spendHold = null,
+  whatIfHolds = [],
   windowDays = 35,
   now = new Date(),
   includeSampleBills = true,
@@ -144,6 +156,10 @@ export function deriveCalendarEvents({
    *  falls back BYTE-IDENTICAL to the single monthly `onboarding.payday` /
    *  `.monthlyIncome` lump this function always injected. */
   incomeSources?: IncomeSource[];
+  /** Recovery's bounded daily discretionary cap. */
+  spendHold?: SpendHold | null;
+  /** What-if scenarios the user chose to keep on this cycle. */
+  whatIfHolds?: WhatIfHold[];
   windowDays?: number;
   now?: Date;
   /** Whether to inject the hardcoded DEMO example bills (RECURRING_BILLS). True for the seeded demo
@@ -350,6 +366,48 @@ export function deriveCalendarEvents({
           });
         }
       }
+    }
+  }
+
+  // Recovery spend-hold: one dated cap per day in its inclusive window. It is
+  // a projection, not a posted transaction, and therefore carries source=hold.
+  if (spendHold && spendHold.dailyCap > 0) {
+    const start = spendHold.start < nowIso ? nowIso : spendHold.start;
+    const end = spendHold.end > windowEndIso ? windowEndIso : spendHold.end;
+    for (
+      let cursor = Date.parse(`${start}T00:00:00.000Z`);
+      cursor <= Date.parse(`${end}T00:00:00.000Z`);
+      cursor += DAY
+    ) {
+      const date = isoDay(new Date(cursor));
+      out.push({
+        id: `spend-hold-${date}`,
+        date,
+        kind: 'out',
+        source: 'hold',
+        title: `Spend hold · £${spendHold.dailyCap}`,
+        note: 'Recovery plan',
+        amount: -spendHold.dailyCap,
+      });
+    }
+  }
+
+  // User-committed What-if holds recur from today until the route window ends.
+  for (const hold of whatIfHolds) {
+    if (!(hold.amount > 0)) continue;
+    const step = hold.recurrence === 'weekly' ? 7 : hold.recurrence === 'monthly' ? 30 : null;
+    for (let occurrence = 0; occurrence < (step === null ? 1 : 6); occurrence += 1) {
+      const when = addDays(now, occurrence * (step ?? 0));
+      if (when.getTime() > windowEnd.getTime()) break;
+      out.push({
+        id: `what-if-hold-${hold.id}-${occurrence}`,
+        date: isoDay(when),
+        kind: 'out',
+        source: 'hold',
+        title: hold.label ?? `Hold · £${hold.amount}`,
+        note: hold.recurrence === 'once' ? 'This cycle' : `Repeats ${hold.recurrence}`,
+        amount: -hold.amount,
+      });
     }
   }
 

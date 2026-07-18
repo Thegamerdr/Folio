@@ -32,7 +32,9 @@ import {
   getState,
   hasAnyUserData,
   hydrateFromBlob,
+  recordWorkspaceOwnerTransferLeg,
   removeEvidenceDocument,
+  rollbackWorkspaceOwnerTransferLeg,
   serializeWorkspacePartition,
   setPartial,
   subscribeStore,
@@ -1326,6 +1328,105 @@ export async function switchPersistedWorkspace(workspaceId: WorkspaceId): Promis
       throw reason;
     }
   });
+}
+
+export type PersistedOwnerTransferKind =
+  | 'draw'
+  | 'salary'
+  | 'dividend'
+  | 'capital-contribution'
+  | 'loan-repayment';
+
+export type PersistedOwnerTransferInput = Readonly<{
+  direction: 'business-to-personal' | 'personal-to-business';
+  amount: number;
+  kind: PersistedOwnerTransferKind;
+  note?: string;
+}>;
+
+/**
+ * Write a paired owner transfer to the encrypted Business and Personal partitions.
+ *
+ * Each leg updates its local cash account and transaction history atomically. If the second
+ * partition cannot commit, the first leg is compensated before the original Business workspace is
+ * restored. This is deliberately a user-confirmed operation; the companion cannot call it.
+ */
+export async function recordPersistedOwnerTransfer(
+  input: PersistedOwnerTransferInput,
+): Promise<Readonly<{ transferId: string }>> {
+  if (!(input.amount > 0) || !Number.isFinite(input.amount)) {
+    throw new Error('Owner transfer amount must be positive.');
+  }
+  const initial = getState();
+  const business = initial.workspaces.find(
+    (workspace) => workspace.id === initial.activeWorkspaceId,
+  );
+  if (business?.kind !== 'business') {
+    throw new Error('Open the Business workspace before moving owner money.');
+  }
+  const personal = initial.workspaces.find(
+    (workspace) => workspace.kind === 'personal' && workspace.archivedAt === null,
+  );
+  if (!personal) throw new Error('The Personal workspace is unavailable.');
+
+  const transferId = `owner-transfer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const when = new Date().toISOString();
+  const note = input.note?.trim();
+  const kindLabel = input.kind.replaceAll('-', ' ');
+  const businessDirection = input.direction === 'business-to-personal' ? 'out' : 'in';
+  const personalDirection = input.direction === 'business-to-personal' ? 'in' : 'out';
+  let businessTransactionId: string | null = null;
+  let personalTransactionId: string | null = null;
+
+  try {
+    businessTransactionId = recordWorkspaceOwnerTransferLeg({
+      transferId,
+      label:
+        input.direction === 'business-to-personal'
+          ? `Owner transfer · ${kindLabel} · to Personal${note ? ` · ${note}` : ''}`
+          : `Owner transfer · ${kindLabel} · from Personal${note ? ` · ${note}` : ''}`,
+      amount: input.amount,
+      direction: businessDirection,
+      when,
+    }).transactionId;
+    await persistCurrentStateNow(business.id);
+
+    await switchPersistedWorkspace(personal.id);
+    personalTransactionId = recordWorkspaceOwnerTransferLeg({
+      transferId,
+      label:
+        input.direction === 'business-to-personal'
+          ? `From Business · ${kindLabel}${note ? ` · ${note}` : ''}`
+          : `To Business · ${kindLabel}${note ? ` · ${note}` : ''}`,
+      amount: input.amount,
+      direction: personalDirection,
+      when,
+    }).transactionId;
+    await persistCurrentStateNow(personal.id);
+    await switchPersistedWorkspace(business.id);
+    return { transferId };
+  } catch (reason: unknown) {
+    try {
+      if (getState().activeWorkspaceId === personal.id && personalTransactionId) {
+        rollbackWorkspaceOwnerTransferLeg(personalTransactionId);
+        await persistCurrentStateNow(personal.id);
+      }
+      if (getState().activeWorkspaceId !== business.id) {
+        await switchPersistedWorkspace(business.id);
+      }
+      if (businessTransactionId) {
+        rollbackWorkspaceOwnerTransferLeg(businessTransactionId);
+        await persistCurrentStateNow(business.id);
+      }
+    } catch {
+      // Keep the original failure. Durable generation/readback will expose any compensation failure
+      // rather than silently claiming the transfer completed.
+    }
+    if (getState().activeWorkspaceId !== business.id) {
+      await switchPersistedWorkspace(business.id).catch(() => undefined);
+    }
+    throw reason;
+  }
 }
 
 export async function renamePersistedBusinessWorkspace(

@@ -97,8 +97,16 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ModeFramingBanner } from '@/folio/ui/ModeFramingBanner';
 import { type MeloMood } from '@/folio/melo/Melo';
-import { addCycle, repayToPot, setNextYouNote, useAppStore, type AppState } from '@/folio/store';
+import {
+  addCycle,
+  repayToPot,
+  setNextYouNote,
+  togglePaused,
+  useAppStore,
+  type AppState,
+} from '@/folio/store';
 import { endLensTrialIfExpired } from '@/folio/lib/lens';
+import { computeGreenStreak } from '@/folio/lib/streaks';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
@@ -622,6 +630,7 @@ type RitualStep = {
   // step 4 swaps the body for the textarea, so body is optional.
   body?: string;
   isNote?: boolean;
+  resumePrompt?: boolean;
   stat: { label: string; value: number; tone: StatTone };
   melo: string;
   meloMood: MeloMood;
@@ -666,6 +675,23 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const persistedNote = useAppStore((st) => st.nextYouNote);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const onboardingDone = useAppStore((st) => st.onboarding.done);
+  const subs = useAppStore((st) => st.subs);
+  const subPaused = useAppStore((st) => st.subPaused);
+  const cycles = useAppStore((st) => st.cycles);
+  const greenStreak = useMemo(() => computeGreenStreak(cycles), [cycles]);
+  const [resumeDecisions, setResumeDecisions] = useState<
+    Record<string, 'resume' | 'keep'>
+  >({});
+  const resumePrompts = useMemo(
+    () =>
+      subs.filter(
+        (subscription) =>
+          subPaused[subscription.name] &&
+          subscription.pausedUntil &&
+          (subscription.autoResume ?? 'prompt') === 'prompt',
+      ),
+    [subPaused, subs],
+  );
 
   // Step-4 input — seeded from the persisted draft so the user can leave and come back without losing
   // what they typed (ENGINES §7 "Cycle close note").
@@ -813,6 +839,32 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       meloMood: step3.meloMood,
       cta: step3.cta,
     },
+    ...(resumePrompts.length > 0
+      ? [
+          {
+            eyebrow: 'Step · paused subscriptions',
+            headlineLead: 'Anything to ',
+            headlineAccent: 'bring back',
+            headlineTrail: '?',
+            resumePrompt: true,
+            stat: {
+              label: 'To decide',
+              value: resumePrompts.length,
+              tone: 'accent' as StatTone,
+            },
+            melo: 'Only what you want back. Nothing sneaks through.',
+            meloMood: 'curious' as MeloMood,
+            cta: 'Apply choices',
+            onConfirm: () => {
+              for (const subscription of resumePrompts) {
+                if (resumeDecisions[subscription.name] === 'resume') {
+                  togglePaused(subscription.name, false);
+                }
+              }
+            },
+          },
+        ]
+      : []),
     {
       eyebrow: 'Step four',
       headlineLead: 'One ',
@@ -1006,7 +1058,11 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
 
           {/* Copy block — eyebrow · headline (with the single upright accent word) · body or textarea. */}
           <View style={styles.copyBlock}>
-            <Text style={[styles.eyebrow, { color: t.muted }]}>{current.eyebrow}</Text>
+            <Text style={[styles.eyebrow, { color: t.muted }]}>
+              {step === 0 && greenStreak >= 2
+                ? `${greenStreak === 2 ? 'Second' : greenStreak === 3 ? 'Third' : `${greenStreak}th`} ritual in a row. Nice pace.`
+                : current.eyebrow}
+            </Text>
             <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
               {current.headlineLead}
               <Text style={[styles.headlineAccent, { color: t.calm }]}>
@@ -1020,7 +1076,124 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
                 null for survival (the shipped default). */}
             {step === 0 ? <ModeFramingBanner surface="cycleClose" /> : null}
 
-            {current.isNote ? (
+            {step === 0 && greenStreak >= 1 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${greenStreak} safe cycles in a row. Open Insights.`}
+                onPress={() => nav.go('insights')}
+                style={[
+                  styles.streakChip,
+                  { backgroundColor: t.calmSoft, borderColor: t.hairline },
+                ]}
+              >
+                <View style={[styles.streakDot, { backgroundColor: t.positive }]} />
+                <Text style={[styles.streakChipText, { color: t.ink }]}>
+                  {greenStreak === 1 ? (
+                    <>
+                      Last month closed <Text style={{ color: t.calm }}>safe</Text>.
+                    </>
+                  ) : (
+                    <>
+                      <Text style={{ color: t.calm }}>{greenStreak}</Text> safe cycles in a row.
+                    </>
+                  )}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {current.resumePrompt ? (
+              <View style={styles.resumeList}>
+                {resumePrompts.map((subscription) => {
+                  const decision = resumeDecisions[subscription.name];
+                  const resumeLabel = subscription.pausedUntil
+                    ? new Date(
+                        `${subscription.pausedUntil.slice(0, 10)}T00:00:00`,
+                      ).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                    : 'next cycle';
+                  return (
+                    <View
+                      key={subscription.name}
+                      style={[
+                        styles.resumeCard,
+                        { backgroundColor: t.inset, borderColor: t.hairline },
+                      ]}
+                    >
+                      <View style={styles.resumeHeader}>
+                        <Text style={[styles.resumeName, { color: t.ink }]}>
+                          {subscription.name}
+                        </Text>
+                        <Text style={[styles.resumeMeta, { color: t.muted }]}>
+                          £{subscription.cost}/mo · resumes {resumeLabel}
+                        </Text>
+                      </View>
+                      {subscription.pauseReason ? (
+                        <Text style={[styles.resumeReason, { color: t.muted }]}>
+                          paused because {subscription.pauseReason}
+                        </Text>
+                      ) : null}
+                      <View style={styles.resumeActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: decision === 'resume' }}
+                          onPress={() =>
+                            setResumeDecisions((currentDecisions) => ({
+                              ...currentDecisions,
+                              [subscription.name]: 'resume',
+                            }))
+                          }
+                          style={[
+                            styles.resumeAction,
+                            {
+                              backgroundColor:
+                                decision === 'resume' ? t.calm : t.surface,
+                              borderColor: t.hairline,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.resumeActionText,
+                              { color: decision === 'resume' ? t.inverse : t.ink },
+                            ]}
+                          >
+                            Resume now
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: decision === 'keep' }}
+                          onPress={() =>
+                            setResumeDecisions((currentDecisions) => ({
+                              ...currentDecisions,
+                              [subscription.name]: 'keep',
+                            }))
+                          }
+                          style={[
+                            styles.resumeAction,
+                            {
+                              backgroundColor: decision === 'keep' ? t.ink : t.surface,
+                              borderColor: t.hairline,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.resumeActionText,
+                              { color: decision === 'keep' ? t.canvas : t.ink },
+                            ]}
+                          >
+                            Keep paused
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })}
+                <Text style={[styles.resumeFootnote, { color: t.muted }]}>
+                  No pick means it stays paused until its own resume date.
+                </Text>
+              </View>
+            ) : current.isNote ? (
               <View style={styles.noteBlock}>
                 <TextInput
                   accessibilityLabel="One line for next-you"
@@ -1317,6 +1490,49 @@ const styles = StyleSheet.create({
     marginTop: gap.lg,
     maxWidth: 320,
   },
+  streakChip: {
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: gap.sm,
+    marginTop: gap.md,
+    minHeight: 30,
+    paddingHorizontal: gap.md,
+  },
+  streakDot: { borderRadius: 3, height: 6, width: 6 },
+  streakChipText: { fontSize: 11.5, fontVariant: ['tabular-nums'] },
+  resumeList: { gap: gap.sm, marginTop: gap.md },
+  resumeCard: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: gap.md,
+  },
+  resumeHeader: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    gap: gap.sm,
+    justifyContent: 'space-between',
+  },
+  resumeName: { flex: 1, fontSize: 13.5 },
+  resumeMeta: { fontSize: 11.5, fontVariant: ['tabular-nums'] },
+  resumeReason: {
+    fontFamily: serif.displayItalic,
+    fontSize: 11,
+    marginTop: gap.xs,
+  },
+  resumeActions: { flexDirection: 'row', gap: gap.sm, marginTop: gap.sm },
+  resumeAction: {
+    alignItems: 'center',
+    borderRadius: radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    height: 38,
+    justifyContent: 'center',
+  },
+  resumeActionText: { fontSize: 12, fontWeight: '500' },
+  resumeFootnote: { fontSize: 12, lineHeight: 17 },
   // The step-4 note block — mt-3.
   noteBlock: {
     marginTop: gap.md,

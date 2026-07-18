@@ -53,9 +53,13 @@ import {
   type AppState,
   type Sub as StoreSub,
   getState,
+  getMonthlyCancelSavings,
   markSubUsed,
   pauseMany,
   removeSub,
+  restoreSub,
+  revokeTinyWin,
+  setPartial,
   setSubs,
   togglePaused,
   useAppStore,
@@ -130,6 +134,12 @@ function formatNext(days: number): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
+function formatArchiveDate(iso: string): string {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 // Two-decimal pound figure with a leading £ — money always reads as money (tabular, £ literal,
 // never "12.3K"). The web wrote `£${n.toFixed(2)}`; this is the same, kept local so every £ figure
 // on the screen goes through one formatter.
@@ -148,6 +158,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
 
   const subs = useAppStore((st) => st.subs);
   const paused = useAppStore((st) => st.subPaused);
+  const cancelledSubs = useAppStore((st) => st.cancelledSubs ?? []);
 
   const [sort, setSort] = useState<SortKey>('next');
 
@@ -163,6 +174,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   const monthlyDisplay = useCountUp(monthly, COUNT_UP_MS);
   const totalIfNoPause = subs.reduce((acc, x) => acc + x.cost, 0);
   const monthlySaved = totalIfNoPause - monthly;
+  const cancelledMonthlySaved = getMonthlyCancelSavings(cancelledSubs);
 
   // The "pause what renews before your low point" move is a PAYMENT-TIMING set (when a charge lands),
   // not a usage/"quiet" verdict — it is computed below (dueBeforeTight) once the route's tight day is
@@ -290,9 +302,12 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     // "Cancelled {name}" line and the one-tap restore.
     const prevSubs = getState().subs;
     const prevPaused = !!getState().subPaused[sub.name];
-    removeSub(sub.name);
+    const prevCancelled = getState().cancelledSubs ?? [];
+    const cancellationWin = removeSub(sub.name);
     showUndo(`Cancelled ${sub.name}`, () => {
       setSubs(prevSubs);
+      setPartial({ cancelledSubs: prevCancelled });
+      if (cancellationWin) revokeTinyWin(cancellationWin.kind);
       if (prevPaused) togglePaused(sub.name, true);
     });
   };
@@ -304,7 +319,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   };
 
   // EMPTY BRANCH — the calm doorway. No top Melo on the populated screen; here EmptyState owns it.
-  if (subs.length === 0) {
+  if (subs.length === 0 && cancelledSubs.length === 0) {
     return (
       <ScrollView
         style={layout.scrollFlex}
@@ -455,6 +470,51 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
         ))}
       </View>
 
+      {cancelledSubs.length > 0 ? (
+        <View style={layout.cancelledSection}>
+          <View style={layout.cancelledHeader}>
+            <Text style={s.cancelledEyebrow}>Cancelled</Text>
+            <Text style={s.cancelledSaved}>−{pounds(cancelledMonthlySaved)}/mo saved</Text>
+          </View>
+          <View style={s.cancelledList}>
+            {cancelledSubs.map((subscription, index) => (
+              <View
+                key={subscription.name}
+                style={[
+                  layout.cancelledRow,
+                  index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline } : undefined,
+                ]}
+              >
+                <View style={layout.cancelledCopy}>
+                  <Text style={s.cancelledName} numberOfLines={1}>
+                    {subscription.name}
+                  </Text>
+                  <Text style={s.cancelledMeta}>
+                    {pounds(subscription.monthlyAmount)}/mo · since{' '}
+                    {formatArchiveDate(subscription.cancelledAt)}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Restore ${subscription.name}`}
+                  onPress={() => restoreSub(subscription.name)}
+                  style={({ pressed: isPressed }) => [
+                    s.restoreButton,
+                    isPressed ? layout.pressed : undefined,
+                  ]}
+                >
+                  <Text style={s.restoreButtonLabel}>Restore</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+          <Text style={s.cancelledSummary}>
+            Still saving {pounds(cancelledMonthlySaved)}/mo since you cancelled{' '}
+            {cancelledSubs.length} {cancelledSubs.length === 1 ? 'subscription' : 'subscriptions'}.
+          </Text>
+        </View>
+      ) : null}
+
       {/* Footer line — web mood "soft" is not one of the RN Melo's five canonical moods
           (calm|curious|cheer|concern|celebrate); map it to calm (MeloLine's default), the
           quiet rest pose, per the spec's fidelity note. */}
@@ -520,6 +580,12 @@ function SubscriptionRow({
           <Text style={s.rowMeta} numberOfLines={1}>
             {metaLine(paused)}
           </Text>
+          {paused && (sub.pauseReason || sub.pausedUntil) ? (
+            <Text style={s.pauseDetail} numberOfLines={2}>
+              {sub.pauseReason ? `paused because ${sub.pauseReason}` : 'paused for one cycle'}
+              {sub.pausedUntil ? ` · resumes ${formatArchiveDate(sub.pausedUntil)}` : ''}
+            </Text>
+          ) : null}
         </View>
         <View style={layout.rowAmountCol}>
           <Text style={s.rowCost}>{pounds(sub.cost)}</Text>
@@ -646,6 +712,22 @@ const layout = StyleSheet.create({
   actionLinkText: { fontSize: 12, fontWeight: '600' },
 
   footer: { marginTop: 8, marginBottom: 32 },
+  cancelledSection: { marginTop: gap.sm },
+  cancelledHeader: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: gap.sm,
+    paddingHorizontal: gap.xxs,
+  },
+  cancelledRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: gap.md,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.md,
+  },
+  cancelledCopy: { flex: 1, minWidth: 0 },
 
   pressed: { opacity: 0.7 },
 });
@@ -779,6 +861,13 @@ function makeStyles(t: Palette) {
       marginTop: 2,
       fontVariant: ['tabular-nums'],
     },
+    pauseDetail: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 11,
+      lineHeight: 15,
+      marginTop: 3,
+    },
     rowCost: {
       color: t.ink,
       fontFamily: serif.display,
@@ -817,5 +906,47 @@ function makeStyles(t: Palette) {
       justifyContent: 'center',
     },
     pausePillLabel: { color: t.ink, fontSize: 12, fontWeight: '600' },
+    cancelledEyebrow: {
+      color: t.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    cancelledSaved: {
+      color: t.positiveInk,
+      fontSize: 11,
+      fontVariant: ['tabular-nums'],
+    },
+    cancelledList: {
+      backgroundColor: t.surface,
+      borderRadius: radius.xl,
+      overflow: 'hidden',
+      ...elevation.card,
+    },
+    cancelledName: { color: t.ink, fontSize: 13.5 },
+    cancelledMeta: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontVariant: ['tabular-nums'],
+      marginTop: 2,
+    },
+    restoreButton: {
+      alignItems: 'center',
+      backgroundColor: t.inset,
+      borderRadius: radius.pill,
+      justifyContent: 'center',
+      minHeight: 38,
+      paddingHorizontal: gap.md,
+    },
+    restoreButtonLabel: { color: t.ink, fontSize: 11.5, fontWeight: '600' },
+    cancelledSummary: {
+      color: t.positiveInk,
+      fontFamily: serif.displayItalic,
+      fontSize: 12,
+      lineHeight: 17,
+      marginTop: gap.sm,
+      paddingHorizontal: gap.xs,
+    },
   });
 }

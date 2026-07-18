@@ -26,7 +26,7 @@
 //               balance, offers a Melo talk-through escape hatch, then "Rebuild the plan" commits
 //               the chosen move and routes to today-after. "Not now" backs out.
 // @reads        subs, subPaused, tightPointGoal (via useAppStore — the doc-block @reads, now honoured)
-// @writes       togglePaused (Pause a sub) · nudgeSub (Move a bill) · setTightPointGoal (Set a hold)
+// @writes       togglePaused (Pause a sub) · nudgeSub (Move a bill) · setSpendHold (Set a hold)
 //               — fired ONCE, only on the "Rebuild the plan" commit (preview-then-commit, no silent
 //               path mutation while the user is just selecting).
 // @opens-sheet  melo-chat (via nav.openMelo with a prefill)
@@ -84,12 +84,11 @@ import Animated, {
 import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { nudgeSub, setTightPointGoal, togglePaused, useAppStore } from '@/folio/store';
+import { nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import {
   buildRecoveryRoutePreview,
   RECOVERY_BILL_NUDGE_DAYS,
-  RECOVERY_HOLD_FLOOR,
 } from '@/folio/lib/recoveryPreview';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import type { Nav } from '@/folio/types';
@@ -373,6 +372,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     const bill = recoveryPreview.flexibleBill;
     const billLift = recoveryPreview.billLift;
     const subLift = recoveryPreview.subscriptionLift;
+    const holdDailyCap = recoveryPreview.holdDailyCap;
     const holdLift = recoveryPreview.holdLift;
 
     // Cards exist ONLY when their real target exists. The web demo's fabricated fallback cards
@@ -414,18 +414,19 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             },
           }
         : null,
-      {
-        id: 'hold-spend',
-        kind: 'Set a hold',
-        title: 'Hold spending for 3 days',
-        delta: `+£${holdLift} estimated`,
-        deltaValue: holdLift,
-        body: "Bills and recurring still pay. Discretionary spend goes on a soft pause — you'll see a gentle nudge if you try.",
-        cost: 'based on your average daily discretionary',
-        melo: 'Three calm days. Not punishment, just space.',
-        // Set a tight-point floor — the soft-pause is held as a floor to protect at the low point.
-        commit: () => setTightPointGoal(RECOVERY_HOLD_FLOOR),
-      },
+      holdDailyCap > 0
+        ? {
+            id: 'hold-spend',
+            kind: 'Set a hold',
+            title: 'Hold spending for 3 days',
+            delta: `+£${holdLift} estimated`,
+            deltaValue: holdLift,
+            body: `Bills and recurring still pay. Discretionary spending is softly capped at £${holdDailyCap}/day — you'll see a gentle nudge if you go over.`,
+            cost: 'based on your actual 30-day discretionary average',
+            melo: 'Three calm days. Space, not punishment.',
+            commit: () => setSpendHold(holdDailyCap, 3),
+          }
+        : null,
     ];
     return built.filter((m): m is Move => m !== null);
   }, [recoveryPreview]);

@@ -1,8 +1,14 @@
-import type { CandidateMoneyItem, CandidateSource } from '@/folio/lib/importSheet';
+import type {
+  CandidateConfidence,
+  CandidateMoneyItem,
+  CandidateSource,
+} from '@/folio/lib/importSheet';
 import { cleanMerchantName } from '../folio/lib/merchantCleaner';
 
 import type { ExtractedText } from './nativeTextExtraction';
 import { parseLocalOcrCandidates, type LocalOcrCandidateResult } from './localOcrCandidates';
+
+const READER_CONFIDENCE: CandidateConfidence = 'low';
 
 export type LocalDocumentKind = 'statement' | 'receipt' | 'invoice' | 'unknown';
 
@@ -101,11 +107,11 @@ function parseReceiptCandidate(
     .map((line, index) => ({
       line,
       index,
-      score: receiptTotalScore(line),
+      rank: receiptTotalScore(line),
       values: moneyValues(line),
     }))
-    .filter((row) => row.score > 0 && row.values.length > 0)
-    .sort((a, b) => b.score - a.score || b.index - a.index)[0];
+    .filter((row) => row.rank > 0 && row.values.length > 0)
+    .sort((a, b) => b.rank - a.rank || b.index - a.index)[0];
   const amount = total?.values.at(-1);
   if (amount === undefined || !Number.isFinite(amount) || amount <= 0) return [];
 
@@ -118,7 +124,7 @@ function parseReceiptCandidate(
     kind: 'spend',
     merchant,
     amount: -amount,
-    confidence: 'low',
+    confidence: READER_CONFIDENCE,
     note: `Read on this device from ${filename}. Check the merchant, total and date against the source.`,
   };
   if (date !== null) candidate.date = date;

@@ -1,16 +1,15 @@
 /**
  * @rn-sheet     CalendarExportSheet
- * @purpose      One-way calendar feed — download .ics or copy a webcal URL
- *               so paydays, bills, and deadlines land in the user's
+ * @purpose      One-way local .ics export so paydays, bills, invoice dates,
+ *               recurring costs, and deadlines can land in the user's
  *               existing calendar app.
  * @reads        derived calendar events (derived here from the real store)
  * @writes       —
- * @copy         FROZEN
+ * @copy         Reconciled for Personal and Business workspaces.
  * @tokens       --paper --accent --inset --hairline
  *
- * @rn-engine    Hosted webcal feed requires the RN sync engine. The web
- *               prototype ships only the .ics download — copy text is
- *               truthful about that.
+ * A hosted webcal URL is deliberately absent: Melo does not expose a feed
+ * endpoint, so the only visible action is the working local file export.
  *
  * Faithful 1:1 RN port of the web design source
  * (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetCalendarExport.tsx)
@@ -21,18 +20,17 @@
  * copy, dot semantics and motion exactly.
  *
  * STATES (per the spec stateBranches — all designed branches render):
- *   • populated — the only designed branch: the 4-item legend, the count line, the
- *     download CTA and the subscribe block render regardless of event count.
+ *   • populated — the applicable Personal/Business legend, the count line, and
+ *     the download CTA render regardless of event count.
  *   • empty (events.length === 0) — NOT a separate visual branch: the same layout
  *     renders "0 dates in the next 35 days" and produces an empty-but-valid .ics
  *     (BEGIN/END VCALENDAR, no VEVENTs). It reads sensibly; no EmptyState here.
  *   • loading — n/a inside the sheet (events are derived synchronously on render).
  *     The copy/share side effects surface a transient Melo line (curious) — never a
  *     spinner — per the spec's "loading = Melo curious + line".
- *   • error — render has no error path; the only failure is a clipboard/share miss,
- *     which surfaces the honest "Couldn't copy" line (with the URL) and recovers.
- *   • offline — n/a: the .ics build is fully local; the webcal subscribe is deferred
- *     to the phone app, so there is no network dependency to degrade.
+ *   • error — render has no error path; a file/share failure surfaces a transient
+ *     Melo line and recovers.
+ *   • offline — n/a: the .ics build is fully local, with no feed dependency.
  *
  * Design-system discipline: every colour / font / spacing / radius / shadow token
  * comes from '@/folio/theme' (which re-exports the pressure-map kit). Melo + MeloLine
@@ -51,18 +49,10 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Animated,
-  Clipboard,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { businessDeadlines, normaliseBusinessOperationsState } from '@folio/business-workspace';
 
 import { Headline, gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
@@ -86,28 +76,28 @@ const COPY = {
   lead: "One-way — your money moves into your calendar app. Melo doesn't read anything back.",
   includedLabel: "What's included",
   download: 'Download calendar file',
-  orSubscribe: 'Or subscribe',
-  copy: 'Copy',
-  copied: 'Copied',
-  subscribeFootnote: 'Live subscribe link ships with the phone app.',
   done: 'Done',
   // Toasts — the web fired sonner toasts; on device they surface as a transient Melo line.
   savedTitle: 'Calendar file saved',
   savedDesc: 'Open it to drop your money dates into your calendar app.',
-  copiedTitle: 'Link copied',
-  copiedDesc: "Paste into your calendar app's subscribe field.",
-  copyFailTitle: "Couldn't copy",
+  exportFailTitle: "Couldn't make the calendar file",
 } as const;
 
 // The 4-item legend — what lands in the feed. Each dot's tone maps to a derived event
 // kind and keeps the exact colour→meaning pairing from the web (positive=in, negative=out,
 // caution=deadline, accent=review). 'Bills & renewals' rendered with the literal ampersand
 // (the web markup was 'Bills &amp; renewals').
-const INCLUDED: readonly { id: string; label: string; tone: DerivedEventKind }[] = [
+const PERSONAL_INCLUDED: readonly { id: string; label: string; tone: DerivedEventKind }[] = [
   { id: 'in', label: 'Paydays', tone: 'in' },
   { id: 'out', label: 'Bills & renewals', tone: 'out' },
   { id: 'deadline', label: 'Deadlines', tone: 'deadline' },
   { id: 'review', label: 'Things to check', tone: 'review' },
+] as const;
+
+const BUSINESS_INCLUDED: readonly { id: string; label: string; tone: DerivedEventKind }[] = [
+  { id: 'in', label: 'Invoice due dates', tone: 'in' },
+  { id: 'out', label: 'Recurring money out', tone: 'out' },
+  { id: 'deadline', label: 'Tax & filing deadlines', tone: 'deadline' },
 ] as const;
 
 // dot tone → palette colour. The kit's `repair` (coral) is the web's --negative.
@@ -118,13 +108,6 @@ function dotColor(t: Palette, tone: DerivedEventKind): string {
   return t.calm; // review (and any manual) → accent
 }
 
-// CLAIM: requires the hosted ICS feed (RN sync engine). The URL below is illustrative —
-// tapping Copy just puts it on the clipboard so reviewers can see the shape.
-// @rn-engine hosted-calendar
-const WEBCAL = 'webcal://folio.app/feed/personal.ics';
-
-// Copied → Copy reverts after this many ms (the web's setTimeout(2000)).
-const COPIED_RESET_MS = 2000;
 // The window the count copy is tied to. If the derivation window changes, this must change
 // with it so '35 days' never desyncs from the actual count window.
 const WINDOW_DAYS = 35;
@@ -132,7 +115,7 @@ const PRESS_SCALE = 0.97; // .press — scale 0.97 on :active
 const MIN_TAP = 44; // tap-only, >=44px
 
 // A transient status surfaced as a Melo line (never a spinner). `kind` picks the mood.
-type Status = { kind: 'saved' | 'copied' | 'fail'; title: string; desc: string } | null;
+type Status = { kind: 'saved' | 'fail'; title: string; desc: string } | null;
 
 // ---------------------------------------------------------------------------
 // Reduced-motion hook (AccessibilityInfo-backed, mirrors the sibling ported sheets)
@@ -179,25 +162,70 @@ export function CalendarExportSheet({ visible, onClose }: CalendarExportSheetPro
   const pots = useAppStore((s) => s.pots);
   // Demo example bills only while the seed is untouched; a cleared/real export carries only real events.
   const includeSampleBills = useAppStore((s) => s.currentBalance.source === 'sample');
-
-  const events = useMemo<DerivedEvent[]>(
-    () =>
-      deriveCalendarEvents({
-        subs,
-        subPaused,
-        subOverrides,
-        onboarding,
-        manualEvents: calendarEvents,
-        pots,
-        windowDays: WINDOW_DAYS,
-        includeSampleBills,
-      }),
-    [subs, subPaused, subOverrides, onboarding, calendarEvents, pots, includeSampleBills],
+  const activeWorkspaceKind = useAppStore(
+    (state) =>
+      state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)?.kind ??
+      'personal',
   );
+  const business = useAppStore((state) => state.business);
+
+  const events = useMemo<DerivedEvent[]>(() => {
+    if (activeWorkspaceKind === 'business') {
+      return businessDeadlines(normaliseBusinessOperationsState(business), {
+        withinDays: WINDOW_DAYS,
+      }).map((deadline) => ({
+        id: `business-${deadline.id}`,
+        date: deadline.date,
+        kind:
+          deadline.kind === 'invoice'
+            ? ('in' as const)
+            : deadline.kind === 'obligation' || deadline.kind === 'vat'
+              ? ('out' as const)
+              : ('deadline' as const),
+        source:
+          deadline.kind === 'invoice'
+            ? ('bill' as const)
+            : deadline.kind === 'obligation'
+              ? ('bill' as const)
+              : ('deadline' as const),
+        title: deadline.label,
+        ...(deadline.amountMinor === undefined
+          ? {}
+          : {
+              amount: (deadline.direction === 'in' ? 1 : -1) * (deadline.amountMinor / 100),
+            }),
+      }));
+    }
+    return deriveCalendarEvents({
+      subs,
+      subPaused,
+      subOverrides,
+      onboarding,
+      manualEvents: calendarEvents,
+      pots,
+      windowDays: WINDOW_DAYS,
+      includeSampleBills,
+    });
+  }, [
+    activeWorkspaceKind,
+    business,
+    subs,
+    subPaused,
+    subOverrides,
+    onboarding,
+    calendarEvents,
+    pots,
+    includeSampleBills,
+  ]);
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
-      <CalendarExportBody events={events} reduceMotion={reduceMotion} onClose={onClose} />
+      <CalendarExportBody
+        events={events}
+        reduceMotion={reduceMotion}
+        onClose={onClose}
+        workspaceKind={activeWorkspaceKind}
+      />
     </Sheet>
   );
 }
@@ -211,10 +239,12 @@ function CalendarExportBody({
   events,
   reduceMotion,
   onClose,
+  workspaceKind,
 }: {
   events: DerivedEvent[];
   reduceMotion: boolean;
   onClose: () => void;
+  workspaceKind: 'personal' | 'business';
 }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
@@ -223,24 +253,21 @@ function CalendarExportBody({
   // empty VCALENDAR.
   const ics = useMemo(() => eventsToIcs(events), [events]);
 
-  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status>(null);
 
-  // Timer handles, cleared on unmount so a Copied→Copy reset (or a status auto-dismiss)
-  // never fires setState after unmount (the web used a bare setTimeout(2000)).
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Timer handle, cleared on unmount so a status auto-dismiss never fires setState
+  // after the sheet is gone.
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
-      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
       if (statusTimer.current !== null) clearTimeout(statusTimer.current);
     },
     [],
   );
 
-  // Surface a transient status as a Melo line; auto-dismiss roughly on the web toast
-  // durations (saved 4000ms / copied + fail 3500ms).
+  // Surface a transient status as a Melo line; auto-dismiss on the same short cadence
+  // as the rest of the sheet feedback.
   function flash(next: NonNullable<Status>, durationMs: number) {
     setStatus(next);
     if (statusTimer.current !== null) clearTimeout(statusTimer.current);
@@ -257,7 +284,7 @@ function CalendarExportBody({
       const available = await Sharing.isAvailableAsync();
       const dir = FileSystem.documentDirectory;
       if (!available || dir === null) {
-        flash({ kind: 'fail', title: COPY.copyFailTitle, desc: COPY.savedDesc }, 3500);
+        flash({ kind: 'fail', title: COPY.exportFailTitle, desc: COPY.savedDesc }, 3500);
         return;
       }
       const uri = `${dir}folio.ics`;
@@ -269,29 +296,15 @@ function CalendarExportBody({
       });
       flash({ kind: 'saved', title: COPY.savedTitle, desc: COPY.savedDesc }, 4000);
     } catch {
-      flash({ kind: 'fail', title: COPY.copyFailTitle, desc: COPY.savedDesc }, 3500);
+      flash({ kind: 'fail', title: COPY.exportFailTitle, desc: COPY.savedDesc }, 3500);
     } finally {
       setBusy(false);
     }
   }
 
-  // Copy — the web used navigator.clipboard.writeText(...).then(ok, fail). RN core Clipboard
-  // is synchronous and dependency-free; on success toggle Copied for 2000ms + flash the line.
-  // @rn-engine hosted-calendar (the webcal feed itself is a claim, not yet live)
-  function handleCopy() {
-    try {
-      Clipboard.setString(WEBCAL);
-      setCopied(true);
-      flash({ kind: 'copied', title: COPY.copiedTitle, desc: COPY.copiedDesc }, 3500);
-      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
-      copiedTimer.current = setTimeout(() => setCopied(false), COPIED_RESET_MS);
-    } catch {
-      flash({ kind: 'fail', title: COPY.copyFailTitle, desc: WEBCAL }, 3500);
-    }
-  }
-
   const countLabel = `${events.length} ${events.length === 1 ? 'date' : 'dates'} in the next ${WINDOW_DAYS} days`;
   const statusMood = status === null ? 'curious' : status.kind === 'fail' ? 'concern' : 'curious';
+  const included = workspaceKind === 'business' ? BUSINESS_INCLUDED : PERSONAL_INCLUDED;
 
   return (
     <View style={s.body}>
@@ -319,7 +332,7 @@ function CalendarExportBody({
       <View style={s.card}>
         <Text style={s.cardLabel}>{COPY.includedLabel}</Text>
         <View style={s.legend}>
-          {INCLUDED.map((row) => (
+          {included.map((row) => (
             <View key={row.id} style={s.legendRow}>
               <View style={[s.dot, { backgroundColor: dotColor(t, row.tone) }]} />
               <Text style={s.legendText}>{row.label}</Text>
@@ -339,30 +352,6 @@ function CalendarExportBody({
         labelStyle={s.downloadLabel}
         accessibilityLabel={COPY.download}
       />
-
-      {/* Subscribe block — readonly webcal field + Copy/Copied, with the honest footnote. */}
-      {/* @rn-engine hosted-calendar — the feed is illustrative until the RN sync engine lands. */}
-      <View style={s.subscribe}>
-        <Text style={s.cardLabel}>{COPY.orSubscribe}</Text>
-        <View style={s.subscribeRow}>
-          <TextInput
-            editable={false}
-            selectTextOnFocus
-            value={WEBCAL}
-            style={s.webcalInput}
-            accessibilityLabel={COPY.orSubscribe}
-          />
-          <PressCta
-            label={copied ? COPY.copied : COPY.copy}
-            onPress={handleCopy}
-            reduceMotion={reduceMotion}
-            style={s.copyBtn}
-            labelStyle={s.copyLabel}
-            accessibilityLabel={copied ? COPY.copied : COPY.copy}
-          />
-        </View>
-        <Text style={s.subscribeFootnote}>{COPY.subscribeFootnote}</Text>
-      </View>
 
       {/* Transient status — a Melo line (curious / concern), never a spinner. */}
       {status !== null ? (
@@ -449,7 +438,7 @@ function PressCta({
 // Web → kit map: mt-2≈xxs/sm · mt-4=lg(16) · mt-5≈lg+xs(20) · p-4=lg(16) · px-3=md(12) ·
 // gap-2=sm(8) · h-11=44 · h-[54px]=54 · h-[44px]=44 · rounded-2xl→radius.lg(18, card corner) ·
 // rounded-xl=radius.md(12) · w-1.5 h-1.5=6px dot. The "What's included" card sits on --surface,
-// the webcal field on --inset; the sheet body itself sits on --paper (the Sheet host paints it).
+// the sheet body itself sits on --paper (the Sheet host paints it).
 // ---------------------------------------------------------------------------
 
 function makeStyles(t: Palette) {
@@ -562,55 +551,6 @@ function makeStyles(t: Palette) {
       color: t.inverse,
       fontSize: 15,
       fontWeight: '500',
-    },
-
-    // Subscribe block — mt-4.
-    subscribe: {
-      marginTop: gap.lg,
-    },
-    // Field + Copy row — mt-2 gap-2 items-center.
-    subscribeRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: gap.sm,
-      marginTop: gap.sm,
-    },
-    // Webcal field — flex-1, h-11, --inset, hairline, rounded-xl, 12px tabular muted (readonly).
-    webcalInput: {
-      backgroundColor: t.inset,
-      borderColor: t.hairline,
-      borderRadius: radius.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      color: t.muted,
-      flex: 1,
-      fontSize: 12,
-      fontVariant: ['tabular-nums'],
-      height: 44, // h-11
-      paddingHorizontal: gap.md, // px-3 = 12
-      paddingVertical: 0,
-    },
-    // Copy button — h-11, px-4, --surface, hairline, rounded-xl, 12.5px ink.
-    copyBtn: {
-      alignItems: 'center',
-      backgroundColor: t.surface,
-      borderColor: t.hairline,
-      borderRadius: radius.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      height: 44,
-      justifyContent: 'center',
-      paddingHorizontal: gap.lg, // px-4 = 16
-    },
-    copyLabel: {
-      color: t.ink,
-      fontSize: 12.5,
-    },
-    // Footnote — 11px muted italic, mt-2 (web text-[11px] muted italic).
-    subscribeFootnote: {
-      color: t.muted,
-      fontFamily: serif.displayItalic,
-      fontSize: 11,
-      fontStyle: 'italic',
-      marginTop: gap.sm,
     },
 
     // Transient status (Melo line) — spaced above Done.

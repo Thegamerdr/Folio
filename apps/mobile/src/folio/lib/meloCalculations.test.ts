@@ -541,7 +541,7 @@ describe('buildMeloLocalCalculation', () => {
       options: expect.arrayContaining([
         expect.objectContaining({ kind: 'move-bill' }),
         expect.objectContaining({ kind: 'pause-recurring' }),
-        expect.objectContaining({ kind: 'hold-discretionary', liftMinor: 3_000 }),
+        expect.objectContaining({ kind: 'hold-discretionary', liftMinor: 1_500 }),
       ]),
     });
     expect(JSON.stringify(calculation)).not.toMatch(/private|merchant|recurring name/i);

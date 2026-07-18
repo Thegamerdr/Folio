@@ -7,6 +7,18 @@
  * local AI contract prevents a future caller from reviving the old rich-snapshot cast.
  */
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
+import {
+  businessDeadlines,
+  calculateBusinessRunway,
+  calculateSelfAssessmentSummary,
+  calculateVatBoxes,
+  corporationTaxMinor,
+  hasBusinessOperationsData,
+  invoiceAgingBucket,
+  normaliseBusinessOperationsState,
+  outstandingInvoiceMinor,
+  totalOutstandingInvoicesMinor,
+} from '@folio/business-workspace';
 
 import { purgeSeedIfReal, type AppState } from '../store';
 import { deriveCalendarEvents } from './calendarEvents';
@@ -82,6 +94,8 @@ export function buildMeloSnapshot(
     manualEvents: localState.calendarEvents,
     pots: localState.pots,
     incomeSources: localState.incomeSources ?? [],
+    spendHold: localState.spendHold ?? null,
+    whatIfHolds: localState.whatIfHolds ?? [],
     includeSampleBills: false,
     now: nowDate,
   });
@@ -102,6 +116,41 @@ export function buildMeloSnapshot(
         now: nowDate,
       })
     : null;
+  const businessOperations = isBusiness
+    ? normaliseBusinessOperationsState(localState.business)
+    : null;
+  const businessAccounts = activeAccounts.map((account) => ({
+    balanceMinor: toPence(account.balanceMinor),
+    isLiability: account.isLiability,
+    ...(account.closed === undefined ? {} : { closed: account.closed }),
+  }));
+  const operationsRunway =
+    businessOperations && hasBusinessOperationsData(businessOperations)
+      ? calculateBusinessRunway(businessOperations, businessAccounts, nowDate)
+      : null;
+  const openVatReturn = businessOperations?.vatReturns
+    .filter((item) => item.filedExternallyOn === undefined)
+    .sort((left, right) => left.dueOn.localeCompare(right.dueOn))[0];
+  const currentVatDueMinor = openVatReturn
+    ? Math.max(0, calculateVatBoxes(openVatReturn).box5Minor)
+    : 0;
+  const overdueInvoices =
+    businessOperations?.invoices.filter(
+      (invoice) =>
+        outstandingInvoiceMinor(invoice) > 0 && invoiceAgingBucket(invoice, nowDate) !== 'current',
+    ) ?? [];
+  const taxEstimateMinor =
+    businessOperations?.entity?.kind === 'ltd'
+      ? corporationTaxMinor(businessOperations.ytdProfitMinor)
+      : businessOperations?.entity?.kind === 'sole-trader'
+        ? calculateSelfAssessmentSummary(
+            businessOperations,
+            businessOperations.entity,
+          ).amountDueMinor
+        : 0;
+  const openBusinessDeadlines = businessOperations
+    ? businessDeadlines(businessOperations, { now: nowDate, withinDays: 365 })
+    : [];
   const nextBusinessIncome = isBusiness
     ? calendar.find((event) => typeof event.amount === 'number' && event.amount > 0)
     : undefined;
@@ -110,14 +159,23 @@ export function buildMeloSnapshot(
       localState.transactions.length > 0 ||
       calendar.length > 0 ||
       localState.readerCandidates.length > 0 ||
-      (localState.reviewQueue?.length ?? 0) > 0
+      (localState.reviewQueue?.length ?? 0) > 0 ||
+      (businessOperations !== null && hasBusinessOperationsData(businessOperations))
     : hasMoneyPicture;
+  const businessCashMinor =
+    operationsRunway?.cashMinor ?? toPence(businessPosition?.cashBalance ?? 0);
+  const businessUpcomingIncomeMinor =
+    operationsRunway?.incoming30Minor ?? toPence(businessPosition?.upcomingIncome ?? 0);
+  const businessCommitmentsMinor =
+    operationsRunway?.outgoing30Minor ?? toPence(businessPosition?.upcomingCommitments ?? 0);
+  const businessProjectedMinor =
+    businessCashMinor + businessUpcomingIncomeMinor - businessCommitmentsMinor;
 
   return {
     currency: 'GBP',
     workspaceKind: workspace.kind,
     availableNowMinor: isBusiness
-      ? toPence(businessPosition?.projectedCash ?? 0)
+      ? businessProjectedMinor
       : hasMoneyPicture
         ? widget.safeZonePence
         : 0,
@@ -129,7 +187,7 @@ export function buildMeloSnapshot(
         ? formatDay(route.tightPoint.date)
         : 'not set up yet',
     tightestBalanceMinor: isBusiness
-      ? toPence(businessPosition?.projectedCash ?? 0)
+      ? businessProjectedMinor
       : hasMoneyPicture
         ? toPence(route.tightPoint.amount)
         : 0,
@@ -157,12 +215,14 @@ export function buildMeloSnapshot(
         : 0,
     ),
     monthlyIncomeMinor: isBusiness
-      ? toPence(businessPosition?.confirmedIncome30Days ?? 0)
+      ? operationsRunway?.incoming30Minor ??
+        toPence(businessPosition?.confirmedIncome30Days ?? 0)
       : hasMoneyPicture
         ? toPence(selectMonthlyIncome(localState))
         : 0,
     monthlyOutgoingsMinor: isBusiness
-      ? toPence(businessPosition?.confirmedExpense30Days ?? 0)
+      ? operationsRunway?.outgoing30Minor ??
+        toPence(businessPosition?.confirmedExpense30Days ?? 0)
       : hasMoneyPicture
         ? toPence(route.outgoingTotal ?? 0)
         : 0,
@@ -199,19 +259,44 @@ export function buildMeloSnapshot(
       : 0,
     ...(businessPosition
       ? {
-          businessCashBalanceMinor: toPence(businessPosition.cashBalance),
+          businessCashBalanceMinor: businessCashMinor,
           businessLiabilityBalanceMinor: toPence(businessPosition.liabilityBalance),
-          businessNetPositionMinor: toPence(businessPosition.netPosition),
-          businessProjectedCashMinor: toPence(businessPosition.projectedCash),
-          businessUpcomingIncomeMinor: toPence(businessPosition.upcomingIncome),
-          businessUpcomingCommitmentsMinor: toPence(businessPosition.upcomingCommitments),
+          businessNetPositionMinor:
+            businessCashMinor - toPence(businessPosition.liabilityBalance),
+          businessProjectedCashMinor: businessProjectedMinor,
+          businessUpcomingIncomeMinor,
+          businessUpcomingCommitmentsMinor: businessCommitmentsMinor,
           businessConfirmedIncome30DaysMinor: toPence(businessPosition.confirmedIncome30Days),
           businessConfirmedExpense30DaysMinor: toPence(businessPosition.confirmedExpense30Days),
-          businessRunwayDays: businessPosition.runwayDays,
+          businessRunwayDays: operationsRunway?.daysLeft ?? businessPosition.runwayDays,
           businessRunwayHistoryDays: businessPosition.runwayHistoryDays,
           ...(businessPosition.nextCommitmentDate
             ? { businessNextCommitmentDate: formatDay(businessPosition.nextCommitmentDate) }
             : {}),
+        }
+      : {}),
+    ...(businessOperations
+      ? {
+          businessEntityKind: businessOperations.entity?.kind,
+          businessClientCount: businessOperations.clients.length,
+          businessOutstandingInvoicesMinor:
+            totalOutstandingInvoicesMinor(businessOperations),
+          businessOverdueInvoicesMinor: overdueInvoices.reduce(
+            (sum, invoice) => sum + outstandingInvoiceMinor(invoice),
+            0,
+          ),
+          businessOverdueInvoiceCount: overdueInvoices.length,
+          businessVatRegistered: businessOperations.entity?.vat.registered === true,
+          businessVatDueMinor: currentVatDueMinor,
+          businessVatPotMinor: businessOperations.vatPotMinor,
+          businessTaxEstimateMinor: taxEstimateMinor,
+          businessTaxPotMinor: businessOperations.ctPotMinor,
+          businessObligations30Minor: operationsRunway?.outgoing30Minor ?? 0,
+          businessEmployeeCount: businessOperations.employees.length,
+          businessOpenFilingCount: openBusinessDeadlines.filter(
+            (deadline) =>
+              deadline.kind !== 'invoice' && deadline.kind !== 'obligation',
+          ).length,
         }
       : {}),
   };

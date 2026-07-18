@@ -63,6 +63,13 @@ import { TodayStabilityScreen } from '@/folio/screens/TodayStabilityScreen';
 import { BusinessTodayScreen } from '@/folio/screens/BusinessTodayScreen';
 import { BusinessMoreScreen } from '@/folio/screens/BusinessMoreScreen';
 import { BusinessMeloScreen } from '@/folio/screens/BusinessMeloScreen';
+import { BusinessReviewScreen } from '@/folio/screens/BusinessReviewScreen';
+import { BusinessEntitySetupScreen } from '@/folio/screens/BusinessEntitySetupScreen';
+import { BusinessOperationsScreen } from '@/folio/screens/BusinessOperationsScreen';
+import {
+  BusinessCalendarScreen,
+  BusinessPlansScreen,
+} from '@/folio/screens/business/BusinessPlanningScreens';
 import { IntakeScreen } from '@/folio/screens/IntakeScreen';
 import { AddEntryScreen } from '@/folio/screens/AddEntryScreen';
 import { VisualizerScreen } from '@/folio/screens/VisualizerScreen';
@@ -187,6 +194,26 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   melo: 'Melo',
   paywall: 'Melo plans',
   account: 'Account',
+  'business-entity-setup': 'Business type',
+  'business-runway': 'Cash runway',
+  'business-clients': 'Clients',
+  'business-invoices': 'Invoices',
+  'business-obligations': 'Recurring money out',
+  'business-vat': 'VAT',
+  'business-corp-tax': 'Corporation Tax',
+  'business-payroll': 'Payroll',
+  'business-dividends': 'Dividends',
+  'business-dla': "Director's loan",
+  'business-companies-house': 'Companies House',
+  'business-filings': 'Filings',
+  'business-filing-vat': 'VAT working copy',
+  'business-filing-sa': 'Self-Assessment working copy',
+  'business-filing-ct': 'CT600 working copy',
+  'business-filing-cs': 'CS01 working copy',
+  'business-filing-accounts': 'Accounts working copy',
+  'business-filing-payroll': 'Payroll working copy',
+  'business-insights': 'Business insights',
+  'business-deductions': 'Business deductions',
 };
 
 // ---------------------------------------------------------------------------
@@ -221,6 +248,26 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'insights',
   'shortfall',
   'account',
+  'business-entity-setup',
+  'business-runway',
+  'business-clients',
+  'business-invoices',
+  'business-obligations',
+  'business-vat',
+  'business-corp-tax',
+  'business-payroll',
+  'business-dividends',
+  'business-dla',
+  'business-companies-house',
+  'business-filings',
+  'business-filing-vat',
+  'business-filing-sa',
+  'business-filing-ct',
+  'business-filing-cs',
+  'business-filing-accounts',
+  'business-filing-payroll',
+  'business-insights',
+  'business-deductions',
 ]);
 
 // Which bottom-tab lights up for a given screen. Faithful to the web TabBar's active-state map, with
@@ -310,6 +357,9 @@ export function FolioShell() {
   // editTxnTarget/dayDetailDate slots exactly: set when openSheet('add-event', { addEventKind,
   // addEventTitle }) is called, cleared whenever a sheet closes or a navigation supersedes it.
   const [addEventIntent, setAddEventIntent] = useState<SheetPayload | undefined>(undefined);
+  // Carried into quick spend entry only after the user explicitly chooses to turn a preview into a
+  // real log. A scrub or What-if experiment never writes by itself.
+  const [logSpendAmount, setLogSpendAmount] = useState<number | undefined>(undefined);
   const [navigationPaintEpoch, setNavigationPaintEpoch] = useState(0);
   const surfaceRepaintEpoch = useSyncExternalStore(
     subscribeSurfaceRepaint,
@@ -382,6 +432,7 @@ export function FolioShell() {
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
+    setLogSpendAmount(undefined);
     setScreen(next);
   }, []);
 
@@ -400,6 +451,7 @@ export function FolioShell() {
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
+    setLogSpendAmount(undefined);
     setScreen(prev);
   }, []);
 
@@ -414,6 +466,7 @@ export function FolioShell() {
     setEditTxnTarget(next === 'edit-txn' ? payload?.id : undefined);
     setDayDetailDate(next === 'day-detail' ? payload?.date : undefined);
     setAddEventIntent(next === 'add-event' ? payload : undefined);
+    setLogSpendAmount(next === 'log-spend' ? payload?.amount : undefined);
     setSheet(next);
   }, []);
 
@@ -423,6 +476,7 @@ export function FolioShell() {
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
+    setLogSpendAmount(undefined);
   }, []);
 
   // Open the Melo companion CHAT sheet, carrying any prefill/seed the flow provided (web intent).
@@ -454,6 +508,7 @@ export function FolioShell() {
     setEditTxnTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
+    setLogSpendAmount(undefined);
     setPressureOverride(null);
     setScreen('today');
   }, []);
@@ -600,7 +655,9 @@ export function FolioShell() {
           {sheet === 'edit-txn' && (
             <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />
           )}
-          {sheet === 'log-spend' && <LogSpendSheet visible onClose={closeSheet} />}
+          {sheet === 'log-spend' && (
+            <LogSpendSheet visible onClose={closeSheet} initialAmount={logSpendAmount} />
+          )}
           {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
           {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
           {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
@@ -884,6 +941,13 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
     if (screen === 'today') return <BusinessTodayScreen nav={nav} />;
     if (screen === 'more') return <BusinessMoreScreen nav={nav} />;
     if (screen === 'melo') return <BusinessMeloScreen nav={nav} />;
+    if (screen === 'timeline') return <BusinessReviewScreen nav={nav} />;
+    if (screen === 'calendar') return <BusinessCalendarScreen nav={nav} />;
+    if (screen === 'plans') return <BusinessPlansScreen nav={nav} />;
+    if (screen === 'business-entity-setup') return <BusinessEntitySetupScreen nav={nav} />;
+    if (screen.startsWith('business-')) {
+      return <BusinessOperationsScreen nav={nav} screen={screen} />;
+    }
   }
   // Wave 1 — the real ported screens.
   if (screen === 'start') return <StartScreen nav={nav} />;

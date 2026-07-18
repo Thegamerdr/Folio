@@ -65,6 +65,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useAuth, useUser } from '@clerk/clerk-expo';
+import { normaliseBusinessOperationsState } from '@folio/business-workspace';
 
 import { Surface, Hairline, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
@@ -188,6 +189,10 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
     (s) => s.workspaces.find((candidate) => candidate.id === s.activeWorkspaceId)!,
   );
   const isBusiness = workspace.kind === 'business';
+  const businessState = useAppStore((s) => s.business);
+  const businessEntity = isBusiness
+    ? normaliseBusinessOperationsState(businessState).entity
+    : null;
 
   const subsCount = useAppStore((s) => s.subs.length);
   const potsCount = useAppStore((s) => s.pots.length);
@@ -532,6 +537,59 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             {', plainly.'}
           </Text>
         </View>
+
+        {isBusiness ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: t.ink }]}>Business type</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.go('business-entity-setup')}
+                style={({ pressed: isPressed }) => [
+                  styles.entityChange,
+                  isPressed ? styles.rowPressed : undefined,
+                ]}
+              >
+                <Text style={[styles.entityChangeLabel, { color: t.calmStrong }]}>
+                  {businessEntity ? 'Change' : 'Set up'} →
+                </Text>
+              </Pressable>
+            </View>
+            <Surface style={[styles.card, styles.entityCard, { borderColor: t.hairline }]}>
+              {businessEntity ? (
+                <>
+                  <Text style={[styles.entityName, { color: t.ink }]}>
+                    {businessEntity.kind === 'ltd'
+                      ? businessEntity.companyName
+                      : businessEntity.tradingName || 'Sole Trader'}
+                  </Text>
+                  <Text style={[styles.entityMeta, { color: t.muted }]}>
+                    {businessEntity.kind === 'ltd' ? 'Limited Company' : 'Sole Trader'}
+                    {businessEntity.kind === 'ltd' && businessEntity.companyNumber
+                      ? ` · #${businessEntity.companyNumber}`
+                      : ''}
+                    {businessEntity.vat.registered ? ' · VAT registered' : ''}
+                  </Text>
+                  {businessEntity.kind === 'ltd' ? (
+                    <Text style={[styles.entityMeta, { color: t.muted }]}>
+                      {businessEntity.directors.length}{' '}
+                      {businessEntity.directors.length === 1 ? 'director' : 'directors'} ·{' '}
+                      {businessEntity.shareholders.length}{' '}
+                      {businessEntity.shareholders.length === 1
+                        ? 'shareholder'
+                        : 'shareholders'}
+                    </Text>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={[styles.entityEmpty, { color: t.muted }]}>
+                  Pick Sole Trader or Limited Company so the business side asks the right
+                  questions.
+                </Text>
+              )}
+            </Surface>
+          </View>
+        ) : null}
 
         {/* Balance — the real, honest current-balance read (ENGINES.md §6): every balance shows where
             it came from, so this screen is never blank after a statement import. */}
@@ -1392,6 +1450,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  entityChange: { justifyContent: 'center', minHeight: 44, paddingLeft: gap.md },
+  entityChangeLabel: { fontSize: 12, fontWeight: '600' },
+  entityCard: { padding: gap.lg },
+  entityName: { fontFamily: serif.medium, fontSize: 19, lineHeight: 24 },
+  entityMeta: { fontSize: 11.5, lineHeight: 17, marginTop: gap.xs },
+  entityEmpty: { fontSize: 13, lineHeight: 19 },
   sourcesHeaderRow: {
     alignItems: 'flex-start',
     flexDirection: 'column',

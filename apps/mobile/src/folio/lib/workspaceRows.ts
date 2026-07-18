@@ -26,6 +26,8 @@ export const PERSISTED_WORKSPACE_ROW_COLLECTIONS = [
   'statementImports',
   'evidenceDocuments',
   'accounts',
+  'cancelledSubs',
+  'whatIfHolds',
 ] as const;
 
 /** Reader candidates are deliberately not persisted, but they still need ownership while staged. */

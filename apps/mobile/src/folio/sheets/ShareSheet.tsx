@@ -79,7 +79,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { useAppStore } from '@/folio/store';
+import { awardTinyWin, useAppStore } from '@/folio/store';
 
 // ---------------------------------------------------------------------------
 // Frozen copy — VERBATIM from the web original. These are NOT yet in COPY_DECK.md (see @copy); they
@@ -253,7 +253,8 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
     if (sharing) return;
     setStatus('sharing');
     try {
-      await Share.share({ title: FROZEN.shareTitle, message: text });
+      const result = await Share.share({ title: FROZEN.shareTitle, message: text });
+      if (result.action === Share.sharedAction) awardTinyWin('first-postcard-shared');
     } catch {
       /* user-cancelled or share failed — silent, honest no-op (no fake "Copied ✓"). */
     } finally {

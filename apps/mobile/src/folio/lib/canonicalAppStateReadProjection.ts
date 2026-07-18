@@ -9,6 +9,10 @@ import type {
   WorkspaceId,
 } from '@folio/domain';
 import type { CanonicalRepositorySnapshot } from '@folio/storage';
+import {
+  normaliseBusinessOperationsState,
+  type BusinessOperationsState,
+} from '@folio/business-workspace';
 
 import {
   DEFAULT_ACCOUNT_ID,
@@ -33,6 +37,7 @@ export type CanonicalAppStateMoneyProjection = Readonly<{
   pots: Pot[];
   potLedger: PotLedgerEntry[];
   subs: Sub[];
+  cancelledSubs: NonNullable<AppState['cancelledSubs']>;
   subPaused: Record<string, boolean>;
   subOverrides: Record<string, number>;
   cycles: CycleRecord[];
@@ -45,6 +50,9 @@ export type CanonicalAppStateMoneyProjection = Readonly<{
   bufferAmount: number;
   modeExtras: NonNullable<AppState['modeExtras']>;
   household: NonNullable<AppState['household']>;
+  spendHold: NonNullable<AppState['spendHold']> | null;
+  whatIfHolds: NonNullable<AppState['whatIfHolds']>;
+  business: NonNullable<AppState['business']>;
   calendarEvents: AppState['calendarEvents'];
   incomeSources: NonNullable<AppState['incomeSources']>;
   plans: NonNullable<AppState['plans']>;
@@ -56,6 +64,10 @@ export type CanonicalAppStateMoneyProjection = Readonly<{
   lens: NonNullable<AppState['lens']>;
   melo: NonNullable<AppState['melo']>;
   tinyWins: NonNullable<AppState['tinyWins']>;
+  meloPrimerSeen: boolean;
+  lastOpenedAt: NonNullable<AppState['lastOpenedAt']> | null;
+  oneMoveHistory: NonNullable<AppState['oneMoveHistory']>;
+  meloDismissLog: NonNullable<AppState['meloDismissLog']>;
   ignoredBankExternalIds: NonNullable<AppState['ignoredBankExternalIds']>;
   dismissedIncomeSignals: NonNullable<AppState['dismissedIncomeSignals']>;
   dismissedBillSignals: NonNullable<AppState['dismissedBillSignals']>;
@@ -209,28 +221,47 @@ export function readCanonicalAppStateMoneyProjection(
     amount: minorToMajor(entry.amount.minorUnits),
     source: entry.source,
   }));
-  const subscriptions = orderedSourceRows(
+  const canonicalSubscriptions = orderedSourceRows(
     snapshot.collections.subscriptions,
     workspaceId,
     'canonical subscription',
-  ).map((subscription) => ({
-    name: requiredText(subscription.sourceName, 'canonical source subscription name'),
-    workspaceId: subscription.workspaceId,
-    cost: minorToMajor(subscription.cost.minorUnits),
-    nextRenewalDaysAway: subscription.nextRenewalDaysAway,
-    ...(subscription.nextRenewalISO === undefined
-      ? {}
-      : { nextRenewalISO: subscription.nextRenewalISO }),
-    ...(subscription.renewalPeriodDays === undefined
-      ? {}
-      : { renewalPeriodDays: subscription.renewalPeriodDays }),
-    lastUsedDaysAgo: subscription.lastUsedDaysAgo,
-    usesPerMonth: subscription.usesPerMonth,
-    ...(subscription.trialEndsInDays === undefined
-      ? {}
-      : { trialEndsInDays: subscription.trialEndsInDays }),
-  }));
+  );
+  const subscriptions = canonicalSubscriptions
+    .filter((subscription) => subscription.cancelledAt === undefined)
+    .map((subscription) => ({
+      name: requiredText(subscription.sourceName, 'canonical source subscription name'),
+      workspaceId: subscription.workspaceId,
+      cost: minorToMajor(subscription.cost.minorUnits),
+      nextRenewalDaysAway: subscription.nextRenewalDaysAway,
+      ...(subscription.nextRenewalISO === undefined
+        ? {}
+        : { nextRenewalISO: subscription.nextRenewalISO }),
+      ...(subscription.renewalPeriodDays === undefined
+        ? {}
+        : { renewalPeriodDays: subscription.renewalPeriodDays }),
+      lastUsedDaysAgo: subscription.lastUsedDaysAgo,
+      usesPerMonth: subscription.usesPerMonth,
+      ...(subscription.trialEndsInDays === undefined
+        ? {}
+        : { trialEndsInDays: subscription.trialEndsInDays }),
+      ...(subscription.pausedUntil === undefined
+        ? {}
+        : { pausedUntil: subscription.pausedUntil }),
+      ...(subscription.autoResume === undefined ? {} : { autoResume: subscription.autoResume }),
+      ...(subscription.pauseReason === undefined
+        ? {}
+        : { pauseReason: subscription.pauseReason }),
+      ...(subscription.pausedAt === undefined ? {} : { pausedAt: subscription.pausedAt }),
+    }));
   const subs = reanchorRenewals(subscriptions, todayISO).items;
+  const cancelledSubs = canonicalSubscriptions
+    .filter((subscription) => subscription.cancelledAt !== undefined)
+    .map((subscription) => ({
+      name: requiredText(subscription.sourceName, 'canonical cancelled subscription name'),
+      workspaceId: subscription.workspaceId,
+      monthlyAmount: minorToMajor(subscription.cost.minorUnits),
+      cancelledAt: subscription.cancelledAt!,
+    }));
   const preferences = [
     ...uniqueBy(
       workspaceRows(snapshot.collections.subscriptionPreferences, workspaceId),
@@ -291,6 +322,7 @@ export function readCanonicalAppStateMoneyProjection(
       minorToMajor(amount.minorUnits),
     ]),
   ) as NonNullable<AppState['modeExtras']>;
+  const business = readBusinessOperations(financialContext.businessOperationsJson);
   const calendarItems = orderedSourceRows(
     snapshot.collections.calendarItems.filter((item) => item.sourceCalendarEventId !== undefined),
     workspaceId,
@@ -487,6 +519,7 @@ export function readCanonicalAppStateMoneyProjection(
     pots,
     potLedger,
     subs,
+    cancelledSubs,
     subPaused,
     subOverrides,
     cycles,
@@ -511,6 +544,25 @@ export function readCanonicalAppStateMoneyProjection(
       defaultShare: financialContext.household.defaultShare,
       subShareOverrides: { ...financialContext.household.subShareOverrides },
     },
+    spendHold:
+      financialContext.spendHold === undefined || financialContext.spendHold === null
+        ? null
+        : {
+            start: String(financialContext.spendHold.start),
+            end: String(financialContext.spendHold.end),
+            dailyCap: minorToMajor(financialContext.spendHold.dailyCap.minorUnits),
+            setAt: String(financialContext.spendHold.setAt),
+            breachedDates: financialContext.spendHold.breachedDates.map(String),
+          },
+    whatIfHolds: (financialContext.whatIfHolds ?? []).map((hold) => ({
+      id: hold.id,
+      workspaceId: financialContext.workspaceId,
+      amount: minorToMajor(hold.amount.minorUnits),
+      recurrence: hold.recurrence,
+      addedAt: String(hold.addedAt),
+      ...(hold.label === undefined ? {} : { label: hold.label }),
+    })),
+    business,
     calendarEvents,
     incomeSources,
     plans,
@@ -526,6 +578,10 @@ export function readCanonicalAppStateMoneyProjection(
       tone: companionRuntime.melo.tone,
     },
     tinyWins: companionRuntime.tinyWins.map((win) => ({ ...win })),
+    meloPrimerSeen: companionRuntime.meloPrimerSeen === true,
+    lastOpenedAt: companionRuntime.lastOpenedAt ?? null,
+    oneMoveHistory: (companionRuntime.oneMoveHistory ?? []).map((entry) => ({ ...entry })),
+    meloDismissLog: (companionRuntime.meloDismissLog ?? []).map((entry) => ({ ...entry })),
     ignoredBankExternalIds: [...transactionIntelligence.ignoredBankExternalIds],
     dismissedIncomeSignals: [...transactionIntelligence.dismissedIncomeSignals],
     dismissedBillSignals: [...transactionIntelligence.dismissedBillSignals],
@@ -562,6 +618,7 @@ export function assertCanonicalAppStateMoneyProjectionParity(
       'pots',
       'potLedger',
       'subs',
+      'cancelledSubs',
       'subPaused',
       'subOverrides',
       'cycles',
@@ -574,6 +631,9 @@ export function assertCanonicalAppStateMoneyProjectionParity(
       'bufferAmount',
       'modeExtras',
       'household',
+      'spendHold',
+      'whatIfHolds',
+      'business',
       'calendarEvents',
       'incomeSources',
       'plans',
@@ -585,6 +645,10 @@ export function assertCanonicalAppStateMoneyProjectionParity(
       'lens',
       'melo',
       'tinyWins',
+      'meloPrimerSeen',
+      'lastOpenedAt',
+      'oneMoveHistory',
+      'meloDismissLog',
       'ignoredBankExternalIds',
       'dismissedIncomeSignals',
       'dismissedBillSignals',
@@ -975,6 +1039,14 @@ function normalizedSourceMoneyProjection(
       ...(subscription.trialEndsInDays === undefined
         ? {}
         : { trialEndsInDays: subscription.trialEndsInDays }),
+      ...(subscription.pausedUntil === undefined
+        ? {}
+        : { pausedUntil: subscription.pausedUntil }),
+      ...(subscription.autoResume === undefined ? {} : { autoResume: subscription.autoResume }),
+      ...(subscription.pauseReason === undefined
+        ? {}
+        : { pauseReason: subscription.pauseReason }),
+      ...(subscription.pausedAt === undefined ? {} : { pausedAt: subscription.pausedAt }),
     })),
     todayISO,
   ).items;
@@ -1014,6 +1086,10 @@ function normalizedSourceMoneyProjection(
     pots,
     potLedger,
     subs,
+    cancelledSubs: (state.cancelledSubs ?? []).map((subscription) => ({
+      ...subscription,
+      workspaceId: subscription.workspaceId ?? state.dataWorkspaceId,
+    })),
     subPaused,
     subOverrides,
     cycles,
@@ -1035,6 +1111,18 @@ function normalizedSourceMoneyProjection(
       defaultShare: state.household?.defaultShare ?? 0.5,
       subShareOverrides: { ...(state.household?.subShareOverrides ?? {}) },
     },
+    spendHold:
+      state.spendHold === undefined || state.spendHold === null
+        ? null
+        : {
+            ...state.spendHold,
+            breachedDates: [...(state.spendHold.breachedDates ?? [])],
+          },
+    whatIfHolds: (state.whatIfHolds ?? []).map((hold) => ({
+      ...hold,
+      workspaceId: hold.workspaceId ?? state.dataWorkspaceId,
+    })),
+    business: normaliseBusinessOperationsState(state.business),
     calendarEvents: state.calendarEvents.map((event) => ({
       id: event.id,
       workspaceId: event.workspaceId ?? state.dataWorkspaceId,
@@ -1106,6 +1194,10 @@ function normalizedSourceMoneyProjection(
       tone: state.melo?.tone ?? 'calm',
     },
     tinyWins: (state.tinyWins ?? []).map((win) => ({ ...win })),
+    meloPrimerSeen: state.meloPrimerSeen === true,
+    lastOpenedAt: state.lastOpenedAt ?? null,
+    oneMoveHistory: (state.oneMoveHistory ?? []).map((entry) => ({ ...entry })),
+    meloDismissLog: (state.meloDismissLog ?? []).map((entry) => ({ ...entry })),
     ignoredBankExternalIds: [...(state.ignoredBankExternalIds ?? [])],
     dismissedIncomeSignals: [...(state.dismissedIncomeSignals ?? [])],
     dismissedBillSignals: [...(state.dismissedBillSignals ?? [])],
@@ -1187,6 +1279,20 @@ function normalizedSourceMoneyProjection(
         : { rememberedCategory: item.rememberedCategory }),
     })),
   };
+}
+
+function readBusinessOperations(value: string | undefined): BusinessOperationsState {
+  if (value === undefined) return normaliseBusinessOperationsState(undefined);
+  try {
+    const parsed = JSON.parse(value) as Partial<BusinessOperationsState>;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Business operations payload is not an object.');
+    }
+    return normaliseBusinessOperationsState(parsed);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'unknown parse failure';
+    throw new Error(`Canonical Business operations payload is invalid: ${reason}`);
+  }
 }
 
 function stableJson(value: unknown): string {

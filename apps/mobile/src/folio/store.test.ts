@@ -62,12 +62,14 @@ import {
   pauseMany,
   queueInputFromCandidates,
   rememberMerchantCategory,
+  recordWorkspaceOwnerTransferLeg,
   removeEvidenceDocument,
   removeIncomeSource,
   renameAccount,
   resetAll,
   resetToEmpty,
   resolveReviewItem,
+  rollbackWorkspaceOwnerTransferLeg,
   reviewCandidateSig,
   selectBankBalanceMinor,
   selectNetPositionMinor,
@@ -88,6 +90,7 @@ import {
   togglePaused,
   totalDebtMinor,
   undoDebtPayment,
+  updateBusinessOperations,
   upsertIncomeSource,
 } from './store';
 import { createWorkspaceId } from '@folio/domain';
@@ -1521,7 +1524,7 @@ describe('editTransaction', () => {
 describe('schema migration v3', () => {
   it('defaults DEFAULTS/state to the current schema version with an empty edit history', () => {
     resetAll();
-    expect(getState().schemaVersion).toBe(11);
+    expect(getState().schemaVersion).toBe(13);
     expect(getState().edits).toEqual([]);
   });
 });
@@ -1538,7 +1541,7 @@ describe('schema migration v6', () => {
     hydrateFromBlob(JSON.stringify(v5Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(11);
+    expect(s.schemaVersion).toBe(13);
     expect(s.timelineEvents).toEqual([]);
   });
 
@@ -1624,7 +1627,7 @@ describe('persist blob round-trip', () => {
     hydrateFromBlob(blob);
 
     const s = getState();
-    expect(s.schemaVersion).toBe(11);
+    expect(s.schemaVersion).toBe(13);
     expect((s.edits ?? []).length).toBe(1);
     expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
   });
@@ -2035,7 +2038,7 @@ describe('schema migration v7', () => {
     hydrateFromBlob(JSON.stringify(v6Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(11);
+    expect(s.schemaVersion).toBe(13);
     expect(s.reviewQueue).toEqual([]);
   });
 
@@ -2234,14 +2237,16 @@ describe('demo/seed containment', () => {
 describe('schema migration v8', () => {
   it('synthesizes one monthly "Pay" source from legacy onboarding.payday + monthlyIncome', () => {
     resetAll();
-    setPartial({ onboarding: { ...getState().onboarding, payday: 28, monthlyIncome: 2500 } });
+    setPartial({
+      onboarding: { ...getState().onboarding, done: true, payday: 28, monthlyIncome: 2500 },
+    });
     // Simulate a persisted v7 blob (no incomeSources field at all).
     const v7Blob = { ...getState(), schemaVersion: 7 } as Record<string, unknown>;
     delete v7Blob.incomeSources;
     hydrateFromBlob(JSON.stringify(v7Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(11);
+    expect(s.schemaVersion).toBe(13);
     expect(s.incomeSources).toEqual([
       {
         id: 'income-migrated-pay',
@@ -2256,7 +2261,7 @@ describe('schema migration v8', () => {
   });
 
   it('leaves every other field byte-identical across the v7 -> v8 migration', () => {
-    resetAll();
+    resetToEmpty();
     const before = getState();
     const v7Blob = { ...before, schemaVersion: 7 } as Record<string, unknown>;
     delete v7Blob.incomeSources;
@@ -2330,7 +2335,7 @@ describe('schema migration v9 workspace root', () => {
     hydrateFromBlob(JSON.stringify(v8Blob));
 
     const after = getState();
-    expect(after.schemaVersion).toBe(11);
+    expect(after.schemaVersion).toBe(13);
     expect(after.activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
     expect(after.dataWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
     expect(after.workspaces).toEqual([
@@ -2418,7 +2423,7 @@ describe('schema v11 isolated workspace partitions', () => {
       '2026-07-15T20:00:00.000Z',
     );
 
-    expect(partition.schemaVersion).toBe(11);
+    expect(partition.schemaVersion).toBe(13);
     expect(partition.accounts).toEqual([]);
     expect(partition.transactions).toEqual([]);
     expect(partition.pots).toEqual([]);
@@ -2444,6 +2449,112 @@ describe('schema v11 isolated workspace partitions', () => {
 
     hydrateFromBlob(personalBlob, PERSONAL_WORKSPACE_ID);
     expect(getState().activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+  });
+
+  it('keeps Business operations inside the active encrypted Business partition', () => {
+    resetToEmpty();
+    const personalBlob = getPersistBlob(PERSONAL_WORKSPACE_ID);
+    const personalRoot = createPersonalWorkspaceRoot();
+    const businessId = createWorkspaceId('workspace_business_operations_test');
+    const businessWorkspace = createBusinessWorkspace({
+      id: businessId,
+      name: 'Exact Studio Ltd',
+      encryptedSubkeyId: 'workspace-subkey-business-operations-v1',
+    });
+    const businessRoot = {
+      workspaces: [...personalRoot.workspaces, businessWorkspace],
+      activeWorkspaceId: businessId,
+      dataWorkspaceId: businessId,
+    };
+    const partition = createEmptyWorkspacePartition(
+      businessRoot,
+      businessId,
+      '2026-07-18T20:00:00.000Z',
+    );
+    hydrateFromBlob(JSON.stringify(partition), businessId);
+
+    updateBusinessOperations((current) => ({
+      entity: {
+        kind: 'sole-trader',
+        tradingName: 'Exact Studio',
+        taxRegion: 'england-ni',
+        studentLoanPlans: [],
+        vat: { registered: false },
+        createdAt: '2026-07-18T20:00:00.000Z',
+      },
+      clients: [
+        ...current.clients,
+        {
+          id: 'client-exact',
+          name: 'Real Client',
+          createdAt: '2026-07-18T20:01:00.000Z',
+        },
+      ],
+    }));
+
+    const businessBlob = getPersistBlob(businessId);
+    expect(JSON.parse(businessBlob).business).toMatchObject({
+      entity: { kind: 'sole-trader', tradingName: 'Exact Studio' },
+      clients: [{ id: 'client-exact', name: 'Real Client' }],
+    });
+
+    hydrateFromBlob(personalBlob, PERSONAL_WORKSPACE_ID);
+    expect(getState().business?.entity).toBeNull();
+    expect(getState().business?.clients).toEqual([]);
+    expect(() => updateBusinessOperations({ ytdProfitMinor: 100_000 })).toThrow(
+      /active Business workspace/,
+    );
+  });
+
+  it('publishes and rolls back one owner-transfer partition leg as one cash-and-ledger change', () => {
+    resetToEmpty();
+    const personalRoot = createPersonalWorkspaceRoot();
+    const businessId = createWorkspaceId('workspace_business_owner_leg_test');
+    const businessWorkspace = createBusinessWorkspace({
+      id: businessId,
+      name: 'Owner Studio Ltd',
+      encryptedSubkeyId: 'workspace-subkey-business-owner-leg-v1',
+    });
+    const partition = createEmptyWorkspacePartition(
+      {
+        workspaces: [...personalRoot.workspaces, businessWorkspace],
+        activeWorkspaceId: businessId,
+        dataWorkspaceId: businessId,
+      },
+      businessId,
+      '2026-07-18T20:00:00.000Z',
+    );
+    hydrateFromBlob(JSON.stringify(partition), businessId);
+    const account = addAccount({
+      name: 'Business current',
+      kind: 'bank',
+      balanceMinor: 1_000,
+    });
+
+    const leg = recordWorkspaceOwnerTransferLeg({
+      transferId: 'owner-transfer-test',
+      label: 'Owner transfer · dividend · to Personal',
+      amount: 250,
+      direction: 'out',
+      when: '2026-07-18T21:00:00.000Z',
+    });
+
+    expect((getState().accounts ?? []).find((row) => row.id === account.id)?.balanceMinor).toBe(
+      750,
+    );
+    expect(getState().currentBalance.amount).toBe(750);
+    expect(getState().transactions.find((row) => row.id === leg.transactionId)).toMatchObject({
+      amount: -250,
+      accountId: account.id,
+      externalId: 'owner-transfer-test',
+      workspaceId: businessId,
+    });
+
+    expect(rollbackWorkspaceOwnerTransferLeg(leg.transactionId)).toBe(true);
+    expect((getState().accounts ?? []).find((row) => row.id === account.id)?.balanceMinor).toBe(
+      1_000,
+    );
+    expect(getState().transactions.some((row) => row.id === leg.transactionId)).toBe(false);
   });
 });
 
@@ -2502,7 +2613,7 @@ describe('schema migration v10 workspace-owned rows', () => {
     hydrateFromBlob(JSON.stringify(v9Blob));
 
     const after = getState();
-    expect(after.schemaVersion).toBe(11);
+    expect(after.schemaVersion).toBe(13);
     expect(after.transactions[0]).toMatchObject({
       id: 'legacy-transaction',
       merchant: 'Real shop',

@@ -74,13 +74,22 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import {
   hasConfiguredMoneyPicture,
+  recordOneMoveDismissed,
+  recordOneMoveShown,
+  recordOneMoveTapped,
+  setMeloPrimerSeen,
   useAppStore,
   setRouteFocusDate,
+  sweepAutoResumeNow,
   sweepSubOverrides,
+  touchOpened,
 } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { resolveNextTopUp } from '@/folio/lib/potCadence';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
+import { deriveOneMove } from '@/folio/lib/melo/oneMove';
+import { DISMISS_CHOICES, type DismissReason } from '@/folio/lib/melo/dismissReasons';
+import { computeGreenStreak } from '@/folio/lib/streaks';
 import { useLens } from '@/folio/lib/lens';
 import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
@@ -157,6 +166,15 @@ export function TodayScreen({
   // Real count of unreviewed intake items (was a hardcoded "2 things" — a fake
   // count that showed even on a clean/empty ledger). Hidden entirely at zero.
   const pendingReview = useAppStore((st) => st.reviewQueue?.length ?? 0);
+  const pendingReviewSpillover = useAppStore((st) => st.reviewQueueSpillover?.length ?? 0);
+  const transactions = useAppStore((st) => st.transactions);
+  const cycles = useAppStore((st) => st.cycles);
+  const spendHold = useAppStore((st) => st.spendHold ?? null);
+  const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
+  const meloPrimerSeen = useAppStore((st) => st.meloPrimerSeen ?? false);
+  const oneMoveHistory = useAppStore((st) => st.oneMoveHistory ?? []);
+  const meloDismissLog = useAppStore((st) => st.meloDismissLog ?? []);
+  const totalPendingReview = pendingReview + pendingReviewSpillover;
   const lens = useLens();
 
   // Mount-gate (kept from the web to avoid a flash of the fallback before the engine computes; on
@@ -164,9 +182,12 @@ export function TodayScreen({
   // `state === 'loading'` we hold the gate closed so the loading branch (Melo curious + line, never
   // a spinner) shows.
   const [now, setNow] = useState<Date | null>(null);
+  const [prevOpenIso, setPrevOpenIso] = useState<string | null>(null);
   useEffect(() => {
     setNow(new Date());
     sweepSubOverrides();
+    sweepAutoResumeNow();
+    setPrevOpenIso(touchOpened());
   }, []);
 
   const isLoading = state === 'loading' || now === null;
@@ -198,6 +219,64 @@ export function TodayScreen({
   // Days to payday — the live count from the route engine (whole calendar days, today → payday),
   // falling back to the sample literal until the mount-gate opens.
   const daysToPayday = route ? route.daysToPayday : 11;
+
+  const sinceLastOpen = useMemo(() => {
+    if (!prevOpenIso || !now) return null;
+    const previous = Date.parse(prevOpenIso);
+    if (!Number.isFinite(previous)) return null;
+    const gapDays = Math.floor((now.getTime() - previous) / 86_400_000);
+    if (gapDays < 1) return null;
+    let spend = 0;
+    let income = 0;
+    let count = 0;
+    for (const transaction of transactions) {
+      const occurredAt = Date.parse(transaction.when);
+      if (!Number.isFinite(occurredAt) || occurredAt <= previous || occurredAt > now.getTime()) {
+        continue;
+      }
+      count += 1;
+      if (transaction.amount < 0) spend += -transaction.amount;
+      else income += transaction.amount;
+    }
+    return count > 0
+      ? { gapDays, spend: Math.round(spend), income: Math.round(income) }
+      : null;
+  }, [now, prevOpenIso, transactions]);
+
+  const greenStreak = useMemo(() => computeGreenStreak(cycles), [cycles]);
+  const ritualCompletedRecently = useMemo(() => {
+    const lastClosed = cycles[0]?.closedAt;
+    if (!lastClosed || !now) return false;
+    const closedAt = Date.parse(`${lastClosed}T00:00:00`);
+    return Number.isFinite(closedAt) && now.getTime() - closedAt < 86_400_000;
+  }, [cycles, now]);
+  const cycleOverdueDays = useMemo(() => {
+    if (!now || !onboarding.done || ritualCompletedRecently) return 0;
+    return now.getDate() > onboarding.payday ? now.getDate() - onboarding.payday : 0;
+  }, [now, onboarding.done, onboarding.payday, ritualCompletedRecently]);
+  const oneMove = useMemo(
+    () =>
+      deriveOneMove({
+        reviewCount: totalPendingReview,
+        tightPoint: tight.tightestSpare,
+        cycleOverdueDays,
+        caughtSubName: null,
+        nav,
+        history: oneMoveHistory,
+        dismissLog: meloDismissLog,
+      }),
+    [
+      cycleOverdueDays,
+      meloDismissLog,
+      nav,
+      oneMoveHistory,
+      tight.tightestSpare,
+      totalPendingReview,
+    ],
+  );
+  useEffect(() => {
+    if (meloPrimerSeen && oneMove?.key) recordOneMoveShown(oneMove.key);
+  }, [meloPrimerSeen, oneMove?.key]);
 
   // Weather for the lens+weather chip — the survival strategy's own derivation, mirroring
   // TodayModeScreen / TodayStabilityScreen (both already call deriveModeState for their pill).
@@ -575,8 +654,16 @@ export function TodayScreen({
         <WhatChangedRow nav={nav} />
         <TrialEndedRow nav={nav} />
 
+        {!meloPrimerSeen ? <MeloPrimerCard onDone={() => setMeloPrimerSeen(true)} /> : null}
+        {meloPrimerSeen && oneMove ? <OneMoveCard oneMove={oneMove} /> : null}
+
         {/* Hero */}
         <View style={styles.hero}>
+          {greenStreak >= 2 ? (
+            <Text style={[styles.heroStreakEyebrow, { color: t.muted }]}>
+              {greenStreak} calm cycles in a row
+            </Text>
+          ) : null}
           <Text
             style={[
               styles.verdict,
@@ -604,6 +691,65 @@ export function TodayScreen({
           <Text style={[styles.heroSource, { color: t.muted }]}>
             starting from £{groupedPounds(currentBalance.amount)} · {balanceSourceLabel}
           </Text>
+          {sinceLastOpen ? (
+            <View
+              style={[
+                styles.sinceStrip,
+                { backgroundColor: t.inset, borderColor: t.hairline },
+              ]}
+            >
+              <Text style={[styles.sinceLabel, { color: t.muted }]}>
+                since last open · {sinceLastOpen.gapDays}d
+              </Text>
+              <View style={[styles.sinceRule, { backgroundColor: t.hairline }]} />
+              <Text style={[styles.sinceValue, { color: t.ink }]}>
+                {sinceLastOpen.spend > 0 ? `−£${groupedPounds(sinceLastOpen.spend)}` : ''}
+                {sinceLastOpen.spend > 0 && sinceLastOpen.income > 0 ? ' · ' : ''}
+                {sinceLastOpen.income > 0 ? `+£${groupedPounds(sinceLastOpen.income)}` : ''}
+              </Text>
+            </View>
+          ) : null}
+          {greenStreak >= 2 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Safe zone streak: ${greenStreak} cycles. Open Insights.`}
+              onPress={() => nav.go('insights')}
+              style={({ pressed: isPressed }) => [
+                styles.streakChip,
+                { backgroundColor: t.calmSoft, borderColor: t.hairline },
+                isPressed ? pressed : undefined,
+              ]}
+            >
+              <View style={[styles.streakDot, { backgroundColor: t.positive }]} />
+              <Text style={[styles.streakText, { color: t.ink }]}>
+                <Text style={{ color: t.calm }}>{greenStreak}</Text> cycles in the safe zone
+              </Text>
+            </Pressable>
+          ) : null}
+          {spendHold || whatIfHolds.length > 0 ? (
+            <View style={styles.activeHolds}>
+              {spendHold ? (
+                <Text
+                  style={[
+                    styles.holdChip,
+                    { color: t.muted, backgroundColor: t.inset, borderColor: t.hairline },
+                  ]}
+                >
+                  on hold · £{spendHold.dailyCap}/day until {formatDayProse(spendHold.end)}
+                </Text>
+              ) : null}
+              {whatIfHolds.length > 0 ? (
+                <Text
+                  style={[
+                    styles.holdChip,
+                    { color: t.muted, backgroundColor: t.inset, borderColor: t.hairline },
+                  ]}
+                >
+                  {whatIfHolds.length} what-if hold{whatIfHolds.length === 1 ? '' : 's'} active
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         {/* Path card — the hero object */}
@@ -846,6 +992,24 @@ export function TodayScreen({
               ? `if you spend £${Math.round(scrub * 120)} today`
               : 'drag the line to preview a spend'}
           </Text>
+          {scrub > 0.04 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Log a spend of £${Math.round(scrub * 120)}`}
+              onPress={() =>
+                nav.openSheet('log-spend', { amount: Math.max(1, Math.round(scrub * 120)) })
+              }
+              style={({ pressed: isPressed }) => [
+                styles.scrubCommit,
+                { backgroundColor: t.calmSoft },
+                isPressed ? pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.scrubCommitLabel, { color: t.calm }]}>
+                Log £{Math.round(scrub * 120)} →
+              </Text>
+            </Pressable>
+          ) : null}
 
           {/* Pot dip — the labelled pot top-up. Hidden when no active pots. The day is DERIVED from
               each pot's cadence (ENGINES §6 D5), never a hardcoded Friday; with no resolvable date it
@@ -938,10 +1102,10 @@ export function TodayScreen({
           <View style={styles.meloPromptBody}>
             <Text style={[styles.meloPromptLine, { color: t.ink }]}>&ldquo;{line}&rdquo;</Text>
             <View style={styles.meloPromptMeta}>
-              {pendingReview > 0 ? (
+              {totalPendingReview > 0 ? (
                 <Text style={[styles.meloPromptMetaText, { color: t.muted }]}>
-                  {pendingReview} {pendingReview === 1 ? 'thing' : 'things'} still waiting to be
-                  checked.
+                  {totalPendingReview} {totalPendingReview === 1 ? 'thing' : 'things'} still waiting
+                  to be checked.
                 </Text>
               ) : null}
               <Text style={[styles.meloPromptCta, { color: t.calm }]}>Ask Melo →</Text>
@@ -952,6 +1116,157 @@ export function TodayScreen({
         <TodayWeekTiles nav={nav} tightSpare={tightestSpare} tightDate={tight.tightestDate} />
       </ScrollView>
     </Animated.View>
+  );
+}
+
+function MeloPrimerCard({ onDone }: { onDone: () => void }) {
+  const t = useTheme();
+  const [beat, setBeat] = useState(0);
+  const beats = [
+    {
+      lead: 'Melo, ',
+      accent: 'here',
+      tail: '.',
+      body: 'Not a bank. Not a coach. A small companion for your money.',
+    },
+    {
+      lead: 'What I ',
+      accent: 'watch',
+      tail: '.',
+      body: 'The path to payday. Your subscriptions. The tight point in the middle.',
+    },
+    {
+      lead: 'How I ',
+      accent: 'speak',
+      tail: '.',
+      body: 'Only when something shifts. Never noise. You can mute me any time.',
+    },
+  ] as const;
+  const current = beats[beat]!;
+  const last = beat === beats.length - 1;
+  return (
+    <View
+      accessibilityRole="summary"
+      accessibilityLabel={`Meet Melo, step ${beat + 1} of ${beats.length}`}
+      style={[
+        styles.companionCard,
+        { backgroundColor: t.surface, borderColor: t.hairline },
+      ]}
+    >
+      <Melo size={36} mood="calm" />
+      <View style={styles.companionCardBody}>
+        <Text style={[styles.companionCardTitle, { color: t.ink }]}>
+          {current.lead}
+          <Text style={{ color: t.calm }}>{current.accent}</Text>
+          {current.tail}
+        </Text>
+        <Text style={[styles.companionCardCopy, { color: t.muted }]}>{current.body}</Text>
+        <View style={styles.companionCardActions}>
+          <View style={styles.primerDots}>
+            {beats.map((item, index) => (
+              <View
+                key={item.accent}
+                style={[
+                  styles.primerDot,
+                  {
+                    backgroundColor: index === beat ? t.calm : t.hairline,
+                    width: index === beat ? 16 : 6,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+          {!last ? (
+            <Pressable accessibilityRole="button" onPress={onDone} hitSlop={10}>
+              <Text style={[styles.companionQuietAction, { color: t.muted }]}>Skip</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => (last ? onDone() : setBeat((value) => value + 1))}
+            hitSlop={10}
+          >
+            <Text style={[styles.companionPrimaryAction, { color: t.calm }]}>
+              {last ? 'Got it →' : 'Next →'}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function OneMoveCard({
+  oneMove,
+}: {
+  oneMove: NonNullable<ReturnType<typeof deriveOneMove>>;
+}) {
+  const t = useTheme();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const dismiss = (reason: DismissReason | null) => {
+    recordOneMoveDismissed(oneMove.key, reason);
+    setPickerOpen(false);
+  };
+  return (
+    <View
+      accessibilityRole="summary"
+      accessibilityLabel={`Melo suggests: ${oneMove.line}`}
+      style={[
+        styles.companionCard,
+        { backgroundColor: t.surface, borderColor: t.hairline },
+      ]}
+    >
+      <Melo size={36} mood="curious" />
+      <View style={styles.companionCardBody}>
+        <Text style={[styles.companionCardCopy, { color: t.ink }]}>{oneMove.line}</Text>
+        <View style={styles.companionCardActions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              recordOneMoveTapped(oneMove.key);
+              oneMove.onTap();
+            }}
+            hitSlop={10}
+          >
+            <Text style={[styles.companionPrimaryAction, { color: t.calm }]}>
+              {oneMove.cta} →
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Not the right move, tell Melo why"
+            accessibilityState={{ expanded: pickerOpen }}
+            onPress={() => setPickerOpen((value) => !value)}
+            hitSlop={10}
+          >
+            <Text style={[styles.companionMoreAction, { color: t.muted }]}>⋯</Text>
+          </Pressable>
+        </View>
+        {pickerOpen ? (
+          <View style={[styles.dismissChoices, { borderTopColor: t.hairline }]}>
+            {DISMISS_CHOICES.map((choice) => (
+              <Pressable
+                key={choice.id}
+                accessibilityRole="button"
+                onPress={() => dismiss(choice.id)}
+                style={({ pressed: isPressed }) => [
+                  styles.dismissChoice,
+                  { backgroundColor: t.canvas, borderColor: t.hairline },
+                  isPressed ? pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.dismissChoiceLabel, { color: t.muted }]}>
+                  {choice.label}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable accessibilityRole="button" onPress={() => dismiss(null)} hitSlop={8}>
+              <Text style={[styles.dismissChoiceLabel, { color: t.muted }]}>Skip</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -987,6 +1302,9 @@ function TodayFirstRun({ nav }: { nav: Nav }) {
         <View style={[styles.firstRunMelo, { backgroundColor: t.inset }]}>
           <Melo size={52} mood="curious" />
         </View>
+        <Text style={[styles.firstRunPrimer, { color: t.ink }]}>
+          Melo, here. I only speak when something shifts.
+        </Text>
         <Text style={[styles.firstRunKicker, { color: t.muted }]}>Your first picture</Text>
         <Text accessibilityRole="header" style={[styles.firstRunTitle, { color: t.ink }]}>
           {'See where your money gets '}
@@ -1000,7 +1318,10 @@ function TodayFirstRun({ nav }: { nav: Nav }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Add my numbers"
-          onPress={() => nav.openSheet('onboarding')}
+          onPress={() => {
+            setMeloPrimerSeen(true);
+            nav.openSheet('onboarding');
+          }}
           style={({ pressed: p }) => [
             styles.firstRunPrimary,
             { backgroundColor: t.calm },
@@ -1151,6 +1472,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: gap.lg,
   },
+  firstRunPrimer: {
+    fontFamily: serif.displayItalic,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
   firstRunTitle: {
     fontFamily: serif.display,
     fontSize: 32,
@@ -1255,9 +1582,70 @@ const styles = StyleSheet.create({
   chipDot: { width: 6, height: 6, borderRadius: 3 },
   chipText: { fontSize: 11 },
 
+  companionCard: {
+    marginHorizontal: 28,
+    marginTop: gap.sm,
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: gap.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: gap.md,
+  },
+  companionCardBody: { flex: 1, minWidth: 0 },
+  companionCardTitle: {
+    fontFamily: serif.display,
+    fontSize: 15,
+    lineHeight: 19,
+  },
+  companionCardCopy: { fontSize: 12.5, lineHeight: 18 },
+  companionCardActions: {
+    marginTop: gap.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: gap.md,
+  },
+  companionPrimaryAction: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  companionQuietAction: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  companionMoreAction: { fontSize: 20, lineHeight: 20 },
+  primerDots: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  primerDot: { height: 4, borderRadius: 2 },
+  dismissChoices: {
+    marginTop: gap.md,
+    paddingTop: gap.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  dismissChoice: {
+    minHeight: 30,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.sm,
+    justifyContent: 'center',
+  },
+  dismissChoiceLabel: { fontSize: 11 },
+
   hero: {
     paddingHorizontal: 28,
     paddingTop: gap.md,
+  },
+  heroStreakEyebrow: {
+    fontSize: 10.5,
+    letterSpacing: 1.4,
+    marginBottom: 6,
+    textTransform: 'uppercase',
   },
   verdict: {
     fontFamily: serif.displayItalic,
@@ -1301,6 +1689,51 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     marginTop: 4,
     opacity: 0.7,
+  },
+  sinceStrip: {
+    marginTop: gap.md,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: gap.sm,
+  },
+  sinceLabel: {
+    fontSize: 10.5,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  sinceRule: { flex: 1, height: StyleSheet.hairlineWidth },
+  sinceValue: { fontSize: 12.5, fontVariant: ['tabular-nums'] },
+  streakChip: {
+    alignSelf: 'flex-start',
+    marginTop: gap.sm,
+    minHeight: 30,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: gap.sm,
+  },
+  streakDot: { width: 6, height: 6, borderRadius: 3 },
+  streakText: { fontSize: 11.5, fontVariant: ['tabular-nums'] },
+  activeHolds: {
+    marginTop: gap.sm,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  holdChip: {
+    overflow: 'hidden',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.sm,
+    paddingVertical: 5,
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
   },
 
   pathCard: {
@@ -1354,6 +1787,19 @@ const styles = StyleSheet.create({
     marginTop: gap.sm,
     fontSize: 10.5,
     textAlign: 'center',
+  },
+  scrubCommit: {
+    alignSelf: 'center',
+    marginTop: gap.sm,
+    minHeight: 32,
+    borderRadius: 999,
+    paddingHorizontal: gap.md,
+    justifyContent: 'center',
+  },
+  scrubCommitLabel: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    letterSpacing: 0.4,
   },
 
   potDip: {

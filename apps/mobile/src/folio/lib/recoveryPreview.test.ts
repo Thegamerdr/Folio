@@ -59,7 +59,8 @@ describe('buildRecoveryRoutePreview', () => {
     const preview = buildRecoveryRoutePreview(getState(), NOW);
 
     expect(preview.hasMoneyPicture).toBe(true);
-    expect(preview.holdLift).toBe(30);
+    expect(preview.holdDailyCap).toBe(5);
+    expect(preview.holdLift).toBe(15);
     expect(preview.flexibleBill?.name).toBe('Private recurring name');
     expect(preview.pausableSubscription?.name).toBe('Private recurring name');
     expect(JSON.stringify(getState())).toBe(before);

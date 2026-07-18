@@ -144,6 +144,8 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
     manualEvents: state.calendarEvents,
     pots: state.pots,
     incomeSources,
+    spendHold: state.spendHold ?? null,
+    whatIfHolds: state.whatIfHolds ?? [],
     windowDays: ROUTE_WINDOW_DAYS,
     now: utcMidnightOf(todayIso),
     // Sample/demo bills only while the seed is untouched (currentBalance still 'sample'). A cleared or
@@ -156,9 +158,11 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // deadlines carry no amount and fall through. One pass, no per-source re-derivation.
   const income: DatedAmount[] = [];
   const spend: DatedAmount[] = [];
+  const holds: DatedAmount[] = [];
   for (const e of events) {
     if (typeof e.amount !== 'number') continue;
     if (e.amount >= 0) income.push({ date: e.date, amount: e.amount });
+    else if (e.source === 'hold') holds.push({ date: e.date, amount: -e.amount });
     else spend.push({ date: e.date, amount: -e.amount });
   }
 
@@ -204,7 +208,7 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
     bills: [],
     subs: [],
     spend,
-    holds: [],
+    holds,
     pots: [],
     openBorrows: 0,
   });
@@ -230,7 +234,9 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // outflow, so it must never feed the realized "Going out" figure. `bankTransactions` is a no-op
   // filter on a single-account (migrated) install.
   const bankTxns = bankTransactions(state);
-  const projectedOutgoing = spend.reduce((acc, d) => acc + d.amount, 0);
+  const projectedOutgoing =
+    spend.reduce((acc, d) => acc + d.amount, 0) +
+    holds.reduce((acc, d) => acc + d.amount, 0);
   const hasHistory = bankTxns.length > 0;
   const incomingTotal = selectMonthlyIncome(state);
   const outgoingTotal = hasHistory
@@ -293,6 +299,8 @@ export function useRoute(now: Date | string): RouteResult {
       state.pots,
       state.incomeSources,
       state.calendarEvents,
+      state.spendHold,
+      state.whatIfHolds,
       nowKey,
     ],
   );

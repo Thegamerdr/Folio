@@ -124,6 +124,198 @@ describe('canonical AppState read projection', () => {
     );
   });
 
+  it('round-trips rework continuity, subscription recovery and route holds losslessly', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const state: AppState = {
+      ...base,
+      subs: [
+        {
+          name: 'Melo Music',
+          workspaceId: workspace.id,
+          cost: 9.99,
+          nextRenewalDaysAway: 4,
+          nextRenewalISO: '2026-07-22',
+          lastUsedDaysAgo: 3,
+          usesPerMonth: 4,
+          pausedUntil: '2026-08-23',
+          autoResume: 'prompt',
+          pauseReason: 'making room before payday',
+          pausedAt: '2026-07-18',
+        },
+      ],
+      subPaused: { 'Melo Music': true },
+      cancelledSubs: [
+        {
+          name: 'Old Stream',
+          workspaceId: workspace.id,
+          monthlyAmount: 12.5,
+          cancelledAt: '2026-07-10',
+        },
+      ],
+      spendHold: {
+        start: '2026-07-18',
+        end: '2026-07-24',
+        dailyCap: 18,
+        setAt: '2026-07-18T09:00:00.000Z',
+        breachedDates: ['2026-07-20'],
+      },
+      whatIfHolds: [
+        {
+          id: 'hold-weekly',
+          workspaceId: workspace.id,
+          amount: 35,
+          recurrence: 'weekly',
+          addedAt: '2026-07-18T09:05:00.000Z',
+          label: 'Train',
+        },
+      ],
+      meloPrimerSeen: true,
+      lastOpenedAt: '2026-07-17T09:00:00.000Z',
+      oneMoveHistory: [
+        {
+          key: 'review',
+          shownAt: '2026-07-18',
+          tappedAt: '2026-07-18T09:10:00.000Z',
+        },
+      ],
+      meloDismissLog: [
+        {
+          kind: 'recovery',
+          reason: 'not-now',
+          at: '2026-07-18T09:15:00.000Z',
+        },
+      ],
+    };
+
+    const projection = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-07-18T12:00:00.000Z',
+    );
+    const read = readCanonicalAppStateMoneyProjection(
+      projection.repositorySnapshot,
+      String(workspace.id),
+      '2026-07-18',
+    );
+
+    expect(read.subs).toEqual(state.subs);
+    expect(read.subPaused).toEqual(state.subPaused);
+    expect(read.cancelledSubs).toEqual(state.cancelledSubs);
+    expect(read.spendHold).toEqual(state.spendHold);
+    expect(read.whatIfHolds).toEqual(state.whatIfHolds);
+    expect(read.meloPrimerSeen).toBe(true);
+    expect(read.lastOpenedAt).toBe(state.lastOpenedAt);
+    expect(read.oneMoveHistory).toEqual(state.oneMoveHistory);
+    expect(read.meloDismissLog).toEqual(state.meloDismissLog);
+  });
+
+  it('round-trips the complete Business operations aggregate through canonical recovery', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const state: AppState = {
+      ...base,
+      business: {
+        ...base.business!,
+        entity: {
+          kind: 'ltd',
+          companyName: 'Northstar Studio Ltd',
+          companyNumber: '12345678',
+          incorporatedOn: '2025-04-10',
+          yearEnd: '2027-03-31',
+          taxRegion: 'england-ni',
+          directors: [{ id: 'director-1', name: 'Avery North' }],
+          shareholders: [{ id: 'shareholder-1', name: 'Avery North', shares: 100 }],
+          vat: { registered: true, scheme: 'cash', number: 'GB123456789' },
+          createdAt: '2026-07-18T10:00:00.000Z',
+        },
+        clients: [
+          {
+            id: 'client-1',
+            name: 'Exact Client',
+            email: 'billing@example.test',
+            createdAt: '2026-07-18T10:01:00.000Z',
+          },
+        ],
+        invoices: [
+          {
+            id: 'invoice-1',
+            clientId: 'client-1',
+            clientName: 'Exact Client',
+            reference: 'INV-001',
+            issuedOn: '2026-07-01',
+            dueOn: '2026-07-31',
+            totalMinor: 240_000,
+            paidMinor: 40_000,
+            status: 'part-paid',
+          },
+        ],
+        obligations: [
+          {
+            id: 'obligation-1',
+            label: 'Studio rent',
+            amountMinor: 75_000,
+            cadence: 'monthly',
+            nextDue: '2026-08-01',
+            category: 'rent',
+          },
+        ],
+        vatReturns: [
+          {
+            id: 'vat-2026-q2',
+            periodStart: '2026-04-01',
+            periodEnd: '2026-06-30',
+            dueOn: '2026-08-07',
+            box1OutputVatMinor: 40_000,
+            box4InputVatMinor: 8_000,
+            box6SalesExVatMinor: 200_000,
+            box7PurchasesExVatMinor: 40_000,
+          },
+        ],
+        filings: [
+          {
+            id: 'filing-vat-2026-q2',
+            kind: 'vat',
+            period: '2026-04-01 to 2026-06-30',
+            preparedAt: '2026-07-18T10:02:00.000Z',
+            policyPackVersion: base.business!.policyPackVersion,
+            amountMinor: 32_000,
+            status: 'prepared',
+          },
+        ],
+        memory: [
+          {
+            id: 'business-memory-1',
+            at: '2026-07-18T10:03:00.000Z',
+            kind: 'first-invoice',
+            summary: 'The first real invoice is in.',
+            reflected: false,
+          },
+        ],
+        ytdProfitMinor: 5_400_000,
+        ctPotMinor: 1_000_000,
+        vatPotMinor: 32_000,
+        employmentAllowanceClaimed: true,
+      },
+    };
+
+    const projection = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-07-18T12:00:00.000Z',
+    );
+    const read = readCanonicalAppStateMoneyProjection(
+      projection.repositorySnapshot,
+      String(workspace.id),
+      '2026-07-18',
+    );
+
+    expect(projection.repositorySnapshot.collections.financialContexts[0]).toMatchObject({
+      businessOperationsJson: expect.any(String),
+    });
+    expect(read.business).toEqual(state.business);
+  });
+
   it('fails closed when exact aggregate provenance is absent', () => {
     const state = emptyState();
     const workspace = personalWorkspace(state);

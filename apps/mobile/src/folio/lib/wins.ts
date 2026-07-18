@@ -26,7 +26,11 @@ export type TinyWinKind =
   | 'bill-week-survived'
   | 'first-green-after-red'
   | 'first-pot-funded'
-  | 'first-sub-caught';
+  | 'first-sub-caught'
+  | 'first-postcard-shared'
+  | 'first-sub-cancelled'
+  | 'first-pot-fully-funded'
+  | 'four-week-green-streak';
 
 export type TinyWin = {
   id: string;
@@ -46,6 +50,10 @@ export const WIN_COPY: Record<TinyWinKind, string> = {
   'first-green-after-red': 'First green cycle after a red one.',
   'first-pot-funded': 'You funded a pot on purpose.',
   'first-sub-caught': 'Caught your first sub. Handled it.',
+  'first-postcard-shared': 'First postcard shared. Your words, sent.',
+  'first-sub-cancelled': 'One subscription stopped. That saving keeps going.',
+  'first-pot-fully-funded': 'One pot, fully funded.',
+  'four-week-green-streak': 'Four green cycles in a row. Quiet rhythm.',
 };
 
 export function makeWin(kind: TinyWinKind): TinyWin {

@@ -423,6 +423,12 @@ export type Phase11CoverageInput = Readonly<{
 export type MeloLocalIntent =
   | 'check_purchase'
   | 'explain_position'
+  | 'review_business_invoices'
+  | 'review_business_vat'
+  | 'review_business_tax'
+  | 'review_business_payroll'
+  | 'review_business_filings'
+  | 'review_business_clients'
   | 'review_subscriptions'
   | 'review_recurring'
   | 'summarise_month'
@@ -478,6 +484,19 @@ export type MeloLocalFinancialSnapshot = Readonly<{
   businessRunwayDays?: number | null | undefined;
   businessRunwayHistoryDays?: number | undefined;
   businessNextCommitmentDate?: string | undefined;
+  businessEntityKind?: 'sole-trader' | 'ltd' | undefined;
+  businessClientCount?: number | undefined;
+  businessOutstandingInvoicesMinor?: number | undefined;
+  businessOverdueInvoicesMinor?: number | undefined;
+  businessOverdueInvoiceCount?: number | undefined;
+  businessVatRegistered?: boolean | undefined;
+  businessVatDueMinor?: number | undefined;
+  businessVatPotMinor?: number | undefined;
+  businessTaxEstimateMinor?: number | undefined;
+  businessTaxPotMinor?: number | undefined;
+  businessObligations30Minor?: number | undefined;
+  businessEmployeeCount?: number | undefined;
+  businessOpenFilingCount?: number | undefined;
 }>;
 
 export type MeloDebtProjectionStrategy =
@@ -606,6 +625,12 @@ export type MeloLocalAiRequest = Readonly<{
 
 export type MeloLocalAiActionKind =
   | 'open_what_if'
+  | 'open_business_invoices'
+  | 'open_business_vat'
+  | 'open_business_tax'
+  | 'open_business_payroll'
+  | 'open_business_filings'
+  | 'open_business_clients'
   | 'review_imports'
   | 'explain_sources'
   | 'build_recovery_route'
@@ -1482,6 +1507,49 @@ export function buildPhase11CoverageRows(
 }
 
 export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
+  if (includesAny(prompt, ['invoice', 'invoices', 'overdue', 'owed to me', 'client payment'])) {
+    return 'review_business_invoices';
+  }
+
+  if (includesAny(prompt, ['vat', 'value added tax'])) {
+    return 'review_business_vat';
+  }
+
+  if (
+    includesAny(prompt, [
+      'corporation tax',
+      'self assessment',
+      'self-assessment',
+      'tax estimate',
+      'tax pot',
+      'tax due',
+    ])
+  ) {
+    return 'review_business_tax';
+  }
+
+  if (includesAny(prompt, ['payroll', 'employee', 'employees', 'employer ni', 'paye'])) {
+    return 'review_business_payroll';
+  }
+
+  if (
+    includesAny(prompt, [
+      'filing',
+      'filings',
+      'confirmation statement',
+      'annual accounts',
+      'companies house',
+      'deadline',
+      'deadlines',
+    ])
+  ) {
+    return 'review_business_filings';
+  }
+
+  if (includesAny(prompt, ['client', 'clients', 'customer', 'customers'])) {
+    return 'review_business_clients';
+  }
+
   if (
     includesAny(prompt, [
       'subscription',
@@ -1623,7 +1691,6 @@ export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
       'statement',
       'abound',
       'rent',
-      'payroll',
       'needs my review',
       'need my review',
       'waiting for review',
@@ -1652,12 +1719,73 @@ function buildBusinessMeloLocalAnswer(input: {
   const commitments = formatMinorAmount(input.snapshot.businessUpcomingCommitmentsMinor ?? 0);
   const upcomingIncome = formatMinorAmount(input.snapshot.businessUpcomingIncomeMinor ?? 0);
   const liabilities = formatMinorAmount(input.snapshot.businessLiabilityBalanceMinor ?? 0);
+  const outstandingInvoices = formatMinorAmount(
+    input.snapshot.businessOutstandingInvoicesMinor ?? 0,
+  );
+  const overdueInvoices = formatMinorAmount(input.snapshot.businessOverdueInvoicesMinor ?? 0);
+  const vatDue = formatMinorAmount(input.snapshot.businessVatDueMinor ?? 0);
+  const vatPot = formatMinorAmount(input.snapshot.businessVatPotMinor ?? 0);
+  const taxEstimate = formatMinorAmount(input.snapshot.businessTaxEstimateMinor ?? 0);
+  const taxPot = formatMinorAmount(input.snapshot.businessTaxPotMinor ?? 0);
   const runway =
     input.snapshot.businessRunwayDays === null || input.snapshot.businessRunwayDays === undefined
       ? 'There is not enough confirmed expense history for a runway estimate yet; it needs at least three expenses across fourteen days.'
       : `At the confirmed expense pace, the current cash is about ${input.snapshot.businessRunwayDays} days of operating runway. This is a history-based estimate, not a forecast of future sales.`;
 
   switch (input.intent) {
+    case 'review_business_invoices': {
+      const overdueCount = input.snapshot.businessOverdueInvoiceCount ?? 0;
+      const outstanding = input.snapshot.businessOutstandingInvoicesMinor ?? 0;
+      if (outstanding === 0) {
+        return 'There are no outstanding Business invoices recorded in this workspace.';
+      }
+      return `${outstandingInvoices} is outstanding across the recorded invoices. ${overdueCount === 0 ? 'None is overdue.' : `${overdueInvoices} is overdue across ${overdueCount} invoice${overdueCount === 1 ? '' : 's'}.`} These figures use saved invoice totals and payments only.`;
+    }
+    case 'review_business_vat': {
+      if (input.snapshot.businessVatRegistered !== true) {
+        return 'This Business entity is not recorded as VAT registered. I will not create a VAT liability until that status and a real return are saved.';
+      }
+      const gap = (input.snapshot.businessVatDueMinor ?? 0) - (input.snapshot.businessVatPotMinor ?? 0);
+      return `The current saved VAT return is ${vatDue}; the VAT pot holds ${vatPot}. ${
+        gap > 0
+          ? `${formatMinorAmount(gap)} is not yet covered.`
+          : gap < 0
+            ? `The pot is ${formatMinorAmount(Math.abs(gap))} above that return.`
+            : 'That return is fully covered.'
+      } This is the locally calculated return, not a claim that it has been submitted.`;
+    }
+    case 'review_business_tax': {
+      const label =
+        input.snapshot.businessEntityKind === 'ltd'
+          ? 'Corporation Tax'
+          : 'Self-Assessment income tax and National Insurance';
+      const gap = (input.snapshot.businessTaxEstimateMinor ?? 0) - (input.snapshot.businessTaxPotMinor ?? 0);
+      return `The current local ${label} estimate is ${taxEstimate}; the recorded tax pot is ${taxPot}. ${
+        gap > 0
+          ? `${formatMinorAmount(gap)} is not yet covered.`
+          : gap < 0
+            ? `The pot is ${formatMinorAmount(Math.abs(gap))} above the estimate.`
+            : 'The estimate is covered.'
+      } The calculation uses the saved 2026/27 policy pack and recorded year-to-date profit.`;
+    }
+    case 'review_business_payroll': {
+      const count = input.snapshot.businessEmployeeCount ?? 0;
+      return count === 0
+        ? 'There are no employees recorded in this Business workspace.'
+        : `There ${count === 1 ? 'is' : 'are'} ${count} recorded employee${count === 1 ? '' : 's'}. Open Payroll for the saved gross pay, PAYE, National Insurance and student-loan calculation; this answer does not create or submit a run.`;
+    }
+    case 'review_business_filings': {
+      const count = input.snapshot.businessOpenFilingCount ?? 0;
+      return count === 0
+        ? 'There are no open filing deadlines in the current local window.'
+        : `There ${count === 1 ? 'is' : 'are'} ${count} open Business filing deadline${count === 1 ? '' : 's'} in the current local window. Open Filings for the exact dates, prepared working copies and any external submission references.`;
+    }
+    case 'review_business_clients': {
+      const count = input.snapshot.businessClientCount ?? 0;
+      return count === 0
+        ? 'There are no clients recorded in this Business workspace.'
+        : `There ${count === 1 ? 'is' : 'are'} ${count} recorded client${count === 1 ? '' : 's'} in this workspace, with ${outstandingInvoices} outstanding in total. Client names stay in the Clients surface rather than this aggregate chat context.`;
+    }
     case 'check_purchase': {
       if (input.amountCandidatesMinor.length > 1) {
         return `I found ${input.amountCandidatesMinor.map(formatMinorAmount).join(' and ')} in that question. Which single business amount should I check?`;
@@ -1725,7 +1853,7 @@ function buildBusinessMeloLocalAnswer(input: {
         : `There ${count === 1 ? 'is' : 'are'} ${count} active Business account${count === 1 ? '' : 's'}. Cash across non-card accounts is ${cash}; recorded card liabilities total ${liabilities}. Choose an account for its exact balance.`;
     }
     case 'clarify':
-      return 'I can explain Business cash and dated commitments, summarise the last 30 days, review accounts or unconfirmed records, check one proposed expense, and show activity or calendar changes. I will not invent invoices, tax, clients or future income.';
+      return 'I can explain Business cash and runway, invoices, VAT, tax, payroll, filings, clients, accounts and dated commitments; summarise the last 30 days; review uncertain records; or check one proposed expense. I use saved local records and do not invent future income.';
     case 'review_import':
       return null;
   }
@@ -1770,6 +1898,13 @@ function buildMeloLocalAnswer(input: {
       : `${available} available`;
 
   switch (input.intent) {
+    case 'review_business_invoices':
+    case 'review_business_vat':
+    case 'review_business_tax':
+    case 'review_business_payroll':
+    case 'review_business_filings':
+    case 'review_business_clients':
+      return 'That question uses Business workspace records. Switch to Business so Melo can answer from the correct local partition.';
     case 'check_purchase': {
       if (input.amountCandidatesMinor.length > 1) {
         return `I found ${input.amountCandidatesMinor.map(formatMinorAmount).join(' and ')} in that question. Which single amount should I check?`;
@@ -2057,6 +2192,30 @@ function buildFinancialConclusion(input: {
       return `${count} active Business commitment${count === 1 ? '' : 's'}, ${formatMinorAmount(input.snapshot.activeSubscriptionMonthlyMinor ?? 0)} per month.`;
     }
 
+    if (input.intent === 'review_business_invoices') {
+      return `${formatMinorAmount(input.snapshot.businessOutstandingInvoicesMinor ?? 0)} outstanding; ${formatMinorAmount(input.snapshot.businessOverdueInvoicesMinor ?? 0)} overdue.`;
+    }
+
+    if (input.intent === 'review_business_vat') {
+      return `${formatMinorAmount(input.snapshot.businessVatDueMinor ?? 0)} current VAT return; ${formatMinorAmount(input.snapshot.businessVatPotMinor ?? 0)} in the VAT pot.`;
+    }
+
+    if (input.intent === 'review_business_tax') {
+      return `${formatMinorAmount(input.snapshot.businessTaxEstimateMinor ?? 0)} local tax estimate; ${formatMinorAmount(input.snapshot.businessTaxPotMinor ?? 0)} in the tax pot.`;
+    }
+
+    if (input.intent === 'review_business_payroll') {
+      return `${input.snapshot.businessEmployeeCount ?? 0} recorded employee${(input.snapshot.businessEmployeeCount ?? 0) === 1 ? '' : 's'}.`;
+    }
+
+    if (input.intent === 'review_business_filings') {
+      return `${input.snapshot.businessOpenFilingCount ?? 0} open filing deadline${(input.snapshot.businessOpenFilingCount ?? 0) === 1 ? '' : 's'} in the local window.`;
+    }
+
+    if (input.intent === 'review_business_clients') {
+      return `${input.snapshot.businessClientCount ?? 0} recorded client${(input.snapshot.businessClientCount ?? 0) === 1 ? '' : 's'}.`;
+    }
+
     return `Business cash is ${formatMinorAmount(cash)}; the confirmed dated position is ${formatMinorAmount(projected)}.`;
   }
 
@@ -2169,11 +2328,23 @@ function chipsForIntent(
         return ['What is next?'];
       case 'review_irregular_income':
         return ['Show dated income'];
+      case 'review_business_invoices':
+        return ['Show my cash position'];
+      case 'review_business_vat':
+        return ['Show filing deadlines'];
+      case 'review_business_tax':
+        return ['Show filing deadlines'];
+      case 'review_business_payroll':
+        return ['Show my cash position'];
+      case 'review_business_filings':
+        return ['Show my tax position'];
+      case 'review_business_clients':
+        return ['Show outstanding invoices'];
       case 'clarify':
         return [
           'Explain my business cash position',
-          'What needs my review?',
-          'How has the last 30 days gone?',
+          'What invoices are overdue?',
+          'How is my tax pot?',
         ];
       default:
         return [];
@@ -2184,6 +2355,13 @@ function chipsForIntent(
     case 'check_purchase':
       return [];
     case 'explain_position':
+      return [];
+    case 'review_business_invoices':
+    case 'review_business_vat':
+    case 'review_business_tax':
+    case 'review_business_payroll':
+    case 'review_business_filings':
+    case 'review_business_clients':
       return [];
     case 'review_subscriptions':
       return [];
@@ -2239,6 +2417,62 @@ function actionsForBusinessDraft(input: {
   }
 
   switch (input.intent) {
+    case 'review_business_invoices':
+      return [
+        action(
+          'open_business_invoices',
+          'Open invoices',
+          'Review the saved invoice and payment records in this Business workspace.',
+          false,
+        ),
+      ];
+    case 'review_business_vat':
+      return [
+        action(
+          'open_business_vat',
+          'Open VAT',
+          'Review the local VAT boxes, return and pot.',
+          false,
+        ),
+      ];
+    case 'review_business_tax':
+      return [
+        action(
+          'open_business_tax',
+          input.snapshot.businessEntityKind === 'ltd'
+            ? 'Open Corporation Tax'
+            : 'Open Self-Assessment',
+          'Review the local tax estimate and saved policy version.',
+          false,
+        ),
+      ];
+    case 'review_business_payroll':
+      return [
+        action(
+          'open_business_payroll',
+          'Open payroll',
+          'Review employees and locally calculated payroll runs.',
+          false,
+        ),
+      ];
+    case 'review_business_filings':
+      return [
+        action(
+          'open_business_filings',
+          'Open filings',
+          'Review exact deadlines, working copies and external submission references.',
+          false,
+        ),
+      ];
+    case 'review_business_clients':
+      return [
+        action(
+          'open_business_clients',
+          'Open clients',
+          'Review client records inside this Business workspace.',
+          false,
+        ),
+      ];
     case 'explain_position':
       return [
         action(

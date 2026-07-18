@@ -3,7 +3,6 @@ import { routeFromStore } from './storeRoute';
 
 export const RECOVERY_BILL_NUDGE_DAYS = 5;
 export const RECOVERY_HOLD_DAYS = 3;
-export const RECOVERY_HOLD_FLOOR = 60;
 
 const HOLD_LOOKBACK_DAYS = 30;
 const DAY_MS = 86_400_000;
@@ -24,6 +23,7 @@ export type RecoveryRoutePreview = Readonly<{
   pausableSubscription: Sub | null;
   billLift: number;
   subscriptionLift: number;
+  holdDailyCap: number;
   holdLift: number;
 }>;
 
@@ -92,9 +92,11 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
         now,
       )
     : 0;
+  const averageDaily = averageDailyDiscretionary(state, now.getTime());
+  const holdDailyCap = averageDaily > 0 ? Math.max(1, Math.round(averageDaily * 0.5)) : 0;
   const holdLift = Math.max(
     0,
-    Math.round(averageDailyDiscretionary(state, now.getTime()) * RECOVERY_HOLD_DAYS),
+    Math.round((averageDaily - holdDailyCap) * RECOVERY_HOLD_DAYS),
   );
   return {
     baseTight,
@@ -105,6 +107,7 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
     pausableSubscription,
     billLift,
     subscriptionLift,
+    holdDailyCap,
     holdLift,
   };
 }

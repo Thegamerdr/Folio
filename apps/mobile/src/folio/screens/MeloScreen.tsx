@@ -86,7 +86,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
@@ -95,6 +95,7 @@ import { useAppStore, setMelo } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { canShowUpsell } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
+import { deriveMeloMemory } from '@/folio/lib/melo/memory';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import type { Nav, Pressure } from '@/folio/types';
@@ -171,6 +172,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const pots = useAppStore((s) => s.pots);
   const currentBalance = useAppStore((s) => s.currentBalance);
   const cycles = useAppStore((s) => s.cycles);
+  const tinyWins = useAppStore((s) => s.tinyWins ?? []);
 
   const { canAccess, fullUnlocked } = useLens();
 
@@ -213,6 +215,11 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   });
 
   const lastCycle = cycles[0]?.closedAt;
+  const memory = useMemo(() => deriveMeloMemory(tinyWins, cycles, 10), [tinyWins, cycles]);
+  const activeSubs = subs.filter((subscription) => !subPaused[subscription.name]).length;
+  const fundedPots = pots.filter((pot) => pot.saved > 0).length;
+  const lensLabel =
+    moneyMode === 'survival' ? 'Make it to payday' : MODE_LABEL[moneyMode].toLowerCase();
 
   // slide-in-r — drives the whole screen.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -334,7 +341,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           <View style={styles.lensLine}>
             <MeloWeatherGlyph weather={modeState.weather} size={12} />
             <Text style={[styles.lensLineText, { color: t.muted }]}>
-              {MODE_LABEL[moneyMode].toLowerCase()} lens
+              {lensLabel} lens
             </Text>
             {modeLocked ? (
               <Pressable
@@ -405,6 +412,82 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
                     : plumageCopy.caption
               }
             />
+          </View>
+        ) : null}
+
+        {!melo.quietMode ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>What he's reading</Text>
+            <View style={styles.readingGrid}>
+              <ReadingCell
+                label="balance"
+                value={formatWholePounds(currentBalance.amount)}
+                palette={t}
+              />
+              <ReadingCell label="live bills" value={String(activeSubs)} palette={t} />
+              <ReadingCell label="funded pots" value={String(fundedPots)} palette={t} />
+            </View>
+          </View>
+        ) : null}
+
+        {!melo.quietMode ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: t.ink }]}>Memory</Text>
+              <Text style={[styles.sectionHint, { color: t.muted }]}>
+                {memory.length > 0 ? `last ${memory.length}` : 'quiet so far'}
+              </Text>
+            </View>
+            {memory.length === 0 ? (
+              <View
+                style={[
+                  styles.memoryEmpty,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                ]}
+              >
+                <Melo size={28} mood="calm" />
+                <Text style={[styles.memoryEmptyCopy, { color: t.ink }]}>
+                  Hasn't needed to speak yet — that's not nothing.
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.memoryList,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                ]}
+              >
+                {memory.map((event, index) => (
+                  <View
+                    key={event.id}
+                    style={[
+                      styles.memoryRow,
+                      index > 0
+                        ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline }
+                        : undefined,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.memoryDot,
+                        {
+                          backgroundColor:
+                            event.kind === 'cycle-green'
+                              ? t.positive
+                              : event.kind === 'cycle-red'
+                                ? t.repair
+                                : t.calm,
+                        },
+                      ]}
+                    />
+                    <Text style={[styles.memoryLine, { color: t.ink }]}>{event.line}</Text>
+                    <Text style={[styles.memoryWhen, { color: t.muted }]}>
+                      {relativeTime(event.at)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         ) : null}
 
@@ -523,6 +606,46 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         </View>
       </ScrollView>
     </Animated.View>
+  );
+}
+
+function formatWholePounds(value: number): string {
+  const sign = value < 0 ? '−' : '';
+  return `${sign}£${Math.abs(Math.round(value)).toLocaleString('en-GB')}`;
+}
+
+function relativeTime(iso: string): string {
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return '';
+  const minutes = Math.max(0, Math.round((Date.now() - then) / 60_000));
+  if (minutes < 2) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return `${Math.round(days / 30)}mo ago`;
+}
+
+function ReadingCell({
+  label,
+  value,
+  palette,
+}: {
+  label: string;
+  value: string;
+  palette: Palette;
+}) {
+  return (
+    <View
+      style={[
+        styles.readingCell,
+        { backgroundColor: palette.surface, borderColor: palette.hairline },
+      ]}
+    >
+      <Text style={[styles.readingValue, { color: palette.ink }]}>{value}</Text>
+      <Text style={[styles.readingLabel, { color: palette.muted }]}>{label}</Text>
+    </View>
   );
 }
 
@@ -671,6 +794,76 @@ const styles = StyleSheet.create({
   meloLineWrap: {
     marginTop: gap.lg,
     paddingHorizontal: gap.xs + gap.xxs,
+  },
+  readingGrid: {
+    flexDirection: 'row',
+    gap: gap.sm,
+    marginTop: gap.md,
+  },
+  readingCell: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: gap.sm,
+    paddingVertical: gap.md,
+  },
+  readingValue: {
+    fontFamily: serif.display,
+    fontSize: 17,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 19,
+  },
+  readingLabel: {
+    fontSize: 10,
+    letterSpacing: 1.2,
+    marginTop: 6,
+    textTransform: 'uppercase',
+  },
+  memoryEmpty: {
+    alignItems: 'flex-start',
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: gap.md,
+    marginTop: gap.md,
+    padding: gap.md,
+  },
+  memoryEmptyCopy: {
+    flex: 1,
+    fontFamily: serif.displayItalic,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  memoryList: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.md,
+    overflow: 'hidden',
+  },
+  memoryRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: gap.sm,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm + 2,
+  },
+  memoryDot: {
+    borderRadius: 3,
+    height: 6,
+    marginTop: 6,
+    width: 6,
+  },
+  memoryLine: {
+    flex: 1,
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+  memoryWhen: {
+    fontSize: 10,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.6,
+    marginTop: 2,
   },
   wardrobeList: {
     marginTop: gap.md,

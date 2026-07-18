@@ -234,13 +234,22 @@ describe('shipping AppState typed-command wiring', () => {
       'folio.subscription.nudge.v1',
       'folio.subscription.nudge_reset.v1',
       'folio.subscription.remove.v1',
+      'folio.companion.tiny_win.award.v1',
       'folio.cycle.close.v1',
       'folio.debt.add.v1',
       'folio.debt.payment.record.v1',
       'folio.debt.payment.reverse.v1',
       'folio.debt.remove.v1',
     ]);
-    expect(pending.every((receipt) => receipt.command.actor.kind === 'user')).toBe(true);
+    expect(
+      pending
+        .filter((receipt) => receipt.command.type !== 'folio.companion.tiny_win.award.v1')
+        .every((receipt) => receipt.command.actor.kind === 'user'),
+    ).toBe(true);
+    expect(
+      pending.find((receipt) => receipt.command.type === 'folio.companion.tiny_win.award.v1')
+        ?.command.actor.kind,
+    ).toBe('system');
 
     const serialized = JSON.stringify(pending);
     for (const privateValue of [

@@ -242,6 +242,19 @@ const businessMeloSnapshot = {
   businessRunwayDays: 36,
   businessRunwayHistoryDays: 21,
   businessNextCommitmentDate: 'Friday',
+  businessEntityKind: 'ltd' as const,
+  businessClientCount: 3,
+  businessOutstandingInvoicesMinor: 250_000,
+  businessOverdueInvoicesMinor: 80_000,
+  businessOverdueInvoiceCount: 1,
+  businessVatRegistered: true,
+  businessVatDueMinor: 50_000,
+  businessVatPotMinor: 20_000,
+  businessTaxEstimateMinor: 100_000,
+  businessTaxPotMinor: 70_000,
+  businessObligations30Minor: 30_000,
+  businessEmployeeCount: 2,
+  businessOpenFilingCount: 3,
 } as const;
 
 describe('AI contract boundary', () => {
@@ -333,8 +346,8 @@ describe('local Melo AI functions', () => {
     expect(draft.financialConclusion).toBe('No confirmed Business picture is available yet.');
     expect(draft.followUpChips).toEqual([
       'Explain my business cash position',
-      'What needs my review?',
-      'How has the last 30 days gone?',
+      'What invoices are overdue?',
+      'How is my tax pot?',
     ]);
   });
 
@@ -344,6 +357,27 @@ describe('local Melo AI functions', () => {
     ['What needs my review?', 'review_import'],
   ] as const)('classifies the Business starter %s as %s', (prompt, intent) => {
     expect(classifyMeloLocalIntent(prompt.toLowerCase())).toBe(intent);
+  });
+
+  it.each([
+    ['What invoices are overdue?', 'review_business_invoices', '£800 is overdue'],
+    ['How is my VAT pot?', 'review_business_vat', '£300 is not yet covered'],
+    ['How is my Corporation Tax pot?', 'review_business_tax', '£300 is not yet covered'],
+    ['Review payroll', 'review_business_payroll', '2 recorded employees'],
+    ['What filing deadlines are open?', 'review_business_filings', '3 open Business filing deadlines'],
+    ['Review my clients', 'review_business_clients', '3 recorded clients'],
+  ] as const)('answers %s from aggregate-only Business records', (prompt, intent, expected) => {
+    const draft = draftMeloLocalAiResponse({
+      prompt,
+      snapshot: businessMeloSnapshot,
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+    expect(draft.intent).toBe(intent);
+    expect(draft.answer).toContain(expected);
+    expect(draft.usedCloud).toBe(false);
+    expect(draft.canWriteRecords).toBe(false);
   });
 
   it('drafts a local what-if answer without cloud, provider keys or direct writes', () => {

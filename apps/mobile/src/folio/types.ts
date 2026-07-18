@@ -53,7 +53,27 @@ export type ScreenId =
   | 'ritual'
   | 'insights'
   | 'shortfall'
-  | 'account';
+  | 'account'
+  | 'business-entity-setup'
+  | 'business-runway'
+  | 'business-clients'
+  | 'business-invoices'
+  | 'business-obligations'
+  | 'business-vat'
+  | 'business-corp-tax'
+  | 'business-payroll'
+  | 'business-dividends'
+  | 'business-dla'
+  | 'business-companies-house'
+  | 'business-filings'
+  | 'business-filing-vat'
+  | 'business-filing-sa'
+  | 'business-filing-ct'
+  | 'business-filing-cs'
+  | 'business-filing-accounts'
+  | 'business-filing-payroll'
+  | 'business-insights'
+  | 'business-deductions';
 
 // The single sheet the shell hosts at a time. `null` = no sheet. Mirrors the web SheetId union.
 export type SheetId =
@@ -102,6 +122,8 @@ export type MeloIntent = { prefill?: string; seed?: string };
 export type SheetPayload = {
   id?: string;
   date?: string;
+  /** Optional spend amount prefilled by an explicit preview-to-log action. */
+  amount?: number;
   addEventKind?: 'in' | 'out' | 'review' | 'deadline';
   addEventTitle?: string;
 };

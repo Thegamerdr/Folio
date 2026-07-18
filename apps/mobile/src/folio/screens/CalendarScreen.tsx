@@ -302,6 +302,8 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const manual = useAppStore((st) => st.calendarEvents);
   const focusDate = useAppStore((st) => st.calendarFocusDate);
   const pots = useAppStore((st) => st.pots);
+  const spendHold = useAppStore((st) => st.spendHold ?? null);
+  const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
   // DATA_INTELLIGENCE.md phase ④ — the real ledger, read ONLY for past-day enrichment
   // (deriveHistoricalDayEvents below). The forward projection (`events`/`groups` above) never reads
   // this; past-month navigation is the sole consumer.
@@ -357,6 +359,8 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             incomeSources,
             manualEvents: manual,
             pots,
+            spendHold,
+            whatIfHolds,
             now: today,
             includeSampleBills,
           })
@@ -369,6 +373,8 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
       incomeSources,
       manual,
       pots,
+      spendHold,
+      whatIfHolds,
       today,
       includeSampleBills,
     ],

@@ -739,6 +739,12 @@ export type Subscription = Readonly<{
   usesPerMonth: number;
   trialEndsInDays?: number;
   paused: boolean;
+  pausedUntil?: LocalDate;
+  autoResume?: 'prompt' | 'silent';
+  pauseReason?: string;
+  pausedAt?: LocalDate;
+  /** Present only for a recoverably cancelled subscription archive row. */
+  cancelledAt?: LocalDate;
   version: EntityVersion;
   provenanceId?: ProvenanceId;
 }>;
@@ -824,6 +830,24 @@ export type FinancialContext = Readonly<{
     defaultShare: number;
     subShareOverrides: Readonly<Record<string, number>>;
   }>;
+  spendHold?: Readonly<{
+    start: LocalDate;
+    end: LocalDate;
+    dailyCap: Money;
+    setAt: InstantString;
+    breachedDates: readonly LocalDate[];
+  }> | null;
+  whatIfHolds?: readonly Readonly<{
+    id: string;
+    amount: Money;
+    recurrence: 'once' | 'weekly' | 'monthly';
+    addedAt: InstantString;
+    label?: string;
+  }>[];
+  /** Lossless encrypted bridge for the workspace-scoped Business operations aggregate while its
+   * ledgers are promoted to dedicated canonical collections. The JSON is produced and read only by
+   * the typed Business workspace normalizer; UI code never consumes this field directly. */
+  businessOperationsJson?: string;
   version: EntityVersion;
 }>;
 
@@ -979,7 +1003,11 @@ export type TinyWinState = Readonly<{
     | 'bill-week-survived'
     | 'first-green-after-red'
     | 'first-pot-funded'
-    | 'first-sub-caught';
+    | 'first-sub-caught'
+    | 'first-postcard-shared'
+    | 'first-sub-cancelled'
+    | 'first-pot-fully-funded'
+    | 'four-week-green-streak';
   awardedAt: string;
   message: string;
 }>;
@@ -1006,6 +1034,26 @@ export type CompanionRuntimeState = Readonly<{
     tone: 'calm' | 'honest' | 'dry' | 'coachy';
   }>;
   tinyWins: readonly TinyWinState[];
+  meloPrimerSeen?: boolean;
+  lastOpenedAt?: InstantString | null;
+  oneMoveHistory?: readonly Readonly<{
+    key: string;
+    shownAt: LocalDate;
+    tappedAt?: InstantString;
+  }>[];
+  meloDismissLog?: readonly Readonly<{
+    kind: string;
+    reason:
+      | 'not-now'
+      | 'wrong-amount'
+      | 'wrong-pot'
+      | 'another-plan'
+      | 'just-no'
+      | null;
+    at: InstantString;
+    amount?: number;
+    potId?: string;
+  }>[];
   version: EntityVersion;
 }>;
 

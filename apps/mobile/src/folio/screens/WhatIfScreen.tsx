@@ -5,12 +5,12 @@
  *               (default £40, step £5, clamp 0..500) and watch, in real time with a count-up, what the
  *               new lowest point to payday becomes, how many days that figure covers, and whether it
  *               breaches the Melo-set floor or would eat into pots. A mini money-path SVG redraws its
- *               dip as the amount changes. A quiet, strictly read-only experiment — nothing is ever
- *               committed ("Close — nothing was added"). Faithful 1:1 RN port of the web design source
+ *               dip as the amount changes. Preview stays read-only unless the user explicitly saves
+ *               the scenario as a hold. Faithful RN port of the approved web design source
  *               (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenWhatIf.tsx).
  * @reads        pressure (mood band → baseLow via pressureLow) · tightPointGoal · pots (potsTotal)
- * @writes       — NONE. The whole point of the screen is that nothing is committed. No store mutation.
- *               Local component state `amount` only (preview-then-commit; no silent path mutation).
+ * @writes       addWhatIfHold / removeWhatIfHold only after an explicit action. Scrubbing and stepping
+ *               remain local previews and never mutate the money path.
  * @opens-sheet  — (the web @opens-sheet declared melo-chat as intent, but the body never opens it; the
  *               inline Melo here is non-interactive, so no sheet is opened — faithful to the source).
  * @copy         FROZEN — the WhatIf strings are inline @copy FROZEN in the web source and are NOT keyed
@@ -61,7 +61,13 @@ import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/
 import { Melo, type MeloMood } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { useAppStore, type Transaction } from '@/folio/store';
+import {
+  addWhatIfHold,
+  removeWhatIfHold,
+  useAppStore,
+  type Transaction,
+  type WhatIfHold,
+} from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import type { Nav, Pressure } from '@/folio/types';
 import type { MoneyMode } from '@/folio/lib/modes/types';
@@ -333,6 +339,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   const tightPointGoal = useAppStore((s) => s.tightPointGoal);
   const potsTotal = useAppStore((s) => s.pots.reduce((sum, p) => sum + p.saved, 0));
   const transactions = useAppStore((s) => s.transactions);
+  const whatIfHolds = useAppStore((s) => s.whatIfHolds ?? []);
 
   // Mode-tinted copy (BREAKS-PARITY fix) — eyebrow, intro, headline template, low/cover labels, and
   // CTA/cancel strings all vary by Money Mode (web `getWhatIfCopy(mode)`).
@@ -341,6 +348,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
 
   // The single piece of local state — the hypothetical spend. Clamp 0..500, step 5.
   const [amount, setAmount] = useState(AMOUNT_DEFAULT);
+  const [recurrence, setRecurrence] = useState<WhatIfHold['recurrence']>('once');
 
   // Mount-gate (mirrors TodayScreen): defer `new Date()` so nothing date-derived renders on the first
   // frame and the engine has an honest "today". Until it opens, baseLow falls back to the per-pressure
@@ -621,8 +629,85 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
             <Text style={styles.meloLine}>{meloLine}</Text>
           </View>
 
+          <View style={styles.recurrenceRow}>
+            {(['once', 'weekly', 'monthly'] as const).map((option) => {
+              const selected = recurrence === option;
+              return (
+                <Pressable
+                  key={option}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => setRecurrence(option)}
+                  style={({ pressed: isPressed }) => [
+                    styles.recurrenceButton,
+                    selected ? styles.recurrenceButtonSelected : undefined,
+                    isPressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.recurrenceLabel,
+                      selected ? styles.recurrenceLabelSelected : undefined,
+                    ]}
+                  >
+                    {option === 'once' ? 'one-off' : option}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {whatIfHolds.length > 0 ? (
+            <View style={styles.holdsCard}>
+              <Text style={styles.holdsEyebrow}>Active holds</Text>
+              {whatIfHolds.map((hold, index) => (
+                <View
+                  key={hold.id}
+                  style={[
+                    styles.holdRow,
+                    index > 0
+                      ? {
+                          borderTopWidth: StyleSheet.hairlineWidth,
+                          borderTopColor: t.hairline,
+                        }
+                      : undefined,
+                  ]}
+                >
+                  <Text style={styles.holdAmount}>
+                    £{hold.amount} <Text style={styles.holdRecurrence}>· {hold.recurrence}</Text>
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove £${hold.amount} ${hold.recurrence} hold`}
+                    onPress={() => removeWhatIfHold(hold.id)}
+                    hitSlop={10}
+                  >
+                    <Text style={styles.removeHold}>remove</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Save £${amount} ${recurrence} as a hold`}
+            onPress={() => {
+              addWhatIfHold({ amount, recurrence });
+              nav.go('today');
+            }}
+            style={({ pressed: isPressed }) => [
+              styles.saveHold,
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={styles.saveHoldLabel}>
+              Save as hold · £{amount} {recurrence}
+            </Text>
+          </Pressable>
+
           {/* CTAs — the dominant "See it on your money path" (→ today) and the quiet, honest close
-              ("Close — nothing was added", → back). Nothing was committed. */}
+              ("Close — nothing was added", → back). Neither commits by itself. */}
           <Pressable
             accessibilityRole="button"
             accessibilityHint="Opens your money path on Today."
@@ -848,6 +933,75 @@ function makeStyles(t: Palette) {
       fontSize: 13,
       lineHeight: 18,
     },
+    recurrenceRow: {
+      flexDirection: 'row',
+      gap: 6,
+      marginTop: gap.lg,
+    },
+    recurrenceButton: {
+      alignItems: 'center',
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      flex: 1,
+      height: 36,
+      justifyContent: 'center',
+    },
+    recurrenceButtonSelected: {
+      backgroundColor: t.calmSoft,
+      borderColor: t.calm,
+    },
+    recurrenceLabel: {
+      color: t.muted,
+      fontSize: 12,
+    },
+    recurrenceLabelSelected: {
+      color: t.calm,
+      fontWeight: '600',
+    },
+    holdsCard: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      marginTop: gap.lg,
+      overflow: 'hidden',
+      paddingHorizontal: gap.lg,
+    },
+    holdsEyebrow: {
+      color: t.muted,
+      fontSize: 10.5,
+      letterSpacing: CAPTION_TRACKING,
+      paddingTop: gap.lg,
+      textTransform: 'uppercase',
+    },
+    holdRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      minHeight: 44,
+    },
+    holdAmount: {
+      color: t.ink,
+      fontSize: 13,
+      fontVariant: ['tabular-nums'],
+    },
+    holdRecurrence: { color: t.muted, fontSize: 11.5 },
+    removeHold: { color: t.muted, fontSize: 11.5 },
+    saveHold: {
+      alignItems: 'center',
+      backgroundColor: t.calm,
+      borderRadius: radius.xl,
+      height: 54,
+      justifyContent: 'center',
+      marginTop: gap.xl,
+    },
+    saveHoldLabel: {
+      color: t.inverse,
+      fontSize: 15,
+      fontWeight: '500',
+    },
 
     // Primary CTA — web press mt-5 mb-3 h-[54px] rounded-2xl bg-accent text-white. The literal white
     // label is the on-accent foreground (t.inverse), not ink.
@@ -858,7 +1012,7 @@ function makeStyles(t: Palette) {
       height: 54,
       justifyContent: 'center',
       marginBottom: gap.md,
-      marginTop: gap.xl,
+      marginTop: gap.sm,
     },
     primaryLabel: {
       color: t.inverse,

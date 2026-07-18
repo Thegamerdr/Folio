@@ -5,6 +5,12 @@ import type { LocalMeloTurn } from './localMeloTurn';
 export const ROUTABLE_LOCAL_MELO_INTENTS: ReadonlySet<MeloLocalIntent> = new Set([
   'check_purchase',
   'explain_position',
+  'review_business_invoices',
+  'review_business_vat',
+  'review_business_tax',
+  'review_business_payroll',
+  'review_business_filings',
+  'review_business_clients',
   'review_subscriptions',
   'review_recurring',
   'summarise_month',
@@ -23,6 +29,12 @@ const CANONICAL_PROMPTS: Readonly<
   Record<Exclude<MeloLocalIntent, 'check_purchase' | 'clarify'>, string>
 > = {
   explain_position: 'Explain my current position and Safe Zone',
+  review_business_invoices: 'Review my Business invoices',
+  review_business_vat: 'Review my Business VAT position',
+  review_business_tax: 'Review my Business tax estimate',
+  review_business_payroll: 'Review my Business payroll',
+  review_business_filings: 'Review my Business filing deadlines',
+  review_business_clients: 'Review my Business clients',
   review_subscriptions: 'Review my subscriptions',
   review_recurring: 'Review my recurring payments',
   summarise_month: 'Summarise my month',

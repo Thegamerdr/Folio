@@ -166,13 +166,14 @@ function isAllowedPolicyClassifierLine(file, line, code) {
   // candidate MUST be reviewed before it becomes a posted fact. This is the OPPOSITE of a fake trust
   // score: it is the honest review gate. The field name `confidence` / `CandidateConfidence` is shared
   // with the import pipeline (folio/lib/importSheet.ts), so renaming it here would ripple wrongly.
-  // Allow ONLY the review-before-truth candidate marker in these three reader files — the gate stays
+  // Allow ONLY the review-before-truth candidate marker in these four reader files — the gate stays
   // strict for confidence-as-trust everywhere else.
   if (code === 'canonical.fake_confidence') {
     const isReaderReviewFile =
       file.includes(join('apps', 'mobile', 'src', 'local', 'statementReaderParse.ts')) ||
       file.includes(join('apps', 'mobile', 'src', 'local', 'statementReaderClient.ts')) ||
-      file.includes(join('apps', 'mobile', 'src', 'local', 'localOcrCandidates.ts'));
+      file.includes(join('apps', 'mobile', 'src', 'local', 'localOcrCandidates.ts')) ||
+      file.includes(join('apps', 'mobile', 'src', 'local', 'localDocumentCandidates.ts'));
     const isExactCanonicalReaderState =
       file.endsWith(join('packages', 'domain', 'src', 'index.ts')) &&
       /^\s*confidence:\s*'high'\s*\|\s*'medium'\s*\|\s*'low';\s*$/.test(line);
