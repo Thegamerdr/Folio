@@ -70,6 +70,9 @@ chrome is a design-source presentation device and is not the approved Android na
 | Calendar                             | Derived Business deadlines and local ICS export; no fictional hosted `webcal` URL.                                                                                                      |
 | Owner money                          | Paired Business/Personal owner transfer with rollback instead of an invisible cross-workspace row.                                                                                      |
 | Documents                            | PDF, image, paste, CSV and text reading is local; receipt/statement candidates wait in Review before becoming ledger truth.                                                             |
+| Confirmed-transaction evidence       | Additional receipt images or files can be encrypted, attached to an existing transaction, opened, and detached without changing the financial record or deleting the retained source.   |
+| Flat Rate sectors                    | Searchable selector contains the 54 official HMRC sectors, rates and activity examples from the versioned FRS7300 source; limited-cost override remains explicit.                       |
+| Physical feedback                    | Central event map provides restrained haptics and two local cues across four milestone events. Sounds are opt-in, respect Quiet Mode and silent mode, and never use a network service.  |
 | Sample data                          | The runtime stays empty until the user enters or confirms real records. The synthetic-data guard passes.                                                                                |
 
 ## Approved Business engine coverage
@@ -119,6 +122,18 @@ Evidence:
 - [Standalone release · Business More](./11-emulator-release-business-more.png)
 - [Standalone release · Business Deductions](./12-emulator-release-business-deductions.png)
 - [Standalone release · VAT empty state](./13-emulator-release-vat-empty.png)
+- [Flat Rate setup requires an official sector](./14-emulator-frs-sector-control.png)
+- [Searchable 54-sector HMRC catalogue](./15-emulator-frs-sector-list.png)
+- [Updated build · physical phone Business empty state](./16-phone-current-after-update.png)
+- [Updated build · physical phone workspace switcher](./17-phone-workspace-switcher.png)
+- [Updated build · physical phone Personal empty state](./18-phone-personal-after-update.png)
+- [Updated build · emulator feedback settings](./19-emulator-milestone-sounds.png)
+- [Updated build · physical phone feedback settings](./20-phone-milestone-sounds.png)
+
+The confirmed-transaction receipt controls were verified through source review, canonical-state
+round-trip tests, store command tests and export tests. They were not populated for a screenshot:
+both tested workspaces were genuinely empty, and creating a fake transaction solely to obtain visual
+proof would violate the no-sample-data requirement.
 
 The debug-only “Open debugger to view warnings” strip seen during hot reload is React Native
 development chrome. It is absent from the standalone release build and is not part of the product
@@ -141,7 +156,9 @@ No broad redesign is recommended. The correct next design work is targeted valid
 
 ## Genuine unfinished work
 
-These items are not disguised as finished:
+These items are not disguised as finished. The prior Flat Rate catalogue, confirmed-transaction
+receipt attachment and physical-feedback gaps are now closed; they are recorded above rather than
+left on this list.
 
 1. **Live Open Banking activation.** TrueLayer Data v3 is the approved primary provider and
    GoCardless Bank Account Data is the fallback. The checked-in provider boundary is not production
@@ -152,37 +169,36 @@ These items are not disguised as finished:
 2. **Direct HMRC/MTD and Companies House submission.** The app prepares traceable working copies and
    records an external submission, but it does not transmit a filing. A real adapter requires the
    separate compliance and conformance programme.
-3. **Flat Rate sector catalogue.** `VAT_SCHEME_CHOOSER.md` references a 55-sector
-   `frsSectors.ts`, but that file is not present in the approved Lovable source. Native therefore
-   accepts the user’s current HMRC sector percentage and handles limited-cost/first-year rules
-   locally rather than inventing a sector table. Shipping an automatic sector picker requires a
-   verified versioned table.
-4. **Post-confirmation receipt attachment.** The intake reader can classify and read a receipt
-   locally, retain its source and place the candidate in Business Review. A separate swipe action to
-   attach an additional image to an already confirmed transaction is not yet a complete native
-   flow.
-5. **Physical feedback.** Centralised visual press feedback exists, but the approved real haptic and
-   sound-bank pass is not complete.
-6. **Release operations.** Store declarations, submitted-binary review, current privacy-policy
+3. **Release operations.** Store declarations, submitted-binary review, current privacy-policy
    URL, processor/SDK inventories, production Sentry organisation/project and source-map upload,
    accessibility sign-off, tax/legal sign-off and support runbooks remain release gates.
-7. **iOS/Watch parity.** This pass validated Android. It does not constitute iOS, Apple Watch or
+4. **iOS/Watch parity.** This pass validated Android. It does not constitute iOS, Apple Watch or
    Wear OS device proof.
 
 ## Verification record
 
-- Mobile TypeScript build: passed.
-- Business workspace TypeScript build: passed.
-- Full repository suite: 2,550 tests passed, 0 failed.
-- Focused regression suite: 343 tests passed.
-- Business operations tests: 15 passed.
+- Full monorepo TypeScript check: passed for mobile, packages, gateway, cloud, Open Banking and
+  billing.
+- Full repository suite: 2,558 tests passed across 211 files, 0 failed.
+- Business operations and official Flat Rate sector tests: passed.
+- Dependency install/frozen-lockfile check: passed.
 - Dependency-boundary check: passed.
 - Canonical product, product-constitution and V1 boundary gates: passed.
 - Synthetic/sample-data policy: passed.
-- Android standalone release build: passed; production APK contains `arm64-v8a` only.
-- Prettier check for touched files: passed.
+- Android standalone ARM64 release build: passed and is restored as the canonical output.
+- Android standalone x86_64 release build: passed and ran on the emulator without a crash.
+- Physical Samsung Galaxy S9 ARM64 update: installed over the existing debug-signed app without
+  clearing encrypted state; the updated app ran without a crash.
+- Official ARM64 APK SHA-256:
+  `839ED04AC8506EA0B1A25F4E067A2407488E9DADC4B7E743F8017FD90F6C2C10`.
+- Prettier check for every touched source file: passed.
 - `git diff --check`: passed.
 
+The substantive lint gates pass. The aggregate lint command still reports 17 tracked files that were
+already unformatted before this pass, plus the pre-existing untracked `tmp/vitest-final.json`; none
+is part of this change and none was rewritten opportunistically.
+
 The release-foundation gate passes. The operations, public-release and store-declaration status
-checks run successfully but remain blocked on the external/owner evidence listed above; they are not
-currently green public-store approval.
+checks run successfully but remain blocked on the external/owner evidence listed above; this is a
+completed local Android implementation pass, not a claim that public-store approval or live external
+integrations are complete.

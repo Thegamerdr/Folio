@@ -23,6 +23,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { gap, pressed, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { addTransaction, removeTransaction, useAppStore, type Transaction } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
+import { triggerFeedback } from '@/folio/lib/feedback';
 import type { Nav } from '@/folio/types';
 
 const MIN_TAP = 44;
@@ -182,6 +183,7 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                           // restore it identically — same id/when/merchant/amount/category/source.
                           const snapshot = tx;
                           removeTransaction(tx.id);
+                          void triggerFeedback('delete-confirm');
                           showUndo(`Removed ${tx.merchant}`, () => {
                             addTransaction(snapshot);
                           });

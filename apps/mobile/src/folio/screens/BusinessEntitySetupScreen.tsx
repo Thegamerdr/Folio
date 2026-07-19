@@ -1,10 +1,24 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   emptyBusinessOperationsState,
+  findFlatRateSector,
+  HMRC_FRS_SECTOR_SOURCE,
   normaliseBusinessOperationsState,
+  searchFlatRateSectors,
   type BusinessEntity,
+  type FlatRateSector,
   type StudentLoanPlan,
   type TaxRegion,
   type VatScheme,
@@ -52,16 +66,23 @@ export function BusinessEntitySetupScreen({ nav }: { nav: Nav }) {
   const [limitedCostTrader, setLimitedCostTrader] = useState(
     current?.vat.registered ? current.vat.limitedCostTrader === true : false,
   );
-  const [flatRatePercent, setFlatRatePercent] = useState(
+  const [flatRateSectorId, setFlatRateSectorId] = useState<string | undefined>(
     current?.vat.registered && current.vat.scheme === 'flat-rate'
-      ? ((current.vat.flatRateBasisPoints ?? 0) / 100).toString()
-      : '',
+      ? current.vat.flatRateSectorId
+      : undefined,
   );
+  const flatRateSector = useMemo(() => findFlatRateSector(flatRateSectorId), [flatRateSectorId]);
   const [studentPlans, setStudentPlans] = useState<readonly StudentLoanPlan[]>(
     current?.kind === 'sole-trader' ? current.studentLoanPlans : [],
   );
 
-  const canSave = kind === 'sole-trader' || (kind === 'ltd' && name.trim().length > 0);
+  const entityReady = kind === 'sole-trader' || (kind === 'ltd' && name.trim().length > 0);
+  const flatRateReady =
+    !vatRegistered ||
+    vatScheme !== 'flat-rate' ||
+    limitedCostTrader ||
+    flatRateSector !== undefined;
+  const canSave = entityReady && flatRateReady;
 
   const save = () => {
     if (!kind || !canSave) return;
@@ -73,10 +94,13 @@ export function BusinessEntitySetupScreen({ nav }: { nav: Nav }) {
           ...(vatNumber.trim() ? { number: vatNumber.trim() } : {}),
           ...(validIsoDay(vatRegisteredAt) ? { registeredAt: vatRegisteredAt } : {}),
           ...(vatScheme === 'flat-rate' ? { limitedCostTrader } : {}),
-          ...(vatScheme === 'flat-rate' &&
-          !limitedCostTrader &&
-          Number.isFinite(Number(flatRatePercent))
-            ? { flatRateBasisPoints: Math.max(0, Math.round(Number(flatRatePercent) * 100)) }
+          ...(vatScheme === 'flat-rate' && flatRateSector !== undefined
+            ? {
+                flatRateBasisPoints: flatRateSector.rateBasisPoints,
+                flatRateSectorId: flatRateSector.id,
+                flatRateSectorLabel: flatRateSector.label,
+                flatRateSourceVersion: HMRC_FRS_SECTOR_SOURCE.id,
+              }
             : {}),
         } as const)
       : ({ registered: false } as const);
@@ -320,14 +344,15 @@ export function BusinessEntitySetupScreen({ nav }: { nav: Nav }) {
                       onChange={(value) => setLimitedCostTrader(value === 'limited')}
                     />
                     {!limitedCostTrader ? (
-                      <Field
-                        keyboardType="decimal-pad"
-                        label="HMRC sector rate · %"
-                        onChangeText={setFlatRatePercent}
-                        placeholder="12.5"
-                        value={flatRatePercent}
+                      <FlatRateSectorPicker
+                        onChange={setFlatRateSectorId}
+                        selected={flatRateSector}
                       />
-                    ) : null}
+                    ) : (
+                      <Text style={[styles.flatRateNote, { color: t.muted }]}>
+                        The 16.5% limited-cost rate overrides the normal sector rate for the period.
+                      </Text>
+                    )}
                   </>
                 ) : null}
               </View>
@@ -479,6 +504,167 @@ function ChoiceGroup({
   );
 }
 
+function FlatRateSectorPicker({
+  selected,
+  onChange,
+}: {
+  selected: FlatRateSector | undefined;
+  onChange: (id: string) => void;
+}) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const results = useMemo(() => searchFlatRateSectors(query), [query]);
+
+  return (
+    <View style={styles.choiceBlock}>
+      <Text style={[styles.fieldLabel, { color: t.muted }]}>HMRC business sector</Text>
+      <Pressable
+        accessibilityHint="Opens the official Flat Rate Scheme sector list"
+        accessibilityLabel={
+          selected === undefined
+            ? 'Choose HMRC business sector'
+            : `${selected.label}, ${formatFlatRate(selected.rateBasisPoints)}`
+        }
+        accessibilityRole="button"
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => [
+          styles.sectorButton,
+          {
+            backgroundColor: t.inset,
+            borderColor: selected === undefined ? t.repairInk : t.hairline,
+            opacity: pressed ? 0.68 : 1,
+          },
+        ]}
+      >
+        <View style={styles.sectorButtonCopy}>
+          <Text
+            numberOfLines={2}
+            style={[styles.sectorButtonTitle, { color: selected === undefined ? t.muted : t.ink }]}
+          >
+            {selected?.label ?? 'Choose the closest sector'}
+          </Text>
+          <Text style={[styles.sectorButtonHint, { color: t.muted }]}>
+            {selected === undefined
+              ? 'Search by trade or activity'
+              : `HMRC rate · ${formatFlatRate(selected.rateBasisPoints)}`}
+          </Text>
+        </View>
+        <Text accessibilityElementsHidden style={[styles.sectorChevron, { color: t.muted }]}>
+          ›
+        </Text>
+      </Pressable>
+      {selected === undefined ? (
+        <Text style={[styles.flatRateValidation, { color: t.repairInk }]}>
+          Choose a sector before saving this Flat Rate setup.
+        </Text>
+      ) : null}
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setOpen(false)}
+        presentationStyle="pageSheet"
+        visible={open}
+      >
+        <View
+          style={[
+            styles.sectorModal,
+            {
+              backgroundColor: t.canvas,
+              paddingTop: insets.top + gap.md,
+              paddingBottom: insets.bottom,
+            },
+          ]}
+        >
+          <View style={styles.sectorModalHeader}>
+            <View style={styles.sectorModalTitleCopy}>
+              <Text accessibilityRole="header" style={[styles.sectorModalTitle, { color: t.ink }]}>
+                Flat Rate sector
+              </Text>
+              <Text style={[styles.sectorModalSubtitle, { color: t.muted }]}>
+                {HMRC_FRS_SECTOR_SOURCE.sectorCount} official sectors · checked 19 July 2026
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Close sector list"
+              accessibilityRole="button"
+              onPress={() => setOpen(false)}
+              style={({ pressed }) => [
+                styles.sectorClose,
+                { backgroundColor: t.inset, opacity: pressed ? 0.65 : 1 },
+              ]}
+            >
+              <Text style={[styles.sectorCloseLabel, { color: t.ink }]}>Done</Text>
+            </Pressable>
+          </View>
+          <TextInput
+            accessibilityLabel="Search Flat Rate sectors"
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setQuery}
+            placeholder="Try plumber, taxi or bookkeeping"
+            placeholderTextColor={t.muted}
+            returnKeyType="search"
+            selectionColor={t.calmStrong}
+            style={[styles.sectorSearch, { backgroundColor: t.inset, color: t.ink }]}
+            value={query}
+          />
+          <FlatList
+            contentContainerStyle={styles.sectorList}
+            data={results}
+            keyboardShouldPersistTaps="handled"
+            keyExtractor={(sector) => sector.id}
+            ListEmptyComponent={
+              <Text style={[styles.sectorEmpty, { color: t.muted }]}>
+                No official sector matches that search. Try the work the business actually does.
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const isSelected = selected?.id === item.id;
+              return (
+                <Pressable
+                  accessibilityLabel={`${item.label}, ${formatFlatRate(item.rateBasisPoints)}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  onPress={() => {
+                    onChange(item.id);
+                    setOpen(false);
+                    setQuery('');
+                  }}
+                  style={({ pressed }) => [
+                    styles.sectorRow,
+                    {
+                      backgroundColor: isSelected ? t.inset : t.canvas,
+                      borderColor: isSelected ? t.calmStrong : t.hairline,
+                      opacity: pressed ? 0.64 : 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.sectorRowCopy}>
+                    <Text style={[styles.sectorRowTitle, { color: t.ink }]}>{item.label}</Text>
+                    <Text numberOfLines={2} style={[styles.sectorExamples, { color: t.muted }]}>
+                      {item.examples.slice(0, 3).join(' · ')}
+                    </Text>
+                  </View>
+                  <Text style={[styles.sectorRate, { color: t.calmStrong }]}>
+                    {formatFlatRate(item.rateBasisPoints)}
+                  </Text>
+                </Pressable>
+              );
+            }}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function formatFlatRate(rateBasisPoints: number): string {
+  return `${(rateBasisPoints / 100).toFixed(rateBasisPoints % 100 === 0 ? 0 : 1)}%`;
+}
+
 function validIsoDay(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
 }
@@ -552,6 +738,60 @@ const styles = StyleSheet.create({
   switchTitle: { fontSize: 14, fontWeight: '700' },
   switchHint: { fontSize: 11.5, lineHeight: 17, marginTop: 2 },
   vatDetails: { marginTop: gap.xs },
+  flatRateNote: { fontSize: 12, lineHeight: 18, marginTop: gap.md },
+  flatRateValidation: { fontSize: 11.5, lineHeight: 17, marginTop: gap.xs },
+  sectorButton: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 62,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+  },
+  sectorButtonCopy: { flex: 1, paddingRight: gap.sm },
+  sectorButtonTitle: { fontSize: 13.5, fontWeight: '700', lineHeight: 19 },
+  sectorButtonHint: { fontSize: 11.5, lineHeight: 17, marginTop: 2 },
+  sectorChevron: { fontSize: 24, lineHeight: 28 },
+  sectorModal: { flex: 1, paddingHorizontal: gap.xl },
+  sectorModalHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sectorModalTitleCopy: { flex: 1, paddingRight: gap.md },
+  sectorModalTitle: { fontFamily: serif.display, fontSize: 27, letterSpacing: -0.3 },
+  sectorModalSubtitle: { fontSize: 11.5, lineHeight: 17, marginTop: 2 },
+  sectorClose: {
+    alignItems: 'center',
+    borderRadius: 999,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: gap.md,
+  },
+  sectorCloseLabel: { fontSize: 12.5, fontWeight: '700' },
+  sectorSearch: {
+    borderRadius: radius.md,
+    fontSize: 14,
+    marginTop: gap.lg,
+    minHeight: 48,
+    paddingHorizontal: gap.md,
+  },
+  sectorList: { paddingBottom: gap.xxxl, paddingTop: gap.md },
+  sectorEmpty: { fontSize: 13, lineHeight: 20, paddingVertical: gap.xl, textAlign: 'center' },
+  sectorRow: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    marginBottom: gap.sm,
+    minHeight: 74,
+    padding: gap.md,
+  },
+  sectorRowCopy: { flex: 1, paddingRight: gap.md },
+  sectorRowTitle: { fontSize: 13.5, fontWeight: '700', lineHeight: 19 },
+  sectorExamples: { fontSize: 11.5, lineHeight: 16, marginTop: 3 },
+  sectorRate: { fontSize: 14, fontWeight: '800' },
   save: {
     alignItems: 'center',
     borderRadius: radius.md,

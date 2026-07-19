@@ -90,6 +90,7 @@ import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { getShortfallCopy } from '@/folio/lib/modes/action';
+import { triggerFeedback } from '@/folio/lib/feedback';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy (spec stateBranches). The STATES matrix gives Shortfall
@@ -159,6 +160,8 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   const pots = useAppStore((s) => s.pots);
   const subs = useAppStore((s) => s.subs);
   const subPaused = useAppStore((s) => s.subPaused);
+  const soundEnabled = useAppStore((s) => s.melo?.soundEnabled === true);
+  const quietMode = useAppStore((s) => s.melo?.quietMode === true);
   // Mode-aware copy (web getShortfallCopy(mode)) — every string on this screen tints by the user's
   // moneyMode, mirroring ScreenShortfall.tsx exactly. Falls back to 'survival' copy when unset.
   const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival');
@@ -263,6 +266,10 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   useEffect(() => {
     if (prevGapRef.current > 0 && gapNow === 0) {
       setRelief(true);
+      void triggerFeedback('shortfall-closed', {
+        soundEnabled,
+        quietMode,
+      });
       const id = setTimeout(() => {
         setRelief(false);
         nav.back();
@@ -271,7 +278,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     }
     prevGapRef.current = gapNow;
     return undefined;
-  }, [gapNow, nav]);
+  }, [gapNow, nav, quietMode, soundEnabled]);
   const meloMood = relief ? 'cheer' : 'concern';
 
   // ── EMPTY ──────────────────────────────────────────────────────────────────────────────────────

@@ -248,6 +248,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   };
 
   const toggleQuietMode = () => setMelo({ quietMode: !melo.quietMode });
+  const toggleMilestoneSounds = () => setMelo({ soundEnabled: melo.soundEnabled !== true });
 
   // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness).
   if (state === 'empty' || state === 'error') {
@@ -340,9 +341,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               lock so the paywall state is legible without opening the picker. */}
           <View style={styles.lensLine}>
             <MeloWeatherGlyph weather={modeState.weather} size={12} />
-            <Text style={[styles.lensLineText, { color: t.muted }]}>
-              {lensLabel} lens
-            </Text>
+            <Text style={[styles.lensLineText, { color: t.muted }]}>{lensLabel} lens</Text>
             {modeLocked ? (
               <Pressable
                 accessibilityLabel="This lens is Full — tap to see access options"
@@ -452,10 +451,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               </View>
             ) : (
               <View
-                style={[
-                  styles.memoryList,
-                  { backgroundColor: t.surface, borderColor: t.hairline },
-                ]}
+                style={[styles.memoryList, { backgroundColor: t.surface, borderColor: t.hairline }]}
               >
                 {memory.map((event, index) => (
                   <View
@@ -564,6 +560,45 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             >
               <Text style={[styles.quietPillLabel, { color: melo.quietMode ? t.calm : t.muted }]}>
                 {melo.quietMode ? 'on' : 'off'}
+              </Text>
+            </View>
+          </Pressable>
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityLabel={`Milestone sounds, ${melo.soundEnabled === true ? 'on' : 'off'}`}
+            accessibilityHint="Optional sounds play only for earned or completed milestone moments"
+            accessibilityState={{ checked: melo.soundEnabled === true }}
+            onPress={toggleMilestoneSounds}
+            style={({ pressed: isPressed }) => [
+              styles.quietRow,
+              styles.soundRow,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <View style={styles.quietText}>
+              <Text style={[styles.quietLabel, { color: t.ink }]}>Milestone sounds</Text>
+              <Text style={[styles.quietHint, { color: t.muted }]}>
+                {melo.quietMode
+                  ? 'Quiet Mode keeps them silent.'
+                  : melo.soundEnabled === true
+                    ? 'Only rituals and earned moments.'
+                    : 'Off by default.'}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.quietPill,
+                { backgroundColor: melo.soundEnabled === true ? t.calmSoft : 'transparent' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.quietPillLabel,
+                  { color: melo.soundEnabled === true ? t.calm : t.muted },
+                ]}
+              >
+                {melo.soundEnabled === true ? 'on' : 'off'}
               </Text>
             </View>
           </Pressable>
@@ -902,6 +937,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: gap.lg,
     paddingVertical: gap.lg,
+  },
+  soundRow: {
+    marginTop: gap.sm,
   },
   quietText: {
     flex: 1,

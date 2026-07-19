@@ -244,13 +244,9 @@ export function readCanonicalAppStateMoneyProjection(
       ...(subscription.trialEndsInDays === undefined
         ? {}
         : { trialEndsInDays: subscription.trialEndsInDays }),
-      ...(subscription.pausedUntil === undefined
-        ? {}
-        : { pausedUntil: subscription.pausedUntil }),
+      ...(subscription.pausedUntil === undefined ? {} : { pausedUntil: subscription.pausedUntil }),
       ...(subscription.autoResume === undefined ? {} : { autoResume: subscription.autoResume }),
-      ...(subscription.pauseReason === undefined
-        ? {}
-        : { pauseReason: subscription.pauseReason }),
+      ...(subscription.pauseReason === undefined ? {} : { pauseReason: subscription.pauseReason }),
       ...(subscription.pausedAt === undefined ? {} : { pausedAt: subscription.pausedAt }),
     }));
   const subs = reanchorRenewals(subscriptions, todayISO).items;
@@ -451,6 +447,9 @@ export function readCanonicalAppStateMoneyProjection(
       sourceType: document.sourceType,
       extractionStatus: document.extractionStatus,
       storageState: document.storageState,
+      ...(document.linkedTransactionIds === undefined
+        ? {}
+        : { linkedTransactionIds: [...document.linkedTransactionIds] }),
     }));
   const timelineEvents: NonNullable<AppState['timelineEvents']> =
     transactionIntelligence.timelineEvents.map((event) => ({
@@ -576,6 +575,9 @@ export function readCanonicalAppStateMoneyProjection(
       quietMode: companionRuntime.melo.quietMode,
       wardrobe: [...companionRuntime.melo.wardrobe],
       tone: companionRuntime.melo.tone,
+      ...(companionRuntime.melo.soundEnabled === undefined
+        ? {}
+        : { soundEnabled: companionRuntime.melo.soundEnabled }),
     },
     tinyWins: companionRuntime.tinyWins.map((win) => ({ ...win })),
     meloPrimerSeen: companionRuntime.meloPrimerSeen === true,
@@ -1039,13 +1041,9 @@ function normalizedSourceMoneyProjection(
       ...(subscription.trialEndsInDays === undefined
         ? {}
         : { trialEndsInDays: subscription.trialEndsInDays }),
-      ...(subscription.pausedUntil === undefined
-        ? {}
-        : { pausedUntil: subscription.pausedUntil }),
+      ...(subscription.pausedUntil === undefined ? {} : { pausedUntil: subscription.pausedUntil }),
       ...(subscription.autoResume === undefined ? {} : { autoResume: subscription.autoResume }),
-      ...(subscription.pauseReason === undefined
-        ? {}
-        : { pauseReason: subscription.pauseReason }),
+      ...(subscription.pauseReason === undefined ? {} : { pauseReason: subscription.pauseReason }),
       ...(subscription.pausedAt === undefined ? {} : { pausedAt: subscription.pausedAt }),
     })),
     todayISO,
@@ -1192,6 +1190,7 @@ function normalizedSourceMoneyProjection(
       quietMode: state.melo?.quietMode ?? false,
       wardrobe: [...(state.melo?.wardrobe ?? [])],
       tone: state.melo?.tone ?? 'calm',
+      ...(state.melo?.soundEnabled === undefined ? {} : { soundEnabled: state.melo.soundEnabled }),
     },
     tinyWins: (state.tinyWins ?? []).map((win) => ({ ...win })),
     meloPrimerSeen: state.meloPrimerSeen === true,
@@ -1233,6 +1232,9 @@ function normalizedSourceMoneyProjection(
       sourceType: document.sourceType,
       extractionStatus: document.extractionStatus,
       storageState: document.storageState,
+      ...(document.linkedTransactionIds === undefined
+        ? {}
+        : { linkedTransactionIds: [...document.linkedTransactionIds] }),
     })),
     timelineEvents: (state.timelineEvents ?? []).map((event) => ({
       id: event.id,

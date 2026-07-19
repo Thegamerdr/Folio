@@ -111,6 +111,7 @@ import { useRoute } from '@/folio/lib/storeRoute';
 import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
 import { MODE_LABEL, type MoneyMode } from '@/folio/lib/modes/types';
+import { triggerFeedback } from '@/folio/lib/feedback';
 
 // ---------------------------------------------------------------------------
 // Mode-aware step framing (BREAKS-PARITY fix) — web `step1ByMode` / `step2ByMode` / `step3ByMode`
@@ -678,10 +679,10 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const subs = useAppStore((st) => st.subs);
   const subPaused = useAppStore((st) => st.subPaused);
   const cycles = useAppStore((st) => st.cycles);
+  const soundEnabled = useAppStore((st) => st.melo?.soundEnabled === true);
+  const quietMode = useAppStore((st) => st.melo?.quietMode === true);
   const greenStreak = useMemo(() => computeGreenStreak(cycles), [cycles]);
-  const [resumeDecisions, setResumeDecisions] = useState<
-    Record<string, 'resume' | 'keep'>
-  >({});
+  const [resumeDecisions, setResumeDecisions] = useState<Record<string, 'resume' | 'keep'>>({});
   const resumePrompts = useMemo(
     () =>
       subs.filter(
@@ -904,6 +905,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       // The repay step's real store write (BREAKS-PARITY fix) — fires once, on confirming past it.
       current.onConfirm?.();
       setStep((x) => x + 1);
+      void triggerFeedback('ritual-step');
       return;
     }
     if (sealed) return;
@@ -920,6 +922,10 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       tightPoint: actuals.tightPoint,
       setAside: actuals.setAside,
       note: note.trim() || NO_NOTE,
+    });
+    void triggerFeedback('ritual-complete', {
+      soundEnabled,
+      quietMode,
     });
 
     // Cycle close is a trial-relock checkpoint (alongside shell mount + app-foreground): the trial
@@ -1144,8 +1150,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
                           style={[
                             styles.resumeAction,
                             {
-                              backgroundColor:
-                                decision === 'resume' ? t.calm : t.surface,
+                              backgroundColor: decision === 'resume' ? t.calm : t.surface,
                               borderColor: t.hairline,
                             },
                           ]}

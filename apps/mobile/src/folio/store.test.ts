@@ -32,6 +32,7 @@ import {
   addTransaction,
   addTransactionsBatch,
   applyMeloTool,
+  attachEvidenceDocumentToTransaction,
   bankTransactions,
   borrowFromPot,
   clearReaderCandidates,
@@ -41,6 +42,7 @@ import {
   deleteBankImportedHistory,
   dismissBillSignal,
   dismissIncomeSignal,
+  detachEvidenceDocumentFromTransaction,
   editTransaction,
   endLensTrial,
   enqueueReviewItems,
@@ -65,6 +67,7 @@ import {
   recordWorkspaceOwnerTransferLeg,
   removeEvidenceDocument,
   removeIncomeSource,
+  removeTransaction,
   renameAccount,
   resetAll,
   resetToEmpty,
@@ -1840,6 +1843,65 @@ describe('encrypted source evidence lifecycle', () => {
     expect(getState().readerCandidates[0]?.sourceEvidenceId).toBe(evidenceId);
     expect(queued.sourceEvidenceId).toBe(evidenceId);
     expect(transaction.sourceEvidenceId).toBe(evidenceId);
+  });
+
+  it('links a later encrypted receipt without replacing original import provenance', () => {
+    registerEvidence();
+    const receiptId = 'evidence_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    addEvidenceDocument({
+      id: receiptId,
+      filename: 'supplier-receipt.jpg',
+      mediaType: 'image/jpeg',
+      byteSize: 2048,
+      addedAtISO: '2026-07-16T09:00:00.000Z',
+      sourceType: 'image',
+      extractionStatus: 'not-requested',
+      storageState: 'encrypted-device-vault',
+    });
+    const transaction = addTransaction({
+      merchant: 'Supplier Ltd',
+      amount: -42.1,
+      category: 'shopping',
+      source: 'manual',
+      sourceEvidenceId: evidenceId,
+    });
+
+    expect(attachEvidenceDocumentToTransaction(receiptId, transaction.id)).toBe(true);
+    expect(attachEvidenceDocumentToTransaction(receiptId, transaction.id)).toBe(false);
+    expect(getState().transactions.find((row) => row.id === transaction.id)?.sourceEvidenceId).toBe(
+      evidenceId,
+    );
+    expect(getState().evidenceDocuments?.find((row) => row.id === receiptId)).toMatchObject({
+      linkedTransactionIds: [transaction.id],
+    });
+    expect(JSON.parse(getPersistBlob()).evidenceDocuments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: receiptId, linkedTransactionIds: [transaction.id] }),
+      ]),
+    );
+
+    expect(detachEvidenceDocumentFromTransaction(receiptId, transaction.id)).toBe(true);
+    expect(getState().evidenceDocuments?.find((row) => row.id === receiptId)).not.toHaveProperty(
+      'linkedTransactionIds',
+    );
+    expect(detachEvidenceDocumentFromTransaction(receiptId, transaction.id)).toBe(false);
+  });
+
+  it('clears receipt relationships when a transaction is removed but keeps the encrypted file', () => {
+    const receipt = registerEvidence();
+    const transaction = addTransaction({
+      merchant: 'Supplier Ltd',
+      amount: -42.1,
+      category: 'shopping',
+      source: 'manual',
+    });
+    attachEvidenceDocumentToTransaction(receipt.id, transaction.id);
+
+    removeTransaction(transaction.id);
+
+    expect(getState().transactions.some((row) => row.id === transaction.id)).toBe(false);
+    expect(getState().evidenceDocuments).toHaveLength(1);
+    expect(getState().evidenceDocuments?.[0]).not.toHaveProperty('linkedTransactionIds');
   });
 
   it('keeps the source link and filename through bulk history and its import log', () => {

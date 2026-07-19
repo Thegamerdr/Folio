@@ -20,6 +20,9 @@ export type VatScheme =
       number?: string;
       registeredAt?: string;
       flatRateBasisPoints?: number;
+      flatRateSectorId?: string;
+      flatRateSectorLabel?: string;
+      flatRateSourceVersion?: string;
       limitedCostTrader?: boolean;
     }>;
 

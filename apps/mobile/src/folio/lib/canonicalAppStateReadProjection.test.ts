@@ -517,6 +517,7 @@ describe('canonical AppState read projection', () => {
           sourceType: 'document',
           extractionStatus: 'read',
           storageState: 'encrypted-device-vault',
+          linkedTransactionIds: ['private-transaction-alpha'],
         },
       ],
       aiReads: { monthKey: '2026-07', used: 4 },

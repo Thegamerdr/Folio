@@ -66,8 +66,12 @@ import Svg, { Path } from 'react-native-svg';
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import {
   accountIdOf,
+  addEvidenceDocument,
+  attachEvidenceDocumentToTransaction,
+  detachEvidenceDocumentFromTransaction,
   editTransaction,
   rememberMerchantCategory,
+  removeEvidenceDocument,
   useAppStore,
   type Transaction,
 } from '@/folio/store';
@@ -79,7 +83,19 @@ import {
   type TxnEditPreview,
 } from '@/folio/lib/editTxn';
 import { useUndo } from '@/folio/ui/useUndo';
-import { openEvidenceDocument } from '@/folio/lib/documentVault';
+import {
+  deleteEvidenceDocumentFile,
+  evidenceRetentionFailureCopy,
+  openEvidenceDocument,
+  retainEvidenceDocument,
+} from '@/folio/lib/documentVault';
+import {
+  captureEvidencePhoto,
+  pickEvidenceDocument,
+  pickEvidenceImage,
+  type EvidencePickResult,
+} from '@/folio/lib/evidencePicker';
+import { triggerFeedback } from '@/folio/lib/feedback';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -253,6 +269,7 @@ function EditTxnForm({
   const [when, setWhen] = useState(txn.when);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [attachingEvidence, setAttachingEvidence] = useState(false);
   const accountName = useAppStore((state) => {
     const id = accountIdOf(txn);
     return state.accounts?.find((account) => account.id === id)?.name ?? 'Main';
@@ -260,10 +277,22 @@ function EditTxnForm({
   const workspace = useAppStore(
     (state) => state.workspaces.find((candidate) => candidate.id === state.activeWorkspaceId)!,
   );
+  const soundEnabled = useAppStore((state) => state.melo?.soundEnabled === true);
+  const quietMode = useAppStore((state) => state.melo?.quietMode === true);
   const sourceEvidence = useAppStore((state) =>
     txn.sourceEvidenceId
       ? state.evidenceDocuments?.find((document) => document.id === txn.sourceEvidenceId)
       : undefined,
+  );
+  const evidenceDocuments = useAppStore((state) => state.evidenceDocuments);
+  const attachedEvidence = useMemo(
+    () =>
+      (evidenceDocuments ?? []).filter(
+        (document) =>
+          document.id !== txn.sourceEvidenceId &&
+          (document.linkedTransactionIds ?? []).includes(txn.id),
+      ),
+    [evidenceDocuments, txn.id, txn.sourceEvidenceId],
   );
   // `useAppStore` is backed by `useSyncExternalStore`; returning a freshly-filtered array from the
   // selector makes every snapshot look new and React 19 loops until its maximum update depth. Read
@@ -318,6 +347,7 @@ function EditTxnForm({
       note: txn.note,
     };
     editTransaction(txn.id, patch, 'user');
+    void triggerFeedback('transaction-corrected');
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a category correction on a real,
     // already-posted transaction is an explicit override — remember it so a future import for this
     // merchant pre-fills the corrected category instead of re-asking. Only when the category actually
@@ -327,6 +357,95 @@ function EditTxnForm({
     showUndo(`Updated ${txn.merchant}`, () => {
       editTransaction(txn.id, snapshot, 'user');
     });
+  }
+
+  function openEvidence(document: NonNullable<typeof evidenceDocuments>[number]) {
+    void openEvidenceDocument(workspace, document).catch((reason: unknown) => {
+      Alert.alert(
+        'Could not open the saved source',
+        reason instanceof Error ? reason.message : 'The encrypted source could not be opened.',
+      );
+    });
+  }
+
+  async function attachPickedEvidence(request: () => Promise<EvidencePickResult>): Promise<void> {
+    if (attachingEvidence) return;
+    setAttachingEvidence(true);
+    let retained: Awaited<ReturnType<typeof retainEvidenceDocument>> | undefined;
+    try {
+      const result = await request();
+      if (result.kind === 'cancelled') return;
+      if (result.kind === 'denied') {
+        Alert.alert('Permission is off', result.message);
+        return;
+      }
+      retained = await retainEvidenceDocument({
+        workspace,
+        source: result.source,
+        sourceType: result.sourceType,
+        extractionStatus: 'not-requested',
+      });
+      addEvidenceDocument(retained);
+      attachEvidenceDocumentToTransaction(retained.id, txn.id);
+      void triggerFeedback('receipt-attached', {
+        soundEnabled,
+        quietMode,
+      });
+    } catch (reason: unknown) {
+      if (retained !== undefined) {
+        try {
+          await deleteEvidenceDocumentFile(workspace, retained);
+          removeEvidenceDocument(retained.id);
+        } catch {
+          // Keep recoverable metadata when native cleanup itself fails. The source remains encrypted
+          // and visible in Statements & receipts rather than becoming an untracked vault file.
+        }
+      }
+      const failure = evidenceRetentionFailureCopy(reason);
+      void triggerFeedback('error');
+      Alert.alert(failure.title, failure.body);
+    } finally {
+      setAttachingEvidence(false);
+    }
+  }
+
+  function chooseReceiptPhoto() {
+    Alert.alert(
+      'Add a receipt photo',
+      'The original is encrypted in this workspace on this device.',
+      [
+        {
+          text: 'Take photo',
+          onPress: () => {
+            void attachPickedEvidence(captureEvidencePhoto);
+          },
+        },
+        {
+          text: 'Choose photo',
+          onPress: () => {
+            void attachPickedEvidence(pickEvidenceImage);
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }
+
+  function confirmDetach(document: NonNullable<typeof evidenceDocuments>[number]) {
+    Alert.alert(
+      'Unlink this receipt?',
+      'The encrypted file stays in Statements & receipts. Only this transaction link is removed.',
+      [
+        { text: 'Keep linked', style: 'cancel' },
+        {
+          text: 'Unlink',
+          style: 'destructive',
+          onPress: () => {
+            detachEvidenceDocumentFromTransaction(document.id, txn.id);
+          },
+        },
+      ],
+    );
   }
 
   return (
@@ -455,16 +574,7 @@ function EditTxnForm({
                 accessibilityHint="Decrypts a temporary copy and opens the device share or viewer sheet"
                 accessibilityLabel={`Open saved source, ${sourceEvidence.filename}`}
                 accessibilityRole="button"
-                onPress={() => {
-                  void openEvidenceDocument(workspace, sourceEvidence).catch((reason: unknown) => {
-                    Alert.alert(
-                      'Could not open the saved source',
-                      reason instanceof Error
-                        ? reason.message
-                        : 'The encrypted source could not be opened.',
-                    );
-                  });
-                }}
+                onPress={() => openEvidence(sourceEvidence)}
                 style={({ pressed }) => [s.fieldRow, pressed ? s.pressed : undefined]}
               >
                 <Text style={s.fieldLabel}>Saved source</Text>
@@ -492,6 +602,75 @@ function EditTxnForm({
                 value={note}
               />
             </View>
+          </View>
+
+          <View style={s.evidenceBlock}>
+            <Text style={s.categoryLabel}>Receipts & evidence</Text>
+            {attachedEvidence.map((document) => (
+              <View key={document.id} style={s.evidenceRow}>
+                <Pressable
+                  accessibilityHint="Decrypts a temporary copy and opens the device viewer"
+                  accessibilityLabel={`Open attached receipt, ${document.filename}`}
+                  accessibilityRole="button"
+                  onPress={() => openEvidence(document)}
+                  style={({ pressed }) => [s.evidenceOpen, pressed ? s.pressed : undefined]}
+                >
+                  <Text numberOfLines={1} style={s.evidenceName}>
+                    {document.filename}
+                  </Text>
+                  <Text style={s.evidenceMeta}>Encrypted on this device</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityLabel={`Unlink ${document.filename} from this transaction`}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={() => confirmDetach(document)}
+                  style={({ pressed }) => [s.evidenceUnlink, pressed ? s.pressed : undefined]}
+                >
+                  <Text accessibilityElementsHidden style={s.evidenceUnlinkLabel}>
+                    Unlink
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+            <View style={s.evidenceActions}>
+              <Pressable
+                accessibilityLabel="Add receipt photo"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: attachingEvidence }}
+                disabled={attachingEvidence}
+                onPress={chooseReceiptPhoto}
+                style={({ pressed }) => [
+                  s.evidenceAction,
+                  pressed ? s.pressed : undefined,
+                  attachingEvidence ? s.disabled : undefined,
+                ]}
+              >
+                <Text style={s.evidenceActionLabel}>Add photo</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Choose receipt file"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: attachingEvidence }}
+                disabled={attachingEvidence}
+                onPress={() => {
+                  void attachPickedEvidence(pickEvidenceDocument);
+                }}
+                style={({ pressed }) => [
+                  s.evidenceAction,
+                  pressed ? s.pressed : undefined,
+                  attachingEvidence ? s.disabled : undefined,
+                ]}
+              >
+                <Text style={s.evidenceActionLabel}>
+                  {attachingEvidence ? 'Saving…' : 'Choose file'}
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={s.evidencePrivacy}>
+              Attachments are encrypted separately from the transaction. Selecting one never changes
+              the money record.
+            </Text>
           </View>
 
           {/* Category — a tappable chip per category; the selected one is filled. */}
@@ -747,6 +926,73 @@ function makeStyles(t: Palette) {
     // Category — a labelled block of tappable chips below the field rows.
     categoryBlock: {
       marginTop: gap.md,
+    },
+    evidenceBlock: {
+      marginTop: gap.lg,
+    },
+    evidenceRow: {
+      alignItems: 'center',
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      marginBottom: gap.sm,
+      minHeight: 60,
+      paddingLeft: gap.md,
+      paddingRight: gap.sm,
+    },
+    evidenceOpen: {
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 58,
+      paddingRight: gap.sm,
+    },
+    evidenceName: {
+      color: t.ink,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    evidenceMeta: {
+      color: t.muted,
+      fontSize: 11,
+      marginTop: 2,
+    },
+    evidenceUnlink: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: gap.sm,
+    },
+    evidenceUnlinkLabel: {
+      color: t.repairInk,
+      fontSize: 11.5,
+      fontWeight: '600',
+    },
+    evidenceActions: {
+      flexDirection: 'row',
+      gap: gap.sm,
+    },
+    evidenceAction: {
+      alignItems: 'center',
+      backgroundColor: t.inset,
+      borderRadius: radius.md,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: gap.md,
+    },
+    evidenceActionLabel: {
+      color: t.ink,
+      fontSize: 12.5,
+      fontWeight: '600',
+    },
+    evidencePrivacy: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 11.5,
+      lineHeight: 16,
+      marginTop: gap.sm,
     },
     historyBlock: {
       marginTop: gap.lg,

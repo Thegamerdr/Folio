@@ -68,6 +68,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-secure-store',
     'expo-web-browser',
+    [
+      'expo-audio',
+      {
+        enableBackgroundPlayback: false,
+        enableBackgroundRecording: false,
+        microphonePermission: false,
+        recordAudioAndroid: false,
+      },
+    ],
     'expo-iap',
     '@sentry/react-native',
     './plugins/withUploadSigning.cjs',

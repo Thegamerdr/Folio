@@ -73,6 +73,7 @@ import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useUndo } from '@/folio/ui/useUndo';
 import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
+import { triggerFeedback } from '@/folio/lib/feedback';
 
 // "Tuesday 8" inline prose for the tight-day date — byte-faithful to the web's
 // formatDayProse (lib/calendar-events). Parses at local midnight so the weekday agrees with the ISO
@@ -304,6 +305,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     const prevPaused = !!getState().subPaused[sub.name];
     const prevCancelled = getState().cancelledSubs ?? [];
     const cancellationWin = removeSub(sub.name);
+    void triggerFeedback('subscription-cancelled');
     showUndo(`Cancelled ${sub.name}`, () => {
       setSubs(prevSubs);
       setPartial({ cancelledSubs: prevCancelled });
@@ -482,7 +484,9 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
                 key={subscription.name}
                 style={[
                   layout.cancelledRow,
-                  index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline } : undefined,
+                  index > 0
+                    ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline }
+                    : undefined,
                 ]}
               >
                 <View style={layout.cancelledCopy}>

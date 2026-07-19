@@ -260,9 +260,7 @@ function projectDurableMoneyContainers(
               ),
             ),
           }),
-      ...(subscription.autoResume === undefined
-        ? {}
-        : { autoResume: subscription.autoResume }),
+      ...(subscription.autoResume === undefined ? {} : { autoResume: subscription.autoResume }),
       ...(subscription.pauseReason === undefined
         ? {}
         : {
@@ -780,6 +778,9 @@ function projectTransactionIntelligenceState(
         sourceType: document.sourceType,
         extractionStatus: document.extractionStatus,
         storageState: document.storageState,
+        ...(document.linkedTransactionIds === undefined
+          ? {}
+          : { linkedTransactionIds: [...document.linkedTransactionIds] }),
       };
     }),
     timelineEvents: (state.timelineEvents ?? []).map((event, index) => {
@@ -928,6 +929,9 @@ function projectCompanionRuntimeState(
       quietMode: requireBoolean(melo.quietMode, 'Melo quiet mode'),
       wardrobe: checkedStringList(melo.wardrobe, 'Melo wardrobe item'),
       tone: melo.tone ?? 'calm',
+      ...(melo.soundEnabled === undefined
+        ? {}
+        : { soundEnabled: requireBoolean(melo.soundEnabled, 'Melo milestone sounds') }),
     },
     tinyWins: (state.tinyWins ?? []).map((win, index) => ({
       id: requireString(win.id, `Tiny win ${index} ID`),
@@ -948,10 +952,7 @@ function projectCompanionRuntimeState(
       ...(entry.tappedAt === undefined
         ? {}
         : {
-            tappedAt: canonicalInstant(
-              entry.tappedAt,
-              `One-move history ${index} tapped time`,
-            ),
+            tappedAt: canonicalInstant(entry.tappedAt, `One-move history ${index} tapped time`),
           }),
     })),
     meloDismissLog: (state.meloDismissLog ?? []).map((entry, index) => ({

@@ -888,8 +888,12 @@ export type EvidenceDocument = {
   byteSize: number;
   addedAtISO: string;
   sourceType: 'document' | 'image' | 'camera';
-  extractionStatus: 'read' | 'unreadable';
+  extractionStatus: 'read' | 'unreadable' | 'not-requested';
   storageState: 'encrypted-device-vault';
+  /** Confirmed records this encrypted original was attached to after intake. The transaction's
+   * sourceEvidenceId remains reserved for its original import provenance; later receipts live here
+   * so attaching one can never overwrite or mislabel the statement that created the row. */
+  linkedTransactionIds?: string[];
 };
 
 /** Retention cap for `statementImports` — mirrors `timelineEvents`'s 200-entry cap. */
@@ -941,6 +945,8 @@ export type MeloState = {
   quietMode: boolean;
   wardrobe: string[];
   tone?: MeloTone;
+  /** Optional milestone sound preference. Missing means off for every pre-feature install. */
+  soundEnabled?: boolean;
 };
 /** Persistence key prefix, used only for the parked-future-blob slot name
  *  below (`${KEY}.future.${v}`) — mirrors the web original's localStorage
@@ -1525,12 +1531,10 @@ export function isRealUser(s: AppState): boolean {
     s.subs.some((subscription) => !isShippedSeedRecord(subscription, DEFAULT_SUBS)) ||
     s.cycles.some((cycle) => !isShippedSeedRecord(cycle, DEFAULTS.cycles)) ||
     (s.debts ?? []).some(
-      (debt) =>
-        !debt.id.startsWith('seed-') && !isShippedSeedRecord(debt, DEFAULTS.debts ?? []),
+      (debt) => !debt.id.startsWith('seed-') && !isShippedSeedRecord(debt, DEFAULTS.debts ?? []),
     ) ||
     (s.plans ?? []).some(
-      (plan) =>
-        !plan.id.startsWith('seed-') && !isShippedSeedRecord(plan, DEFAULTS.plans ?? []),
+      (plan) => !plan.id.startsWith('seed-') && !isShippedSeedRecord(plan, DEFAULTS.plans ?? []),
     ) ||
     (s.accounts ?? []).some(
       (account) =>
@@ -1558,9 +1562,7 @@ export function isRealUser(s: AppState): boolean {
     s.lastOpenedAt != null ||
     (s.oneMoveHistory?.length ?? 0) > 0 ||
     (s.meloDismissLog?.length ?? 0) > 0 ||
-    hasBusinessOperationsData(
-      normaliseBusinessOperationsState(s.business),
-    )
+    hasBusinessOperationsData(normaliseBusinessOperationsState(s.business))
   );
 }
 
@@ -2504,11 +2506,7 @@ function addDaysToIso(iso: string, days: number): string {
   return new Date(safe + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-function subscriptionWithPause(
-  subscription: Sub,
-  paused: boolean,
-  today: string,
-): Sub {
+function subscriptionWithPause(subscription: Sub, paused: boolean, today: string): Sub {
   if (!paused) {
     const {
       pausedUntil: _pausedUntil,
@@ -2657,9 +2655,7 @@ export function addCycle(c: CycleRecord) {
   );
   if (
     cycles.length >= 4 &&
-    cycles
-      .slice(0, 4)
-      .every((cycle) => cycle.tightPoint >= 0 && cycle.spare >= 0)
+    cycles.slice(0, 4).every((cycle) => cycle.tightPoint >= 0 && cycle.spare >= 0)
   ) {
     awardTinyWin('four-week-green-streak');
   }
@@ -4026,7 +4022,8 @@ export function recordWorkspaceOwnerTransferLeg(
   const account = (state.accounts ?? []).find(
     (candidate) => !candidate.isLiability && candidate.closed !== true,
   );
-  if (!account) throw new Error('Add an active cash account before moving money between workspaces.');
+  if (!account)
+    throw new Error('Add an active cash account before moving money between workspaces.');
   const delta = input.direction === 'in' ? input.amount : -input.amount;
   if (account.balanceMinor + delta < 0) {
     throw new Error('The selected workspace account does not hold enough cash for this move.');
@@ -4238,7 +4235,18 @@ export function removeTransaction(id: string) {
   const target = state.transactions.find((transaction) => transaction.id === id);
   if (target === undefined) return;
   setPartialWithTypedCommand(
-    { transactions: state.transactions.filter((transaction) => transaction.id !== id) },
+    {
+      transactions: state.transactions.filter((transaction) => transaction.id !== id),
+      evidenceDocuments: (state.evidenceDocuments ?? []).map((document) => {
+        if (!(document.linkedTransactionIds ?? []).includes(id)) return document;
+        const linkedTransactionIds = (document.linkedTransactionIds ?? []).filter(
+          (candidate) => candidate !== id,
+        );
+        if (linkedTransactionIds.length > 0) return { ...document, linkedTransactionIds };
+        const { linkedTransactionIds: _removed, ...rest } = document;
+        return rest;
+      }),
+    },
     {
       commandType: 'folio.transaction.remove.v1',
       actorKind: 'user',
@@ -4755,7 +4763,8 @@ export function addEvidenceDocument(
       existing.addedAtISO !== document.addedAtISO ||
       existing.sourceType !== document.sourceType ||
       existing.extractionStatus !== document.extractionStatus ||
-      existing.storageState !== document.storageState
+      existing.storageState !== document.storageState ||
+      !sameStringSet(existing.linkedTransactionIds, document.linkedTransactionIds)
     ) {
       throw new Error(`Evidence document ${document.id} conflicts with an existing record.`);
     }
@@ -4778,6 +4787,94 @@ export function addEvidenceDocument(
     },
   );
   return owned;
+}
+
+function sameStringSet(left: readonly string[] | undefined, right: readonly string[] | undefined) {
+  const a = [...(left ?? [])].sort();
+  const b = [...(right ?? [])].sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/** Link an already-encrypted receipt or supporting file to a confirmed transaction without
+ * replacing the transaction's original import evidence. Idempotent for repeat taps. */
+export function attachEvidenceDocumentToTransaction(
+  evidenceId: string,
+  transactionId: string,
+): boolean {
+  const transaction = state.transactions.find((candidate) => candidate.id === transactionId);
+  if (transaction === undefined) {
+    throw new Error(`Transaction ${transactionId} is unavailable in this workspace.`);
+  }
+  const document = requireSourceEvidence(evidenceId);
+  if (document === undefined) throw new Error(`Evidence document ${evidenceId} is unavailable.`);
+  const currentIds = document.linkedTransactionIds ?? [];
+  if (currentIds.includes(transactionId)) return false;
+  const updated: EvidenceDocument = {
+    ...document,
+    linkedTransactionIds: [...currentIds, transactionId],
+  };
+  setPartialWithTypedCommand(
+    {
+      evidenceDocuments: (state.evidenceDocuments ?? []).map((candidate) =>
+        candidate.id === evidenceId ? updated : candidate,
+      ),
+    },
+    {
+      commandType: 'folio.intelligence.evidence_document.attach.v1',
+      actorKind: 'user',
+      entityRefs: [
+        opaqueContainerEntityRef('evidence-document', evidenceId),
+        { type: 'transaction', id: transactionId },
+      ],
+      before: { document },
+      after: { document: updated },
+      changedEntityIds: [transactionId],
+      invalidatedProjectionKinds: ['evidence', 'transactions'],
+    },
+  );
+  return true;
+}
+
+/** Remove only the transaction relationship. The encrypted original remains in the workspace vault
+ * and can still be opened, exported or linked elsewhere. */
+export function detachEvidenceDocumentFromTransaction(
+  evidenceId: string,
+  transactionId: string,
+): boolean {
+  const document = requireSourceEvidence(evidenceId);
+  if (document === undefined || !(document.linkedTransactionIds ?? []).includes(transactionId)) {
+    return false;
+  }
+  const linkedTransactionIds = (document.linkedTransactionIds ?? []).filter(
+    (candidate) => candidate !== transactionId,
+  );
+  const updated: EvidenceDocument =
+    linkedTransactionIds.length === 0
+      ? (() => {
+          const { linkedTransactionIds: _removed, ...rest } = document;
+          return rest;
+        })()
+      : { ...document, linkedTransactionIds };
+  setPartialWithTypedCommand(
+    {
+      evidenceDocuments: (state.evidenceDocuments ?? []).map((candidate) =>
+        candidate.id === evidenceId ? updated : candidate,
+      ),
+    },
+    {
+      commandType: 'folio.intelligence.evidence_document.detach.v1',
+      actorKind: 'user',
+      entityRefs: [
+        opaqueContainerEntityRef('evidence-document', evidenceId),
+        { type: 'transaction', id: transactionId },
+      ],
+      before: { document },
+      after: { document: updated },
+      changedEntityIds: [transactionId],
+      invalidatedProjectionKinds: ['evidence', 'transactions'],
+    },
+  );
+  return true;
 }
 
 function withoutEvidenceLink<T extends { sourceEvidenceId?: string }>(
@@ -5471,9 +5568,7 @@ export function resetSubOverrides(name?: string) {
 export function setSpendHold(dailyCap: number, days: number, now: Date = new Date()) {
   const durationDays = Math.max(1, Math.round(days));
   const start = now.toISOString().slice(0, 10);
-  const end = new Date(now.getTime() + (durationDays - 1) * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+  const end = new Date(now.getTime() + (durationDays - 1) * 86_400_000).toISOString().slice(0, 10);
   const spendHold: SpendHold = {
     start,
     end,
@@ -5657,9 +5752,7 @@ export function updateBusinessOperations(
         current: BusinessOperationsState,
       ) => Partial<BusinessOperationsState> | BusinessOperationsState),
 ) {
-  const active = state.workspaces.find(
-    (workspace) => workspace.id === state.activeWorkspaceId,
-  );
+  const active = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId);
   if (active?.kind !== 'business') {
     throw new Error('Business operations require an active Business workspace.');
   }

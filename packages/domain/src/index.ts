@@ -915,8 +915,9 @@ export type EvidenceDocumentState = Readonly<{
   byteSize: number;
   addedAtISO: string;
   sourceType: 'document' | 'image' | 'camera';
-  extractionStatus: 'read' | 'unreadable';
+  extractionStatus: 'read' | 'unreadable' | 'not-requested';
   storageState: 'encrypted-device-vault';
+  linkedTransactionIds?: readonly string[];
 }>;
 
 export type TimelineEventState = Readonly<{
@@ -1032,6 +1033,7 @@ export type CompanionRuntimeState = Readonly<{
     quietMode: boolean;
     wardrobe: readonly string[];
     tone: 'calm' | 'honest' | 'dry' | 'coachy';
+    soundEnabled?: boolean;
   }>;
   tinyWins: readonly TinyWinState[];
   meloPrimerSeen?: boolean;
@@ -1043,13 +1045,7 @@ export type CompanionRuntimeState = Readonly<{
   }>[];
   meloDismissLog?: readonly Readonly<{
     kind: string;
-    reason:
-      | 'not-now'
-      | 'wrong-amount'
-      | 'wrong-pot'
-      | 'another-plan'
-      | 'just-no'
-      | null;
+    reason: 'not-now' | 'wrong-amount' | 'wrong-pot' | 'another-plan' | 'just-no' | null;
     at: InstantString;
     amount?: number;
     potId?: string;

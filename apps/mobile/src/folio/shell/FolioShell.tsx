@@ -140,6 +140,7 @@ import {
   subscribePersistenceRuntime,
 } from '@/folio/lib/persistenceRuntime';
 import { derivePressure } from '@/folio/screens/today/pressure';
+import { triggerFeedback } from '@/folio/lib/feedback';
 import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from '@/folio/types';
 
 // The shell's landing pressure. The web showcase let a design tool flip Melo through her five moods
@@ -397,6 +398,19 @@ export function FolioShell() {
   const activeWorkspaceId = useAppStore((st) => st.activeWorkspaceId);
   const activeWorkspace =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0]!;
+  const tinyWins = useAppStore((st) => st.tinyWins);
+  const milestoneSoundsEnabled = useAppStore((st) => st.melo?.soundEnabled === true);
+  const feedbackQuietMode = useAppStore((st) => st.melo?.quietMode === true);
+  const newestWinId = tinyWins?.[0]?.id;
+  const observedWinId = useRef(newestWinId);
+  useEffect(() => {
+    if (newestWinId === undefined || newestWinId === observedWinId.current) return;
+    observedWinId.current = newestWinId;
+    void triggerFeedback('earn-stamp', {
+      soundEnabled: milestoneSoundsEnabled,
+      quietMode: feedbackQuietMode,
+    });
+  }, [feedbackQuietMode, milestoneSoundsEnabled, newestWinId]);
 
   // App-wide money-pressure — the mood/tone the WHOLE app reads. DERIVED from the real route (the
   // tightest projected spare → a band), replacing the old hardcoded 'calm' so Today / What-if / Melo

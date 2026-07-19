@@ -79,6 +79,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
+import { triggerFeedback } from '@/folio/lib/feedback';
 import { awardTinyWin, useAppStore } from '@/folio/store';
 
 // ---------------------------------------------------------------------------
@@ -196,6 +197,8 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
   // Most-recent closed cycle + paused count (both REAL reads — subPaused counted live).
   const latest = useAppStore((state) => state.cycles[0]);
   const subPaused = useAppStore((state) => state.subPaused);
+  const quietMode = useAppStore((state) => state.melo?.quietMode === true);
+  const soundEnabled = useAppStore((state) => state.melo?.soundEnabled === true);
 
   const monthLabel = latest?.label ?? FROZEN.monthFallback;
   const saved = latest?.spare ?? 0;
@@ -254,7 +257,10 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
     setStatus('sharing');
     try {
       const result = await Share.share({ title: FROZEN.shareTitle, message: text });
-      if (result.action === Share.sharedAction) awardTinyWin('first-postcard-shared');
+      if (result.action === Share.sharedAction) {
+        awardTinyWin('first-postcard-shared');
+        void triggerFeedback('postcard-shared', { quietMode, soundEnabled });
+      }
     } catch {
       /* user-cancelled or share failed — silent, honest no-op (no fake "Copied ✓"). */
     } finally {

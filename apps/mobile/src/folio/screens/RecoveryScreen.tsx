@@ -86,13 +86,11 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
 import { selectMonthlyIncome } from '@/folio/lib/income';
-import {
-  buildRecoveryRoutePreview,
-  RECOVERY_BILL_NUDGE_DAYS,
-} from '@/folio/lib/recoveryPreview';
+import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import type { Nav } from '@/folio/types';
 import type { MoneyMode } from '@/folio/lib/modes/types';
+import { triggerFeedback } from '@/folio/lib/feedback';
 
 // ---------------------------------------------------------------------------
 // Mode-tinted copy (BREAKS-PARITY fix) — web `getRecoveryCopy(mode)`
@@ -309,6 +307,8 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // Mode-tinted copy (BREAKS-PARITY fix) — each of the 10 Money Modes gets its own eyebrow, intro,
   // headline, shortfall/after labels, Melo default line and CTA (web `getRecoveryCopy(mode)`).
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
+  const soundEnabled = useAppStore((st) => st.melo?.soundEnabled === true);
+  const quietMode = useAppStore((st) => st.melo?.quietMode === true);
   const modeCopy = getRecoveryCopy(moneyMode);
 
   // Structural-fit signpost (BREAKS-PARITY fix) — see docs/SIGNATURE_MOMENTS.md. When bills alone
@@ -454,6 +454,10 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     if (!pickedMove || committedRef.current) return;
     committedRef.current = true;
     pickedMove.commit();
+    void triggerFeedback(reachesRoom ? 'shortfall-closed' : 'recovery-confirm', {
+      soundEnabled,
+      quietMode,
+    });
     nav.go('today-after');
   }
 

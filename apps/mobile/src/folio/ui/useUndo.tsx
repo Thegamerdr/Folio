@@ -34,6 +34,7 @@ import {
 import { AccessibilityInfo } from 'react-native';
 
 import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
+import { triggerFeedback } from '@/folio/lib/feedback';
 import { UndoToast } from '@/folio/ui/UndoToast';
 
 // What a single live undo affordance carries. `key` lets React fully remount the toast (and so
@@ -117,6 +118,7 @@ export function UndoProvider({ children }: { children: ReactNode }) {
     const current = active;
     dismiss();
     current?.onUndo();
+    if (current !== null) void triggerFeedback('undo');
   }, [active, dismiss]);
 
   // Clear any pending timer on unmount so a backgrounded provider never fires into a dead tree.

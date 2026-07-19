@@ -12,6 +12,7 @@ export const businessWorkspaceBoundary = {
 } as const;
 
 export * from './operations.js';
+export * from './frsSectors.js';
 
 export type BusinessReadinessState = 'implemented' | 'passed' | 'needs_review' | 'blocked';
 

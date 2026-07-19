@@ -101,6 +101,7 @@ import {
 import { routeFromStore } from '@/folio/lib/storeRoute';
 import { pressureLow } from '@/folio/screens/today/pressure';
 import type { Nav, Pressure } from '@/folio/types';
+import { triggerFeedback } from '@/folio/lib/feedback';
 
 // The render states this screen can occupy (spec stateBranches). Pots are local + synchronous, so
 // loading/error are defensive: loading shows Melo curious + a line (never a spinner), error shows an
@@ -329,6 +330,7 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
             : p,
       ),
     );
+    void triggerFeedback('pot-commit');
     closeTransfer();
   }
 
@@ -518,8 +520,14 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
               t={t}
               s={s}
               reduceMotion={reduceMotion}
-              onQuickAdd={(inc) => addToPot(p.id, inc)}
-              onRepay={(amt) => repayToPot(p.id, amt)}
+              onQuickAdd={(inc) => {
+                addToPot(p.id, inc);
+                void triggerFeedback('pot-commit');
+              }}
+              onRepay={(amt) => {
+                repayToPot(p.id, amt);
+                void triggerFeedback('pot-commit');
+              }}
               onToggleAllowNegative={() => setPotAllowNegative(p.id, !p.allowNegative)}
               onToggleMove={() => openMove(p.id)}
               onChooseDestination={(toId) => chooseDestination(p.id, toId)}

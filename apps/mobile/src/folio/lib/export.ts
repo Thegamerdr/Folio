@@ -286,6 +286,7 @@ function evidenceDocumentsCsv(state: AppState): string {
       'sourceType',
       'extractionStatus',
       'storageState',
+      'linkedTransactionIds',
     ],
     (state.evidenceDocuments ?? []).map((document) => [
       document.id,
@@ -297,6 +298,7 @@ function evidenceDocumentsCsv(state: AppState): string {
       document.sourceType,
       document.extractionStatus,
       document.storageState,
+      (document.linkedTransactionIds ?? []).join('|'),
     ]),
   );
 }

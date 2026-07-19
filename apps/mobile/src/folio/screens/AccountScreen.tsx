@@ -190,9 +190,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   );
   const isBusiness = workspace.kind === 'business';
   const businessState = useAppStore((s) => s.business);
-  const businessEntity = isBusiness
-    ? normaliseBusinessOperationsState(businessState).entity
-    : null;
+  const businessEntity = isBusiness ? normaliseBusinessOperationsState(businessState).entity : null;
 
   const subsCount = useAppStore((s) => s.subs.length);
   const potsCount = useAppStore((s) => s.pots.length);
@@ -225,9 +223,12 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         .filter((id): id is string => id !== undefined),
     );
     const confirmed = new Set(
-      transactions
-        .map((transaction) => transaction.sourceEvidenceId)
-        .filter((id): id is string => id !== undefined),
+      [
+        ...transactions.map((transaction) => transaction.sourceEvidenceId),
+        ...(evidenceDocuments ?? []).flatMap((document) =>
+          (document.linkedTransactionIds ?? []).length > 0 ? [document.id] : [],
+        ),
+      ].filter((id): id is string => id !== undefined),
     );
     return new Map(
       (evidenceDocuments ?? []).map((document) => {
@@ -242,7 +243,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 ? 'waiting for review'
                 : document.extractionStatus === 'unreadable'
                   ? 'needs details'
-                  : 'saved source';
+                  : document.extractionStatus === 'not-requested'
+                    ? 'attached source'
+                    : 'saved source';
         return [document.id, label] as const;
       }),
     );
@@ -575,16 +578,13 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                       {businessEntity.directors.length}{' '}
                       {businessEntity.directors.length === 1 ? 'director' : 'directors'} ·{' '}
                       {businessEntity.shareholders.length}{' '}
-                      {businessEntity.shareholders.length === 1
-                        ? 'shareholder'
-                        : 'shareholders'}
+                      {businessEntity.shareholders.length === 1 ? 'shareholder' : 'shareholders'}
                     </Text>
                   ) : null}
                 </>
               ) : (
                 <Text style={[styles.entityEmpty, { color: t.muted }]}>
-                  Pick Sole Trader or Limited Company so the business side asks the right
-                  questions.
+                  Pick Sole Trader or Limited Company so the business side asks the right questions.
                 </Text>
               )}
             </Surface>
