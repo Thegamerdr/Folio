@@ -1040,14 +1040,9 @@ export type MeloState = {
   /** Optional milestone sound preference. Missing means off for every pre-feature install. */
   soundEnabled?: boolean;
 };
-/** Persistence key prefix, used only for the parked-future-blob slot name
- *  below (`${KEY}.future.${v}`) — mirrors the web original's localStorage
- *  key. Pre-existing reference that had no backing declaration; added here
- *  rather than left dangling, since it sits in a file this round already owns. */
-const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 18;
+export const CURRENT_SCHEMA_VERSION = 18;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -1640,21 +1635,12 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
   const startVersion = typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : 1;
   if (startVersion > CURRENT_SCHEMA_VERSION) {
-    // Safe failure mode: persisted state is newer than this binary. Warn,
-    // keep the raw blob in a parking slot, and load defaults rather than
-    // silently dropping fields. In-memory port: park into `futureBlobs`
-    // instead of window.localStorage (web original parked under a
-    // `${KEY}.future.${v}` storage key).
-    try {
-      futureBlobs[`${KEY}.future.${startVersion}`] = parsed;
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[folio] persisted schema v${startVersion} is newer than code v${CURRENT_SCHEMA_VERSION}; parked and ignored.`,
-      );
-    } catch {
-      /* ignore */
-    }
-    return { ...DEFAULTS };
+    // The public hydration boundary rejects future schemas before assigning persistedBlob. Keep
+    // this guard as defence in depth so an internal caller can never turn unknown data into
+    // editable defaults.
+    throw new Error(
+      `Persisted schema v${startVersion} is newer than supported v${CURRENT_SCHEMA_VERSION}.`,
+    );
   }
   let current = parsed;
   for (let v = startVersion + 1; v <= CURRENT_SCHEMA_VERSION; v++) {
@@ -1682,11 +1668,8 @@ function normaliseDriftCooldownEntries(raw: unknown): DriftCooldownEntry[] {
 
 // ---------- In-memory persistence (replaces window.localStorage) ----------
 // `persistedBlob` is the single in-memory record the web original kept in
-// localStorage under `KEY`. `null` = nothing persisted yet (first run).
-// `futureBlobs` mirrors the web original's `${KEY}.future.${v}` parking slots.
-// Wire @folio/storage + op-sqlite over these two later (BUILD_PLAN §3).
+// localStorage. `null` = nothing persisted yet (first run).
 let persistedBlob: Record<string, unknown> | null = null;
-const futureBlobs: Record<string, Record<string, unknown>> = {};
 
 // ---------- Demo/seed containment (owner rule 2026-07-06) ----------
 // The app ships demo/seed data so a fresh DEV build has something to render.
@@ -2251,6 +2234,12 @@ export function serializeWorkspacePartition(
   return JSON.stringify(persistable);
 }
 
+export type StoreHydrationResult =
+  | Readonly<{ status: 'applied' }>
+  | Readonly<{ status: 'malformed' }>
+  | Readonly<{ status: 'degraded' }>
+  | Readonly<{ status: 'incompatible-future-schema'; schemaVersion: number }>;
+
 /** Hydrate the store from a persisted JSON blob (read off disk by the native
  *  adapter). Runs the SAME path as `load()`: park the raw blob into
  *  `persistedBlob`, then `setPartial` the loaded+migrated state so listeners
@@ -2259,10 +2248,10 @@ export function serializeWorkspacePartition(
 export function hydrateFromBlob(
   raw: string,
   requestedWorkspaceId: WorkspaceId = state.activeWorkspaceId,
-): void {
+): StoreHydrationResult {
   const parsed = parseHydrationBlob(raw);
-  if (parsed === null) return;
-  applyHydratedBlob(parsed, requestedWorkspaceId);
+  if (parsed === null) return { status: 'malformed' };
+  return applyHydratedBlob(parsed, requestedWorkspaceId);
 }
 
 /**
@@ -2274,9 +2263,11 @@ export function hydrateFromBlob(
 export function restoreBackupFromBlob(
   raw: string,
   requestedWorkspaceId: WorkspaceId = state.activeWorkspaceId,
-): void {
+): StoreHydrationResult {
   const parsed = parseHydrationBlob(raw);
-  if (parsed === null) return;
+  if (parsed === null) return { status: 'malformed' };
+  const incompatible = incompatibleFutureSchema(parsed);
+  if (incompatible !== null) return incompatible;
   const capture = beginMaterialWrite({
     type: 'restored_backup',
     sourceIds: [`fact_backup_restore_${fnv1a32Hex(raw, 0x811c9dc5)}`],
@@ -2284,8 +2275,9 @@ export function restoreBackupFromBlob(
     reviewRequired: true,
     force: true,
   });
-  applyHydratedBlob(parsed, requestedWorkspaceId);
-  completeMaterialWrite(capture);
+  const result = applyHydratedBlob(parsed, requestedWorkspaceId);
+  if (result.status === 'applied') completeMaterialWrite(capture);
+  return result;
 }
 
 function parseHydrationBlob(raw: string): Record<string, unknown> | null {
@@ -2302,26 +2294,48 @@ function parseHydrationBlob(raw: string): Record<string, unknown> | null {
 function applyHydratedBlob(
   parsed: Record<string, unknown>,
   requestedWorkspaceId: WorkspaceId,
-): void {
+): StoreHydrationResult {
+  const incompatible = incompatibleFutureSchema(parsed);
+  if (incompatible !== null) return incompatible;
   // Route through the persisted-blob slot so load() applies migrate() + the
   // same field defaulting as a cold start. Publish as one complete partition replacement: routing
   // through setPartial would stamp the incoming Business rows as the previously-active Personal
   // workspace during an intentional switch.
+  const previousPersistedBlob = persistedBlob;
   persistedBlob = parsed;
   const loaded = load();
-  if (
-    String(loaded.activeWorkspaceId) !== String(requestedWorkspaceId) ||
-    String(loaded.dataWorkspaceId) !== String(requestedWorkspaceId)
-  ) {
-    throw new Error(
-      `Persisted partition does not belong to workspace ${String(requestedWorkspaceId)}.`,
-    );
+  if (loadDegraded) {
+    persistedBlob = previousPersistedBlob;
+    return { status: 'degraded' };
   }
-  assertValidWorkspaceRoot(loaded);
-  requireWorkspaceRows(requireWorkspaceData(loaded, requestedWorkspaceId), requestedWorkspaceId);
-  state = loaded;
-  persist();
-  emit();
+  try {
+    if (
+      String(loaded.activeWorkspaceId) !== String(requestedWorkspaceId) ||
+      String(loaded.dataWorkspaceId) !== String(requestedWorkspaceId)
+    ) {
+      throw new Error(
+        `Persisted partition does not belong to workspace ${String(requestedWorkspaceId)}.`,
+      );
+    }
+    assertValidWorkspaceRoot(loaded);
+    requireWorkspaceRows(requireWorkspaceData(loaded, requestedWorkspaceId), requestedWorkspaceId);
+    state = loaded;
+    persist();
+    emit();
+    return { status: 'applied' };
+  } catch (reason: unknown) {
+    persistedBlob = previousPersistedBlob;
+    throw reason;
+  }
+}
+
+function incompatibleFutureSchema(
+  parsed: Record<string, unknown>,
+): Extract<StoreHydrationResult, { status: 'incompatible-future-schema' }> | null {
+  const schemaVersion = parsed['schemaVersion'];
+  return typeof schemaVersion === 'number' && schemaVersion > CURRENT_SCHEMA_VERSION
+    ? { status: 'incompatible-future-schema', schemaVersion }
+    : null;
 }
 
 function nextStateForPartial(patch: Partial<AppState>): AppState {

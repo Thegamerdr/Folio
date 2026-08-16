@@ -9,6 +9,7 @@ const clearQuarantinedNativeWorkspaceVaults = vi.fn().mockResolvedValue(undefine
 const clearAllMeloNotifications = vi.fn().mockResolvedValue(undefined);
 const saveNotifyRuntimeState = vi.fn().mockResolvedValue(undefined);
 const clearPersistedLocalUserDataArtifacts = vi.fn();
+const clearFutureSchemaWriteBlocksAfterLocalDeletion = vi.fn();
 const persistEmptyWorkspaceSetAfterLocalClear = vi.fn().mockResolvedValue(undefined);
 const resumePersistence = vi.fn();
 const quiescePersistenceWrites = vi.fn(async () => resumePersistence);
@@ -29,6 +30,7 @@ vi.mock('./notifyRuntimeState', () => ({
 }));
 vi.mock('./persist', () => ({
   clearPersistedLocalUserDataArtifacts,
+  clearFutureSchemaWriteBlocksAfterLocalDeletion,
   persistEmptyWorkspaceSetAfterLocalClear,
   quiescePersistenceWrites,
 }));
@@ -88,6 +90,7 @@ describe('local Melo data deletion', () => {
       expect.objectContaining({ version: 1 }),
     );
     expect(resetToEmpty).toHaveBeenCalledTimes(1);
+    expect(clearFutureSchemaWriteBlocksAfterLocalDeletion).toHaveBeenCalledTimes(1);
     expect(clearPersistedLocalUserDataArtifacts).toHaveBeenCalledWith(workspaceId);
     expect(clearPersistedLocalUserDataArtifacts.mock.invocationCallOrder[0]!).toBeLessThan(
       resetToEmpty.mock.invocationCallOrder[0]!,
@@ -109,5 +112,8 @@ describe('local Melo data deletion', () => {
         failedArtifacts: ['folio.state.v3.unreadable.json'],
       }),
     );
+    expect(clearFutureSchemaWriteBlocksAfterLocalDeletion).not.toHaveBeenCalled();
+    expect(resetToEmpty).not.toHaveBeenCalled();
+    expect(persistEmptyWorkspaceSetAfterLocalClear).not.toHaveBeenCalled();
   });
 });

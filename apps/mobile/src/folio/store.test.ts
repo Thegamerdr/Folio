@@ -18,6 +18,7 @@ import {
   type IncomeSource,
   type Pot,
   type Transaction,
+  CURRENT_SCHEMA_VERSION,
   DEFAULT_ACCOUNT_ID,
   accountIdOf,
   addAccount,
@@ -2000,8 +2001,24 @@ describe('persist blob round-trip', () => {
 
   it('a malformed blob leaves state untouched', () => {
     setPartial({ tightPointGoal: 99 });
-    hydrateFromBlob('not valid json');
+    expect(hydrateFromBlob('not valid json')).toEqual({ status: 'malformed' });
     expect(getState().tightPointGoal).toBe(99);
+  });
+
+  it('classifies a future schema without publishing defaults or replacing current state', () => {
+    setPartial({ tightPointGoal: 808 });
+    const before = getPersistBlob();
+    const future = JSON.parse(before) as Record<string, unknown>;
+    future['schemaVersion'] = CURRENT_SCHEMA_VERSION + 1;
+    future['tightPointGoal'] = 999;
+
+    expect(hydrateFromBlob(JSON.stringify(future))).toEqual({
+      status: 'incompatible-future-schema',
+      schemaVersion: CURRENT_SCHEMA_VERSION + 1,
+    });
+    expect(getPersistBlob()).toBe(before);
+    expect(getState().tightPointGoal).toBe(808);
+    expect(consumeLoadDegraded()).toBe(false);
   });
 });
 

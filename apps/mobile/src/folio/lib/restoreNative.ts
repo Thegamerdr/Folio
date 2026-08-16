@@ -19,7 +19,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { WorkspaceId } from '@folio/domain';
 
-import { consumeLoadDegraded, restoreBackupFromBlob } from '@/folio/store';
+import { restoreBackupFromBlob } from '@/folio/store';
 import { reconcileEntitlements } from '@/folio/lib/billing/entitlements';
 import { reconcileMissingEvidenceFiles } from '@/folio/lib/persist';
 
@@ -85,8 +85,13 @@ export async function applyRestore(
 ): Promise<ApplyRestoreResult> {
   const validation = validateRestoreJson(raw, workspaceId);
   if (!validation.ok) throw new Error('This backup cannot replace the selected Melo workspace.');
-  restoreBackupFromBlob(raw, workspaceId);
-  const degraded = consumeLoadDegraded();
+  const hydration = restoreBackupFromBlob(raw, workspaceId);
+  if (hydration.status === 'incompatible-future-schema') {
+    throw new Error(
+      'This backup was created by a newer Melo version. Update Melo before restoring it.',
+    );
+  }
+  const degraded = hydration.status !== 'applied';
   if (!degraded) await reconcileMissingEvidenceFiles(workspaceId);
   await reconcileEntitlements();
   return { degraded };

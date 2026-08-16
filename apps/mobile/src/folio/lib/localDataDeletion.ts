@@ -6,6 +6,7 @@ import { clearQuarantinedNativeWorkspaceVaults } from '@/local/nativeWorkspaceSt
 
 import {
   clearPersistedLocalUserDataArtifacts,
+  clearFutureSchemaWriteBlocksAfterLocalDeletion,
   persistEmptyWorkspaceSetAfterLocalClear,
   quiescePersistenceWrites,
 } from './persist';
@@ -49,10 +50,18 @@ export async function clearLocalMeloData(
     // unavailable, persist.ts can then fall back to the exact opaque filenames for every workspace;
     // resetting first would erase that only fallback and could strand an encrypted original.
     const artifacts = await clearPersistedLocalUserDataArtifacts(workspaceId);
+    if (artifacts.failed.length > 0) {
+      return {
+        complete: false,
+        removedArtifacts: artifacts.removed,
+        failedArtifacts: artifacts.failed,
+      };
+    }
 
     // Mutate the live product only after auxiliary cleanup has had its chance. The store emits an
     // empty snapshot to every live UI/widget subscriber; no sample data is seeded. The normal
     // writer is quiesced so this explicit SQL commit cannot race its own reset notification.
+    clearFutureSchemaWriteBlocksAfterLocalDeletion();
     resetToEmpty();
     await persistEmptyWorkspaceSetAfterLocalClear();
 

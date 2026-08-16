@@ -313,6 +313,44 @@ function useReducedMotion(): boolean {
 // ---------------------------------------------------------------------------
 
 export function FolioShell() {
+  return getHydrationOutcome() === 'incompatible-future-schema' ? (
+    <FutureSchemaGate />
+  ) : (
+    <ReadyFolioShell />
+  );
+}
+
+function FutureSchemaGate() {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      accessibilityLiveRegion="assertive"
+      accessibilityRole="alert"
+      style={[
+        shellStyles.futureGate,
+        {
+          backgroundColor: t.canvas,
+          paddingTop: Math.max(insets.top, 24),
+          paddingBottom: Math.max(insets.bottom, 24),
+        },
+      ]}
+    >
+      <View style={[shellStyles.futureGateCard, { backgroundColor: t.surface }]}>
+        <Text accessibilityRole="header" style={[shellStyles.futureGateTitle, { color: t.ink }]}>
+          Update Melo to open your saved data
+        </Text>
+        <Text style={[shellStyles.futureGateBody, { color: t.muted }]}>
+          This device contains protected data created by a newer Melo version. It remains unchanged,
+          and this version will not save over it. Reinstall or update to the newer version to
+          continue.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function ReadyFolioShell() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   // The refrozen Personal first-run doorway is authoritative. Returning Personal users and every
@@ -829,6 +867,25 @@ const shellStyles = StyleSheet.create({
   root: { flex: 1 },
   routeFrame: { flex: 1 },
   screenHost: { flex: 1 },
+  futureGate: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  futureGateCard: {
+    borderRadius: 18,
+    padding: 24,
+  },
+  futureGateTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    lineHeight: 30,
+  },
+  futureGateBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 12,
+  },
   statusBarMask: {
     position: 'absolute',
     top: 0,

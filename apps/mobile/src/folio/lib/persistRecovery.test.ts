@@ -45,7 +45,7 @@ import type {
 // ---------------------------------------------------------------------------
 // Hoisted mock state — a Map<uri, string> standing in for the document
 // directory, plus a one-shot flag used only by scenario (h) to force
-// `consumeLoadDegraded()` to report true without needing an actual store
+// `hydrateFromBlob()` to report a degraded load without needing an actual store
 // throw (see that scenario for why: post-101, every array field in load() is
 // Array.isArray-guarded, so no shape reachable through the public
 // hydrateFromBlob API still throws — confirmed by store.test.ts's own
@@ -130,17 +130,26 @@ const {
   };
 });
 
+const appStateListeners = vi.hoisted(
+  () => new Set<(status: 'active' | 'background' | 'inactive') => void>(),
+);
+
 vi.mock('expo-file-system/legacy', () => FS);
 vi.mock('react-native', () => ({
   AppState: {
     currentState: 'active',
-    addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+    addEventListener: vi.fn(
+      (_event: string, listener: (status: 'active' | 'background' | 'inactive') => void) => {
+        appStateListeners.add(listener);
+        return { remove: () => appStateListeners.delete(listener) };
+      },
+    ),
   },
 }));
 
 // Enumerated per the mock-pattern gotcha: a vi.mock factory's namespace proxy throws on access to
-// any export not defined here. persist.ts touches only `getRandomBytesAsync` (inside
-// `startPersisting`, never called by this file's scenarios), but it is included for completeness.
+// any export not defined here. persist.ts touches only `getRandomBytesAsync` inside
+// `startPersisting`; rollback scenarios exercise that path with deterministic bytes.
 vi.mock('expo-crypto', () => ({
   getRandomBytesAsync: vi.fn(async (length: number) => new Uint8Array(length)),
 }));
@@ -151,15 +160,14 @@ vi.mock('@/folio/store', async () => {
   const actual = await import('../store');
   return {
     ...actual,
-    // Wrapped so scenario (h) can force a single "degraded" read without needing a real store
-    // throw (which post-101 guards make unreachable through the public API). Every other test
-    // passes straight through to the real, read-once `consumeLoadDegraded`.
-    consumeLoadDegraded: (): boolean => {
+    // Wrapped so scenario (h) can force a single typed degraded result without needing a real store
+    // throw (which post-101 guards make unreachable through the public API).
+    hydrateFromBlob: (...args: Parameters<typeof actual.hydrateFromBlob>) => {
       if (forceDegraded.next) {
         forceDegraded.next = false;
-        return true;
+        return { status: 'degraded' as const };
       }
-      return actual.consumeLoadDegraded();
+      return actual.hydrateFromBlob(...args);
     },
   };
 });
@@ -204,6 +212,7 @@ vi.mock('./notifyRuntimeState', () => ({
 }));
 
 import {
+  CURRENT_SCHEMA_VERSION,
   addEvidenceDocument,
   addTransaction,
   getPersistBlob,
@@ -214,11 +223,14 @@ import {
 } from '../store';
 import {
   archivePersistedBusinessWorkspace,
+  clearFutureSchemaWriteBlocksAfterLocalDeletion,
   clearPersistedLocalUserDataArtifacts,
   createAndActivatePersistedBusinessWorkspace,
   createPersistedBusinessWorkspace,
   getHydrationOutcome,
+  getIncompatibleFutureSchemaVersion,
   getMoneyHydrationAuthority,
+  isPersistenceWriteBlocked,
   loadPersisted,
   loadPersistedActiveWorkspace,
   persistEmptyWorkspaceSetAfterLocalClear,
@@ -227,6 +239,7 @@ import {
   readWorkspaceManifest,
   reconcileEvidenceFilesystem,
   reconcileMissingEvidenceFiles,
+  requestPersistenceRetry,
   renamePersistedBusinessWorkspace,
   restorePersistedBusinessWorkspace,
   startPersisting,
@@ -252,6 +265,17 @@ const partitionParkedUri = `${DOC_DIR}${partitionNames.parked}`;
 const manifestUri = `${DOC_DIR}melo.workspace-manifest.v1.json`;
 const manifestTmpUri = `${DOC_DIR}melo.workspace-manifest.v1.tmp.json`;
 
+function nativeGeneration(payload: string, generation = 1) {
+  return {
+    generation,
+    workspaceId: String(PERSONAL_WORKSPACE_ID),
+    schemaVersion: 11,
+    payload,
+    payloadSha256: 'a'.repeat(64),
+    committedAt: '2026-08-16T12:00:00.000Z',
+  };
+}
+
 beforeEach(() => {
   fsState.clear();
   vi.clearAllMocks();
@@ -267,13 +291,15 @@ beforeEach(() => {
   saveNativeWorkspaceStateGeneration.mockResolvedValue({ generation: 1 });
   saveNativeWorkspaceManifestGeneration.mockResolvedValue({ generation: 1 });
   forceDegraded.next = false;
+  appStateListeners.clear();
+  clearFutureSchemaWriteBlocksAfterLocalDeletion();
   resetPersistenceRuntimeState();
   resetAll();
 });
 
 describe('loadPersisted — scaffold sanity', () => {
   it('the mocked filesystem + real store wire together (trivial first-run load)', async () => {
-    await loadPersisted(PERSONAL_WORKSPACE_ID);
+    await expect(loadPersistedActiveWorkspace()).resolves.toBe(PERSONAL_WORKSPACE_ID);
     expect(getHydrationOutcome()).toBe('first-run');
   });
 
@@ -282,6 +308,79 @@ describe('loadPersisted — scaffold sanity', () => {
       loadPersisted('workspace_business_injected' as typeof PERSONAL_WORKSPACE_ID),
     ).rejects.toThrow(/not provisioned/i);
     expect(FS.getInfoAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('future-schema rollback interlock', () => {
+  it('stops at a newer SQLCipher generation and never falls back to or overwrites an older one', async () => {
+    resetToEmpty();
+    setPartial({ tightPointGoal: 321 });
+    const olderPayload = getPersistBlob();
+    const future = JSON.parse(olderPayload) as Record<string, unknown>;
+    future['schemaVersion'] = CURRENT_SCHEMA_VERSION + 1;
+    future['tightPointGoal'] = 999;
+    const futurePayload = JSON.stringify(future);
+    resetToEmpty();
+    loadNativeWorkspaceStateGenerations.mockResolvedValue({
+      status: 'ok',
+      generations: [nativeGeneration(futurePayload, 2), nativeGeneration(olderPayload, 1)],
+      invalidGenerationCount: 0,
+    });
+
+    await expect(loadPersistedActiveWorkspace()).resolves.toBe(PERSONAL_WORKSPACE_ID);
+
+    expect(getHydrationOutcome()).toBe('incompatible-future-schema');
+    expect(getIncompatibleFutureSchemaVersion()).toBe(CURRENT_SCHEMA_VERSION + 1);
+    expect(isPersistenceWriteBlocked(PERSONAL_WORKSPACE_ID)).toBe(true);
+    expect(getState().tightPointGoal).not.toBe(321);
+    await expect(persistCurrentStateNow(PERSONAL_WORKSPACE_ID)).rejects.toThrow(/read-only/i);
+    // Boot's authority-reconciliation path must not heal a rollback by saving editable defaults.
+    expect(saveNativeWorkspaceStateGeneration).not.toHaveBeenCalled();
+    expect(saveNativeWorkspaceManifestGeneration).not.toHaveBeenCalled();
+  });
+
+  it('preserves a newer file generation through mutation, background flush, retry, and relaunch', async () => {
+    resetToEmpty();
+    setPartial({ tightPointGoal: 444 });
+    const olderPayload = getPersistBlob();
+    const future = JSON.parse(olderPayload) as Record<string, unknown>;
+    future['schemaVersion'] = CURRENT_SCHEMA_VERSION + 1;
+    future['tightPointGoal'] = 777;
+    const futurePayload = JSON.stringify(future);
+    fsState.set(mainUri, futurePayload);
+    fsState.set(backupUri, olderPayload);
+    resetToEmpty();
+
+    await loadPersisted(PERSONAL_WORKSPACE_ID);
+    const stop = startPersisting(PERSONAL_WORKSPACE_ID);
+    expect(requestPersistenceRetry()).toBe(false);
+    setPartial({ tightPointGoal: 123 });
+    for (const listener of appStateListeners) listener('background');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getHydrationOutcome()).toBe('incompatible-future-schema');
+    expect(fsState.get(mainUri)).toBe(futurePayload);
+    expect(fsState.get(backupUri)).toBe(olderPayload);
+    expect(fsState.has(parkedUri)).toBe(false);
+    expect(FS.writeAsStringAsync).not.toHaveBeenCalled();
+    expect(saveNativeWorkspaceStateGeneration).not.toHaveBeenCalled();
+
+    await loadPersisted(PERSONAL_WORKSPACE_ID);
+    expect(getHydrationOutcome()).toBe('incompatible-future-schema');
+    expect(fsState.get(mainUri)).toBe(futurePayload);
+    expect(fsState.get(backupUri)).toBe(olderPayload);
+    stop();
+  });
+
+  it('keeps current-schema persistence writable as the control', async () => {
+    resetToEmpty();
+    setPartial({ tightPointGoal: 654 });
+
+    await persistCurrentStateNow(PERSONAL_WORKSPACE_ID);
+
+    expect(isPersistenceWriteBlocked(PERSONAL_WORKSPACE_ID)).toBe(false);
+    expect(saveNativeWorkspaceStateGeneration).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -991,7 +1090,7 @@ describe('loadPersisted — recovery matrix', () => {
     expect(fsState.has(parkedUri)).toBe(false);
   });
 
-  it('h2. consumeLoadDegraded()===true after a syntactically-valid main is treated as unreadable: parked + backup recovery, backup NOT clobbered', async () => {
+  it('h2. a typed degraded hydrate is treated as unreadable: parked + backup recovery, backup NOT clobbered', async () => {
     const mainBlob = getPersistBlob(); // valid JSON, hydrates cleanly on its own.
     fsState.set(mainUri, mainBlob);
 
@@ -1005,7 +1104,7 @@ describe('loadPersisted — recovery matrix', () => {
 
     expect(getHydrationOutcome()).toBe('recovered-backup');
     // Main was syntactically fine but still parked, original bytes intact — proves persist.ts
-    // treats the degraded flag as unreadable rather than trusting the hydrate.
+    // treats the degraded result as unreadable rather than trusting the hydrate.
     expect(fsState.get(parkedUri)).toBe(mainBlob);
     expect(fsState.has(mainUri)).toBe(false);
     // The bug 101 fixed: the backup must NOT be overwritten with the just-degraded main.

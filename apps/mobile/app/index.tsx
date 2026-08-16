@@ -19,6 +19,7 @@ import { useTheme } from '@/surfaces/pressureMap/kit';
 import { FolioShell } from '@/folio/shell/FolioShell';
 import {
   importMeloBlobIfPresent,
+  getHydrationOutcome,
   loadPersistedActiveWorkspace,
   startPersisting,
 } from '@/folio/lib/persist';
@@ -122,6 +123,13 @@ export default function FolioRoute() {
     void (async () => {
       const activeWorkspaceId = await loadPersistedActiveWorkspace();
       if (cancelled) return;
+      if (getHydrationOutcome() === 'incompatible-future-schema') {
+        // A rollback must remain completely read-only. Do not run imports, entitlement repair,
+        // companion persistence, notifications, widgets, or the background writer over data from a
+        // newer Melo schema. FolioShell renders the non-dismissible update gate instead.
+        setReady(true);
+        return;
+      }
       // One-time data-continuity import from the archived Melo surface's own
       // blob, if the folio store is still empty. Runs AFTER loadPersisted so
       // the emptiness check reads real hydrated state. Silent no-op on any

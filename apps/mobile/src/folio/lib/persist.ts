@@ -26,7 +26,6 @@ import { AppState as NativeAppState } from 'react-native';
 
 import {
   applyMeloImportIfEmpty,
-  consumeLoadDegraded,
   createEmptyWorkspacePartition,
   getPersistBlob,
   getState,
@@ -40,6 +39,7 @@ import {
   subscribeStore,
   type AppState,
   type MeloImportBlob,
+  type StoreHydrationResult,
 } from '@/folio/store';
 import { GCM_NONCE_BYTES, decryptBlob, encryptBlob, isEncryptedBlob } from '@/folio/lib/cryptoBlob';
 import { getVaultKey } from '@/folio/lib/vaultKey';
@@ -120,6 +120,7 @@ export type HydrationOutcome =
   | 'recovered-backup'
   | 'recovered-legacy'
   | 'recovered-file'
+  | 'incompatible-future-schema'
   | 'unreadable';
 let hydrationOutcome: HydrationOutcome = 'first-run';
 type HydrationSource = 'none' | 'sqlcipher' | 'scoped' | 'legacy';
@@ -127,8 +128,47 @@ let hydrationSource: HydrationSource = 'none';
 export type MoneyHydrationAuthority = 'exact-app-state' | 'canonical-sqlcipher';
 let moneyHydrationAuthority: MoneyHydrationAuthority = 'exact-app-state';
 const nativeStateUnreadableWorkspaces = new Set<string>();
+const futureSchemaWriteBlocks = new Map<string, number>();
+let lastIncompatibleFutureSchemaVersion: number | null = null;
 export function getHydrationOutcome(): HydrationOutcome {
   return hydrationOutcome;
+}
+export function getIncompatibleFutureSchemaVersion(workspaceId?: WorkspaceId): number | null {
+  return workspaceId === undefined
+    ? lastIncompatibleFutureSchemaVersion
+    : (futureSchemaWriteBlocks.get(String(workspaceId)) ?? null);
+}
+export function isPersistenceWriteBlocked(workspaceId: WorkspaceId): boolean {
+  return futureSchemaWriteBlocks.has(String(workspaceId));
+}
+
+function blockFutureSchemaWrites(workspaceId: WorkspaceId, schemaVersion: number): void {
+  futureSchemaWriteBlocks.set(String(workspaceId), schemaVersion);
+  lastIncompatibleFutureSchemaVersion = schemaVersion;
+}
+
+function clearFutureSchemaWriteBlock(workspaceId: WorkspaceId): void {
+  futureSchemaWriteBlocks.delete(String(workspaceId));
+  lastIncompatibleFutureSchemaVersion =
+    futureSchemaWriteBlocks.size === 0
+      ? null
+      : ([...futureSchemaWriteBlocks.values()].at(-1) ?? null);
+}
+
+function assertWorkspaceWritable(workspaceId: WorkspaceId): void {
+  const schemaVersion = futureSchemaWriteBlocks.get(String(workspaceId));
+  if (schemaVersion !== undefined) {
+    throw new Error(
+      `Workspace ${String(workspaceId)} is read-only because schema v${schemaVersion} requires a newer Melo version.`,
+    );
+  }
+}
+
+/** Called only after the explicit local-data deletion flow has removed every protected generation. */
+export function clearFutureSchemaWriteBlocksAfterLocalDeletion(): void {
+  futureSchemaWriteBlocks.clear();
+  lastIncompatibleFutureSchemaVersion = null;
+  if (hydrationOutcome === 'incompatible-future-schema') hydrationOutcome = 'first-run';
 }
 export function getMoneyHydrationAuthority(): MoneyHydrationAuthority {
   return moneyHydrationAuthority;
@@ -155,6 +195,7 @@ let activePersistenceQuiesce: (() => Promise<() => void>) | null = null;
 /** Ask the live persistence controller to retry immediately. */
 export function requestPersistenceRetry(): boolean {
   if (activePersistenceRetry === null) return false;
+  if (isPersistenceWriteBlocked(getState().activeWorkspaceId)) return false;
   activePersistenceRetry();
   return true;
 }
@@ -298,14 +339,18 @@ function isHydratable(plain: string): boolean {
 
 /** Apply one already-integrity-checked plaintext generation through the canonical store migration
  * boundary. SQLCipher and authenticated file recovery share this exact validation path. */
-function tryHydratePlaintext(plain: string, workspaceId: WorkspaceId): boolean {
+function tryHydratePlaintext(plain: string, workspaceId: WorkspaceId): StoreHydrationResult {
   try {
-    if (!isHydratable(plain)) return false;
-    hydrateFromBlob(plain, workspaceId);
-    if (consumeLoadDegraded()) return false;
-    return true;
+    if (!isHydratable(plain)) return { status: 'malformed' };
+    const result = hydrateFromBlob(plain, workspaceId);
+    if (result.status === 'incompatible-future-schema') {
+      blockFutureSchemaWrites(workspaceId, result.schemaVersion);
+    } else if (result.status === 'applied') {
+      clearFutureSchemaWriteBlock(workspaceId);
+    }
+    return result;
   } catch {
-    return false;
+    return { status: 'degraded' };
   }
 }
 
@@ -348,15 +393,15 @@ async function tryHydrateFile(
   uri: string,
   workspaceId: WorkspaceId,
   decode: (raw: string) => Promise<string | null>,
-): Promise<boolean> {
+): Promise<StoreHydrationResult> {
   try {
     const raw = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
     const plain = await decode(raw);
-    return plain !== null && tryHydratePlaintext(plain, workspaceId);
+    return plain === null ? { status: 'malformed' } : tryHydratePlaintext(plain, workspaceId);
   } catch {
-    return false;
+    return { status: 'malformed' };
   }
 }
 
@@ -397,7 +442,13 @@ export async function loadPersisted(workspaceId: WorkspaceId): Promise<void> {
   }));
   if (native.status === 'ok' || native.status === 'recovered') {
     for (const [index, generation] of native.generations.entries()) {
-      if (!tryHydratePlaintext(generation.payload, workspaceId)) continue;
+      const result = tryHydratePlaintext(generation.payload, workspaceId);
+      if (result.status === 'incompatible-future-schema') {
+        hydrationSource = 'sqlcipher';
+        hydrationOutcome = 'incompatible-future-schema';
+        return;
+      }
+      if (result.status !== 'applied') continue;
       await tryApplyBoundCanonicalMoneyProjection(workspace, generation);
       hydrationSource = 'sqlcipher';
       hydrationOutcome = native.status === 'recovered' || index > 0 ? 'recovered-backup' : 'ok';
@@ -450,11 +501,17 @@ export async function loadPersisted(workspaceId: WorkspaceId): Promise<void> {
   } else {
     hydrationOutcome = nativeUnreadable ? 'unreadable' : 'first-run';
   }
-  if (nativeUnreadable && hydrationOutcome !== 'unreadable' && hydrationOutcome !== 'first-run') {
+  if (
+    nativeUnreadable &&
+    hydrationOutcome !== 'unreadable' &&
+    hydrationOutcome !== 'first-run' &&
+    hydrationOutcome !== 'incompatible-future-schema'
+  ) {
     hydrationOutcome = 'recovered-file';
   }
   if (
     hydrationOutcome !== 'unreadable' &&
+    hydrationOutcome !== 'incompatible-future-schema' &&
     getState().activeWorkspaceId === workspaceId &&
     (await reconcileEvidenceFilesystem(workspaceId)).removedMetadata > 0
   ) {
@@ -556,7 +613,11 @@ async function loadPersistedFileSet(
       // is this a genuine first run.
       const temporaryInfo = await FileSystem.getInfoAsync(files.temporary);
       if (temporaryInfo.exists) {
-        if (await tryHydrateFile(files.temporary, workspaceId, decode)) {
+        const temporaryResult = await tryHydrateFile(files.temporary, workspaceId, decode);
+        if (temporaryResult.status === 'incompatible-future-schema') {
+          return 'incompatible-future-schema';
+        }
+        if (temporaryResult.status === 'applied') {
           try {
             await replaceFile(files.temporary, files.main); // promote the orphaned-but-good tmp.
           } catch {
@@ -574,25 +635,29 @@ async function loadPersistedFileSet(
         }
       }
       const backupInfo = await FileSystem.getInfoAsync(files.backup);
-      if (backupInfo.exists && (await tryHydrateFile(files.backup, workspaceId, decode))) {
-        return 'recovered-backup';
+      if (backupInfo.exists) {
+        const backupResult = await tryHydrateFile(files.backup, workspaceId, decode);
+        if (backupResult.status === 'incompatible-future-schema') {
+          return 'incompatible-future-schema';
+        }
+        if (backupResult.status === 'applied') return 'recovered-backup';
       }
       return temporaryInfo.exists || backupInfo.exists ? 'unreadable' : 'first-run';
     }
 
-    if (await tryHydrateFile(files.main, workspaceId, decode)) {
+    const mainResult = await tryHydrateFile(files.main, workspaceId, decode);
+    if (mainResult.status === 'incompatible-future-schema') {
+      return 'incompatible-future-schema';
+    }
+    if (mainResult.status === 'applied') {
       // Refresh the backup ONLY when the hydrate produced real user state. `hydrateFromBlob`
       // can't signal a deep failure: the store's own load() swallows a migrate() throw into
       // DEFAULTS, so a blob that decrypts and parses but breaks migration would read as "ok" here
       // — and copying THAT main file over the backup would clobber the last good generation with
       // a bad one. Gating on hasAnyUserData means a degraded-to-defaults hydrate never overwrites
       // the backup (a genuinely-empty new install has nothing worth backing up anyway). The
-      // consumeLoadDegraded() check above tryHydrateFile's `return true` closes the remaining
-      // hole: seeded DEFAULTS passes hasAnyUserData (its demo pots/subs/cycles/transactions are
-      // non-empty), so without that check a throwing load() would still look like a healthy 'ok'
-      // hydrate here and overwrite the backup with the just-corrupted main file. Now a throwing
-      // load() makes tryHydrateFile return false before this block ever runs, so it falls through
-      // to the park-main + restore-backup path below instead.
+      // typed hydrate result closes the remaining hole: seeded DEFAULTS passes hasAnyUserData, so a
+      // throwing load must be rejected before this block or it could overwrite a good backup.
       try {
         if (hasAnyUserData(getState())) {
           await FileSystem.copyAsync({ from: files.main, to: files.backup });
@@ -613,7 +678,11 @@ async function loadPersistedFileSet(
     // A complete tmp is newer than both the just-parked main and the backup: it was fully written
     // before a crash interrupted replacement. Prefer and promote it before falling back a
     // generation. This also recovers the only good copy when main + backup are both corrupt.
-    if (await tryHydrateFile(files.temporary, workspaceId, decode)) {
+    const temporaryResult = await tryHydrateFile(files.temporary, workspaceId, decode);
+    if (temporaryResult.status === 'incompatible-future-schema') {
+      return 'incompatible-future-schema';
+    }
+    if (temporaryResult.status === 'applied') {
       try {
         await replaceFile(files.temporary, files.main);
       } catch {
@@ -622,8 +691,12 @@ async function loadPersistedFileSet(
       return 'ok';
     }
     const backupInfo = await FileSystem.getInfoAsync(files.backup);
-    if (backupInfo.exists && (await tryHydrateFile(files.backup, workspaceId, decode))) {
-      return 'recovered-backup';
+    if (backupInfo.exists) {
+      const backupResult = await tryHydrateFile(files.backup, workspaceId, decode);
+      if (backupResult.status === 'incompatible-future-schema') {
+        return 'incompatible-future-schema';
+      }
+      if (backupResult.status === 'applied') return 'recovered-backup';
     }
     return 'unreadable';
   } catch {
@@ -724,7 +797,13 @@ export function startPersisting(initialWorkspaceId: WorkspaceId): () => void {
   };
 
   const scheduleRetry = () => {
-    if (stopped || retryHandle !== null) return;
+    if (
+      stopped ||
+      retryHandle !== null ||
+      isPersistenceWriteBlocked(getState().activeWorkspaceId)
+    ) {
+      return;
+    }
     const failures = Math.max(1, getPersistenceRuntimeState().consecutiveFailures);
     const delay = WRITE_RETRY_DELAYS_MS[Math.min(failures - 1, WRITE_RETRY_DELAYS_MS.length - 1)]!;
     retryHandle = setTimeout(() => {
@@ -737,6 +816,7 @@ export function startPersisting(initialWorkspaceId: WorkspaceId): () => void {
     if (stopped || pauseDepth > 0) return;
     const workspaceId = getState().activeWorkspaceId;
     requirePersistWorkspace(workspaceId);
+    if (isPersistenceWriteBlocked(workspaceId)) return;
     // Encrypt-then-write, STAGED: the ciphertext lands in the tmp file first and only a complete
     // tmp is renamed over the main blob, so a crash mid-write can never leave a half-written main
     // file (the pre-crash generation survives; loadPersisted also recovers an orphaned tmp from
@@ -749,7 +829,7 @@ export function startPersisting(initialWorkspaceId: WorkspaceId): () => void {
       } catch {
         // The previous complete generation remains intact because writes stage to `.tmp` first.
         // Keep the failure visible and retry even if no further user action occurs.
-        scheduleRetry();
+        if (!isPersistenceWriteBlocked(workspaceId)) scheduleRetry();
       }
     });
   };
@@ -914,6 +994,7 @@ export async function clearPersistedLocalUserDataArtifacts(
 
 /** Persist the current in-memory state immediately, using the same encrypted staged write as boot. */
 export async function persistCurrentStateNow(workspaceId: WorkspaceId): Promise<void> {
+  assertWorkspaceWritable(workspaceId);
   const files = partitionFileUris(workspaceId);
   const workspace = workspaceMetadata(workspaceId);
   const plaintext = getPersistBlob(workspaceId);
@@ -1127,6 +1208,7 @@ async function healSqlCipherAuthorityAfterFallbackLoad(
   workspaceId: WorkspaceId,
   manifestUnreadable: boolean,
 ): Promise<void> {
+  if (isPersistenceWriteBlocked(workspaceId)) return;
   try {
     await persistCurrentStateNow(workspaceId);
     nativeStateUnreadableWorkspaces.delete(String(workspaceId));
@@ -1169,7 +1251,11 @@ export async function loadPersistedActiveWorkspace(): Promise<WorkspaceId> {
   const manifest = manifestResolution.manifest;
   if (manifest === null) {
     await loadPersisted(PERSONAL_WORKSPACE_ID);
-    if (hydrationOutcome !== 'unreadable' && hydrationSource !== 'none') {
+    if (
+      hydrationOutcome !== 'unreadable' &&
+      hydrationOutcome !== 'incompatible-future-schema' &&
+      hydrationSource !== 'none'
+    ) {
       if (manifestResolution.nativeUnreadable && hydrationOutcome === 'ok') {
         hydrationOutcome = 'recovered-file';
       }
@@ -1188,6 +1274,7 @@ export async function loadPersistedActiveWorkspace(): Promise<WorkspaceId> {
   }
   const target = manifest.activeWorkspaceId;
   await loadPersisted(target);
+  if (hydrationOutcome === 'incompatible-future-schema') return target;
   if (hydrationOutcome !== 'unreadable') {
     const loaded = getState();
     if (loaded.activeWorkspaceId === target && loaded.dataWorkspaceId === target) {
@@ -1312,6 +1399,7 @@ export async function switchPersistedWorkspace(workspaceId: WorkspaceId): Promis
     await loadPersisted(checked);
     if (
       hydrationOutcome === 'unreadable' ||
+      hydrationOutcome === 'incompatible-future-schema' ||
       getState().activeWorkspaceId !== checked ||
       getState().dataWorkspaceId !== checked
     ) {
@@ -1567,6 +1655,7 @@ async function clearArchivedWorkspaceRuntime(workspaceId: WorkspaceId): Promise<
 }
 
 async function writePartitionState(workspace: PersistedWorkspace, blob: string): Promise<void> {
+  assertWorkspaceWritable(workspace.id);
   const files = partitionFileUris(workspace.id);
   const canonicalProjection = createCanonicalAppStateProjectionFromPayload(blob, workspace);
   await saveNativeWorkspaceStateGeneration(workspace, blob, canonicalProjection.repositorySnapshot);
