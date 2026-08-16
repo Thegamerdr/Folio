@@ -1,22 +1,12 @@
-# Implementation Plans
+# Historical implementation plans
 
-Two backlogs live here:
+The completed July backlogs are retained here as history. They are not the current Melo work queue,
+and their old branch names and runtime assumptions are superseded by the
+[2026-08-16 repository authority](../docs/convergence/2026-08-16/MELO_REPOSITORY_AND_NAVIGATION_AUTHORITY.md).
 
-1. **Night-mode backlog (ACTIVE)** — plans `101+`, written 2026-07-11 against commit
-   `5cea944` on `claude/melo-mvp` by the improve skill (full audit: product-logic truth,
-   data-model truth, launch readiness, dead-code map). Execute in the order below.
-2. **Legacy parity backlog (historical)** — the `01–13` table further down, written against
-   `e52de55` on the old `claude/folio-web-parity` branch. Most of it audits the archived
-   pressureMap surface; treat as record, not work queue, until reconciled.
+Current safety and authority work is indexed in [`advisor-plans/README.md`](../advisor-plans/README.md).
 
-Each executor: read the plan fully before starting, honor its STOP conditions, and do NOT
-update this index (the reviewer maintains it).
-
-EXECUTION MODE NOTE (2026-07-11): `isolation:"worktree"` executors are BROKEN on this
-machine (stale base commit + no node_modules) — executors run sequentially in the main
-checkout, reviewer commits. See memory `arbit-worktree-stale-base`.
-
-## Night-mode execution order & status
+## Historical night-mode execution order and status
 
 | Plan | Title                                                                      | Priority | Effort | Lane      | Depends on                  | Status                                                                                                                                                                                                                            |
 | ---- | -------------------------------------------------------------------------- | -------- | ------ | --------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

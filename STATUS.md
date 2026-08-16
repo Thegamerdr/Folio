@@ -1,14 +1,17 @@
-# Folio V2 Greenfield Status
+# Melo delivery status
 
-> **Superseding current state, 2026-07-16:** the coded React Native/Android product in `apps/mobile`
-> is the authoritative Melo implementation; Lovable is design history, not the runtime to extend.
-> The active working branch is `codex/melo-native-ux`, with a large pre-existing dirty working tree
-> that has deliberately not been committed, reset or pushed. Start with `MELO_ALIGNMENT_AUDIT.md`,
-> `MONEY_MODEL.md`, `ACCOUNTS_MODEL.md`, `ARCHIVE.md`, `CONSOLIDATION.md`, the current ADRs and the
-> 16 July evidence records before changing product behavior. This checkpoint supersedes every older
-> "current state" banner retained below as history.
+> **Current authority, 2026-08-16:** this repository and its `apps/mobile` React Native runtime are
+> the authoritative Melo implementation. Delivery work is on
+> `codex/melo-one-app-convergence-2026-08-15` in the existing Folio remote. Start with the
+> [dated repository and navigation authority](docs/convergence/2026-08-16/MELO_REPOSITORY_AND_NAVIGATION_AUTHORITY.md),
+> then the [current advisor-plan index](advisor-plans/README.md). Personal navigation is Today / Plan
+> / Review / More; Business is Today / Money / Review / More; Melo is a contextual companion action.
+> Public release, Business beta and billing verification remain separately gated.
 
-## Current checkpoint - 16 July 2026
+The material below is retained as historical delivery evidence. Its old branch names, test counts,
+build hashes and navigation descriptions are not current authority.
+
+## Historical checkpoint — 16 July 2026
 
 - The schema-v8 SQLCipher boundary represents all 44 durable fields in the 48-field shipping
   AppState contract. The four remaining fields are intentionally transient; no durable field is

@@ -41,6 +41,10 @@ Trusted Core truth boundaries.
 
 ## Navigation authority
 
+> **Superseded for primary navigation on 2026-08-16.** See the
+> [current repository and navigation authority](../2026-08-16/MELO_REPOSITORY_AND_NAVIGATION_AUTHORITY.md).
+> The bullets below remain as the dated historical decision and are not the current tab contract.
+
 - Personal primary navigation is **Today · Talk to Melo · More**.
 - Business primary navigation is **Today · Money · Filings · More**.
 - Melo remains a persistent companion and contextual assistant; it is not a Business navigation tab.

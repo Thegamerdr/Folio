@@ -1,4 +1,4 @@
-# Folio V2 Change Gate
+# Melo change gate
 
 ## Scope
 
@@ -19,9 +19,15 @@
 
 ## Evidence
 
+- [ ] `pnpm run ci` passes for the reviewed commit.
+- [ ] Persistence migrations are forward-safe and preserve newer-schema data.
+- [ ] Personal/business workspace and import-document privacy boundaries remain intact.
+- [ ] Release evidence was added or linked for user-visible, native or rollout claims.
+
 - Tests run:
 - Offline evidence:
 - Accessibility evidence:
 - Security/privacy impact:
-- V1 donor records:
+- Migration impact:
+- Release evidence:
 - Known risks:
