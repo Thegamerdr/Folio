@@ -1,6 +1,6 @@
 import type { ScreenId } from '@/folio/types';
 
-export type BusinessPrimaryTab = 'today' | 'money' | 'filings' | 'more';
+export type BusinessPrimaryTab = 'today' | 'money' | 'review' | 'more';
 
 const MONEY_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'business-money',
@@ -11,27 +11,17 @@ const MONEY_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'business-insights',
 ]);
 
-const FILING_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
-  'business-filings',
-  'business-filing-vat',
-  'business-filing-sa',
-  'business-filing-ct',
-  'business-filing-cs',
-  'business-filing-accounts',
-  'business-filing-payroll',
-]);
-
-/** Current Business workspace IA: Today / Money / Filings / More. */
+/** Current Business workspace IA: Today / Money / Review / More. */
 export function businessTabForScreen(screen: ScreenId): BusinessPrimaryTab {
   if (screen === 'today') return 'today';
   if (MONEY_SCREENS.has(screen)) return 'money';
-  if (FILING_SCREENS.has(screen)) return 'filings';
+  if (screen === 'review') return 'review';
   return 'more';
 }
 
 export function screenForBusinessTab(tab: BusinessPrimaryTab): ScreenId {
   if (tab === 'money') return 'business-money';
-  if (tab === 'filings') return 'business-filings';
+  if (tab === 'review') return 'review';
   if (tab === 'more') return 'more';
   return 'today';
 }

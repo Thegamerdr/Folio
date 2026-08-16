@@ -1,40 +1,37 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Melo, type MeloMood, type MeloPose } from '@/folio/melo/Melo';
-import { elevation, pressed, useTheme } from '@/folio/theme';
+import type { PersonalPrimaryTab } from '@/folio/lib/navigation/personalNavigation';
+import { pressed, useTheme } from '@/folio/theme';
 
 type PersonalBottomNavProps = Readonly<{
-  todayActive: boolean;
-  moreActive: boolean;
-  meloMood: MeloMood;
-  meloPose?: MeloPose;
-  onToday: () => void;
-  onMelo: () => void;
-  onMore: () => void;
+  active: PersonalPrimaryTab;
+  onChange: (tab: PersonalPrimaryTab) => void;
 }>;
 
 const BASE_HEIGHT = 68;
 const SAFE_GAP = 6;
 
-/** Frozen Personal chrome: Today + an elevated Melo chat entry + More.
- *  Review and the standalone Melo settings surface live inside More. */
-export function PersonalBottomNav({
-  todayActive,
-  moreActive,
-  meloMood,
-  meloPose = 'none',
-  onToday,
-  onMelo,
-  onMore,
-}: PersonalBottomNavProps) {
+const TABS: readonly Readonly<{
+  id: PersonalPrimaryTab;
+  label: string;
+  glyph: string;
+}>[] = [
+  { id: 'today', label: 'Today', glyph: '◐' },
+  { id: 'plan', label: 'Plan', glyph: '◇' },
+  { id: 'review', label: 'Review', glyph: '✓' },
+  { id: 'more', label: 'More', glyph: '⋯' },
+];
+
+/** Personal workspace chrome. Melo remains the contextual companion, not a navigation tab. */
+export function PersonalBottomNav({ active, onChange }: PersonalBottomNavProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const safeBottom = (insets.bottom > 0 ? insets.bottom : 12) + SAFE_GAP;
 
   return (
     <View
-      collapsable={false}
+      accessibilityRole="tablist"
       style={[
         styles.nav,
         {
@@ -45,84 +42,35 @@ export function PersonalBottomNav({
         },
       ]}
     >
-      <NavButton
-        active={todayActive}
-        accessibilityLabel="Today tab"
-        glyph="◐"
-        label="Today"
-        onPress={onToday}
-      />
-
-      <Pressable
-        accessibilityHint="Opens the Melo companion."
-        accessibilityLabel="Talk to Melo"
-        accessibilityRole="button"
-        onPress={onMelo}
-        style={({ pressed: isPressed }) => [styles.meloButton, isPressed ? pressed : undefined]}
-      >
-        <View
-          style={[
-            styles.meloOrb,
-            {
-              backgroundColor: t.canvas,
-              borderColor: t.hairline,
-            },
-            elevation.card,
-          ]}
-        >
-          <Melo size={28} mood={meloMood} pose={meloPose} />
-        </View>
-        <Text style={[styles.meloLabel, { color: t.ink }]}>Talk to Melo</Text>
-      </Pressable>
-
-      <NavButton
-        active={moreActive}
-        accessibilityLabel="More tab"
-        glyph="⋯"
-        label="More"
-        onPress={onMore}
-      />
+      {TABS.map((tab) => {
+        const selected = active === tab.id;
+        return (
+          <Pressable
+            accessibilityHint={`Switches to ${tab.label}.`}
+            accessibilityLabel={`${tab.label} tab`}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            key={tab.id}
+            onPress={() => onChange(tab.id)}
+            style={({ pressed: isPressed }) => [styles.tab, isPressed ? pressed : undefined]}
+          >
+            <Text style={[styles.glyph, { color: selected ? t.calm : t.muted }]}>{tab.glyph}</Text>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.label,
+                {
+                  color: selected ? t.ink : t.muted,
+                  fontWeight: selected ? '600' : '400',
+                },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
-  );
-}
-
-function NavButton({
-  active,
-  accessibilityLabel,
-  glyph,
-  label,
-  onPress,
-}: Readonly<{
-  active: boolean;
-  accessibilityLabel: string;
-  glyph: string;
-  label: string;
-  onPress: () => void;
-}>) {
-  const t = useTheme();
-  return (
-    <Pressable
-      accessibilityHint={`Switches to ${label}.`}
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={({ pressed: isPressed }) => [styles.tab, isPressed ? pressed : undefined]}
-    >
-      <Text style={[styles.glyph, { color: active ? t.calm : t.muted }]}>{glyph}</Text>
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.label,
-          {
-            color: active ? t.ink : t.muted,
-            fontWeight: active ? '600' : '400',
-          },
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -140,9 +88,9 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
     justifyContent: 'center',
-    minWidth: 0,
     minHeight: 48,
-    paddingHorizontal: 12,
+    minWidth: 0,
+    paddingHorizontal: 8,
     paddingVertical: 6,
   },
   glyph: {
@@ -155,27 +103,5 @@ const styles = StyleSheet.create({
     lineHeight: 13,
     textAlign: 'center',
     width: '100%',
-  },
-  meloButton: {
-    alignItems: 'center',
-    flex: 1.25,
-    marginTop: -20,
-    minHeight: 64,
-    paddingHorizontal: 4,
-  },
-  meloOrb: {
-    alignItems: 'center',
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 46,
-    justifyContent: 'center',
-    width: 46,
-  },
-  meloLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    lineHeight: 13,
-    marginTop: 2,
   },
 });

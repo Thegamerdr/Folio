@@ -140,6 +140,10 @@ import {
   screenForBusinessTab,
 } from '@/folio/lib/navigation/businessNavigation';
 import {
+  personalTabForScreen,
+  screenForPersonalTab,
+} from '@/folio/lib/navigation/personalNavigation';
+import {
   getState,
   reanchorSubRenewals,
   refreshBusinessMeloProgress,
@@ -240,35 +244,6 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'business-insights': 'Business insights',
   'business-deductions': 'Business deductions',
 };
-
-// Personal uses the current refrozen Lovable IA exactly. Review is a destination inside More,
-// Timeline is part of its Money path, and the full Melo page is reached from More while the raised
-// centre action remains the always-available chat entry. Intake/reader states are transient flows,
-// so neither permanent Personal tab is highlighted while they are open.
-const PERSONAL_MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
-  'more',
-  'first-answer',
-  'review',
-  'timeline',
-  'calendar',
-  'plans',
-  'paywall',
-  'whatif',
-  'recovery',
-  'privacy',
-  'decision-history',
-  'add-bill',
-  'add-debt',
-  'subs',
-  'pots',
-  'ritual',
-  'insights',
-  'shortfall',
-  'account',
-  'melo',
-  'melo-memory',
-  'melo-moves',
-]);
 
 const PERSONAL_NO_TAB_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'start',
@@ -675,14 +650,7 @@ function ReadyFolioShell() {
   }, [screen, onboardingDone]);
 
   const businessActiveTab = useMemo(() => businessTabForScreen(screen), [screen]);
-  const personalTodayActive = screen === 'today' || screen === 'today-after';
-  const personalMoreActive = PERSONAL_MORE_SUBTREE.has(screen);
-  const personalMeloMood =
-    activePressure === 'overspent' || activePressure === 'pressured'
-      ? 'concern'
-      : activePressure === 'soft'
-        ? 'curious'
-        : 'calm';
+  const personalActiveTab = useMemo(() => personalTabForScreen(screen), [screen]);
 
   return (
     // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
@@ -743,12 +711,8 @@ function ReadyFolioShell() {
                 </>
               ) : PERSONAL_NO_TAB_SCREENS.has(screen) ? null : (
                 <PersonalBottomNav
-                  todayActive={personalTodayActive}
-                  moreActive={personalMoreActive}
-                  meloMood={personalMeloMood}
-                  onToday={() => go('today')}
-                  onMelo={() => openMelo()}
-                  onMore={() => go('more')}
+                  active={personalActiveTab}
+                  onChange={(tab) => go(screenForPersonalTab(tab))}
                 />
               )}
             </View>

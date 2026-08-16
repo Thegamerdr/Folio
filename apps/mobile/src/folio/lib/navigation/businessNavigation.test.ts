@@ -10,9 +10,14 @@ describe('business navigation', () => {
     ['business-invoices', 'money'],
     ['business-vat', 'money'],
     ['business-obligations', 'money'],
-    ['business-filings', 'filings'],
-    ['business-filing-vat', 'filings'],
-    ['business-filing-accounts', 'filings'],
+    ['review', 'review'],
+    ['business-filings', 'more'],
+    ['business-filing-vat', 'more'],
+    ['business-filing-sa', 'more'],
+    ['business-filing-ct', 'more'],
+    ['business-filing-cs', 'more'],
+    ['business-filing-accounts', 'more'],
+    ['business-filing-payroll', 'more'],
     ['business-clients', 'more'],
     ['business-insights', 'money'],
     ['melo', 'more'],
@@ -23,7 +28,7 @@ describe('business navigation', () => {
   it.each([
     ['today', 'today'],
     ['money', 'business-money'],
-    ['filings', 'business-filings'],
+    ['review', 'review'],
     ['more', 'more'],
   ] as const)('maps the %s tab to %s', (tab, screen) => {
     expect(screenForBusinessTab(tab)).toBe(screen);

@@ -19,7 +19,7 @@ const TABS: readonly Readonly<{
 }>[] = [
   { id: 'today', label: 'Today', glyph: '◐' },
   { id: 'money', label: 'Money', glyph: '£' },
-  { id: 'filings', label: 'Filings', glyph: '◇' },
+  { id: 'review', label: 'Review', glyph: '✓' },
   { id: 'more', label: 'More', glyph: '⋯' },
 ];
 
