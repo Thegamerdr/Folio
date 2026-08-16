@@ -69,3 +69,20 @@ source of truth.
 - `apps/mobile/src/phase10/cloudSyncEvidence.test.ts`
 - `apps/mobile/app/index.tsx`
 - `docs/release-evidence/C10-cloud-account-encrypted-backup-sync.md`
+
+## 2026-07-15 implementation update
+
+The production Android branch now implements the subset that can be proven locally without
+inventing provider credentials:
+
+- Optional Clerk email-code sign-in remains outside the local core.
+- The client encrypts a complete snapshot with a 256-bit recovery key before upload; the Cloudflare
+  vault stores only the opaque envelope and keeps a latest/previous generation.
+- Restore decrypts and validates locally before applying through the normal migration path.
+- In-app account deletion attempts the cloud-vault and Open Banking account purges before Clerk
+  identity deletion. Local financial data remains a separate choice.
+- Open Banking credential deletion stops Melo's future access but does not currently revoke the
+  separate bank/provider consent. The UI and evidence state this limitation.
+
+This update does not close the public web-deletion, deployed lifecycle E2E, multi-device sync,
+provider-revocation, DPIA, independent security or operations blockers above.

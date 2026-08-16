@@ -12,7 +12,10 @@ import {
   normalizeProviderRows,
   openBankingBoundary,
   openBankingRowsByState,
+  parseOpenBankingConnectionsResponse,
+  parseOpenBankingSyncResponse,
   reconcileCanonicalRows,
+  stageBankCandidatesForReview,
   type BankConsentRecord,
   type BankProviderCandidate,
   type ExistingTransactionReference,
@@ -488,5 +491,118 @@ describe('Open Banking pure contracts', () => {
         expect.objectContaining({ taskId: 'T168' }),
       ]),
     );
+  });
+});
+
+describe('Open Banking runtime transport', () => {
+  const connection = {
+    id: 'connection-1',
+    provider: 'truelayer-data-v3',
+    providerLabel: 'TrueLayer',
+    status: 'active',
+    scopes: ['accounts', 'transactions'],
+    createdAt: '2026-07-14T10:00:00.000Z',
+    grantedAt: '2026-07-14T10:01:00.000Z',
+    expiresAt: '2026-10-12T10:01:00.000Z',
+    disconnectedAt: null,
+    lastSuccessfulRefreshAt: '2026-07-14T10:02:00.000Z',
+    lastErrorCode: null,
+    accounts: [
+      {
+        accountRef: 'account-public-1',
+        label: 'Current account',
+        currency: 'GBP',
+        kind: 'personal',
+        accountType: 'current',
+        lastSuccessfulRefreshAt: '2026-07-14T10:02:00.000Z',
+      },
+    ],
+    futureAccessStopped: false,
+    providerRevocationSupported: false,
+  } as const;
+
+  it('accepts only the provider-neutral public connection shape', () => {
+    expect(
+      parseOpenBankingConnectionsResponse({ providerConfigured: true, connections: [connection] }),
+    ).toMatchObject({ providerConfigured: true, connections: [{ id: 'connection-1' }] });
+    expect(
+      parseOpenBankingConnectionsResponse({
+        providerConfigured: true,
+        connections: [{ ...connection, providerToken: 'must-never-arrive' }],
+      }),
+    ).not.toBeNull();
+    expect(
+      parseOpenBankingConnectionsResponse({ providerConfigured: true, connections: [{}] }),
+    ).toBeNull();
+  });
+
+  it('maps signed minor units into Review inputs only after local account mapping', () => {
+    const sync = parseOpenBankingSyncResponse({
+      connection,
+      pending: false,
+      moreAvailable: false,
+      directLedgerWrites: false,
+      candidates: [
+        {
+          externalId: 'bank-public-txn-1',
+          connectionId: 'connection-1',
+          accountRef: 'account-public-1',
+          bookingStatus: 'posted',
+          occurredAt: '2026-07-12',
+          amountMinor: -4210,
+          currency: 'GBP',
+          description: 'Local grocer',
+        },
+      ],
+    });
+    expect(sync).not.toBeNull();
+    const staged = stageBankCandidatesForReview({
+      sync: sync!,
+      accountMappings: { 'account-public-1': 'acct-main' },
+    });
+    expect(staged).toEqual({
+      reviewItems: [
+        {
+          source: 'bank',
+          merchant: 'Local grocer',
+          amount: -42.1,
+          date: '2026-07-12',
+          accountId: 'acct-main',
+          hint: 'Bank transaction · Current account',
+          externalId: 'bank-public-txn-1',
+          bankConnectionId: 'connection-1',
+        },
+      ],
+      unsupportedCurrencyCount: 0,
+      unmappedAccountCount: 0,
+    });
+  });
+
+  it('does not coerce unsupported currencies into GBP', () => {
+    const sync = parseOpenBankingSyncResponse({
+      connection,
+      pending: false,
+      moreAvailable: false,
+      directLedgerWrites: false,
+      candidates: [
+        {
+          externalId: 'bank-public-txn-2',
+          connectionId: 'connection-1',
+          accountRef: 'account-public-1',
+          bookingStatus: 'pending',
+          occurredAt: '2026-07-12',
+          amountMinor: -1000,
+          currency: 'EUR',
+          description: 'EUR transaction',
+        },
+      ],
+    });
+    expect(sync).not.toBeNull();
+    expect(
+      stageBankCandidatesForReview({
+        sync: sync!,
+        accountMappings: { 'account-public-1': 'acct-main' },
+      }),
+    ).toMatchObject({ reviewItems: [], unsupportedCurrencyCount: 1 });
   });
 });

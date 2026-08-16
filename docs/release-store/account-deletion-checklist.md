@@ -2,7 +2,9 @@
 
 ## Status
 
-Blocked. This file is a store declaration checklist, not live deletion evidence.
+Partially implemented and still blocked for store release. In-app initiation, server purge routes
+and the public web deletion route exist; production-provider configuration, provider-side bank
+consent revocation, retention/legal review and signed E2E evidence remain open.
 
 ## Required Before Release
 
@@ -14,11 +16,23 @@ Blocked. This file is a store declaration checklist, not live deletion evidence.
   behavior.
 - Legal retention exceptions are written in plain language and reviewed.
 
-## Current Folio Position
+## Current Melo Position
 
-- Local app can work without account.
-- Account provider, web deletion route and cloud deletion E2E remain blocked.
-- Store forms must not claim deletion readiness until provider and deletion evidence exists.
+- The local app works without an account, and deleting an account does not silently delete local
+  money/history.
+- Signed-in Android users have a three-confirmation `Delete account & cloud data` action.
+- The app purges both cloud-backup generations and all indexed Open Banking records/provider
+  secrets before asking Clerk to delete the identity. If either purge is unconfirmed, the identity
+  is retained for retry.
+- Bank-side provider consent is not revoked by the current adapter; the UI tells users to revoke it
+  at their bank as well. Pending callback metadata expires within 20 minutes and contains no
+  provider secret.
+- Local clearing is a separate three-confirmation control and spans the encrypted state, SQLCipher
+  ledger, reminders, widgets and app-owned exports.
+- `https://melo-money.com/delete-account` is public and reachable.
+- Production Clerk configuration, signed lifecycle E2E, purge-schedule review and legal/store
+  review remain blocked.
+- Store forms must not claim full deletion readiness until those remaining proofs exist.
 
 ## Official References
 

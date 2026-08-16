@@ -15,10 +15,11 @@ Current state:
 
 - Apple App Privacy, account deletion, Google Data Safety, Google account deletion, financial
   features, SDK/permission inventory and reviewer-note checklists exist.
-- Store-console submission, submitted-binary comparison, privacy policy URL, processor-list
-  approval and SDK inventory approval remain blocked.
+- The privacy policy is live at `https://melo-money.com/privacy`, and the processor inventory is
+  current for the 1.0.0 candidate.
+- Store-console submission, submitted-binary comparison and console approval remain blocked.
 
-Official references checked on 2026-06-21:
+Official references checked on 2026-07-20:
 
 - Apple App Privacy in App Store Connect:
   `https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/`
@@ -30,5 +31,5 @@ Official references checked on 2026-06-21:
   `https://support.google.com/googleplay/android-developer/answer/10787469`
 - Google Play account deletion requirements:
   `https://support.google.com/googleplay/android-developer/answer/13327111`
-- Google Play financial features policy:
-  `https://support.google.com/googleplay/android-developer/answer/17105854`
+- Google Play financial features declaration:
+  `https://support.google.com/googleplay/android-developer/answer/13849271?hl=en-GB`

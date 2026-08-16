@@ -156,6 +156,16 @@ describe('canonical local repository authority', () => {
       'timelineEntries',
       'meloMemory',
       'meloProposals',
+      'pots',
+      'potLedgerEntries',
+      'subscriptions',
+      'subscriptionPreferences',
+      'cycleRecords',
+      'debts',
+      'financialContexts',
+      'incomeSchedules',
+      'transactionIntelligenceStates',
+      'companionRuntimeStates',
       'auditLog',
     ]);
     expect(snapshot.collections.transactions).toEqual([base.transaction]);

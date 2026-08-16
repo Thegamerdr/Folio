@@ -1,0 +1,18 @@
+{
+  "cipherVersion": "4.14.0 community",
+  "quickCheck": "ok",
+  "stateGenerations": 3,
+  "quietModeGeneration": 2,
+  "canonicalMigrationCount": 4,
+  "canonicalSchemaVersion4": 1,
+  "canonicalWorkspaces": 1,
+  "personalWorkspaceRows": 1,
+  "canonicalAccounts": 1,
+  "canonicalBalanceObservations": 1,
+  "canonicalCurrentBalances": 1,
+  "canonicalAvailablePositions": 1,
+  "canonicalSourceRecords": 1,
+  "canonicalProvenanceRecords": 1,
+  "canonicalTransactions": 0,
+  "canonicalImportDrafts": 0
+}

@@ -1,7 +1,11 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 
+import { extractTextFromDocument, type ExtractedText } from './nativeTextExtraction';
 import type { LocalDocumentStageInput } from './localLedger';
+
+const READING_NOT_READY =
+  'File saved. I could not read this statement clearly enough to show things to check. You can add one thing yourself.';
 
 const statementMimeTypes = [
   'text/*',
@@ -19,6 +23,7 @@ export type PickStatementDocumentResult =
       kind: 'picked';
       text: string;
       source: LocalDocumentStageInput;
+      extraction?: ExtractedText;
     }>
   | Readonly<{
       kind: 'cancelled';
@@ -59,12 +64,25 @@ export async function pickLocalStatementDocument(): Promise<PickStatementDocumen
     filename: asset.name,
     mediaType,
     storageState: 'copied_to_app_cache',
+    uri: asset.uri,
   };
+  // Text statements (CSV / TXT) are read directly below. For a PDF or image, hand the saved file to
+  // the on-device reader (PdfRenderer + ML Kit OCR). If it returns usable text, treat it as a picked
+  // statement so it flows into "Check what Folio found"; otherwise the file is saved and the user
+  // adds the numbers from the manual workbench. The reader is local-only and never throws.
   if (!isSupportedStatementFile(asset.name, mediaType)) {
+    const extracted = await extractTextFromDocument(asset.uri, mediaType);
+    if (extracted.source !== 'none' && extracted.text.trim().length > 0) {
+      return {
+        kind: 'picked',
+        text: extracted.text,
+        source: { ...source, byteSize: byteSize > 0 ? byteSize : extracted.text.length },
+        extraction: extracted,
+      };
+    }
     return {
       kind: 'unsupported',
-      message:
-        'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
+      message: READING_NOT_READY,
       source,
     };
   }
@@ -72,8 +90,7 @@ export async function pickLocalStatementDocument(): Promise<PickStatementDocumen
   if (byteSize > maxStatementBytes) {
     return {
       kind: 'unsupported',
-      message:
-        'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
+      message: READING_NOT_READY,
       source,
     };
   }
@@ -82,8 +99,7 @@ export async function pickLocalStatementDocument(): Promise<PickStatementDocumen
   if (text.trim().length === 0) {
     return {
       kind: 'unsupported',
-      message:
-        'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
+      message: READING_NOT_READY,
       source,
     };
   }

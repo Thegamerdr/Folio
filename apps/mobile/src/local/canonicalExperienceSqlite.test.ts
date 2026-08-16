@@ -151,7 +151,7 @@ describe('canonical Today and Timeline from SQLite repository', () => {
     expect(reloaded.collections.transactions).toEqual([]);
     expect(reloaded.collections.events).toEqual([]);
     expect(reloaded.collections.plans).toEqual([]);
-    expect(today.reviewCopy).toBe('No rows are waiting for review right now.');
+    expect(today.reviewCopy).toBe('Nothing is waiting for review right now.');
     expect(today.whatChanged.items.map((item) => item.category)).not.toContain('import');
     expect(today.briefingItems.map((item) => item.category)).not.toContain('import');
     expect(timeline.events.map((event) => event.kind)).not.toContain('imported-claim');

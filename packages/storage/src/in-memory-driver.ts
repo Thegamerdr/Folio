@@ -681,6 +681,16 @@ const canonicalJsonTables = new Set([
   'timeline_entries',
   'melo_memory',
   'melo_proposals',
+  'pots',
+  'pot_ledger_entries',
+  'subscriptions',
+  'subscription_preferences',
+  'cycle_records',
+  'debts',
+  'financial_contexts',
+  'income_schedules',
+  'transaction_intelligence_states',
+  'companion_runtime_states',
 ]);
 
 function requiredString(value: SqlValue | undefined, label: string): string {

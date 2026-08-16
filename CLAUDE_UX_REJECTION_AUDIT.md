@@ -1,3 +1,80 @@
+## UPDATE — 2026-06-30 (evening): items resolved
+
+> This block was prepended on 2026-06-30 so a reviewer (Lovable) auditing the current app sees what
+> has since changed. **The historical audit below is unchanged** — it remains a point-in-time
+> snapshot from 2026-06-24. The work cited here lands on branch `claude/folio-rn-faithful-port`
+> (commits `eb6e0a0`, `3783c9c`, `a3f81c9`; AUDIT.md doc `7147884`): 0 typecheck errors, 306 folio
+> tests green, visible fixes verified on-device by screenshot. Only what tonight's change-list
+> actually covers is marked resolved.
+>
+> **A scope note for the reviewer:** this 2026-06-24 audit was written against the legacy shell
+> (`apps/mobile/src/surfaces/mobileShell.tsx`). Tonight's product runs the rebuilt route/pressure
+> surface, and the changes below are the ones that map directly onto the _substance_ of what this
+> audit rejected — chiefly the "fabricated line / sample data when there's nothing real" failure
+> mode it flagged repeatedly. Several scorecard rows here (the ten-button Review sheet, Start's four
+> equal cards, the Review-row rebuild, the internal-tooling leak) were already closed in the
+> "Session status (2026-06-24)" log further down; they are **not** part of tonight's change-list and
+> are not re-claimed here.
+>
+> ### Resolved tonight
+>
+> 1. **Today — fabricated route line / route rendered with no data (was FAIL, see "Today" row and
+>    quality-gate Q5).** The Today money-path chart was hardcoded SVG geometry — a fabricated
+>    "salary rise +£2,180 / bill drop −£875 / 7 Jul" line. It is now plotted from the real
+>    `route.points` daily series, and the "Coming in / Going out" trio and the low-point tile now
+>    read the real route totals (`incomingTotal` / `outgoingTotal`) and the real tight point. A
+>    cleared or empty app no longer draws a synthetic curve. (`eb6e0a0`)
+> 2. **Breathing-room route — synthetic preview line instead of an honest incomplete state (was
+>    PARTIAL).** The chart's decorative "breathing room · £100" fabricated number is gone (now just
+>    "breathing room"), the `RouteDetailSheet` Octopus/Rent placeholder point is removed, and demo /
+>    illustrative data is gated behind the demo regime (`currentBalance.source==='sample'`) rather
+>    than shown 24/7. This is exactly the audit's demand: never draw a line that isn't backed by
+>    entered facts. (`eb6e0a0`, `3783c9c`, `a3f81c9`)
+> 3. **Sample/placeholder data across reader and review surfaces (the audit's recurring "fabricates
+>    a line / falls back to fake data" complaint, quality-gate Q5).** Reader screens
+>    (Visualizer/Review/Paste/Image), `SubCaughtSheet`, the edit sheets, and the Calendar agenda no
+>    longer fall back to sample rows or a fake "Tesco · £42 · 26 Jun" on a cold open — they now show
+>    honest empty doorways / blank forms, and the hardcoded "Check Klarna · 2 of 3" review,
+>    generic UK tax deadlines, and `RECURRING_BILLS` (Octopus/Council Tax/Rent/BT) are gated behind
+>    the demo regime. (`eb6e0a0`, `3783c9c`)
+> 4. **Melo was decorative / a no-op (the audit called the "Melo noticed" blocks redundant meta-
+>    chrome in the Today row).** App-wide pressure is now actually _derived_ from the real route via
+>    `derivePressure()`, gated on a real money picture so an empty/cleared app stays neutral-calm,
+>    and the Melo mood picker sets a global override (`nav.setPressure`) that propagates to
+>    Today / What-if / Melo / chat. Melo now does work instead of narrating. (`eb6e0a0`)
+> 5. **Dark-mode invisible text (relates to the "full visual-system pass" still-open item below).**
+>    `TimelineScreen`'s headline + subhead had no color set, defaulted to black, and were invisible
+>    on the dark canvas; they are now bound to the theme ink/muted tokens. (`eb6e0a0`)
+> 6. **Off-screen content unreachable (a layout defect adjacent to the audit's "below the fold"
+>    complaints).** Privacy / Subscriptions / PaydayRitual / Check-in / Start were fixed-height; they
+>    are now wrapped in `ScrollView`, so content — including Privacy's "Clear to empty", which was
+>    stranded below the fold — scrolls into reach. (`eb6e0a0`)
+> 7. **"Start fresh" reseeded the demo (the audit's distrust-of-fake-data theme).** More →
+>    "Start fresh" called `resetAll`, which reseeded the demo ("it all came back"); it now calls
+>    `resetToEmpty` behind a one-tap confirm, so clearing actually clears. (`eb6e0a0`)
+>
+> Two further changes tonight are correctness/cost fixes outside this audit's UX scope, logged for
+> completeness: imported transactions now keep their real statement date instead of being stamped
+> "today" (`eb6e0a0`); and the AI cost split pins cheap `gemini-2.5-flash-lite` for chat, reserves
+> vision for PDF/photo extraction, and rejects costlier models via the gateway allow-list (still
+> needs `wrangler deploy` + an OpenRouter spend cap).
+>
+> ### Still open after tonight
+>
+> - **Exhaustive per-screen dark-mode + cross-device visual pass on an emulator** — the audit's
+>   "full visual-system pass (card density/depth, selected-state weight)" remains. Tonight fixed one
+>   specific invisible-text case (`TimelineScreen`); a screen-by-screen render check has not been done.
+> - **iOS** — unbuildable on the Windows dev box (needs a Mac / EAS); not addressed.
+> - **Gateway redeploy + OpenRouter spend cap** — the model allow-list is in code but the
+>   `wrangler deploy` and the spend cap are owner/ops steps, still pending. This is separate from the
+>   `assembleRelease` packaging block already noted in the historical session log below.
+>
+> Items NOT in tonight's change-list and therefore unchanged by this update: the few remaining
+> "systemy" accessibility strings, and the production-release APK packaging blocker — both are as
+> described in the 2026-06-24 session log below.
+
+---
+
 # CLAUDE_UX_REJECTION_AUDIT.md
 
 Folio V2 mobile — UX takeover rejection audit

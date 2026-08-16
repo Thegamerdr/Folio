@@ -1,0 +1,62 @@
+{
+  "capturedAt": "2026-07-16",
+  "package": "com.folio.v2.greenfield",
+  "versionName": "0.0.1",
+  "versionCode": 1,
+  "canonicalSchemaVersion": 5,
+  "authority": {
+    "exactRecoveryEnvelope": "encrypted-app-state-generation",
+    "coreReadCandidate": "generation-bound-canonical-sqlcipher",
+    "adoptionRule": "binding-match-and-inverse-parity",
+    "fallback": "exact-app-state"
+  },
+  "canonicalCore": [
+    "currentBalance",
+    "accounts",
+    "transactions",
+    "pots",
+    "potLedger",
+    "subs",
+    "subPaused",
+    "subOverrides",
+    "cycles",
+    "debts"
+  ],
+  "verification": {
+    "testFiles": 203,
+    "tests": 2471,
+    "focusedTestFiles": 4,
+    "focusedTests": 304,
+    "typecheck": "passed",
+    "formatCheck": "passed",
+    "apkSignatureV2": "passed",
+    "emulatorInstall": "passed",
+    "emulatorColdLaunchMs": 6762,
+    "appFatalOrDatabaseErrors": 0,
+    "controlledOrSampleRecordStrings": 0,
+    "remoteMeloTempFiles": 0,
+    "physicalGalaxyS9Targeted": false
+  },
+  "artifacts": {
+    "apk": {
+      "path": "apps/mobile/android/app/build/outputs/apk/release/app-release.apk",
+      "bytes": 108988531,
+      "sha256": "479245004607BE032D192665C3A6936D50B333CF61F980AC3E889CB0FBAF5F5D"
+    },
+    "aab": {
+      "path": "apps/mobile/android/app/build/outputs/bundle/release/app-release.aab",
+      "bytes": 76940634,
+      "sha256": "525D40E4FB01BE6B48F071B293413E6966583A1BBEA38A7B27A49EB0B5BE7B7F"
+    },
+    "javascriptBundle": {
+      "path": "apps/mobile/android/app/build/intermediates/assets/release/mergeReleaseAssets/index.android.bundle",
+      "bytes": 7878208,
+      "sha256": "FFB23BF85AB2BEAECE619B0E1E30E6EC73A32C3B6FECA466B5BF76431B1232C1"
+    },
+    "signerCertificateSha256": "547396E1FD99681C2A6D768B8B7D1B4484B5F42A17597CAD6C495221267A5488"
+  },
+  "evidence": [
+    "docs/release-evidence/melo-canonical-core-authority-final-2026-07-16.png",
+    "docs/release-evidence/melo-canonical-core-authority-final-2026-07-16.xml"
+  ]
+}

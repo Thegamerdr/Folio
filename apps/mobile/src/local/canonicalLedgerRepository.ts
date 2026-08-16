@@ -1,6 +1,7 @@
 import { createInMemoryCanonicalRepository, type CanonicalRepository } from '@folio/storage';
 
 import type { LocalLedgerState } from './localLedger.js';
+import type { Workspace } from '@folio/domain';
 import {
   createCanonicalMobileLedgerSnapshot,
   type CanonicalMobileLedgerSnapshot,
@@ -8,8 +9,11 @@ import {
 
 export function createCanonicalRepositoryForLocalLedgerState(
   state: LocalLedgerState,
+  workspace?: Workspace,
 ): CanonicalRepository {
-  return createCanonicalRepositoryForMobileSnapshot(createCanonicalMobileLedgerSnapshot(state));
+  return createCanonicalRepositoryForMobileSnapshot(
+    createCanonicalMobileLedgerSnapshot(state, workspace),
+  );
 }
 
 export function createCanonicalRepositoryForMobileSnapshot(

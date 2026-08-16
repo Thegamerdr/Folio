@@ -1,0 +1,45 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.folio.foliolocallanguage'
+version = '0.1.0'
+
+android {
+  namespace 'expo.modules.foliolocallanguage'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    minSdkVersion 24
+  }
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}
+
+// The published LiteRT-LM ABI uses Java 21 class files. Compile the Java-only adapter with the
+// Android Studio JDK 21 toolchain while still emitting Java 17 bytecode for Melo's Android target.
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+  }
+}
+
+dependencies {
+  // Stable Kotlin API for fully on-device language-model inference. Version is pinned so a release
+  // cannot silently change its native runtime or supported model format.
+  implementation 'com.google.ai.edge.litertlm:litertlm-android:0.10.2'
+}
+
+// LiteRT-LM's public ABI is consumed only by LiteRtLmBridge.java. The SDK still ships Kotlin 2.3
+// metadata on the classpath, which Expo's locked 2.1 compiler rejects even when no Kotlin source
+// imports it. Scope the metadata skip to this one adapter module; never weaken the app/project
+// compiler checks.
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    freeCompilerArgs.add('-Xskip-metadata-version-check')
+  }
+}

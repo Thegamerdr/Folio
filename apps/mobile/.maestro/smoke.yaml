@@ -1,0 +1,32 @@
+# Smoke: app launches, Today renders, all four tabs alive.
+# Non-destructive — never clears state. If the onboarding sheet is open (fresh install or
+# skipped onboarding), it is dismissed via its own Skip path first (preserves the current local
+# state and creates no fixture data). Run: maestro test .maestro/smoke.yaml
+appId: com.folio.v2.greenfield
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Your first picture|spare|What should Melo call you\\?"
+    timeout: 20000
+- runFlow:
+    when:
+      visible: 'Skip for now'
+    commands:
+      - tapOn: 'Skip for now'
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 10000
+- tapOn: 'Today'
+- assertVisible: 'Your first picture|spare'
+- tapOn: 'Review'
+- tapOn: 'Melo'
+- tapOn: 'More'
+- assertVisible: 'The quiet hub'
+- scrollUntilVisible:
+    element: 'Reminders'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Start fresh'
+    direction: DOWN
+- tapOn: 'Today'

@@ -84,6 +84,12 @@ describe('advice-language blocked-pattern classifier', () => {
       'formal_debt_solution',
       'legal_dispute',
     ]);
+    expect(findEscalationTriggers('I cannot eat and need emergency food support.')).toContain(
+      'immediate_crisis',
+    );
+    expect(findEscalationTriggers('How much is in my emergency fund?')).not.toContain(
+      'immediate_crisis',
+    );
   });
 
   it('prevents blocked copy from rendering', () => {
@@ -436,7 +442,7 @@ describe('Phase 7 deterministic Melo contracts', () => {
       advicePolicy: expect.objectContaining({ allowed: true }),
     });
     expect(briefing.boundedQuestions).toHaveLength(3);
-    expect(briefing.summary).toContain('review before Folio saves anything as a fact');
+    expect(briefing.summary).toContain('review before Melo saves anything as a fact');
     expect(briefing.summary).not.toMatch(/\bconfidence\b|confidence_|_confidence|\bscore\b/i);
     expect(validateMeloRenderableOutput(briefing.summary).renderable).toBe(true);
   });

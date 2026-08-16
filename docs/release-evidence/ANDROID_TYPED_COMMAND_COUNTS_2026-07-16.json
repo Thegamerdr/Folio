@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-16",
+  "target": "emulator-5554",
+  "package": "com.folio.v2.greenfield",
+  "physicalDeviceModified": false,
+  "beforeLocalClear": {
+    "cipherVersion": "4.14.0 community",
+    "quickCheck": "ok",
+    "pragmaUserVersion": 0,
+    "canonicalSchemaVersion": 4,
+    "workspaceGenerations": 3,
+    "canonicalWorkspaces": 1,
+    "canonicalAccounts": 1,
+    "balanceObservations": 1,
+    "currentBalances": 1,
+    "availablePositionSnapshots": 1,
+    "transactions": 0,
+    "auditRows": 1,
+    "typedBalanceRows": 1,
+    "latestTypedCommand": "folio.balance.set_current.v1",
+    "latestTypedActor": "user",
+    "privacyMinimalDelta": true
+  },
+  "afterLocalClearColdStart": {
+    "honestEmptyDoorway": true,
+    "controlledNamePresent": false,
+    "controlledBalancePresent": false,
+    "fixtureRecordsPresent": false
+  },
+  "proofArtifacts": {
+    "apk": {
+      "bytes": 108943739,
+      "sha256": "4E26404E95017345A0EF37C56A0FF8D8424F11F9CC20CC2A13827D656E6950F5"
+    },
+    "aab": {
+      "bytes": 76921948,
+      "sha256": "82A13F997B692C111EBE393E8061A6D72F67381525A16FA13902CC54C670E89D"
+    },
+    "javascriptBundle": {
+      "bytes": 7833416,
+      "sha256": "95681BAD41D54C83276D9F56F9F9487ED3D1B6B0DB35F1334A4EEBAF1492CD52"
+    }
+  },
+  "currentArtifacts": {
+    "apk": {
+      "bytes": 108954283,
+      "sha256": "4244DBDDAD9CBE8A5BA70603869F7AFC411C91D77459845AB1159DF3F22E7A67"
+    },
+    "aab": {
+      "bytes": 76926853,
+      "sha256": "176B1A9EA53C47068EFCD4600986A5D91BCAFABC578EA80DF20FEF56BFF3C99F"
+    },
+    "javascriptBundle": {
+      "bytes": 7843960,
+      "sha256": "4FBEAB6A1F5BC322EDCB04817A4E1FB6D772790BB1357E89DB0C37CA561F377D"
+    }
+  }
+}

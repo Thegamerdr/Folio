@@ -232,11 +232,11 @@ export function buildCanonicalTimelineModel(
           recordKind: 'imported claim',
           reviewState: draft.reviewState,
           sourceRecordId: String(draft.sourceRecordId),
-          why: 'An import draft is waiting for user confirmation.',
+          why: 'An imported payment is waiting for you to confirm it.',
         },
         kind: 'imported-claim',
         kindLabel: 'Import',
-        title: plannerTitleForProvenance(canonical, String(draft.provenanceId), 'Import row'),
+        title: plannerTitleForProvenance(canonical, String(draft.provenanceId), 'Imported payment'),
         tone: 'attention',
       }),
     ),
@@ -445,7 +445,7 @@ export function buildCanonicalTimelineModel(
           recordId: String(decision.id),
           recordKind: 'decision',
           reviewState: decision.kind,
-          why: 'A user decision changed or confirmed meaning.',
+          why: 'Something you decided changed or confirmed the meaning.',
         },
         kind: 'decision-record',
         kindLabel: 'Decision',
@@ -536,8 +536,8 @@ export function buildCanonicalTimelineModel(
   const firstReview = events.find((event) => event.tone === 'attention');
   const renderedMelo = renderDeterministicMeloBriefing({
     state: reviewCount > 0 ? 'attention' : events.length > 0 ? 'changed' : 'quiet',
-    positionLine: `${events.length} timeline row${events.length === 1 ? '' : 's'} are available.`,
-    assumptions: ['Timeline rows are rebuilt from local records and review items.'],
+    positionLine: `${events.length} timeline entr${events.length === 1 ? 'y is' : 'ies are'} available.`,
+    assumptions: ['Your timeline is rebuilt from local records and what is waiting to check.'],
     facts: events.slice(0, 3).map((event) => {
       const sourceId = event.evidence.provenanceId ?? event.evidence.sourceRecordId;
       return {
@@ -555,7 +555,7 @@ export function buildCanonicalTimelineModel(
   });
   const meloBriefingText = gateMeloText(
     renderedMelo.text,
-    'Timeline rows are available from local records. Review items stay separate from facts.',
+    'Your timeline is built from local records. What is waiting to check stays separate from facts.',
   );
 
   return {

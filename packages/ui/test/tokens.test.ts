@@ -9,11 +9,11 @@ import {
 } from '../src/index.js';
 
 describe('@folio/ui tokens', () => {
-  it('uses a native 48dp minimum hit target policy', () => {
-    expect(folioTokens.size.touchTarget).toBe(48);
-    expect(folioTokens.hitTarget.minimumDp).toBe(48);
-    expect(meetsNativeHitTarget(47)).toBe(false);
-    expect(meetsNativeHitTarget(48)).toBe(true);
+  it('uses the frozen native 44dp minimum hit target policy', () => {
+    expect(folioTokens.size.touchTarget).toBe(44);
+    expect(folioTokens.hitTarget.minimumDp).toBe(44);
+    expect(meetsNativeHitTarget(43)).toBe(false);
+    expect(meetsNativeHitTarget(44)).toBe(true);
   });
 
   it('zeroes transform motion for reduced motion', () => {

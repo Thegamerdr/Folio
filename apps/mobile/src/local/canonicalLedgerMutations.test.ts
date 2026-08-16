@@ -11,6 +11,7 @@ import {
   rejectImportDraftThroughCanonicalRepository,
   restoreRejectedImportThroughCanonicalRepository,
   reviewMeloImportSuggestionThroughCanonicalRepository,
+  setCashOnHandThroughCanonicalRepository,
   stageStatementImportThroughCanonicalRepository,
 } from './canonicalLedgerMutations.js';
 import { createCanonicalRepositoryForLocalLedgerState } from './canonicalLedgerRepository.js';
@@ -204,5 +205,21 @@ describe('canonical repository-backed mobile mutations', () => {
         title: 'Protect Repair',
       }),
     ]);
+  });
+
+  it('updates the money-you-have-now figure through canonical validation, keeping records intact', () => {
+    const seeded = recordManualTransactionThroughCanonicalRepository(
+      { ...createEmptyLocalLedgerState('2026-06-22'), cashOnHandMinor: 20_000 },
+      { amountText: '8.50', kind: 'spend', title: 'Lunch' },
+    );
+    const updated = setCashOnHandThroughCanonicalRepository(seeded, 30_000);
+    const repository = createCanonicalRepositoryForLocalLedgerState(updated);
+
+    expect(updated.cashOnHandMinor).toBe(30_000);
+    // The logged spend survives the balance update — nothing financial is wiped.
+    expect(repository.transactions.count()).toBe(1);
+    // The new state still validates as a canonical repository (the boundary the wrapper enforces).
+    expect(repository.currentBalances.count()).toBe(1);
+    expect(buildLocalRouteSummary(updated).availableNowMinor).toBe(29_150);
   });
 });

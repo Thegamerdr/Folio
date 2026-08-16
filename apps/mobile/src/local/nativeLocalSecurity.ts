@@ -1,7 +1,12 @@
 import * as Crypto from 'expo-crypto';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
+import { bytesToHex } from '@noble/ciphers/utils.js';
 import { Platform } from 'react-native';
+
+import type { PersistedWorkspace } from '../folio/lib/workspaceRoot.js';
+
+import { deriveLocalLedgerWorkspaceEncryptionKey } from './localLedgerWorkspaceCrypto.js';
 
 const databaseKeyName = 'folio.localLedger.sqlcipherKey.v1';
 const secureStoreService = 'folio.localLedger.v1';
@@ -58,6 +63,19 @@ export async function resolveLocalLedgerEncryptionKey(): Promise<string> {
   await SecureStore.setItemAsync(databaseKeyName, generated, secureStoreOptions());
   lastDatabaseKeyState = 'secure_store_generated';
   return generated;
+}
+
+/**
+ * Resolve the legacy device master and derive a workspace-specific SQLCipher key. The Personal
+ * legacy key remains available only to the one-time migration path; new databases never receive it
+ * directly.
+ */
+export async function resolveLocalLedgerWorkspaceEncryptionKey(
+  workspace: Pick<PersistedWorkspace, 'id' | 'encryptedSubkeyId'>,
+): Promise<string> {
+  const masterKey = await resolveLocalLedgerEncryptionKey();
+  if (lastDatabaseKeyState === 'secure_store_unavailable_fallback') return masterKey;
+  return deriveLocalLedgerWorkspaceEncryptionKey(masterKey, workspace);
 }
 
 export async function inspectLocalSecurityPosture(): Promise<LocalSecurityPosture> {
@@ -170,8 +188,4 @@ async function safeBoolean(action: () => Promise<boolean>): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }

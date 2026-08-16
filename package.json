@@ -37,7 +37,12 @@
     "store:guard": "node tooling/scripts/check-store-declarations.mjs --require-ready",
     "store:status": "node tooling/scripts/check-store-declarations.mjs",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc -b tsconfig.packages.json --pretty false",
+    "typecheck": "tsc -b tsconfig.packages.json --pretty false && pnpm typecheck:gateway && pnpm typecheck:cloud-vault && pnpm typecheck:open-banking-service && pnpm typecheck:billing-entitlements && pnpm typecheck:public-site",
+    "typecheck:billing-entitlements": "pnpm --filter @melo/billing-entitlements typecheck",
+    "typecheck:cloud-vault": "pnpm --filter @melo/cloud-vault typecheck",
+    "typecheck:gateway": "pnpm --filter @folio/ai-gateway typecheck",
+    "typecheck:open-banking-service": "pnpm --filter @melo/open-banking-service typecheck",
+    "typecheck:public-site": "pnpm --filter @melo/public-site typecheck",
     "validate:contracts": "cd docs/source-package && python testing/validate_package.py && python testing/validate_fixture_consistency.py"
   },
   "op-sqlite": {

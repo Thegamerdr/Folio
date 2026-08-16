@@ -127,8 +127,8 @@ describe('canonical product experience loop pass 01', () => {
     const snapshot = createCanonicalRepositoryForLocalLedgerState(staged).snapshot();
 
     expect(importEntryTrustCopy).toEqual([
-      'Rows wait for review before they are added.',
-      'Nothing changes your picture until you accept it.',
+      'Everything waits for review before it is added.',
+      'Nothing changes your picture until you add it.',
     ]);
     expect(importReviewActionCopy.map((action) => action.label)).toEqual([
       'Add',

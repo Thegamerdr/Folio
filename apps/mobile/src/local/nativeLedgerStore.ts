@@ -1,10 +1,19 @@
 ﻿import { open } from '@op-engineering/op-sqlite';
 import { Platform } from 'react-native';
 import { migrateCanonicalSnapshotToSqliteRepository } from '@folio/storage';
+import type { WorkspaceId } from '@folio/domain';
 
+import {
+  workspaceLedgerDatabaseName,
+  workspacePartitionAssociatedData,
+} from '../folio/lib/workspacePartition.js';
+import { PERSONAL_WORKSPACE_ID, type PersistedWorkspace } from '../folio/lib/workspaceRoot.js';
+
+import { LOCAL_HISTORY_KINDS } from './localLedger';
 import type {
   LocalDocumentStage,
   LocalHistoryEntry,
+  LocalHistoryKind,
   LocalImportDraft,
   LocalImportRejectionReason,
   LocalImportSummary,
@@ -14,14 +23,29 @@ import type {
 } from './localLedger';
 import { createCanonicalMobileLedgerSnapshot } from './canonicalLedgerAdapter';
 import { createCanonicalRepositoryForMobileSnapshot } from './canonicalLedgerRepository';
-import { createLocalLedgerDataVersion, localLedgerWorkspaceId } from './localLedgerVault';
+import { createLocalLedgerDataVersion } from './localLedgerVault';
+import {
+  EMPTY_DURABLE_CONTAINERS,
+  isPlainRecord,
+  parseDurableContainersBlob,
+  sanitizeSubOverrides,
+  type DurableContainers,
+} from './nativeLedgerSnapshotBlob';
+
+// Re-export the pure blob helpers so existing import sites (and tests) keep their entry point.
+export {
+  parseDurableContainersBlob,
+  type DurableContainers,
+  type DurableContainersLoad,
+} from './nativeLedgerSnapshotBlob';
 import {
   getLastLocalDatabaseKeyState,
   resolveLocalLedgerEncryptionKey,
+  resolveLocalLedgerWorkspaceEncryptionKey,
 } from './nativeLocalSecurity';
 import { OpSqliteDatabaseDriver } from './nativeSqliteDriver';
 
-const databaseName = 'folio_local_ledger.sqlite';
+const legacyPersonalDatabaseName = 'folio_local_ledger.sqlite';
 const snapshotId = 'current';
 
 type SnapshotRow = Readonly<{
@@ -34,6 +58,7 @@ type MetadataRow = Readonly<{
   currency?: unknown;
   import_issue_count?: unknown;
   last_import_summary_json?: unknown;
+  tight_point_goal_minor?: unknown;
 }>;
 
 type TransactionRow = Readonly<{
@@ -100,28 +125,76 @@ type DocumentStageRow = Readonly<{
   text_digest?: unknown;
 }>;
 
-export async function loadLocalLedgerState(): Promise<LocalLedgerState | null> {
-  if (Platform.OS === 'web') return null;
-
-  const encryptionKey = await resolveLocalLedgerEncryptionKey();
-  if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') return null;
-  return loadLocalLedgerStateWithKey(encryptionKey);
+function requireLedgerWorkspaceIdentity(workspace: PersistedWorkspace): PersistedWorkspace {
+  // Both helpers validate their untrusted identifier inputs before any native file is opened.
+  workspaceLedgerDatabaseName(workspace.id);
+  workspacePartitionAssociatedData(workspace, 'sqlite');
+  return workspace;
 }
 
-export async function saveLocalLedgerState(state: LocalLedgerState): Promise<void> {
+function requireUsableLedgerWorkspace(workspace: PersistedWorkspace): PersistedWorkspace {
+  requireLedgerWorkspaceIdentity(workspace);
+  if (workspace.archivedAt !== null) {
+    throw new Error(`Native ledger workspace ${String(workspace.id)} is archived.`);
+  }
+  return workspace;
+}
+
+export async function loadLocalLedgerState(
+  workspace: PersistedWorkspace,
+): Promise<LocalLedgerState | null> {
+  requireUsableLedgerWorkspace(workspace);
+  if (Platform.OS === 'web') return null;
+
+  const encryptionKey = await resolveLocalLedgerWorkspaceEncryptionKey(workspace);
+  if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') return null;
+  const databaseName = workspaceLedgerDatabaseName(workspace.id);
+  const scoped = await loadLocalLedgerStateWithKey(databaseName, encryptionKey, workspace);
+  if (scoped !== null || String(workspace.id) !== String(PERSONAL_WORKSPACE_ID)) {
+    return scoped;
+  }
+
+  // Personal-only compatibility: migrate the old single database after a verified read. Business
+  // never opens the legacy filename or receives the device master key.
+  const legacyKey = await resolveLocalLedgerEncryptionKey();
+  if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') return null;
+  const legacy = await loadLocalLedgerStateWithKey(
+    legacyPersonalDatabaseName,
+    legacyKey,
+    workspace,
+  );
+  if (legacy === null) return null;
+  await saveLocalLedgerStateWithKey(databaseName, legacy, encryptionKey, workspace);
+  const verified = await loadLocalLedgerStateWithKey(databaseName, encryptionKey, workspace);
+  if (verified !== null) {
+    await clearLocalLedgerDatabase(legacyPersonalDatabaseName, legacyKey);
+  }
+  return verified;
+}
+
+export async function saveLocalLedgerState(
+  workspace: PersistedWorkspace,
+  state: LocalLedgerState,
+): Promise<void> {
+  requireUsableLedgerWorkspace(workspace);
   if (Platform.OS === 'web') return;
 
-  const encryptionKey = await resolveLocalLedgerEncryptionKey();
+  const encryptionKey = await resolveLocalLedgerWorkspaceEncryptionKey(workspace);
   if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') {
     throw new Error('Device key storage is unavailable. Local records are memory-only.');
   }
-  await saveLocalLedgerStateWithKey(state, encryptionKey);
+  await saveLocalLedgerStateWithKey(
+    workspaceLedgerDatabaseName(workspace.id),
+    state,
+    encryptionKey,
+    workspace,
+  );
 }
 
-// Unconditionally wipe every local-ledger table so the app can recover from an unusable saved
-// picture (the "Start fresh" path on the error boundary). Deletes ignore the workspace id so a
-// row stored under any workspace, version or seed is cleared.
+// Wipe one physical workspace ledger so the app can recover from an unusable saved picture. The
+// Personal compatibility database is also cleared, but Business never touches that legacy file.
 const localLedgerTableNames = [
+  'folio_workspace_vault_generations',
   'canonical_mobile_ledger_snapshot',
   'local_ledger_document_stages',
   'local_ledger_history',
@@ -133,12 +206,26 @@ const localLedgerTableNames = [
   'local_ledger_transactions',
 ] as const;
 
-export async function clearLocalLedgerStorage(): Promise<void> {
+export async function clearLocalLedgerStorage(workspace: PersistedWorkspace): Promise<void> {
+  requireLedgerWorkspaceIdentity(workspace);
   if (Platform.OS === 'web') return;
 
-  const encryptionKey = await resolveLocalLedgerEncryptionKey();
+  const encryptionKey = await resolveLocalLedgerWorkspaceEncryptionKey(workspace);
   if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') return;
 
+  await clearLocalLedgerDatabase(workspaceLedgerDatabaseName(workspace.id), encryptionKey);
+  if (String(workspace.id) === String(PERSONAL_WORKSPACE_ID)) {
+    const legacyKey = await resolveLocalLedgerEncryptionKey();
+    if (getLastLocalDatabaseKeyState() !== 'secure_store_unavailable_fallback') {
+      await clearLocalLedgerDatabase(legacyPersonalDatabaseName, legacyKey);
+    }
+  }
+}
+
+async function clearLocalLedgerDatabase(
+  databaseName: string,
+  encryptionKey: string,
+): Promise<void> {
   const db = open({ name: databaseName, encryptionKey });
   try {
     for (const table of localLedgerTableNames) {
@@ -154,7 +241,9 @@ export async function clearLocalLedgerStorage(): Promise<void> {
 }
 
 async function loadLocalLedgerStateWithKey(
+  databaseName: string,
   encryptionKey: string,
+  workspace: PersistedWorkspace,
 ): Promise<LocalLedgerState | null> {
   const db = open({
     name: databaseName,
@@ -165,9 +254,9 @@ async function loadLocalLedgerStateWithKey(
     await ensureSnapshotTable(db);
     await ensureCanonicalSnapshotTable(db);
     await ensureLocalLedgerTables(db);
-    const normalized = await loadNormalizedLedgerState(db);
+    const normalized = await loadNormalizedLedgerState(db, workspace.id);
     if (normalized !== null) {
-      await migrateLoadedLocalLedgerStateToCanonicalSqlite(db, normalized);
+      await migrateLoadedLocalLedgerStateToCanonicalSqlite(db, normalized, workspace);
       return normalized;
     }
 
@@ -179,7 +268,7 @@ async function loadLocalLedgerStateWithKey(
     const parsed = JSON.parse(row.json);
     if (!isLocalLedgerState(parsed)) return null;
     const snapshotState = normalizeLocalLedgerState(parsed);
-    await migrateLoadedLocalLedgerStateToCanonicalSqlite(db, snapshotState);
+    await migrateLoadedLocalLedgerStateToCanonicalSqlite(db, snapshotState, workspace);
     return snapshotState;
   } catch {
     return null;
@@ -189,8 +278,10 @@ async function loadLocalLedgerStateWithKey(
 }
 
 async function saveLocalLedgerStateWithKey(
+  databaseName: string,
   state: LocalLedgerState,
   encryptionKey: string,
+  workspace: PersistedWorkspace,
 ): Promise<void> {
   const db = open({
     name: databaseName,
@@ -203,7 +294,7 @@ async function saveLocalLedgerStateWithKey(
     await ensureLocalLedgerTables(db);
     const driver = new OpSqliteDatabaseDriver(db);
     await driver.transaction(async (transactionDriver) => {
-      const canonicalSnapshot = createCanonicalMobileLedgerSnapshot(state);
+      const canonicalSnapshot = createCanonicalMobileLedgerSnapshot(state, workspace);
       if (!canonicalSnapshot.validation.valid) {
         throw new Error(
           `Canonical local ledger validation failed: ${canonicalSnapshot.validation.issues.join(' ')}`,
@@ -234,7 +325,7 @@ async function saveLocalLedgerStateWithKey(
           new Date().toISOString(),
         ],
       );
-      await saveNormalizedLedgerState(db, state);
+      await saveNormalizedLedgerState(db, state, workspace.id);
     });
   } finally {
     db.close();
@@ -244,8 +335,9 @@ async function saveLocalLedgerStateWithKey(
 async function migrateLoadedLocalLedgerStateToCanonicalSqlite(
   db: ReturnType<typeof open>,
   state: LocalLedgerState,
+  workspace: PersistedWorkspace,
 ): Promise<void> {
-  const canonicalSnapshot = createCanonicalMobileLedgerSnapshot(state);
+  const canonicalSnapshot = createCanonicalMobileLedgerSnapshot(state, workspace);
   if (!canonicalSnapshot.validation.valid) {
     throw new Error(
       `Canonical local ledger validation failed: ${canonicalSnapshot.validation.issues.join(' ')}`,
@@ -294,11 +386,20 @@ async function ensureLocalLedgerTables(db: ReturnType<typeof open>): Promise<voi
         currency TEXT NOT NULL,
         import_issue_count INTEGER NOT NULL,
         last_import_summary_json TEXT,
+        tight_point_goal_minor INTEGER,
         data_version TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
     `,
   );
+  // Older installs created local_ledger_metadata before tight_point_goal_minor existed. Add the
+  // column if it is missing so the INSERT below never references an unknown column. A failure here
+  // (the column already exists) is expected and ignored.
+  try {
+    await db.execute('ALTER TABLE local_ledger_metadata ADD COLUMN tight_point_goal_minor INTEGER');
+  } catch {
+    // Column already present — nothing to do.
+  }
   await db.execute(
     `
       CREATE TABLE IF NOT EXISTS local_ledger_transactions (
@@ -405,14 +506,16 @@ async function ensureLocalLedgerTables(db: ReturnType<typeof open>): Promise<voi
 
 async function loadNormalizedLedgerState(
   db: ReturnType<typeof open>,
+  workspaceId: WorkspaceId,
 ): Promise<LocalLedgerState | null> {
   const metadataResult = await db.execute(
     `
-      SELECT as_of_date, cash_on_hand_minor, currency, import_issue_count, last_import_summary_json
+      SELECT as_of_date, cash_on_hand_minor, currency, import_issue_count, last_import_summary_json,
+        tight_point_goal_minor
       FROM local_ledger_metadata
-      WHERE id = ?
+      WHERE id = ? AND workspace_id = ?
     `,
-    [snapshotId],
+    [snapshotId, workspaceId],
   );
   const metadata = metadataResult.rows[0] as MetadataRow | undefined;
   if (metadata === undefined) return null;
@@ -432,7 +535,7 @@ async function loadNormalizedLedgerState(
       WHERE workspace_id = ?
       ORDER BY sort_order
     `,
-    [localLedgerWorkspaceId],
+    [workspaceId],
   );
   const drafts = await db.execute(
     `
@@ -441,7 +544,7 @@ async function loadNormalizedLedgerState(
       WHERE workspace_id = ?
       ORDER BY sort_order
     `,
-    [localLedgerWorkspaceId],
+    [workspaceId],
   );
   const rejectedImports = await db.execute(
     `
@@ -452,7 +555,7 @@ async function loadNormalizedLedgerState(
       WHERE workspace_id = ?
       ORDER BY sort_order
     `,
-    [localLedgerWorkspaceId],
+    [workspaceId],
   );
   const history = await db.execute(
     `
@@ -461,7 +564,7 @@ async function loadNormalizedLedgerState(
       WHERE workspace_id = ?
       ORDER BY sort_order
     `,
-    [localLedgerWorkspaceId],
+    [workspaceId],
   );
   const documentStages = await db.execute(
     `
@@ -470,67 +573,105 @@ async function loadNormalizedLedgerState(
       WHERE workspace_id = ?
       ORDER BY sort_order
     `,
-    [localLedgerWorkspaceId],
+    [workspaceId],
   );
 
   const lastImportSummary =
     typeof metadata.last_import_summary_json === 'string'
       ? parseImportSummary(metadata.last_import_summary_json)
       : undefined;
+  // Pots, subscriptions and cycles are durable containers/history that the normalized relational
+  // tables do not model. They round-trip through the full JSON snapshot blob written on every save,
+  // so we recover them from there (defaulting to []), keeping the SQLite schema untouched.
+  const durableContainers = await loadDurableContainersFromSnapshot(db);
+  // tight_point_goal_minor is a nullable scalar added after the first releases. Old rows (and the
+  // freshly-ALTERed column) read back as null/undefined → default to null (no goal set).
+  const tightPointGoalMinor =
+    typeof metadata.tight_point_goal_minor === 'number' ? metadata.tight_point_goal_minor : null;
   const state: LocalLedgerState = {
     asOfDate: metadata.as_of_date,
     cashOnHandMinor: metadata.cash_on_hand_minor,
     currency: 'GBP',
+    tightPointGoalMinor,
     importIssueCount: metadata.import_issue_count,
     transactions: transactions.rows.map(rowToTransaction).filter(isPresent),
     importDrafts: drafts.rows.map(rowToImportDraft).filter(isPresent),
     rejectedImports: rejectedImports.rows.map(rowToRejectedImport).filter(isPresent),
     documentStages: documentStages.rows.map(rowToDocumentStage).filter(isPresent),
     history: history.rows.map(rowToHistoryEntry).filter(isPresent),
+    pots: durableContainers.pots,
+    subscriptions: durableContainers.subscriptions,
+    cycles: durableContainers.cycles,
+    subOverrides: durableContainers.subOverrides,
+    calendarEvents: durableContainers.calendarEvents,
     ...(lastImportSummary === undefined ? {} : { lastImportSummary }),
   };
 
   return isLocalLedgerState(state) ? state : null;
 }
 
+async function loadDurableContainersFromSnapshot(
+  db: ReturnType<typeof open>,
+): Promise<DurableContainers> {
+  let rawJson: string | undefined;
+  try {
+    const result = await db.execute('SELECT json FROM local_ledger_snapshot WHERE id = ?', [
+      snapshotId,
+    ]);
+    const row = result.rows[0] as SnapshotRow | undefined;
+    rawJson = typeof row?.json === 'string' ? row.json : undefined;
+  } catch {
+    // A read/SQL failure is a different, also-detectable corruption signal. It is NOT swallowed
+    // silently: returning the empty-default containers surfaces the loss to the USER as an empty
+    // pots/subscriptions/cycles set (never a crash), which is the user-facing corruption signal.
+    return EMPTY_DURABLE_CONTAINERS;
+  }
+
+  const load = parseDurableContainersBlob(rawJson);
+  // The blob is the ONLY copy of these containers, so corruption is unrecoverable data loss.
+  // `load.corrupt` distinguishes a malformed blob from a legitimately empty one. On corruption we
+  // return the empty-default explicitly here: the app still loads AND the loss is surfaced to the
+  // USER as an empty pots/subscriptions/cycles set — never a silent wipe masked as real data. (No
+  // developer console logging: runtime console.* is banned in src/local by the release gate; the
+  // user-facing empty set IS the non-silent signal.)
+  if (load.corrupt) {
+    return EMPTY_DURABLE_CONTAINERS;
+  }
+  return load.containers;
+}
+
 async function saveNormalizedLedgerState(
   db: ReturnType<typeof open>,
   state: LocalLedgerState,
+  workspaceId: WorkspaceId,
 ): Promise<void> {
   const now = new Date().toISOString();
-  await db.execute('DELETE FROM local_ledger_transactions WHERE workspace_id = ?', [
-    localLedgerWorkspaceId,
-  ]);
-  await db.execute('DELETE FROM local_ledger_import_drafts WHERE workspace_id = ?', [
-    localLedgerWorkspaceId,
-  ]);
+  await db.execute('DELETE FROM local_ledger_transactions WHERE workspace_id = ?', [workspaceId]);
+  await db.execute('DELETE FROM local_ledger_import_drafts WHERE workspace_id = ?', [workspaceId]);
   await db.execute('DELETE FROM local_ledger_rejected_imports WHERE workspace_id = ?', [
-    localLedgerWorkspaceId,
+    workspaceId,
   ]);
-  await db.execute('DELETE FROM local_ledger_history WHERE workspace_id = ?', [
-    localLedgerWorkspaceId,
-  ]);
+  await db.execute('DELETE FROM local_ledger_history WHERE workspace_id = ?', [workspaceId]);
   await db.execute('DELETE FROM local_ledger_document_stages WHERE workspace_id = ?', [
-    localLedgerWorkspaceId,
+    workspaceId,
   ]);
-  await db.execute('DELETE FROM local_ledger_search_index WHERE workspace_id = ?', [
-    localLedgerWorkspaceId,
-  ]);
+  await db.execute('DELETE FROM local_ledger_search_index WHERE workspace_id = ?', [workspaceId]);
   await db.execute(
     `
       INSERT OR REPLACE INTO local_ledger_metadata (
         id, workspace_id, as_of_date, cash_on_hand_minor, currency, import_issue_count,
-        last_import_summary_json, data_version, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_import_summary_json, tight_point_goal_minor, data_version, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       snapshotId,
-      localLedgerWorkspaceId,
+      workspaceId,
       state.asOfDate,
       state.cashOnHandMinor,
       state.currency,
       state.importIssueCount,
       state.lastImportSummary === undefined ? null : JSON.stringify(state.lastImportSummary),
+      state.tightPointGoalMinor,
       createLocalLedgerDataVersion(state),
       now,
     ],
@@ -545,7 +686,7 @@ async function saveNormalizedLedgerState(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        localLedgerWorkspaceId,
+        workspaceId,
         transaction.id,
         index,
         transaction.title,
@@ -565,7 +706,7 @@ async function saveNormalizedLedgerState(
         ) VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
-        localLedgerWorkspaceId,
+        workspaceId,
         'transaction',
         transaction.id,
         transaction.title,
@@ -585,7 +726,7 @@ async function saveNormalizedLedgerState(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        localLedgerWorkspaceId,
+        workspaceId,
         draft.rowId,
         index,
         draft.transactionId,
@@ -610,7 +751,7 @@ async function saveNormalizedLedgerState(
         ) VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
-        localLedgerWorkspaceId,
+        workspaceId,
         'import_draft',
         draft.rowId,
         draft.interpretation,
@@ -630,7 +771,7 @@ async function saveNormalizedLedgerState(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        localLedgerWorkspaceId,
+        workspaceId,
         rejected.rowId,
         index,
         rejected.transactionId,
@@ -656,7 +797,7 @@ async function saveNormalizedLedgerState(
         ) VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
-        localLedgerWorkspaceId,
+        workspaceId,
         'rejected_import',
         rejected.rowId,
         rejected.interpretation,
@@ -673,7 +814,7 @@ async function saveNormalizedLedgerState(
           workspace_id, id, sort_order, kind, label, created_at
         ) VALUES (?, ?, ?, ?, ?, ?)
       `,
-      [localLedgerWorkspaceId, entry.id, index, entry.kind, entry.label, entry.createdAt],
+      [workspaceId, entry.id, index, entry.kind, entry.label, entry.createdAt],
     );
   }
 
@@ -686,7 +827,7 @@ async function saveNormalizedLedgerState(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        localLedgerWorkspaceId,
+        workspaceId,
         stage.id,
         index,
         stage.filename,
@@ -704,7 +845,7 @@ async function saveNormalizedLedgerState(
         ) VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
-        localLedgerWorkspaceId,
+        workspaceId,
         'document_stage',
         stage.id,
         stage.filename,
@@ -955,19 +1096,14 @@ function isImportRejectionReason(value: unknown): value is LocalImportRejectionR
   );
 }
 
-function isHistoryKind(value: unknown): value is LocalHistoryEntry['kind'] {
-  return (
-    value === 'manual_added' ||
-    value === 'recovery_recorded' ||
-    value === 'planner_added' ||
-    value === 'import_staged' ||
-    value === 'import_confirmed' ||
-    value === 'import_dismissed' ||
-    value === 'import_edited' ||
-    value === 'import_restored' ||
-    value === 'import_suggested' ||
-    value === 'document_staged'
-  );
+// Derived from the single source of truth (LOCAL_HISTORY_KINDS in localLedger) so the persistence
+// allowlist can NEVER drift from the domain union. Previously this hand-maintained list covered only
+// ~half the kinds, so pot/subscription/cycle history entries failed the guard, returned null from
+// rowToHistoryEntry, and were silently .filter()-dropped on every reload — a data-loss bug.
+const HISTORY_KINDS: ReadonlySet<string> = new Set<string>(LOCAL_HISTORY_KINDS);
+
+function isHistoryKind(value: unknown): value is LocalHistoryKind {
+  return typeof value === 'string' && HISTORY_KINDS.has(value);
 }
 
 function isDocumentStorageState(value: unknown): value is LocalDocumentStage['storageState'] {
@@ -980,10 +1116,24 @@ function isLocalLedgerState(value: unknown): value is LocalLedgerState {
     value.currency === 'GBP' &&
     typeof value.asOfDate === 'string' &&
     typeof value.cashOnHandMinor === 'number' &&
+    // Optional on disk for backward compatibility — older blobs predate the tight-point goal, so
+    // absent is fine; normalizeLocalLedgerState defaults it to null.
+    (value.tightPointGoalMinor === undefined ||
+      value.tightPointGoalMinor === null ||
+      typeof value.tightPointGoalMinor === 'number') &&
     Array.isArray(value.transactions) &&
     Array.isArray(value.importDrafts) &&
     (value.rejectedImports === undefined || Array.isArray(value.rejectedImports)) &&
     (value.documentStages === undefined || Array.isArray(value.documentStages)) &&
+    // Durable containers/history are optional on disk for backward compatibility — older saved
+    // pictures predate them, so absent is fine; normalizeLocalLedgerState defaults them to [].
+    (value.pots === undefined || Array.isArray(value.pots)) &&
+    (value.subscriptions === undefined || Array.isArray(value.subscriptions)) &&
+    (value.cycles === undefined || Array.isArray(value.cycles)) &&
+    // subOverrides (plain object) + calendarEvents (array) are also optional on disk — older blobs
+    // predate the Calendar engine, so absent is fine; normalizeLocalLedgerState defaults them.
+    (value.subOverrides === undefined || isPlainRecord(value.subOverrides)) &&
+    (value.calendarEvents === undefined || Array.isArray(value.calendarEvents)) &&
     Array.isArray(value.history)
   );
 }
@@ -995,7 +1145,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function normalizeLocalLedgerState(state: LocalLedgerState): LocalLedgerState {
   return {
     ...state,
+    tightPointGoalMinor:
+      typeof state.tightPointGoalMinor === 'number' ? state.tightPointGoalMinor : null,
     documentStages: Array.isArray(state.documentStages) ? state.documentStages : [],
     rejectedImports: Array.isArray(state.rejectedImports) ? state.rejectedImports : [],
+    pots: Array.isArray(state.pots) ? state.pots : [],
+    subscriptions: Array.isArray(state.subscriptions) ? state.subscriptions : [],
+    cycles: Array.isArray(state.cycles) ? state.cycles : [],
+    subOverrides: isPlainRecord(state.subOverrides) ? sanitizeSubOverrides(state.subOverrides) : {},
+    calendarEvents: Array.isArray(state.calendarEvents) ? state.calendarEvents : [],
   };
 }

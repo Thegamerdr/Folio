@@ -1,0 +1,32 @@
+# Keep EAS Android/iOS build uploads to source needed for the Expo managed app.
+# EAS copies the monorepo root for workspace installs; local evidence and generated outputs must
+# not be uploaded as part of a mobile binary.
+
+.git
+.git/
+.git/**
+node_modules/
+dist/
+coverage/
+.turbo/
+.expo/
+.pnpm-patches/
+*.log
+*.tsbuildinfo
+
+# Phase evidence, local build outputs, and scratch work are not runtime inputs.
+artifacts/
+tmp/
+docs/
+plans/
+prototypes/
+_archive/
+
+# Expo managed native projects are generated during EAS/prebuild and are not canonical source here.
+/apps/mobile/android/
+/apps/mobile/ios/
+
+# App-local generated output/evidence.
+apps/mobile/dist/
+apps/mobile/evidence/
+apps/mobile/.expo/

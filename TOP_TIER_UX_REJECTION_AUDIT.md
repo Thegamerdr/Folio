@@ -1,3 +1,29 @@
+## UPDATE — 2026-06-30 (evening): items resolved
+
+This section was prepended on 2026-06-30. The audit body below is the original 2026-06-24 snapshot and is left unchanged. This update maps tonight's work (branch `claude/folio-rn-faithful-port`; commits `eb6e0a0`, `3783c9c`, `a3f81c9`, plus `7147884` for the change-log) onto the issues this report raised. Verification basis: 0 typecheck errors, 306 folio tests green, and visible fixes confirmed on-device by screenshot. Only what the change-list actually covers is marked resolved; the structural rebuilds this audit demanded are noted as still open where they were not part of tonight's work.
+
+The dominant fix tonight was a **sample/placeholder-data purge** (commits above): nothing fabricated is shown 24/7 anymore. A cleared or real app now shows only the user's own data; demo/illustrative data is gated behind the demo regime (`currentBalance.source === 'sample'`). That directly addresses the report's recurring complaint that several screens "looked like a structured demo of the system" rather than a real product.
+
+Resolved or materially improved tonight:
+
+- **Today (was Partial — "still explaining itself").** The hardcoded chart geometry ("salary rise +£2,180 / bill drop −£875 / 7 Jul") is gone; the money-path chart is now plotted from the real `route.points` daily series. The summary trio ("Coming in £2,180 / Going out £1,095") now reads real route totals (`RouteResult.incomingTotal` / `outgoingTotal`), and the low-point week tile reflects the real route tight point. The chart caption "breathing room · £100" is now just "breathing room". The "Today surfaces real money state" concern about fabricated mechanics is addressed; copy/hierarchy polish beyond the data fix was not the focus.
+- **Breathing-room route (was Fail — "pretty graph, but what am I meant to learn?").** The decorative line chart was driven by hardcoded SVG geometry; it now plots the real `route.points` series, and the RouteDetailSheet Octopus/Rent placeholder is now an empty point. This removes the fabricated-data half of the failure. The _full route-composition rebuild into a pressure map_ (will I make it / when do I run tight / what caused it / what improves it) is the earlier `pressureMap` work and was **not** re-done tonight, so the composition demand from this row remains the standing target.
+- **Review rows (was Fail — "this is a control panel").** The cold-open fallback to sample rows and the fake "Tesco · £42 · 26 Jun" row are gone — Review and `SubCaughtSheet` now show honest empty doorways / blank forms instead of fabricated decisions. The **row-as-decision-object bottom-sheet interaction rebuild** demanded by this row is **not** claimed tonight and remains open.
+- **Import entry & PDF/screenshot fallback (both Partial).** The reader screens (Visualizer / Review / Paste / Image) and the edit sheets no longer fall back to sample rows on a cold open — they present honest empty doorways and blank forms. Imported transactions now also keep their real statement date instead of being stamped "today" (commit set above). The hierarchy/action-area rebuilds these rows asked for are not claimed; this is the honesty/empty-state half.
+- **Data/privacy (was Partial — "I can trust this, but it is wordy").** Two concrete trust defects are fixed: the Privacy screen is now wrapped in a ScrollView so "Clear to empty" — previously unreachable below the fold — is reachable; and More → "Start fresh" no longer calls `resetAll` (which reseeded the demo, so "it all came back") — it now calls `resetToEmpty` behind a one-tap confirm. The copy-trim part of this row was not the focus.
+- **Start (was Fail — "menu, not a first win").** The fabricated fallback data is purged (honest empty doorway) and the screen is now wrapped in a ScrollView so its content scrolls. The **layout/copy rebuild to one dominant recommended action** that this row requires is **not** done tonight and remains open.
+
+Also shipped tonight but outside this report's row set (recorded for the reviewer, not claimed against any row above): the Melo mood is now wired app-wide (pressure derived from the real route via `derivePressure()`, neutral on an empty app, with a global override that propagates to Today/What-if/Melo/chat); a dark-mode invisible-text fix on TimelineScreen (headline/subhead had no color → black-on-dark → now bound to theme ink/muted); ScrollView wrapping also applied to Subscriptions/PaydayRitual/Check-in; and an AI cost split (chat pinned to a cheap model, vision reserved for PDF/photo extraction, gateway allow-list rejecting costlier models).
+
+Still open (not addressed tonight; carried forward from this audit and/or owner-QA):
+
+- The structural **interaction/layout rebuilds** this audit centered on — Start's single-dominant-action rebuild, the Review row-by-row bottom-sheet decision experience, the guided-manual-input "one question per screen" rebuild, the debt/bills consequence-first layout, and the full route pressure-map composition — are **not** part of tonight's purge-and-honesty pass.
+- Exhaustive per-screen dark-mode and cross-device **visual** pass on an emulator (owner/QA).
+- iOS pass (needs a Mac/EAS; unbuildable on the Windows dev box).
+- Gateway redeploy (`wrangler deploy`) plus an OpenRouter spend cap to make the AI cost split take effect.
+
+---
+
 # Top-Tier UX Rejection Audit
 
 Date: 2026-06-24

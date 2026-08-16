@@ -1,0 +1,42 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "melo-public-site",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "melo-money.com",
+      "custom_domain": true,
+    },
+    {
+      "pattern": "www.melo-money.com",
+      "custom_domain": true,
+    },
+    {
+      "pattern": "melomoney.uk",
+      "custom_domain": true,
+    },
+    {
+      "pattern": "www.melomoney.uk",
+      "custom_domain": true,
+    },
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./public",
+    "run_worker_first": true,
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
+  },
+}

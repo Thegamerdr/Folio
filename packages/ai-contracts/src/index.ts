@@ -423,23 +423,201 @@ export type Phase11CoverageInput = Readonly<{
 export type MeloLocalIntent =
   | 'check_purchase'
   | 'explain_position'
+  | 'review_business_invoices'
+  | 'review_business_vat'
+  | 'review_business_tax'
+  | 'review_business_payroll'
+  | 'review_business_filings'
+  | 'review_business_clients'
+  | 'review_subscriptions'
+  | 'review_recurring'
+  | 'summarise_month'
   | 'review_import'
   | 'plan_recovery'
+  | 'check_payday'
+  | 'review_debts'
+  | 'review_goals'
+  | 'review_calendar'
+  | 'explain_changes'
+  | 'review_irregular_income'
+  | 'review_accounts'
   | 'clarify';
 
 export type MeloLocalFinancialSnapshot = Readonly<{
   currency: 'GBP';
+  workspaceKind?: 'personal' | 'business' | undefined;
   availableNowMinor: number;
   tightestDay: string;
   tightestBalanceMinor: number;
   protectedItems: readonly string[];
   pendingReviewCount: number;
   nextPaydayLabel: string;
+  /** Aggregate-only local context. No names, merchants, account identifiers or transaction rows. */
+  hasMoneyPicture?: boolean | undefined;
+  subscriptionCount?: number | undefined;
+  activeSubscriptionMonthlyMinor?: number | undefined;
+  monthlyIncomeMinor?: number | undefined;
+  monthlyOutgoingsMinor?: number | undefined;
+  activeRecurringCount?: number | undefined;
+  debtCount?: number | undefined;
+  totalDebtMinor?: number | undefined;
+  monthlyDebtMinimumMinor?: number | undefined;
+  goalCount?: number | undefined;
+  goalSavedMinor?: number | undefined;
+  goalTargetMinor?: number | undefined;
+  upcomingCalendarCount?: number | undefined;
+  nextCalendarDate?: string | undefined;
+  unseenChangeCount?: number | undefined;
+  incomeSourceCount?: number | undefined;
+  irregularIncomeMode?: boolean | undefined;
+  accountCount?: number | undefined;
+  liabilityAccountCount?: number | undefined;
+  /** Business-only aggregate context. No company, account, merchant or document identifiers. */
+  businessCashBalanceMinor?: number | undefined;
+  businessLiabilityBalanceMinor?: number | undefined;
+  businessNetPositionMinor?: number | undefined;
+  businessProjectedCashMinor?: number | undefined;
+  businessUpcomingIncomeMinor?: number | undefined;
+  businessUpcomingCommitmentsMinor?: number | undefined;
+  businessConfirmedIncome30DaysMinor?: number | undefined;
+  businessConfirmedExpense30DaysMinor?: number | undefined;
+  businessRunwayDays?: number | null | undefined;
+  businessRunwayHistoryDays?: number | undefined;
+  businessNextCommitmentDate?: string | undefined;
+  businessEntityKind?: 'sole-trader' | 'ltd' | undefined;
+  businessClientCount?: number | undefined;
+  businessOutstandingInvoicesMinor?: number | undefined;
+  businessOverdueInvoicesMinor?: number | undefined;
+  businessOverdueInvoiceCount?: number | undefined;
+  businessVatRegistered?: boolean | undefined;
+  businessVatDueMinor?: number | undefined;
+  businessVatPotMinor?: number | undefined;
+  businessTaxEstimateMinor?: number | undefined;
+  businessTaxPotMinor?: number | undefined;
+  businessObligations30Minor?: number | undefined;
+  businessEmployeeCount?: number | undefined;
+  businessOpenFilingCount?: number | undefined;
 }>;
+
+export type MeloDebtProjectionStrategy =
+  | 'contractual-minimums'
+  | 'highest-rate-first'
+  | 'lowest-balance-first';
+
+export type MeloLocalCalculation =
+  | Readonly<{
+      kind: 'debt-projection';
+      strategy: MeloDebtProjectionStrategy;
+      debtCount: number;
+      extraMonthlyMinor: number;
+      payoffMonths: number | null;
+      payoffDateLabel: string | null;
+      totalInterestMinor: number;
+      monthsSavedVsMinimums: number | null;
+      interestSavedVsMinimumsMinor: number;
+      safeZoneAfterExtraMinor: number;
+      stalled: boolean;
+    }>
+  | Readonly<{
+      kind: 'debt-strategy-required';
+      extraMonthlyMinor: number;
+      safeZoneAfterExtraMinor: number;
+    }>
+  | Readonly<{
+      kind: 'goal-projection';
+      datedPlanCount: number;
+      remainingMinor: number;
+      currentPerWeekMinor: number;
+      requiredPerWeekMinor: number | null;
+      weeksAvailable: number;
+      weeksAtPace: number | null;
+      onTrack: boolean;
+      targetDateLabel: string;
+      contributionMinor: number;
+      remainingAfterContributionMinor: number;
+      requiredPerWeekAfterContributionMinor: number | null;
+      onTrackAfterContribution: boolean;
+      safeZoneAfterContributionMinor: number;
+    }>
+  | Readonly<{
+      kind: 'irregular-income-range';
+      monthsObserved: number;
+      sufficientHistory: boolean;
+      lowMonthMinor: number | null;
+      baseMonthMinor: number | null;
+      highMonthMinor: number | null;
+    }>
+  | Readonly<{
+      kind: 'account-position';
+      accountKind: 'bank' | 'credit-card' | 'savings' | 'cash';
+      balanceMinor: number;
+      isLiability: boolean;
+      balanceAsOfLabel: string;
+    }>
+  | Readonly<{
+      kind: 'source-explanation';
+      values: readonly Readonly<{
+        label:
+          | 'available now'
+          | 'tightest balance'
+          | 'monthly income'
+          | 'monthly outgoings'
+          | 'debt balance'
+          | 'monthly debt minimums'
+          | 'goal saved'
+          | 'goal target'
+          | 'selected account balance';
+        amountMinor: number;
+      }>[];
+      sourceKinds: readonly (
+        | 'current balance setting'
+        | 'forecast engine'
+        | 'income sources and posted income'
+        | 'recurring rules and posted outgoings'
+        | 'recorded debt details'
+        | 'recorded goal details'
+        | 'confirmed calendar events'
+      )[];
+      confirmedRecordCount: number;
+      excludedReviewCount: number;
+    }>
+  | Readonly<{
+      kind: 'import-review-summary';
+      pendingCount: number;
+      possibleDuplicateCount: number;
+      changedAmountCount: number;
+      relationshipCount: number;
+      rememberedCategoryCount: number;
+      missingDateCount: number;
+    }>
+  | Readonly<{
+      kind: 'recovery-preview';
+      hasShortfall: boolean;
+      shortfallMinor: number;
+      structuralPressure: boolean;
+      options: readonly Readonly<{
+        kind: 'move-bill' | 'pause-recurring' | 'hold-discretionary';
+        liftMinor: number;
+        afterMinor: number;
+      }>[];
+    }>
+  | Readonly<{
+      kind: 'bnpl-schedule';
+      bnplCount: number;
+      scheduledPaymentCount: number;
+      nextPaymentDateLabel: string | null;
+      nextPaymentTotalMinor: number;
+      finalPaymentDateLabel: string | null;
+      totalRemainingMinor: number;
+      totalInterestMinor: number;
+      stalledCount: number;
+    }>;
 
 export type MeloLocalAiRequest = Readonly<{
   prompt: string;
   snapshot: MeloLocalFinancialSnapshot;
+  calculation?: MeloLocalCalculation | null | undefined;
+  resolvedIntent?: MeloLocalIntent | undefined;
   cloudAiEnabled: boolean;
   cloudConsentGranted: boolean;
   source: 'typed_prompt' | 'quick_action';
@@ -447,9 +625,23 @@ export type MeloLocalAiRequest = Readonly<{
 
 export type MeloLocalAiActionKind =
   | 'open_what_if'
+  | 'open_business_invoices'
+  | 'open_business_vat'
+  | 'open_business_tax'
+  | 'open_business_payroll'
+  | 'open_business_filings'
+  | 'open_business_clients'
   | 'review_imports'
   | 'explain_sources'
   | 'build_recovery_route'
+  | 'open_payday_ritual'
+  | 'open_subscriptions'
+  | 'open_goals'
+  | 'open_calendar'
+  | 'open_timeline'
+  | 'open_account'
+  | 'open_free_debt_help'
+  | 'open_uk_emergency_help'
   | 'ask_clarifying_question';
 
 export type MeloLocalAiAction = Readonly<{
@@ -481,8 +673,10 @@ export type MeloLocalAiDraft = Readonly<{
 export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAiDraft {
   const prompt = input.prompt.trim();
   const normalized = prompt.toLowerCase();
-  const detectedAmountMinor = extractAmountMinor(normalized);
-  const intent = classifyMeloLocalIntent(normalized);
+  const amountCandidatesMinor = extractMeloLocalAmountCandidatesMinor(normalized);
+  const detectedAmountMinor =
+    amountCandidatesMinor.length === 1 ? (amountCandidatesMinor[0] ?? null) : null;
+  const intent = input.resolvedIntent ?? classifyMeloLocalIntent(normalized);
   const injectionConcern = hasPromptInjectionLanguage(normalized);
   const amountText = detectedAmountMinor === null ? null : formatMinorAmount(detectedAmountMinor);
   const availableText = formatMinorAmount(input.snapshot.availableNowMinor);
@@ -500,6 +694,8 @@ export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAi
   ]);
   const answer = buildMeloLocalAnswer({
     amountText,
+    amountCandidatesMinor,
+    calculation: input.calculation ?? null,
     detectedAmountMinor,
     intent,
     snapshot: input.snapshot,
@@ -509,7 +705,13 @@ export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAi
     intent,
     snapshot: input.snapshot,
   });
-  const uncertainty = uncertaintyForIntent(intent, detectedAmountMinor, injectionConcern);
+  const uncertainty = uncertaintyForIntent(
+    intent,
+    detectedAmountMinor,
+    injectionConcern,
+    input.calculation ?? null,
+    amountCandidatesMinor.length > 1,
+  );
   const requiresUserReview =
     intent === 'review_import' ||
     intent === 'plan_recovery' ||
@@ -520,14 +722,29 @@ export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAi
     intent,
     snapshot: input.snapshot,
   });
-  const dataUsed = [
-    `${availableText} available now`,
-    `${input.snapshot.tightestDay} tightest point at ${tightestText}`,
-    `${input.snapshot.pendingReviewCount} review item${
-      input.snapshot.pendingReviewCount === 1 ? '' : 's'
-    }`,
-    `protected first: ${protectedItems}`,
-  ];
+  const businessWorkspace = input.snapshot.workspaceKind === 'business';
+  const businessCashText = formatMinorAmount(input.snapshot.businessCashBalanceMinor ?? 0);
+  const businessProjectedText = formatMinorAmount(input.snapshot.businessProjectedCashMinor ?? 0);
+  const businessCommitmentsText = formatMinorAmount(
+    input.snapshot.businessUpcomingCommitmentsMinor ?? 0,
+  );
+  const dataUsed = businessWorkspace
+    ? [
+        `${businessCashText} confirmed Business cash`,
+        `${businessProjectedText} confirmed dated position`,
+        `${businessCommitmentsText} dated commitments`,
+        `${input.snapshot.pendingReviewCount} unconfirmed review item${
+          input.snapshot.pendingReviewCount === 1 ? '' : 's'
+        } excluded`,
+      ]
+    : [
+        `${availableText} available now`,
+        `${input.snapshot.tightestDay} tightest point at ${tightestText}`,
+        `${input.snapshot.pendingReviewCount} review item${
+          input.snapshot.pendingReviewCount === 1 ? '' : 's'
+        }`,
+        `protected first: ${protectedItems}`,
+      ];
 
   return {
     routeKind: 'deterministic_local',
@@ -541,7 +758,12 @@ export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAi
     canWriteRecords: false,
     usedCloud: false,
     detectedAmountMinor,
-    followUpChips: chipsForIntent(intent),
+    followUpChips:
+      amountCandidatesMinor.length > 1
+        ? amountCandidatesMinor.slice(0, 3).map((amount) => `Check ${formatMinorAmount(amount)}`)
+        : input.calculation?.kind === 'debt-strategy-required'
+          ? ['Use highest rate first', 'Use lowest balance first']
+          : chipsForIntent(intent, input.snapshot.workspaceKind),
     actions,
     dataUsed,
     guardrails,
@@ -554,9 +776,17 @@ export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAi
         amountText ?? 'none',
         detectedAmountMinor ? 'implemented' : 'needs_review',
       ),
-      row('Available now', availableText, 'implemented'),
-      row('Tightest point', `${input.snapshot.tightestDay}: ${tightestText}`, 'implemented'),
-      row('Protected first', protectedItems, 'implemented'),
+      ...(businessWorkspace
+        ? [
+            row('Business cash', businessCashText, 'implemented'),
+            row('Dated position', businessProjectedText, 'implemented'),
+            row('Dated commitments', businessCommitmentsText, 'implemented'),
+          ]
+        : [
+            row('Available now', availableText, 'implemented'),
+            row('Tightest point', `${input.snapshot.tightestDay}: ${tightestText}`, 'implemented'),
+            row('Protected first', protectedItems, 'implemented'),
+          ]),
       row('User review', boolText(requiresUserReview), 'implemented'),
       row('Record changes', 'review action required', 'implemented'),
     ],
@@ -1276,18 +1506,196 @@ export function buildPhase11CoverageRows(
   ];
 }
 
-function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
+export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
+  if (includesAny(prompt, ['invoice', 'invoices', 'overdue', 'owed to me', 'client payment'])) {
+    return 'review_business_invoices';
+  }
+
+  if (includesAny(prompt, ['vat', 'value added tax'])) {
+    return 'review_business_vat';
+  }
+
+  if (
+    includesAny(prompt, [
+      'corporation tax',
+      'self assessment',
+      'self-assessment',
+      'tax estimate',
+      'tax pot',
+      'tax due',
+    ])
+  ) {
+    return 'review_business_tax';
+  }
+
+  if (includesAny(prompt, ['payroll', 'employee', 'employees', 'employer ni', 'paye'])) {
+    return 'review_business_payroll';
+  }
+
+  if (
+    includesAny(prompt, [
+      'filing',
+      'filings',
+      'confirmation statement',
+      'annual accounts',
+      'companies house',
+      'deadline',
+      'deadlines',
+    ])
+  ) {
+    return 'review_business_filings';
+  }
+
+  if (includesAny(prompt, ['client', 'clients', 'customer', 'customers'])) {
+    return 'review_business_clients';
+  }
+
+  if (
+    includesAny(prompt, [
+      'subscription',
+      'subscriptions',
+      'renewal',
+      'renews',
+      'spotify',
+      'netflix',
+    ])
+  ) {
+    return 'review_subscriptions';
+  }
+
+  if (includesAny(prompt, ['bill', 'bills', 'direct debit', 'regular payment', 'recurring'])) {
+    return 'review_recurring';
+  }
+
+  if (includesAny(prompt, ['what changed', "what's changed", 'since last', 'different now'])) {
+    return 'explain_changes';
+  }
+
+  if (
+    includesAny(prompt, [
+      'irregular income',
+      'variable income',
+      'gig income',
+      'freelance income',
+      'income changes',
+      'low income month',
+    ])
+  ) {
+    return 'review_irregular_income';
+  }
+
+  if (
+    includesAny(prompt, [
+      'how is the month',
+      "how's the month",
+      'how is my month',
+      'month going',
+      'monthly summary',
+      'summarise',
+      'summarize',
+      'money picture',
+      'last 30 days',
+      'last thirty days',
+    ])
+  ) {
+    return 'summarise_month';
+  }
+
+  if (
+    includesAny(prompt, [
+      'debt',
+      'debts',
+      'credit card',
+      'bnpl',
+      'buy now',
+      'pay in 3',
+      'pay in 4',
+      'instalment',
+      'installment',
+      'loan',
+      'minimum payment',
+      'overpay',
+      'overpayment',
+      'payoff',
+    ])
+  ) {
+    return 'review_debts';
+  }
+
+  if (
+    includesAny(prompt, [
+      'saving goal',
+      'savings goal',
+      'my goals',
+      'my pots',
+      'target date',
+      'goal contribution',
+      'contribute to',
+      'save toward',
+    ])
+  ) {
+    return 'review_goals';
+  }
+
+  if (
+    includesAny(prompt, [
+      'my account',
+      'which account',
+      'accounts',
+      'account balance',
+      'current account',
+      'savings account',
+      'cash account',
+      'credit-card account',
+      'credit card account',
+    ])
+  ) {
+    return 'review_accounts';
+  }
+
   if (
     includesAny(prompt, ['can i', 'afford', 'buy', 'purchase', 'spend', 'before payday', 'left'])
   ) {
     return 'check_purchase';
   }
 
-  if (includesAny(prompt, ['why', 'available', '142', 'balance', 'calculation', 'covered'])) {
+  if (includesAny(prompt, ['payday', 'next pay', 'paid next', 'next income'])) {
+    return 'check_payday';
+  }
+
+  if (includesAny(prompt, ['calendar', 'coming up', 'next seven days', 'next 7 days'])) {
+    return 'review_calendar';
+  }
+
+  if (
+    includesAny(prompt, [
+      'why',
+      'available',
+      '142',
+      'balance',
+      'calculation',
+      'covered',
+      'cash position',
+      'dated position',
+      'business cash',
+      'runway',
+    ])
+  ) {
     return 'explain_position';
   }
 
-  if (includesAny(prompt, ['import', 'csv', 'statement', 'review', 'abound', 'rent', 'payroll'])) {
+  if (
+    includesAny(prompt, [
+      'import',
+      'csv',
+      'statement',
+      'abound',
+      'rent',
+      'needs my review',
+      'need my review',
+      'waiting for review',
+    ])
+  ) {
     return 'review_import';
   }
 
@@ -1298,47 +1706,460 @@ function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
   return 'clarify';
 }
 
+function buildBusinessMeloLocalAnswer(input: {
+  intent: MeloLocalIntent;
+  snapshot: MeloLocalFinancialSnapshot;
+  calculation: MeloLocalCalculation | null;
+  detectedAmountMinor: number | null;
+  amountText: string | null;
+  amountCandidatesMinor: readonly number[];
+}): string | null {
+  const cash = formatMinorAmount(input.snapshot.businessCashBalanceMinor ?? 0);
+  const projected = formatMinorAmount(input.snapshot.businessProjectedCashMinor ?? 0);
+  const commitments = formatMinorAmount(input.snapshot.businessUpcomingCommitmentsMinor ?? 0);
+  const upcomingIncome = formatMinorAmount(input.snapshot.businessUpcomingIncomeMinor ?? 0);
+  const liabilities = formatMinorAmount(input.snapshot.businessLiabilityBalanceMinor ?? 0);
+  const outstandingInvoices = formatMinorAmount(
+    input.snapshot.businessOutstandingInvoicesMinor ?? 0,
+  );
+  const overdueInvoices = formatMinorAmount(input.snapshot.businessOverdueInvoicesMinor ?? 0);
+  const vatDue = formatMinorAmount(input.snapshot.businessVatDueMinor ?? 0);
+  const vatPot = formatMinorAmount(input.snapshot.businessVatPotMinor ?? 0);
+  const taxEstimate = formatMinorAmount(input.snapshot.businessTaxEstimateMinor ?? 0);
+  const taxPot = formatMinorAmount(input.snapshot.businessTaxPotMinor ?? 0);
+  const runway =
+    input.snapshot.businessRunwayDays === null || input.snapshot.businessRunwayDays === undefined
+      ? 'There is not enough confirmed expense history for a runway estimate yet; it needs at least three expenses across fourteen days.'
+      : `At the confirmed expense pace, the current cash is about ${input.snapshot.businessRunwayDays} days of operating runway. This is a history-based estimate, not a forecast of future sales.`;
+
+  switch (input.intent) {
+    case 'review_business_invoices': {
+      const overdueCount = input.snapshot.businessOverdueInvoiceCount ?? 0;
+      const outstanding = input.snapshot.businessOutstandingInvoicesMinor ?? 0;
+      if (outstanding === 0) {
+        return 'There are no outstanding Business invoices recorded in this workspace.';
+      }
+      return `${outstandingInvoices} is outstanding across the recorded invoices. ${overdueCount === 0 ? 'None is overdue.' : `${overdueInvoices} is overdue across ${overdueCount} invoice${overdueCount === 1 ? '' : 's'}.`} These figures use saved invoice totals and payments only.`;
+    }
+    case 'review_business_vat': {
+      if (input.snapshot.businessVatRegistered !== true) {
+        return 'This Business entity is not recorded as VAT registered. I will not create a VAT liability until that status and a real return are saved.';
+      }
+      const gap =
+        (input.snapshot.businessVatDueMinor ?? 0) - (input.snapshot.businessVatPotMinor ?? 0);
+      return `The current saved VAT return is ${vatDue}; the VAT pot holds ${vatPot}. ${
+        gap > 0
+          ? `${formatMinorAmount(gap)} is not yet covered.`
+          : gap < 0
+            ? `The pot is ${formatMinorAmount(Math.abs(gap))} above that return.`
+            : 'That return is fully covered.'
+      } This is the locally calculated return, not a claim that it has been submitted.`;
+    }
+    case 'review_business_tax': {
+      const label =
+        input.snapshot.businessEntityKind === 'ltd'
+          ? 'Corporation Tax'
+          : 'Self-Assessment income tax and National Insurance';
+      const gap =
+        (input.snapshot.businessTaxEstimateMinor ?? 0) - (input.snapshot.businessTaxPotMinor ?? 0);
+      return `The current local ${label} estimate is ${taxEstimate}; the recorded tax pot is ${taxPot}. ${
+        gap > 0
+          ? `${formatMinorAmount(gap)} is not yet covered.`
+          : gap < 0
+            ? `The pot is ${formatMinorAmount(Math.abs(gap))} above the estimate.`
+            : 'The estimate is covered.'
+      } The calculation uses the saved 2026/27 policy pack and recorded year-to-date profit.`;
+    }
+    case 'review_business_payroll': {
+      const count = input.snapshot.businessEmployeeCount ?? 0;
+      return count === 0
+        ? 'There are no employees recorded in this Business workspace.'
+        : `There ${count === 1 ? 'is' : 'are'} ${count} recorded employee${count === 1 ? '' : 's'}. Open Payroll for the saved gross pay, PAYE, National Insurance and student-loan calculation; this answer does not create or submit a run.`;
+    }
+    case 'review_business_filings': {
+      const count = input.snapshot.businessOpenFilingCount ?? 0;
+      return count === 0
+        ? 'There are no open filing deadlines in the current local window.'
+        : `There ${count === 1 ? 'is' : 'are'} ${count} open Business filing deadline${count === 1 ? '' : 's'} in the current local window. Open Filings for the exact dates, prepared working copies and any external submission references.`;
+    }
+    case 'review_business_clients': {
+      const count = input.snapshot.businessClientCount ?? 0;
+      return count === 0
+        ? 'There are no clients recorded in this Business workspace.'
+        : `There ${count === 1 ? 'is' : 'are'} ${count} recorded client${count === 1 ? '' : 's'} in this workspace, with ${outstandingInvoices} outstanding in total. Client names stay in the Clients surface rather than this aggregate chat context.`;
+    }
+    case 'check_purchase': {
+      if (input.amountCandidatesMinor.length > 1) {
+        return `I found ${input.amountCandidatesMinor.map(formatMinorAmount).join(' and ')} in that question. Which single business amount should I check?`;
+      }
+      if (input.detectedAmountMinor === null || input.amountText === null) {
+        return `I can check it against confirmed Business records, but I need one amount. Cash is ${cash}; after dated money in and commitments the position is ${projected}.`;
+      }
+      const after = (input.snapshot.businessProjectedCashMinor ?? 0) - input.detectedAmountMinor;
+      return `${input.amountText} would leave ${formatMinorAmount(after)} after the dated Business items currently recorded. That excludes unrecorded invoices, tax and commitments, and nothing has been saved.`;
+    }
+    case 'explain_position':
+      return `Business cash is ${cash}. The next dated window contains ${upcomingIncome} in and ${commitments} out, leaving a projected ${projected}. Recorded liability accounts total ${liabilities}. ${runway}`;
+    case 'summarise_month':
+      return `Confirmed Business activity over the last 30 days shows ${formatMinorAmount(input.snapshot.businessConfirmedIncome30DaysMinor ?? 0)} in and ${formatMinorAmount(input.snapshot.businessConfirmedExpense30DaysMinor ?? 0)} out. Cash is ${cash}; the dated position is ${projected}. ${runway}`;
+    case 'review_subscriptions':
+    case 'review_recurring': {
+      const count = input.snapshot.activeRecurringCount ?? input.snapshot.subscriptionCount ?? 0;
+      if (count === 0) {
+        return 'There are no recurring Business commitments recorded yet. Add a dated commitment or a real recurring service before I include one.';
+      }
+      return `There ${count === 1 ? 'is' : 'are'} ${count} active recurring Business commitment${count === 1 ? '' : 's'} totalling ${formatMinorAmount(input.snapshot.activeSubscriptionMonthlyMinor ?? 0)} a month. The current dated position is ${projected}.`;
+    }
+    case 'plan_recovery':
+      return `The confirmed dated Business position is ${projected}, from ${cash} cash, ${upcomingIncome} dated in and ${commitments} committed out. I can compare one proposed change, but I will not invent an invoice, tax amount or cost to close a gap.`;
+    case 'check_payday':
+      return input.snapshot.nextPaydayLabel === 'not set up yet'
+        ? 'There is no dated Business income recorded yet. Add an expected income event in Calendar; I will not turn irregular client income into a fake payday.'
+        : `The next confirmed Business income date is ${input.snapshot.nextPaydayLabel}. The dated position after recorded money in and commitments is ${projected}.`;
+    case 'review_debts': {
+      const count = input.snapshot.debtCount ?? 0;
+      return count === 0
+        ? 'There are no Business debts recorded in this workspace.'
+        : `This workspace has ${count} recorded Business debt${count === 1 ? '' : 's'} with ${formatMinorAmount(input.snapshot.totalDebtMinor ?? 0)} outstanding and ${formatMinorAmount(input.snapshot.monthlyDebtMinimumMinor ?? 0)} in monthly minimums. The dated cash position stays separate at ${projected}.`;
+    }
+    case 'review_goals': {
+      const count = input.snapshot.goalCount ?? 0;
+      return count === 0
+        ? 'There are no dated Business plans recorded yet. Add a real target and date before I calculate a pace.'
+        : `This workspace has ${count} Business plan${count === 1 ? '' : 's'}, with ${formatMinorAmount(input.snapshot.goalSavedMinor ?? 0)} recorded toward ${formatMinorAmount(input.snapshot.goalTargetMinor ?? 0)}. Nothing is moved by this answer.`;
+    }
+    case 'review_calendar': {
+      const count = input.snapshot.upcomingCalendarCount ?? 0;
+      return count === 0
+        ? 'There are no confirmed Business dates in the current calendar window.'
+        : `There ${count === 1 ? 'is' : 'are'} ${count} confirmed Business event${count === 1 ? '' : 's'} in the current window. The next is ${input.snapshot.nextCalendarDate ?? 'the next recorded date'}; dated commitments total ${commitments}.`;
+    }
+    case 'explain_changes': {
+      const count = input.snapshot.unseenChangeCount ?? 0;
+      return count === 0
+        ? 'There are no unseen Business changes. Activity still holds the confirmed record and correction history.'
+        : `${count} Business change${count === 1 ? '' : 's'} happened since the last briefing. Open Activity for the exact local records; no Personal rows are included.`;
+    }
+    case 'review_irregular_income':
+      return `Confirmed Business income over the last 30 days is ${formatMinorAmount(input.snapshot.businessConfirmedIncome30DaysMinor ?? 0)}. I do not convert irregular client receipts into a promised payday or future invoice.`;
+    case 'review_accounts': {
+      if (input.calculation?.kind === 'account-position') {
+        const position = input.calculation.isLiability
+          ? `${formatMinorAmount(input.calculation.balanceMinor)} owed`
+          : `${formatMinorAmount(input.calculation.balanceMinor)} in that account`;
+        return `The selected Business ${input.calculation.accountKind} account shows ${position}, last set ${input.calculation.balanceAsOfLabel}. Total Business cash is ${cash}; card liabilities stay separate.`;
+      }
+      const count = input.snapshot.accountCount ?? 0;
+      return count === 0
+        ? 'There are no Business accounts recorded yet. Add one in Accounts before asking for an account-specific balance.'
+        : `There ${count === 1 ? 'is' : 'are'} ${count} active Business account${count === 1 ? '' : 's'}. Cash across non-card accounts is ${cash}; recorded card liabilities total ${liabilities}. Choose an account for its exact balance.`;
+    }
+    case 'clarify':
+      return 'I can explain Business cash and runway, invoices, VAT, tax, payroll, filings, clients, accounts and dated commitments; summarise the last 30 days; review uncertain records; or check one proposed expense. I use saved local records and do not invent future income.';
+    case 'review_import':
+      return null;
+  }
+}
+
 function buildMeloLocalAnswer(input: {
   intent: MeloLocalIntent;
   snapshot: MeloLocalFinancialSnapshot;
+  calculation: MeloLocalCalculation | null;
   detectedAmountMinor: number | null;
   amountText: string | null;
+  amountCandidatesMinor: readonly number[];
 }): string {
+  if (input.snapshot.hasMoneyPicture === false) {
+    return input.snapshot.workspaceKind === 'business'
+      ? 'I do not have a confirmed Business picture to work from yet. Add a Business account or dated record, then I can answer from this workspace without inventing income or commitments.'
+      : 'I do not have a real money picture to work from yet. Add your balance or connect an account, then I can answer from your own numbers.';
+  }
+
+  if (input.calculation?.kind === 'source-explanation') {
+    const values = input.calculation.values
+      .map((value) => `${formatMinorAmount(value.amountMinor)} ${value.label}`)
+      .join('; ');
+    const sourceKinds = input.calculation.sourceKinds.join(', ');
+    const excluded =
+      input.calculation.excludedReviewCount > 0
+        ? ` ${input.calculation.excludedReviewCount} unconfirmed review item${input.calculation.excludedReviewCount === 1 ? ' is' : 's are'} excluded until you decide.`
+        : '';
+    return `${values}. The local sources are ${sourceKinds}, across ${input.calculation.confirmedRecordCount} confirmed record${input.calculation.confirmedRecordCount === 1 ? '' : 's'}.${excluded} Open the relevant surface for names and row-level evidence.`;
+  }
+
+  if (input.snapshot.workspaceKind === 'business') {
+    const businessAnswer = buildBusinessMeloLocalAnswer(input);
+    if (businessAnswer !== null) return businessAnswer;
+  }
+
   const available = formatMinorAmount(input.snapshot.availableNowMinor);
   const tightest = formatMinorAmount(input.snapshot.tightestBalanceMinor);
+  const safeZonePosition =
+    input.snapshot.availableNowMinor < 0
+      ? `${formatMinorAmount(Math.abs(input.snapshot.availableNowMinor))} below its target`
+      : `${available} available`;
 
   switch (input.intent) {
+    case 'review_business_invoices':
+    case 'review_business_vat':
+    case 'review_business_tax':
+    case 'review_business_payroll':
+    case 'review_business_filings':
+    case 'review_business_clients':
+      return 'That question uses Business workspace records. Switch to Business so Melo can answer from the correct local partition.';
     case 'check_purchase': {
+      if (input.amountCandidatesMinor.length > 1) {
+        return `I found ${input.amountCandidatesMinor.map(formatMinorAmount).join(' and ')} in that question. Which single amount should I check?`;
+      }
       if (input.detectedAmountMinor === null || input.amountText === null) {
-        return `I can check it, but I need the amount first. Right now the local route shows ${available} available and ${tightest} at the tightest point.`;
+        return `I can check it, but I need the amount first. Right now the local Safe Zone is ${safeZonePosition}, with ${tightest} at the tightest point.`;
       }
 
       const afterPurchase = input.snapshot.availableNowMinor - input.detectedAmountMinor;
       const afterPurchaseText = formatMinorAmount(afterPurchase);
       if (afterPurchase < 0) {
-        return `${input.amountText} would push the local route short by ${formatMinorAmount(
+        return `${input.amountText} would leave the Safe Zone ${formatMinorAmount(
           Math.abs(afterPurchase),
-        )}. I would treat that as review-only and look for something to move before saving anything.`;
+        )} below its target. I would treat that as review-only and look for something to move before saving anything.`;
       }
 
-      return `${input.amountText} is possible in the local route, leaving about ${afterPurchaseText}. I would still keep it as a reviewed what-if, not an automatic change.`;
+      return `${input.amountText} is possible in the local route, leaving about ${afterPurchaseText} in the Safe Zone. I would still keep it as a reviewed what-if, not an automatic change.`;
     }
 
     case 'explain_position':
-      return `The ${available} figure comes from confirmed local items first, with ${input.snapshot.protectedItems.join(
+      return `The Safe Zone is ${safeZonePosition}. It comes from confirmed local items first, with ${input.snapshot.protectedItems.join(
         ', ',
       )} protected before flexible spend. The tightest visible point is ${input.snapshot.tightestDay} at ${tightest}.`;
 
+    case 'review_subscriptions': {
+      const count = input.snapshot.subscriptionCount ?? 0;
+      const monthly = formatMinorAmount(input.snapshot.activeSubscriptionMonthlyMinor ?? 0);
+      if (count === 0) {
+        return 'There are no active subscriptions in the local picture yet. Add or connect them and I can help you review the timing and total.';
+      }
+      return `There ${count === 1 ? 'is' : 'are'} ${count} active subscription${
+        count === 1 ? '' : 's'
+      } costing ${monthly} a month in total. I can help compare that total with the tightest point without sending their names anywhere.`;
+    }
+
+    case 'review_recurring': {
+      const count = input.snapshot.activeRecurringCount ?? input.snapshot.subscriptionCount ?? 0;
+      const monthly = formatMinorAmount(input.snapshot.activeSubscriptionMonthlyMinor ?? 0);
+      if (count === 0) {
+        return 'There are no active recurring payments in the local picture yet. Add a bill or statement and I can include the timing in your route.';
+      }
+      return `There ${count === 1 ? 'is' : 'are'} ${count} active recurring payment${
+        count === 1 ? '' : 's'
+      } totalling ${monthly} a month in the local picture. The tightest projected point remains ${input.snapshot.tightestDay} at ${tightest}.`;
+    }
+
+    case 'summarise_month': {
+      const incoming = formatMinorAmount(input.snapshot.monthlyIncomeMinor ?? 0);
+      const outgoing = formatMinorAmount(input.snapshot.monthlyOutgoingsMinor ?? 0);
+      return `The local picture shows about ${incoming} coming in and ${outgoing} going out for the month. Your current Safe Zone is ${safeZonePosition}, with the tightest projected point on ${input.snapshot.tightestDay} at ${tightest}.`;
+    }
+
     case 'review_import':
+      if (input.calculation?.kind === 'import-review-summary') {
+        const findings = compact([
+          input.calculation.possibleDuplicateCount > 0
+            ? `${input.calculation.possibleDuplicateCount} possible same-row match${input.calculation.possibleDuplicateCount === 1 ? '' : 'es'}`
+            : '',
+          input.calculation.changedAmountCount > 0
+            ? `${input.calculation.changedAmountCount} possible changed-amount conflict${input.calculation.changedAmountCount === 1 ? '' : 's'}`
+            : '',
+          input.calculation.relationshipCount > 0
+            ? `${input.calculation.relationshipCount} possible refund or transfer relationship${input.calculation.relationshipCount === 1 ? '' : 's'}`
+            : '',
+          input.calculation.missingDateCount > 0
+            ? `${input.calculation.missingDateCount} item${input.calculation.missingDateCount === 1 ? '' : 's'} without a comparable date`
+            : '',
+          input.calculation.rememberedCategoryCount > 0
+            ? `${input.calculation.rememberedCategoryCount} remembered categor${input.calculation.rememberedCategoryCount === 1 ? 'y' : 'ies'}`
+            : '',
+        ]);
+        const detail =
+          findings.length > 0
+            ? ` The local review checks found ${findings.join(', ')}.`
+            : ' No duplicate or conflict proposal is currently visible from the comparable rows.';
+        return `${input.calculation.pendingCount} item${input.calculation.pendingCount === 1 ? '' : 's'} are waiting for review.${detail} These are proposals only: nothing was merged, corrected or posted. Open Review to compare the original wording and decide one item at a time.`;
+      }
       return `I can help review imports. There are ${input.snapshot.pendingReviewCount} review item${
         input.snapshot.pendingReviewCount === 1 ? '' : 's'
       } that still need your eye. I can suggest labels, but confirmation stays with you.`;
 
     case 'plan_recovery':
+      if (input.calculation?.kind === 'recovery-preview') {
+        if (!input.calculation.hasShortfall) {
+          return 'The confirmed local route does not currently show a shortfall to recover from. Recovery stays available if the route changes, but I will not invent a gap or a move.';
+        }
+        const labels: Readonly<
+          Record<'move-bill' | 'pause-recurring' | 'hold-discretionary', string>
+        > = {
+          'move-bill': 'Move a flexible bill',
+          'pause-recurring': 'Pause one recurring payment',
+          'hold-discretionary': 'Hold discretionary spending for three days',
+        };
+        const comparisons = input.calculation.options
+          .map((option) => {
+            const after =
+              option.afterMinor < 0
+                ? `${formatMinorAmount(Math.abs(option.afterMinor))} still short`
+                : `${formatMinorAmount(option.afterMinor)} of room`;
+            return `${labels[option.kind]}: ${formatMinorAmount(option.liftMinor)} lift, leaving ${after}`;
+          })
+          .join('; ');
+        const structural = input.calculation.structuralPressure
+          ? ' The local pattern also shows structural pressure, so the Recovery surface includes the real-help signpost rather than treating this as a willpower problem.'
+          : '';
+        return `The current tight-point gap is ${formatMinorAmount(input.calculation.shortfallMinor)}. ${comparisons}.${structural} These are before/after previews only; nothing changes until you select and confirm a move in Recovery.`;
+      }
       return `For a pressure point, I would keep protected items first, preview the spend locally, and show what changes before anything is saved. The current local tightest point is ${input.snapshot.tightestDay} at ${tightest}.`;
 
+    case 'check_payday':
+      if (input.snapshot.nextPaydayLabel === 'not set up yet') {
+        return 'Your next income date is not set up yet. Add an income source or payday and I can place it on the local route.';
+      }
+      return `The next income in the local route is ${input.snapshot.nextPaydayLabel}. Until then, the Safe Zone is ${safeZonePosition}, with a tightest point of ${tightest} on ${input.snapshot.tightestDay}.`;
+
+    case 'review_debts': {
+      const count = input.snapshot.debtCount ?? 0;
+      if (count === 0) {
+        return 'There are no debts recorded in the local picture yet. Add one when you are ready and Melo can include its minimum and due date without guessing.';
+      }
+      if (input.calculation?.kind === 'debt-strategy-required') {
+        const after = input.calculation.safeZoneAfterExtraMinor;
+        const cashFlowLine =
+          after < 0
+            ? `It would leave the Safe Zone ${formatMinorAmount(Math.abs(after))} below its target.`
+            : `It would leave ${formatMinorAmount(after)} in the Safe Zone.`;
+        return `${formatMinorAmount(input.calculation.extraMonthlyMinor)} extra each month can be modelled locally. ${cashFlowLine} Choose highest-rate-first or lowest-balance-first before I project a payoff; I will not choose a debt strategy for you.`;
+      }
+      if (input.calculation?.kind === 'bnpl-schedule') {
+        if (input.calculation.bnplCount === 0) {
+          return 'There are no BNPL agreements recorded in the local debt picture.';
+        }
+        const next =
+          input.calculation.nextPaymentDateLabel === null
+            ? 'No next payment date is available from the recorded terms.'
+            : `The next modelled payment is ${formatMinorAmount(input.calculation.nextPaymentTotalMinor)} on ${input.calculation.nextPaymentDateLabel}.`;
+        const final =
+          input.calculation.finalPaymentDateLabel === null
+            ? 'At least one agreement does not clear within the model window.'
+            : `The last modelled payment is around ${input.calculation.finalPaymentDateLabel}.`;
+        return `${input.calculation.bnplCount} recorded BNPL agreement${input.calculation.bnplCount === 1 ? '' : 's'} have ${formatMinorAmount(input.calculation.totalRemainingMinor)} remaining across ${input.calculation.scheduledPaymentCount} scheduled monthly payment${input.calculation.scheduledPaymentCount === 1 ? '' : 's'}. ${next} ${final} Modelled interest is ${formatMinorAmount(input.calculation.totalInterestMinor)}. This schedule uses each recorded monthly payment, APR and due day; review those terms if the provider actually collects weekly or fortnightly.`;
+      }
+      if (input.calculation?.kind === 'debt-projection') {
+        if (input.calculation.stalled || input.calculation.payoffMonths === null) {
+          return `At the recorded minimums, at least one balance does not clear within the 50-year model window. That usually means a minimum is not reducing principal under the recorded rate. Review the local debt details rather than treating this as a payoff date.`;
+        }
+        const payoff =
+          input.calculation.payoffDateLabel ?? `${input.calculation.payoffMonths} months`;
+        if (input.calculation.strategy === 'contractual-minimums') {
+          return `At the recorded contractual minimums, the local model clears ${count} debt${count === 1 ? '' : 's'} in ${input.calculation.payoffMonths} month${input.calculation.payoffMonths === 1 ? '' : 's'}, around ${payoff}, with ${formatMinorAmount(input.calculation.totalInterestMinor)} of modelled interest. Rates, minimums and future charges are held constant; this is a projection, not a recommendation.`;
+        }
+        const strategyLabel =
+          input.calculation.strategy === 'highest-rate-first'
+            ? 'highest-rate-first'
+            : 'lowest-balance-first';
+        const after = input.calculation.safeZoneAfterExtraMinor;
+        const cashFlowLine =
+          after < 0
+            ? `That monthly extra would leave the current Safe Zone ${formatMinorAmount(Math.abs(after))} below its target.`
+            : `That monthly extra would leave ${formatMinorAmount(after)} in the current Safe Zone.`;
+        const savingLine =
+          input.calculation.monthsSavedVsMinimums !== null
+            ? ` The model is ${input.calculation.monthsSavedVsMinimums} month${input.calculation.monthsSavedVsMinimums === 1 ? '' : 's'} sooner and ${formatMinorAmount(input.calculation.interestSavedVsMinimumsMinor)} lower in interest than recorded minimums.`
+            : '';
+        return `With ${formatMinorAmount(input.calculation.extraMonthlyMinor)} extra each month using the user-selected ${strategyLabel} rule, the local model clears the portfolio in ${input.calculation.payoffMonths} month${input.calculation.payoffMonths === 1 ? '' : 's'}, around ${payoff}.${savingLine} ${cashFlowLine} This is a neutral scenario, not advice.`;
+      }
+      return `The local picture has ${count} debt${count === 1 ? '' : 's'} with ${formatMinorAmount(
+        input.snapshot.totalDebtMinor ?? 0,
+      )} outstanding and ${formatMinorAmount(
+        input.snapshot.monthlyDebtMinimumMinor ?? 0,
+      )} in monthly minimums. Those minimums stay protected before flexible spend.`;
+    }
+
+    case 'review_goals': {
+      const count = input.snapshot.goalCount ?? 0;
+      if (count === 0) {
+        return 'There are no active pots or dated goals in the local picture yet. Add one when you have a real target; Melo will not invent one for you.';
+      }
+      if (input.calculation?.kind === 'goal-projection') {
+        const calculation = input.calculation;
+        if (calculation.requiredPerWeekMinor === null) {
+          return `The nearest dated plan has ${formatMinorAmount(calculation.remainingMinor)} left, but its target date is ${calculation.targetDateLabel}. It needs a date review before I can claim a weekly pace.`;
+        }
+        const contributionLine =
+          calculation.contributionMinor > 0
+            ? ` After a hypothetical ${formatMinorAmount(calculation.contributionMinor)} contribution, ${formatMinorAmount(calculation.remainingAfterContributionMinor)} would remain and the weekly pace would be ${calculation.requiredPerWeekAfterContributionMinor === null ? 'unavailable until the date is reviewed' : formatMinorAmount(calculation.requiredPerWeekAfterContributionMinor)}; that path would be ${calculation.onTrackAfterContribution ? 'on pace' : 'still off the previous pace'}. The current Safe Zone would be ${calculation.safeZoneAfterContributionMinor < 0 ? `${formatMinorAmount(Math.abs(calculation.safeZoneAfterContributionMinor))} below target` : `${formatMinorAmount(calculation.safeZoneAfterContributionMinor)} available`}. Nothing has been moved.`
+            : '';
+        return `For the nearest dated plan, ${formatMinorAmount(calculation.remainingMinor)} remains by ${calculation.targetDateLabel}. The current pace is ${formatMinorAmount(calculation.currentPerWeekMinor)} a week; about ${formatMinorAmount(calculation.requiredPerWeekMinor)} a week is needed across ${calculation.weeksAvailable} week${calculation.weeksAvailable === 1 ? '' : 's'}. It is ${calculation.onTrack ? 'on the current path' : 'off the previous path and ready to rebase'}.${contributionLine}`;
+      }
+      return `Across ${count} active goal${count === 1 ? '' : 's'}, the local picture shows ${formatMinorAmount(
+        input.snapshot.goalSavedMinor ?? 0,
+      )} saved toward ${formatMinorAmount(input.snapshot.goalTargetMinor ?? 0)}. I can open your pots without moving any money.`;
+    }
+
+    case 'review_calendar': {
+      const count = input.snapshot.upcomingCalendarCount ?? 0;
+      if (count === 0) {
+        return 'There is nothing confirmed in the next local calendar window yet. Add real bills, income or events and Melo will keep the route quiet until then.';
+      }
+      const next = input.snapshot.nextCalendarDate ?? 'the next confirmed date';
+      return `There ${count === 1 ? 'is' : 'are'} ${count} confirmed money event${
+        count === 1 ? '' : 's'
+      } in the next local calendar window. The next date is ${next}; open Calendar for the named records and amounts.`;
+    }
+
+    case 'explain_changes': {
+      const count = input.snapshot.unseenChangeCount ?? 0;
+      if (count === 0) {
+        return 'There are no unseen changes waiting in the local briefing. The Timeline still holds your confirmed history.';
+      }
+      return `${count} change${count === 1 ? '' : 's'} happened since the last briefing. I am keeping names and rows out of chat; open Timeline to inspect the exact records.`;
+    }
+
+    case 'review_irregular_income': {
+      const sourceCount = input.snapshot.incomeSourceCount ?? 0;
+      const modeLine = input.snapshot.irregularIncomeMode
+        ? 'The irregular-income route is active.'
+        : 'The local route is using your recorded income cadences.';
+      if (input.calculation?.kind === 'irregular-income-range') {
+        if (!input.calculation.sufficientHistory) {
+          return `${modeLine} There ${input.calculation.monthsObserved === 1 ? 'is' : 'are'} ${input.calculation.monthsObserved} past month${input.calculation.monthsObserved === 1 ? '' : 's'} with recorded income. I need at least three before showing a low/base/high range; the current monthly equivalent remains ${formatMinorAmount(input.snapshot.monthlyIncomeMinor ?? 0)}.`;
+        }
+        return `${modeLine} Across ${input.calculation.monthsObserved} past months with recorded income, the local estimates are ${formatMinorAmount(input.calculation.lowMonthMinor ?? 0)} low, ${formatMinorAmount(input.calculation.baseMonthMinor ?? 0)} base and ${formatMinorAmount(input.calculation.highMonthMinor ?? 0)} high. These are history percentiles, not a prediction of future income.`;
+      }
+      if (sourceCount === 0) {
+        return 'No recurring income sources are set up yet. Add each real cadence first so Melo can show a low month without inventing a payday.';
+      }
+      return `${modeLine} ${sourceCount} source${sourceCount === 1 ? '' : 's'} produce about ${formatMinorAmount(
+        input.snapshot.monthlyIncomeMinor ?? 0,
+      )} as a monthly equivalent, with the next income on ${input.snapshot.nextPaydayLabel}.`;
+    }
+
+    case 'review_accounts': {
+      if (input.calculation?.kind === 'account-position') {
+        const kindLabel =
+          input.calculation.accountKind === 'credit-card'
+            ? 'credit-card account'
+            : `${input.calculation.accountKind} account`;
+        const position = input.calculation.isLiability
+          ? `${formatMinorAmount(input.calculation.balanceMinor)} owed`
+          : `${formatMinorAmount(input.calculation.balanceMinor)} available in that account`;
+        return `The selected ${kindLabel} shows ${position}, last set ${input.calculation.balanceAsOfLabel}. This is the account balance only, not the consolidated Safe Zone.`;
+      }
+      const count = input.snapshot.accountCount ?? 0;
+      if (count === 0) {
+        return 'There are no active accounts in the local picture yet. Add one in Account before asking for an account-specific balance.';
+      }
+      const liabilities = input.snapshot.liabilityAccountCount ?? 0;
+      return `There ${count === 1 ? 'is' : 'are'} ${count} active account${count === 1 ? '' : 's'} in the local picture${liabilities > 0 ? `, including ${liabilities} liability account${liabilities === 1 ? '' : 's'}` : ''}. Choose an account explicitly before I use an account-specific balance; the consolidated Safe Zone remains separate.`;
+    }
+
     case 'clarify':
-      return 'I can help with a local what-if, explain the available amount, review imports, or preview a recovery spend. Ask one of those and I will keep it review-only.';
+      return 'I can check a purchase, explain the available amount, review bills or imports, show payday, debts, goals, calendar changes or irregular income, and preview recovery. The financial answer stays local and review-only.';
   }
 }
 
@@ -1347,6 +2168,91 @@ function buildFinancialConclusion(input: {
   snapshot: MeloLocalFinancialSnapshot;
   detectedAmountMinor: number | null;
 }): string {
+  if (input.snapshot.hasMoneyPicture === false) {
+    return input.snapshot.workspaceKind === 'business'
+      ? 'No confirmed Business picture is available yet.'
+      : 'No real money picture is available yet.';
+  }
+
+  if (input.snapshot.workspaceKind === 'business') {
+    const cash = input.snapshot.businessCashBalanceMinor ?? 0;
+    const projected = input.snapshot.businessProjectedCashMinor ?? cash;
+
+    if (input.intent === 'check_purchase' && input.detectedAmountMinor !== null) {
+      const afterPurchase = projected - input.detectedAmountMinor;
+      return afterPurchase < 0
+        ? `Would leave a dated Business shortfall of ${formatMinorAmount(Math.abs(afterPurchase))}.`
+        : `Would leave a dated Business position of ${formatMinorAmount(afterPurchase)}.`;
+    }
+
+    if (input.intent === 'summarise_month') {
+      return `${formatMinorAmount(input.snapshot.businessConfirmedIncome30DaysMinor ?? 0)} confirmed in and ${formatMinorAmount(input.snapshot.businessConfirmedExpense30DaysMinor ?? 0)} confirmed out over the last 30 days.`;
+    }
+
+    if (input.intent === 'review_subscriptions' || input.intent === 'review_recurring') {
+      const count = input.snapshot.activeRecurringCount ?? input.snapshot.subscriptionCount ?? 0;
+      return `${count} active Business commitment${count === 1 ? '' : 's'}, ${formatMinorAmount(input.snapshot.activeSubscriptionMonthlyMinor ?? 0)} per month.`;
+    }
+
+    if (input.intent === 'review_business_invoices') {
+      return `${formatMinorAmount(input.snapshot.businessOutstandingInvoicesMinor ?? 0)} outstanding; ${formatMinorAmount(input.snapshot.businessOverdueInvoicesMinor ?? 0)} overdue.`;
+    }
+
+    if (input.intent === 'review_business_vat') {
+      return `${formatMinorAmount(input.snapshot.businessVatDueMinor ?? 0)} current VAT return; ${formatMinorAmount(input.snapshot.businessVatPotMinor ?? 0)} in the VAT pot.`;
+    }
+
+    if (input.intent === 'review_business_tax') {
+      return `${formatMinorAmount(input.snapshot.businessTaxEstimateMinor ?? 0)} local tax estimate; ${formatMinorAmount(input.snapshot.businessTaxPotMinor ?? 0)} in the tax pot.`;
+    }
+
+    if (input.intent === 'review_business_payroll') {
+      return `${input.snapshot.businessEmployeeCount ?? 0} recorded employee${(input.snapshot.businessEmployeeCount ?? 0) === 1 ? '' : 's'}.`;
+    }
+
+    if (input.intent === 'review_business_filings') {
+      return `${input.snapshot.businessOpenFilingCount ?? 0} open filing deadline${(input.snapshot.businessOpenFilingCount ?? 0) === 1 ? '' : 's'} in the local window.`;
+    }
+
+    if (input.intent === 'review_business_clients') {
+      return `${input.snapshot.businessClientCount ?? 0} recorded client${(input.snapshot.businessClientCount ?? 0) === 1 ? '' : 's'}.`;
+    }
+
+    return `Business cash is ${formatMinorAmount(cash)}; the confirmed dated position is ${formatMinorAmount(projected)}.`;
+  }
+
+  if (input.intent === 'review_subscriptions') {
+    return `${input.snapshot.subscriptionCount ?? 0} active subscription${
+      (input.snapshot.subscriptionCount ?? 0) === 1 ? '' : 's'
+    }, ${formatMinorAmount(input.snapshot.activeSubscriptionMonthlyMinor ?? 0)} per month.`;
+  }
+
+  if (input.intent === 'summarise_month') {
+    return `${formatMinorAmount(input.snapshot.monthlyIncomeMinor ?? 0)} in and ${formatMinorAmount(
+      input.snapshot.monthlyOutgoingsMinor ?? 0,
+    )} out in the current local monthly picture.`;
+  }
+
+  if (input.intent === 'review_debts') {
+    return `${formatMinorAmount(input.snapshot.totalDebtMinor ?? 0)} outstanding with ${formatMinorAmount(
+      input.snapshot.monthlyDebtMinimumMinor ?? 0,
+    )} in monthly minimums.`;
+  }
+
+  if (input.intent === 'review_goals') {
+    return `${formatMinorAmount(input.snapshot.goalSavedMinor ?? 0)} saved toward ${formatMinorAmount(
+      input.snapshot.goalTargetMinor ?? 0,
+    )} across ${input.snapshot.goalCount ?? 0} active goals.`;
+  }
+
+  if (input.intent === 'review_calendar') {
+    return `${input.snapshot.upcomingCalendarCount ?? 0} confirmed events in the next local calendar window.`;
+  }
+
+  if (input.intent === 'explain_changes') {
+    return `${input.snapshot.unseenChangeCount ?? 0} unseen changes in the local briefing.`;
+  }
+
   if (input.intent === 'check_purchase' && input.detectedAmountMinor !== null) {
     const afterPurchase = input.snapshot.availableNowMinor - input.detectedAmountMinor;
     return afterPurchase < 0
@@ -1365,11 +2271,19 @@ function uncertaintyForIntent(
   intent: MeloLocalIntent,
   detectedAmountMinor: number | null,
   injectionConcern: boolean,
+  calculation: MeloLocalCalculation | null,
+  amountAmbiguous: boolean,
 ): Readonly<{ state: MeloLocalAiDraft['uncertainty']; reason: string }> {
   if (injectionConcern) {
     return {
       state: 'review-required',
       reason: 'Some wording tried to change instructions or expose data, so Melo ignored it.',
+    };
+  }
+  if (amountAmbiguous) {
+    return {
+      state: 'needs-context',
+      reason: 'Melo found more than one possible amount and needs one explicit choice.',
     };
   }
   if (intent === 'clarify') {
@@ -1384,6 +2298,12 @@ function uncertaintyForIntent(
       reason: 'Melo needs an amount to test the what-if against the local route.',
     };
   }
+  if (calculation?.kind === 'debt-strategy-required') {
+    return {
+      state: 'needs-context',
+      reason: 'A debt projection needs the user to select a neutral repayment order.',
+    };
+  }
   if (intent === 'review_import') {
     return {
       state: 'review-required',
@@ -1396,18 +2316,292 @@ function uncertaintyForIntent(
   };
 }
 
-function chipsForIntent(intent: MeloLocalIntent): readonly string[] {
+function chipsForIntent(
+  intent: MeloLocalIntent,
+  workspaceKind: MeloLocalFinancialSnapshot['workspaceKind'] = 'personal',
+): readonly string[] {
+  if (workspaceKind === 'business') {
+    switch (intent) {
+      case 'summarise_month':
+        return ['Explain cash position'];
+      case 'check_payday':
+        return ['Show dated position'];
+      case 'explain_changes':
+        return ['What is next?'];
+      case 'review_irregular_income':
+        return ['Show dated income'];
+      case 'review_business_invoices':
+        return ['Show my cash position'];
+      case 'review_business_vat':
+        return ['Show filing deadlines'];
+      case 'review_business_tax':
+        return ['Show filing deadlines'];
+      case 'review_business_payroll':
+        return ['Show my cash position'];
+      case 'review_business_filings':
+        return ['Show my tax position'];
+      case 'review_business_clients':
+        return ['Show outstanding invoices'];
+      case 'clarify':
+        return [
+          'Explain my business cash position',
+          'What invoices are overdue?',
+          'How is my tax pot?',
+        ];
+      default:
+        return [];
+    }
+  }
+
   switch (intent) {
     case 'check_purchase':
-      return ['Test another amount', 'Open what-if', 'Explain tightest point'];
+      return [];
     case 'explain_position':
-      return ['Show sources', 'Explain tightest point', 'Review assumptions'];
+      return [];
+    case 'review_business_invoices':
+    case 'review_business_vat':
+    case 'review_business_tax':
+    case 'review_business_payroll':
+    case 'review_business_filings':
+    case 'review_business_clients':
+      return [];
+    case 'review_subscriptions':
+      return [];
+    case 'review_recurring':
+      return [];
+    case 'summarise_month':
+      return ['Explain safe zone'];
     case 'review_import':
-      return ['Review uncertain items', 'Show original wording', 'Keep source attached'];
+      return [];
     case 'plan_recovery':
-      return ['Preview pressure spend', 'Protect rent first', 'Show what changes'];
+      return [];
+    case 'check_payday':
+      return ['What is safe until then?'];
+    case 'review_debts':
+      return [];
+    case 'review_goals':
+      return [];
+    case 'review_calendar':
+      return [];
+    case 'explain_changes':
+      return ['What is next?'];
+    case 'review_irregular_income':
+      return ['When is my next income?'];
+    case 'review_accounts':
+      return [];
     case 'clarify':
-      return ['Can I spend 120?', 'Why is 142 available?', 'Review imports'];
+      return ['Can I spend 120?', 'When is my next payday?', 'What changed?'];
+  }
+}
+
+function actionsForBusinessDraft(input: {
+  intent: MeloLocalIntent;
+  snapshot: MeloLocalFinancialSnapshot;
+  detectedAmountMinor: number | null;
+}): readonly MeloLocalAiAction[] {
+  if (input.intent === 'check_purchase' && input.detectedAmountMinor !== null) {
+    const afterPurchase =
+      (input.snapshot.businessProjectedCashMinor ?? 0) - input.detectedAmountMinor;
+    return [
+      action(
+        'open_what_if',
+        afterPurchase < 0 ? 'Try a smaller expense' : 'Open the what-if',
+        'Keep this as a temporary Business check until you choose to record anything.',
+        true,
+      ),
+      action(
+        'explain_sources',
+        'Show the source figures',
+        'Review the confirmed Business cash, dated income and commitments used here.',
+        false,
+      ),
+    ];
+  }
+
+  switch (input.intent) {
+    case 'review_business_invoices':
+      return [
+        action(
+          'open_business_invoices',
+          'Open invoices',
+          'Review the saved invoice and payment records in this Business workspace.',
+          false,
+        ),
+      ];
+    case 'review_business_vat':
+      return [
+        action(
+          'open_business_vat',
+          'Open VAT',
+          'Review the local VAT boxes, return and pot.',
+          false,
+        ),
+      ];
+    case 'review_business_tax':
+      return [
+        action(
+          'open_business_tax',
+          input.snapshot.businessEntityKind === 'ltd'
+            ? 'Open Corporation Tax'
+            : 'Open Self-Assessment',
+          'Review the local tax estimate and saved policy version.',
+          false,
+        ),
+      ];
+    case 'review_business_payroll':
+      return [
+        action(
+          'open_business_payroll',
+          'Open payroll',
+          'Review employees and locally calculated payroll runs.',
+          false,
+        ),
+      ];
+    case 'review_business_filings':
+      return [
+        action(
+          'open_business_filings',
+          'Open filings',
+          'Review exact deadlines, working copies and external submission references.',
+          false,
+        ),
+      ];
+    case 'review_business_clients':
+      return [
+        action(
+          'open_business_clients',
+          'Open clients',
+          'Review client records inside this Business workspace.',
+          false,
+        ),
+      ];
+    case 'explain_position':
+      return [
+        action(
+          'explain_sources',
+          'Show source figures',
+          'Open the confirmed Business figures behind the dated cash position.',
+          false,
+        ),
+        action('open_calendar', 'Show dated items', 'Open the Business money calendar.', false),
+      ];
+    case 'review_subscriptions':
+    case 'review_recurring':
+      return [
+        action(
+          'open_calendar',
+          'Open commitments',
+          'Review the confirmed Business dates and recurring commitments.',
+          false,
+        ),
+      ];
+    case 'summarise_month':
+      return [
+        action(
+          'explain_sources',
+          'Show the Business picture',
+          'Open the confirmed figures behind the last-30-days summary.',
+          false,
+        ),
+        action('open_timeline', 'Open activity', 'Review exact local Business records.', false),
+      ];
+    case 'review_import':
+      return [
+        action(
+          'review_imports',
+          'Review uncertain records',
+          'Confirm, edit or dismiss Business statement and receipt records one at a time.',
+          true,
+        ),
+        action(
+          'explain_sources',
+          'Show original evidence',
+          'Compare proposed records with retained source evidence when available.',
+          false,
+        ),
+      ];
+    case 'plan_recovery':
+      return [
+        action(
+          'open_what_if',
+          'Test one Business change',
+          'Compare a proposed amount with the confirmed dated position without saving it.',
+          true,
+        ),
+        action('open_calendar', 'Review commitments', 'Open confirmed Business dates.', false),
+      ];
+    case 'check_payday':
+      return [
+        action(
+          'open_calendar',
+          'Show dated income',
+          'Open confirmed Business income dates without inventing a payday.',
+          false,
+        ),
+      ];
+    case 'review_debts':
+      return [
+        action(
+          'explain_sources',
+          'Explain the dated position',
+          'Review Business cash, liabilities and confirmed commitments separately.',
+          false,
+        ),
+      ];
+    case 'review_goals':
+      return [action('open_goals', 'Open plans', 'Review recorded Business targets.', false)];
+    case 'review_calendar':
+      return [
+        action(
+          'open_calendar',
+          'Open calendar',
+          'Review named Business events and amounts locally.',
+          false,
+        ),
+      ];
+    case 'explain_changes':
+      return [
+        action(
+          'open_timeline',
+          'Open activity',
+          'Review the exact local Business records that changed.',
+          false,
+        ),
+        action(
+          'explain_sources',
+          'Explain cash position',
+          'Open confirmed Business cash and dated commitments.',
+          false,
+        ),
+      ];
+    case 'review_irregular_income':
+      return [
+        action(
+          'open_calendar',
+          'Show dated income',
+          'Open confirmed Business income dates without forecasting future invoices.',
+          false,
+        ),
+      ];
+    case 'review_accounts':
+      return [
+        action(
+          'open_account',
+          'Open Business accounts',
+          'Review and select accounts in this Business workspace.',
+          false,
+        ),
+      ];
+    case 'check_purchase':
+    case 'clarify':
+      return [
+        action(
+          'ask_clarifying_question',
+          'Show Business questions',
+          'Try cash position, review, last-30-days, account or dated-income questions.',
+          false,
+        ),
+      ];
   }
 }
 
@@ -1416,6 +2610,10 @@ function actionsForDraft(input: {
   snapshot: MeloLocalFinancialSnapshot;
   detectedAmountMinor: number | null;
 }): readonly MeloLocalAiAction[] {
+  if (input.snapshot.workspaceKind === 'business') {
+    return actionsForBusinessDraft(input);
+  }
+
   if (input.intent === 'check_purchase' && input.detectedAmountMinor !== null) {
     const afterPurchase = input.snapshot.availableNowMinor - input.detectedAmountMinor;
     if (afterPurchase < 0) {
@@ -1475,6 +2673,41 @@ function actionsForDraft(input: {
     ];
   }
 
+  if (input.intent === 'review_subscriptions') {
+    return [
+      action(
+        'open_subscriptions',
+        'Open subscriptions',
+        'Review the local subscription rows and renewal dates.',
+        false,
+      ),
+    ];
+  }
+
+  if (input.intent === 'review_recurring') {
+    return [
+      action(
+        'open_subscriptions',
+        'Open recurring payments',
+        'Review the local recurring rows and renewal dates.',
+        false,
+      ),
+      action('open_calendar', 'Show their timing', 'Open the local money calendar.', false),
+    ];
+  }
+
+  if (input.intent === 'summarise_month') {
+    return [
+      action(
+        'explain_sources',
+        'Show the local picture',
+        'Open the confirmed figures behind the monthly summary.',
+        false,
+      ),
+      action('open_what_if', 'Check a purchase', 'Try an amount without saving it.', true),
+    ];
+  }
+
   if (input.intent === 'review_import') {
     return [
       action(
@@ -1509,6 +2742,80 @@ function actionsForDraft(input: {
     ];
   }
 
+  if (input.intent === 'check_payday') {
+    return [
+      action(
+        'open_payday_ritual',
+        'Open payday ritual',
+        'Review the local payday steps without changing records.',
+        true,
+      ),
+      action('open_calendar', 'Show the calendar', 'Open the local money calendar.', false),
+    ];
+  }
+
+  if (input.intent === 'review_debts') {
+    return [
+      action(
+        'explain_sources',
+        'Explain protected money',
+        'Open the local Safe Zone calculation including confirmed minimums.',
+        false,
+      ),
+    ];
+  }
+
+  if (input.intent === 'review_goals') {
+    return [action('open_goals', 'Open pots', 'Review local savings pots.', false)];
+  }
+
+  if (input.intent === 'review_calendar') {
+    return [
+      action('open_calendar', 'Open calendar', 'Review named events and amounts locally.', false),
+      action('open_what_if', 'Check a purchase', 'Try an amount without saving it.', true),
+    ];
+  }
+
+  if (input.intent === 'explain_changes') {
+    return [
+      action(
+        'open_timeline',
+        'Open timeline',
+        'Review the exact local records that changed.',
+        false,
+      ),
+      action(
+        'explain_sources',
+        'Explain current position',
+        'Open the confirmed local Safe Zone calculation.',
+        false,
+      ),
+    ];
+  }
+
+  if (input.intent === 'review_irregular_income') {
+    return [
+      action('open_calendar', 'Show income timing', 'Open the local money calendar.', false),
+      action(
+        'explain_sources',
+        'Explain the safe zone',
+        'Open the confirmed local Safe Zone calculation.',
+        false,
+      ),
+    ];
+  }
+
+  if (input.intent === 'review_accounts') {
+    return [
+      action(
+        'open_account',
+        'Open accounts',
+        'Review and select named accounts on this phone.',
+        false,
+      ),
+    ];
+  }
+
   return [
     action(
       'ask_clarifying_question',
@@ -1528,20 +2835,28 @@ function action(
   return { kind, label, detail, requiresUserReview };
 }
 
-function extractAmountMinor(prompt: string): number | null {
+export function extractMeloLocalAmountCandidatesMinor(prompt: string): readonly number[] {
   const matches = [...prompt.matchAll(/(?:gbp|pounds?|£)?\s*(\d{1,6})(?:[.,](\d{1,2}))?/gi)];
-  if (matches.length === 0) return null;
+  if (matches.length === 0) return [];
 
-  const amounts = matches
-    .map((match) => {
-      const pounds = Number(match[1]);
-      const pennies = Number((match[2] ?? '').padEnd(2, '0'));
-      return Number.isFinite(pounds) ? pounds * 100 + (Number.isFinite(pennies) ? pennies : 0) : 0;
-    })
-    .filter((amount) => amount > 0);
+  return [
+    ...new Set(
+      matches
+        .map((match) => {
+          const pounds = Number(match[1]);
+          const pennies = Number((match[2] ?? '').padEnd(2, '0'));
+          return Number.isFinite(pounds)
+            ? pounds * 100 + (Number.isFinite(pennies) ? pennies : 0)
+            : 0;
+        })
+        .filter((amount) => amount > 0),
+    ),
+  ];
+}
 
-  if (amounts.length === 0) return null;
-  return Math.max(...amounts);
+export function extractMeloLocalAmountMinor(prompt: string): number | null {
+  const amounts = extractMeloLocalAmountCandidatesMinor(prompt);
+  return amounts.length === 1 ? (amounts[0] ?? null) : null;
 }
 
 function hasPromptInjectionLanguage(prompt: string): boolean {

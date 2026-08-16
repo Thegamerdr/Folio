@@ -1,0 +1,30 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "melo-cloud-vault",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "CLERK_ISSUER": "https://united-giraffe-33.clerk.accounts.dev",
+    "CLERK_JWKS_URL": "https://united-giraffe-33.clerk.accounts.dev/.well-known/jwks.json",
+    "MAX_BACKUP_BYTES": "4194304",
+    "ALLOWED_ORIGINS": "",
+  },
+  "kv_namespaces": [
+    {
+      "binding": "VAULTS",
+      "id": "1509b2b04d7449b39f6797db9ee13434",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
+  },
+}

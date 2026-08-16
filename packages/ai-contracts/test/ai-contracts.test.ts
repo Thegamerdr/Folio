@@ -7,6 +7,7 @@ import {
   buildPhase11CoverageRows,
   buildProviderRegistry,
   buildQuotaLedger,
+  classifyMeloLocalIntent,
   defineAiTaskSchema,
   draftMeloLocalAiResponse,
   estimateOperatorCostScenario,
@@ -206,6 +207,54 @@ const localMeloSnapshot = {
   protectedItems: ['rent', 'food allowance', 'minimum payments'],
   pendingReviewCount: 2,
   nextPaydayLabel: 'next payday',
+  activeRecurringCount: 3,
+  debtCount: 2,
+  totalDebtMinor: 480000,
+  monthlyDebtMinimumMinor: 18000,
+  goalCount: 2,
+  goalSavedMinor: 75000,
+  goalTargetMinor: 300000,
+  upcomingCalendarCount: 5,
+  nextCalendarDate: 'Friday',
+  unseenChangeCount: 2,
+  incomeSourceCount: 2,
+  irregularIncomeMode: true,
+  accountCount: 2,
+  liabilityAccountCount: 1,
+} as const;
+
+const businessMeloSnapshot = {
+  ...localMeloSnapshot,
+  workspaceKind: 'business' as const,
+  availableNowMinor: 999_900,
+  tightestDay: 'personal-route-sentinel',
+  tightestBalanceMinor: 888_800,
+  protectedItems: ['personal-protected-sentinel'],
+  nextPaydayLabel: 'not set up yet',
+  businessCashBalanceMinor: 150_000,
+  businessLiabilityBalanceMinor: 25_000,
+  businessNetPositionMinor: 125_000,
+  businessUpcomingIncomeMinor: 40_000,
+  businessUpcomingCommitmentsMinor: 30_000,
+  businessProjectedCashMinor: 160_000,
+  businessConfirmedIncome30DaysMinor: 90_000,
+  businessConfirmedExpense30DaysMinor: 55_000,
+  businessRunwayDays: 36,
+  businessRunwayHistoryDays: 21,
+  businessNextCommitmentDate: 'Friday',
+  businessEntityKind: 'ltd' as const,
+  businessClientCount: 3,
+  businessOutstandingInvoicesMinor: 250_000,
+  businessOverdueInvoicesMinor: 80_000,
+  businessOverdueInvoiceCount: 1,
+  businessVatRegistered: true,
+  businessVatDueMinor: 50_000,
+  businessVatPotMinor: 20_000,
+  businessTaxEstimateMinor: 100_000,
+  businessTaxPotMinor: 70_000,
+  businessObligations30Minor: 30_000,
+  businessEmployeeCount: 2,
+  businessOpenFilingCount: 3,
 } as const;
 
 describe('AI contract boundary', () => {
@@ -225,6 +274,116 @@ describe('AI contract boundary', () => {
 });
 
 describe('local Melo AI functions', () => {
+  it('uses Business cash semantics throughout the answer, evidence and actions', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Explain my business cash position',
+      snapshot: businessMeloSnapshot,
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'quick_action',
+    });
+
+    expect(draft).toMatchObject({
+      intent: 'explain_position',
+      financialConclusion: 'Business cash is £1,500; the confirmed dated position is £1,600.',
+      usedCloud: false,
+      canWriteRecords: false,
+    });
+    expect(draft.answer).toContain('Business cash is £1,500');
+    expect(draft.answer).toContain('projected £1,600');
+    expect(draft.answer).not.toMatch(/safe zone|payday|personal-route-sentinel/i);
+    expect(draft.dataUsed).toEqual([
+      '£1,500 confirmed Business cash',
+      '£1,600 confirmed dated position',
+      '£300 dated commitments',
+      '2 unconfirmed review items excluded',
+    ]);
+    expect(draft.rows.map((entry) => entry.label)).toEqual(
+      expect.arrayContaining(['Business cash', 'Dated position', 'Dated commitments']),
+    );
+    expect(draft.rows.map((entry) => entry.label)).not.toEqual(
+      expect.arrayContaining(['Available now', 'Tightest point', 'Protected first']),
+    );
+    expect(draft.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'explain_sources' }),
+        expect.objectContaining({ kind: 'open_calendar' }),
+      ]),
+    );
+  });
+
+  it('checks a Business expense against the dated position, never the Personal route sentinel', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Can I spend 1700 for the business?',
+      snapshot: businessMeloSnapshot,
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('would leave -£100');
+    expect(draft.financialConclusion).toBe('Would leave a dated Business shortfall of £100.');
+    expect(draft.answer).not.toMatch(/safe zone|payday/i);
+    expect(draft.actions.map((entry) => entry.detail).join(' ')).not.toMatch(/safe zone|payday/i);
+  });
+
+  it('keeps an empty Business workspace honest and offers Business-specific prompts', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Help',
+      snapshot: {
+        ...businessMeloSnapshot,
+        hasMoneyPicture: false,
+        businessCashBalanceMinor: 0,
+        businessProjectedCashMinor: 0,
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('confirmed Business picture');
+    expect(draft.answer).toContain('without inventing income or commitments');
+    expect(draft.financialConclusion).toBe('No confirmed Business picture is available yet.');
+    expect(draft.followUpChips).toEqual([
+      'Explain my business cash position',
+      'What invoices are overdue?',
+      'How is my tax pot?',
+    ]);
+  });
+
+  it.each([
+    ['Explain my business cash position', 'explain_position'],
+    ['How has the last 30 days gone?', 'summarise_month'],
+    ['What needs my review?', 'review_import'],
+  ] as const)('classifies the Business starter %s as %s', (prompt, intent) => {
+    expect(classifyMeloLocalIntent(prompt.toLowerCase())).toBe(intent);
+  });
+
+  it.each([
+    ['What invoices are overdue?', 'review_business_invoices', '£800 is overdue'],
+    ['How is my VAT pot?', 'review_business_vat', '£300 is not yet covered'],
+    ['How is my Corporation Tax pot?', 'review_business_tax', '£300 is not yet covered'],
+    ['Review payroll', 'review_business_payroll', '2 recorded employees'],
+    [
+      'What filing deadlines are open?',
+      'review_business_filings',
+      '3 open Business filing deadlines',
+    ],
+    ['Review my clients', 'review_business_clients', '3 recorded clients'],
+  ] as const)('answers %s from aggregate-only Business records', (prompt, intent, expected) => {
+    const draft = draftMeloLocalAiResponse({
+      prompt,
+      snapshot: businessMeloSnapshot,
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+    expect(draft.intent).toBe(intent);
+    expect(draft.answer).toContain(expected);
+    expect(draft.usedCloud).toBe(false);
+    expect(draft.canWriteRecords).toBe(false);
+  });
+
   it('drafts a local what-if answer without cloud, provider keys or direct writes', () => {
     const draft = draftMeloLocalAiResponse({
       prompt: 'Can I spend £120 before payday?',
@@ -327,6 +486,19 @@ describe('local Melo AI functions', () => {
     });
   });
 
+  it('describes a negative Safe Zone as a target gap, not negative available money', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'When is my next payday?',
+      snapshot: { ...localMeloSnapshot, availableNowMinor: -10000 },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('below its target');
+    expect(draft.answer).not.toContain('available');
+  });
+
   it('does not offer undo copy when import review only keeps source history', () => {
     const draft = draftMeloLocalAiResponse({
       prompt: 'Review imports needing my eye',
@@ -336,8 +508,292 @@ describe('local Melo AI functions', () => {
       source: 'quick_action',
     });
 
-    expect(draft.followUpChips).toContain('Keep source attached');
+    expect(draft.actions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'review_imports' })]),
+    );
     expect(draft.followUpChips.join(' ')).not.toMatch(/\bundo\b/i);
+  });
+
+  it.each([
+    ['Review my recurring bills', 'review_recurring', 'open_subscriptions'],
+    ['When is my next payday?', 'check_payday', 'open_payday_ritual'],
+    ['Review my debts', 'review_debts', 'explain_sources'],
+    ['Review my savings goals', 'review_goals', 'open_goals'],
+    ['Show my calendar', 'review_calendar', 'open_calendar'],
+    ['What changed?', 'explain_changes', 'open_timeline'],
+    ['Review my irregular income', 'review_irregular_income', 'open_calendar'],
+  ] as const)('routes %s through the local %s contract', (prompt, intent, actionKind) => {
+    const draft = draftMeloLocalAiResponse({
+      prompt,
+      snapshot: localMeloSnapshot,
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.intent).toBe(intent);
+    expect(draft.usedCloud).toBe(false);
+    expect(draft.canWriteRecords).toBe(false);
+    expect(draft.actions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: actionKind })]),
+    );
+  });
+
+  it('keeps an overpayment neutral until the user selects a debt order', () => {
+    const prompt = 'Can I overpay 20 on my debts?';
+    expect(classifyMeloLocalIntent(prompt.toLowerCase())).toBe('review_debts');
+
+    const draft = draftMeloLocalAiResponse({
+      prompt,
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'debt-strategy-required',
+        extraMonthlyMinor: 2_000,
+        safeZoneAfterExtraMinor: 12_200,
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft).toMatchObject({
+      intent: 'review_debts',
+      uncertainty: 'needs-context',
+      usedCloud: false,
+      canWriteRecords: false,
+    });
+    expect(draft.answer).toContain('I will not choose a debt strategy for you');
+    expect(draft.followUpChips).toEqual(['Use highest rate first', 'Use lowest balance first']);
+  });
+
+  it('explains a user-selected debt projection as a neutral local scenario', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Add 20 extra using highest-rate-first for my debts',
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'debt-projection',
+        strategy: 'highest-rate-first',
+        debtCount: 2,
+        extraMonthlyMinor: 2_000,
+        payoffMonths: 31,
+        payoffDateLabel: '31 Jan 2029',
+        totalInterestMinor: 48_000,
+        monthsSavedVsMinimums: 9,
+        interestSavedVsMinimumsMinor: 11_000,
+        safeZoneAfterExtraMinor: 12_200,
+        stalled: false,
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('user-selected highest-rate-first rule');
+    expect(draft.answer).toContain('31 months');
+    expect(draft.answer).toContain('neutral scenario, not advice');
+    expect(draft.usedCloud).toBe(false);
+    expect(draft.canWriteRecords).toBe(false);
+  });
+
+  it('describes a dated-goal what-if without moving money or calling the plan failed', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'What if I add 100 to my savings goal?',
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'goal-projection',
+        datedPlanCount: 1,
+        remainingMinor: 80_000,
+        currentPerWeekMinor: 4_000,
+        requiredPerWeekMinor: 6_200,
+        weeksAvailable: 13,
+        weeksAtPace: 20,
+        onTrack: false,
+        targetDateLabel: '15 Oct 2026',
+        contributionMinor: 10_000,
+        remainingAfterContributionMinor: 70_000,
+        requiredPerWeekAfterContributionMinor: 5_400,
+        onTrackAfterContribution: false,
+        safeZoneAfterContributionMinor: 4_200,
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('off the previous path and ready to rebase');
+    expect(draft.answer).toContain('Nothing has been moved');
+    expect(draft.answer).not.toMatch(/\bfailed\b/i);
+    expect(draft.canWriteRecords).toBe(false);
+  });
+
+  it('labels irregular-income history as estimates rather than a guarantee', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Review my irregular income',
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'irregular-income-range',
+        monthsObserved: 6,
+        sufficientHistory: true,
+        lowMonthMinor: 120_000,
+        baseMonthMinor: 190_000,
+        highMonthMinor: 280_000,
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('low');
+    expect(draft.answer).toContain('base');
+    expect(draft.answer).toContain('high');
+    expect(draft.answer).toContain('not a prediction of future income');
+    expect(draft.usedCloud).toBe(false);
+  });
+
+  it('asks the user to choose when a purchase question contains two amounts', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Can I spend 20 or 30?',
+      snapshot: localMeloSnapshot,
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft).toMatchObject({
+      intent: 'check_purchase',
+      detectedAmountMinor: null,
+      uncertainty: 'needs-context',
+    });
+    expect(draft.answer).toContain('£20 and £30');
+    expect(draft.followUpChips).toEqual(['Check £20', 'Check £30']);
+  });
+
+  it('explains only the typed aggregate for an explicitly selected account', () => {
+    const prompt = 'Use my savings account';
+    expect(classifyMeloLocalIntent(prompt.toLowerCase())).toBe('review_accounts');
+    const draft = draftMeloLocalAiResponse({
+      prompt,
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'account-position',
+        accountKind: 'savings',
+        balanceMinor: 32_550,
+        isLiability: false,
+        balanceAsOfLabel: '15 Jul 2026',
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('£325.50 available in that account');
+    expect(draft.answer).toContain('not the consolidated Safe Zone');
+    expect(draft.actions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'open_account' })]),
+    );
+    expect(draft.canWriteRecords).toBe(false);
+  });
+
+  it('explains displayed numbers from typed source kinds without row data', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Show the source figures',
+      resolvedIntent: 'explain_position',
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'source-explanation',
+        values: [
+          { label: 'available now', amountMinor: 14_200 },
+          { label: 'tightest balance', amountMinor: 8_300 },
+        ],
+        sourceKinds: ['current balance setting', 'forecast engine'],
+        confirmedRecordCount: 7,
+        excludedReviewCount: 2,
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('£142 available now');
+    expect(draft.answer).toContain('current balance setting, forecast engine');
+    expect(draft.answer).toContain('2 unconfirmed review items are excluded');
+    expect(draft.answer).toContain('Open the relevant surface for names and row-level evidence');
+  });
+
+  it('describes import matches and conflicts as review-only proposals', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Explain my import review',
+      resolvedIntent: 'review_import',
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'import-review-summary',
+        pendingCount: 4,
+        possibleDuplicateCount: 1,
+        changedAmountCount: 1,
+        relationshipCount: 1,
+        rememberedCategoryCount: 1,
+        missingDateCount: 0,
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('possible same-row match');
+    expect(draft.answer).toContain('possible changed-amount conflict');
+    expect(draft.answer).toContain('possible refund or transfer relationship');
+    expect(draft.answer).toContain('nothing was merged, corrected or posted');
+    expect(draft.canWriteRecords).toBe(false);
+  });
+
+  it('explains a recorded monthly BNPL schedule and its cadence assumption', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Show my BNPL schedule',
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'bnpl-schedule',
+        bnplCount: 1,
+        scheduledPaymentCount: 4,
+        nextPaymentDateLabel: '20 Jul 2026',
+        nextPaymentTotalMinor: 8_000,
+        finalPaymentDateLabel: '20 Oct 2026',
+        totalRemainingMinor: 32_000,
+        totalInterestMinor: 0,
+        stalledCount: 0,
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('£320 remaining across 4 scheduled monthly payments');
+    expect(draft.answer).toContain('£80 on 20 Jul 2026');
+    expect(draft.answer).toContain('review those terms if the provider actually collects weekly');
+  });
+
+  it('compares recovery options as unsaved before-and-after previews', () => {
+    const draft = draftMeloLocalAiResponse({
+      prompt: 'Preview my recovery route',
+      snapshot: localMeloSnapshot,
+      calculation: {
+        kind: 'recovery-preview',
+        hasShortfall: true,
+        shortfallMinor: 10_000,
+        structuralPressure: false,
+        options: [
+          { kind: 'move-bill', liftMinor: 8_000, afterMinor: -2_000 },
+          { kind: 'hold-discretionary', liftMinor: 3_000, afterMinor: -7_000 },
+        ],
+      },
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+
+    expect(draft.answer).toContain('current tight-point gap is £100');
+    expect(draft.answer).toContain('£20 still short');
+    expect(draft.answer).toContain('before/after previews only');
+    expect(draft.canWriteRecords).toBe(false);
   });
 });
 

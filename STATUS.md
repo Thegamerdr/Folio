@@ -1,6 +1,63 @@
 # Folio V2 Greenfield Status
 
-## Current checkpoint
+> **Superseding current state, 2026-07-16:** the coded React Native/Android product in `apps/mobile`
+> is the authoritative Melo implementation; Lovable is design history, not the runtime to extend.
+> The active working branch is `codex/melo-native-ux`, with a large pre-existing dirty working tree
+> that has deliberately not been committed, reset or pushed. Start with `MELO_ALIGNMENT_AUDIT.md`,
+> `MONEY_MODEL.md`, `ACCOUNTS_MODEL.md`, `ARCHIVE.md`, `CONSOLIDATION.md`, the current ADRs and the
+> 16 July evidence records before changing product behavior. This checkpoint supersedes every older
+> "current state" banner retained below as history.
+
+## Current checkpoint - 16 July 2026
+
+- The schema-v8 SQLCipher boundary represents all 44 durable fields in the 48-field shipping
+  AppState contract. The four remaining fields are intentionally transient; no durable field is
+  exact-envelope-only.
+- Current import support includes local PDF text, image OCR, CSV, TSV, semicolon files, common split
+  debit/credit exports and unstructured TXT/clipboard lines, all review-gated. The shipping parser
+  passed an 18-case synthetic corpus and 100,000-row endurance run.
+- Raw statement, OCR, transaction and Melo-chat data is not sent to an AI provider. Raw provider
+  routes are retired; statement extraction and the deterministic companion run on-device. Sentry
+  free-text/identity/request/breadcrumb data is scrubbed before egress.
+- Persistence has a 47-case recovery matrix, automatic encrypted-import orphan cleanup, tested
+  encrypted-source `ENOSPC` promotion cleanup and tested fail-honest `EIO` deletion behavior.
+- `pnpm run ci` passes: full lint, every TypeScript target, 205 test files / 2,510 tests and
+  both source-package validators. The latest 100,000-row parser run completed in 822 ms.
+- Current dual-ABI APK: `109,035,615` bytes, SHA-256
+  `08D73315D240EB9996D1C4D14D73A327D7468A0367B9F8B37A5D2AEE0D16FA72`.
+- Current dual-ABI AAB: `76,959,006` bytes, SHA-256
+  `50E1952891C137D2F98899F314A4BB24CB4700510A6A6DB8A9644DEE0E1D5532`.
+- The current APK installed only on `emulator-5554` and cold-launched empty in 8,124 ms with no fatal
+  Android/React match. The rendered first-use state contains no sample financial data.
+- Release-built CSV review now identifies `CSV`, the real retained filename and row count; it no
+  longer labels every successful intake as a one-page PDF. The same source-aware contract covers
+  TSV, TXT, paste, image and PDF paths and preserves the correct Review source.
+- Melo is not public-release complete: iOS, native key wrapping/recovery, independent security and
+  accessibility review, store credentials/listing/purchase evidence, production Open Banking
+  procurement/legal/pilot evidence, cloud restore/replay, real-user research and release operations
+  sign-off remain open.
+
+> **⛔ STALE BELOW THIS BANNER (kept as history). Current state, 2026-07-10:** the live product is
+> the **Melo MVP** on branch **`claude/melo-mvp`**. Start at **`MELO_ALIGNMENT_AUDIT.md`** (the
+> whole-app audit + phase plan; Phase 0 shipped at `bc50cad`, first Phase-1 tranche at `4b67d96`),
+> then `MONEY_MODEL.md` (§2b confirmed money model), `ACCOUNTS_MODEL.md` (P3–P6 specs), and
+> `ARCHIVE.md`/`CONSOLIDATION.md` (what was deleted vs. what is dead-but-present). The 15-phase
+> greenfield program described below is the PRE-MELO era: its branch pointers, blocker lists, and
+> evidence paths are historical.
+
+> Updated 2026-06-30 (evening) — commits eb6e0a0/3783c9c/a3f81c9 (+ 7147884 AUDIT.md) on branch
+> `claude/folio-rn-faithful-port`: sample/placeholder-data purge (charts, summary trio, calendar
+> agenda, reader/edit sheets now plot real route data or show honest empty doorways, demo data gated
+> behind `currentBalance.source==='sample'`), Melo mood wired to a real-route-derived pressure
+> (`derivePressure`) with a nav override, TimelineScreen dark-mode invisible-text fix, ScrollView
+> wrapping for five fixed-height screens, "Start fresh" → `resetToEmpty` + one-tap confirm, imported
+> transactions keep their real statement date, and an AI cost split (chat = cheap
+> `gemini-2.5-flash-lite`, vision = `gemini-2.5-flash`, gateway model allow-list). 0 typecheck
+> errors, 306 folio tests green; visible fixes verified on-device by screenshot. Remaining open work
+> (exhaustive dark-mode/cross-device visual pass, iOS, gateway redeploy + OpenRouter spend cap) is
+> owner/QA, not RN bugs.
+
+## Historical Phase 15 checkpoint
 
 Phase 15 Android local-use hardening is implemented for the standalone tester APK, and the
 2026-06-22 Huashu/product-truth pass removed fake/live-looking route copy, stale engineering
@@ -32,16 +89,35 @@ fallback key. Evidence remains in docs/test adapters, not in the local tester AP
 readiness is not complete until real interaction polish, native accessibility recordings, large-
 text/reduced-motion checks, user testing and Figma/code alignment are complete.
 
+Update on 2026-06-30 (evening, commits eb6e0a0/3783c9c/a3f81c9): the same "nothing fabricated is
+present 24/7" rule was carried into the `apps/mobile/src/folio/` faithful-port surface tree (the
+Lovable 1:1 port), which still held demo geometry the 06-22 pass had not reached. The Today
+money-path chart no longer draws hardcoded SVG geometry (the "salary rise +£2,180 / bill drop
+−£875 / 7 Jul" curve) — it plots the real `route.points` daily series. The Today summary trio
+("Coming in £2,180 / Going out £1,095") now reads real route totals
+(`RouteResult.incomingTotal`/`outgoingTotal`) and the low-point week tile reads the real route tight
+point. The Calendar agenda's hardcoded "Check Klarna · 2 of 3" review, generic UK tax deadlines and
+`RECURRING_BILLS` (Octopus/Council Tax/Rent/BT) are now gated behind the demo regime
+(`currentBalance.source==='sample'`, via `deriveCalendarEvents`'s `includeSampleBills`), so a
+cleared/real app shows only the user's own data. Reader screens (Visualizer/Review/Paste/Image),
+`SubCaughtSheet` and the edit sheets no longer fall back to sample rows or a fake
+"Tesco · £42 · 26 Jun" on a cold open — they show honest empty doorways / blank forms; the
+`RouteDetailSheet` Octopus/Rent placeholder and the chart "breathing room · £100" literal are gone.
+
 - Phase 0: complete for Android native smoke; iOS remains blocked by macOS/Xcode or EAS iOS signing.
 - Phase 1: Android database/storage risk retired with live emulator proof. Non-database native spikes remain explicit blockers before Phase 4 vault/mobile release claims.
 - Phase 2: pure engine foundation implemented and tested.
 - Phase 3: storage/application foundation implemented and tested.
 - Phase 4: first-minute shell, labelled preview, quick-start path, privacy copy and navigation skeleton implemented; vault create/unlock and real usability evidence remain blocked.
-- Phase 5: pure import engine, storage import-commit evidence command, mobile import review shell and Android CSV/TXT system-picker staging implemented; encrypted PDF/image/OCR, canonical vault transaction repository writes, real-data briefing and full endurance evidence remain blocked.
+- Phase 5: pure import engine, storage import-commit evidence command, mobile import review shell,
+  Android system-picker staging, local PDF/image OCR, encrypted source retention, a verified
+  canonical mirror, schema-v8 generation-bound canonical authority for all 44 durable AppState
+  fields and privacy-minimal typed commands for the mapped mutation paths implemented; the full
+  format/device matrix, real-data briefing and endurance evidence remain blocked.
 - Phase 6: pure daily-loop engine, workspace-scoped local search and Expo Today shell implemented; vault-backed corrections, native notifications, external calendar sync, manual accessibility proof and real airplane-mode E2E remain blocked.
 - Phase 7: deterministic Melo intent registry, language policy, proposal lifecycle, tone modes, ranking, bad-month mode, memory/correction contracts and Expo shell implemented; native voice, vault-backed commit, legal sign-off and manual accessibility proof remain blocked.
 - Phase 8: deterministic plan/recovery contracts, optional plan drafts, rule edits, progress journeys, event cascade, recovery copy, budget remaining, momentum, controlled fun, retention preferences, rituals and Expo shell implemented; real vault commits, native rituals, animation proof, real-data E2E and manual accessibility proof remain blocked.
-- Phase 9: deterministic release-readiness contracts, document/extraction review state, privacy/data centre, export/delete, threat/MASVS/DPIA/accessibility matrices, diagnostics, reviewer vault, resilience drills, Android local app-lock overlay and Expo shell implemented; native encrypted documents, real-device biometric proof, independent reviews, DPIA approval, destructive drills and private beta remain blocked.
+- Phase 9: deterministic release-readiness contracts, document/extraction review state, privacy/data centre, export/delete, threat/MASVS/DPIA/accessibility matrices, diagnostics, reviewer vault, Android encrypted documents, write-failure recovery, local app-lock overlay and Expo shell implemented; iOS parity, successful real-device biometric proof, independent reviews, DPIA approval, the remaining destructive drills and private beta remain blocked.
 - Phase 10: deterministic optional-account, key hierarchy, recovery, device registry, encrypted envelope, inbox, conflict, snapshot, compaction, deletion, cloud inventory, multi-device, security-review and beta-gate contracts plus Expo shell implemented; real providers, native key wrapping, clean-device restore, cloud backend, web deletion, external pen-test and encrypted-backup/sync beta remain blocked.
 - Phase 11: deterministic optional-AI task schema, provider registry, gateway, minimal context, route ladder, quota/cost, evaluation, Melo integration, consent and strict beta contracts plus Expo shell implemented; real gateway/provider/model, DPIA/processor approval, on-device adapter proof, evaluation pass, monitoring, rollback, support and strict beta remain blocked.
 - Phase 12: deterministic Open Banking provider selection, BankDataProvider contract, consent, dashboard, staged ingestion, reconciliation, stale/gap, revocation and rollout-gate contracts plus Expo shell implemented; regulated provider, live provider contracts, backend token adapter, legal/store review, pilots, support and staged rollout remain blocked.
@@ -140,14 +216,16 @@ The implementation package in `docs/source-package` was read in the required ord
 
 ## Current evidence
 
-- `pnpm run ci`: passed, 38 files and 380 tests.
+- `pnpm run ci`: passed, 202 files and 2,460 tests.
 - `pnpm lint:boundaries`: passed.
-- `pnpm check:v1-boundary`: passed; 149 authored V2 runtime/package files checked against 859
+- `pnpm check:v1-boundary`: passed; 620 V2 runtime/package files checked against 859
   unique V1 freeze hashes.
 - `pnpm typecheck`: passed.
 - `pnpm --filter @folio/mobile typecheck`: passed.
-- `pnpm test`: passed, 38 files and 380 tests.
-- `pnpm validate:contracts`: passed with 75 files, 15,681 lines, 192 tasks, 32 risks, 18 forecast vectors, 15 import vectors and 14 independently checked fixture cases.
+- `pnpm test`: passed, 203 files and 2,472 tests.
+- `pnpm validate:contracts`: passed with 75 files, 15,858 lines, 70,565 words, 82 database
+  tables, 192 tasks, 32 risks, 51 research sources, 18 forecast vectors, 15 import vectors and 14
+  independently checked fixture cases.
 - `pnpm --filter @folio/mobile doctor`: passed, 21/21 checks.
 - `pnpm format:check`: passed.
 - Fresh Android release route-surface captures:
@@ -196,13 +274,27 @@ local record match`, `No cloud model or remote search used` and the checked `Tyr
 - Mutation and safeguard proof: local route surfaces update after a saved spend, while the current
   Money proof shows an empty manual entry by default and disabled save buttons until a tester enters
   a title plus valid amount.
-- Final Android release APK build/install/launch proof: `gradlew.bat :app:assembleRelease` passed
-  with explicit `JAVA_HOME` and `ANDROID_HOME`; `adb install -r`, force-stop and `monkey` launch
-  opened the rebuilt `com.folio.v2.greenfield` APK on `emulator-5554`.
-- Current final APK size: `69,327,847` bytes; SHA256
-  `9DF1FC5B3F6A07BFEC69DE8E7E5A4672ED93FE26A5DDAB1C9B97063DAED0C45B`.
-- Current final release JS bundle size: `3,410,324` bytes; SHA256
-  `F89D2F4C4751A8D5804DD67C48F7124676E78D483ACDAC4EBAFB2431EA6860D8`.
+- Final Android release APK/AAB build/install/launch proof: `gradlew.bat :app:assembleRelease
+:app:bundleRelease -PreactNativeArchitectures=arm64-v8a,x86_64` passed; `adb install -r`,
+  force-stop and a cold `am start -W` opened the rebuilt `com.folio.v2.greenfield` APK only on
+  `emulator-5554` in 6,988 ms. The Galaxy S9 was not targeted by this candidate.
+- Current final dual-ABI APK size: `109,030,815` bytes; SHA256
+  `B746CF1CB0CAB30038F3EC1FB0A5F92B4006A515B0D144D8E7E4504687B81F20`.
+- Current final dual-ABI AAB size: `76,956,279` bytes; SHA256
+  `C2A7B68DB3D1967F05E08B51B87CB72BF77286B2A0981896C844F94F62E6884B`.
+- Current final release JS bundle size: `7,920,492` bytes; SHA256
+  `FDC4CB008F32A6CB0082B8B196B19A006DFCA883EB2DBC515A880409AECC15C7`.
+- Release-built mapped typed-command proof: a user balance write committed exact AppState,
+  canonical balance rows and a privacy-minimal `folio.balance.set_current.v1` audit row atomically,
+  survived a cold start, and was then removed through the product's three-stage clear. See
+  `docs/release-evidence/ANDROID_TYPED_COMMAND_BRIDGE_2026-07-16.md`.
+- Canonical authority is now schema v8, generation-bound and fail-closed for all 44 durable fields
+  in the 48-field AppState contract. This includes the ledger/container core, financial context,
+  calendar/plans/income schedules, transaction intelligence, evidence/import metadata, timeline and
+  review queues, entitlement/lens, AI/cache, Melo and tiny wins. The remaining four fields are
+  deliberately transient navigation/reader staging state; no durable field is exact-envelope-only.
+  Exact encrypted AppState remains the lossless recovery envelope. See
+  `docs/release-evidence/ANDROID_CANONICAL_FULL_APPSTATE_AUTHORITY_2026-07-16.md`.
 - `pnpm --filter @folio/mobile exec expo install --check`: passed.
 - `pnpm check:operations-readiness`: validates the operations pack and reports the current
   operations state as blocked with 7/7 incident runbooks covered, safe support boundary and
@@ -392,35 +484,62 @@ local record match`, `No cloud model or remote search used` and the checked `Tyr
 - iOS install/launch evidence remains blocked by macOS/signing availability.
 - V1 freeze uses `C:\dev\apps\close-ledger-frontend` as the approved V1 reference candidate, but that source is not a Git worktree.
 - Phase 1 native database choice is accepted for Android and blocked for iOS until macOS/EAS evidence exists.
-- Full Keychain/Keystore wrapping, Argon2id recovery wrapping, encrypted PDF/image document-file
-  handling, OCR, local notifications and manual TalkBack/VoiceOver evidence remain blockers before
-  vault, import and release claims.
+- Full Keychain/Keystore and Argon2id recovery proof, iOS encrypted-document/OCR parity, local
+  notifications and independent TalkBack/VoiceOver evidence remain blockers before broad vault,
+  import and release claims. Android encrypted source retention and local OCR are separately
+  device-proven.
 - Phase 4 T061 vault creation and T062 vault unlock/app lock remain blocked by native key wrapping and recovery proof.
 - Phase 4 T070 remains blocked until debt-focused and financially avoidant participant sessions are run and documented.
-- Phase 5 T071 Android text-file staging is implemented for CSV/TXT-style imports; encrypted
-  source-file handling remains blocked by T018 encrypted document-file proof.
-- Phase 5 T076 PDF/image OCR remains blocked by T017/native OCR and capture proof.
+- Phase 5 T071 Android system-picker staging and encrypted source retention are implemented;
+  supported-format/device coverage and iOS parity remain open.
+- Phase 5 T076 Android PDF/image local OCR and capture paths are implemented; the full
+  bank-format, scan-quality, language, device and iOS matrices remain open.
 - Phase 5 T083/T084 review-gated local file-import commit is implemented in the standalone APK;
-  canonical vault-backed transaction repository writes remain blocked.
+  lossless Android state/root writes are SQLCipher-authoritative and all 44 durable AppState fields
+  now mirror through first-class schema-v8 canonical records. Boot adoption is generation-bound and
+  inverse-parity-gated. Mapped real user/system/import, review and Open Banking-history mutation
+  paths emit transactionally verified privacy-minimal typed commands.
 - Phase 5 T085/T086 real-data briefing and full endurance gate remain blocked by native/vault and participant evidence.
-- Phase 6 T090 transaction corrections remain view-model-only until vault-backed write adapters are available.
+- Phase 6 T090 transaction corrections now persist in the canonical transaction-intelligence
+  record with typed semantic receipts; real-device interaction and broader correction-workflow
+  usability evidence remain open.
 - Phase 6 T093 local notifications remain blocked until native scheduling, quiet hours and lock-screen privacy are proven.
 - Phase 6 T096 external calendar handoff remains disabled until explicit opt-in and native calendar evidence exist.
-- Phase 6 T098 real airplane-mode daily-loop E2E remains blocked until vault-backed records can render without Metro or synthetic fixtures.
+- Phase 6 T098 now has a release-built SQLCipher-authoritative Android airplane-mode
+  write/cold-start/remove/undo/wipe loop with real UI-entered values and no fixture path. It remains
+  blocked until the remaining import/endurance/restore matrix passes. All durable AppState fields
+  now have a generation-bound canonical boot read candidate, and mapped mutations have typed-command
+  and privacy-minimal audit coverage.
 - Phase 7 T101 real proposal commit remains command-envelope-only until vault-backed command adapters exist.
 - Phase 7 T107 voice-to-proposal remains blocked until native audio, transcript review and no-retained-audio evidence exist.
 - Phase 7 T108 animation remains static reduced-motion shell evidence until native motion/accessibility verification exists.
 - Phase 7 T109 legal/compliance review remains required before public regulated-boundary claims.
-- Phase 8 real plan commits remain blocked until vault-backed command adapters can write plan rows.
+- Phase 8 plan and contribution writes now commit canonical plan rows with typed semantic receipts;
+  complete real-data recovery E2E and usability evidence remain open.
 - Phase 8 native payday, weekly and month-close rituals remain blocked until scheduling, quiet hours and lock-screen privacy are proven.
 - Phase 8 native animation and manual reduced-motion accessibility recordings remain blocked.
 - Phase 8 real-data recovery E2E remains blocked until vault-backed records can render without Metro or synthetic fixtures.
-- Phase 9 T122 document-library acceptance remains blocked until native encrypted file storage and workspace document subkeys are proven.
+- Phase 9 T122 Android document-library acceptance is implemented and device-proven; iOS parity
+  and independent cryptographic review remain open.
 - Phase 9 app-lock and timeout proof remain blocked until Keychain/Keystore wrapping, biometric/PIN behavior and recovery routes are implemented and tested.
 - Phase 9 T126/T127 remain blocked until independent threat-model/MASVS review closes high/critical findings.
 - Phase 9 T128 remains blocked until DPIA and processor inventory are approved for local, cloud, AI, Open Banking and tax routes.
 - Phase 9 T129 remains blocked until independent VoiceOver, TalkBack, large text, reduced-motion and cognitive accessibility audit passes.
-- Phase 9 T132 remains blocked until native migration interruption, corruption, full-disk/low-storage, kill-during-import and restore drills pass without silent data loss.
+- Phase 9 T132 now has a 47-case persistence recovery suite, injected ENOSPC coverage,
+  release-built Android kernel-ENOSPC/manual-retry/cold-start, encrypted-PDF-source ENOSPC
+  recovery, corrupted-main-to-verified-backup proof, Personal legacy-to-schema-v11 interrupted-
+  migration recovery, a bounded airplane-mode write/remove/undo/wipe loop and a clean-sandbox
+  portable-export restore. Release-built Android now also proves exact schema-v11 state/root
+  migration into SQLCipher, SQL-only cold starts, native whole-database quarantine/rebuild and a
+  race-free full local clear. The drills found and fixed retained onboarding name/payday after
+  local clear, raw native exception leakage during source-retention ENOSPC, corrupt orphaned
+  generations being misclassified as first run, good staged generations being ignored after main
+  corruption, an unsafe databases-directory quarantine path and a writer/direct-commit lock race.
+  The shipping save now atomically mirrors all durable AppState fields into verified schema-v8
+  canonical SQL. Reads are bound to their exact generation and adopted only after inverse parity;
+  mapped shipping mutations commit privacy-minimal typed-command receipts with exact readback. T132
+  remains blocked until release-build staged/backup loss drills, kill-during-import, physical
+  low-storage boundaries, real-format endurance, iOS and cloud/cross-device restore pass.
 - Phase 9 T133 private beta remains blocked until the release blockers above, beta operations and user-research signoff close.
 - Phase 10 T134 remains blocked until passkey, Apple and Google account providers and the external web deletion route are wired and tested.
 - Phase 10 T135 remains blocked until Keychain/Keystore wrapping, recovery wrapping, KDF parameters and qualified cryptographic review are complete.
@@ -462,8 +581,16 @@ local record match`, `No cloud model or remote search used` and the checked `Tyr
   and vulnerability disclosure readiness are actually completed.
 - Phase 14 T186 remains blocked until final penetration, DPIA, processor, legal, privacy, security,
   accessibility and current store-policy review signoff pass with no high/critical findings open.
-- Phase 14 T187 remains blocked until full regression, offline E2E, account deletion E2E and
-  iOS/Android store release builds pass every release-blocking criterion.
+- Phase 14 T187 now has final-state CI, upload-signed dual-ABI Android APK/AAB validation,
+  non-destructive emulator/physical-device navigation smoke, a bounded final-APK airplane-mode
+  loop, clean-sandbox portable restore, kernel-ENOSPC state/PDF-import recovery and a release-built
+  Personal legacy-to-schema-v11 interrupted-migration recovery. Lossless Android state/root
+  SQLCipher authority, SQL-only cold start, whole-database quarantine/rebuild and complete local
+  clear and the transactionally verified schema-v8 canonical AppState mirror are also release-built
+  and emulator-proven. All 44 durable AppState fields now have generation-bound inverse-parity read
+  authority, and mapped typed-command writes/privacy-minimal audit rows are release-built and
+  emulator-proven. It remains blocked until the remaining import/restore/endurance matrix,
+  production account-deletion E2E and iOS release/store builds pass every release-blocking criterion.
 - Phase 14 T188 limited UK production launch remains blocked until billing, operations,
   monitoring, support, rollback and operational thresholds are stable.
 - Phase 14 T190-T192 remain blocked roadmap programmes; household collaboration, direct HMRC MTD

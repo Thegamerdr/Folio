@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyMigrations,
+  canonicalSqliteRepositoryMigrations,
+  canonicalSqliteRepositorySchemaVersion,
   createCanonicalSchemaMigration,
   createChecksum,
   defineMigration,
@@ -92,6 +94,17 @@ describe('storage migrations and canonical schema helpers', () => {
     expect(validation.snapshot.tables).toContain('search_index');
     expect(migration).toMatchObject({ version: 1, name: 'canonical_schema' });
     expect(migration.checksum).toMatch(/^sha256:/);
+  });
+
+  it('scaffolds Phase D Decision Ledger tables in canonical SQLite migrations', () => {
+    expect(canonicalSqliteRepositorySchemaVersion).toBe(9);
+    const sql = canonicalSqliteRepositoryMigrations.map((migration) => migration.sql).join('\n');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS decision_ledger_entries');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS decision_ledger_scenarios');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS decision_ledger_outcomes');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS decision_ledger_corrections');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS decision_ledger_audit_events');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS forecast_evaluations');
   });
 });
 

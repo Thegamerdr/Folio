@@ -33,6 +33,28 @@ Implement the unblocked Phase 6 slices as pure contracts and a mobile shell:
 - Treat Figma and Huashu as review evidence only; repo code, tests and emulator artifacts remain
   source of truth.
 
+## Android MVP amendment — 2026-07-14
+
+The inherited Android product has now crossed the notification boundary that was intentionally
+blocked in the original Phase 6 slice:
+
+- `apps/mobile/src/folio/lib/calendarReminders.ts` converts user-authored internal calendar events
+  into future-only absolute reminder requests with bounded daily/pending budgets.
+- `apps/mobile/src/folio/lib/notifications.ts` schedules only Melo-owned local notifications,
+  separates reminder/update channels and never globally cancels another notification owner.
+- notification intent defaults off; Android permission is requested only when the user explicitly
+  enables reminders or creates an event with a reminder.
+- lock-screen copy is generic by default and event details require a separate explicit opt-in.
+- daily counters and the coarse notification snapshot persist across process restarts without
+  persisting amounts, merchant names, titles or notification copy.
+- the Android release APK proved the Add Event sheet, native time selection, stale-time rejection,
+  permission prompt, exact scheduled alarm, process-restart survival and privacy-safe foreground
+  delivery on `CloseLedger_Phone`.
+
+This amendment completes T092/T093 for the current Android MVP boundary. It does not claim iOS
+delivery, remote push, marketing notifications, background bank sync, complex planner recurrence
+or an external Google Calendar sync.
+
 ## Consequences
 
 Phase 6 can validate the daily-loop contract and visible mobile shell while retaining honest

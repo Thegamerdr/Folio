@@ -23,24 +23,12 @@ const ALL_STATES: readonly MeloState[] = [
   'melo_reduced_motion',
 ];
 
-const coreScreens: Readonly<Record<string, string>> = {
-  start: read('../startScreen.tsx'),
-  guidedInput: read('../roughFirstAnswer.tsx'),
-  review: read('../reviewDecision.tsx'),
-  today: read('../todayPath.tsx'),
-  data: read('../trustControl.tsx'),
-  fileWorkbench: read('../fileWorkbench.tsx'),
-};
+// (The old 'appears across the core slice' scan of the Gen-2 screens was removed with those
+// screens in plan 112 — the live folio/ screens carry their own Melo presence guards.)
 const presence = read('./MeloPresence.tsx');
 const figure = read('./MeloFigure.tsx');
 
 describe('Melo — core product asset', () => {
-  it('appears across the core slice', () => {
-    for (const [name, src] of Object.entries(coreScreens)) {
-      expect(src, name).toContain('MeloPresence');
-    }
-  });
-
   it('has state-based copy + mood for every state', () => {
     for (const state of ALL_STATES) {
       expect(MELO_COPY[state].primary.length).toBeGreaterThan(0);
@@ -76,6 +64,17 @@ describe('Melo — core product asset', () => {
     for (const state of ALL_STATES) {
       const text = `${MELO_COPY[state].primary} ${MELO_COPY[state].supporting ?? ''}`.toLowerCase();
       for (const phrase of banned) expect(text, `${state} / ${phrase}`).not.toContain(phrase);
+    }
+  });
+
+  it('uses plain language — never "row"/"rows" or "a user"/"the user"', () => {
+    // A customer thinks money in / out, a payment, a transaction — never a data-model "row" — and is
+    // always addressed as "you", never "a user". Word boundaries so e.g. "borrow" would be allowed.
+    for (const state of ALL_STATES) {
+      const text = `${MELO_COPY[state].primary} ${MELO_COPY[state].supporting ?? ''}`;
+      for (const pattern of [/\brows?\b/iu, /\ba user\b/iu, /\bthe user\b/iu]) {
+        expect(text, `${state} / ${pattern}`).not.toMatch(pattern);
+      }
     }
   });
 

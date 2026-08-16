@@ -6,9 +6,23 @@
   type ImportReviewRowSummary,
 } from '@folio/import-engine';
 import { buildForecast } from '@folio/finance-engine';
+import { expandBoundedRecurrence } from '@folio/calendar-engine';
+import {
+  createCycleRecordId,
+  createInstantString,
+  createMoney,
+  createPotId,
+  createSubscriptionId,
+  createWorkspaceId,
+  createEntityVersion,
+  type CycleRecord,
+  type Money,
+  type Pot,
+  type Subscription,
+} from '@folio/domain';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
-export type LocalTransactionSource = 'seed' | 'manual' | 'import';
+export type LocalTransactionSource = 'seed' | 'manual' | 'melo' | 'import' | 'open_banking';
 export type LocalTransactionStatus = 'confirmed' | 'needs_review';
 export type LocalImportAuthorityState =
   | 'imported-claim'
@@ -28,9 +42,15 @@ export type LocalImportRejectionReason =
 
 export type LocalLedgerTransaction = Readonly<{
   id: string;
+  /** Optional source-account identity. The canonical adapter resolves this through the explicit
+   *  account projection when one is supplied; legacy local-ledger callers still use its single
+   *  workspace cash account. */
+  accountId?: string;
   title: string;
   amountMinor: number;
   date: string;
+  bookedAt?: string;
+  categoryId?: string;
   source: LocalTransactionSource;
   status: LocalTransactionStatus;
   protected: boolean;
@@ -42,6 +62,11 @@ export type LocalLedgerTransaction = Readonly<{
   certainty?: 'confirmed' | 'expected';
   sourceDocumentId?: string;
   sourceLabel?: string;
+  sourceTransactionId?: string;
+  sourceEvidenceId?: string;
+  externalId?: string;
+  connectionId?: string;
+  sourceOrdinal?: number;
 }>;
 
 export type LocalImportDraft = Readonly<{
@@ -108,6 +133,11 @@ export type LocalDocumentStage = Readonly<{
   sourceType?: LocalDocumentSourceType;
   extractionStatus?: LocalDocumentExtractionStatus;
   linkedTransactionIds?: readonly string[];
+  // The on-device file location of the saved original (when one exists), so the user can open it in
+  // a viewer. Local only — never sent anywhere. Absent for pasted text (there is no file).
+  uri?: string;
+  // Free-text notes the user attached to this saved file. Reference only — notes never affect Today.
+  notes?: readonly string[];
 }>;
 
 export type DocumentItemInput = Readonly<{
@@ -118,33 +148,119 @@ export type DocumentItemInput = Readonly<{
   date?: string;
 }>;
 
+// The single source of truth for every history-entry kind. The persistence allowlist
+// (nativeLedgerStore.isHistoryKind) is derived from this same const, so the two can never drift —
+// previously the store accepted only ~half of these and silently dropped pot/subscription/cycle
+// history on every reload (a data-loss bug). Add new kinds here ONCE.
+export const LOCAL_HISTORY_KINDS = [
+  'manual_added',
+  'recovery_recorded',
+  'planner_added',
+  'import_staged',
+  'import_confirmed',
+  'import_dismissed',
+  'import_edited',
+  'import_restored',
+  'import_suggested',
+  'document_staged',
+  'pot_created',
+  'pot_funded',
+  'pot_reallocated',
+  'subscription_created',
+  'subscription_paused',
+  'subscription_resumed',
+  'subscription_used',
+  'subscription_cancelled',
+  'subscription_bulk_paused',
+  'cycle_closed',
+  'tight_point_goal_set',
+  'cash_on_hand_set',
+  'sub_nudged',
+  'calendar_event_added',
+  'calendar_event_removed',
+  'calendar_event_updated',
+] as const;
+
+export type LocalHistoryKind = (typeof LOCAL_HISTORY_KINDS)[number];
+
+// A user-ADDED calendar event. Derived events (payday, bills, sub renewals, deadlines, review
+// drafts) are computed on read by deriveCalendarEvents() in calendarEvents.ts and are NEVER stored
+// here. This array only holds events the user typed into the Calendar themselves.
+//
+// Named UserCalendarEvent (not LocalCalendarEvent) deliberately: localCalendarAdapter.ts already
+// exports a `LocalCalendarEvent` for the agenda READ surface (a fully-laid-out row). Reusing that
+// name on the ledger would collide. This is the durable input shape; that one is the derived output
+// shape.
+export type UserCalendarEventKind = 'in' | 'out' | 'review' | 'deadline' | 'manual';
+
+export type UserCalendarEvent = Readonly<{
+  id: string;
+  // ISO date (YYYY-MM-DD).
+  dateIso: string;
+  title: string;
+  kind: UserCalendarEventKind;
+  // Signed integer minor units (pence). Positive = money in, negative = money out, absent =
+  // informational. Stored exactly as given, never re-derived from text.
+  amountMinor?: number;
+  note?: string;
+  // When set, this event repeats; the read engine expands it over the window.
+  recurring?: 'monthly' | 'yearly';
+}>;
+
+export type AddUserCalendarEventInput = Readonly<{
+  id?: string;
+  dateIso: string;
+  title: string;
+  kind: UserCalendarEventKind;
+  amountMinor?: number;
+  note?: string;
+  recurring?: 'monthly' | 'yearly';
+}>;
+
+// The most user-added calendar events Folio keeps. Newest first; older ones fall off the end. A cap
+// keeps the durable snapshot bounded — the Calendar is a planner, not an unbounded event log.
+export const MAX_USER_CALENDAR_EVENTS = 100;
+
+// The widest day-delta a single sub renewal can be nudged in either direction. A renewal is a real
+// recurring charge; the user can slide it a few days to dodge a tight day, but not relocate it
+// arbitrarily. Clamped to keep the derived picture honest.
+export const MAX_SUB_OVERRIDE_DAYS = 7;
+
 export type LocalHistoryEntry = Readonly<{
   id: string;
   label: string;
   createdAt: string;
-  kind:
-    | 'manual_added'
-    | 'recovery_recorded'
-    | 'planner_added'
-    | 'import_staged'
-    | 'import_confirmed'
-    | 'import_dismissed'
-    | 'import_edited'
-    | 'import_restored'
-    | 'import_suggested'
-    | 'document_staged';
+  kind: LocalHistoryKind;
 }>;
 
 export type LocalLedgerState = Readonly<{
   asOfDate: string;
   cashOnHandMinor: number;
   currency: 'GBP';
+  // The user's own "tight-point goal" — the floor they want their tightest balance to stay above.
+  // A scalar on the canonical metadata (NOT a durable-container blob): null means the user has not
+  // set one yet. Money in integer minor units, like everything else here.
+  tightPointGoalMinor: number | null;
   transactions: readonly LocalLedgerTransaction[];
   importDrafts: readonly LocalImportDraft[];
   rejectedImports: readonly LocalRejectedImportEvidence[];
   documentStages: readonly LocalDocumentStage[];
   importIssueCount: number;
   history: readonly LocalHistoryEntry[];
+  // Durable containers/history that are NOT single money events, so they live as first-class arrays
+  // rather than being encoded onto transactions[]. The canonical financial snapshot ignores these;
+  // they are projected into the Pots/Subscriptions/Insights screens by their read-adapters.
+  pots: readonly Pot[];
+  subscriptions: readonly Subscription[];
+  cycles: readonly CycleRecord[];
+  // Per-subscription day-delta nudge keyed by sub NAME (e.g. { "Netflix": 3 } slides Netflix's next
+  // renewal 3 days later when deriving calendar events). Clamped to ±MAX_SUB_OVERRIDE_DAYS. A name
+  // with delta 0 is removed (the default is "no nudge"). Durable: round-trips through the snapshot
+  // blob like pots/subscriptions/cycles, not the normalized relational tables.
+  subOverrides: Readonly<Record<string, number>>;
+  // User-ADDED calendar events only. Derived events are computed on read, never stored. Newest
+  // first, capped at MAX_USER_CALENDAR_EVENTS. Durable: same snapshot-blob round-trip as above.
+  calendarEvents: readonly UserCalendarEvent[];
   lastImportSummary?: LocalImportSummary;
 }>;
 
@@ -312,6 +428,36 @@ export type LocalPlannedCommitmentInput = Readonly<{
   paid?: boolean;
 }>;
 
+export type CreatePotInput = Readonly<{
+  name: string;
+  goalMinor: number;
+  perWeekMinor: number;
+  accent?: boolean;
+}>;
+
+// How often a subscription charges. The user picks this in plain language ("every month") and the
+// engine turns it into the number of days until the next charge, so the Subscriptions screen and the
+// "next charge" tile read a real renewal day.
+export type SubscriptionCadence = 'weekly' | 'monthly' | 'yearly';
+
+export type CreateSubscriptionInput = Readonly<{
+  name: string;
+  costMinor: number;
+  cadence: SubscriptionCadence;
+  // Whole days until the next charge. When omitted, defaults to a full cadence period from today
+  // (a week / month / year), so a freshly added subscription has an honest upcoming renewal.
+  nextChargeInDays?: number;
+}>;
+
+export type CreateCycleRecordInput = Readonly<{
+  label: string;
+  spareMinor: number;
+  tightPointMinor: number;
+  setAsideMinor: number;
+  note?: string;
+  closedAt?: string;
+}>;
+
 export type QuickEstimateInput = Readonly<{
   billAmountText: string;
   billDate: string;
@@ -329,6 +475,25 @@ export type StageStatementImportResult = Readonly<{
   packet: ImportReviewPacket;
   issues: readonly ImportParseIssue[];
   message: string;
+  documentStage?: LocalDocumentStage;
+}>;
+
+// One clean transaction read off a statement by the AI reader (see statementExtraction.ts). amount is
+// in INTEGER minor units (pence) and always positive; the sign lives in `direction`. This is the
+// structured shape that goes STRAIGHT into a review draft — no re-parsing of free text — so the
+// amount and date the reader gave us are never lossily re-derived.
+export type StagedStatementTransaction = Readonly<{
+  dateIso: string;
+  merchant: string;
+  amountMinor: number;
+  direction: 'spend' | 'income';
+}>;
+
+export type StageStatementTransactionsResult = Readonly<{
+  state: LocalLedgerState;
+  message: string;
+  // How many waiting rows this actually added (after de-duplication against existing drafts/records).
+  addedDraftCount: number;
   documentStage?: LocalDocumentStage;
 }>;
 
@@ -361,6 +526,9 @@ export type LocalDocumentStageInput = Readonly<{
   mediaType: string;
   byteSize: number;
   storageState: LocalDocumentStage['storageState'];
+  // Optional on-device file location (from the picker / camera), persisted so the file can be opened
+  // in a viewer later. Never leaves the device.
+  uri?: string;
 }>;
 
 const seedAsOfDate = '2026-06-21';
@@ -375,6 +543,7 @@ export function createInitialLocalLedgerState(asOfDate = seedAsOfDate): LocalLed
     asOfDate,
     cashOnHandMinor: 119_047,
     currency: 'GBP',
+    tightPointGoalMinor: null,
     importIssueCount: 0,
     documentStages: [],
     rejectedImports: [],
@@ -469,6 +638,11 @@ export function createInitialLocalLedgerState(asOfDate = seedAsOfDate): LocalLed
       parserName: 'local example parser',
       skippedRows: 0,
     },
+    pots: [],
+    subscriptions: [],
+    cycles: [],
+    subOverrides: {},
+    calendarEvents: [],
   };
 }
 
@@ -477,12 +651,18 @@ export function createEmptyLocalLedgerState(asOfDate = seedAsOfDate): LocalLedge
     asOfDate,
     cashOnHandMinor: 0,
     currency: 'GBP',
+    tightPointGoalMinor: null,
     documentStages: [],
     history: [],
     importDrafts: [],
     importIssueCount: 0,
     rejectedImports: [],
     transactions: [],
+    pots: [],
+    subscriptions: [],
+    cycles: [],
+    subOverrides: {},
+    calendarEvents: [],
   };
 }
 
@@ -502,6 +682,7 @@ export function createQuickEstimateLocalLedgerState(
     asOfDate,
     cashOnHandMinor,
     currency: 'GBP',
+    tightPointGoalMinor: null,
     documentStages: [],
     rejectedImports: [],
     history: [
@@ -540,6 +721,11 @@ export function createQuickEstimateLocalLedgerState(
         original: `${billTitle} ${formatMinorAmount(-billAmountMinor)}`,
       },
     ],
+    pots: [],
+    subscriptions: [],
+    cycles: [],
+    subOverrides: {},
+    calendarEvents: [],
   };
 }
 
@@ -585,9 +771,79 @@ export function isPrivateExampleLedger(state: LocalLedgerState): boolean {
   );
 }
 
+// How far past today the route projects recurring income and bills. A recurring transaction is
+// stored once (its first occurrence), so without expansion the projected balance silently stops
+// including a salary or rent after that single dated point — the tightest point past the first
+// payday was wrong. 95 days covers three monthly cycles (and ~13 weekly cycles), i.e. more than one
+// full cycle beyond the next payday, which is what the route needs to find the real tightest point.
+// Exported so the Calendar engine (calendarEvents.ts) derives payday/bills over the SAME horizon and
+// the SAME recurrence expansion the Route uses — the two pictures must agree to the day.
+export const RECURRENCE_HORIZON_DAYS = 95;
+
+const REPEAT_TO_RRULE: Readonly<Record<Exclude<LocalCommitmentRepeat, 'none'>, string>> = {
+  weekly: 'FREQ=WEEKLY;INTERVAL=1',
+  monthly: 'FREQ=MONTHLY;INTERVAL=1',
+};
+
+// Expand each recurring transaction into the future occurrences it implies, out to the route
+// horizon. The transaction the user/onboarding stored carries only its FIRST dated occurrence plus a
+// `repeats` cadence; the route is built purely from dated transactions, so the later occurrences have
+// to be materialised here or they never reach the projected balance or the tightest-point search.
+//
+// The original transaction is left untouched (it is the first occurrence). For each later occurrence
+// strictly after the original date and on/before the horizon, a synthetic confirmed transaction is
+// produced with the same integer-minor amount, so no occurrence is double-counted. Synthetic
+// occurrences are non-protected projections (an expected future event, not a reserved-today bill) so
+// they move the running balance on their own date rather than being pulled forward to today.
+export function expandRecurringTransactions(
+  transactions: readonly LocalLedgerTransaction[],
+  asOfDate: string,
+): readonly LocalLedgerTransaction[] {
+  const horizonDate = addIsoDays(asOfDate, RECURRENCE_HORIZON_DAYS);
+  const expanded: LocalLedgerTransaction[] = [];
+
+  for (const transaction of transactions) {
+    expanded.push(transaction);
+    const repeat = transaction.repeats;
+    if (repeat === undefined || repeat === 'none') continue;
+    if (transaction.date > horizonDate) continue;
+
+    const occurrences = expandBoundedRecurrence({
+      dtstart: `${transaction.date}T12:00:00`,
+      timeZone: 'UTC',
+      rrule: REPEAT_TO_RRULE[repeat],
+      windowEnd: horizonDate,
+    });
+
+    let occurrenceIndex = 0;
+    for (const occurrence of occurrences) {
+      const occurrenceDate = occurrence.local.slice(0, 10);
+      // Skip the first occurrence (the original transaction already represents it) and anything
+      // past the horizon. expandBoundedRecurrence already bounds the window, but the date-only slice
+      // is the authoritative comparison the rest of the route uses.
+      if (occurrenceDate <= transaction.date) continue;
+      if (occurrenceDate > horizonDate) break;
+      occurrenceIndex += 1;
+      expanded.push({
+        ...transaction,
+        id: `${transaction.id}__r${occurrenceIndex}`,
+        date: occurrenceDate,
+        // Later occurrences are projected expectations, not money reserved today. Keeping them
+        // unprotected means each shows as a dated move on the route instead of collapsing into the
+        // "set aside for bills" amount pulled to today.
+        protected: false,
+        certainty: transaction.amountMinor > 0 ? 'expected' : (transaction.certainty ?? 'expected'),
+      });
+    }
+  }
+
+  return expanded;
+}
+
 export function buildLocalRouteSummary(state: LocalLedgerState): LocalRouteSummary {
-  const confirmedTransactions = state.transactions.filter(
-    (transaction) => transaction.status === 'confirmed',
+  const confirmedTransactions = expandRecurringTransactions(
+    state.transactions.filter((transaction) => transaction.status === 'confirmed'),
+    state.asOfDate,
   );
   const forecast = buildLocalFinanceForecast(state, confirmedTransactions);
   const openingBalanceMinor = latestForecastClosingOnOrBefore(
@@ -625,7 +881,12 @@ export function buildLocalRouteSummary(state: LocalLedgerState): LocalRouteSumma
     nextPaydayLabel: nextPaydayLabel(confirmedTransactions, state.asOfDate),
     timeline,
     points,
-    confirmedTransactionCount: confirmedTransactions.length,
+    // Count the records the user actually stored, not the projected future occurrences expansion
+    // adds — this is user-facing ("X added", "X confirmed records"), so it must stay honest about
+    // what is really saved on the device.
+    confirmedTransactionCount: state.transactions.filter(
+      (transaction) => transaction.status === 'confirmed',
+    ).length,
     lastActionLabel: state.history[0]?.label ?? 'Local route ready.',
   };
 }
@@ -668,6 +929,16 @@ export function buildMeloSnapshotFromLocalState(
   state: LocalLedgerState,
   route: LocalRouteSummary = buildLocalRouteSummary(state),
 ): MeloLocalFinancialSnapshot {
+  const activeSubscriptions = state.subscriptions.filter((subscription) => !subscription.paused);
+  const monthlySubscriptionMinor = (subscription: Subscription): number => {
+    if (subscription.cadence === 'weekly') {
+      return Math.round((subscription.cost.minorUnits * 52) / 12);
+    }
+    if (subscription.cadence === 'yearly') {
+      return Math.round(subscription.cost.minorUnits / 12);
+    }
+    return subscription.cost.minorUnits;
+  };
   return {
     currency: state.currency,
     availableNowMinor: route.availableNowMinor,
@@ -676,6 +947,12 @@ export function buildMeloSnapshotFromLocalState(
     protectedItems: route.protectedItems,
     pendingReviewCount: route.pendingReviewCount,
     nextPaydayLabel: route.nextPaydayLabel,
+    hasMoneyPicture: true,
+    subscriptionCount: activeSubscriptions.length,
+    activeSubscriptionMonthlyMinor: activeSubscriptions.reduce(
+      (total, subscription) => total + monthlySubscriptionMinor(subscription),
+      0,
+    ),
   };
 }
 
@@ -1015,6 +1292,546 @@ export function addPlannedCommitment(
   );
 }
 
+// Remove a single confirmed transaction the user logged — the undo for a mis-logged spend. It is an
+// immutable filter: the transaction with the matching id is dropped and the path is rebuilt from
+// what is left. No-ops cleanly if the id isn't present (e.g. it was already removed).
+export function removeTransaction(
+  state: LocalLedgerState,
+  transactionId: string,
+): LocalLedgerState {
+  const target = state.transactions.find((transaction) => transaction.id === transactionId);
+  if (target === undefined) return state;
+  return prependHistory(
+    {
+      ...state,
+      transactions: state.transactions.filter((transaction) => transaction.id !== transactionId),
+    },
+    'manual_added',
+    `${target.title} removed. Route rebuilt from what's left.`,
+  );
+}
+
+// Set (or clear) the user's tight-point goal — the floor they want their tightest balance to stay
+// above. A whole minor-unit amount of zero or more sets the floor; null clears it. Negative or
+// non-integer inputs are rejected (a floor below zero is meaningless). It is a scalar on the
+// canonical metadata, so this is a plain immutable field update — no containers touched.
+export function setTightPointGoal(
+  state: LocalLedgerState,
+  minorOrNull: number | null,
+): LocalLedgerState {
+  if (minorOrNull === null) {
+    if (state.tightPointGoalMinor === null) return state;
+    return prependHistory(
+      { ...state, tightPointGoalMinor: null },
+      'tight_point_goal_set',
+      'Tight-point goal cleared.',
+    );
+  }
+  const goalMinor = assertNonNegativeSafeMinor(minorOrNull, 'Tight-point goal');
+  if (state.tightPointGoalMinor === goalMinor) return state;
+  return prependHistory(
+    { ...state, tightPointGoalMinor: goalMinor },
+    'tight_point_goal_set',
+    `Tight-point goal set to ${formatMinorAmount(goalMinor)}.`,
+  );
+}
+
+// Update the cash the user actually has on hand right now — the "what I have today" figure first
+// captured in the quick estimate. Until now that figure could only be changed by re-running the
+// whole estimate, leaving a dead end. This is the same plain scalar update as the tight-point goal
+// (cashOnHandMinor lives on the canonical metadata, not a durable container), so it is a single
+// immutable field replacement that REBUILDS the path without touching history: every logged spend,
+// planned obligation and pot stays exactly as it was. A whole minor-unit amount of zero or more is
+// accepted; negative or non-integer inputs are rejected (a cash figure below zero is meaningless).
+export function setCashOnHand(state: LocalLedgerState, minor: number): LocalLedgerState {
+  const cashMinor = assertNonNegativeSafeMinor(minor, 'Money you have now');
+  if (state.cashOnHandMinor === cashMinor) return state;
+  return prependHistory(
+    { ...state, cashOnHandMinor: cashMinor },
+    'cash_on_hand_set',
+    `Money you have now updated to ${formatMinorAmount(cashMinor)}. Path rebuilt from your records.`,
+  );
+}
+
+// Pots, Subscriptions and Cycles are durable containers/history that share the local workspace
+// identity used by the canonical projection, so their entities reference the same workspace id.
+const localWorkspaceId = createWorkspaceId('workspace_personal_local');
+
+function localGbp(minorUnits: number): Money {
+  return createMoney({ minorUnits, currency: 'GBP' });
+}
+
+function assertNonNegativeSafeMinor(minorUnits: number, label: string): number {
+  if (!Number.isSafeInteger(minorUnits) || minorUnits < 0) {
+    throw new Error(`${label} must be a whole amount of zero or more.`);
+  }
+  return minorUnits;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pots
+// ---------------------------------------------------------------------------------------------
+
+export function createPot(state: LocalLedgerState, input: CreatePotInput): LocalLedgerState {
+  const name = cleanTitle(input.name, 'Pot');
+  const goalMinor = assertNonNegativeSafeMinor(Math.abs(input.goalMinor), 'Pot goal');
+  const perWeekMinor = assertNonNegativeSafeMinor(
+    Math.abs(input.perWeekMinor),
+    'Pot weekly amount',
+  );
+  const index = state.pots.length;
+  const pot: Pot = {
+    id: createPotId(localId('pot', index)),
+    workspaceId: localWorkspaceId,
+    name,
+    goal: localGbp(goalMinor),
+    saved: localGbp(0),
+    perWeek: localGbp(perWeekMinor),
+    accent: input.accent ?? false,
+    version: createEntityVersion(),
+  };
+
+  return prependHistory(
+    { ...state, pots: [pot, ...state.pots] },
+    'pot_created',
+    `${name} pot created. Goal ${formatMinorAmount(goalMinor)}.`,
+  );
+}
+
+export function addToPot(
+  state: LocalLedgerState,
+  potId: string,
+  amountMinor: number,
+): LocalLedgerState {
+  const moveMinor = assertNonNegativeSafeMinor(Math.abs(amountMinor), 'Pot top-up');
+  if (moveMinor <= 0) throw new Error('Top-up must be more than zero.');
+  const target = state.pots.find((pot) => String(pot.id) === potId);
+  if (target === undefined) throw new Error('That pot does not exist.');
+
+  const nextPots = state.pots.map((pot) =>
+    String(pot.id) === potId ? { ...pot, saved: localGbp(pot.saved.minorUnits + moveMinor) } : pot,
+  );
+
+  return prependHistory(
+    { ...state, pots: nextPots },
+    'pot_funded',
+    `${formatMinorAmount(moveMinor)} added to ${target.name}.`,
+  );
+}
+
+export function reallocateBetweenPots(
+  state: LocalLedgerState,
+  fromPotId: string,
+  toPotId: string,
+  amountMinor: number,
+): LocalLedgerState {
+  if (fromPotId === toPotId) throw new Error('Choose two different pots to move money between.');
+  const moveMinor = assertNonNegativeSafeMinor(Math.abs(amountMinor), 'Pot transfer');
+  if (moveMinor <= 0) throw new Error('Transfer must be more than zero.');
+  const fromPot = state.pots.find((pot) => String(pot.id) === fromPotId);
+  const toPot = state.pots.find((pot) => String(pot.id) === toPotId);
+  if (fromPot === undefined || toPot === undefined) throw new Error('Both pots must exist.');
+  if (fromPot.saved.minorUnits < moveMinor) {
+    throw new Error(`${fromPot.name} only holds ${formatMinorAmount(fromPot.saved.minorUnits)}.`);
+  }
+
+  const nextPots = state.pots.map((pot) => {
+    if (String(pot.id) === fromPotId) {
+      return { ...pot, saved: localGbp(pot.saved.minorUnits - moveMinor) };
+    }
+    if (String(pot.id) === toPotId) {
+      return { ...pot, saved: localGbp(pot.saved.minorUnits + moveMinor) };
+    }
+    return pot;
+  });
+
+  return prependHistory(
+    { ...state, pots: nextPots },
+    'pot_reallocated',
+    `${formatMinorAmount(moveMinor)} moved from ${fromPot.name} to ${toPot.name}.`,
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Subscriptions
+// ---------------------------------------------------------------------------------------------
+
+function findSubscription(state: LocalLedgerState, subscriptionId: string): Subscription {
+  const target = state.subscriptions.find((item) => String(item.id) === subscriptionId);
+  if (target === undefined) throw new Error('That subscription does not exist.');
+  return target;
+}
+
+function updateSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+  change: (subscription: Subscription) => Subscription,
+): readonly Subscription[] {
+  return state.subscriptions.map((item) =>
+    String(item.id) === subscriptionId ? change(item) : item,
+  );
+}
+
+// Days in one cadence period — used to default the next-charge day when the user doesn't set one.
+const CADENCE_PERIOD_DAYS: Readonly<Record<SubscriptionCadence, number>> = {
+  weekly: 7,
+  monthly: 30,
+  yearly: 365,
+};
+
+export function createSubscription(
+  state: LocalLedgerState,
+  input: CreateSubscriptionInput,
+): LocalLedgerState {
+  const name = cleanTitle(input.name, 'Subscription');
+  const costMinor = assertNonNegativeSafeMinor(Math.abs(input.costMinor), 'Subscription cost');
+  if (costMinor <= 0) throw new Error('A subscription needs a cost of more than zero.');
+  const periodDays = CADENCE_PERIOD_DAYS[input.cadence];
+  const nextRenewalDaysAway = Math.max(0, Math.round(input.nextChargeInDays ?? periodDays));
+  const index = state.subscriptions.length;
+  const subscription: Subscription = {
+    id: createSubscriptionId(localId('subscription', index)),
+    workspaceId: localWorkspaceId,
+    name,
+    cost: localGbp(costMinor),
+    cadence: input.cadence,
+    nextRenewalDaysAway,
+    // A brand-new subscription has no usage history yet: treat it as just added (used today, no uses
+    // counted this month). It starts active.
+    lastUsedDaysAgo: 0,
+    usesPerMonth: 0,
+    paused: false,
+    version: createEntityVersion(),
+  };
+
+  return prependHistory(
+    { ...state, subscriptions: [subscription, ...state.subscriptions] },
+    'subscription_created',
+    `${name} added. ${formatMinorAmount(costMinor)} every ${input.cadence === 'weekly' ? 'week' : input.cadence === 'yearly' ? 'year' : 'month'}.`,
+  );
+}
+
+export function pauseSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  const target = findSubscription(state, subscriptionId);
+  const nextSubscriptions = updateSubscription(state, subscriptionId, (item) => ({
+    ...item,
+    paused: true,
+  }));
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_paused',
+    `${target.name} paused.`,
+  );
+}
+
+export function resumeSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  const target = findSubscription(state, subscriptionId);
+  const nextSubscriptions = updateSubscription(state, subscriptionId, (item) => ({
+    ...item,
+    paused: false,
+  }));
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_resumed',
+    `${target.name} resumed.`,
+  );
+}
+
+export function recordSubscriptionUse(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  const target = findSubscription(state, subscriptionId);
+  const nextSubscriptions = updateSubscription(state, subscriptionId, (item) => ({
+    ...item,
+    lastUsedDaysAgo: 0,
+    usesPerMonth: item.usesPerMonth + 1,
+  }));
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_used',
+    `${target.name} marked as used.`,
+  );
+}
+
+export function cancelSubscription(
+  state: LocalLedgerState,
+  subscriptionId: string,
+): LocalLedgerState {
+  const target = findSubscription(state, subscriptionId);
+  const nextSubscriptions = state.subscriptions.filter(
+    (item) => String(item.id) !== subscriptionId,
+  );
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_cancelled',
+    `${target.name} cancelled.`,
+  );
+}
+
+// A subscription is "quiet" when the user is getting little or no use from it: it has gone unused
+// for a while AND is averaging under one use a month. bulkPauseQuiet pauses every quiet, still-active
+// subscription in one move so the user can stop the silent drain without reviewing each one.
+const QUIET_SUBSCRIPTION_UNUSED_DAYS = 30;
+const QUIET_SUBSCRIPTION_MAX_USES_PER_MONTH = 1;
+
+export function isQuietSubscription(subscription: Subscription): boolean {
+  return (
+    subscription.lastUsedDaysAgo >= QUIET_SUBSCRIPTION_UNUSED_DAYS &&
+    subscription.usesPerMonth < QUIET_SUBSCRIPTION_MAX_USES_PER_MONTH
+  );
+}
+
+export function bulkPauseQuiet(state: LocalLedgerState): LocalLedgerState {
+  const quietActive = state.subscriptions.filter(
+    (item) => !item.paused && isQuietSubscription(item),
+  );
+  if (quietActive.length === 0) {
+    return prependHistory(state, 'subscription_bulk_paused', 'No quiet subscriptions to pause.');
+  }
+
+  const nextSubscriptions = state.subscriptions.map((item) =>
+    !item.paused && isQuietSubscription(item) ? { ...item, paused: true } : item,
+  );
+
+  return prependHistory(
+    { ...state, subscriptions: nextSubscriptions },
+    'subscription_bulk_paused',
+    `${quietActive.length} quiet subscription${quietActive.length === 1 ? '' : 's'} paused.`,
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Cycles (closed-cycle history)
+// ---------------------------------------------------------------------------------------------
+
+export function addCycle(state: LocalLedgerState, input: CreateCycleRecordInput): LocalLedgerState {
+  const label = cleanTitle(input.label, 'Closed cycle');
+  const spareMinor = assertNonNegativeSafeMinor(Math.abs(input.spareMinor), 'Cycle spare');
+  const tightPointMinor = assertNonNegativeSafeMinor(
+    Math.abs(input.tightPointMinor),
+    'Cycle tight point',
+  );
+  const setAsideMinor = assertNonNegativeSafeMinor(
+    Math.abs(input.setAsideMinor),
+    'Cycle set aside',
+  );
+  const closedAt = createInstantString(input.closedAt ?? `${state.asOfDate}T10:00:00.000Z`);
+  const index = state.cycles.length;
+  const note = input.note?.trim();
+  const record: CycleRecord = {
+    id: createCycleRecordId(localId('cycle', index)),
+    workspaceId: localWorkspaceId,
+    closedAt,
+    label,
+    spare: localGbp(spareMinor),
+    tightPoint: localGbp(tightPointMinor),
+    setAside: localGbp(setAsideMinor),
+    version: createEntityVersion(),
+    ...(note === undefined || note.length === 0 ? {} : { note }),
+  };
+
+  return prependHistory(
+    { ...state, cycles: [record, ...state.cycles] },
+    'cycle_closed',
+    `${label} closed with ${formatMinorAmount(spareMinor)} spare.`,
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Subscription renewal nudges + user-added calendar events
+// ---------------------------------------------------------------------------------------------
+
+function clampSubOverrideDays(deltaDays: number): number {
+  if (!Number.isFinite(deltaDays)) return 0;
+  const rounded = Math.round(deltaDays);
+  if (rounded > MAX_SUB_OVERRIDE_DAYS) return MAX_SUB_OVERRIDE_DAYS;
+  if (rounded < -MAX_SUB_OVERRIDE_DAYS) return -MAX_SUB_OVERRIDE_DAYS;
+  return rounded;
+}
+
+// Slide a subscription's next renewal by a day delta, keyed by sub NAME (the Calendar offers
+// −3d/−1d/+1d/+3d on a sub row). The delta is the ABSOLUTE override, clamped to ±MAX_SUB_OVERRIDE_DAYS
+// — not additive — so repeated taps converge instead of drifting past the clamp. A delta that clamps
+// to 0 removes the override entirely (back to "no nudge"). The override is applied in
+// deriveCalendarEvents when computing the renewal day; the stored Subscription is never mutated.
+export function nudgeSub(
+  state: LocalLedgerState,
+  subName: string,
+  deltaDays: number,
+): LocalLedgerState {
+  const name = subName.trim();
+  if (name.length === 0) return state;
+  const clamped = clampSubOverrideDays(deltaDays);
+  const current = state.subOverrides[name] ?? 0;
+  if (clamped === current) return state;
+
+  if (clamped === 0) {
+    if (!(name in state.subOverrides)) return state;
+    const nextOverrides: Record<string, number> = {};
+    for (const key of Object.keys(state.subOverrides)) {
+      if (key === name) continue;
+      const value = state.subOverrides[key];
+      if (value !== undefined) nextOverrides[key] = value;
+    }
+    return prependHistory(
+      { ...state, subOverrides: nextOverrides },
+      'sub_nudged',
+      `${name} renewal moved back to its usual day.`,
+    );
+  }
+
+  return prependHistory(
+    { ...state, subOverrides: { ...state.subOverrides, [name]: clamped } },
+    'sub_nudged',
+    `${name} renewal nudged ${clamped > 0 ? '+' : ''}${clamped}d.`,
+  );
+}
+
+function cleanOptionalNote(note: string | undefined): string | undefined {
+  if (note === undefined) return undefined;
+  const cleaned = note.trim().replace(/\s+/g, ' ');
+  return cleaned.length === 0 ? undefined : cleaned;
+}
+
+function assertSafeIntegerMinorOrUndefined(
+  amountMinor: number | undefined,
+  label: string,
+): number | undefined {
+  if (amountMinor === undefined) return undefined;
+  if (!Number.isSafeInteger(amountMinor)) {
+    throw new Error(`${label} must be a whole amount in pence.`);
+  }
+  return amountMinor;
+}
+
+// Add one event the user typed into the Calendar. This is reference/planner data — it surfaces on
+// the Calendar timeline but is NOT a posted transaction, so it never moves Today's available figure
+// on its own. Kept newest-first and capped at MAX_USER_CALENDAR_EVENTS.
+export function addCalendarEvent(
+  state: LocalLedgerState,
+  input: AddUserCalendarEventInput,
+): LocalLedgerState {
+  const dateIso = parseRequiredIsoDateInput(input.dateIso);
+  const title = cleanTitle(input.title, 'Calendar note');
+  const amountMinor = assertSafeIntegerMinorOrUndefined(input.amountMinor, 'Calendar amount');
+  const note = cleanOptionalNote(input.note);
+  const event: UserCalendarEvent = {
+    id: input.id ?? localId('calendar_event', state.calendarEvents.length + state.history.length),
+    dateIso,
+    title,
+    kind: input.kind,
+    ...(amountMinor === undefined ? {} : { amountMinor }),
+    ...(note === undefined ? {} : { note }),
+    ...(input.recurring === undefined ? {} : { recurring: input.recurring }),
+  };
+
+  return prependHistory(
+    {
+      ...state,
+      calendarEvents: [event, ...state.calendarEvents].slice(0, MAX_USER_CALENDAR_EVENTS),
+    },
+    'calendar_event_added',
+    `${title} added to your calendar for ${dateIso}.`,
+  );
+}
+
+export function removeCalendarEvent(state: LocalLedgerState, id: string): LocalLedgerState {
+  const target = state.calendarEvents.find((event) => event.id === id);
+  if (target === undefined) return state;
+  return prependHistory(
+    {
+      ...state,
+      calendarEvents: state.calendarEvents.filter((event) => event.id !== id),
+    },
+    'calendar_event_removed',
+    `${target.title} removed from your calendar.`,
+  );
+}
+
+export type UpdateUserCalendarEventPatch = Readonly<{
+  dateIso?: string;
+  title?: string;
+  kind?: UserCalendarEventKind;
+  amountMinor?: number | null;
+  note?: string | null;
+  recurring?: 'monthly' | 'yearly' | null;
+}>;
+
+// Patch a user-added event (a date nudge from the Calendar's −1d/+1d, or an edit). Only provided
+// fields change. Passing null for amountMinor / note / recurring CLEARS that optional field; omitting
+// it leaves it as-is. No-ops cleanly if the id is unknown.
+export function updateCalendarEvent(
+  state: LocalLedgerState,
+  id: string,
+  patch: UpdateUserCalendarEventPatch,
+): LocalLedgerState {
+  const target = state.calendarEvents.find((event) => event.id === id);
+  if (target === undefined) return state;
+
+  const nextDateIso =
+    patch.dateIso === undefined ? target.dateIso : parseRequiredIsoDateInput(patch.dateIso);
+  const nextTitle =
+    patch.title === undefined ? target.title : cleanTitle(patch.title, target.title);
+  const nextKind = patch.kind ?? target.kind;
+
+  let nextAmountMinor: number | undefined;
+  if (patch.amountMinor === undefined) {
+    nextAmountMinor = target.amountMinor;
+  } else if (patch.amountMinor === null) {
+    nextAmountMinor = undefined;
+  } else {
+    nextAmountMinor = assertSafeIntegerMinorOrUndefined(patch.amountMinor, 'Calendar amount');
+  }
+
+  let nextNote: string | undefined;
+  if (patch.note === undefined) {
+    nextNote = target.note;
+  } else if (patch.note === null) {
+    nextNote = undefined;
+  } else {
+    nextNote = cleanOptionalNote(patch.note);
+  }
+
+  let nextRecurring: 'monthly' | 'yearly' | undefined;
+  if (patch.recurring === undefined) {
+    nextRecurring = target.recurring;
+  } else if (patch.recurring === null) {
+    nextRecurring = undefined;
+  } else {
+    nextRecurring = patch.recurring;
+  }
+
+  const updated: UserCalendarEvent = {
+    id: target.id,
+    dateIso: nextDateIso,
+    title: nextTitle,
+    kind: nextKind,
+    ...(nextAmountMinor === undefined ? {} : { amountMinor: nextAmountMinor }),
+    ...(nextNote === undefined ? {} : { note: nextNote }),
+    ...(nextRecurring === undefined ? {} : { recurring: nextRecurring }),
+  };
+
+  return prependHistory(
+    {
+      ...state,
+      calendarEvents: state.calendarEvents.map((event) => (event.id === id ? updated : event)),
+    },
+    'calendar_event_updated',
+    `${updated.title} updated.`,
+  );
+}
+
 export function stageStatementImport(
   state: LocalLedgerState,
   text: string,
@@ -1104,8 +1921,8 @@ export function stageStatementImport(
     },
     documentStage === undefined ? 'import_staged' : 'document_staged',
     documentStage === undefined
-      ? `${packet.counts.parsedRows} rows found to check. ${packet.counts.needsUserReview} need review.`
-      : `${documentStage.filename} added for review. ${packet.counts.parsedRows} rows found to check.`,
+      ? `${packet.counts.parsedRows} found to check. ${packet.counts.needsUserReview} need review.`
+      : `${documentStage.filename} added for review. ${packet.counts.parsedRows} found to check.`,
   );
 
   return {
@@ -1114,9 +1931,139 @@ export function stageStatementImport(
     issues: parseResult.issues,
     message:
       documentStage === undefined
-        ? `${packet.counts.parsedRows} rows found to check. Nothing has been added yet. Review the rows you want to keep.`
-        : `${packet.counts.parsedRows} rows found to check. Nothing has been added yet. Review the rows you want to keep.`,
+        ? `${packet.counts.parsedRows} found to check. Nothing has been added yet. Keep the ones you want.`
+        : `${packet.counts.parsedRows} found to check. Nothing has been added yet. Keep the ones you want.`,
     ...(documentStage === undefined ? {} : { documentStage }),
+  };
+}
+
+// Turn the AI reader's clean, already-structured transactions into waiting review drafts WITHOUT
+// re-parsing any text. The reader gave us a date, a merchant, and an exact pence amount with a known
+// direction, so we build each LocalImportDraft straight from those fields — the amount the user
+// confirms is the amount the reader read, byte-for-byte. Drafts land in the SAME "check what Folio
+// found" queue as text imports and are NEVER auto-committed; the user reviews and confirms each one
+// through the existing confirmImportDraft path. De-duplicates against existing drafts, confirmed
+// records, and previously-rejected evidence exactly like stageStatementImport does.
+export function stageStatementTransactions(
+  state: LocalLedgerState,
+  transactions: readonly StagedStatementTransaction[],
+  source?: LocalDocumentStageInput,
+): StageStatementTransactionsResult {
+  const baseIndex = state.history.length + state.importDrafts.length;
+  const candidateDrafts = transactions
+    .map((txn, offset) => buildDraftFromStatementTransaction(txn, baseIndex + offset))
+    .filter((draft): draft is LocalImportDraft => draft !== null);
+
+  const reviewDrafts = candidateDrafts.map((draft) =>
+    markPreviouslyRejectedDraft(draft, findMatchingRejectedImport(state.rejectedImports, draft)),
+  );
+
+  const existingRowIds = new Set(state.importDrafts.map((draft) => draft.rowId));
+  const existingProvenanceHashes = new Set([
+    ...state.importDrafts.map((draft) => draft.provenanceHash),
+    ...state.transactions
+      .map((transaction) => transaction.provenanceHash)
+      .filter((hash): hash is string => hash !== undefined),
+  ]);
+  const acceptedDrafts = reviewDrafts.filter(
+    (draft) =>
+      !existingRowIds.has(draft.rowId) &&
+      !existingProvenanceHashes.has(draft.provenanceHash) &&
+      !state.importDrafts.some((candidate) => hasEquivalentDraft(candidate, draft)) &&
+      !hasEquivalentTransaction(state.transactions, {
+        id: draft.transactionId,
+        title: draft.interpretation,
+        amountMinor: draft.amountMinor,
+        date: draft.date,
+        source: 'import',
+        status: 'confirmed',
+        protected: isProtectedTitle(draft.interpretation),
+        original: draft.original,
+        provenanceHash: draft.provenanceHash,
+      }),
+  );
+
+  const mergedDrafts = [...acceptedDrafts, ...state.importDrafts];
+  const documentStage =
+    source === undefined
+      ? undefined
+      : createLocalDocumentStage({
+          source,
+          text: transactions
+            .map((txn) => `${txn.dateIso} ${txn.merchant} ${txn.amountMinor} ${txn.direction}`)
+            .join('\n'),
+          index: state.documentStages.length,
+          stagedAt: parsedAtForDate(state.asOfDate),
+          // The reader saw the statement; treat it as OCR-extracted regardless of the on-device path.
+          extractionStatus: 'ocr-extracted',
+        });
+
+  const message =
+    acceptedDrafts.length > 0
+      ? `${acceptedDrafts.length} found to check. Nothing has been added yet. Keep the ones you want.`
+      : 'Nothing new to check — these were already waiting or saved.';
+
+  const nextState = prependHistory(
+    {
+      ...state,
+      importDrafts: mergedDrafts,
+      documentStages:
+        documentStage === undefined
+          ? state.documentStages
+          : [documentStage, ...state.documentStages],
+    },
+    documentStage === undefined ? 'import_staged' : 'document_staged',
+    documentStage === undefined
+      ? `${acceptedDrafts.length} found to check from your statement.`
+      : `${documentStage.filename} read. ${acceptedDrafts.length} found to check.`,
+  );
+
+  return {
+    state: nextState,
+    message,
+    addedDraftCount: acceptedDrafts.length,
+    ...(documentStage === undefined ? {} : { documentStage }),
+  };
+}
+
+// Build one waiting draft straight from a structured AI-read transaction. The amount is kept exactly
+// (already integer pence); the sign is applied from `direction`. The draft is marked
+// 'ready-for-user-confirmation' so the user's confirm is a one-tap glance, not data entry — but it is
+// still a draft, so nothing reaches the money picture until they confirm. Returns null for a junk
+// entry (empty merchant or non-positive amount) so it is silently dropped, never shown.
+function buildDraftFromStatementTransaction(
+  txn: StagedStatementTransaction,
+  index: number,
+): LocalImportDraft | null {
+  const merchant = txn.merchant.trim();
+  if (merchant.length === 0) return null;
+  const absoluteMinor = Math.abs(Math.round(txn.amountMinor));
+  if (!Number.isSafeInteger(absoluteMinor) || absoluteMinor <= 0) return null;
+  const dateIso = parseIsoDateInput(txn.dateIso, '');
+  if (dateIso.length === 0) return null;
+
+  const amountMinor = txn.direction === 'spend' ? -absoluteMinor : absoluteMinor;
+  const original = `${merchant} ${formatMinorAmount(amountMinor)}`;
+  const provenanceHash = createLocalTextDigest(
+    `ai:${dateIso}:${amountMinor}:${normalizeTitle(merchant)}`,
+  );
+  const rowId = localId('ai_statement_row', index);
+
+  return {
+    rowId,
+    transactionId: localId('ai_statement_txn', index),
+    original,
+    interpretation: merchant,
+    amountMinor,
+    date: dateIso,
+    authorityState: 'imported-claim',
+    reviewState: 'ready-for-user-confirmation',
+    userConfirmationState: 'requested',
+    parserIssues: [],
+    status: 'Ready to confirm',
+    provenanceHash,
+    searchText: `${original} ${merchant}`.toLowerCase(),
+    reasons: [],
   };
 }
 
@@ -1137,13 +2084,13 @@ export function stageDocumentForManualReview(
       documentStages: [documentStage, ...state.documentStages],
     },
     'document_staged',
-    `${documentStage.filename} added for manual review. No rows were added.`,
+    `${documentStage.filename} added for manual review. Nothing was added.`,
   );
 
   return {
     documentStage,
     message:
-      'File added for review. Automatic reading is not ready for this file yet. You can still add the important numbers manually.',
+      'File saved. I could not read this statement clearly enough to show things to check. You can add one thing yourself.',
     state: nextState,
   };
 }
@@ -1569,11 +2516,13 @@ function buildRoutePoints(input: {
               ? 'Reveal protected commitment'
               : 'Reveal record',
         authorityLabel:
-          transaction.source === 'manual'
+          transaction.source === 'manual' || transaction.source === 'melo'
             ? 'User-confirmed local record'
             : transaction.source === 'import'
               ? 'Confirmed imported record'
-              : 'Private example record',
+              : transaction.source === 'open_banking'
+                ? 'Confirmed Open Banking record'
+                : 'Private example record',
         date: transaction.date,
         dependsOn: [transaction.id],
         label: dayLabel(transaction.date, input.asOfDate),
@@ -1654,9 +2603,11 @@ function createRoutePoint(
 function tightestPointFromRoute(
   points: readonly LocalRoutePoint[],
 ): Readonly<{ day: string; balanceMinor: number }> {
-  const candidates = points.length === 0 ? [] : points.slice(1);
-  const usablePoints = candidates.length > 0 ? candidates : points;
-  const tightest = usablePoints.reduce<LocalRoutePoint | undefined>(
+  // The tightest point is the lowest balance anywhere on the route — including point0 (today's
+  // opening balance). Dropping today (the old points.slice(1)) hid a current overdraft whenever a
+  // later point existed: an overdrawn-today-then-paid-later picture reported a positive tightest
+  // and a falsely reassuring "your money lasts" verdict. Reduce over the FULL points array.
+  const tightest = points.reduce<LocalRoutePoint | undefined>(
     (current, point) =>
       current === undefined || point.balanceMinor < current.balanceMinor ? point : current,
     undefined,
@@ -1810,7 +2761,7 @@ function originalTextForRow(
       }>
     | undefined,
 ): string {
-  if (row === undefined) return 'Imported row';
+  if (row === undefined) return 'Imported payment';
   const sourceValues = Object.values(row.provenance.original).filter(
     (value) => value.trim().length > 0,
   );
@@ -1859,7 +2810,31 @@ function createLocalDocumentStage({
     sourceType: inferDocumentSourceType(mediaType, filename, source.storageState),
     extractionStatus,
     linkedTransactionIds: [],
+    ...(source.uri !== undefined ? { uri: source.uri } : {}),
+    notes: [],
   };
+}
+
+/**
+ * Attach a free-text note to a saved file. Reference only — a note never changes Today or the path,
+ * it just helps the user remember what the file was. No-op if the document is gone.
+ */
+export function addDocumentNote(
+  state: LocalLedgerState,
+  documentId: string,
+  note: string,
+): LocalLedgerState {
+  const trimmed = note.trim();
+  if (trimmed.length === 0) return state;
+  const target = state.documentStages.find((stage) => stage.id === documentId);
+  if (target === undefined) return state;
+  const withNote: LocalLedgerState = {
+    ...state,
+    documentStages: state.documentStages.map((stage) =>
+      stage.id === documentId ? { ...stage, notes: [...(stage.notes ?? []), trimmed] } : stage,
+    ),
+  };
+  return prependHistory(withNote, 'document_staged', `Note added to ${target.filename}.`);
 }
 
 function createLocalTextDigest(text: string): string {
@@ -1985,7 +2960,9 @@ function isProtectedTitle(title: string): boolean {
 
 function transactionSourceLabel(source: LocalTransactionSource): string {
   if (source === 'manual') return 'Manual';
+  if (source === 'melo') return 'Melo';
   if (source === 'import') return 'Statement';
+  if (source === 'open_banking') return 'Open Banking';
   return 'Private example';
 }
 
@@ -2083,13 +3060,13 @@ function parseRequiredIsoDateInput(value: string): string {
   return parsed.toISOString().slice(0, 10);
 }
 
-function addIsoDays(date: string, days: number): string {
+export function addIsoDays(date: string, days: number): string {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   parsed.setUTCDate(parsed.getUTCDate() + days);
   return parsed.toISOString().slice(0, 10);
 }
 
-function isoDayDistance(fromDate: string, toDate: string): number {
+export function isoDayDistance(fromDate: string, toDate: string): number {
   return Math.round(
     (Date.parse(`${toDate}T00:00:00.000Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) /
       millisecondsPerDay,

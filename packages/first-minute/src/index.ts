@@ -90,7 +90,7 @@ export const syntheticPreviewTimeline: SyntheticPreviewTimeline = {
       amount: { minorUnits: -1800, currency: 'GBP' },
       synthetic: true,
       usesUserData: false,
-      consequence: 'Folio shows how a choice changes the position before payday.',
+      consequence: 'Melo shows how a choice changes the position before payday.',
     },
     {
       id: 'preview_payday',
@@ -700,7 +700,7 @@ export const localFirstPrivacyRouteSummary: LocalFirstPrivacyRouteSummary = {
       state: 'off_until_chosen',
       leavesDevice: false,
       requestedWhen: 'when adding an item to the system calendar',
-      fallback: 'keep the item inside Folio',
+      fallback: 'keep the item inside Melo',
     },
     {
       id: 'calendar_read',
@@ -708,7 +708,7 @@ export const localFirstPrivacyRouteSummary: LocalFirstPrivacyRouteSummary = {
       state: 'off_until_chosen',
       leavesDevice: false,
       requestedWhen: 'after explicit calendar import or sync selection',
-      fallback: 'manual dates and Folio-only calendar',
+      fallback: 'manual dates and Melo-only calendar',
     },
     {
       id: 'open_banking',

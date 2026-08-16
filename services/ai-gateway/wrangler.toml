@@ -1,0 +1,31 @@
+# Cloudflare Worker config for the Folio Melo AI gateway.
+#
+# This Worker is an abstract phrasing boundary, not a chat/file proxy. It accepts only
+# allow-listed enums and placeholder tokens; raw prompts, messages, snapshots and files fail closed.
+# The OpenRouter key is a Cloudflare secret and never ships inside the Melo APK.
+#
+# Deploy:   wrangler deploy
+# Secret:   wrangler secret put OPENROUTER_API_KEY
+# Secret:   wrangler secret put GATEWAY_TOKEN
+
+name = "folio-ai-gateway"
+main = "src/index.ts"
+compatibility_date = "2026-07-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Non-secret defaults. Override per-environment in the Cloudflare dashboard or here.
+# The OpenRouter API key is NEVER set here — it is a secret (`wrangler secret put`).
+[vars]
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = "google/gemini-2.5-flash-lite"
+PHRASE_DAILY_CAP = "2000"
+
+# Metering store — created + bound 2026-07-11 (owner "do all"). Remove this block to switch
+# metering off entirely; the worker then fails closed.
+[[kv_namespaces]]
+binding = "METER_KV"
+id = "aacebf9d340b45e2807b982182bd6d08"
+
+# Observability is handy for spotting abuse + errors. Safe to keep on.
+[observability]
+enabled = true

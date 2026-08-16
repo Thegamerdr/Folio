@@ -7,17 +7,22 @@ import {
   type BalanceObservation,
   type CalendarItem,
   type Commitment,
+  type CompanionRuntimeState,
   type CurrentBalance,
   type DecisionRecord,
+  type Debt,
   type DocumentAttachment,
   type DocumentRecord,
   type Event,
   type FinancialExpectation,
+  type FinancialContext,
   type FinancialTransaction,
   type Forecast,
   type ImportedClaim,
+  type IncomeSchedule,
   type ImportDraft,
   type TimelineEntry,
+  type TransactionIntelligenceState,
   type MeloMemory,
   type MeloProposalRecord,
   type ParsedRow,
@@ -25,9 +30,14 @@ import {
   type PlanImpact,
   type PlanRule,
   type PlannerItem,
+  type Pot,
+  type PotLedgerEntry,
   type Provenance,
   type Scenario,
   type SourceRecord,
+  type Subscription,
+  type SubscriptionPreference,
+  type CycleRecord,
   type UserCorrection,
   type Workspace,
   type WorkspaceId,
@@ -67,6 +77,16 @@ export const canonicalLocalPersistenceCollections = [
   'timelineEntries',
   'meloMemory',
   'meloProposals',
+  'pots',
+  'potLedgerEntries',
+  'subscriptions',
+  'subscriptionPreferences',
+  'cycleRecords',
+  'debts',
+  'financialContexts',
+  'incomeSchedules',
+  'transactionIntelligenceStates',
+  'companionRuntimeStates',
   'auditLog',
 ] as const;
 
@@ -103,6 +123,16 @@ export type CanonicalRepositoryCollections = Readonly<{
   timelineEntries: readonly TimelineEntry[];
   meloMemory: readonly MeloMemory[];
   meloProposals: readonly MeloProposalRecord[];
+  pots: readonly Pot[];
+  potLedgerEntries: readonly PotLedgerEntry[];
+  subscriptions: readonly Subscription[];
+  subscriptionPreferences: readonly SubscriptionPreference[];
+  cycleRecords: readonly CycleRecord[];
+  debts: readonly Debt[];
+  financialContexts: readonly FinancialContext[];
+  incomeSchedules: readonly IncomeSchedule[];
+  transactionIntelligenceStates: readonly TransactionIntelligenceState[];
+  companionRuntimeStates: readonly CompanionRuntimeState[];
   auditLog: readonly AuditLogEntry[];
 }>;
 
@@ -193,6 +223,16 @@ export interface CanonicalRepository {
   readonly auditLog: CanonicalEntityRepository<AuditLogEntry>;
   readonly meloMemory: CanonicalEntityRepository<MeloMemory>;
   readonly meloProposals: CanonicalEntityRepository<MeloProposalRecord>;
+  readonly pots: CanonicalEntityRepository<Pot>;
+  readonly potLedgerEntries: CanonicalEntityRepository<PotLedgerEntry>;
+  readonly subscriptions: CanonicalEntityRepository<Subscription>;
+  readonly subscriptionPreferences: CanonicalEntityRepository<SubscriptionPreference>;
+  readonly cycleRecords: CanonicalEntityRepository<CycleRecord>;
+  readonly debts: CanonicalEntityRepository<Debt>;
+  readonly financialContexts: CanonicalEntityRepository<FinancialContext>;
+  readonly incomeSchedules: CanonicalEntityRepository<IncomeSchedule>;
+  readonly transactionIntelligenceStates: CanonicalEntityRepository<TransactionIntelligenceState>;
+  readonly companionRuntimeStates: CanonicalEntityRepository<CompanionRuntimeState>;
   readonly documents: CanonicalEntityRepository<DocumentRecord>;
   readonly documentAttachments: CanonicalEntityRepository<DocumentAttachment>;
   readonly calendarItems: CanonicalEntityRepository<CalendarItem>;
@@ -241,6 +281,16 @@ type CanonicalMapState = {
   timelineEntries: Map<string, TimelineEntry>;
   meloMemory: Map<string, MeloMemory>;
   meloProposals: Map<string, MeloProposalRecord>;
+  pots: Map<string, Pot>;
+  potLedgerEntries: Map<string, PotLedgerEntry>;
+  subscriptions: Map<string, Subscription>;
+  subscriptionPreferences: Map<string, SubscriptionPreference>;
+  cycleRecords: Map<string, CycleRecord>;
+  debts: Map<string, Debt>;
+  financialContexts: Map<string, FinancialContext>;
+  incomeSchedules: Map<string, IncomeSchedule>;
+  transactionIntelligenceStates: Map<string, TransactionIntelligenceState>;
+  companionRuntimeStates: Map<string, CompanionRuntimeState>;
   auditLog: Map<string, AuditLogEntry>;
 };
 
@@ -308,6 +358,24 @@ export function seedCanonicalRepository(
   for (const entry of seed.timelineEntries ?? []) repository.timelineEntries.put(entry);
   for (const memory of seed.meloMemory ?? []) repository.meloMemory.put(memory);
   for (const proposal of seed.meloProposals ?? []) repository.meloProposals.put(proposal);
+  for (const pot of seed.pots ?? []) repository.pots.put(pot);
+  for (const entry of seed.potLedgerEntries ?? []) repository.potLedgerEntries.put(entry);
+  for (const subscription of seed.subscriptions ?? []) {
+    repository.subscriptions.put(subscription);
+  }
+  for (const preference of seed.subscriptionPreferences ?? []) {
+    repository.subscriptionPreferences.put(preference);
+  }
+  for (const cycle of seed.cycleRecords ?? []) repository.cycleRecords.put(cycle);
+  for (const debt of seed.debts ?? []) repository.debts.put(debt);
+  for (const context of seed.financialContexts ?? []) repository.financialContexts.put(context);
+  for (const schedule of seed.incomeSchedules ?? []) repository.incomeSchedules.put(schedule);
+  for (const intelligence of seed.transactionIntelligenceStates ?? []) {
+    repository.transactionIntelligenceStates.put(intelligence);
+  }
+  for (const runtime of seed.companionRuntimeStates ?? []) {
+    repository.companionRuntimeStates.put(runtime);
+  }
   for (const entry of seed.auditLog ?? []) repository.auditLog.put(entry);
 }
 
@@ -352,6 +420,16 @@ class InMemoryCanonicalRepository implements CanonicalRepository {
   readonly timelineEntries: CanonicalEntityRepository<TimelineEntry>;
   readonly meloMemory: CanonicalEntityRepository<MeloMemory>;
   readonly meloProposals: CanonicalEntityRepository<MeloProposalRecord>;
+  readonly pots: CanonicalEntityRepository<Pot>;
+  readonly potLedgerEntries: CanonicalEntityRepository<PotLedgerEntry>;
+  readonly subscriptions: CanonicalEntityRepository<Subscription>;
+  readonly subscriptionPreferences: CanonicalEntityRepository<SubscriptionPreference>;
+  readonly cycleRecords: CanonicalEntityRepository<CycleRecord>;
+  readonly debts: CanonicalEntityRepository<Debt>;
+  readonly financialContexts: CanonicalEntityRepository<FinancialContext>;
+  readonly incomeSchedules: CanonicalEntityRepository<IncomeSchedule>;
+  readonly transactionIntelligenceStates: CanonicalEntityRepository<TransactionIntelligenceState>;
+  readonly companionRuntimeStates: CanonicalEntityRepository<CompanionRuntimeState>;
   readonly auditLog: CanonicalEntityRepository<AuditLogEntry>;
 
   constructor(
@@ -387,6 +465,16 @@ class InMemoryCanonicalRepository implements CanonicalRepository {
     this.timelineEntries = this.entityRepository('timelineEntries');
     this.meloMemory = this.entityRepository('meloMemory');
     this.meloProposals = this.entityRepository('meloProposals');
+    this.pots = this.entityRepository('pots');
+    this.potLedgerEntries = this.entityRepository('potLedgerEntries');
+    this.subscriptions = this.entityRepository('subscriptions');
+    this.subscriptionPreferences = this.entityRepository('subscriptionPreferences');
+    this.cycleRecords = this.entityRepository('cycleRecords');
+    this.debts = this.entityRepository('debts');
+    this.financialContexts = this.entityRepository('financialContexts');
+    this.incomeSchedules = this.entityRepository('incomeSchedules');
+    this.transactionIntelligenceStates = this.entityRepository('transactionIntelligenceStates');
+    this.companionRuntimeStates = this.entityRepository('companionRuntimeStates');
     this.auditLog = this.entityRepository('auditLog');
   }
 
@@ -532,6 +620,16 @@ class InMemoryCanonicalRepository implements CanonicalRepository {
         timelineEntries: this.timelineEntries.list(),
         meloMemory: this.meloMemory.list(),
         meloProposals: this.meloProposals.list(),
+        pots: this.pots.list(),
+        potLedgerEntries: this.potLedgerEntries.list(),
+        subscriptions: this.subscriptions.list(),
+        subscriptionPreferences: this.subscriptionPreferences.list(),
+        cycleRecords: this.cycleRecords.list(),
+        debts: this.debts.list(),
+        financialContexts: this.financialContexts.list(),
+        incomeSchedules: this.incomeSchedules.list(),
+        transactionIntelligenceStates: this.transactionIntelligenceStates.list(),
+        companionRuntimeStates: this.companionRuntimeStates.list(),
         auditLog: this.auditLog.list(),
       },
     };
@@ -927,6 +1025,16 @@ function createEmptyCanonicalMapState(): CanonicalMapState {
     timelineEntries: new Map(),
     meloMemory: new Map(),
     meloProposals: new Map(),
+    pots: new Map(),
+    potLedgerEntries: new Map(),
+    subscriptions: new Map(),
+    subscriptionPreferences: new Map(),
+    cycleRecords: new Map(),
+    debts: new Map(),
+    financialContexts: new Map(),
+    incomeSchedules: new Map(),
+    transactionIntelligenceStates: new Map(),
+    companionRuntimeStates: new Map(),
     auditLog: new Map(),
   };
 }

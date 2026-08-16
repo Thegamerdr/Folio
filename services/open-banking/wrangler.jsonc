@@ -1,0 +1,34 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "melo-open-banking",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "CLERK_ISSUER": "https://united-giraffe-33.clerk.accounts.dev",
+    "CLERK_JWKS_URL": "https://united-giraffe-33.clerk.accounts.dev/.well-known/jwks.json",
+    "ALLOWED_ORIGINS": "",
+    "PUBLIC_BASE_URL": "https://melo-open-banking.tgdroppin.workers.dev",
+    "APP_RETURN_URI": "folio://open-banking",
+    "TRUELAYER_ENVIRONMENT": "sandbox",
+    "TRUELAYER_AUTH_BASE_URL": "https://auth.truelayer-sandbox.com",
+    "TRUELAYER_API_BASE_URL": "https://api.truelayer-sandbox.com",
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OPEN_BANKING",
+      "id": "8735425468884de39f1eb5f273929c44",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
+  },
+}

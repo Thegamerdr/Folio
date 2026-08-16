@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
-  "releaseName": "Folio V2 public release gate",
-  "updatedOn": "2026-06-21",
+  "releaseName": "Melo public release gate",
+  "updatedOn": "2026-07-20",
   "policy": {
     "publicReleaseAllowed": false,
     "allowSyntheticEvidenceForPublicRelease": false,
@@ -28,9 +28,10 @@
       "paths": [
         "docs/source-package/17_DOCUMENTS_OCR_AND_VOICE.md",
         "docs/release-evidence/C5-import-review-indexing.md",
-        "docs/release-evidence/C9-security-export-local-launch-readiness.md"
+        "docs/release-evidence/C9-security-export-local-launch-readiness.md",
+        "docs/release-evidence/ANDROID_ENCRYPTED_SOURCE_RETENTION_2026-07-16.md"
       ],
-      "note": "Import/document contracts are indexed; native encrypted files and OCR proof are not closed."
+      "note": "Android encrypted source retention, authenticated viewing, cleanup and local OCR are device-proven; iOS and the full supported-format/device matrix remain open."
     },
     {
       "blockerId": "RB-NATIVE-NOTIFICATIONS-CALENDAR-VOICE",
@@ -47,9 +48,17 @@
       "paths": [
         "docs/release-evidence/C3-storage-foundation.md",
         "docs/release-evidence/C5-import-review-indexing.md",
-        "docs/release-evidence/C9-security-export-local-launch-readiness.md"
+        "docs/release-evidence/C9-security-export-local-launch-readiness.md",
+        "docs/release-evidence/ANDROID_PERSISTENCE_FAILURE_RECOVERY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_MIRROR_2026-07-16.md",
+        "docs/release-evidence/ANDROID_TYPED_COMMAND_BRIDGE_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_READ_PARITY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_CORE_AUTHORITY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_FINANCIAL_CONTEXT_AUTHORITY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_FULL_APPSTATE_AUTHORITY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_IMPORT_CORPUS_AND_CRASH_RECOVERY_2026-07-16.md"
       ],
-      "note": "Pure storage and import evidence exists; vault-backed real-data E2E proof remains missing."
+      "note": "Release-built Android kernel-ENOSPC state/PDF retry, corrupted-main backup recovery, Personal legacy-to-schema-v11 interrupted-migration recovery, a bounded airplane-mode loop, clean-sandbox portable-export restore, lossless state/root SQLCipher authority, whole-database rebuild and schema-v8 canonical reads are proven. The shipping parser now passes an 18-case synthetic corpus and 100k-row endurance run; automated active-workspace boot recovery removes interrupted encrypted-source orphans without crossing workspace boundaries. Release-device import-kill timing, production corruption/low-storage/endurance, iOS and cloud/cross-device restore remain open."
     },
     {
       "blockerId": "RB-RESEARCH-USABILITY",
@@ -65,7 +74,8 @@
       "paths": [
         "docs/source-package/release/SECURITY_REVIEW_CHECKLIST.md",
         "docs/release-evidence/C9-security-export-local-launch-readiness.md",
-        "docs/release-evidence/C14-store-billing-operations-release.md"
+        "docs/release-evidence/C14-store-billing-operations-release.md",
+        "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md"
       ],
       "note": "Security review checklist and readiness evidence exist; independent signoff remains blocked."
     },
@@ -74,7 +84,9 @@
       "paths": [
         "docs/source-package/release/DPIA_TEMPLATE.md",
         "docs/source-package/release/LEGAL_AND_REGULATORY_REVIEW_CHECKLIST.md",
-        "docs/privacy-security/telemetry-and-samples.md"
+        "docs/privacy-security/telemetry-and-samples.md",
+        "PRIVACY_POLICY.md",
+        "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md"
       ],
       "note": "DPIA, legal and telemetry policy surfaces exist; approval evidence remains external."
     },
@@ -110,9 +122,11 @@
       "paths": [
         "docs/release-evidence/C11-optional-ai.md",
         "docs/source-package/15_AI_ARCHITECTURE_COST_AND_LIMITS.md",
-        "docs/privacy-security/telemetry-and-samples.md"
+        "docs/privacy-security/telemetry-and-samples.md",
+        "docs/privacy-security/AI_PROVIDER_DATA_BOUNDARY.md",
+        "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md"
       ],
-      "note": "Optional AI contracts and policy evidence exist; live gateway/provider/evaluation evidence remains blocked."
+      "note": "Raw document/chat provider ingress is retired and enum-only provider phrasing plus mobile no-egress contracts are source/test proven. Processor approval, production evaluation/monitoring and any future provider-enabled beta remain blocked."
     },
     {
       "blockerId": "RB-OPEN-BANKING-PROVIDER",
@@ -152,10 +166,12 @@
       "blockerId": "RB-T184-NATIVE-BILLING",
       "paths": [
         "docs/release-evidence/C14-store-billing-operations-release.md",
+        "apps/mobile/src/folio/lib/billing",
+        "services/billing-entitlements",
         "packages/store-release/test/store-release.test.ts",
         "packages/release-gate/test/release-gate.test.ts"
       ],
-      "note": "Billing safety contracts and release guard tests exist; native billing proof remains blocked."
+      "note": "Android purchase/restore code and signed server entitlement verification exist; Play listing, provider credentials and live native purchase proof remain blocked."
     },
     {
       "blockerId": "RB-T185-INCIDENT-RUNBOOKS",
@@ -184,9 +200,19 @@
       "paths": [
         "docs/release-evidence/C14-store-billing-operations-release.md",
         "docs/source-package/23_TESTING_QUALITY_AND_OBSERVABILITY.md",
+        "docs/release-evidence/ANDROID_RELEASE_REGRESSION_2026-07-16.md",
+        "docs/release-evidence/ANDROID_PERSISTENCE_FAILURE_RECOVERY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_TYPED_COMMAND_BRIDGE_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_READ_PARITY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_CORE_AUTHORITY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_FINANCIAL_CONTEXT_AUTHORITY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_CANONICAL_FULL_APPSTATE_AUTHORITY_2026-07-16.md",
+        "docs/release-evidence/ANDROID_IMPORT_CORPUS_AND_CRASH_RECOVERY_2026-07-16.md",
+        "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md",
+        "artifacts/melo-1.0.0-android-release-2026-07-20/RELEASE_EVIDENCE.md",
         "STATUS.md"
       ],
-      "note": "Current CI and quality plans are indexed; release builds and offline/deletion E2E remain blocked."
+      "note": "The exact Melo 1.0.0 upload-signed arm64 Android AAB/APK passes bundle/signature/manifest validation, 2,590 tests and a physical Samsung SM-G960F release launch with zero crash markers. Generation-bound/inverse-parity reads for all 44 durable AppState fields and mapped typed-command audit persistence are also proven. Production account-deletion E2E, remaining destructive restore/endurance scenarios, Play-processed proof and iOS release/store builds remain blocked."
     },
     {
       "blockerId": "RB-T188-LIMITED-UK-LAUNCH",
@@ -260,7 +286,7 @@
       "phase": "phase5-phase9",
       "taskIds": ["T071", "T076", "T122"],
       "category": "native_documents",
-      "title": "Encrypted document staging, file storage and OCR proof",
+      "title": "iOS encrypted documents and full OCR device matrix",
       "kind": "external_device",
       "impact": "release_blocking",
       "status": "blocked",
@@ -268,7 +294,7 @@
       "machineCheckable": false,
       "source": "STATUS.md#open-risks",
       "evidenceRequired": ["device", "security", "artifact"],
-      "unblockCondition": "Native encrypted file storage, workspace document subkeys, capture/import staging and OCR review pass on supported devices."
+      "unblockCondition": "Android is proven. Remaining supported platforms and the full bank-format, scan-quality, rotation, language and endurance matrix pass encrypted capture/import, review, viewing, deletion and restore checks."
     },
     {
       "id": "RB-NATIVE-NOTIFICATIONS-CALENDAR-VOICE",
@@ -290,7 +316,7 @@
       "phase": "phase4-phase9",
       "taskIds": ["T083", "T084", "T085", "T086", "T090", "T098", "T132"],
       "category": "vault_e2e",
-      "title": "Vault-backed writes, real-data briefing and offline resilience",
+      "title": "Real-data briefing and offline resilience",
       "kind": "local_machine_check",
       "impact": "release_blocking",
       "status": "needs_evidence",
@@ -298,7 +324,8 @@
       "machineCheckable": true,
       "source": "STATUS.md#open-risks",
       "evidenceRequired": ["command", "artifact"],
-      "unblockCondition": "Vault-backed writes, airplane-mode daily loop, import endurance, migration interruption, low-storage and restore drills pass without silent data loss."
+      "unblockCondition": "Airplane-mode daily loop, import endurance, migration interruption, low-storage and restore drills pass without silent data loss.",
+      "note": "A bounded release-built Android airplane-mode loop, kernel-ENOSPC encrypted-state/PDF-source retry, Personal legacy-to-schema-v11 interrupted-migration recovery, clean-sandbox portable-export restore, lossless state/root SQLCipher authority, whole-database rebuild and schema-v8 reads now pass. The shipping parser passes an 18-case synthetic corpus and 100k-row run, while automated boot recovery removes active-workspace interrupted encrypted-source orphans. Release-device import-kill timing, production low-storage/corruption/endurance, iOS and cloud/cross-device restore rows remain open."
     },
     {
       "id": "RB-RESEARCH-USABILITY",
@@ -463,7 +490,7 @@
       "machineCheckable": false,
       "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
       "evidenceRequired": ["credential", "store_console", "artifact"],
-      "unblockCondition": "StoreKit 2, Google Play Billing, backend receipt verification, purchase restore, offline grace and downgrade behavior are proven natively."
+      "unblockCondition": "StoreKit 2 (if iOS ships), Google Play Billing with a real listed product, backend verification, purchase restore, offline grace and downgrade behavior are proven on release builds."
     },
     {
       "id": "RB-T185-INCIDENT-RUNBOOKS",
@@ -508,7 +535,8 @@
       "machineCheckable": true,
       "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
       "evidenceRequired": ["command", "artifact", "device"],
-      "unblockCondition": "Full regression, offline E2E, account deletion E2E and iOS/Android store release builds pass every release-blocking criterion."
+      "unblockCondition": "Full regression, offline E2E, account deletion E2E and iOS/Android store release builds pass every release-blocking criterion.",
+      "note": "The exact Melo 1.0.0 upload-signed arm64 Android AAB/APK passes bundle/signature/manifest validation, 2,590 tests and a physical Samsung SM-G960F release launch with zero crash markers. Bounded airplane-mode, clean-sandbox portable restore, kernel-ENOSPC recovery, interrupted migration recovery, lossless SQLCipher authority, database rebuild, canonical reads, the 18-case import corpus and the 100k-row run also pass. Production account deletion, release-device import interruption, remaining restore/endurance scenarios, Play-processed proof and iOS release/store proof remain open."
     },
     {
       "id": "RB-T188-LIMITED-UK-LAUNCH",

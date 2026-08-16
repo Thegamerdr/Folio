@@ -6,9 +6,14 @@ Phase 5. Primary task range: T071 through T086.
 
 ## Result
 
-Phase 5 is complete for the unblocked pure parser/review/indexing contracts and for an Expo
-development-build import review shell. It is not complete for release claims that require native
-encrypted file staging, OCR, vault-backed transaction writes, real-data briefing or endurance
+Phase 5 is complete for the pure parser/review/indexing contracts and the current Android
+local-first image-import path. The production app now offers camera or library capture, runs the
+bundled ML Kit recogniser on-device, reconstructs statement rows through `@folio/import-engine`,
+and stages the result for explicit review. It asks separately before any optional cloud reading.
+
+Android encrypted source-document retention is now implemented and device-proven; see
+`ANDROID_ENCRYPTED_SOURCE_RETENTION_2026-07-16.md`. The phase is not complete for iOS Vision proof,
+a full PDF/image device corpus, vault-backed transaction writes, real-data briefing or endurance
 evidence.
 
 ## What was built
@@ -30,28 +35,55 @@ evidence.
   the vault-backed repository.
 - Mobile Phase 5 import review shell in the Expo screen showing file-route choices, staging
   blocker, row totals and review rows without requesting permissions.
+- Android `folio-reader` native module using the platform `PdfRenderer` and the bundled
+  `com.google.mlkit:text-recognition:16.0.1` Latin model. The model does not require a runtime
+  download or cloud request.
+- Local OCR candidate adapter that repairs OCR-only date/money ambiguities, preserves merchant
+  text, and hands canonical rows to the existing review-before-truth queue.
+- Native camera and Android photo-picker entry points, local-first disclosure, an explicit
+  per-document cloud-consent gate, manual fallback, and visible partial-coverage wording when a
+  PDF exceeds the 15-page local cap.
 - Figma Phase 5 evidence frame and Huashu critique record.
 
 ## Task coverage
 
 | Task                          | Status                                          | Evidence                                                       |
 | ----------------------------- | ----------------------------------------------- | -------------------------------------------------------------- |
-| T071 Encrypted source staging | Blocked                                         | Requires T018 encrypted document-file proof                    |
+| T071 Encrypted source staging | Implemented, tested and Android device-proven   | `ANDROID_ENCRYPTED_SOURCE_RETENTION_2026-07-16.md`             |
 | T072 Canonical import row     | Implemented and tested                          | `CanonicalImportRow`, parser metadata, provenance tests        |
 | T073 CSV parser/mapping       | Implemented and tested                          | CSV quoted rows, debit/credit mapping and formula safety tests |
 | T074 OFX/QFX parser           | Implemented and tested                          | STMTTRN, FITID/fallback ID and balance parsing tests           |
 | T075 QIF parser               | Implemented and tested                          | Legacy limitation review reasons tested                        |
-| T076 PDF/image adapter        | Blocked                                         | Requires T017/OCR and native capture path                      |
+| T076 PDF/image adapter        | Android image path implemented and live-proven  | `folio-reader`, local OCR tests and 2026-07-14 emulator proof  |
 | T077 Duplicate fingerprinting | Implemented and tested                          | Provider, source-row, semantic and pending-posted candidates   |
 | T078 Pending-posted reconcile | Implemented as reviewable candidates            | Duplicate candidate tests                                      |
 | T079 Transfer matching        | Implemented and tested                          | Cross-account equal/opposite movement tests                    |
 | T080 Balance reconciliation   | Implemented and tested                          | Exact and mismatch balance tests                               |
 | T081 Categorisation ladder    | Deterministic routes implemented; ML blocked    | User rule, known counterparty and bundled rule tests           |
 | T082 Bounded import questions | Implemented and tested                          | Three-question cap and deferred review queue tests             |
-| T083 Import review UI         | Shell implemented; real flow blocked            | Expo review shell with no picker/permission request            |
+| T083 Import review UI         | Real Android image flow implemented and proven  | Five local OCR rows staged in the production Review UI         |
 | T084 Atomic commit/rebuild    | Evidence command implemented; real rows blocked | Storage command bus rollback/search/job/audit tests            |
 | T085 First real-data briefing | Blocked                                         | Requires vault-backed accepted rows and real user data         |
 | T086 Corpus/endurance tests   | Pure fixtures covered; full gate blocked        | Source package vectors still require blocked native/real flows |
+
+## Current Android local OCR proof
+
+Evidence captured on 2026-07-14 from the release APK on emulator `emulator-5554`:
+
+- Intake disclosure: `artifacts/ocr-proof/01-local-first-intake.png`.
+- Camera/library chooser: `artifacts/ocr-proof/02-camera-or-library.png`.
+- On-device result with five reconstructed rows:
+  `artifacts/ocr-proof/03-local-ocr-success.png` and matching XML.
+- Review-before-truth queue, item 1 of 5:
+  `artifacts/ocr-proof/04-local-ocr-review.png` and matching XML.
+- Release APK: `artifacts/ocr-proof/melo-local-ocr-x86_64-release.apk`.
+- APK SHA-256: `9E1F60094319391D5C8D44735922A9C055BD779BA92ED3059AD6DB8B5C218FA6`.
+
+The proof used a clearly labelled synthetic statement stored only on the emulator. ML Kit selected
+the bundled local Latin module and completed through its local VisionKit pipeline. All five rows
+were routed to Review and none was accepted into the ledger. After capture, the app package data
+was cleared and the synthetic statement plus temporary screenshots were removed from the emulator
+gallery. No physical device was modified.
 
 ## Android live preview evidence
 
@@ -139,16 +171,19 @@ Huashu review outcome:
 
 Issues carried forward:
 
-- Capture release screenshots without the Expo development overlay.
 - Manual TalkBack, large text and reduced-motion checks are still required.
-- Native encrypted staging must be proven before connecting the real picker.
-- OCR and PDF/image routes must not appear available until the native adapter exists.
+- Encrypted source-document retention and plaintext-residue checks remain unproven; current OCR
+  proof must not be represented as encrypted document-vault proof.
+- iOS Vision and a representative real-device PDF/image corpus remain unproven.
+- Android PDF extraction compiles and reports its 15-page cap, but still needs a live multi-page
+  PDF device matrix before a broad document-import release claim.
 - The storage command handler is atomic evidence for search/jobs/audit only; real transaction
   writes remain blocked until the vault-backed repository lands.
 
 ## Boundary conclusion
 
-Phase 5 is complete for pure parser/review/indexing contracts, mobile shell evidence and atomic
-storage-command evidence. T071, T076, the real part of T083, the real transaction-row part of T084,
-T085 and the full T086 release gate remain blocked by native/vault/real-data dependencies. No V1
-donor runtime code or assets were used.
+Phase 5 now includes a live-proven Android local image OCR-to-Review path in addition to the pure
+parser/review/indexing contracts and atomic storage-command evidence. T071, the PDF/iOS remainder
+of T076, the real transaction-row part of T084, T085 and the full T086 release gate remain blocked
+by encrypted-document, iOS, vault and real-data dependencies. No V1 donor runtime code or assets
+were used.

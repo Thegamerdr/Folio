@@ -1,163 +1,140 @@
 # C12 Open Banking
 
-## Phase / task IDs
+## Current result
 
-Phase 12. Primary task range: T160 through T168.
+Melo now has a provider-neutral Open Banking runtime foundation integrated into the current native
+app. It is no longer only a synthetic Phase 12 shell. The implementation is deliberately deployed
+without provider credentials, so the coded app can prove its honest unavailable and sign-in gates
+without pretending a bank connection exists.
 
-## Result
+Open Banking remains optional. Manual entry and statement import work without an account, bank
+connection or provider availability. Provider rows stage into the existing Review queue and never
+write directly to the ledger.
 
-Phase 12 is complete for provider-neutral Open Banking contracts and a synthetic-labelled Expo
-Today shell. It is not complete for live release claims requiring regulated provider selection,
-procurement/legal approval, live provider sandbox and production contract suites, backend token
-adapter deployment, provider pilot acceptance, store/privacy review, support runbook, incident
-monitoring or staged rollout operations.
+This is not approval to release Open Banking. TrueLayer procurement, processor/legal/DPIA sign-off,
+sandbox credentials, provider contract testing, a consent-journey pilot, production approval,
+support/incident operations and staged rollout remain owner/external gates.
 
-Open Banking remains optional. Manual entry and file import remain available when no bank is
-connected, when a provider is unavailable, and after consent is revoked.
+## Current implementation
 
-## What was built
+- `services/open-banking`: deployed Cloudflare Worker targeting TrueLayer Data v3 hosted
+  authorisation.
+- `packages/open-banking`: provider-neutral response validation and bank-candidate staging.
+- `apps/mobile/src/folio/lib/openBankingNative.ts`: authenticated native client and hosted browser
+  hand-off.
+- `apps/mobile/src/folio/sheets/BankConnectionSheet.tsx`: contextual consent explanation, account
+  mapping, sync-to-Review, disconnect and separate local-history deletion choice.
+- `apps/mobile/src/folio/store.ts`: bank-source records, provider-neutral external-ID deduplication,
+  exact ignored-row suppression and connection-scoped imported-history deletion.
+- `apps/mobile/src/folio/screens/ReviewScreen.tsx`: bank candidates use the same
+  review-before-truth decision path as other semi-automatic sources.
+- `apps/mobile/src/folio/screens/AccountScreen.tsx`: current Account surface exposes the optional,
+  read-only bank connection entry point.
 
-- Added pure `@folio/open-banking` package for Phase 12 contracts.
-- Provider selection state with coverage, consent UX, security, processor, residency, pricing and
-  exit-plan blockers.
-- Provider-neutral `BankDataProvider` readiness surface for start, callback, list state, canonical
-  rows, refresh and revoke behavior.
-- Contextual consent journey contract: no first-launch bank prompt, explanation before redirect and
-  provider tokens outside the mobile app.
-- Consent dashboard state with provider, accounts, scopes, expiry, last refresh, revoke and
-  workspace-mismatch guard rows.
-- Canonical Open Banking row normalisation that stages through import review and never writes
-  directly to financial transaction tables.
-- Reconciliation signals for duplicate provider IDs, pending replacements, possible transfers and
-  unmatched staged rows.
-- Stale/gap feed state that keeps pending/posted visibility and manual/CSV gap filling available.
-- Revocation state that stops future access, deletes the server token and separates retained local
-  history from imported-history deletion.
-- Staged rollout gate for sandbox pilot, production pilot, legal/store review, support runbook,
-  incident monitoring and manual/import availability.
-- `apps/mobile/src/phase12` mobile evidence adapter and integrated Expo Today section.
+The old `apps/mobile/src/phase12` synthetic evidence shell is not the authoritative product UI and
+is absent from the current app. Historical Phase 12 screenshots remain provenance only.
 
-## Task coverage
+## Security and data boundary
 
-| Task                                   | Status                        | Evidence                                                                     |
-| -------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
-| T160 Regulated AISP provider           | Blocked for release           | Candidate model exists; regulated approval, procurement and legal blocked    |
-| T161 BankDataProvider contract         | Implemented as fake contract  | Provider-neutral fake suite passes; sandbox and production contracts blocked |
-| T162 Consent journey/token store       | Implemented as contract       | Contextual consent and server-token boundary modelled                        |
-| T163 Consent dashboard                 | Implemented as shell contract | Provider, account, scope, expiry, refresh, revoke and workspace guard shown  |
-| T164 Canonical row ingestion           | Implemented and tested        | Provider rows stage through import review; direct transaction writes false   |
-| T165 Refresh/gap/stale state           | Implemented and tested        | Stale/gap state visible; manual gap fill remains available                   |
-| T166 Revocation/deletion paths         | Implemented and tested        | Future access stops and local history choice remains separate                |
-| T167 Provider sandbox/production pilot | Blocked for release           | Real provider sandbox and production pilot acceptance missing                |
-| T168 Staged rollout                    | Blocked for release           | Legal/store review, support, incident monitoring and rollout not complete    |
+- TrueLayer client credentials and application access tokens exist only in the Worker.
+- The application token is cached only in Worker memory until expiry.
+- Provider connection and account IDs are encrypted with AES-256-GCM before KV storage.
+- KV user keys contain a SHA-256 digest of the Clerk user ID, not the raw ID.
+- The checked-in mobile client sends only an opaque SHA-256 workspace reference. Worker indexes,
+  records and OAuth callback state bind that scope; list, sync and disconnect reject a connection
+  ID owned by another workspace under the same user.
+- New provider-secret ciphertext authenticates the hashed user, workspace reference and local
+  connection ID as AES-GCM associated data. Moving it to a different boundary fails decryption.
+- Headerless historic clients and old account-level records map only to Personal. Account deletion
+  lists and deletes the complete hashed-user prefix across every workspace.
+- The mobile app receives stable provider-neutral aliases, not TrueLayer IDs or tokens.
+- Imported rows are returned as candidates and require an explicit local-account mapping plus
+  `Send to Review`.
+- Disconnect removes encrypted provider identifiers and stops future Melo refresh.
+- Local imported-history deletion is a separate explicit decision.
+- The UI does not claim bank/provider consent was revoked because the current TrueLayer Data v3
+  OpenAPI does not expose a connection-revocation endpoint.
+- Unsupported non-GBP rows are left out and reported; they are never silently coerced.
 
-## Verification evidence
+## Deployed service evidence
 
-Focused checks completed on 2026-06-21:
+- URL: `https://melo-open-banking.tgdroppin.workers.dev`
+- Version: `e3b9b00b-4695-4366-8ad9-3e7dff7a4480`
+- KV namespace: `8735425468884de39f1eb5f273929c44`
+- `GET /health`: HTTP 200, `providerConfigured: false`,
+  `providerCredentialsInApp: false`, `directLedgerWrites: false`.
+- Unauthenticated `GET /v1/connections`: HTTP 401.
 
-- `pnpm --filter @folio/open-banking typecheck`: passed.
-- `pnpm --filter @folio/mobile typecheck`: passed.
-- `pnpm exec vitest run packages/open-banking/test/open-banking.test.ts apps/mobile/src/phase12/openBankingEvidence.test.ts --passWithNoTests`: passed, 2 files and 19 tests.
+The checked-in service setup and owner actions are documented in `services/open-banking/README.md`.
+The provider implementation was reconciled against the current TrueLayer Data v3 documentation:
 
-Full gates completed on 2026-06-21:
+- `https://docs.truelayer.com/docs/enable-your-users-to-connect-their-bank-account`
+- `https://docs.truelayer.com/docs/create-a-connection-1`
+- `https://docs.truelayer.com/reference/get-accounts`
+- `https://truelayer.com/legal/`
 
-- `pnpm run ci`: passed; includes lint, typecheck, 30 test files and 277 tests, and
-  contract validation.
-- `pnpm lint:boundaries`: passed.
-- `pnpm typecheck`: passed.
-- `pnpm test`: passed, 30 files and 277 tests.
-- `pnpm validate:contracts`: passed with 75 files, 15,681 lines, 192 tasks, 32 risks,
-  18 forecast vectors, 15 import vectors and 14 independently checked fixture cases.
-- `pnpm --filter @folio/mobile doctor`: passed, 21/21 checks.
-- `pnpm --filter @folio/mobile exec expo install --check`: passed.
-- `pnpm check:v1-boundary`: passed; 123 authored V2 runtime/package files checked against 859
-  V1 freeze hashes.
-- Non-ASCII scan of touched text files: passed, no matches.
+The 2026-07-15 owner-account check also confirmed that `wrangler secret list` returned no secrets.
+The last deployed version remains `e3b9b00b-4695-4366-8ad9-3e7dff7a4480`; a current dry run passed,
+`GET /health` reported `providerConfigured: false`, and unauthenticated
+`GET /v1/connections` returned HTTP 401. No sandbox or production bank was connected.
 
-## Android live preview evidence
+The workspace-bound Worker/mobile changes described above are newer checked-in code. They passed
+local tests and typechecks but were not deployed during the Business foundation pass. Therefore the
+deployed version identifier above remains authoritative for the live unconfigured endpoint.
 
-The Phase 12 mobile shell is integrated into `apps/mobile/app/index.tsx`. Android development-client
-preview was verified on `emulator-5554` using Metro on port `8090`.
+The current runtime requests only `accounts` and `transactions`. It does not request or retrieve
+current balances, so no release or pricing claim may describe the current build as live-balance
+refresh. The balance-contract work and activation matrix are tracked in
+`docs/product-strategy/TRUELAYER_ACTIVATION_CHECKLIST.md`.
 
-Actual artifacts:
+## Verification
 
-- `docs/release-evidence/metro-phase12-live-preview-lan.log`
-- `docs/release-evidence/android-live-preview-phase12-open-banking.png`
-- `docs/release-evidence/android-window-phase12-open-banking.xml`
-- `docs/release-evidence/android-live-preview-phase12-consent-staging.png`
-- `docs/release-evidence/android-window-phase12-consent-staging.xml`
-- `docs/release-evidence/android-live-preview-phase12-stale-revocation.png`
-- `docs/release-evidence/android-window-phase12-stale-revocation.xml`
-- `docs/release-evidence/android-live-preview-phase12-blockers.png`
-- `docs/release-evidence/android-window-phase12-blockers.xml`
-- `docs/release-evidence/android-live-preview-phase12-gate.png`
-- `docs/release-evidence/android-window-phase12-gate.xml`
-- `docs/release-evidence/android-live-preview-phase12-coverage-mid.png`
-- `docs/release-evidence/android-window-phase12-coverage-mid.xml`
-- `docs/release-evidence/android-live-preview-phase12-gate-bottom.png`
-- `docs/release-evidence/android-window-phase12-gate-bottom.xml`
+Completed on 2026-07-14:
 
-The Metro log records `Android Bundled 2761ms node_modules\expo-router\entry.js (1703 modules)`
-and a later one-module bundle refresh. PNG captures decode as valid `1080x2400` images. The log
-also contains the expected forced-stop tail from shutting down the background Metro process after
-capture; the successful bundle lines appear before that shutdown tail.
+- `pnpm typecheck`: passed, including mobile, package, AI gateway, cloud vault and Open Banking
+  Worker.
+- `pnpm exec vitest run apps/mobile/src/folio/store.test.ts packages/open-banking/test/open-banking.test.ts services/open-banking/src/index.test.ts --passWithNoTests`:
+  passed, 3 files and 255 tests.
+- Open Banking package: 13 tests passed.
+- Worker: 4 tests passed, covering unconfigured health, encrypted storage round-trip, hosted
+  callback/sync without plaintext provider identifiers and disconnect semantics.
+- Mobile store: 238 tests passed, including bank external-ID dedupe, accepted/ignored suppression
+  and connection-scoped history removal.
+- `wrangler deploy --dry-run`: passed.
+- Android `:app:assembleRelease -PreactNativeArchitectures=x86_64`: passed.
+- Release APK installed only to `emulator-5554`: passed.
 
-UI tree proof:
+Additional 2026-07-15 workspace-isolation verification (checked-in version, not deployed):
 
-- Open Banking viewport confirms provider selection, provider-neutral fake contract, no first-launch
-  bank prompt, server token boundary and no app token/log rows.
-- Consent/staging viewport confirms consent dashboard controls and canonical rows staged through
-  import review with direct transaction writes false.
-- Stale/revocation viewport confirms stale visible, gap ranges, pending/posted visibility, manual
-  gap fill, revoked consent, stopped future access, deleted server token and no app token.
-- Blockers viewport confirms rollout is not ready while sandbox pilot, production pilot and
-  legal/store review remain blocked, plus Huashu hierarchy/craft rows.
-- Gate viewport confirms Phase 12 coverage counts of 5 implemented or reviewable rows and 4 blocked
-  rows.
-- Middle and lower coverage viewports confirm T164 through T168, with provider pilot and staged
-  rollout still blocked.
+- Worker: 8 tests passed, covering two workspace partitions under one user, cross-workspace
+  sync/delete refusal, callback binding, invalid references, Personal-only legacy migration,
+  account-wide purge and AES-GCM associated-data mismatch failure.
+- Mobile and Worker typechecks passed after making all non-account-deletion Open Banking calls
+  require a `WorkspaceId`.
 
-The preview proves only that the synthetic Phase 12 shell renders in the Android development
-client. It does not prove a real provider redirect, bank login, token exchange, bank-row fetch,
-backend token adapter, provider sandbox contract, production pilot, legal/store approval or beta
-readiness.
+## Current Android evidence
 
-## Figma evidence
+The current release bundle was exercised with an empty local account; no sample financial rows were
+created.
 
-Editable Figma evidence was created from the Phase 12 repo contracts and mobile shell.
+- `artifacts/open-banking-proof/01-account.png`: Account surface shows a zero balance marked
+  `not set yet`, the optional bank entry point and no connected-bank claim.
+- `artifacts/open-banking-proof/02-bank-connection.png`: bank sheet explains the optional/read-only
+  boundary, TrueLayer role, Review-before-truth path, sign-in requirement and manual fallback.
+- `artifacts/open-banking-proof/account.xml`: Android accessibility tree for Account.
+- `artifacts/open-banking-proof/bank.xml`: Android accessibility tree for the bank sheet.
+- `artifacts/open-banking-proof/melo-open-banking-x86_64-release.apk`: exact emulator proof APK.
 
-Figma board:
+## Remaining release gates
 
-- `https://www.figma.com/design/JAVKDl1EBaDWfAKFnkE0n2?node-id=17-2`
+1. Configure the dedicated Clerk instance for Melo's intended email-code/passwordless flow.
+2. Complete TrueLayer procurement, processor terms, DPIA/privacy and production-use review.
+3. Register the callback URI and set sandbox client credentials plus the server encryption key.
+4. Decide whether the pilot is transaction-refresh only or implement and verify the balance
+   contract before making live-balance claims.
+5. Run sandbox contract tests against TrueLayer's live sandbox and capture the hosted consent flow.
+6. Complete a controlled real-provider pilot, including reconnect/expiry and failure recovery.
+7. Approve store declarations, support and incident runbooks, monitoring and staged rollout.
 
-Local rendered board:
-
-- `docs/release-evidence/figma-phase12-evidence.png` (`1260x1688`)
-
-Figma is review evidence only. The repository, tests and emulator artifacts remain the source of
-truth.
-
-## Huashu UI/UX critique
-
-Huashu review outcome:
-
-- Manual/import mode stays first; connect-bank copy is contextual and optional.
-- Token boundary, consent scope, stale feed, revoke and manual fallback appear before rollout.
-- Plain evidence rows avoid fake provider logos, fake uptime, balance hero moments and bank-grade
-  claims.
-- Stale/gap and revoked states are visible in the same flow as readiness blockers.
-- Release blockers are explicit rather than hidden behind a celebratory connected-bank state.
-
-Issues carried forward:
-
-- Real provider consent screens need the same hierarchy after procurement and legal review.
-- Manual TalkBack/VoiceOver, large text and reduced-motion review remains required.
-- Backend token adapter, provider pilot acceptance, DPIA/processor review, store disclosures,
-  support runbook and incident monitoring remain release blockers.
-
-## Boundary conclusion
-
-Phase 12 is complete for deterministic Open Banking boundaries, provider-neutral contracts,
-consent/staging/revocation state and synthetic mobile shell evidence. It remains blocked for live
-Open Banking release until regulated provider, backend, legal/privacy, provider-pilot, support and
-staged-rollout gates close. No V1 donor runtime code or assets were used.
+Until those gates close, the correct product state is `providerConfigured: false`; manual and file
+import remain the release-capable paths.

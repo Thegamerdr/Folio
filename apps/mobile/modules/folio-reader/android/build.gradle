@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.folio.folioreader'
+version = '0.1.0'
+
+android {
+  namespace 'expo.modules.folioreader'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    minSdkVersion 24
+  }
+}
+
+dependencies {
+  // Google ML Kit on-device Text Recognition (bundled Latin model — fully offline, no Play Services
+  // model download, no network). PdfRenderer is part of the Android framework (android.graphics.pdf).
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
+}

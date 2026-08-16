@@ -132,7 +132,11 @@ const escalationTriggerPatterns: readonly Readonly<{
     trigger: 'tax_eligibility_ambiguity',
     regex: /\b(?:am i eligible|can i claim|tax deductible)\b/i,
   },
-  { trigger: 'immediate_crisis', regex: /\b(?:can't eat|cannot eat|unsafe|emergency)\b/i },
+  {
+    trigger: 'immediate_crisis',
+    regex:
+      /\b(?:can't eat|cannot eat|unsafe|immediate danger|need emergency help|emergency (?:food|housing|support)|this is an emergency)\b/i,
+  },
 ];
 
 export function classifyAdviceLanguage(text: string): AdviceLanguageClassification {
@@ -257,7 +261,7 @@ export const meloIntentRegistry: readonly MeloIntentDefinition[] = [
   {
     id: 'extra_payment_scenario',
     endGoal: 'Compare a hypothetical payment through the deterministic scenario engine.',
-    requiredSlots: [slot('amount', 'Scenario amount', 'What amount should Folio compare?')],
+    requiredSlots: [slot('amount', 'Scenario amount', 'What amount should Melo compare?')],
     optionalSlots: [
       slot('date', 'Scenario date', 'Should this be modelled today or on another date?'),
     ],
@@ -342,7 +346,7 @@ export const meloIntentRegistry: readonly MeloIntentDefinition[] = [
     id: 'memory_correction',
     endGoal: 'Turn an accepted correction into a durable rule or counterexample.',
     requiredSlots: [
-      slot('corrected_value', 'Corrected value', 'What should Folio remember instead?'),
+      slot('corrected_value', 'Corrected value', 'What should Melo remember instead?'),
     ],
     optionalSlots: [
       slot('scope', 'Memory scope', 'Should this apply only here or to similar future items?'),
@@ -592,7 +596,7 @@ export function buildPlanMovementBriefing(input: MeloPlanMovementInput): MeloPla
         ? `${input.planTitle} changed. This is information to work from, not a verdict.`
         : `${input.planTitle} changed. The movement is visible.`;
   const reviewLine = input.needsReview
-    ? 'A review is needed before Folio saves any plan change.'
+    ? 'A review is needed before Melo saves any plan change.'
     : 'No saved plan change is needed right now.';
   const summary = `${lead} ${input.movementLine} ${input.protectedLine} ${reviewLine}`;
 
@@ -687,7 +691,7 @@ export function buildImportReviewBriefing(input: MeloImportReviewInput): MeloImp
       ? 'No rows need review.'
       : `${input.importedClaimCount} row${
           input.importedClaimCount === 1 ? '' : 's'
-        } need review before Folio saves anything as a fact.`;
+        } need review before Melo saves anything as a fact.`;
   const documentLine =
     input.documentCount === 0
       ? 'No document source is staged.'

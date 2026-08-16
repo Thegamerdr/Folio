@@ -1787,7 +1787,11 @@ function looksLikeDelimitedText(text: string): boolean {
     stripBom(text)
       .split(/\r?\n/u)
       .find((line) => line.trim().length > 0) ?? '';
-  return [',', ';', '\t'].some((delimiter) => firstMeaningfulLine.includes(delimiter));
+  // A comma between two digits is a thousands separator (e.g. "1,157.50"), NOT a CSV field
+  // delimiter. Strip those before deciding, so a plain statement whose amounts/balances are
+  // comma-grouped isn't mistaken for CSV (which broke real statement lines with a balance column).
+  const withoutThousands = firstMeaningfulLine.replace(/(?<=\d),(?=\d)/g, '');
+  return [',', ';', '\t'].some((delimiter) => withoutThousands.includes(delimiter));
 }
 
 function looksLikePlainStatementText(text: string): boolean {
@@ -1814,8 +1818,14 @@ function parseStatementTransactionLine(line: string):
     }>
   | undefined {
   const source = line.replace(/\s+/g, ' ').trim();
-  const datePattern = String.raw`(\d{4}-\d{2}-\d{2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4})`;
-  const moneyPattern = String.raw`[+-]?(?:GBP\s*)?(?:£\s*)?\(?\d[\d,]*(?:\.\d{2})?\)?`;
+  // Accept the date formats real statements actually use: ISO, numeric d/m/y, and month-name dates
+  // (e.g. "25 Jun 2026" or "Jun 25, 2026"). Month-name dates are normalised to ISO below so the
+  // downstream numeric date parser can read them. The amount requires a decimal (".dd") so a bare
+  // reference number in the description (e.g. "1234") is never mistaken for the transaction amount —
+  // which is what broke real statement lines that carry a reference and a running-balance column.
+  const months = 'jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec';
+  const datePattern = String.raw`(\d{4}-\d{2}-\d{2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+(?:${months})[a-z]*\.?\s+\d{2,4}|(?:${months})[a-z]*\.?\s+\d{1,2},?\s+\d{2,4})`;
+  const moneyPattern = String.raw`[+-]?(?:GBP\s*)?(?:£\s*)?\(?\d[\d,]*\.\d{2}\)?`;
   const match = new RegExp(
     String.raw`^${datePattern}\s+(.+?)\s+(${moneyPattern})(?:\s+(${moneyPattern}))?\s*$`,
     'i',
@@ -1826,13 +1836,44 @@ function parseStatementTransactionLine(line: string):
   const description = match[2].trim();
   if (/^(opening|closing)\s+balance$/i.test(description)) return undefined;
   const parsed = {
-    dateText: match[1],
+    dateText: normaliseStatementDateText(match[1]),
     descriptionText: description,
     amountText: normaliseTextMoney(match[3]),
   };
   return match[4] === undefined
     ? parsed
     : { ...parsed, runningBalanceText: normaliseTextMoney(match[4]) };
+}
+
+const MONTH_TO_NUMBER: Readonly<Record<string, string>> = {
+  jan: '01',
+  feb: '02',
+  mar: '03',
+  apr: '04',
+  may: '05',
+  jun: '06',
+  jul: '07',
+  aug: '08',
+  sep: '09',
+  oct: '10',
+  nov: '11',
+  dec: '12',
+};
+
+/** Normalise a month-name date ("25 Jun 2026" / "Jun 25, 2026") to ISO so the numeric date parser
+ *  can read it. ISO and numeric dates pass through unchanged. */
+function normaliseStatementDateText(value: string): string {
+  const cleaned = value.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+  const dmy = /^(\d{1,2})\s+([A-Za-z]{3,9})\.?\s+(\d{2,4})$/.exec(cleaned);
+  const mdy = /^([A-Za-z]{3,9})\.?\s+(\d{1,2})\s+(\d{2,4})$/.exec(cleaned);
+  const day = dmy?.[1] ?? mdy?.[2];
+  const monthName = (dmy?.[2] ?? mdy?.[1])?.slice(0, 3).toLowerCase();
+  const yearPart = dmy?.[3] ?? mdy?.[3];
+  if (day === undefined || monthName === undefined || yearPart === undefined) return value;
+  const month = MONTH_TO_NUMBER[monthName];
+  if (month === undefined) return value;
+  const year = yearPart.length === 2 ? `20${yearPart}` : yearPart.padStart(4, '0');
+  return `${year}-${month}-${day.padStart(2, '0')}`;
 }
 
 function parseStatementBalanceLine(

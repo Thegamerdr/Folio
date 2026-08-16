@@ -16,12 +16,13 @@ Blocked. This file is a declaration checklist, not App Store Connect evidence.
   project and release binary.
 - App Review notes explain local-first/no-account mode and synthetic reviewer data.
 
-## Current Folio Position
+## Current Melo Position
 
-- Local-core synthetic shell is reviewable without account creation.
-- Optional cloud, AI, Open Banking and business routes are contract-only or blocked for public
-  release.
-- There is no submitted production binary or App Store Connect declaration evidence in this repo.
+- The local personal core is reviewable without account creation.
+- The data-flow and processor inventories are prepared from the Android candidate; they must be
+  repeated against the generated iOS archive and Apple privacy manifests.
+- Optional identity/cloud, Open Banking and provider-backed routes remain conditional.
+- The iOS app record, signed archive and App Store Connect declaration do not exist yet.
 
 ## Official References
 

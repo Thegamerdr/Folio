@@ -1,0 +1,32 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "melo-billing-entitlements",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "PACKAGE_NAME": "com.melomoney.app",
+    "GOOGLE_TOKEN_URI": "https://oauth2.googleapis.com/token",
+    "ENTITLEMENT_ISSUER": "https://melo-billing-entitlements.tgdroppin.workers.dev",
+    "ENTITLEMENT_AUDIENCE": "com.melomoney.app",
+    "ENTITLEMENT_SIGNING_KEY_ID": "melo-billing-ed25519-2026-07",
+    "ENTITLEMENT_SIGNING_PUBLIC_JWK": "{\"crv\":\"Ed25519\",\"x\":\"OKponTUZ9ZP1APZpvUeUK5BmKmlJm8FZQ5IDAd92HL8\",\"kty\":\"OKP\"}",
+    "ALLOWED_ORIGINS": "",
+  },
+  "kv_namespaces": [
+    {
+      "binding": "ENTITLEMENTS",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
+  },
+}

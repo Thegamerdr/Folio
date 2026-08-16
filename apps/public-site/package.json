@@ -1,0 +1,22 @@
+{
+  "name": "@melo/public-site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Public launch, support, and release-status pages for Melo.",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "deploy:check": "wrangler deploy --dry-run",
+    "dev": "wrangler dev",
+    "startup": "wrangler check startup",
+    "test": "vitest run test/index.test.ts",
+    "typecheck": "tsc --noEmit",
+    "types": "wrangler types worker-configuration.d.ts --include-runtime false --env-interface CloudflareBindings",
+    "types:check": "wrangler types worker-configuration.d.ts --include-runtime false --env-interface CloudflareBindings --check"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0",
+    "wrangler": "^4.112.0"
+  }
+}

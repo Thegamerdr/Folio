@@ -54,6 +54,9 @@ export type LocalPlansModel = Readonly<{
   accessibilitySummary: string;
   meloPlanBriefings: readonly MeloPlanMovementBriefing[];
   recoveryBriefing?: PlanRecoveryBriefing;
+  // The total already spoken for before payday — the money figure the Plans summary leads with.
+  committedTotalMinor: number;
+  committedTotal: string;
 }>;
 
 export function buildLocalPlansModel(
@@ -85,20 +88,27 @@ export function buildLocalPlansModel(
           eventLabel: `Known route reaches ${formatMinorAmount(route.tightestBalanceMinor)} ${
             route.tightestDay
           }.`,
-          immediateEffect: 'Plan objects need review before anything changes.',
+          immediateEffect: 'Plans need a check before anything changes.',
           protectedItemsStillCovered: route.protectedItems,
           changedDatesOrAmounts:
             planRows.length === 0
-              ? ['No draft plan rows are changed yet.']
+              ? ['Nothing in your plans has changed yet.']
               : planRows.slice(0, 3).map((row) => `${row.title}: ${row.dueDate}`),
         })
       : undefined;
+
+  const committedTotalMinor = canonical.plans.reduce(
+    (sum, plan) => sum + Math.abs(plan.targetAmount?.minorUnits ?? 0),
+    0,
+  );
 
   const base = {
     sourceLabel: options.privateExampleMode ? 'Private example' : 'Local personal workspace',
     contractState: 'repository-backed',
     planRows,
     reviewRows,
+    committedTotalMinor,
+    committedTotal: formatMinorAmount(committedTotalMinor),
     meloPlanBriefings: planRows.map((row) =>
       buildPlanMovementBriefing({
         planTitle: row.title,
@@ -164,8 +174,8 @@ function createPlanRowFromPlan({
     },
     assumptions: [
       impact === undefined
-        ? 'Draft projection from a confirmed future commitment.'
-        : 'Projection is derived from reviewed plan impact records.',
+        ? 'Based on something you have confirmed for the future.'
+        : 'Based on plan changes you have reviewed.',
     ],
   });
   const journey = buildPlanProgressJourney({
@@ -179,7 +189,7 @@ function createPlanRowFromPlan({
         label: 'Route floor',
         previousValue: 'Not stored as plan history',
         currentValue: `${formatMinorAmount(route.tightestBalanceMinor)} ${route.tightestDay}`,
-        reason: 'Current confirmed route projection',
+        reason: 'Your money path as it stands now',
       },
     ],
   });
