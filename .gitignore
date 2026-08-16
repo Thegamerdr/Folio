@@ -22,6 +22,15 @@ coverage/
 **/ios/build/
 **/*.xcuserdata/
 
+# Reproducible Android build outputs belong in release storage, not Git history.
+/artifacts/**/*.apk
+/artifacts/**/*.aab
+/artifacts/**/*.apk.idsig
+/artifacts/**/mapping.txt
+/artifacts/**/native-debug-symbols.zip
+/tmp/*.apk
+/tmp/*.apk.idsig
+
 # Wrangler local secrets (OpenRouter key for local gateway dev) — never commit
 .dev.vars
 **/.dev.vars
