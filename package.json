@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present build",
+    "check:business-beta-exposure": "node tooling/scripts/check-business-beta-exposure.mjs",
     "check:constitution": "node tooling/scripts/check-constitution-gate.mjs",
     "check:operations-readiness": "node tooling/scripts/check-operations-readiness.mjs",
     "check:product-gates": "node tooling/scripts/check-product-canonical-gates.mjs",
@@ -20,7 +21,7 @@
     "check:v1-boundary": "node tooling/scripts/check-v1-boundary.mjs",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm validate:contracts",
     "format:check": "prettier --check . --end-of-line auto",
-    "lint": "pnpm lint:boundaries && pnpm check:v1-boundary && pnpm check:samples && pnpm check:constitution && pnpm check:product-gates && pnpm check:operations-readiness && pnpm check:store-declarations && pnpm check:release-blockers && pnpm check:release-foundation && pnpm format:check",
+    "lint": "pnpm lint:boundaries && pnpm check:v1-boundary && pnpm check:samples && pnpm check:constitution && pnpm check:business-beta-exposure && pnpm check:product-gates && pnpm check:operations-readiness && pnpm check:store-declarations && pnpm check:release-blockers && pnpm check:release-foundation && pnpm format:check",
     "lint:boundaries": "node tooling/scripts/check-boundaries.mjs",
     "mobile:doctor": "pnpm --filter @folio/mobile doctor",
     "mobile:install-check": "pnpm --filter @folio/mobile exec expo install --check",

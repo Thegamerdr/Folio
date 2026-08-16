@@ -11,6 +11,7 @@
     "eas:android:development": "pnpm dlx eas-cli@20.3.0 build --platform android --profile development",
     "eas:android:tester": "pnpm dlx eas-cli@20.3.0 build --platform android --profile tester",
     "eas:ios:development": "pnpm dlx eas-cli@20.3.0 build --platform ios --profile development",
+    "eas-build-pre-install": "pnpm --dir ../.. check:business-beta-exposure",
     "ios": "expo run:ios",
     "native:apk:android": "cd android && gradlew.bat :app:assembleRelease",
     "native:install:android": "adb install -r android/app/build/outputs/apk/release/app-release.apk",

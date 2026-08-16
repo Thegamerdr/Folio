@@ -11,6 +11,10 @@ function clerkPublishableKeyForBuild(): string | undefined {
   return key;
 }
 
+function businessBetaFlagForBuild(): 'true' | 'false' {
+  return process.env.EXPO_PUBLIC_MELO_BUSINESS_BETA?.trim() === 'true' ? 'true' : 'false';
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   // The public app identity is Melo. The EAS slug remains the existing project slug, while the
@@ -219,6 +223,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY:
       process.env.EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY ??
       'OKponTUZ9ZP1APZpvUeUK5BmKmlJm8FZQ5IDAd92HL8',
+    // Build-distributed exposure gate. This may become true only after RB-BUSINESS-TAX-BETA is
+    // explicitly closed and the root/EAS checker passes; existing Business workspaces are never
+    // hidden by this creation-only flag.
+    EXPO_PUBLIC_MELO_BUSINESS_BETA: businessBetaFlagForBuild(),
     // Sentry DSN — public submit-only key (crash reports; privacy-tuned init lives in
     // src/folio/lib/errorReporting.ts: no PII, no screenshots, no tracing).
     EXPO_PUBLIC_SENTRY_DSN:

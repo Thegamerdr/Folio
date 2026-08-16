@@ -7,6 +7,7 @@ export default defineConfig({
       'apps/**/*.test.ts',
       'apps/**/*.test.tsx',
       'tooling/**/*.test.ts',
+      'tooling/**/*.test.mjs',
       'services/**/*.test.ts',
     ],
     passWithNoTests: true,

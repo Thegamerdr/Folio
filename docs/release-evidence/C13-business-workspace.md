@@ -14,6 +14,15 @@ direct filing, real business data capture, accountant collaboration or beta read
 Business remains optional. The personal workspace remains the default, and business creation is not
 shown as an onboarding requirement.
 
+## Runtime exposure gate — 2026-08-17
+
+New Business workspace creation is build-gated by `EXPO_PUBLIC_MELO_BUSINESS_BETA` and defaults
+closed. Only the exact trimmed lowercase value `true` enables the UI/use-case edge, and root CI plus
+EAS pre-install run `check:business-beta-exposure` to reject an enabled build while
+`RB-BUSINESS-TAX-BETA` is not explicitly `closed`. The blocker remains `blocked`; no checked-in
+profile enables the flag. Existing Business partitions remain listed, openable, renameable,
+archiveable and restorable while new creation is disabled.
+
 ## What was built
 
 - Added pure `@folio/business-workspace` package for Phase 13 contracts.

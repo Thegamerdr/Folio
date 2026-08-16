@@ -11,6 +11,7 @@ import {
   restorePersistedBusinessWorkspace,
   switchPersistedWorkspace,
 } from '@/folio/lib/persist';
+import { isBusinessWorkspaceCreationEnabled } from '@/folio/lib/businessBeta';
 import { PERSONAL_WORKSPACE_ID, type PersistedWorkspace } from '@/folio/lib/workspaceRoot';
 
 export type WorkspaceSheetProps = Readonly<{
@@ -26,6 +27,8 @@ type EditorMode =
       workspaceId: WorkspaceId;
     }>;
 
+const BUSINESS_CREATION_UNAVAILABLE = 'Business workspace creation is not available in this build.';
+
 export function WorkspaceSheet({ visible, onClose, onActivated }: WorkspaceSheetProps) {
   const t = useTheme();
   const workspaces = useAppStore((state) => state.workspaces);
@@ -35,6 +38,7 @@ export function WorkspaceSheet({ visible, onClose, onActivated }: WorkspaceSheet
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const business = workspaces.find((workspace) => workspace.kind === 'business');
+  const businessCreationEnabled = isBusinessWorkspaceCreationEnabled();
 
   useEffect(() => {
     if (!visible) return;
@@ -72,6 +76,12 @@ export function WorkspaceSheet({ visible, onClose, onActivated }: WorkspaceSheet
 
   const saveEditor = async () => {
     if (busy !== null) return;
+    if (mode.kind === 'create' && !businessCreationEnabled) {
+      setMode({ kind: 'list' });
+      setName('');
+      setError(BUSINESS_CREATION_UNAVAILABLE);
+      return;
+    }
     setBusy(mode.kind);
     setError(null);
     try {
@@ -290,7 +300,7 @@ export function WorkspaceSheet({ visible, onClose, onActivated }: WorkspaceSheet
               );
             })}
 
-            {business === undefined ? (
+            {business === undefined && businessCreationEnabled ? (
               <Pressable
                 accessibilityHint="Creates a separate empty workspace."
                 accessibilityRole="button"
