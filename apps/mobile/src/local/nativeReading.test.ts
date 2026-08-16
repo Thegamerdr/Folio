@@ -138,7 +138,8 @@ describe('native reading — wiring is real and on-device only', () => {
   });
 
   it('PDFs and images picked as files route through extraction before falling back to manual', () => {
-    expect(docImport).toContain('extractTextFromDocument(asset.uri, mediaType)');
+    expect(docImport).toContain('extractTextFromDocument(stagedUri, mediaType)');
+    expect(docImport).toContain('stagePickerSource');
     expect(docImport).toContain("kind: 'picked'");
     expect(docImport).toContain("kind: 'unsupported'");
   });

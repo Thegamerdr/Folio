@@ -4,6 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import type { LocalDocumentStageInput } from '@/local/localLedger';
 import type { EvidenceDocument } from '@/folio/store';
 
+import { stagePickerSource } from './pickerCache';
+
 export type EvidencePickResult =
   | Readonly<{
       kind: 'picked';
@@ -24,15 +26,25 @@ export async function pickEvidenceDocument(): Promise<EvidencePickResult> {
   if (result.canceled) return { kind: 'cancelled' };
   const asset = result.assets[0];
   if (asset === undefined) return { kind: 'cancelled' };
+  const mediaType = asset.mimeType ?? mediaTypeFromName(asset.name);
+  let stagedUri: string;
+  try {
+    stagedUri = await stagePickerSource({ uri: asset.uri, filename: asset.name, mediaType });
+  } catch {
+    return {
+      kind: 'denied',
+      message: 'Melo could not prepare this file securely. Choose it again.',
+    };
+  }
   return {
     kind: 'picked',
     sourceType: 'document',
     source: {
       byteSize: asset.size ?? 0,
       filename: asset.name,
-      mediaType: asset.mimeType ?? mediaTypeFromName(asset.name),
+      mediaType,
       storageState: 'copied_to_app_cache',
-      uri: asset.uri,
+      uri: stagedUri,
     },
   };
 }
@@ -72,23 +84,33 @@ export async function captureEvidencePhoto(): Promise<EvidencePickResult> {
   );
 }
 
-function imageResult(
+async function imageResult(
   result: ImagePicker.ImagePickerResult,
   sourceType: 'image' | 'camera',
-): EvidencePickResult {
+): Promise<EvidencePickResult> {
   if (result.canceled) return { kind: 'cancelled' };
   const asset = result.assets[0];
   if (asset === undefined) return { kind: 'cancelled' };
   const filename = asset.fileName ?? `receipt-${asset.uri.split('/').at(-1) ?? 'image.jpg'}`;
+  const mediaType = asset.mimeType ?? mediaTypeFromName(filename);
+  let stagedUri: string;
+  try {
+    stagedUri = await stagePickerSource({ uri: asset.uri, filename, mediaType });
+  } catch {
+    return {
+      kind: 'denied',
+      message: 'Melo could not prepare this image securely. Choose it again.',
+    };
+  }
   return {
     kind: 'picked',
     sourceType,
     source: {
       byteSize: asset.fileSize ?? 0,
       filename,
-      mediaType: asset.mimeType ?? mediaTypeFromName(filename),
+      mediaType,
       storageState: 'copied_to_app_cache',
-      uri: asset.uri,
+      uri: stagedUri,
     },
   };
 }

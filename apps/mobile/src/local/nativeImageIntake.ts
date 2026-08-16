@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { extractTextFromDocument, type ExtractedText } from './nativeTextExtraction';
 import type { LocalDocumentStageInput } from './localLedger';
+import { stagePickerSource } from '@/folio/lib/pickerCache';
 
 export type ImageIntakeResult =
   // Text was extracted from the image on-device — feed it into the import engine.
@@ -47,16 +48,26 @@ async function handlePicked(result: ImagePicker.ImagePickerResult): Promise<Imag
   }
 
   const mediaType = mimeFor(asset.uri, asset.mimeType);
+  const filename = asset.fileName ?? `photo-${asset.uri.split('/').pop() ?? 'image'}`;
+  let stagedUri: string;
+  try {
+    stagedUri = await stagePickerSource({ uri: asset.uri, filename, mediaType });
+  } catch {
+    return {
+      kind: 'denied',
+      message: 'Melo could not prepare this image securely. Choose it again.',
+    };
+  }
   const source: LocalDocumentStageInput = {
     byteSize: asset.fileSize ?? 0,
-    filename: asset.fileName ?? `photo-${asset.uri.split('/').pop() ?? 'image'}`,
+    filename,
     mediaType,
     storageState: 'copied_to_app_cache',
-    uri: asset.uri,
+    uri: stagedUri,
   };
 
   // Attempt bundled on-device extraction first.
-  const extracted = await extractTextFromDocument(asset.uri, mediaType);
+  const extracted = await extractTextFromDocument(stagedUri, mediaType);
   if (extracted.source !== 'none' && extracted.text.trim().length > 0) {
     return { kind: 'picked', text: extracted.text, source, extraction: extracted };
   }

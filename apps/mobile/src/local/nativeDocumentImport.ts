@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import { extractTextFromDocument, type ExtractedText } from './nativeTextExtraction';
 import type { LocalDocumentStageInput } from './localLedger';
+import { stagePickerSource } from '@/folio/lib/pickerCache';
 
 const READING_NOT_READY =
   'File saved. I could not read this statement clearly enough to show things to check. You can add one thing yourself.';
@@ -59,19 +60,32 @@ export async function pickLocalStatementDocument(): Promise<PickStatementDocumen
 
   const mediaType = asset.mimeType ?? inferMediaType(asset.name);
   const byteSize = asset.size ?? 0;
+  let stagedUri: string;
+  try {
+    stagedUri = await stagePickerSource({
+      uri: asset.uri,
+      filename: asset.name,
+      mediaType,
+    });
+  } catch {
+    return {
+      kind: 'cancelled',
+      message: 'Melo could not prepare this statement securely. Choose it again.',
+    };
+  }
   const source: LocalDocumentStageInput = {
     byteSize,
     filename: asset.name,
     mediaType,
     storageState: 'copied_to_app_cache',
-    uri: asset.uri,
+    uri: stagedUri,
   };
   // Text statements (CSV / TXT) are read directly below. For a PDF or image, hand the saved file to
   // the on-device reader (PdfRenderer + ML Kit OCR). If it returns usable text, treat it as a picked
   // statement so it flows into "Check what Folio found"; otherwise the file is saved and the user
   // adds the numbers from the manual workbench. The reader is local-only and never throws.
   if (!isSupportedStatementFile(asset.name, mediaType)) {
-    const extracted = await extractTextFromDocument(asset.uri, mediaType);
+    const extracted = await extractTextFromDocument(stagedUri, mediaType);
     if (extracted.source !== 'none' && extracted.text.trim().length > 0) {
       return {
         kind: 'picked',
@@ -95,7 +109,7 @@ export async function pickLocalStatementDocument(): Promise<PickStatementDocumen
     };
   }
 
-  const text = await FileSystem.readAsStringAsync(asset.uri);
+  const text = await FileSystem.readAsStringAsync(stagedUri);
   if (text.trim().length === 0) {
     return {
       kind: 'unsupported',

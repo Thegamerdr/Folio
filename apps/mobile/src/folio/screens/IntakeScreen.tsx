@@ -110,6 +110,7 @@ import {
   evidenceRetentionFailureCopy,
   retainEvidenceDocument,
 } from '@/folio/lib/documentVault';
+import { deleteOwnedPickerStage } from '@/folio/lib/pickerCache';
 import { showToast } from '@/folio/ui/Toast';
 
 import { pickLocalStatementDocument } from '../../local/nativeDocumentImport';
@@ -378,9 +379,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     const workspace = current.workspaces.find(
       (candidate) => candidate.id === current.activeWorkspaceId,
     );
-    if (workspace === undefined) return null;
     let retained: Awaited<ReturnType<typeof retainEvidenceDocument>> | undefined;
     try {
+      if (workspace === undefined) return null;
       retained = await retainEvidenceDocument({
         workspace,
         source,
@@ -390,12 +391,14 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       addEvidenceDocument(retained);
       return retained.id;
     } catch (reason: unknown) {
-      if (retained !== undefined) {
+      if (retained !== undefined && workspace !== undefined) {
         await deleteEvidenceDocumentFile(workspace, retained).catch(() => undefined);
       }
       const failure = evidenceRetentionFailureCopy(reason);
       Alert.alert(failure.title, failure.body);
       return null;
+    } finally {
+      await deleteOwnedPickerStage(source.uri).catch(() => false);
     }
   }
 
@@ -646,9 +649,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         <View style={styles.spacer} />
 
         {/* Footer reassurance — @copy FROZEN inline literal. */}
-        <Text style={[styles.footer, { color: t.muted }]}>
-          {documentReadFooter}
-        </Text>
+        <Text style={[styles.footer, { color: t.muted }]}>{documentReadFooter}</Text>
       </ScrollView>
     </Animated.View>
   );

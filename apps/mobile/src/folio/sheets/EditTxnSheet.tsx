@@ -96,6 +96,7 @@ import {
   type EvidencePickResult,
 } from '@/folio/lib/evidencePicker';
 import { triggerFeedback } from '@/folio/lib/feedback';
+import { deleteOwnedPickerStage } from '@/folio/lib/pickerCache';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -372,6 +373,7 @@ function EditTxnForm({
     if (attachingEvidence) return;
     setAttachingEvidence(true);
     let retained: Awaited<ReturnType<typeof retainEvidenceDocument>> | undefined;
+    let pickedSourceUri: string | undefined;
     try {
       const result = await request();
       if (result.kind === 'cancelled') return;
@@ -379,6 +381,7 @@ function EditTxnForm({
         Alert.alert('Permission is off', result.message);
         return;
       }
+      pickedSourceUri = result.source.uri;
       retained = await retainEvidenceDocument({
         workspace,
         source: result.source,
@@ -405,6 +408,7 @@ function EditTxnForm({
       void triggerFeedback('error');
       Alert.alert(failure.title, failure.body);
     } finally {
+      await deleteOwnedPickerStage(pickedSourceUri).catch(() => false);
       setAttachingEvidence(false);
     }
   }

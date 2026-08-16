@@ -22,6 +22,7 @@ import type { WorkspaceId } from '@folio/domain';
 import { restoreBackupFromBlob } from '@/folio/store';
 import { reconcileEntitlements } from '@/folio/lib/billing/entitlements';
 import { reconcileMissingEvidenceFiles } from '@/folio/lib/persist';
+import { deleteOwnedPickerStage, stagePickerSource } from '@/folio/lib/pickerCache';
 
 import { summarizeRestore, validateRestoreJson } from './restore';
 import type { RestoreRejection, RestoreSummary } from './restore';
@@ -49,19 +50,28 @@ export async function pickRestoreFile(workspaceId: WorkspaceId): Promise<PickRes
   if (picked.canceled || picked.assets.length === 0) return { status: 'cancelled' };
 
   const asset = picked.assets[0]!;
-  const raw = await FileSystem.readAsStringAsync(asset.uri, {
-    encoding: FileSystem.EncodingType.UTF8,
+  const stagedUri = await stagePickerSource({
+    uri: asset.uri,
+    filename: asset.name,
+    mediaType: asset.mimeType ?? 'application/json',
   });
+  try {
+    const raw = await FileSystem.readAsStringAsync(stagedUri, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
 
-  const validation = validateRestoreJson(raw, workspaceId);
-  if (!validation.ok) return { status: 'invalid', reason: validation.reason };
+    const validation = validateRestoreJson(raw, workspaceId);
+    if (!validation.ok) return { status: 'invalid', reason: validation.reason };
 
-  return {
-    status: 'staged',
-    raw,
-    fileName: asset.name,
-    summary: summarizeRestore(validation.parsed),
-  };
+    return {
+      status: 'staged',
+      raw,
+      fileName: asset.name,
+      summary: summarizeRestore(validation.parsed),
+    };
+  } finally {
+    await deleteOwnedPickerStage(stagedUri).catch(() => false);
+  }
 }
 
 export type ApplyRestoreResult = Readonly<{

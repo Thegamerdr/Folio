@@ -31,6 +31,7 @@ import { authenticateAppLock, prepareAppLock, subscribeAppLockSettings } from '@
 import { AppLockGate } from '@/folio/ui/AppLockGate';
 import { PERSONAL_WORKSPACE_ID } from '@/folio/lib/workspaceRoot';
 import { hydrateMeloCompanionBehavior } from '@/folio/companion/persistence';
+import { sweepOwnedPickerStaging } from '@/folio/lib/pickerCache';
 
 export default function FolioRoute() {
   const t = useTheme();
@@ -121,6 +122,8 @@ export default function FolioRoute() {
     let stopWidgetSync: (() => void) | undefined;
     let cancelled = false;
     void (async () => {
+      await sweepOwnedPickerStaging().catch(() => undefined);
+      if (cancelled) return;
       const activeWorkspaceId = await loadPersistedActiveWorkspace();
       if (cancelled) return;
       if (getHydrationOutcome() === 'incompatible-future-schema') {
