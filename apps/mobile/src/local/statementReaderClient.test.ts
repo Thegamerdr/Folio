@@ -92,6 +92,22 @@ describe('parseCandidatesFromModelJson — well-formed JSON', () => {
     const b = parseCandidatesFromModelJson(raw, 'pdf').map((c) => c.id);
     expect(a).toEqual(b);
   });
+
+  it('keeps identical financial rows distinct by parsed-row position', () => {
+    const repeated = JSON.stringify({
+      items: [
+        { date: '2026-06-20', merchant: 'Train', amount: -4.2 },
+        { date: '2026-06-20', merchant: 'Train', amount: -4.2 },
+      ],
+    });
+    const ids = parseCandidatesFromModelJson(repeated, 'pdf').map((candidate) => candidate.id);
+
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    expect(parseCandidatesFromModelJson(repeated, 'pdf').map((candidate) => candidate.id)).toEqual(
+      ids,
+    );
+  });
 });
 
 describe('parseCandidatesFromModelJson — markdown code fences', () => {

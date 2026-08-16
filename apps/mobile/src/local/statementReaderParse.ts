@@ -219,8 +219,8 @@ function toIsoDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-/** Stable per-row id so re-parsing the same reply yields the same ids (no Date.now / random — keeps
- *  the parser pure and the tests deterministic). */
+/** Stable per-row identity. The parsed-row index distinguishes two identical financial rows while
+ * re-parsing the same reader reply yields the same IDs (no clock or randomness). */
 function candidateId(
   source: CandidateSource,
   index: number,

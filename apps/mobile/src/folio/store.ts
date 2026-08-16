@@ -5827,10 +5827,10 @@ export type AddStatementAsHistoryResult = StatementSummary & {
    *  so the bulk-landing summary can be honest about a big import trimming older on-device history,
    *  never silent. */
   droppedTransactionCount?: number;
-  /** How many of the candidates handed to THIS call were already present in the ledger (by stable
-   *  import id — `importedTransactionId`, an `imp-`-prefixed hash of `statementReaderDedup.ts`'s
-   *  `dedupeKey` policy: date-or-'no-date' + amount + normalised merchant) and were therefore
-   *  skipped rather than double-counted. Task: RE-IMPORT DEDUP — surfaced so the landing summary can
+  /** How many candidates handed to THIS call were already present by deterministic source-row
+   *  identity. `importedTransactionId` hashes candidate source + candidate ID + normalized facts;
+   *  natural-key similarity alone never increments this count or removes a row. Surfaced so the
+   *  landing summary can
    *  be honest about a
    *  re-import ("Added N new · M already in Folio") instead of silently re-adding money that was
    *  already there. `0` when every candidate was genuinely new (the common case for a first
@@ -5846,13 +5846,8 @@ export type AddStatementAsHistoryResult = StatementSummary & {
   reconciliation?: ReconciliationResult;
 };
 
-/** Short, deterministic non-cryptographic string hash (32-bit FNV-1a), rendered as an 8-char base-36
- *  string. Used only to derive a STABLE transaction id from a candidate's `dedupeKey` — defense in
- *  depth alongside the Set-based skip in `addStatementAsHistory`: even if that pre-filter were ever
- *  bypassed (a future call site, a refactor), re-adding the exact same candidate twice collides on
- *  the same `id` rather than silently minting a second row for the same money. Not used for anything
- *  security-sensitive — collision resistance only needs to be "good enough to not duplicate a
- *  transaction by accident", not cryptographic. */
+/** Short deterministic non-cryptographic hash used only for stable local import IDs. Every batch is
+ * collision-checked before state mutation; this is not a security primitive. */
 function stableHash(input: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
@@ -5862,22 +5857,19 @@ function stableHash(input: string): string {
   return (hash >>> 0).toString(36);
 }
 
-/** Stable, deterministic transaction id for one imported candidate — `imp-` + a hash of its
- *  `dedupeKey`. Two imports of the exact same candidate (same date/amount/merchant) always produce
- *  the same id, so even a duplicate that slipped past the Set-based skip below would overwrite/collide
- *  with the existing row's id rather than mint a second row. Manual single-entry `addTransaction`
- *  is untouched — it keeps its existing random `txn-${Date.now()}-...` id, since a manual entry has
- *  no "candidate" to derive a stable key from and doesn't need re-import defense. */
+/** Stable transaction ID for one imported source row. Candidate source + deterministic row ID are
+ * authoritative; normalized facts protect against accidental cross-parser ID reuse. Two real rows
+ * with the same date/amount/merchant keep distinct IDs when their candidate IDs differ. */
 function importedTransactionId(candidate: CandidateMoneyItem): string {
-  return `imp-${stableHash(dedupeKey(candidate))}`;
+  const identity = `${candidate.source}\u0000${candidate.id}\u0000${dedupeKey(candidate)}`;
+  return `imp-${stableHash(identity)}-${stableHash(`melo-import-row\u0000${identity}`)}`;
 }
 
 /** Bulk-land a whole statement's candidates as history in ONE user-confirmed action (task: BULK
  *  ADD-AS-HISTORY — the core of the "one confirm populates everything" flow). Composes, in order:
  *
- *   1. RE-IMPORT DEDUP (task: statement re-import correctness) — drop any candidate whose STABLE
- *      import id (`importedTransactionId` — `imp-` + a hash of `dedupeKey`'s date/amount/merchant
- *      key, same normalisation as `statementReaderDedup.ts`'s `dedupeKey`) already matches an
+ *   1. RE-IMPORT DEDUP (task: statement re-import correctness) — drop any candidate whose stable
+ *      import ID (source + deterministic candidate row ID + normalized facts) already matches an
  *      EXISTING `imp-`-prefixed row id in `state.transactions`. Comparing by id (not by
  *      reconstructing a natural key from the landed row's `when`, the previous approach) is what
  *      makes a candidate with no `date` round-trip correctly: both sides hash the same `'no-date'`
@@ -5888,14 +5880,12 @@ function importedTransactionId(candidate: CandidateMoneyItem): string {
  *      it only ever suppresses a candidate against what's *already landed in the ledger* — it never
  *      touches within-import duplicates (two chunks of the SAME read repeating a boundary row),
  *      which `mergeChunkCandidates` has already resolved upstream before candidates ever reach here.
- *      A genuine same-day repeat purchase (two identical £3.50 coffees) collides on this key just
- *      like it would in the chunk-merge case — a known, documented ambiguity, not a new one: the
- *      user can still add the second one by hand, and review-before-truth means nothing was ever
- *      silently over-counted, only (rarely) under-counted in a way the user can correct.
+ *      Natural-key similarity is never deletion authority, so two identical £3.50 source rows with
+ *      distinct candidate IDs both remain visible and may both land after confirmation.
  *   2. Map every SURVIVING candidate to a transaction draft (`candidateToTransactionDraft` — signed
  *      amount verbatim, kind-correct category INCLUDING income; see that module's doc for why this
  *      can never coerce an income row onto a spend bucket), stamping a STABLE `imp-`-prefixed id
- *      (`importedTransactionId`) derived from the same key — defense in depth alongside the dedup
+ *      (`importedTransactionId`) derived from the same identity — defense in depth alongside the dedup
  *      filter above: even a candidate that somehow slipped past step 1 collides on id with the
  *      already-landed row instead of duplicating it.
  *   3. `addTransactionsBatch` — the single retention-aware write path (one `setPartial` for the
@@ -5953,6 +5943,18 @@ export function addStatementAsHistory(
     };
   }
 
+  const identifiedCandidates = candidates.map((candidate) => ({
+    candidate,
+    transactionId: importedTransactionId(candidate),
+  }));
+  const batchTransactionIds = new Set<string>();
+  for (const identified of identifiedCandidates) {
+    if (batchTransactionIds.has(identified.transactionId)) {
+      throw new Error('Imported candidate ID collision; no transactions were added.');
+    }
+    batchTransactionIds.add(identified.transactionId);
+  }
+
   // Demo→real transition (belt for any path that bypassed onboarding's wipe): an
   // import IS real data, so clear any lingering demo/seed set first — the
   // imported rows must never mix with seed rows in the same session. No-op once
@@ -5961,21 +5963,19 @@ export function addStatementAsHistory(
     setPartial(stripSeedData(getState()));
   }
 
-  // Step 1 — drop candidates already present in the ledger. Compared by STABLE IMPORT ID
-  // (`importedTransactionId`, an `imp-`-prefixed hash of `dedupeKey`) rather than by reconstructing
-  // a natural key from the landed row's `when` (the previous approach): a candidate with no `date`
-  // hashes to `dedupeKey`'s `'no-date'` sentinel on BOTH sides this way, so it round-trips correctly
-  // instead of comparing against the real "now" timestamp `addTransactionsBatch` stamped onto the
-  // landed row (which could never match `'no-date'` and silently defeated dedup for every date-less
-  // candidate — see `transactionImportKey`'s doc). `existingImportIds` is computed once from the
-  // CURRENT persisted ledger, not recomputed per candidate. Only ids carrying the `imp-` prefix are
-  // even candidates for a match (a manual `addTransaction` row's random `txn-...` id never collides).
+  // Step 1 — drop candidates already present by stable source-row identity. Normalized facts remain
+  // part of the generated ID as a cross-parser guard, but matching date/amount/merchant alone never
+  // removes a candidate. `existingImportIds` is computed once from the current persisted ledger;
+  // manual `txn-...` IDs cannot collide with the `imp-` namespace.
   const existingImportIds = new Set(
     getState()
       .transactions.map((t) => t.id)
       .filter((id) => id.startsWith('imp-')),
   );
-  const newCandidates = candidates.filter((c) => !existingImportIds.has(importedTransactionId(c)));
+  const newCandidateRows = identifiedCandidates.filter(
+    ({ transactionId }) => !existingImportIds.has(transactionId),
+  );
+  const newCandidates = newCandidateRows.map(({ candidate }) => candidate);
   const duplicatesSkipped = candidates.length - newCandidates.length;
 
   // The honest landing summary reflects what's actually being added, not the raw input length — a
@@ -5988,9 +5988,9 @@ export function addStatementAsHistory(
 
   const droppedBeforeAdd = getState().droppedTransactionCount ?? 0;
   addTransactionsBatch(
-    newCandidates.map((c) => ({
-      ...candidateToTransactionDraft(c, accountId),
-      id: importedTransactionId(c),
+    newCandidateRows.map(({ candidate, transactionId }) => ({
+      ...candidateToTransactionDraft(candidate, accountId),
+      id: transactionId,
     })),
   );
   syncHistoryCycles();

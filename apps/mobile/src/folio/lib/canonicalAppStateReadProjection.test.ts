@@ -124,6 +124,41 @@ describe('canonical AppState read projection', () => {
     );
   });
 
+  it('round-trips legitimate identical financial rows when their source IDs differ', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const repeated = {
+      when: '2026-07-15T08:01:02.003Z',
+      merchant: 'City Rail',
+      amount: -4.2,
+      category: 'transport' as const,
+      source: 'manual' as const,
+      accountId: DEFAULT_ACCOUNT_ID,
+    };
+    const state: AppState = {
+      ...base,
+      transactions: [
+        { id: 'imp-source-row-17', ...repeated },
+        { id: 'imp-source-row-18', ...repeated },
+      ],
+    };
+
+    const canonical = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-07-16T12:00:00.000Z',
+    );
+    const read = readCanonicalAppStateMoneyProjection(
+      canonical.repositorySnapshot,
+      String(workspace.id),
+    );
+
+    expect(canonical.repositorySnapshot.collections.transactions).toHaveLength(2);
+    expect(read.transactions).toEqual(
+      state.transactions.map((transaction) => ({ ...transaction, workspaceId: workspace.id })),
+    );
+  });
+
   it('round-trips rework continuity, subscription recovery and route holds losslessly', () => {
     const base = emptyState();
     const workspace = personalWorkspace(base);

@@ -28,22 +28,33 @@ describe('mergeChunkCandidates', () => {
     expect(merged.map((c) => c.id)).toEqual(['a', 'b']);
   });
 
-  it('drops a later duplicate with the same date+amount+merchant, keeping the earlier chunk’s row', () => {
+  it('drops only the same deterministic row ID repeated across chunks', () => {
     const chunk1 = [candidate({ id: 'first', merchant: 'Tesco', amount: -10, date: '2026-01-01' })];
-    // Same transaction re-read at the top of the next chunk (boundary re-read).
-    const chunk2 = [candidate({ id: 'dup', merchant: 'Tesco', amount: -10, date: '2026-01-01' })];
+    const chunk2 = [candidate({ id: 'first', merchant: 'Tesco', amount: -10, date: '2026-01-01' })];
     const merged = mergeChunkCandidates([chunk1, chunk2]);
     expect(merged).toHaveLength(1);
     expect(merged[0]?.id).toBe('first');
   });
 
-  it('treats merchant matching as case/whitespace tolerant for the dedupe key', () => {
+  it('keeps same-key rows with different IDs in one chunk', () => {
+    const merged = mergeChunkCandidates([
+      [
+        candidate({ id: 'fare-row-1', merchant: 'Rail', amount: -4.2, date: '2026-01-01' }),
+        candidate({ id: 'fare-row-2', merchant: 'Rail', amount: -4.2, date: '2026-01-01' }),
+      ],
+    ]);
+    expect(merged.map((row) => row.id)).toEqual(['fare-row-1', 'fare-row-2']);
+  });
+
+  it('keeps same-key rows with different IDs across chunks', () => {
     const chunk1 = [
-      candidate({ id: 'first', merchant: 'Tesco  ', amount: -10, date: '2026-01-01' }),
+      candidate({ id: 'fare-row-1', merchant: 'Rail', amount: -4.2, date: '2026-01-01' }),
     ];
-    const chunk2 = [candidate({ id: 'dup', merchant: '  tesco', amount: -10, date: '2026-01-01' })];
+    const chunk2 = [
+      candidate({ id: 'fare-row-2', merchant: 'Rail', amount: -4.2, date: '2026-01-01' }),
+    ];
     const merged = mergeChunkCandidates([chunk1, chunk2]);
-    expect(merged).toHaveLength(1);
+    expect(merged.map((row) => row.id)).toEqual(['fare-row-1', 'fare-row-2']);
   });
 
   it('keeps two rows that differ only by amount (not a real duplicate)', () => {
@@ -60,12 +71,11 @@ describe('mergeChunkCandidates', () => {
     expect(merged).toHaveLength(2);
   });
 
-  it('treats a missing date as its own bucket (no-date rows can still collide with each other)', () => {
+  it('keeps identical missing-date amounts when row IDs differ', () => {
     const chunk1 = [candidate({ id: 'a', merchant: 'Cash', amount: -5 })]; // no date
     const chunk2 = [candidate({ id: 'b', merchant: 'Cash', amount: -5 })]; // no date, same rest
     const merged = mergeChunkCandidates([chunk1, chunk2]);
-    expect(merged).toHaveLength(1);
-    expect(merged[0]?.id).toBe('a');
+    expect(merged.map((row) => row.id)).toEqual(['a', 'b']);
   });
 
   it('preserves chunk order and within-chunk order in the merged output', () => {
@@ -83,16 +93,15 @@ describe('mergeChunkCandidates', () => {
     expect(mergeChunkCandidates([[], []])).toEqual([]);
   });
 
-  it('handles duplicates spanning more than two chunks (keeps only the first)', () => {
-    const row = () =>
-      candidate({
-        id: `x-${Math.random()}`,
-        merchant: 'Netflix',
-        amount: -9.99,
-        date: '2026-02-01',
-      });
+  it('handles the same row ID spanning more than two chunks without randomness', () => {
     const first = candidate({ id: 'keep', merchant: 'Netflix', amount: -9.99, date: '2026-02-01' });
-    const merged = mergeChunkCandidates([[first], [row()], [row()]]);
+    const duplicate = candidate({
+      id: 'keep',
+      merchant: 'Netflix',
+      amount: -9.99,
+      date: '2026-02-01',
+    });
+    const merged = mergeChunkCandidates([[first], [duplicate], [duplicate]]);
     expect(merged).toHaveLength(1);
     expect(merged[0]?.id).toBe('keep');
   });

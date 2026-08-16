@@ -4215,12 +4215,18 @@ describe('syncHistoryCycles', () => {
 // ---------------------------------------------------------------------------
 describe('addStatementAsHistory', () => {
   function candidate(over: Partial<CandidateMoneyItem> = {}): CandidateMoneyItem {
+    const source = over.source ?? 'pdf';
+    const kind = over.kind ?? 'spend';
+    const merchant = over.merchant ?? 'Tesco';
+    const amount = over.amount ?? -10;
     return {
-      id: `cand-${Math.random().toString(36).slice(2)}`,
-      source: 'pdf',
-      kind: 'spend',
-      merchant: 'Tesco',
-      amount: -10,
+      id:
+        over.id ??
+        `cand-${source}-${over.date ?? 'no-date'}-${merchant.toLowerCase().replace(/\W+/gu, '-')}-${amount}`,
+      source,
+      kind,
+      merchant,
+      amount,
       confidence: 'low',
       ...over,
     };
@@ -4598,7 +4604,7 @@ describe('addStatementAsHistory', () => {
       addStatementAsHistory(fixture);
 
       const overlapping: CandidateMoneyItem[] = [
-        // Same as fixture[0] — exact date/amount/merchant match, should be skipped.
+        // Same source-row identity as fixture[0], so it is the one skipped row.
         candidate({ merchant: 'Tesco', amount: -42.1, kind: 'spend', date: '2026-03-03' }),
         // Genuinely new rows.
         candidate({ merchant: 'Coffee Shop', amount: -3.5, kind: 'spend', date: '2026-03-27' }),
@@ -4612,6 +4618,63 @@ describe('addStatementAsHistory', () => {
       expect(merchants.filter((m) => m === 'Tesco').length).toBe(1); // never doubled
       expect(merchants).toContain('Coffee Shop');
       expect(merchants).toContain('Cinema');
+    });
+
+    it('lands two legitimate same-date, same-amount, same-merchant rows with distinct candidate IDs', () => {
+      setPartial({ transactions: [] });
+      const repeatedFare = {
+        merchant: 'City Rail',
+        amount: -4.2,
+        kind: 'spend' as const,
+        date: '2026-03-03',
+      };
+
+      const result = addStatementAsHistory([
+        candidate({ ...repeatedFare, id: 'pdf-row-17' }),
+        candidate({ ...repeatedFare, id: 'pdf-row-18' }),
+      ]);
+
+      expect(result).toMatchObject({ added: 2, duplicatesSkipped: 0 });
+      const fares = getState().transactions.filter(
+        (transaction) => transaction.merchant === 'City Rail',
+      );
+      expect(fares).toHaveLength(2);
+      expect(new Set(fares.map((transaction) => transaction.id)).size).toBe(2);
+    });
+
+    it('treats partial overlap by candidate identity, not natural-key similarity', () => {
+      setPartial({ transactions: [] });
+      const facts = {
+        merchant: 'City Rail',
+        amount: -4.2,
+        kind: 'spend' as const,
+        date: '2026-03-03',
+      };
+      const first = candidate({ ...facts, id: 'pdf-row-17' });
+      addStatementAsHistory([first]);
+
+      const result = addStatementAsHistory([first, candidate({ ...facts, id: 'pdf-row-18' })]);
+
+      expect(result).toMatchObject({ added: 1, duplicatesSkipped: 1 });
+      expect(
+        getState().transactions.filter((transaction) => transaction.merchant === 'City Rail'),
+      ).toHaveLength(2);
+    });
+
+    it('rejects a generated-ID collision before any state mutation', () => {
+      setPartial({ transactions: [] });
+      const repeatedSourceRow = candidate({
+        id: 'pdf-row-collision',
+        merchant: 'City Rail',
+        amount: -4.2,
+        date: '2026-03-03',
+      });
+      const before = getPersistBlob();
+
+      expect(() => addStatementAsHistory([repeatedSourceRow, repeatedSourceRow])).toThrow(
+        /candidate ID collision/,
+      );
+      expect(getPersistBlob()).toBe(before);
     });
 
     it('an OLDER-dated import does not evict newer rows already in the ledger under the cap', () => {

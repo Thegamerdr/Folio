@@ -50,6 +50,9 @@ export type CandidateKind =
 export type CandidateConfidence = 'high' | 'medium' | 'low';
 
 export type CandidateMoneyItem = {
+  /** Deterministic identity for one row in its source. Re-parsing the same source must reproduce
+   * this ID, while distinct row positions must remain distinct even when date, amount and merchant
+   * are identical. Landing idempotency depends on this row identity; it is not a natural-key hash. */
   id: string;
   /** Encrypted original retained in this workspace's device vault, when the candidate came from a
    *  selected file/photo. Metadata only; no file bytes or picker URI enter the candidate. */
@@ -386,9 +389,8 @@ function hasExplicitSign(rawAmount: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Deterministic id — stable per (rowIndex, merchant, amount) so re-parsing the
-// same sheet yields the same ids (no Math.random / Date.now — keeps the module
-// pure and the tests deterministic).
+// Deterministic row identity — rowIndex keeps distinct source rows distinct even when their money
+// fields match, while merchant/amount make accidental cross-parser index reuse fail safely.
 // ---------------------------------------------------------------------------
 
 function candidateId(rowIndex: number, merchant: string, amount: number): string {

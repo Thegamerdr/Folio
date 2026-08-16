@@ -13,6 +13,8 @@
 // (mirrors store.test.ts).
 
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import {
   FOLIO_CSV_TEMPLATE,
@@ -81,6 +83,29 @@ describe('parseSheet — CSV', () => {
     const ids = candidates.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.every((id) => id.length > 0)).toBe(true);
+    expect(parseSheet(csv).candidates.map((candidate) => candidate.id)).toEqual(ids);
+  });
+
+  it('gives identical financial rows at different positions distinct IDs', () => {
+    const repeated = [
+      'date,description,amount',
+      '2026-06-20,Train,-4.20',
+      '2026-06-20,Train,-4.20',
+    ].join('\n');
+    const ids = parseSheet(repeated).candidates.map((candidate) => candidate.id);
+
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+});
+
+describe('candidate row identity implementation', () => {
+  it('uses no clock or randomness in either supported parser', () => {
+    const sources = ['./importSheet.ts', '../../local/statementReaderParse.ts'].map((path) =>
+      readFileSync(fileURLToPath(new URL(path, import.meta.url).href), 'utf8'),
+    );
+
+    for (const source of sources) expect(source).not.toMatch(/Date\.now|Math\.random|randomUUID/u);
   });
 });
 
