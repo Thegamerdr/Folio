@@ -65,7 +65,7 @@ function RangeColumn({
           : 'unknown'}
       </Text>
       <Text style={[styles.meta, { color: t.muted }]}>
-        {range ? `${range.confidence} · ${range.freshness}` : 'not recorded'}
+        {range ? `${range.reliance.replaceAll('_', ' ')} · ${range.freshness}` : 'not recorded'}
       </Text>
     </View>
   );
@@ -110,7 +110,7 @@ export function TruthAndSourceList({
         <View key={row.factId} style={styles.sourceRow}>
           <Text style={[styles.sourceLabel, { color: t.ink }]}>{row.label}</Text>
           <Text style={[styles.meta, { color: t.muted }]}>
-            {row.truthClass.replaceAll('_', ' ')} · {row.freshness} · {row.confidence}
+            {row.truthClass.replaceAll('_', ' ')} · {row.freshness}
           </Text>
         </View>
       ))}
@@ -183,7 +183,7 @@ export function DecisionComparison({
               {deltaLabel({ minorUnits: row.conservativeBoundaryEffectMinor })}
             </Text>
             <Text style={[styles.meta, { color: t.muted }]}>
-              Risk {row.essentialCommitmentRisk} · {row.confidence} ·{' '}
+              Risk {row.essentialCommitmentRisk} · {row.reliance.replaceAll('_', ' ')} ·{' '}
               {row.reversible ? 'reversible' : 'hard to undo'}
             </Text>
           </Pressable>
@@ -288,7 +288,11 @@ export function ForecastAccountabilitySummary({
       <View style={styles.factGrid}>
         <Fact label="Result" value={accountability.classification.replaceAll('_', ' ')} />
         <Fact label="Actual" value={moneyLabel(accountability.actualEndPosition)} />
-        <Fact label="Confidence" value={accountability.confidenceAtTheTime} />
+        <Fact label="Reliance" value={accountability.relianceAtTheTime.replaceAll('_', ' ')} />
+        <Fact
+          label="Reliance matched outcome"
+          value={accountability.relianceMatchedOutcome ? 'yes' : 'no'}
+        />
         <Fact
           label="Boundary"
           value={

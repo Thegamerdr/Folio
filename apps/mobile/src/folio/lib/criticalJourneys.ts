@@ -300,7 +300,6 @@ export function buildProvisionalFirstAnswer(
     enteredFacts,
     safeRange: snapshot,
     truth: safeRange.truthClass,
-    confidence: safeRange.confidence,
     reliance: safeRange.reliance,
     assumptions: [...safeRange.assumptions],
     missingMaterialInfo: Array.from(new Set(missingMaterialInfo)),
@@ -517,7 +516,7 @@ export type ScenarioComparisonRow = Readonly<{
   conservativeBoundaryEffectMinor: number;
   essentialCommitmentRisk: 'unchanged' | 'higher' | 'lower' | 'unknown';
   reversible: boolean;
-  confidence: TrustedSafeRangeSnapshot['confidence'];
+  reliance: TrustedSafeRangeSnapshot['reliance'];
   forecastHorizon: string;
   scenario: DecisionLedgerScenario;
 }>;
@@ -546,7 +545,7 @@ function scenarioRow(
           ? 'lower'
           : 'unchanged',
     reversible,
-    confidence: baseline.confidence,
+    reliance: baseline.reliance,
     forecastHorizon: `${baseline.horizonStartISO} to ${baseline.horizonEndISO}`,
     scenario: {
       id: createScenarioId(`scenario_${stableHash(`${id}:${label}`)}`),
@@ -698,8 +697,8 @@ export type PaydayForecastAccountability = Readonly<{
   actualEndPosition: Money | null;
   classification: 'inside_range' | 'conservative' | 'outside_range' | 'unverifiable';
   mainSourceOfError: string;
-  confidenceAtTheTime: TrustedSafeRangeSnapshot['confidence'] | 'unknown';
-  confidenceWasJustified: boolean | null;
+  relianceAtTheTime: TrustedSafeRangeSnapshot['reliance'] | 'unknown';
+  relianceMatchedOutcome: boolean | null;
 }>;
 
 export function evaluatePaydayForecastAccountability(
@@ -712,8 +711,8 @@ export function evaluatePaydayForecastAccountability(
       actualEndPosition: money(actualEndPositionMinor),
       classification: 'unverifiable',
       mainSourceOfError: 'Missing prior forecast or closing actual.',
-      confidenceAtTheTime: prior?.confidence ?? 'unknown',
-      confidenceWasJustified: null,
+      relianceAtTheTime: prior?.reliance ?? 'unknown',
+      relianceMatchedOutcome: null,
     };
   }
   const actual = money(actualEndPositionMinor)!;
@@ -736,11 +735,11 @@ export function evaluatePaydayForecastAccountability(
         ? 'No material miss against the recorded forecast range.'
         : (prior.missingMaterialInfo[0] ??
           'Observed cash movement differed from the recorded assumptions.'),
-    confidenceAtTheTime: prior.confidence,
-    confidenceWasJustified:
+    relianceAtTheTime: prior.reliance,
+    relianceMatchedOutcome:
       classification === 'inside_range' || classification === 'conservative'
-        ? prior.confidence !== 'blocked'
-        : prior.confidence === 'low' || prior.confidence === 'blocked',
+        ? prior.reliance !== 'blocked'
+        : prior.reliance !== 'safe_to_rely',
   };
 }
 

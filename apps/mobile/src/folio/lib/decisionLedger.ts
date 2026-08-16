@@ -28,7 +28,6 @@ import {
   type MaterialDecisionKind,
   type Money,
   type ScenarioId,
-  type TrustedCoreConfidence,
   type TrustedSafeRangeResult,
   type UserCorrectionId,
   type WorkspaceId,
@@ -358,7 +357,6 @@ export function safeRangeSnapshotFromResult(
     horizonEndISO: result.horizonEndISO,
     status: result.status,
     reliance: result.reliance,
-    confidence: result.confidence,
     freshness: result.freshness,
     currentKnownPosition: cloneMoney(result.currentKnownPosition),
     knownCommittedFloor: cloneMoney(result.knownCommittedFloor),
@@ -389,7 +387,6 @@ export function forecastSnapshotFromSafeRange(
     predictedSafeMin: cloneMoney(safeRange.expectedSafeMin),
     predictedSafeMax: cloneMoney(safeRange.expectedSafeMax),
     conservativeBoundary: cloneMoney(safeRange.conservativeBoundary),
-    confidence: safeRange.confidence,
     sourceFactIds: [...safeRange.sourceFactIds],
   };
 }
@@ -435,7 +432,6 @@ function assumptionsFromInput(
       id: `assumption_${index + 1}_${idPart(label)}`.slice(0, 128),
       label,
       truthClass: 'assumed' as const,
-      confidence: 'medium' as const,
       amount: null,
       sourceFactIds: [],
     }));
@@ -468,7 +464,6 @@ function makeFallbackForecast(input: {
     predictedSafeMin: buffer,
     predictedSafeMax: buffer,
     conservativeBoundary: buffer,
-    confidence: 'medium',
     sourceFactIds: input.sourceFactIds,
   };
 }
@@ -583,10 +578,10 @@ export function createDecisionDraft(
     question: {
       text: input.question.trim(),
       source: input.questionSource ?? 'user',
-      priority: input.priority ?? 'cashflow_confidence',
+      priority: input.priority ?? 'cashflow_source_quality',
     },
     userQuestion: input.question.trim(),
-    userPriority: input.priority ?? 'cashflow_confidence',
+    userPriority: input.priority ?? 'cashflow_source_quality',
     contextRoute: input.contextRoute,
     materiality,
     factSnapshots,
@@ -900,7 +895,6 @@ export function evaluateForecast(
     actualEndPosition: actualEnd,
     error,
     classification,
-    confidence: classification === 'unknown' ? 'blocked' : evaluationConfidence(error),
     note: input.note ?? null,
     sourceFactIds: [...(input.sourceFactIds ?? [])],
   };
@@ -938,14 +932,6 @@ function classifyForecastEvaluation(
     return 'conservative';
   }
   return 'outside_range';
-}
-
-function evaluationConfidence(error: Money | null): TrustedCoreConfidence {
-  if (error === null) return 'blocked';
-  const magnitude = Math.abs(error.minorUnits);
-  if (magnitude <= 500) return 'high';
-  if (magnitude <= 2_500) return 'medium';
-  return 'low';
 }
 
 export function addCorrection(

@@ -1042,7 +1042,7 @@ export type MeloState = {
 };
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-export const CURRENT_SCHEMA_VERSION = 19;
+export const CURRENT_SCHEMA_VERSION = 20;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -1339,6 +1339,34 @@ function seedTransactions(): Transaction[] {
     t(8, 'Cinema', -16.0, 'fun'),
     t(11, 'Salary', 1840.0, 'income'),
   ];
+}
+
+const OBSOLETE_TRUSTED_CORE_CONFIDENCE_FIELDS = new Set([
+  'confidence',
+  'confidenceAtTheTime',
+  'confidenceWasJustified',
+]);
+
+/** Restrict the v20 cleanup to persisted trusted-core slices. Import/parser source quality still
+ * uses its own `confidence` metadata and must survive this migration unchanged. */
+function removeUnsupportedTrustedCoreConfidence(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(removeUnsupportedTrustedCoreConfidence);
+  if (value === 'cashflow_confidence') return 'cashflow_source_quality';
+  if (value === null || typeof value !== 'object') return value;
+
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (OBSOLETE_TRUSTED_CORE_CONFIDENCE_FIELDS.has(key)) continue;
+    const nextKey = key === 'confidenceReasons' ? 'evidenceNotes' : key;
+    const nextValue =
+      key === 'impact' && nested === 'raises'
+        ? 'supports'
+        : key === 'impact' && nested === 'lowers'
+          ? 'limits'
+          : removeUnsupportedTrustedCoreConfidence(nested);
+    cleaned[nextKey] = nextValue;
+  }
+  return cleaned;
 }
 
 /** Per-version migration steps. Each function receives the previously-
@@ -1657,6 +1685,19 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
         : {}),
     };
   },
+  // v19 → v20: remove the unsupported aggregate confidence vocabulary only from persisted
+  // trusted-core history. Source-specific parser/import confidence remains intact elsewhere.
+  20: (prev) => ({
+    ...prev,
+    schemaVersion: 20,
+    decisionLedger: removeUnsupportedTrustedCoreConfidence(prev['decisionLedger']),
+    provisionalAnswers: removeUnsupportedTrustedCoreConfidence(prev['provisionalAnswers']),
+    materialChanges: removeUnsupportedTrustedCoreConfidence(prev['materialChanges']),
+    correctionImpacts: removeUnsupportedTrustedCoreConfidence(prev['correctionImpacts']),
+    criticalJourneyContinuity: removeUnsupportedTrustedCoreConfidence(
+      prev['criticalJourneyContinuity'],
+    ),
+  }),
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -3737,7 +3778,7 @@ export function addCycle(c: CycleRecord) {
     contextRoute: 'ritual',
     question: `Close ${c.label} with £${c.spare.toFixed(2)} spare.`,
     questionSource: 'payday-ritual',
-    priority: 'cashflow_confidence',
+    priority: 'cashflow_source_quality',
     amountMinor: Math.round(c.spare * 100),
     bufferDeltaMinor: Math.round(c.tightPoint * 100),
     confirmedAction: true,
@@ -7379,7 +7420,7 @@ export function addWhatIfHold(input: {
     contextRoute: 'whatif',
     question: `Keep a ${hold.recurrence} £${amount} scenario on the money path.`,
     questionSource: 'scenario',
-    priority: 'cashflow_confidence',
+    priority: 'cashflow_source_quality',
     amountMinor: -Math.round(amount * 100),
     bufferDeltaMinor: -Math.round(amount * 100),
     confirmedAction: true,

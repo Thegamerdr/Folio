@@ -108,8 +108,11 @@ function baseState(patch: Partial<AppState> = {}): AppState {
   };
 }
 
-function findReason(result: ReturnType<typeof buildTrustedSafeRangeFromAppState>, id: string) {
-  return result.confidenceReasons.find((reason) => reason.id === id);
+function findEvidenceNote(
+  result: ReturnType<typeof buildTrustedSafeRangeFromAppState>,
+  id: string,
+) {
+  return result.evidenceNotes.find((note) => note.id === id);
 }
 
 function findIssue(result: ReturnType<typeof buildTrustedSafeRangeFromAppState>, id: string) {
@@ -121,13 +124,13 @@ function expectEvidence(result: ReturnType<typeof buildTrustedSafeRangeFromAppSt
   expect(result.horizonStartISO).toBe(NOW);
   expect(result.horizonEndISO).toBe('2026-08-24');
   expect(result.sourceBreakdown.length).toBeGreaterThan(0);
-  expect(result.confidenceReasons.length).toBeGreaterThan(0);
+  expect(result.evidenceNotes.length).toBeGreaterThan(0);
   expect(result.freshnessDetail.summary.length).toBeGreaterThan(0);
   expect(result.relianceDetail.label.length).toBeGreaterThan(0);
 }
 
 describe('Trusted Safe Range adapter — core complete states', () => {
-  it('complete fresh data returns a ready deterministic range with truth, confidence, freshness and sources', () => {
+  it('complete fresh data returns a ready deterministic range with truth, reliance, freshness and sources', () => {
     const state = baseState({ transactions: history() });
     const first = buildTrustedSafeRangeFromAppState(state, { now: NOW });
     const second = buildTrustedSafeRangeFromAppState(state, { now: NOW });
@@ -135,7 +138,8 @@ describe('Trusted Safe Range adapter — core complete states', () => {
     expect(first).toEqual(second);
     expect(first.status).toBe('ready');
     expect(first.truthClass).toBe('user_confirmed');
-    expect(first.confidence).toBe('high');
+    expect(first.reliance).toBe('safe_to_rely');
+    expect(first).not.toHaveProperty('confidence');
     expect(first.freshness).toBe('fresh');
     expect(first.currentPosition.amount?.minorUnits).toBe(240000);
     expect(first.expectedRange.basis).toBe('exact_known_path');
@@ -148,12 +152,12 @@ describe('Trusted Safe Range adapter — core complete states', () => {
     const result = buildTrustedSafeRangeFromAppState(baseState(), { now: NOW });
 
     expect(result.currentPosition.truthClass).toBe('user_confirmed');
-    expect(findReason(result, 'confidence_balance_user-entered')?.impact).toBe('raises');
+    expect(findEvidenceNote(result, 'evidence_balance_user-entered')?.impact).toBe('supports');
     expect(result.sourceBreakdown.some((row) => row.factId === 'fact_current_balance')).toBe(true);
     expectEvidence(result);
   });
 
-  it('statement-derived balance is observed and raises confidence through source breakdown', () => {
+  it('statement-derived balance is observed and remains explicit in the source breakdown', () => {
     const state = baseState({
       currentBalance: currentBalance(2400, 'statement', 'statement-derived'),
       accounts: [account(2400)],
@@ -162,10 +166,11 @@ describe('Trusted Safe Range adapter — core complete states', () => {
     const result = buildTrustedSafeRangeFromAppState(state, { now: NOW });
 
     expect(result.currentPosition.truthClass).toBe('observed');
-    expect(result.sourceBreakdown.find((row) => row.factId === 'fact_current_balance')?.truthClass).toBe(
-      'observed',
-    );
-    expect(result.confidence).toBe('high');
+    expect(
+      result.sourceBreakdown.find((row) => row.factId === 'fact_current_balance')?.truthClass,
+    ).toBe('observed');
+    expect(result.reliance).toBe('safe_to_rely');
+    expect(result).not.toHaveProperty('confidence');
     expectEvidence(result);
   });
 
@@ -213,7 +218,7 @@ describe('Trusted Safe Range adapter — missing and stale data', () => {
 
     expect(result.status).toBe('insufficient_data');
     expect(findIssue(result, 'missing_payday')?.severity).toBe('blocker');
-    expect(findReason(result, 'confidence_missing_payday')?.impact).toBe('blocks');
+    expect(findEvidenceNote(result, 'evidence_missing_payday')?.impact).toBe('blocks');
     expect(result.expectedRange.basis).toBe('unavailable');
   });
 
@@ -231,7 +236,13 @@ describe('Trusted Safe Range adapter — missing and stale data', () => {
   });
 
   it('missing material bill is recorded as caution rather than silently assuming no commitments', () => {
-    const state = baseState({ calendarEvents: [], subs: [], debts: [], pots: [], transactions: [] });
+    const state = baseState({
+      calendarEvents: [],
+      subs: [],
+      debts: [],
+      pots: [],
+      transactions: [],
+    });
     const result = buildTrustedSafeRangeFromAppState(state, { now: NOW });
 
     expect(result.status).toBe('caution');
@@ -272,18 +283,20 @@ describe('Trusted Safe Range adapter — missing and stale data', () => {
     expect(result.freshness).toBe('stale');
     expect(result.freshnessDetail.affectedSourceIds).toContain('fact_current_balance');
     expect(result.expectedRange.basis).toBe('explicit_uncertainty');
-    expect(result.expectedRange.uncertaintySources.some((source) => source.id === 'uncertainty_stale_balance')).toBe(
-      true,
-    );
+    expect(
+      result.expectedRange.uncertaintySources.some(
+        (source) => source.id === 'uncertainty_stale_balance',
+      ),
+    ).toBe(true);
   });
 
-  it('no daily-spend history is an explicit confidence reason, not arbitrary padding', () => {
+  it('no daily-spend history is an explicit evidence note, not arbitrary padding', () => {
     const result = buildTrustedSafeRangeFromAppState(baseState(), { now: NOW });
 
-    expect(findReason(result, 'confidence_no_daily_spend_history')?.impact).toBe('lowers');
-    expect(result.expectedRange.uncertaintySources.some((source) => source.id.includes('daily_spend'))).toBe(
-      false,
-    );
+    expect(findEvidenceNote(result, 'evidence_no_daily_spend_history')?.impact).toBe('limits');
+    expect(
+      result.expectedRange.uncertaintySources.some((source) => source.id.includes('daily_spend')),
+    ).toBe(false);
   });
 });
 
@@ -297,7 +310,9 @@ describe('Trusted Safe Range adapter — uncertainty and contradiction cases', (
     expect(result.status).toBe('caution');
     expect(result.expectedRange.basis).toBe('explicit_uncertainty');
     expect(
-      result.expectedRange.uncertaintySources.some((source) => source.id.includes('uncertainty_variable')),
+      result.expectedRange.uncertaintySources.some((source) =>
+        source.id.includes('uncertainty_variable'),
+      ),
     ).toBe(true);
   });
 
@@ -322,7 +337,9 @@ describe('Trusted Safe Range adapter — uncertainty and contradiction cases', (
     const result = buildTrustedSafeRangeFromAppState(baseState({ subs }), { now: NOW });
 
     expect(result.status).toBe('contradicted');
-    expect(result.contradictions.some((item) => item.id.startsWith('contradiction_sub_'))).toBe(true);
+    expect(result.contradictions.some((item) => item.id.startsWith('contradiction_sub_'))).toBe(
+      true,
+    );
     expect(result.canUserRelyOnAnswer).toBe(false);
   });
 
@@ -366,7 +383,9 @@ describe('Trusted Safe Range adapter — obligations, pots, holds and shortfalls
     });
     const result = buildTrustedSafeRangeFromAppState(state, { now: NOW });
 
-    expect(result.mainCauses.some((cause) => cause.label.includes('Loan minimum payment'))).toBe(true);
+    expect(result.mainCauses.some((cause) => cause.label.includes('Loan minimum payment'))).toBe(
+      true,
+    );
     expect(result.sourceBreakdown.some((row) => row.factId === 'fact_debt_loan')).toBe(true);
   });
 
@@ -377,7 +396,9 @@ describe('Trusted Safe Range adapter — obligations, pots, holds and shortfalls
     const withoutPot = buildTrustedSafeRangeFromAppState(baseState({ pots: [] }), { now: NOW });
     const withPot = buildTrustedSafeRangeFromAppState(baseState({ pots }), { now: NOW });
 
-    expect(withPot.knownCommittedFloor!.minorUnits).toBe(withoutPot.knownCommittedFloor!.minorUnits - 100000);
+    expect(withPot.knownCommittedFloor!.minorUnits).toBe(
+      withoutPot.knownCommittedFloor!.minorUnits - 100000,
+    );
     expect(withPot.mainCauses[0]?.label).toBe('Money already set aside in pots');
   });
 
@@ -412,7 +433,9 @@ describe('Trusted Safe Range adapter — obligations, pots, holds and shortfalls
     const result = buildTrustedSafeRangeFromAppState(baseState({ whatIfHolds }), { now: NOW });
 
     expect(result.mainCauses.some((cause) => cause.label === 'School shoes')).toBe(true);
-    expect(result.sourceBreakdown.some((row) => row.factId.includes('fact_hold_what-if-hold'))).toBe(true);
+    expect(
+      result.sourceBreakdown.some((row) => row.factId.includes('fact_hold_what-if-hold')),
+    ).toBe(true);
   });
 
   it('recovery hold is included as a dated projected commitment', () => {
@@ -429,7 +452,9 @@ describe('Trusted Safe Range adapter — obligations, pots, holds and shortfalls
     );
 
     expect(result.mainCauses.some((cause) => cause.label.includes('Spend hold'))).toBe(true);
-    expect(result.sourceBreakdown.some((row) => row.factId.includes('fact_hold_spend-hold'))).toBe(true);
+    expect(result.sourceBreakdown.some((row) => row.factId.includes('fact_hold_spend-hold'))).toBe(
+      true,
+    );
   });
 
   it('negative expected range returns shortfall with a positive shortfall amount', () => {
@@ -461,7 +486,7 @@ describe('Trusted Safe Range adapter — obligations, pots, holds and shortfalls
 });
 
 describe('Trusted Safe Range adapter — income cadence and date edge cases', () => {
-  it('irregular income is represented through confidence reasons and source rows', () => {
+  it('irregular income is represented through evidence notes and source rows', () => {
     const incomeSources: IncomeSource[] = [
       {
         id: 'weekly-wage',
@@ -473,12 +498,17 @@ describe('Trusted Safe Range adapter — income cadence and date edge cases', ()
       },
     ];
     const result = buildTrustedSafeRangeFromAppState(
-      baseState({ onboarding: { done: true, name: 'Taylor', payday: 25, monthlyIncome: 0 }, incomeSources }),
+      baseState({
+        onboarding: { done: true, name: 'Taylor', payday: 25, monthlyIncome: 0 },
+        incomeSources,
+      }),
       { now: NOW },
     );
 
-    expect(findReason(result, 'confidence_irregular_income_cadence')?.impact).toBe('lowers');
-    expect(result.sourceBreakdown.some((row) => row.factId === 'fact_income_source_weekly-wage')).toBe(true);
+    expect(findEvidenceNote(result, 'evidence_irregular_income_cadence')?.impact).toBe('limits');
+    expect(
+      result.sourceBreakdown.some((row) => row.factId === 'fact_income_source_weekly-wage'),
+    ).toBe(true);
   });
 
   it('multiple paydays are retained as multiple income sources instead of collapsed into one payday', () => {
@@ -501,14 +531,17 @@ describe('Trusted Safe Range adapter — income cadence and date edge cases', ()
       },
     ];
     const result = buildTrustedSafeRangeFromAppState(
-      baseState({ onboarding: { done: true, name: 'Taylor', payday: 25, monthlyIncome: 0 }, incomeSources }),
+      baseState({
+        onboarding: { done: true, name: 'Taylor', payday: 25, monthlyIncome: 0 },
+        incomeSources,
+      }),
       { now: NOW },
     );
 
-    expect(findReason(result, 'confidence_multiple_paydays')?.impact).toBe('raises');
-    expect(result.sourceBreakdown.filter((row) => row.factId.startsWith('fact_income_source_'))).toHaveLength(
-      2,
-    );
+    expect(findEvidenceNote(result, 'evidence_multiple_paydays')?.impact).toBe('supports');
+    expect(
+      result.sourceBreakdown.filter((row) => row.factId.startsWith('fact_income_source_')),
+    ).toHaveLength(2);
   });
 
   it('weekend payday adjustment keeps the range deterministic when payday lands on a Saturday', () => {
@@ -519,7 +552,9 @@ describe('Trusted Safe Range adapter — income cadence and date edge cases', ()
 
     expect(result.status).not.toBe('insufficient_data');
     expect(result.horizonStartISO).toBe('2026-07-20');
-    expect(result.sourceBreakdown.some((row) => row.factId.includes('payday-2026-07-24'))).toBe(true);
+    expect(result.sourceBreakdown.some((row) => row.factId.includes('payday-2026-07-24'))).toBe(
+      true,
+    );
   });
 
   it('calendar-date overflow uses the payday clamp instead of rolling into an invalid date', () => {
@@ -532,7 +567,9 @@ describe('Trusted Safe Range adapter — income cadence and date edge cases', ()
     );
 
     expect(result.horizonStartISO).toBe('2026-02-27');
-    expect(result.sourceBreakdown.some((row) => row.factId.includes('payday-2026-02-27'))).toBe(true);
+    expect(result.sourceBreakdown.some((row) => row.factId.includes('payday-2026-02-27'))).toBe(
+      true,
+    );
     expect(result.expectedRange.min?.minorUnits).not.toBeNaN();
   });
 
@@ -578,7 +615,9 @@ describe('Trusted Safe Range adapter — imports, transfers, migration and works
     expect(result.expectedRange.uncertaintySources.map((source) => source.id)).toContain(
       'uncertainty_pending_refund',
     );
-    expect(result.expectedRange.max!.minorUnits).toBeGreaterThan(result.expectedRange.min!.minorUnits);
+    expect(result.expectedRange.max!.minorUnits).toBeGreaterThan(
+      result.expectedRange.min!.minorUnits,
+    );
   });
 
   it('transfer excluded records neutral transfer assumptions without treating them as spend', () => {
@@ -603,7 +642,9 @@ describe('Trusted Safe Range adapter — imports, transfers, migration and works
     ];
     const result = buildTrustedSafeRangeFromAppState(baseState({ transactions }), { now: NOW });
 
-    expect(result.assumptions).toContain('matched transfer pairs are excluded from spend/income totals');
+    expect(result.assumptions).toContain(
+      'matched transfer pairs are excluded from spend/income totals',
+    );
     expect(result.sourceBreakdown.some((row) => row.factId === 'fact_current_balance')).toBe(true);
   });
 
@@ -616,7 +657,7 @@ describe('Trusted Safe Range adapter — imports, transfers, migration and works
     expect(comparison.reason.length).toBeGreaterThan(0);
   });
 
-  it('restored encrypted backup lowers confidence without changing user-visible data', () => {
+  it('restored encrypted backup limits reliance without changing user-visible data', () => {
     const result = buildTrustedSafeRangeFromAppState(baseState(), {
       now: NOW,
       restoredFromEncryptedBackup: true,
@@ -624,11 +665,13 @@ describe('Trusted Safe Range adapter — imports, transfers, migration and works
 
     expect(result.status).toBe('caution');
     expect(findIssue(result, 'restored_encrypted_backup')?.severity).toBe('caution');
-    expect(findReason(result, 'confidence_restored_backup')?.impact).toBe('lowers');
+    expect(findEvidenceNote(result, 'evidence_restored_backup')?.impact).toBe('limits');
   });
 
   it('old schema missing truth metadata is surfaced as a migration caution', () => {
-    const result = buildTrustedSafeRangeFromAppState(baseState({ schemaVersion: 15 }), { now: NOW });
+    const result = buildTrustedSafeRangeFromAppState(baseState({ schemaVersion: 15 }), {
+      now: NOW,
+    });
 
     expect(result.status).toBe('caution');
     expect(findIssue(result, 'old_schema_missing_truth_metadata')?.severity).toBe('caution');
@@ -669,7 +712,9 @@ describe('Trusted Safe Range adapter — imports, transfers, migration and works
     const beforeAgain = buildTrustedSafeRangeFromAppState(state, { now: NOW });
 
     expect(beforeAgain).toEqual(before);
-    expect(after.currentKnownPosition!.minorUnits).not.toBe(before.currentKnownPosition!.minorUnits);
+    expect(after.currentKnownPosition!.minorUnits).not.toBe(
+      before.currentKnownPosition!.minorUnits,
+    );
   });
 
   it('empty new-user state is insufficient data and never sample-fills a trusted answer', () => {

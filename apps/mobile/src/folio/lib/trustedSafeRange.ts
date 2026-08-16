@@ -1,8 +1,4 @@
-import {
-  buildForecast,
-  type ForecastOccurrence,
-  type ForecastResult,
-} from '@folio/finance-engine';
+import { buildForecast, type ForecastOccurrence, type ForecastResult } from '@folio/finance-engine';
 import {
   createCurrencyCode,
   createForecastId,
@@ -14,11 +10,10 @@ import {
   type InstantString,
   type LocalDate,
   type Money,
-  type TrustedCoreConfidence,
   type TrustedCoreFreshness,
   type TrustedCoreTruthClass,
   type TrustedSafeRangeCause,
-  type TrustedSafeRangeConfidenceReason,
+  type TrustedSafeRangeEvidenceNote,
   type TrustedSafeRangeIssue,
   type TrustedSafeRangeNextAction,
   type TrustedSafeRangeResult,
@@ -70,7 +65,6 @@ type SafeRangeTimelineEvent = DerivedEvent &
   Readonly<{
     factId: string;
     truthClass: TrustedCoreTruthClass;
-    confidence: TrustedCoreConfidence;
   }>;
 
 type AdapterContext = Readonly<{
@@ -178,7 +172,10 @@ function instantOrNull(value: string | null | undefined): InstantString | null {
   }
 }
 
-function freshnessForInstant(value: string | null | undefined, todayISO: LocalDate): TrustedCoreFreshness {
+function freshnessForInstant(
+  value: string | null | undefined,
+  todayISO: LocalDate,
+): TrustedCoreFreshness {
   const instant = instantOrNull(value);
   if (instant === null) return 'missing';
   const ageDays = Math.max(0, daysBetweenISO(instant.slice(0, 10), todayISO));
@@ -203,20 +200,12 @@ function balanceTruth(balance: CurrentBalance): TrustedCoreTruthClass {
   }
 }
 
-function balanceConfidence(balance: CurrentBalance): TrustedCoreConfidence {
-  if (balance.source === 'sample') return 'low';
-  if (balance.confidence === 'corrected' || balance.confidence === 'statement-derived') return 'high';
-  if (balance.confidence === 'rough') return 'medium';
-  return 'low';
-}
-
 function row(
   factId: string,
   truthClass: TrustedCoreTruthClass,
   label: string,
   capturedAt: string | null | undefined,
   freshness: TrustedCoreFreshness,
-  confidence: TrustedCoreConfidence,
 ): TrustedSafeRangeSourceBreakdown {
   return {
     factId,
@@ -224,7 +213,6 @@ function row(
     label,
     capturedAt: instantOrNull(capturedAt),
     freshness,
-    confidence,
   };
 }
 
@@ -237,12 +225,12 @@ function issue(
   return { id, label, severity, sourceFactIds };
 }
 
-function confidenceReason(
+function evidenceNote(
   id: string,
   label: string,
-  impact: TrustedSafeRangeConfidenceReason['impact'],
+  impact: TrustedSafeRangeEvidenceNote['impact'],
   sourceFactIds: readonly string[] = [],
-): TrustedSafeRangeConfidenceReason {
+): TrustedSafeRangeEvidenceNote {
   return { id, label, impact, sourceFactIds };
 }
 
@@ -263,7 +251,9 @@ function uncertainty(
 }
 
 function activeWorkspaceKind(state: AppState): 'personal' | 'business' | null {
-  return state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)?.kind ?? null;
+  return (
+    state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)?.kind ?? null
+  );
 }
 
 function buildContext(state: AppState, options: TrustedSafeRangeAdapterOptions): AdapterContext {
@@ -310,7 +300,6 @@ function debtEvents(state: AppState, todayISO: LocalDate): SafeRangeTimelineEven
         recurring: 'monthly',
         factId: `fact_debt_${debt.id}`,
         truthClass: 'user_confirmed',
-        confidence: 'medium',
       } satisfies SafeRangeTimelineEvent;
     });
 }
@@ -380,21 +369,16 @@ function deriveTimeline(state: AppState, todayISO: LocalDate): SafeRangeTimeline
               : event.source === 'sub'
                 ? 'observed'
                 : 'estimated';
-    const confidence: TrustedCoreConfidence =
-      truthClass === 'sample_demo'
-        ? 'low'
-        : truthClass === 'estimated' || truthClass === 'predicted'
-          ? 'medium'
-          : 'high';
     return {
       ...event,
       factId: sourceFact.replaceAll(' ', '_').replaceAll('·', '_'),
       truthClass,
-      confidence,
     } satisfies SafeRangeTimelineEvent;
   });
   return [...events, ...debtEvents(state, todayISO)].sort((left, right) =>
-    left.date === right.date ? left.id.localeCompare(right.id) : left.date.localeCompare(right.date),
+    left.date === right.date
+      ? left.id.localeCompare(right.id)
+      : left.date.localeCompare(right.date),
   );
 }
 
@@ -461,11 +445,15 @@ function safeForecastBundle(
 function dailySpendEstimateMinor(state: AppState, routeOutgoingTotal: number | undefined): number {
   const bankTxns = bankTransactions(state).filter((txn) => txn.amount < 0);
   if (bankTxns.length === 0) return 0;
-  const monthly = routeOutgoingTotal !== undefined && routeOutgoingTotal > 0 ? routeOutgoingTotal : 0;
+  const monthly =
+    routeOutgoingTotal !== undefined && routeOutgoingTotal > 0 ? routeOutgoingTotal : 0;
   return monthly > 0 ? Math.round(poundsToMinor(monthly) / 30) : 0;
 }
 
-function reviewUncertainty(reviewQueue: readonly ReviewItem[], readerCandidates: readonly unknown[]) {
+function reviewUncertainty(
+  reviewQueue: readonly ReviewItem[],
+  readerCandidates: readonly unknown[],
+) {
   const pendingReviewMinor = reviewQueue.reduce(
     (total, item) => total + (item.amount < 0 ? Math.abs(poundsToMinor(item.amount)) : 0),
     0,
@@ -582,15 +570,16 @@ function sourceBreakdown(
       'Current balance',
       state.currentBalance.setAt,
       balanceFreshness,
-      balanceConfidence(state.currentBalance),
     ),
     row(
       'fact_accounts_bank_total',
       state.accounts && state.accounts.length > 0 ? 'observed' : balanceTruth(state.currentBalance),
       'Bank-only account total',
       state.accounts?.[0]?.balanceAsOfISO ?? state.currentBalance.setAt,
-      freshnessForInstant(state.accounts?.[0]?.balanceAsOfISO ?? state.currentBalance.setAt, todayISO),
-      state.accounts && state.accounts.length > 0 ? 'high' : balanceConfidence(state.currentBalance),
+      freshnessForInstant(
+        state.accounts?.[0]?.balanceAsOfISO ?? state.currentBalance.setAt,
+        todayISO,
+      ),
     ),
   ];
 
@@ -602,13 +591,14 @@ function sourceBreakdown(
         `${source.label} income`,
         state.currentBalance.setAt,
         balanceFreshness,
-        source.source === 'inferred' ? 'medium' : 'high',
       ),
     );
   }
   for (const event of timeline) {
     if (typeof event.amount !== 'number') continue;
-    rows.push(row(event.factId, event.truthClass, event.title, state.currentBalance.setAt, 'fresh', event.confidence));
+    rows.push(
+      row(event.factId, event.truthClass, event.title, state.currentBalance.setAt, 'fresh'),
+    );
   }
   for (const item of state.reviewQueue ?? []) {
     rows.push(
@@ -618,7 +608,6 @@ function sourceBreakdown(
         `Review candidate: ${item.merchant}`,
         item.addedAt,
         freshnessForInstant(item.addedAt, todayISO),
-        'low',
       ),
     );
   }
@@ -670,24 +659,26 @@ function missingInputs(
       bankTransactions(state).length > 0);
   if (!userOwnedBalance && state.currentBalance.source !== 'sample') {
     missing.push(
-      issue(
-        'missing_balance',
-        'Current balance is missing or unconfirmed.',
-        'blocker',
-        ['fact_current_balance'],
-      ),
+      issue('missing_balance', 'Current balance is missing or unconfirmed.', 'blocker', [
+        'fact_current_balance',
+      ]),
     );
   }
 
   const hasIncomeSources = (state.incomeSources?.length ?? 0) > 0;
-  const hasIncome = hasIncomeSources || state.onboarding.monthlyIncome > 0 || incomeHistoryExists(state);
+  const hasIncome =
+    hasIncomeSources || state.onboarding.monthlyIncome > 0 || incomeHistoryExists(state);
   if (!hasIncome) {
     missing.push(
       issue('missing_income', 'Income is missing.', 'blocker', ['fact_income_schedule']),
     );
   }
   if (!hasIncomeSources && state.onboarding.monthlyIncome > 0) {
-    if (!Number.isInteger(state.onboarding.payday) || state.onboarding.payday < 1 || state.onboarding.payday > 31) {
+    if (
+      !Number.isInteger(state.onboarding.payday) ||
+      state.onboarding.payday < 1 ||
+      state.onboarding.payday > 31
+    ) {
       missing.push(
         issue('missing_payday', 'Payday is missing.', 'blocker', ['fact_income_schedule']),
       );
@@ -711,7 +702,12 @@ function missingInputs(
   const invalidIncomeSources = (state.incomeSources ?? []).filter((source) => {
     if (source.cadence === 'monthly') {
       const dayOfMonth = source.dayOfMonth;
-      return !Number.isInteger(dayOfMonth) || dayOfMonth === undefined || dayOfMonth < 1 || dayOfMonth > 31;
+      return (
+        !Number.isInteger(dayOfMonth) ||
+        dayOfMonth === undefined ||
+        dayOfMonth < 1 ||
+        dayOfMonth > 31
+      );
     }
     if (
       source.cadence === 'weekly' ||
@@ -746,7 +742,10 @@ function uncertaintySources(
   const sources: TrustedSafeRangeUncertaintySource[] = [];
   const freshness = freshnessForInstant(state.currentBalance.setAt, todayISO);
   if (freshness === 'stale') {
-    const staleDays = Math.max(1, daysBetweenISO(state.currentBalance.setAt.slice(0, 10), todayISO));
+    const staleDays = Math.max(
+      1,
+      daysBetweenISO(state.currentBalance.setAt.slice(0, 10), todayISO),
+    );
     const dailySpend = dailySpendEstimateMinor(state, routeOutgoingTotal);
     if (dailySpend > 0) {
       sources.push(
@@ -897,23 +896,6 @@ function statusFor(input: {
   return 'ready';
 }
 
-function confidenceFor(status: TrustedSafeRangeStatus, reasons: readonly TrustedSafeRangeConfidenceReason[]) {
-  if (
-    status === 'workspace_blocked' ||
-    status === 'insufficient_data' ||
-    reasons.some((reason) => reason.impact === 'blocks')
-  ) {
-    return 'blocked' satisfies TrustedCoreConfidence;
-  }
-  if (status === 'contradicted' || status === 'stale' || status === 'sample_demo') {
-    return 'low' satisfies TrustedCoreConfidence;
-  }
-  if (status === 'caution' || status === 'shortfall' || reasons.some((reason) => reason.impact === 'lowers')) {
-    return 'medium' satisfies TrustedCoreConfidence;
-  }
-  return 'high' satisfies TrustedCoreConfidence;
-}
-
 function truthFor(
   state: AppState,
   missing: readonly TrustedSafeRangeIssue[],
@@ -961,7 +943,7 @@ function causes(
   return outflows.slice(0, 5);
 }
 
-function confidenceReasons(
+function evidenceNotes(
   state: AppState,
   missing: readonly TrustedSafeRangeIssue[],
   contradictions: readonly TrustedSafeRangeIssue[],
@@ -969,12 +951,12 @@ function confidenceReasons(
   forecast: ForecastResult | null,
   options: TrustedSafeRangeAdapterOptions,
   routeOutgoingTotal: number | undefined,
-): TrustedSafeRangeConfidenceReason[] {
-  const reasons: TrustedSafeRangeConfidenceReason[] = [];
+): TrustedSafeRangeEvidenceNote[] {
+  const notes: TrustedSafeRangeEvidenceNote[] = [];
   const balance = state.currentBalance;
-  reasons.push(
-    confidenceReason(
-      `confidence_balance_${balance.source}`,
+  notes.push(
+    evidenceNote(
+      `evidence_balance_${balance.source}`,
       balance.source === 'sample'
         ? 'The current balance is sample data.'
         : balance.source === 'user-entered'
@@ -982,16 +964,16 @@ function confidenceReasons(
           : balance.source === 'corrected'
             ? 'The current balance was corrected by the user.'
             : 'The current balance came from a statement or document.',
-      balance.source === 'sample' ? 'lowers' : 'raises',
+      balance.source === 'sample' ? 'limits' : 'supports',
       ['fact_current_balance'],
     ),
   );
   if (forecast !== null) {
-    reasons.push(
-      confidenceReason(
-        'confidence_finance_engine_forecast',
+    notes.push(
+      evidenceNote(
+        'evidence_finance_engine_forecast',
         'The range is calculated through the finance forecast engine.',
-        'raises',
+        'supports',
         ['fact_forecast_engine'],
       ),
     );
@@ -1006,55 +988,66 @@ function confidenceReasons(
         source.cadence === 'last-working-day',
     )
   ) {
-    reasons.push(
-      confidenceReason(
-        'confidence_irregular_income_cadence',
+    notes.push(
+      evidenceNote(
+        'evidence_irregular_income_cadence',
         'Income cadence is not a single fixed monthly payday.',
-        'lowers',
+        'limits',
         incomeSources.map((source) => `fact_income_source_${source.id}`),
       ),
     );
   }
   if (incomeSources.length > 1) {
-    reasons.push(
-      confidenceReason(
-        'confidence_multiple_paydays',
+    notes.push(
+      evidenceNote(
+        'evidence_multiple_paydays',
         'Multiple income sources shape the range.',
-        'raises',
+        'supports',
         incomeSources.map((source) => `fact_income_source_${source.id}`),
       ),
     );
   }
-  if (routeOutgoingTotal === undefined || routeOutgoingTotal <= 0 || bankTransactions(state).length === 0) {
-    reasons.push(
-      confidenceReason(
-        'confidence_no_daily_spend_history',
+  if (
+    routeOutgoingTotal === undefined ||
+    routeOutgoingTotal <= 0 ||
+    bankTransactions(state).length === 0
+  ) {
+    notes.push(
+      evidenceNote(
+        'evidence_no_daily_spend_history',
         'There is no daily-spend history to quantify stale-balance uncertainty.',
-        'lowers',
+        'limits',
         ['fact_transaction_history'],
       ),
     );
   }
   for (const item of missing) {
-    reasons.push(confidenceReason(`confidence_${item.id}`, item.label, item.severity === 'blocker' ? 'blocks' : 'lowers', item.sourceFactIds));
+    notes.push(
+      evidenceNote(
+        `evidence_${item.id}`,
+        item.label,
+        item.severity === 'blocker' ? 'blocks' : 'limits',
+        item.sourceFactIds,
+      ),
+    );
   }
   for (const item of contradictions) {
-    reasons.push(confidenceReason(`confidence_${item.id}`, item.label, 'blocks', item.sourceFactIds));
+    notes.push(evidenceNote(`evidence_${item.id}`, item.label, 'blocks', item.sourceFactIds));
   }
   for (const source of uncertainties) {
-    reasons.push(confidenceReason(`confidence_${source.id}`, source.label, 'lowers', source.sourceFactIds));
+    notes.push(evidenceNote(`evidence_${source.id}`, source.label, 'limits', source.sourceFactIds));
   }
   if (options.restoredFromEncryptedBackup === true) {
-    reasons.push(
-      confidenceReason(
-        'confidence_restored_backup',
+    notes.push(
+      evidenceNote(
+        'evidence_restored_backup',
         'The current answer uses a restored encrypted backup snapshot.',
-        'lowers',
+        'limits',
         ['fact_restore_snapshot'],
       ),
     );
   }
-  return reasons;
+  return notes;
 }
 
 function whyChanged(
@@ -1234,10 +1227,12 @@ function legacySafeZoneSnapshot(
   }, 0);
   const bufferMinor = poundsToMinor(Math.max(0, state.bufferAmount ?? 100));
   const totalMinor = Math.floor((balanceMinor - shieldMinor - bufferMinor) / 100) * 100;
-  const daysLeft = routeTightestDate === null ? 0 : Math.max(1, daysBetweenISO(todayISO, routeTightestDate));
+  const daysLeft =
+    routeTightestDate === null ? 0 : Math.max(1, daysBetweenISO(todayISO, routeTightestDate));
   return {
     totalMinor,
-    perDayMinor: daysLeft > 0 ? Math.floor(Math.max(0, totalMinor) / daysLeft / 100) * 100 : totalMinor,
+    perDayMinor:
+      daysLeft > 0 ? Math.floor(Math.max(0, totalMinor) / daysLeft / 100) * 100 : totalMinor,
     untilISO: routeTightestDate === null ? null : createLocalDate(routeTightestDate),
     daysLeft,
   };
@@ -1280,15 +1275,10 @@ function buildBlockedResult(
   sourceRows: readonly TrustedSafeRangeSourceBreakdown[],
 ): TrustedSafeRangeResult {
   const freshnessDetail = sourceFreshnessDetail(sourceRows);
-  const confidence = confidenceFor(status, [
-    ...missing.map((item) =>
-      confidenceReason(`confidence_${item.id}`, item.label, item.severity === 'blocker' ? 'blocks' : 'lowers', item.sourceFactIds),
-    ),
-    ...contradictions.map((item) =>
-      confidenceReason(`confidence_${item.id}`, item.label, 'blocks', item.sourceFactIds),
-    ),
-  ]);
-  const reliance = relianceFor(status, [...missing, ...contradictions].map((item) => item.id));
+  const reliance = relianceFor(
+    status,
+    [...missing, ...contradictions].map((item) => item.id),
+  );
   return {
     workspaceId: ctx.workspaceId,
     currency: ctx.currency,
@@ -1319,12 +1309,17 @@ function buildBlockedResult(
     },
     tightestPoint: { dateISO: null, amount: null, sourceFactIds: [] },
     shortfall: null,
-    confidenceReasons: [
+    evidenceNotes: [
       ...missing.map((item) =>
-        confidenceReason(`confidence_${item.id}`, item.label, item.severity === 'blocker' ? 'blocks' : 'lowers', item.sourceFactIds),
+        evidenceNote(
+          `evidence_${item.id}`,
+          item.label,
+          item.severity === 'blocker' ? 'blocks' : 'limits',
+          item.sourceFactIds,
+        ),
       ),
       ...contradictions.map((item) =>
-        confidenceReason(`confidence_${item.id}`, item.label, 'blocks', item.sourceFactIds),
+        evidenceNote(`evidence_${item.id}`, item.label, 'blocks', item.sourceFactIds),
       ),
     ],
     freshnessDetail,
@@ -1346,7 +1341,6 @@ function buildBlockedResult(
     expectedSafeMax: null,
     conservativeBoundary: null,
     reliance: reliance.reliance,
-    confidence,
     freshness: freshnessDetail.status,
     missingMaterialInfo: [...missing, ...contradictions].map((item) => item.label),
     assumptions: [],
@@ -1392,9 +1386,7 @@ export function buildTrustedSafeRangeFromAppState(
     );
   }
 
-  let route:
-    | ReturnType<typeof routeFromStore>
-    | null = null;
+  let route: ReturnType<typeof routeFromStore> | null = null;
   let timeline: SafeRangeTimelineEvent[] = [];
   let routeError: TrustedSafeRangeIssue | null = null;
   try {
@@ -1416,9 +1408,13 @@ export function buildTrustedSafeRangeFromAppState(
     ...migrationIssues(state, options),
     ...(routeError === null ? [] : [routeError]),
   ];
-  const contradictions = [...balanceContradictions(state), ...duplicateSubContradictions(state.subs)];
+  const contradictions = [
+    ...balanceContradictions(state),
+    ...duplicateSubContradictions(state.subs),
+  ];
   const uncertainties = uncertaintySources(state, route?.outgoingTotal, timeline, ctx.todayISO);
-  const forecastBundle = routeError === null ? safeForecastBundle(state, timeline, ctx.todayISO) : null;
+  const forecastBundle =
+    routeError === null ? safeForecastBundle(state, timeline, ctx.todayISO) : null;
   const routeTightestMinor = route === null ? null : poundsToMinor(route.tightPoint.amount);
   const range = rangeMath(
     state,
@@ -1443,7 +1439,7 @@ export function buildTrustedSafeRangeFromAppState(
     range.conservativeMinor !== null && range.conservativeMinor < 0
       ? Math.abs(range.conservativeMinor)
       : null;
-  const confidenceReasonList = confidenceReasons(
+  const evidenceNoteList = evidenceNotes(
     state,
     missing,
     contradictions,
@@ -1452,8 +1448,10 @@ export function buildTrustedSafeRangeFromAppState(
     options,
     route?.outgoingTotal,
   );
-  const confidence = confidenceFor(status, confidenceReasonList);
-  const reliance = relianceFor(status, [...missing, ...contradictions].map((item) => item.id));
+  const reliance = relianceFor(
+    status,
+    [...missing, ...contradictions].map((item) => item.id),
+  );
   const rangeBlocked = status === 'insufficient_data' || status === 'workspace_blocked';
   const rangeBasis =
     rangeBlocked || range.lowerMinor === null || range.upperMinor === null
@@ -1466,7 +1464,9 @@ export function buildTrustedSafeRangeFromAppState(
   const conservativeMinor = rangeBlocked ? null : range.conservativeMinor;
   const shortfallForResult = rangeBlocked ? null : shortfallMinor;
   const assumptions = [
-    ...(state.currentBalance.source === 'sample' ? ['sample figures are not the user’s money'] : []),
+    ...(state.currentBalance.source === 'sample'
+      ? ['sample figures are not the user’s money']
+      : []),
     ...(forecastBundle?.excludedTransferIds.length
       ? ['matched transfer pairs are excluded from spend/income totals']
       : []),
@@ -1522,7 +1522,7 @@ export function buildTrustedSafeRangeFromAppState(
       sourceFactIds: causesList.flatMap((causeItem) => causeItem.sourceFactIds),
     },
     shortfall: moneyMinor(shortfallForResult),
-    confidenceReasons: confidenceReasonList,
+    evidenceNotes: evidenceNoteList,
     freshnessDetail,
     missingInputs: missing,
     contradictions,
@@ -1542,7 +1542,6 @@ export function buildTrustedSafeRangeFromAppState(
     expectedSafeMax: moneyMinor(expectedUpperMinor),
     conservativeBoundary: moneyMinor(conservativeMinor),
     reliance: reliance.reliance,
-    confidence,
     freshness: freshnessDetail.status,
     missingMaterialInfo: [...missing, ...contradictions].map((item) => item.label),
     assumptions,
@@ -1562,9 +1561,7 @@ export function buildTrustedSafeRangeLegacyComparison(
 ): TrustedSafeRangeLegacyComparison {
   const ctx = buildContext(state, options);
   const result = buildTrustedSafeRangeFromAppState(state, options);
-  let route:
-    | ReturnType<typeof routeFromStore>
-    | null = null;
+  let route: ReturnType<typeof routeFromStore> | null = null;
   try {
     route = routeFromStore(state, ctx.todayISO);
   } catch {

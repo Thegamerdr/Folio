@@ -2024,6 +2024,102 @@ describe('schema migration v19 workspace companion isolation', () => {
   });
 });
 
+describe('schema migration v20 trusted-core evidence', () => {
+  it('removes unsupported confidence while preserving money, sources, audits and round-trip bytes', () => {
+    resetToEmpty();
+    const legacy = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    legacy.schemaVersion = 19;
+    legacy.currentBalance = {
+      amount: 432.1,
+      source: 'statement',
+      confidence: 'statement-derived',
+      setAt: '2026-08-16T12:00:00.000Z',
+    };
+    legacy.decisionLedger = [
+      {
+        id: 'decision_legacy_confidence',
+        question: { priority: 'cashflow_confidence' },
+        userPriority: 'cashflow_confidence',
+        factSnapshots: [
+          {
+            factId: 'fact_balance',
+            confidence: 'high',
+            amount: { minorUnits: 43_210, currency: 'GBP' },
+            sourceRecordIds: ['source_statement_1'],
+          },
+        ],
+        assumptions: [{ id: 'assumption_bill', confidence: 'low', sourceFactIds: ['fact_bill'] }],
+        safeRange: {
+          confidence: 'medium',
+          confidenceReasons: [
+            { id: 'legacy_balance_evidence', impact: 'raises', sourceFactIds: ['fact_balance'] },
+            { id: 'legacy_bill_evidence', impact: 'lowers', sourceFactIds: ['fact_bill'] },
+          ],
+          reliance: 'use_caution',
+        },
+        forecast: { confidence: 'medium', sourceFactIds: ['fact_balance'] },
+        forecastEvaluations: [
+          {
+            confidence: 'low',
+            expected: { confidence: 'medium', sourceFactIds: ['fact_balance'] },
+          },
+        ],
+        audit: [{ at: '2026-08-16T12:00:00.000Z', action: 'presented', ref: 'today' }],
+      },
+    ];
+    legacy.provisionalAnswers = [
+      { id: 'answer_legacy_confidence', confidence: 'medium', safeRange: { confidence: 'low' } },
+    ];
+    legacy.materialChanges = [
+      {
+        id: 'change_legacy_confidence',
+        before: { confidence: 'high' },
+        after: { confidence: 'low' },
+      },
+    ];
+    legacy.correctionImpacts = [
+      {
+        id: 'correction_legacy_confidence',
+        before: { confidence: 'low' },
+        after: { confidence: 'high' },
+      },
+    ];
+    legacy.criticalJourneyContinuity = [
+      { id: 'continuity_legacy_confidence', lastSafeRange: { confidence: 'medium' } },
+    ];
+
+    expect(hydrateFromBlob(JSON.stringify(legacy))).toEqual({ status: 'applied' });
+
+    const migrated = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    const trustedCoreJson = JSON.stringify({
+      decisionLedger: migrated.decisionLedger,
+      provisionalAnswers: migrated.provisionalAnswers,
+      materialChanges: migrated.materialChanges,
+      correctionImpacts: migrated.correctionImpacts,
+      criticalJourneyContinuity: migrated.criticalJourneyContinuity,
+    });
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(trustedCoreJson).not.toContain('"confidence"');
+    expect(trustedCoreJson).not.toContain('cashflow_confidence');
+    expect(trustedCoreJson).toContain('cashflow_source_quality');
+    expect(trustedCoreJson).toContain('"minorUnits":43210');
+    expect(trustedCoreJson).toContain('source_statement_1');
+    expect(trustedCoreJson).toContain('"action":"presented"');
+    expect(trustedCoreJson).toContain('"evidenceNotes"');
+    expect(trustedCoreJson).toContain('"impact":"supports"');
+    expect(trustedCoreJson).toContain('"impact":"limits"');
+    expect(getState().currentBalance).toMatchObject({
+      amount: 432.1,
+      source: 'statement',
+      confidence: 'statement-derived',
+    });
+
+    const firstPass = getPersistBlob();
+    expect(hydrateFromBlob(firstPass)).toEqual({ status: 'applied' });
+    expect(getPersistBlob()).toBe(firstPass);
+  });
+});
+
 describe('schema migration v6', () => {
   it('a pre-v6 blob with no timelineEvents migrates to an empty log, byte-identical otherwise', () => {
     resetAll();

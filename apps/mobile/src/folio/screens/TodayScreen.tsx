@@ -1851,7 +1851,7 @@ function TrustedSafeRangeCard({
       <View style={styles.safeRangeHead}>
         <Text style={[styles.safeRangeEyebrow, { color: palette.muted }]}>Trusted Safe Range</Text>
         <Text style={[styles.safeRangeStatus, { color: tone }]}>
-          {result.confidence} · {result.freshness}
+          {result.reliance.replaceAll('_', ' ')} · {result.freshness}
         </Text>
       </View>
       <Text style={[styles.safeRangeTitle, { color: palette.ink }]}>

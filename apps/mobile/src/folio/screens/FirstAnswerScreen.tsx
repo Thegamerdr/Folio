@@ -75,7 +75,7 @@ function money(minor: number | null): string {
 
 function relianceLabel(answer: ProvisionalAnswerRecord): string {
   if (answer.reliance === 'blocked') return 'Do not rely on this yet';
-  if (answer.confidence === 'low') return 'Useful direction, not a final answer';
+  if (answer.reliance === 'use_caution') return 'Useful direction, not a final answer';
   return 'Safe enough for this limited question';
 }
 
@@ -318,7 +318,7 @@ export function FirstAnswerScreen({ nav }: { nav: Nav }) {
               </Text>
               <Text style={[styles.body, { color: t.muted }]}>{relianceLabel(answer)}</Text>
               <Text style={[styles.meta, { color: t.muted }]}>
-                {answer.truth.replaceAll('_', ' ')} · {answer.confidence} confidence ·{' '}
+                {answer.truth.replaceAll('_', ' ')} · {answer.reliance.replaceAll('_', ' ')} ·{' '}
                 {answer.safeRange.freshness}
               </Text>
             </View>

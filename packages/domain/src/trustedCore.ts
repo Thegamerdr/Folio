@@ -36,10 +36,6 @@ export const trustedCoreTruthClasses = [
 
 export type TrustedCoreTruthClass = (typeof trustedCoreTruthClasses)[number];
 
-export const trustedCoreConfidenceLevels = ['high', 'medium', 'low', 'blocked'] as const;
-
-export type TrustedCoreConfidence = (typeof trustedCoreConfidenceLevels)[number];
-
 export const trustedCoreFreshnessStates = ['fresh', 'ageing', 'stale', 'missing'] as const;
 
 export type TrustedCoreFreshness = (typeof trustedCoreFreshnessStates)[number];
@@ -78,7 +74,6 @@ export type TrustedCoreFactRef = Readonly<{
   capturedAt: InstantString | null;
   confirmedAt: InstantString | null;
   expiresAt: InstantString | null;
-  confidence: TrustedCoreConfidence;
   freshness: TrustedCoreFreshness;
   assumptions: readonly string[];
   derivedFrom: readonly string[];
@@ -91,7 +86,6 @@ export type TrustedCoreProvenanceSnapshot = Readonly<{
   id: ProvenanceId;
   workspaceId: WorkspaceId;
   truthClass: TrustedCoreTruthClass;
-  confidence: TrustedCoreConfidence;
   freshness: TrustedCoreFreshness;
   sourceFactIds: readonly string[];
   missingMaterialInfo: readonly string[];
@@ -115,7 +109,6 @@ export type TrustedSafeRangeSourceBreakdown = Readonly<{
   label: string;
   capturedAt: InstantString | null;
   freshness: TrustedCoreFreshness;
-  confidence: TrustedCoreConfidence;
 }>;
 
 export const trustedSafeRangeStatuses = [
@@ -140,10 +133,10 @@ export type TrustedSafeRangeIssue = Readonly<{
   sourceFactIds: readonly string[];
 }>;
 
-export type TrustedSafeRangeConfidenceReason = Readonly<{
+export type TrustedSafeRangeEvidenceNote = Readonly<{
   id: string;
   label: string;
-  impact: 'raises' | 'lowers' | 'blocks';
+  impact: 'supports' | 'limits' | 'blocks';
   sourceFactIds: readonly string[];
 }>;
 
@@ -210,7 +203,7 @@ export type TrustedSafeRangeResult = Readonly<{
   expectedRange: TrustedSafeRangeExpectedRange;
   tightestPoint: TrustedSafeRangeTightestPoint;
   shortfall: Money | null;
-  confidenceReasons: readonly TrustedSafeRangeConfidenceReason[];
+  evidenceNotes: readonly TrustedSafeRangeEvidenceNote[];
   freshnessDetail: TrustedSafeRangeFreshnessDetail;
   missingInputs: readonly TrustedSafeRangeIssue[];
   contradictions: readonly TrustedSafeRangeIssue[];
@@ -223,7 +216,6 @@ export type TrustedSafeRangeResult = Readonly<{
   expectedSafeMax: Money | null;
   conservativeBoundary: Money | null;
   reliance: TrustedSafeRangeReliance;
-  confidence: TrustedCoreConfidence;
   freshness: TrustedCoreFreshness;
   missingMaterialInfo: readonly string[];
   assumptions: readonly string[];
@@ -281,7 +273,7 @@ export type DecisionLedgerPriorityType =
   | 'keep_commitment'
   | 'reduce_debt'
   | 'build_buffer'
-  | 'cashflow_confidence'
+  | 'cashflow_source_quality'
   | 'manual_adjustment'
   | 'other';
 
@@ -353,7 +345,6 @@ export type DecisionLedgerFactSnapshot = Readonly<{
   capturedAt: InstantString | null;
   confirmedAt: InstantString | null;
   expiresAt: InstantString | null;
-  confidence: TrustedCoreConfidence;
   freshness: TrustedCoreFreshness;
   amount: Money | null;
   assumptions: readonly string[];
@@ -381,7 +372,6 @@ export type DecisionLedgerAssumption = Readonly<{
   id: string;
   label: string;
   truthClass: Extract<TrustedCoreTruthClass, 'assumed' | 'estimated' | 'predicted'>;
-  confidence: TrustedCoreConfidence;
   amount: Money | null;
   sourceFactIds: readonly string[];
 }>;
@@ -394,7 +384,6 @@ export type DecisionLedgerSafeRangeSnapshot = Readonly<{
   horizonEndISO: LocalDate;
   status: TrustedSafeRangeStatus;
   reliance: TrustedSafeRangeReliance;
-  confidence: TrustedCoreConfidence;
   freshness: TrustedCoreFreshness;
   currentKnownPosition: Money | null;
   knownCommittedFloor: Money | null;
@@ -420,7 +409,6 @@ export type DecisionLedgerForecastSnapshot = Readonly<{
   predictedSafeMin: Money | null;
   predictedSafeMax: Money | null;
   conservativeBoundary: Money | null;
-  confidence: TrustedCoreConfidence;
   sourceFactIds: readonly string[];
 }>;
 
@@ -482,7 +470,6 @@ export type DecisionLedgerForecastEvaluation = Readonly<{
   actualEndPosition: Money | null;
   error: Money | null;
   classification: DecisionLedgerForecastEvaluationClassification;
-  confidence: TrustedCoreConfidence;
   note: string | null;
   sourceFactIds: readonly string[];
 }>;
@@ -647,7 +634,6 @@ export type ProvisionalAnswerRecord = Readonly<{
   enteredFacts: readonly ProvisionalAnswerInputFact[];
   safeRange: TrustedSafeRangeSnapshot;
   truth: TrustedCoreTruthClass;
-  confidence: TrustedCoreConfidence;
   reliance: TrustedSafeRangeReliance;
   assumptions: readonly string[];
   missingMaterialInfo: readonly string[];

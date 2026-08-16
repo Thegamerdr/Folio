@@ -311,7 +311,8 @@ describe('Phase E critical journey contract', () => {
     );
 
     expect(evaluation.classification).toBe('inside_range');
-    expect(evaluation.confidenceAtTheTime).toBe(prior.confidence);
+    expect(evaluation.relianceAtTheTime).toBe(prior.reliance);
+    expect(evaluation.relianceMatchedOutcome).toBe(true);
     expect(evaluation).not.toHaveProperty('score');
 
     addCycle({

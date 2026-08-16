@@ -1,11 +1,14 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
+import { isUnsupportedProductConfidenceLine } from './product-canonical-confidence.mjs';
+
 const root = process.cwd();
 
 const scanTargets = [
   'apps/mobile/app',
   'apps/mobile/src/local',
+  'apps/mobile/src/folio',
   'apps/mobile/src/surfaces',
   'packages/domain/src',
   'packages/import-engine/src',
@@ -58,6 +61,14 @@ for (const target of scanTargets) {
     const lines = text.split(/\r?\n/);
     lines.forEach((line, index) => {
       for (const matcher of bannedMatchers) {
+        const isShippingFolioFile = file.includes(join('apps', 'mobile', 'src', 'folio'));
+        if (isShippingFolioFile && matcher.code !== 'canonical.fake_confidence') continue;
+        if (
+          matcher.code === 'canonical.fake_confidence' &&
+          !isUnsupportedProductConfidenceLine(file, line)
+        ) {
+          continue;
+        }
         if (!matcher.pattern.test(line)) continue;
         if (isAllowedPolicyClassifierLine(file, line, matcher.code)) continue;
         issues.push({
@@ -159,36 +170,6 @@ function isAllowedPolicyClassifierLine(file, line, code) {
   if (code === 'canonical.advice_language') {
     if (!file.includes(join('packages', 'melo-policy', 'src'))) return false;
     return line.includes('regex:') || line.includes('label:') || line.includes('category:');
-  }
-
-  // Statement-reader review-before-truth marker: the local statement/photo reader tags EVERY extracted
-  // row with the LOWEST `CandidateConfidence` ('low') precisely so nothing is auto-counted — each
-  // candidate MUST be reviewed before it becomes a posted fact. This is the OPPOSITE of a fake trust
-  // score: it is the honest review gate. The field name `confidence` / `CandidateConfidence` is shared
-  // with the import pipeline (folio/lib/importSheet.ts), so renaming it here would ripple wrongly.
-  // Allow ONLY the review-before-truth candidate marker in these four reader files — the gate stays
-  // strict for confidence-as-trust everywhere else.
-  if (code === 'canonical.fake_confidence') {
-    const isReaderReviewFile =
-      file.includes(join('apps', 'mobile', 'src', 'local', 'statementReaderParse.ts')) ||
-      file.includes(join('apps', 'mobile', 'src', 'local', 'statementReaderClient.ts')) ||
-      file.includes(join('apps', 'mobile', 'src', 'local', 'localOcrCandidates.ts')) ||
-      file.includes(join('apps', 'mobile', 'src', 'local', 'localDocumentCandidates.ts'));
-    const isExactCanonicalReaderState =
-      file.endsWith(join('packages', 'domain', 'src', 'index.ts')) &&
-      /^\s*confidence:\s*'high'\s*\|\s*'medium'\s*\|\s*'low';\s*$/.test(line);
-    if (isExactCanonicalReaderState) return true;
-    if (!isReaderReviewFile) return false;
-    // The honest review marker: the shared candidate-confidence type/const, the assignment of the
-    // lowest enum, or a comment describing the lowest-confidence "must be reviewed" gate.
-    return (
-      line.includes('CandidateConfidence') ||
-      line.includes('READER_CONFIDENCE') ||
-      /lowest confidence/i.test(line) ||
-      /confidence\s*\(?'low'\)?/i.test(line) ||
-      /confidence:\s*READER_CONFIDENCE/.test(line) ||
-      (/\bconfidence\b/i.test(line) && /must be reviewed|tentative|lowest enum/i.test(line))
-    );
   }
 
   return false;

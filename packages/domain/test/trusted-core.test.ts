@@ -15,7 +15,6 @@ import {
   evaluateWorkspaceBoundary,
   materialFinancialChangeTypes,
   materialDecisionKinds,
-  trustedCoreConfidenceLevels,
   trustedCoreFreshnessStates,
   trustedCoreMigrationPlan,
   trustedCoreResponsibilities,
@@ -44,7 +43,6 @@ describe('Trusted Core truth vocabulary', () => {
       'contradicted',
       'sample_demo',
     ]);
-    expect(trustedCoreConfidenceLevels).toEqual(['high', 'medium', 'low', 'blocked']);
     expect(trustedCoreFreshnessStates).toEqual(['fresh', 'ageing', 'stale', 'missing']);
     expect(trustedSafeRangeRelianceStates).toEqual([
       'safe_to_rely',
@@ -78,7 +76,6 @@ describe('Trusted Core truth vocabulary', () => {
       capturedAt,
       confirmedAt: capturedAt,
       expiresAt,
-      confidence: 'high',
       freshness: 'fresh',
       assumptions: [],
       derivedFrom: [],
@@ -89,7 +86,6 @@ describe('Trusted Core truth vocabulary', () => {
       id: provenanceId,
       workspaceId,
       truthClass: fact.truthClass,
-      confidence: fact.confidence,
       freshness: fact.freshness,
       sourceFactIds: [fact.factId],
       missingMaterialInfo: [],
@@ -153,17 +149,17 @@ describe('Trusted Safe Range and Decision Ledger integration contracts', () => {
         sourceFactIds: ['fact_rent_commitment'],
       },
       shortfall: null,
-      confidenceReasons: [
+      evidenceNotes: [
         {
-          id: 'confidence_balance_confirmed',
+          id: 'evidence_balance_confirmed',
           label: 'Current balance was confirmed by the user.',
-          impact: 'raises',
+          impact: 'supports',
           sourceFactIds: ['fact_current_balance'],
         },
         {
-          id: 'confidence_commitment_inferred',
+          id: 'evidence_commitment_inferred',
           label: 'One recurring commitment is still inferred.',
-          impact: 'lowers',
+          impact: 'limits',
           sourceFactIds: ['fact_rent_commitment'],
         },
       ],
@@ -208,7 +204,6 @@ describe('Trusted Safe Range and Decision Ledger integration contracts', () => {
       expectedSafeMax: createMoney({ minorUnits: 31000, currency: 'GBP' }),
       conservativeBoundary: createMoney({ minorUnits: 18000, currency: 'GBP' }),
       reliance: 'use_caution',
-      confidence: 'medium',
       freshness: 'fresh',
       missingMaterialInfo: ['latest subscription renewal'],
       assumptions: ['usual weekly food spend'],
@@ -228,7 +223,6 @@ describe('Trusted Safe Range and Decision Ledger integration contracts', () => {
           label: 'Current balance',
           capturedAt: now,
           freshness: 'fresh',
-          confidence: 'high',
         },
       ],
       forecastVersionId,
@@ -240,9 +234,8 @@ describe('Trusted Safe Range and Decision Ledger integration contracts', () => {
     expect(result.canUserRelyOnAnswer).toBe(false);
     expect(result.mainCauses[0]?.sourceFactIds).toEqual(['fact_rent_commitment']);
     expect(result.expectedRange.basis).toBe('explicit_uncertainty');
-    expect(result.confidenceReasons.map((reason) => reason.id)).toContain(
-      'confidence_balance_confirmed',
-    );
+    expect(result.evidenceNotes.map((note) => note.id)).toContain('evidence_balance_confirmed');
+    expect(result).not.toHaveProperty('confidence');
   });
 
   it('defines the bounded Decision Ledger record without event-sourcing the whole app', () => {
@@ -290,7 +283,6 @@ describe('Trusted Safe Range and Decision Ledger integration contracts', () => {
           capturedAt: createdAt,
           confirmedAt: createdAt,
           expiresAt: null,
-          confidence: 'high',
           freshness: 'fresh',
           amount: createMoney({ minorUnits: 125000, currency: 'GBP' }),
           assumptions: [],
@@ -312,7 +304,6 @@ describe('Trusted Safe Range and Decision Ledger integration contracts', () => {
           id: 'assumption_usual_food',
           label: 'usual weekly food spend',
           truthClass: 'assumed',
-          confidence: 'medium',
           amount: null,
           sourceFactIds: [],
         },
@@ -329,7 +320,6 @@ describe('Trusted Safe Range and Decision Ledger integration contracts', () => {
         predictedSafeMin: createMoney({ minorUnits: 24000, currency: 'GBP' }),
         predictedSafeMax: createMoney({ minorUnits: 31000, currency: 'GBP' }),
         conservativeBoundary: createMoney({ minorUnits: 18000, currency: 'GBP' }),
-        confidence: 'medium',
         sourceFactIds: ['fact_current_balance', 'fact_rent_commitment'],
       },
       scenarios: [],

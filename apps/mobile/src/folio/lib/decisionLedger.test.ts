@@ -45,7 +45,6 @@ function safeRange(): DecisionLedgerSafeRangeSnapshot {
     horizonEndISO: createLocalDate('2026-08-20'),
     status: 'caution',
     reliance: 'use_caution',
-    confidence: 'medium',
     freshness: 'fresh',
     currentKnownPosition: createMoney({ minorUnits: 120_000, currency: 'GBP' }),
     knownCommittedFloor: createMoney({ minorUnits: 70_000, currency: 'GBP' }),
@@ -323,13 +322,13 @@ describe('Forecast accountability', () => {
     expect(result.entry?.forecastEvaluations[0]?.classification).toBe('outside_range');
   });
 
-  it('uses blocked confidence when actuals cannot be checked', () => {
+  it('keeps the evaluation unknown when actuals cannot be checked', () => {
     const { entry, entries } = draft();
     const result = evaluateForecast(entries, { entryId: entry.id, now });
     expect(result.entry?.forecastEvaluations[0]).toMatchObject({
       classification: 'unknown',
-      confidence: 'blocked',
     });
+    expect(result.entry?.forecastEvaluations[0]).not.toHaveProperty('confidence');
   });
 });
 
@@ -460,7 +459,6 @@ describe('Corrections, privacy and workspace isolation', () => {
           capturedAt: createInstantString('2026-07-01T00:00:00.000Z'),
           confirmedAt: null,
           expiresAt: createInstantString('2026-07-10T00:00:00.000Z'),
-          confidence: 'low',
           freshness: 'stale',
           amount: createMoney({ minorUnits: 80_000, currency: 'GBP' }),
           assumptions: ['statement may be superseded'],
@@ -505,7 +503,6 @@ describe('Corrections, privacy and workspace isolation', () => {
         predictedSafeMin: null,
         predictedSafeMax: null,
         conservativeBoundary: null,
-        confidence: 'medium',
         sourceFactIds: [],
       },
       now,
