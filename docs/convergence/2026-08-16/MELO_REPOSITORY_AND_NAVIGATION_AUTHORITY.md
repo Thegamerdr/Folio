@@ -8,6 +8,9 @@ Status: current delivery authority, 2026-08-16.
   this delivery at `C:\dev\melo-phase-d-work`.
 - The reviewed delivery branch is
   [`codex/melo-one-app-convergence-2026-08-15`](https://github.com/Thegamerdr/Folio/tree/codex/melo-one-app-convergence-2026-08-15).
+- Publication is blocked as of 2026-08-16: GitHub rejected inherited branch history containing
+  artifact blobs over its 100 MB limit. The remote branch remains absent; resolving that requires a
+  separately approved history migration or clean replay and must not be represented as complete.
 - `apps/mobile` is the sole shipping Melo runtime. The public site, design experiments, historical
   prototypes and evidence surfaces do not create parallel applications or repository lineages.
 - Navigation implementation commit `88a5ae320265dd0d5c6ffa486db1f74920147ad0` establishes the

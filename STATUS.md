@@ -2,7 +2,9 @@
 
 > **Current authority, 2026-08-16:** this repository and its `apps/mobile` React Native runtime are
 > the authoritative Melo implementation. Delivery work is on
-> `codex/melo-one-app-convergence-2026-08-15` in the existing Folio remote. Start with the
+> `codex/melo-one-app-convergence-2026-08-15` against the existing Folio remote. GitHub publication
+> is currently blocked by inherited artifact blobs over 100 MB; the remote branch was not created.
+> Start with the
 > [dated repository and navigation authority](docs/convergence/2026-08-16/MELO_REPOSITORY_AND_NAVIGATION_AUTHORITY.md),
 > then the [current advisor-plan index](advisor-plans/README.md). Personal navigation is Today / Plan
 > / Review / More; Business is Today / Money / Review / More; Melo is a contextual companion action.

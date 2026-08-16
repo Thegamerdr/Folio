@@ -14,6 +14,7 @@
 
 ## Status
 
+- **Execution status**: BLOCKED at publication; implementation, documentation and validation pass
 - **Priority**: P1
 - **Effort**: M
 - **Risk**: MED
@@ -21,6 +22,21 @@
 - **Category**: authority, navigation, documentation, delivery
 - **Planned at**: commit `f7b91c7`, 2026-08-16
 - **Includes**: `AUTHORITY-01` and `DOCS-01`
+
+## Execution evidence — 2026-08-16
+
+- Navigation commit: `88a5ae320265dd0d5c6ffa486db1f74920147ad0`.
+- Authority/documentation commit: `ad84793c714890ea2da3087972512c91f6c6ad60`.
+- Focused navigation suite: 3 files, 37 tests passed.
+- `pnpm typecheck`: passed.
+- `pnpm run ci`: passed with 239 Vitest files / 2,776 tests, all 45 companion tests and both
+  source-package validators.
+- Normal publication failed before the remote branch was created. GitHub rejected historical
+  branch objects containing multiple APK/AAB artifacts over 100 MB; the largest reported file was
+  132.07 MB. Deleting those files in a new tip commit would not remove the rejected history.
+- The remote branch remains absent. Completing publication requires explicit owner approval for a
+  history migration to Git LFS or a clean replay branch. Both change the approved lineage, so this
+  plan stopped instead of rewriting or force-pushing history.
 
 ## Why this matters
 
