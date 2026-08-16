@@ -14,7 +14,7 @@
 
 ## Status
 
-- **Execution status**: BLOCKED at publication; implementation, documentation and validation pass
+- **Execution status**: DONE; published by normal push after an owner-authorized clean replay
 - **Priority**: P1
 - **Effort**: M
 - **Risk**: MED
@@ -37,6 +37,21 @@
 - The remote branch remains absent. Completing publication requires explicit owner approval for a
   history migration to Git LFS or a clean replay branch. Both change the approved lineage, so this
   plan stopped instead of rewriting or force-pushing history.
+
+## Publication resolution — 2026-08-17
+
+- The owner authorized a one-time clean replay while requiring the original tip and untracked
+  evidence to remain preserved.
+- Original tip `71caffc5978d23e5ce68a15aee0f243575f54872` remains at
+  `backup/melo-one-app-convergence-pre-publication-2026-08-17`.
+- The replay is based directly on `origin/master`, retains every reviewed source/test/migration/doc
+  change, and excludes exactly 63 enumerated Android build products, signatures and symbol files.
+  See `docs/convergence/2026-08-17/MELO_CLEAN_PUBLICATION_REPLAY.md`.
+- Replay CI passed with 239 Vitest files / 2,776 tests, all 45 companion tests, all typechecks and
+  both source-package validators.
+- Clean publication tip `c60db2edf12d6e523a6b19e506aa03258326fa40` was pushed normally to
+  `origin/codex/melo-one-app-convergence-2026-08-15`; that upstream now tracks the local intended
+  branch. No force-push, merge, default-branch change or deployment occurred.
 
 ## Why this matters
 

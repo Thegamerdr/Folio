@@ -8,18 +8,18 @@ or release state was changed while preparing them.
 
 ## Required order
 
-| Order | Work ID                | Plan                                                                                                              | Priority | Effort | Risk | Status  |
-| ----: | ---------------------- | ----------------------------------------------------------------------------------------------------------------- | :------: | :----: | :--: | :-----: |
-|     1 | MIGRATION-01           | [001 — Block every write when persisted data is newer than the app](001-block-future-schema-overwrite.md)         |    P0    |   M    | HIGH |  DONE   |
-|     2 | ISOLATION-01           | [002 — Keep financial Melo state inside its owning workspace](002-stop-cross-workspace-melo-financial-state.md)   |    P0    |   M    | MED  |  DONE   |
-|     3 | TRUST-01               | [003 — Remove unsupported confidence claims and restore CI](003-remove-unsupported-confidence-claims.md)          |    P1    |   M    | MED  |  DONE   |
-|     4 | SECURITY-01            | [004 — Remove plaintext picker files from the app cache](004-remove-plaintext-picker-cache.md)                    |    P1    |   M    | MED  |  DONE   |
-|     5 | IMPORT-01              | [005 — Preserve legitimate repeated transactions during import](005-preserve-legitimate-repeated-transactions.md) |    P1    |   M    | MED  |  DONE   |
-|     6 | CALENDAR-01            | [006 — Use workspace-local dates for financial events](006-use-workspace-local-financial-dates.md)                |    P2    |   M    | MED  |  DONE   |
-|     7 | TEST-01                | [007 — Run the shipping companion test suite in root CI](007-run-companion-tests-in-ci.md)                        |    P2    |   S    | LOW  |  DONE   |
-|     8 | AUTHORITY-01 + DOCS-01 | [008 — Publish repository authority and reconcile navigation](008-publish-authority-and-reconcile-navigation.md)  |    P1    |   M    | MED  | BLOCKED |
-|     9 | BETA-01                | [009 — Keep Business creation behind a fail-closed beta gate](009-gate-business-workspace-creation.md)            |    P1    |   S    | MED  |  TODO   |
-|    10 | SECURITY-02            | [010 — Harden Play verification before public reachability](010-harden-public-play-verification.md)               |    P1    |   M    | HIGH |  TODO   |
+| Order | Work ID                | Plan                                                                                                              | Priority | Effort | Risk | Status |
+| ----: | ---------------------- | ----------------------------------------------------------------------------------------------------------------- | :------: | :----: | :--: | :----: |
+|     1 | MIGRATION-01           | [001 — Block every write when persisted data is newer than the app](001-block-future-schema-overwrite.md)         |    P0    |   M    | HIGH |  DONE  |
+|     2 | ISOLATION-01           | [002 — Keep financial Melo state inside its owning workspace](002-stop-cross-workspace-melo-financial-state.md)   |    P0    |   M    | MED  |  DONE  |
+|     3 | TRUST-01               | [003 — Remove unsupported confidence claims and restore CI](003-remove-unsupported-confidence-claims.md)          |    P1    |   M    | MED  |  DONE  |
+|     4 | SECURITY-01            | [004 — Remove plaintext picker files from the app cache](004-remove-plaintext-picker-cache.md)                    |    P1    |   M    | MED  |  DONE  |
+|     5 | IMPORT-01              | [005 — Preserve legitimate repeated transactions during import](005-preserve-legitimate-repeated-transactions.md) |    P1    |   M    | MED  |  DONE  |
+|     6 | CALENDAR-01            | [006 — Use workspace-local dates for financial events](006-use-workspace-local-financial-dates.md)                |    P2    |   M    | MED  |  DONE  |
+|     7 | TEST-01                | [007 — Run the shipping companion test suite in root CI](007-run-companion-tests-in-ci.md)                        |    P2    |   S    | LOW  |  DONE  |
+|     8 | AUTHORITY-01 + DOCS-01 | [008 — Publish repository authority and reconcile navigation](008-publish-authority-and-reconcile-navigation.md)  |    P1    |   M    | MED  |  DONE  |
+|     9 | BETA-01                | [009 — Keep Business creation behind a fail-closed beta gate](009-gate-business-workspace-creation.md)            |    P1    |   S    | MED  |  TODO  |
+|    10 | SECURITY-02            | [010 — Harden Play verification before public reachability](010-harden-public-play-verification.md)               |    P1    |   M    | HIGH |  TODO  |
 
 DOCS-01 is intentionally folded into plan 008. It does not have a separate branch, status line or
 large workstream.

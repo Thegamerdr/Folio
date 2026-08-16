@@ -8,14 +8,22 @@ Status: current delivery authority, 2026-08-16.
   this delivery at `C:\dev\melo-phase-d-work`.
 - The reviewed delivery branch is
   [`codex/melo-one-app-convergence-2026-08-15`](https://github.com/Thegamerdr/Folio/tree/codex/melo-one-app-convergence-2026-08-15).
-- Publication is blocked as of 2026-08-16: GitHub rejected inherited branch history containing
-  artifact blobs over its 100 MB limit. The remote branch remains absent; resolving that requires a
-  separately approved history migration or clean replay and must not be represented as complete.
+- The branch was published normally to the existing remote on 2026-08-17. Its first clean published
+  tip was `c60db2edf12d6e523a6b19e506aa03258326fa40`; the
+  [clean replay record](../2026-08-17/MELO_CLEAN_PUBLICATION_REPLAY.md) preserves the original tip,
+  commit mapping, tree-equivalence proof and exact build-artifact exclusions.
 - `apps/mobile` is the sole shipping Melo runtime. The public site, design experiments, historical
   prototypes and evidence surfaces do not create parallel applications or repository lineages.
-- Navigation implementation commit `88a5ae320265dd0d5c6ffa486db1f74920147ad0` establishes the
-  contracts below. The published branch tip is recorded in the delivery handoff after the normal
-  push because this decision record cannot contain its own commit hash.
+- Published navigation implementation commit `91bee8e8362b0c61e33182a627d159787e215ee5` establishes the
+  contracts below.
+
+## Lovable design lineage
+
+- UI/UX reference project: `d8323aca-d14c-4f6d-bb89-6d41bcefab7b`.
+- Referenced Lovable head: `c75dad8c4151f7b6987bafc89ba8a3fc126196d2`.
+- Referenced product-code baseline: `ef8d0cf5d6d5e8b82c5f8c38ba5c2d95bf72c04a`.
+- These identifiers record the 2026-08-16 master plan's design lineage. Lovable remains the faithful
+  UI/UX reference only; it was not contacted or modified during this repository publication.
 
 ## Superseded statements
 
