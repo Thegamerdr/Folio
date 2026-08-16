@@ -426,8 +426,13 @@ export function consolidateAccounts(input: {
   return converted;
 }
 
-export function evaluateOverdueObligation(input: ForecastInput): OverdueObligationResult {
-  const asOf = createLocalDate(input.asOf ?? new Date().toISOString().slice(0, 10));
+export function evaluateOverdueObligation(
+  input: ForecastInput & Readonly<{ asOf: string }>,
+): OverdueObligationResult {
+  if (input.asOf === undefined) {
+    throw new Error('Overdue-obligation evaluation requires an explicit asOf date.');
+  }
+  const asOf = createLocalDate(input.asOf);
   const overdue = (input.expectations ?? []).find(
     (expectation) =>
       createLocalDate(expectation.date) < asOf &&

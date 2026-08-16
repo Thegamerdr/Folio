@@ -12,7 +12,7 @@ import { selectMonthlyIncome } from './income';
 import { planProgress, summarisePlans } from './modes/planEngine';
 import { buildRecoveryRoutePreview } from './recoveryPreview';
 import { reviewMatch } from './reviewDedupe';
-import { requireWorkspaceData } from './workspaceRoot';
+import { requireWorkspaceData, workspaceLocalDate } from './workspaceRoot';
 
 const PENCE_PER_POUND = 100;
 const MIN_IRREGULAR_HISTORY_MONTHS = 3;
@@ -28,13 +28,6 @@ function toMinor(pounds: number): number {
   return Math.round(pounds * PENCE_PER_POUND);
 }
 
-function isoDayLocal(now: Date): string {
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function formatDay(iso: string | null): string | null {
   if (iso === null) return null;
   const date = new Date(`${iso}T00:00:00`);
@@ -48,10 +41,10 @@ function formatTimestampDay(iso: string): string {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function nextMonthlyDueDate(now: Date, dueDom: number): string {
-  const today = isoDayLocal(now);
-  let year = now.getFullYear();
-  let monthIndex = now.getMonth();
+function nextMonthlyDueDate(state: AppState, now: Date, dueDom: number): string {
+  const today = workspaceLocalDate(state, now);
+  let year = Number(today.slice(0, 4));
+  let monthIndex = Number(today.slice(5, 7)) - 1;
   for (let offset = 0; offset <= 1; offset += 1) {
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
     const day = Math.min(Math.max(1, dueDom), daysInMonth);
@@ -91,7 +84,7 @@ function buildDebtCalculation(
     annualRateBps: Math.round(debt.apr * 100),
     minimumPaymentMinor: toMinor(debt.minPayment),
   }));
-  const startDate = isoDayLocal(now);
+  const startDate = workspaceLocalDate(state, now);
   const minimums = projectDebtPortfolio({
     debts: engineDebts,
     strategy: 'contractual-minimums',
@@ -156,7 +149,7 @@ function buildBnplSchedule(state: AppState, now: Date): MeloLocalCalculation {
         principalMinor: toMinor(debt.balance),
         annualRateBps: Math.round(debt.apr * 100),
         monthlyPaymentMinor: toMinor(debt.minPayment),
-        startDate: nextMonthlyDueDate(now, debt.dueDom),
+        startDate: nextMonthlyDueDate(state, now, debt.dueDom),
       });
       scheduledRows.push(
         ...schedule.rows.map((row) => ({
@@ -380,7 +373,7 @@ function buildGoalCalculation(
 }
 
 function buildIrregularIncomeCalculation(state: AppState, now: Date): MeloLocalCalculation {
-  const series = monthlyIncomeSeries(state.transactions, isoDayLocal(now));
+  const series = monthlyIncomeSeries(state.transactions, workspaceLocalDate(state, now));
   const sufficientHistory = series.length >= MIN_IRREGULAR_HISTORY_MONTHS;
   return {
     kind: 'irregular-income-range',

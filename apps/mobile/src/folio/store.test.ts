@@ -10,7 +10,7 @@
 // Node-safe: touches only the store module (no react-native runtime, no DOM),
 // so it is a plain `.test.ts` collected by the apps/**/*.test.ts runner.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   type Account,
@@ -41,6 +41,7 @@ import {
   completePaydayRitualMelo,
   consumeLoadDegraded,
   createEmptyWorkspacePartition,
+  currentFinancialDate,
   deleteBankImportedHistory,
   dismissBillSignal,
   dismissIncomeSignal,
@@ -74,6 +75,7 @@ import {
   removeTransaction,
   renameAccount,
   refreshBusinessMeloProgress,
+  reanchorSubRenewals,
   resetAll,
   resetToEmpty,
   resolveReviewItem,
@@ -95,6 +97,7 @@ import {
   setReaderClosingBalance,
   setTightPointGoal,
   sweepReviewQueue,
+  sweepAutoResumeNow,
   syncHistoryCycles,
   togglePaused,
   totalDebtMinor,
@@ -116,6 +119,41 @@ import { PERSISTED_WORKSPACE_ROW_COLLECTIONS } from './lib/workspaceRows';
 beforeEach(() => {
   // Clean, known seed before every test (defaults + seeded transactions).
   resetAll();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('workspace-local financial dates', () => {
+  it('resolves BST and GMT boundaries from the workspace timezone, not the host or UTC day', () => {
+    expect(currentFinancialDate(new Date('2026-08-16T23:30:00.000Z'))).toBe('2026-08-17');
+    expect(currentFinancialDate(new Date('2026-08-16T00:30:00.000Z'))).toBe('2026-08-16');
+    expect(currentFinancialDate(new Date('2026-12-31T23:30:00.000Z'))).toBe('2026-12-31');
+  });
+
+  it('reanchors and auto-resumes subscriptions on the London day after BST midnight', () => {
+    setPartial({
+      subs: [
+        {
+          name: 'Boundary sub',
+          cost: 10,
+          nextRenewalDaysAway: 99,
+          nextRenewalISO: '2026-08-17',
+          pausedUntil: '2026-08-17',
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 1,
+        },
+      ],
+      subPaused: { 'Boundary sub': true },
+    });
+    const today = currentFinancialDate(new Date('2026-08-16T23:30:00.000Z'));
+
+    reanchorSubRenewals(today);
+    expect(getState().subs[0]?.nextRenewalDaysAway).toBe(0);
+    expect(sweepAutoResumeNow(today)).toEqual(['Boundary sub']);
+    expect(getState().subPaused['Boundary sub']).toBe(false);
+  });
 });
 
 function owned<T extends object>(row: T): T & { workspaceId: typeof PERSONAL_WORKSPACE_ID } {
@@ -1526,6 +1564,28 @@ describe('applyMeloTool — Business tools', () => {
     ).toBe(1_000);
     if (sent.applied) sent.undo();
     expect(getState().business?.invoices).toEqual([]);
+  });
+
+  it('defaults Business issued, paid, and dividend dates to the London day after BST midnight', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-16T23:30:00.000Z'));
+    activateMeloBusinessWorkspace();
+
+    expect(
+      applyMeloTool('log_invoice_sent', {
+        client: 'Acme',
+        amount: 500,
+        dueOn: '2026-09-30',
+        reference: 'BST-1',
+      }).applied,
+    ).toBe(true);
+    expect(getState().business?.invoices[0]?.issuedOn).toBe('2026-08-17');
+    expect(applyMeloTool('log_invoice_paid', { invoice: 'BST-1' }).applied).toBe(true);
+    expect(getState().business?.invoices[0]?.paidOn).toBe('2026-08-17');
+
+    activateMeloBusinessWorkspace({ ltd: true });
+    expect(applyMeloTool('log_dividend', { shareholder: 'Avery', amount: 100 }).applied).toBe(true);
+    expect(getState().business?.dividends[0]?.declaredOn).toBe('2026-08-17');
   });
 
   it('requires a Ltd workspace and distributable reserves before declaring a dividend', () => {
@@ -4098,6 +4158,20 @@ describe('syncHistoryCycles', () => {
     });
     syncHistoryCycles();
     expect(getState().cycles).toEqual([]);
+  });
+
+  it('treats August as closed once the workspace has crossed BST midnight into September', () => {
+    setPartial({
+      transactions: Array.from({ length: 5 }, (_, index) =>
+        addTransaction(txn(`2026-08-0${index + 1}T12:00:00.000Z`, `August ${index}`, -10)),
+      ),
+      cycles: [],
+    });
+
+    syncHistoryCycles(new Date('2026-08-31T23:30:00.000Z'));
+
+    expect(getState().cycles).toHaveLength(1);
+    expect(getState().cycles[0]).toMatchObject({ label: 'August 2026', closedAt: '2026-08-31' });
   });
 
   it('does not synthesize a month with fewer than 5 transactions', () => {

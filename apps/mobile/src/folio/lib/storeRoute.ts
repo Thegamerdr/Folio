@@ -26,6 +26,7 @@
  */
 
 import { useMemo } from 'react';
+import { createLocalDate } from '@folio/domain';
 
 import { computeRoute, type DatedAmount, type RouteResult } from './moneyPath';
 import { deriveCalendarEvents } from './calendarEvents';
@@ -34,6 +35,7 @@ import { nextIncomeDate, selectMonthlyIncome } from './income';
 import { monthlySpendBaseline } from './historyStats';
 import { useAppStore, selectBankBalanceMinor, bankTransactions, type AppState } from '../store';
 import { derivePressure } from '../screens/today/pressure';
+import { workspaceLocalDate } from './workspaceRoot';
 
 /** Fallback day-of-month payday when onboarding hasn't set one. Matches the
  *  literal TodayScreen used inline (`onboarding.payday || 25`). */
@@ -46,27 +48,9 @@ const DEFAULT_PAYDAY_DOM = 25;
 const ROUTE_WINDOW_DAYS = 35;
 
 // --- Date helpers ----------------------------------------------------------------------------
-// "Today" must be the user's LOCAL calendar day. The design's Today reads `new Date()` (a local
-// instant) and feeds it to `deriveCalendarEvents`, which keys "today" and every event date off
-// `now.toISOString().slice(0,10)` — the UTC slice (calendarEvents `isoDay`). On a UTC host those
-// coincide; on a non-UTC host (e.g. BST = UTC+1) the UTC slice of a local-midnight Date is the
-// PREVIOUS day, so slicing the route's "today" straight off `toISOString()` drifts a day early
-// (daysToPayday 16 not 15; the next-month roll reads 0). The fix is two-part and keeps the route and
-// the Calendar ladder on ONE shared day:
-//   (1) derive the route's `todayIso` from the LOCAL calendar fields (`isoDayLocal`), so it is the
-//       day the user is actually living; and
-//   (2) feed `deriveCalendarEvents` a `now` reconstructed at UTC midnight of that SAME local day
-//       (`utcMidnightOf`), so the slice it takes internally (`isoDay`) equals `todayIso` exactly —
-//       route day-indices and calendar event days then line up by construction on any host timezone.
-// `resolvePayday` (for the fallback payday) takes a "YYYY-MM" sliced from the same local `todayIso`.
-/** A Date → LOCAL-calendar ISO day "YYYY-MM-DD" (the day the user is in, host-tz aware). */
-function isoDayLocal(date: Date): string {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const pad2 = (n: number): string => (n < 10 ? `0${n}` : String(n));
-  return `${year}-${pad2(month)}-${pad2(day)}`;
-}
+// `routeFromStore` resolves a Date through the active data workspace's explicit IANA timezone.
+// Calendar derivation still receives UTC midnight of that resolved date because its Date inputs are
+// deliberate date-only arithmetic, not an independent interpretation of the runtime instant.
 /** UTC-midnight Date for a "YYYY-MM-DD" — its `toISOString().slice(0,10)` is that exact day, so the
  *  `now` we hand `deriveCalendarEvents` slices to the same local day the route uses for indexing. */
 function utcMidnightOf(iso: string): Date {
@@ -124,11 +108,7 @@ function nextYearMonthOf(iso: string): string {
  *   nothing reads the clock during render.
  */
 export function routeFromStore(state: AppState, now: Date | string = new Date()): RouteResult {
-  const nowDate = typeof now === 'string' ? new Date(`${now}T00:00:00`) : now;
-  // The route's "today" is the user's LOCAL calendar day (see the helper note above) — not the UTC
-  // slice, which drifts a day early on a non-UTC host. `daysToPayday` and the day indices are all
-  // measured from this.
-  const todayIso = isoDayLocal(nowDate);
+  const todayIso = typeof now === 'string' ? createLocalDate(now) : workspaceLocalDate(state, now);
   const paydayDom = state.onboarding.payday || DEFAULT_PAYDAY_DOM;
 
   // The Calendar's timeline — the single derivation that owns bills, subs, payday, pot top-ups, and

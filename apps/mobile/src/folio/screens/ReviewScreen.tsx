@@ -81,6 +81,7 @@ import {
   addIgnoredBankExternalId,
   addIgnoredReviewSig,
   addTransaction,
+  currentFinancialDate,
   forgetMerchantCategory,
   getState,
   resolveReviewItem,
@@ -483,7 +484,7 @@ export function ReviewScreen({
         merchant,
       },
       transactions,
-      now.toISOString().slice(0, 10),
+      currentFinancialDate(now),
     );
   }, [hasRealCandidate, stamped, now, candidate, signedDelta, merchant, transactions]);
 

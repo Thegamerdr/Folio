@@ -61,7 +61,13 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { dismissBillSignal, setSubs, useAppStore, type Sub } from '@/folio/store';
+import {
+  currentFinancialDate,
+  dismissBillSignal,
+  setSubs,
+  useAppStore,
+  type Sub,
+} from '@/folio/store';
 import { useCaughtBills, type CaughtBillCandidate } from '@/folio/lib/caughtBills';
 import {
   anchorIsoFor,
@@ -236,7 +242,7 @@ function BillCaughtBody({
         (existing) => existing.name.trim().toLowerCase() === candidate.name.trim().toLowerCase(),
       );
       if (!already) {
-        const todayIso = new Date().toISOString().slice(0, 10);
+        const todayIso = currentFinancialDate();
         // Honest renewal estimate derived from the SAME facts the detector caught (cadence +
         // last-charged date) — never a hardcoded constant (lib/renewalMath.ts; identical
         // convention to SubCaughtSheet's confirm). The date-anchor pair makes it durable: every

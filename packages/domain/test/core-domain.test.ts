@@ -20,6 +20,7 @@ import {
   createLocalDate,
   createLocalDateTime,
   createLocalTime,
+  localDateFromInstant,
   createMeloMemoryId,
   createMeloProposalId,
   createMoney,
@@ -69,6 +70,26 @@ describe('local date and time value objects', () => {
     expect(() => createLocalTime('24:00')).toThrow(/Invalid local time/);
     expect(() => createTimeZoneId('Not/AZone')).toThrow(/Invalid time zone/);
     expect(() => createInstantString('2026-06-20T12:00:00')).toThrow(/UTC instant/);
+  });
+
+  it('converts instants to explicit workspace-local calendar dates', () => {
+    const london = createTimeZoneId('Europe/London');
+    const newYork = createTimeZoneId('America/New_York');
+
+    expect(localDateFromInstant(new Date('2026-08-16T23:30:00Z'), london)).toBe('2026-08-17');
+    expect(localDateFromInstant('2026-08-16T00:30:00Z', london)).toBe('2026-08-16');
+    expect(localDateFromInstant('2026-12-31T23:30:00Z', london)).toBe('2026-12-31');
+    expect(localDateFromInstant('2028-02-29T12:00:00Z', london)).toBe('2028-02-29');
+    expect(localDateFromInstant('2026-08-17T02:30:00Z', newYork)).toBe('2026-08-16');
+  });
+
+  it('rejects invalid instants and unvalidated time zones', () => {
+    const london = createTimeZoneId('Europe/London');
+    expect(() => localDateFromInstant(new Date('invalid'), london)).toThrow(/Invalid instant/);
+    expect(() => localDateFromInstant('not-an-instant', london)).toThrow(/Invalid instant/);
+    expect(() =>
+      localDateFromInstant('2026-08-16T12:00:00Z', 'Not/AZone' as typeof london),
+    ).toThrow(/Invalid time zone/);
   });
 });
 

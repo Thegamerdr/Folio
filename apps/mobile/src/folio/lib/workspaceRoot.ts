@@ -1,7 +1,10 @@
 import type { WorkspaceSummary } from '@folio/business-workspace';
 import {
+  createTimeZoneId,
   createWorkspace,
   createWorkspaceId,
+  localDateFromInstant,
+  type LocalDate,
   type Workspace,
   type WorkspaceId,
 } from '@folio/domain';
@@ -32,6 +35,16 @@ export type WorkspacePartitionHeader = Readonly<{
 
 export const PERSONAL_WORKSPACE_ID = createWorkspaceId('workspace_personal_local');
 export const PERSONAL_WORKSPACE_SUBKEY_ID = 'workspace-subkey-personal-v1';
+export const PERSONAL_WORKSPACE_TIME_ZONE = createTimeZoneId('Europe/London');
+
+/** Resolve a runtime instant through the data-owning workspace, with a pre-hydration fallback. */
+export function workspaceLocalDate(
+  root: Pick<WorkspaceRoot, 'workspaces' | 'dataWorkspaceId'>,
+  instant: Date = new Date(),
+): LocalDate {
+  const workspace = root.workspaces.find((candidate) => candidate.id === root.dataWorkspaceId);
+  return localDateFromInstant(instant, workspace?.timeZone ?? PERSONAL_WORKSPACE_TIME_ZONE);
+}
 
 export function createBusinessWorkspace(input: {
   id: string | WorkspaceId;
@@ -47,7 +60,7 @@ export function createBusinessWorkspace(input: {
     name: input.name,
     baseCurrency: 'GBP',
     jurisdiction: 'GB',
-    timeZone: 'Europe/London',
+    timeZone: PERSONAL_WORKSPACE_TIME_ZONE,
     version: { revision: 1, dataVersion: 'workspace:business:v1' },
   });
   if (workspace.id === PERSONAL_WORKSPACE_ID) {
@@ -64,7 +77,7 @@ function createPersonalWorkspace(): PersistedWorkspace {
       name: 'Personal',
       baseCurrency: 'GBP',
       jurisdiction: 'GB',
-      timeZone: 'Europe/London',
+      timeZone: PERSONAL_WORKSPACE_TIME_ZONE,
       version: { revision: 1, dataVersion: 'workspace:personal:v1' },
     }),
     encryptedSubkeyId: PERSONAL_WORKSPACE_SUBKEY_ID,

@@ -1,4 +1,5 @@
 import {
+  addDaysToLocalDate,
   createCurrencyCode,
   createInstantString,
   createMoney,
@@ -29,6 +30,7 @@ import {
 } from '../store';
 import { forecastSnapshotFromSafeRange, safeRangeSnapshotFromResult } from './decisionLedger';
 import { buildTrustedSafeRangeFromAppState } from './trustedSafeRange';
+import { workspaceLocalDate } from './workspaceRoot';
 
 const GBP = createCurrencyCode('GBP');
 const MATERIAL_RANGE_DELTA_MINOR = 100;
@@ -140,8 +142,8 @@ function money(minor: number | null | undefined): Money | null {
   return createMoney({ minorUnits: Math.round(minor), currency: GBP });
 }
 
-function addDaysISO(date: Date, days: number): string {
-  return new Date(date.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+function addDaysISO(state: AppState, date: Date, days: number): string {
+  return addDaysToLocalDate(workspaceLocalDate(state, date), days);
 }
 
 function truthForEnteredFact(sourceType: TrustedCoreSourceType): TrustedCoreTruthClass {
@@ -188,7 +190,7 @@ export function buildProvisionalFirstAnswer(
       : {
           id: 'phase-e-provisional-essential-bills',
           workspaceId: input.workspaceId,
-          date: addDaysISO(now, 7),
+          date: addDaysISO(baseState, now, 7),
           kind: 'out',
           title: 'Essential bills',
           amount: -poundsFromMinor(Math.abs(input.essentialBillsMinor)),

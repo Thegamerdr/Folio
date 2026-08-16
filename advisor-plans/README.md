@@ -15,7 +15,7 @@ or release state was changed while preparing them.
 |     3 | TRUST-01               | [003 — Remove unsupported confidence claims and restore CI](003-remove-unsupported-confidence-claims.md)          |    P1    |   M    | MED  |  DONE  |
 |     4 | SECURITY-01            | [004 — Remove plaintext picker files from the app cache](004-remove-plaintext-picker-cache.md)                    |    P1    |   M    | MED  |  DONE  |
 |     5 | IMPORT-01              | [005 — Preserve legitimate repeated transactions during import](005-preserve-legitimate-repeated-transactions.md) |    P1    |   M    | MED  |  DONE  |
-|     6 | CALENDAR-01            | [006 — Use workspace-local dates for financial events](006-use-workspace-local-financial-dates.md)                |    P2    |   M    | MED  |  TODO  |
+|     6 | CALENDAR-01            | [006 — Use workspace-local dates for financial events](006-use-workspace-local-financial-dates.md)                |    P2    |   M    | MED  |  DONE  |
 |     7 | TEST-01                | [007 — Run the shipping companion test suite in root CI](007-run-companion-tests-in-ci.md)                        |    P2    |   S    | LOW  |  TODO  |
 |     8 | AUTHORITY-01 + DOCS-01 | [008 — Publish repository authority and reconcile navigation](008-publish-authority-and-reconcile-navigation.md)  |    P1    |   M    | MED  |  TODO  |
 |     9 | BETA-01                | [009 — Keep Business creation behind a fail-closed beta gate](009-gate-business-workspace-creation.md)            |    P1    |   S    | MED  |  TODO  |

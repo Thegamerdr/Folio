@@ -7,7 +7,7 @@ import {
   shareBusinessFilingPdf,
 } from '@/folio/lib/businessFilingExport';
 import { gap, radius, useTheme } from '@/folio/theme';
-import { updateBusinessOperations } from '@/folio/store';
+import { currentFinancialDate, updateBusinessOperations } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
 import {
   BusinessCard,
@@ -173,7 +173,7 @@ export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; rout
   const [shareError, setShareError] = useState<string | null>(null);
   const [externalOpen, setExternalOpen] = useState(false);
   const [reference, setReference] = useState('');
-  const [submittedOn, setSubmittedOn] = useState(new Date().toISOString().slice(0, 10));
+  const [submittedOn, setSubmittedOn] = useState(currentFinancialDate());
   const [selfAssessmentOpen, setSelfAssessmentOpen] = useState(false);
   const [profit, setProfit] = useState((business.ytdProfitMinor / 100).toString());
   const [transitionRemaining, setTransitionRemaining] = useState(

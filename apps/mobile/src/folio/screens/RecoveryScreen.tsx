@@ -86,6 +86,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { poseForContext } from '@/folio/lib/melo/poseForContext';
 import {
+  currentFinancialDate,
   nudgeSub,
   recordMaterialDecision,
   setSpendHold,
@@ -525,7 +526,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     if (pickedMoves.length === 0 || committedRef.current) return;
     committedRef.current = true;
     recordMaterialDecision({
-      idempotencyKey: `recovery_bundle_${picked.join('_')}_${routeNow.toISOString().slice(0, 10)}`,
+      idempotencyKey: `recovery_bundle_${picked.join('_')}_${currentFinancialDate(routeNow)}`,
       decisionType: 'recovery-plan',
       contextRoute: 'recovery',
       question: `Apply ${pickedMoves.length} recovery move${pickedMoves.length === 1 ? '' : 's'}.`,

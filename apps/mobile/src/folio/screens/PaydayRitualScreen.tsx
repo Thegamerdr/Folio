@@ -100,6 +100,7 @@ import { type MeloMood } from '@/folio/melo/Melo';
 import {
   addCycle,
   completePaydayRitualMelo,
+  currentFinancialDate,
   endLensTrial,
   repayToPot,
   setNextYouNote,
@@ -931,7 +932,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
     // event handler, not render), so it's the live close moment — distinct from the mount-gated `now`.
     const closedNow = new Date();
     addCycle({
-      closedAt: closedNow.toISOString().slice(0, 10),
+      closedAt: currentFinancialDate(closedNow),
       label: closedNow.toLocaleString('en-GB', { month: 'long' }),
       spare: actuals.spare,
       tightPoint: actuals.tightPoint,

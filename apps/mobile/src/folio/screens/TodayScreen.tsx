@@ -75,6 +75,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import {
   hasConfiguredMoneyPicture,
+  currentFinancialDate,
   recordOneMoveDismissed,
   recordOneMoveShown,
   recordOneMoveTapped,
@@ -116,7 +117,7 @@ import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
 import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
 import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure, ScreenId } from '@/folio/types';
-import type { TrustedSafeRangeResult } from '@folio/domain';
+import { addDaysToLocalDate, type TrustedSafeRangeResult } from '@folio/domain';
 
 import { pressureLine, pressureLow } from './today/pressure';
 import { formatDayProse, formatGBP, groupedPounds } from './today/format';
@@ -296,8 +297,8 @@ export function TodayScreen({
       : { tightestSpare: pressureLow[pressure], tightestDate: null as string | null };
   }, [route, pressure, safeRange]);
   const checkInPrompt = useMemo(
-    () => subDueForCheckIn(subs, subPaused, subCheckIns),
-    [subCheckIns, subPaused, subs],
+    () => (now ? subDueForCheckIn(subs, subPaused, subCheckIns, currentFinancialDate(now)) : null),
+    [now, subCheckIns, subPaused, subs],
   );
   const whisper = useMemo(
     () =>
@@ -555,12 +556,8 @@ export function TodayScreen({
   const weeklyPotTotal = activePots.reduce((sum, p) => sum + p.perWeek, 0);
   const potDipDay = useMemo<string | null>(() => {
     if (!now || activePots.length === 0) return null;
-    const DAY_MS = 86_400_000;
-    const isoOf = (date: Date): string => date.toISOString().slice(0, 10);
-    const nowIso = isoOf(now);
-    const nextPayday = route
-      ? isoOf(new Date(now.getTime() + route.daysToPayday * DAY_MS))
-      : undefined;
+    const nowIso = currentFinancialDate(now);
+    const nextPayday = route ? addDaysToLocalDate(nowIso, route.daysToPayday) : undefined;
     let soonest: string | null = null;
     for (const p of activePots) {
       const res = resolveNextTopUp(p.cadence ?? { kind: 'after-payday' }, {

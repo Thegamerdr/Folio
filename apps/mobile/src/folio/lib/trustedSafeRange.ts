@@ -1,15 +1,18 @@
 import { buildForecast, type ForecastOccurrence, type ForecastResult } from '@folio/finance-engine';
 import {
+  addDaysToLocalDate,
   createCurrencyCode,
   createForecastId,
   createInstantString,
   createLocalDate,
   createMoney,
   createProvenanceId,
+  localDateFromInstant,
   type CurrencyCode,
   type InstantString,
   type LocalDate,
   type Money,
+  type TimeZoneId,
   type TrustedCoreFreshness,
   type TrustedCoreTruthClass,
   type TrustedSafeRangeCause,
@@ -38,6 +41,7 @@ import { deriveCalendarEvents, type DerivedEvent } from './calendarEvents';
 import { nextIncomeDate } from './income';
 import { resolvePayday } from './payday';
 import { routeFromStore } from './storeRoute';
+import { PERSONAL_WORKSPACE_TIME_ZONE } from './workspaceRoot';
 
 const GBP = createCurrencyCode('GBP');
 const HORIZON_DAYS = 35;
@@ -98,14 +102,10 @@ type LegacySafeZoneSnapshot = Readonly<{
   daysLeft: number;
 }>;
 
-function isoDayLocal(date: Date): string {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-function normalizedNow(input: Date | string): {
+function normalizedNow(
+  input: Date | string,
+  timeZone: TimeZoneId,
+): {
   date: Date;
   todayISO: LocalDate;
   instant: InstantString;
@@ -114,7 +114,7 @@ function normalizedNow(input: Date | string): {
     const date = new Date(input.getTime());
     return {
       date,
-      todayISO: createLocalDate(isoDayLocal(date)),
+      todayISO: localDateFromInstant(date, timeZone),
       instant: createInstantString(date.toISOString()),
     };
   }
@@ -125,7 +125,7 @@ function normalizedNow(input: Date | string): {
     }
     return {
       date,
-      todayISO: createLocalDate(input.includes('T') ? isoDayLocal(date) : input),
+      todayISO: input.includes('T') ? localDateFromInstant(date, timeZone) : createLocalDate(input),
       instant: createInstantString(date.toISOString()),
     };
   }
@@ -133,8 +133,7 @@ function normalizedNow(input: Date | string): {
 }
 
 function addDaysISO(dateISO: LocalDate, days: number): LocalDate {
-  const base = Date.parse(`${dateISO}T00:00:00.000Z`);
-  return createLocalDate(new Date(base + days * 86_400_000).toISOString().slice(0, 10));
+  return addDaysToLocalDate(dateISO, days);
 }
 
 function daysBetweenISO(fromISO: string, toISO: string): number {
@@ -257,7 +256,8 @@ function activeWorkspaceKind(state: AppState): 'personal' | 'business' | null {
 }
 
 function buildContext(state: AppState, options: TrustedSafeRangeAdapterOptions): AdapterContext {
-  const now = normalizedNow(options.now);
+  const workspace = state.workspaces.find((candidate) => candidate.id === state.dataWorkspaceId);
+  const now = normalizedNow(options.now, workspace?.timeZone ?? PERSONAL_WORKSPACE_TIME_ZONE);
   return {
     workspaceId: state.activeWorkspaceId,
     currency: GBP,

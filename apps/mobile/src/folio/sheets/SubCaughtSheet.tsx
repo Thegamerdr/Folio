@@ -59,7 +59,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import { setSubs, useAppStore, type Sub } from '@/folio/store';
+import { currentFinancialDate, setSubs, useAppStore, type Sub } from '@/folio/store';
 import { useCaughtSubs } from '@/folio/lib/caughtSubs';
 import {
   anchorIsoFor,
@@ -257,7 +257,7 @@ function SubCaughtBody({
         (existing) => existing.name.trim().toLowerCase() === candidate.name.trim().toLowerCase(),
       );
       if (!already) {
-        const todayIso = new Date().toISOString().slice(0, 10);
+        const todayIso = currentFinancialDate();
         // Honest renewal estimate derived from the SAME facts the detector caught (cadence +
         // last-charged date) — never a hardcoded constant (lib/renewalMath.ts; see that module's
         // header for the money-safety bug this replaced). The date-anchor pair makes it durable:

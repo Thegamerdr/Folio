@@ -1425,6 +1425,34 @@ export function createTimeZoneId(input: string): TimeZoneId {
   return normalized as TimeZoneId;
 }
 
+/** Convert an instant to the calendar date observed in an explicit IANA time zone. */
+export function localDateFromInstant(instant: Date | string, timeZone: TimeZoneId): LocalDate {
+  const date = instant instanceof Date ? instant : new Date(instant);
+  if (!Number.isFinite(date.getTime())) {
+    throw new Error('Invalid instant for local date conversion.');
+  }
+
+  // Revalidate at the runtime boundary even though callers normally hold a branded value. This
+  // keeps restored/cast data from silently falling back to the host time zone.
+  const normalizedTimeZone = createTimeZoneId(String(timeZone));
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: normalizedTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: 'year' | 'month' | 'day'): string | undefined =>
+    parts.find((candidate) => candidate.type === type)?.value;
+  const year = part('year');
+  const month = part('month');
+  const day = part('day');
+  if (year === undefined || month === undefined || day === undefined) {
+    throw new Error('Unable to derive a local date from the instant.');
+  }
+
+  return createLocalDate(`${year}-${month}-${day}`);
+}
+
 export function createInstantString(input: string): InstantString {
   const normalized = input.trim();
   const timestamp = Date.parse(normalized);

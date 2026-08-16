@@ -253,6 +253,15 @@ describe('source forecast vectors: workspace, FX, overdue, and scenarios', () =>
     });
   });
 
+  it('requires the adapter to supply the financial as-of date', () => {
+    expect(() =>
+      evaluateOverdueObligation({
+        accounts: { main: 30000 },
+        expectations: [],
+      } as unknown as Parameters<typeof evaluateOverdueObligation>[0]),
+    ).toThrow(/explicit asOf date/);
+  });
+
   it('F008 keeps workspace positions isolated by default', () => {
     const workspaces = {
       personal: { accounts: { p: 100000 } },

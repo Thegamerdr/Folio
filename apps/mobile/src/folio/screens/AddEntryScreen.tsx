@@ -77,7 +77,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { addCalendarEvent, setSubs, type Sub } from '@/folio/store';
+import { addCalendarEvent, currentFinancialDate, setSubs, type Sub } from '@/folio/store';
 import { buildDebtSchedule, type DebtCadence } from '@/folio/lib/debt';
 import { anchorIsoFor, daysUntilDayOfMonth } from '@/folio/lib/renewalMath';
 import type { Nav } from '@/folio/types';
@@ -171,10 +171,9 @@ function parseDebtFreq(freq: string): { cadence: DebtCadence; paymentsLeft: numb
   return { cadence, paymentsLeft };
 }
 
-// "Today" as an ISO date (YYYY-MM-DD) for the debt engine's `now` anchor — pure-UTC slice so the
-// scheduled dates agree with the calendar engine's ISO/UTC space.
+// "Today" as the active workspace's financial calendar day for the debt engine anchor.
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return currentFinancialDate();
 }
 
 export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScreenProps) {

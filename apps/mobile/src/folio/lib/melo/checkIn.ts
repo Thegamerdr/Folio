@@ -3,6 +3,7 @@
  * Pure derivation; the explicit keep/pause answer is persisted by `logSubCheckIn`.
  */
 import type { Sub } from '../../store';
+import { addDaysToLocalDate } from '@folio/domain';
 
 const CHECK_IN_EVERY = 3;
 const COOLDOWN_DAYS = 45;
@@ -18,14 +19,9 @@ export function subDueForCheckIn(
   subs: readonly Sub[],
   paused: Readonly<Record<string, boolean>>,
   checkIns: Readonly<Record<string, string>>,
-  today = new Date().toISOString().slice(0, 10),
+  today: string,
 ): CheckInPrompt {
-  const todayMs = Date.parse(`${today}T00:00:00.000Z`);
-  const cooldownCutoff = new Date(
-    (Number.isFinite(todayMs) ? todayMs : Date.now()) - COOLDOWN_DAYS * 86_400_000,
-  )
-    .toISOString()
-    .slice(0, 10);
+  const cooldownCutoff = addDaysToLocalDate(today, -COOLDOWN_DAYS);
 
   const candidates = subs.filter((sub) => {
     if (paused[sub.name]) return false;

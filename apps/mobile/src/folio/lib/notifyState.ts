@@ -44,6 +44,8 @@ import type { LadderState, NotifyContext, NotifyInputs, StateView } from '@folio
 import { deriveModeState, DANGER_FLOOR, type MeloWeather, type MoneyMode } from './modes';
 import type { RouteResult } from './moneyPath';
 import type { AppState } from '../store';
+import { addDaysToLocalDate } from '@folio/domain';
+import { workspaceLocalDate } from './workspaceRoot';
 
 const DANGER_WITHIN_DAYS = 3;
 const BILL_WEEK_MIN_COUNT = 3;
@@ -234,7 +236,5 @@ function paydayOverlays(state: AppState, route: RouteResult): StateView['overlay
  *  than re-resolving day-of-month (routeFromStore already did that work); falls back to null. */
 function resolveNearestPaydayIso(state: AppState, route: RouteResult, now: Date): string | null {
   if (route.daysToPayday <= 0) return null;
-  const ms =
-    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) + route.daysToPayday * 86_400_000;
-  return new Date(ms).toISOString().slice(0, 10);
+  return addDaysToLocalDate(workspaceLocalDate(state, now), route.daysToPayday);
 }

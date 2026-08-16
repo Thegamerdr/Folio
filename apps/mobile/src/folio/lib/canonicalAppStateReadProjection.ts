@@ -1,12 +1,13 @@
-import type {
-  Account as CanonicalAccount,
-  BalanceObservation,
-  CurrentBalance as CanonicalCurrentBalance,
-  FinancialExpectation,
-  FinancialTransaction,
-  ReviewQueueItemState,
-  TransactionSourceKind,
-  WorkspaceId,
+import {
+  localDateFromInstant,
+  type Account as CanonicalAccount,
+  type BalanceObservation,
+  type CurrentBalance as CanonicalCurrentBalance,
+  type FinancialExpectation,
+  type FinancialTransaction,
+  type ReviewQueueItemState,
+  type TransactionSourceKind,
+  type WorkspaceId,
 } from '@folio/domain';
 import type { CanonicalRepositorySnapshot } from '@folio/storage';
 import {
@@ -29,6 +30,7 @@ import {
   type Transaction,
 } from '../store';
 import { reanchorRenewals } from './renewalMath';
+import { PERSONAL_WORKSPACE_TIME_ZONE, workspaceLocalDate } from './workspaceRoot';
 
 export type CanonicalAppStateMoneyProjection = Readonly<{
   currentBalance: CurrentBalance;
@@ -104,11 +106,18 @@ const appCategories = new Set<Transaction['category']>([
 export function readCanonicalAppStateMoneyProjection(
   snapshot: CanonicalRepositorySnapshot,
   workspaceId: string,
-  todayISO = new Date().toISOString().slice(0, 10),
+  todayISO?: string,
 ): CanonicalAppStateMoneyProjection {
   if (String(snapshot.workspaceId) !== workspaceId) {
     throw new Error('Canonical AppState read is outside the requested workspace partition.');
   }
+
+  const canonicalWorkspace = snapshot.collections.workspaces.find(
+    (candidate) => String(candidate.id) === workspaceId,
+  );
+  const resolvedTodayISO =
+    todayISO ??
+    localDateFromInstant(new Date(), canonicalWorkspace?.timeZone ?? PERSONAL_WORKSPACE_TIME_ZONE);
 
   const accounts = workspaceRows(snapshot.collections.accounts, workspaceId);
   const balances = workspaceRows(snapshot.collections.currentBalances, workspaceId);
@@ -254,7 +263,7 @@ export function readCanonicalAppStateMoneyProjection(
       ...(subscription.pauseReason === undefined ? {} : { pauseReason: subscription.pauseReason }),
       ...(subscription.pausedAt === undefined ? {} : { pausedAt: subscription.pausedAt }),
     }));
-  const subs = reanchorRenewals(subscriptions, todayISO).items;
+  const subs = reanchorRenewals(subscriptions, resolvedTodayISO).items;
   const cancelledSubs = canonicalSubscriptions
     .filter((subscription) => subscription.cancelledAt !== undefined)
     .map((subscription) => ({
@@ -621,10 +630,11 @@ export function assertCanonicalAppStateMoneyProjectionParity(
   state: AppState,
   snapshot: CanonicalRepositorySnapshot,
   workspaceId: string,
-  todayISO = new Date().toISOString().slice(0, 10),
+  todayISO?: string,
 ): CanonicalAppStateMoneyProjection {
-  const actual = readCanonicalAppStateMoneyProjection(snapshot, workspaceId, todayISO);
-  const expected = normalizedSourceMoneyProjection(state, todayISO);
+  const resolvedTodayISO = todayISO ?? workspaceLocalDate(state);
+  const actual = readCanonicalAppStateMoneyProjection(snapshot, workspaceId, resolvedTodayISO);
+  const expected = normalizedSourceMoneyProjection(state, resolvedTodayISO);
   const mismatches = (
     [
       'currentBalance',

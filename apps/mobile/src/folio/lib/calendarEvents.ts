@@ -28,6 +28,8 @@ import type {
 import { resolvePayday } from './payday';
 import { resolveNextTopUp } from './potCadence';
 import { projectIncomeEvents } from './income';
+import { localDateFromInstant, type TimeZoneId } from '@folio/domain';
+import { PERSONAL_WORKSPACE_TIME_ZONE } from './workspaceRoot';
 
 export type DerivedEventKind = 'in' | 'out' | 'review' | 'deadline' | 'manual';
 export type DerivedEventSource =
@@ -71,6 +73,8 @@ export type DerivedEvent = {
 const DAY = 86_400_000;
 
 function isoDay(d: Date): string {
+  // Runtime instants are normalized to an explicit workspace day first. Dates reaching this helper
+  // are UTC date-only arithmetic intermediates, so slicing is deliberate and timezone-immune.
   return d.toISOString().slice(0, 10);
 }
 
@@ -136,7 +140,8 @@ export function deriveCalendarEvents({
   spendHold = null,
   whatIfHolds = [],
   windowDays = 35,
-  now = new Date(),
+  now: instant = new Date(),
+  timeZone = PERSONAL_WORKSPACE_TIME_ZONE,
   includeSampleBills = true,
 }: {
   subs: Sub[];
@@ -162,6 +167,8 @@ export function deriveCalendarEvents({
   whatIfHolds?: WhatIfHold[];
   windowDays?: number;
   now?: Date;
+  /** Workspace timezone used only when converting the runtime instant into a calendar day. */
+  timeZone?: TimeZoneId;
   /** Whether to inject the hardcoded DEMO example bills (RECURRING_BILLS). True for the seeded demo
    *  regime so its money path is rich; the live callers pass FALSE once the app holds real/cleared
    *  data, so a real user never sees phantom Octopus/Council Tax/Rent they never entered. A real
@@ -170,11 +177,13 @@ export function deriveCalendarEvents({
   includeSampleBills?: boolean;
 }): DerivedEvent[] {
   const out: DerivedEvent[] = [];
+  const nowIso = localDateFromInstant(instant, timeZone);
+  // From here down every Date is an explicit UTC date-only arithmetic intermediate.
+  const now = new Date(`${nowIso}T00:00:00.000Z`);
   const windowEnd = addDays(now, windowDays);
   // ISO bounds for the engine-resolved derivations. ISO "YYYY-MM-DD" sorts
   // lexically, so window membership is a plain string compare — matching the
   // final `out.sort` and the engines, which work in the same ISO/UTC space.
-  const nowIso = isoDay(now);
   const windowEndIso = isoDay(windowEnd);
 
   // Income — the income-cadence model (`lib/income.ts`) when the user has
@@ -352,8 +361,8 @@ export function deriveCalendarEvents({
       // noUncheckedIndexedAccess: the two split halves are always present for the
       // static "MM-DD" seeds; fall back to 0 so the types stay sound. Same output.
       const [mm = 0, dd = 0] = d.mmdd.split('-').map((n) => parseInt(n, 10));
-      for (const year of [now.getFullYear(), now.getFullYear() + 1]) {
-        const when = new Date(year, mm - 1, dd);
+      for (const year of [now.getUTCFullYear(), now.getUTCFullYear() + 1]) {
+        const when = new Date(Date.UTC(year, mm - 1, dd));
         if (when.getTime() >= now.getTime() && when.getTime() <= windowEnd.getTime()) {
           out.push({
             id: `deadline-${d.mmdd}-${year}`,
@@ -413,7 +422,7 @@ export function deriveCalendarEvents({
 
   // Manual events.
   for (const e of manualEvents) {
-    const when = new Date(e.date + 'T00:00:00');
+    const when = new Date(`${e.date}T00:00:00.000Z`);
     if (when.getTime() < now.getTime() - DAY) continue;
     if (when.getTime() > windowEnd.getTime() + 60 * DAY) continue;
     out.push({
@@ -478,17 +487,17 @@ export function computeSpareAndTightest(
 
 /** Format an ISO day as "TUE · 8 JUL". */
 export function formatDayHeader(iso: string): string {
-  const d = new Date(iso + 'T00:00:00');
-  const wd = d.toLocaleDateString('en-GB', { weekday: 'short' }).toUpperCase();
-  const day = d.getDate();
-  const mo = d.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase();
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  const wd = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }).toUpperCase();
+  const day = d.getUTCDate();
+  const mo = d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }).toUpperCase();
   return `${wd} · ${day} ${mo}`;
 }
 
 /** Format as "Tuesday 8" for inline prose. */
 export function formatDayProse(iso: string): string {
-  const d = new Date(iso + 'T00:00:00');
-  return `${d.toLocaleDateString('en-GB', { weekday: 'long' })} ${d.getDate()}`;
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  return `${d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })} ${d.getUTCDate()}`;
 }
 
 /** Preview: would nudging this sub by `deltaDays` lift the tight-day spare?
@@ -584,10 +593,11 @@ export function previewSubNudge(args: {
 export function deriveHistoricalDayEvents(
   transactions: readonly Transaction[],
   todayIso: string,
+  timeZone: TimeZoneId = PERSONAL_WORKSPACE_TIME_ZONE,
 ): Record<string, DerivedEvent[]> {
   const byDay: Record<string, DerivedEvent[]> = {};
   for (const txn of transactions) {
-    const date = txn.when.slice(0, 10);
+    const date = localDateFromInstant(txn.when, timeZone);
     if (date >= todayIso) continue; // today-and-forward stays the forward projection's territory
     const bucket = byDay[date];
     const event: DerivedEvent = {

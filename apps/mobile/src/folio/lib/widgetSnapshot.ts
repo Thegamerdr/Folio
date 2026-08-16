@@ -18,7 +18,8 @@ import { safeZoneMath } from './modes/safeZone';
 import { routeFromStore } from './storeRoute';
 import { deriveModeState, type MeloWeather } from './modes';
 import type { AppState } from '../store';
-import type { WorkspaceId } from '@folio/domain';
+import { addDaysToLocalDate, createLocalDate, type WorkspaceId } from '@folio/domain';
+import { workspaceLocalDate } from './workspaceRoot';
 
 export type SafeZoneWidgetSnapshot = {
   /** Owner of this active-workspace projection; required before any native write. */
@@ -40,33 +41,18 @@ export type SafeZoneWidgetSnapshot = {
 };
 
 const PENCE_PER_POUND = 100;
-const MS_PER_DAY = 86_400_000;
 
 function toPence(pounds: number): number {
   return Math.round(pounds * PENCE_PER_POUND);
-}
-
-/** A Date → LOCAL-calendar ISO day "YYYY-MM-DD" (host-tz aware). Mirrors
- *  `storeRoute.ts`'s private `isoDayLocal` — duplicated rather than imported since that
- *  helper isn't exported and this module must stay a leaf the store bridge can't
- *  depend back on. */
-function isoDayLocal(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
 }
 
 /** `RouteResult` carries `daysToPayday` (a day COUNT) but not the resolved payday date
  *  itself — `routeFromStore` keeps that internal. Reconstruct the ISO date the same way
  *  its own "today" is defined (the LOCAL calendar day) plus that day count, so this
  *  never drifts from the date the route/Calendar/Today all already agree on. */
-function paydayIsoFrom(now: Date | string, daysToPayday: number): string {
-  const nowDate = typeof now === 'string' ? new Date(`${now}T00:00:00`) : now;
-  const todayIso = isoDayLocal(nowDate);
-  const todayLocalMidnight = new Date(`${todayIso}T00:00:00`);
-  const paydayMs = todayLocalMidnight.getTime() + daysToPayday * MS_PER_DAY;
-  return isoDayLocal(new Date(paydayMs));
+function paydayIsoFrom(state: AppState, now: Date | string, daysToPayday: number): string {
+  const todayIso = typeof now === 'string' ? createLocalDate(now) : workspaceLocalDate(state, now);
+  return addDaysToLocalDate(todayIso, daysToPayday);
 }
 
 /**
@@ -81,7 +67,7 @@ export function buildWidgetSnapshot(
 ): SafeZoneWidgetSnapshot {
   const route = routeFromStore(state, now);
   const bufferAmount = state.bufferAmount ?? 100;
-  const paydayISO = paydayIsoFrom(now, route.daysToPayday);
+  const paydayISO = paydayIsoFrom(state, now, route.daysToPayday);
 
   const safeZone = safeZoneMath({
     currentBalance: state.currentBalance,

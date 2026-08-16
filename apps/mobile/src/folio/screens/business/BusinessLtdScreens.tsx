@@ -21,7 +21,7 @@ import {
 } from '@folio/business-workspace';
 
 import { gap, radius, serif, useTheme } from '@/folio/theme';
-import { updateBusinessOperations } from '@/folio/store';
+import { currentFinancialDate, updateBusinessOperations } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 import {
   BusinessCard,
@@ -437,7 +437,7 @@ function DividendsBody({ nav, entity }: { nav: Nav; entity: LtdEntity }) {
 
   const save = () => {
     if (requested <= 0 || requested > reserves || entity.shareholders.length === 0) return;
-    const declaredOn = new Date().toISOString().slice(0, 10);
+    const declaredOn = currentFinancialDate();
     const dividends: readonly BusinessDividend[] =
       mode === 'pro-rata'
         ? splitPreview.map(({ shareholder, totalMinor }, index) => ({
@@ -699,7 +699,7 @@ function DlaBody({ nav, entity }: { nav: Nav; entity: LtdEntity }) {
     if (unsigned === null || unsigned <= 0) return;
     const movement: DlaMovement = {
       id: `dla-${Date.now()}`,
-      date: new Date().toISOString().slice(0, 10),
+      date: currentFinancialDate(),
       amountMinor: direction === 'take' ? unsigned : -unsigned,
       ...(note.trim() ? { note: note.trim() } : {}),
     };

@@ -484,6 +484,16 @@ describe('deriveHistoricalDayEvents — past-day real-transaction grouping', () 
     expect(byDay['2026-07-02']).toHaveLength(1);
   });
 
+  it('groups an instant after BST midnight into the London financial day', () => {
+    const byDay = deriveHistoricalDayEvents(
+      [txn('2026-08-16T23:30:00.000Z', 'Late train', -12)],
+      '2026-08-18',
+    );
+
+    expect(Object.keys(byDay)).toEqual(['2026-08-17']);
+    expect(byDay['2026-08-17']?.[0]).toMatchObject({ title: 'Late train', amount: -12 });
+  });
+
   it("never includes today or any future transaction — those stay the forward projection's territory", () => {
     const byDay = deriveHistoricalDayEvents(
       [

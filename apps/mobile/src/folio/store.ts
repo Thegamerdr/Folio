@@ -83,6 +83,7 @@ import {
   normalisePersonalWorkspaceRoot,
   PERSONAL_WORKSPACE_ID,
   requireWorkspaceData,
+  workspaceLocalDate,
   type PersistedWorkspace,
   type WorkspaceRoot,
 } from './lib/workspaceRoot';
@@ -113,7 +114,13 @@ import type {
   TrustedSafeRangeSnapshot,
   WorkspaceId,
 } from '@folio/domain';
-import { createCurrencyCode, createInstantString, createMoney } from '@folio/domain';
+import {
+  addDaysToLocalDate,
+  createCurrencyCode,
+  createInstantString,
+  createMoney,
+  localDateFromInstant,
+} from '@folio/domain';
 import {
   addCorrection,
   createDecisionDraft,
@@ -1974,7 +1981,7 @@ function load(): AppState {
       // subs), so `nextRenewalDaysAway` can never rot between sessions.
       subs: reanchorRenewals(
         Array.isArray(migrated.subs) ? migrated.subs : DEFAULTS.subs,
-        new Date().toISOString().slice(0, 10),
+        localDateFromInstant(new Date(), activeWorkspace.timeZone),
       ).items,
       subPaused: migrated.subPaused ?? {},
       subCheckIns:
@@ -2109,7 +2116,11 @@ function load(): AppState {
     // device (idempotent; a no-op for genuine demo/preview states). This is the
     // step that cleans an already-contaminated install — first-run seeding
     // changes cannot, since the demo data is already persisted in the blob.
-    const resumed = sweepAutoResume(loaded.subs, loaded.subPaused);
+    const resumed = sweepAutoResume(
+      loaded.subs,
+      loaded.subPaused,
+      localDateFromInstant(new Date(), activeWorkspace.timeZone),
+    );
     const cleaned = purgeSeedIfReal(
       normaliseWorkspaceRows(
         {
@@ -2153,7 +2164,7 @@ function sweepStaleOverrides(
 function sweepAutoResume(
   subs: Sub[],
   paused: Record<string, boolean>,
-  today: string = new Date().toISOString().slice(0, 10),
+  today: string,
 ): { subs: Sub[]; paused: Record<string, boolean>; resumedNames: string[] } {
   const resumedNames: string[] = [];
   const pausedNext = { ...paused };
@@ -2206,9 +2217,7 @@ export function sweepSubOverrides() {
 }
 
 /** Public foreground sweep for one-occurrence subscription pauses. */
-export function sweepAutoResumeNow(
-  today: string = new Date().toISOString().slice(0, 10),
-): string[] {
+export function sweepAutoResumeNow(today: string = currentFinancialDate()): string[] {
   const swept = sweepAutoResume(state.subs, state.subPaused, today);
   if (swept.resumedNames.length === 0) return [];
   const timelineEvents = [
@@ -2233,6 +2242,11 @@ export function sweepAutoResumeNow(
 
 let state: AppState = load();
 const listeners = new Set<() => void>();
+
+/** Calendar day used by financial defaults in the active data workspace. */
+export function currentFinancialDate(now: Date = new Date()): string {
+  return workspaceLocalDate(state, now);
+}
 
 function emit() {
   for (const l of listeners) l();
@@ -3144,7 +3158,7 @@ export function removeSub(name: string): TinyWin | null {
           name: removed.name,
           workspaceId: removed.workspaceId ?? state.activeWorkspaceId,
           monthlyAmount: removed.cost,
-          cancelledAt: new Date().toISOString().slice(0, 10),
+          cancelledAt: currentFinancialDate(),
         },
         ...(state.cancelledSubs ?? []).filter((subscription) => subscription.name !== removed.name),
       ].slice(0, 60)
@@ -3202,7 +3216,7 @@ export function restoreSub(name: string): boolean {
     setPartial({ cancelledSubs });
     return false;
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = currentFinancialDate();
   const restored: Sub = {
     name: archived.name,
     workspaceId: archived.workspaceId ?? state.activeWorkspaceId,
@@ -3536,9 +3550,7 @@ function derivePauseReason(subscription: Sub): string {
 }
 
 function addDaysToIso(iso: string, days: number): string {
-  const parsed = Date.parse(`${iso}T00:00:00.000Z`);
-  const safe = Number.isFinite(parsed) ? parsed : Date.now();
-  return new Date(safe + days * 86_400_000).toISOString().slice(0, 10);
+  return addDaysToLocalDate(iso, days);
 }
 
 function subscriptionWithPause(subscription: Sub, paused: boolean, today: string): Sub {
@@ -3572,7 +3584,7 @@ export function togglePaused(
   const next = value ?? !current;
   const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subPaused, name);
   const subPaused = { ...state.subPaused, [name]: next };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = currentFinancialDate();
   const subs =
     current === next
       ? state.subs
@@ -3652,7 +3664,7 @@ export function togglePaused(
 
 /** Record the explicit answer to Melo's every-third-renewal subscription check-in. */
 export function logSubCheckIn(name: string, verdict: 'keep' | 'pause') {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = currentFinancialDate();
   const subCheckIns = { ...(state.subCheckIns ?? {}), [name]: today };
   setPartialWithTypedCommand(
     { subCheckIns },
@@ -3676,7 +3688,7 @@ export function pauseMany(names: string[], value: boolean) {
   const next = { ...state.subPaused };
   for (const n of uniqueNames) next[n] = value;
   const targetNames = new Set(uniqueNames);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = currentFinancialDate();
   const subs = state.subs.map((subscription) =>
     targetNames.has(subscription.name) && !!state.subPaused[subscription.name] !== value
       ? subscriptionWithPause(subscription, value, today)
@@ -5720,8 +5732,8 @@ export function addTransactionsBatch(
  *  state regardless of import volume (DATA_INTELLIGENCE.md §5(B)). Safe to
  *  call at any time — idempotent, and a no-op when there's no qualifying
  *  history. */
-export function syncHistoryCycles(): void {
-  const todayIso = new Date().toISOString().slice(0, 10);
+export function syncHistoryCycles(now: Date = new Date()): void {
+  const todayIso = currentFinancialDate(now);
   const nextCycles = synthesizeHistoryCycles(
     state.transactions,
     state.incomeSources ?? DEFAULT_INCOME_SOURCES,
@@ -6647,7 +6659,7 @@ export function markWhatChangedSeen(nowISO: string) {
  *  `reanchorRenewals`) — the app-foreground half of the date-anchor fix (load() covers boot).
  *  A phone that stays alive across midnight re-derives here instead of rotting until the next
  *  cold start. No-op (no write, no listener churn) when nothing changed. */
-export function reanchorSubRenewals(todayIso: string = new Date().toISOString().slice(0, 10)) {
+export function reanchorSubRenewals(todayIso: string = currentFinancialDate()) {
   const { items, changed } = reanchorRenewals(state.subs, todayIso);
   if (changed) {
     const changedNames = items
@@ -7252,8 +7264,8 @@ export function setSpendHold(
   options?: MaterialDecisionWriteOptions,
 ) {
   const durationDays = Math.max(1, Math.round(days));
-  const start = now.toISOString().slice(0, 10);
-  const end = new Date(now.getTime() + (durationDays - 1) * 86_400_000).toISOString().slice(0, 10);
+  const start = currentFinancialDate(now);
+  const end = addDaysToLocalDate(start, durationDays - 1);
   const spendHold: SpendHold = {
     start,
     end,
@@ -7519,7 +7531,7 @@ export function recordOneMoveShown(
 ) {
   if (!offer.key) return;
   const current = state.oneMoveHistory ?? [];
-  const today = now.toISOString().slice(0, 10);
+  const today = currentFinancialDate(now);
   const latest = current[0];
   if (latest?.key === offer.key && latest.tappedAt === undefined && latest.shownAt === today) {
     return;
@@ -8294,7 +8306,7 @@ export function fastForwardMonth() {
   const day = 86_400_000;
   const shift = 30 * day;
   const newCycle: CycleRecord = {
-    closedAt: new Date().toISOString().slice(0, 10),
+    closedAt: currentFinancialDate(),
     label: new Date().toLocaleString('en-GB', { month: 'long' }),
     spare: 80 + Math.round(Math.random() * 120),
     tightPoint: 30 + Math.round(Math.random() * 60),
@@ -8303,7 +8315,7 @@ export function fastForwardMonth() {
   };
   const agedCycles = state.cycles.map((c) => ({
     ...c,
-    closedAt: new Date(new Date(c.closedAt).getTime() - shift).toISOString().slice(0, 10),
+    closedAt: addDaysToLocalDate(c.closedAt, -30),
   }));
   const agedTxns = state.transactions.map((t) => ({
     ...t,
@@ -8317,7 +8329,7 @@ export function fastForwardMonth() {
     // re-anchor (lib/renewalMath.ts) would recompute from the OLD anchor and undo the demo shift.
     nextRenewalISO: anchorIsoFor(
       s.nextRenewalDaysAway <= 0 ? 30 : s.nextRenewalDaysAway,
-      new Date().toISOString().slice(0, 10),
+      currentFinancialDate(),
     ),
     lastUsedDaysAgo: s.lastUsedDaysAgo + 30,
     renewalCount: (s.renewalCount ?? 0) + 1,
@@ -8792,7 +8804,7 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
     case 'log_invoice_sent': {
       const amount = positiveAmount(input.amount);
       const dueOn = validIsoDay(input.dueOn);
-      const issuedOn = validIsoDay(input.issuedOn) ?? new Date().toISOString().slice(0, 10);
+      const issuedOn = validIsoDay(input.issuedOn) ?? currentFinancialDate();
       const business = normaliseBusinessOperationsState(state.business);
       const resolved = resolveMeloTarget(
         input.client ?? input.clientName,
@@ -8888,7 +8900,7 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
       const selected = businessCashAccount(input);
       if (!selected.ok) return selected.result;
       const paidMinor = Math.round(requested * 100);
-      const paidOn = validIsoDay(input.paidOn) ?? new Date().toISOString().slice(0, 10);
+      const paidOn = validIsoDay(input.paidOn) ?? currentFinancialDate();
       const now = new Date().toISOString();
       setAccountBalance(selected.account.id, selected.account.balanceMinor + requested, now, {
         source: 'corrected',
@@ -8956,7 +8968,7 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
           ...current.dla,
           {
             id: movementId,
-            date: new Date().toISOString().slice(0, 10),
+            date: currentFinancialDate(),
             amountMinor: Math.round(amount * 100),
             note,
           },
@@ -9012,7 +9024,7 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
           {
             id: dividendId,
             shareholderId: shareholder.id,
-            declaredOn: validIsoDay(input.declaredOn) ?? new Date().toISOString().slice(0, 10),
+            declaredOn: validIsoDay(input.declaredOn) ?? currentFinancialDate(),
             totalMinor,
             amountPerShareMinor: Math.round(totalMinor / Math.max(1, shareholder.shares)),
             otherIncomeMinor: Math.max(0, Math.round(Number(input.otherIncome ?? 0) * 100)),

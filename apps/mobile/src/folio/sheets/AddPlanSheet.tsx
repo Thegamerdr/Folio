@@ -22,9 +22,10 @@
 
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { addDaysToLocalDate } from '@folio/domain';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { addPlan, removePlan } from '@/folio/store';
+import { addPlan, currentFinancialDate, removePlan } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 
 // Strict YYYY-MM-DD shape check — the web's native date input guarantees this; RN's free-text field
@@ -39,9 +40,7 @@ export type AddPlanSheetProps = {
 // Default the by-date to ~12 weeks out — enough runway that most first plans read "on pace" so the
 // user sees a green result immediately (mirrors the web's `defaultByDate`).
 function defaultByDate(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 84);
-  return d.toISOString().slice(0, 10);
+  return addDaysToLocalDate(currentFinancialDate(), 84);
 }
 
 export function AddPlanSheet({ visible, onClose }: AddPlanSheetProps) {

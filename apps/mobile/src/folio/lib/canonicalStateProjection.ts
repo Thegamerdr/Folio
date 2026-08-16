@@ -17,6 +17,7 @@ import {
   createSubscriptionId,
   createSubscriptionPreferenceId,
   createTransactionIntelligenceStateId,
+  localDateFromInstant,
 } from '@folio/domain';
 import type { CanonicalRepository, CanonicalRepositorySnapshot } from '@folio/storage';
 import { normaliseBusinessOperationsState } from '@folio/business-workspace';
@@ -61,7 +62,8 @@ export function createCanonicalAppStateProjection(
   nowISO = new Date().toISOString(),
 ): CanonicalAppStateProjection {
   assertWorkspacePartition(state, workspace);
-  const asOfDate = requireIsoInstant(nowISO, 'Canonical projection time').slice(0, 10);
+  const projectionInstant = requireIsoInstant(nowISO, 'Canonical projection time');
+  const asOfDate = localDateFromInstant(projectionInstant, workspace.timeZone);
   const transactions = state.transactions.map((transaction, sourceOrdinal) =>
     projectTransaction(transaction, workspace, sourceOrdinal),
   );

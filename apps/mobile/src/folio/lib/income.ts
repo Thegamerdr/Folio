@@ -36,6 +36,7 @@
  */
 
 import { bankTransactions, type AppState, type IncomeSource } from '../store';
+import { workspaceLocalDate } from './workspaceRoot';
 import { isBusinessDay, resolvePayday } from './payday';
 import { monthlyEquivalent } from './driftSignals';
 import { monthlySpendBaseline, monthlyIncomeSeries, percentile } from './historyStats';
@@ -386,7 +387,7 @@ export function selectMonthlyIncome(state: AppState): number {
 
   // No declared income at all — estimate from realized history rather than
   // reporting a hard, misleading £0 when the ledger clearly shows credits.
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = workspaceLocalDate(state);
   const series = monthlyIncomeSeries(bankTransactions(state), todayIso);
   return percentile(series, 50);
 }
@@ -401,7 +402,7 @@ export function selectMonthlyIncome(state: AppState): number {
  * (migrated) install.
  */
 export function selectMonthlySpend(state: AppState): number {
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = workspaceLocalDate(state);
   return monthlySpendBaseline(bankTransactions(state), todayIso).medianMonthlySpend;
 }
 

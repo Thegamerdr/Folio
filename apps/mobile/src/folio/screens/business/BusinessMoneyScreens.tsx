@@ -31,9 +31,10 @@ import {
   type MileageTrip,
   type VatScheme,
 } from '@folio/business-workspace';
+import { addDaysToLocalDate, createLocalDate } from '@folio/domain';
 
 import { gap, radius, serif, useTheme } from '@/folio/theme';
-import { updateBusinessOperations, useAppStore } from '@/folio/store';
+import { currentFinancialDate, updateBusinessOperations, useAppStore } from '@/folio/store';
 import { recordPersistedOwnerTransfer, type PersistedOwnerTransferKind } from '@/folio/lib/persist';
 import type { Nav } from '@/folio/types';
 import {
@@ -925,7 +926,8 @@ export function BusinessVatScreen({ nav }: { nav: Nav }) {
       )
     : null;
   const recentReturns = useMemo(() => {
-    const cutoff = new Date();
+    // Resolve the workspace day first; UTC below is only leap-safe date-only year arithmetic.
+    const cutoff = new Date(`${todayIso()}T00:00:00.000Z`);
     cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 1);
     const cutoffIso = cutoff.toISOString().slice(0, 10);
     return business.vatReturns.filter((item) => item.periodEnd >= cutoffIso);
@@ -1299,15 +1301,16 @@ export function BusinessVatScreen({ nav }: { nav: Nav }) {
 type BusinessInsightsRange = '90d' | 'tax-year' | 'last-year';
 
 function businessLast90Days(now = new Date()): BusinessInsightsPeriod {
+  const end = currentFinancialDate(now);
   return {
-    start: new Date(now.getTime() - 90 * 86_400_000).toISOString().slice(0, 10),
-    end: now.toISOString().slice(0, 10),
+    start: addDaysToLocalDate(end, -90),
+    end,
     label: 'Last 90 days',
   };
 }
 
 function businessLastFullYear(now = new Date()): BusinessInsightsPeriod {
-  const year = now.getUTCFullYear() - 1;
+  const year = Number(currentFinancialDate(now).slice(0, 4)) - 1;
   return { start: `${year}-01-01`, end: `${year}-12-31`, label: String(year) };
 }
 
@@ -2292,18 +2295,21 @@ function validIso(value: string): boolean {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return currentFinancialDate();
 }
 
 function addDaysIso(days: number): string {
-  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+  return addDaysToLocalDate(todayIso(), days);
 }
 
 function currentQuarter(): { start: string; end: string } {
-  const now = new Date();
-  const quarterStartMonth = Math.floor(now.getUTCMonth() / 3) * 3;
-  const start = new Date(Date.UTC(now.getUTCFullYear(), quarterStartMonth, 1));
-  const end = new Date(Date.UTC(now.getUTCFullYear(), quarterStartMonth + 3, 0));
+  const today = createLocalDate(todayIso());
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7));
+  const quarterStartMonth = Math.floor((month - 1) / 3) * 3;
+  // These UTC Dates are deliberate date-only arithmetic after the workspace day is resolved.
+  const start = new Date(Date.UTC(year, quarterStartMonth, 1));
+  const end = new Date(Date.UTC(year, quarterStartMonth + 3, 0));
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
