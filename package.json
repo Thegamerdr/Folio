@@ -19,7 +19,7 @@
     "check:store-declarations": "node tooling/scripts/check-store-declarations.mjs",
     "check:v1-boundary": "node tooling/scripts/check-v1-boundary.mjs",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm validate:contracts",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --check . --end-of-line auto",
     "lint": "pnpm lint:boundaries && pnpm check:v1-boundary && pnpm check:samples && pnpm check:constitution && pnpm check:product-gates && pnpm check:operations-readiness && pnpm check:store-declarations && pnpm check:release-blockers && pnpm check:release-foundation && pnpm format:check",
     "lint:boundaries": "node tooling/scripts/check-boundaries.mjs",
     "mobile:doctor": "pnpm --filter @folio/mobile doctor",

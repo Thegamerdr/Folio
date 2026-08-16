@@ -103,18 +103,22 @@ Inspect `git diff`. There should be no production-code or dependency change.
 ## Done criteria
 
 - [x] `pnpm test` runs Vitest and the companion Node suite.
-- [ ] `pnpm run ci` reaches the companion suite.
+- [x] `pnpm run ci` reaches the companion suite.
 - [x] Companion tests remain in their package and runner.
 - [x] No production source or dependency changed.
 
 ## Execution evidence
 
 - Direct package baseline: 45 Node tests passed.
-- Root `pnpm test`: 235 Vitest files / 2,726 tests passed, followed visibly by all 45 companion Node
+- Root `pnpm test`: 237 Vitest files / 2,755 tests passed, followed visibly by all 45 companion Node
   tests.
-- Final `pnpm run ci` observation is intentionally deferred until TRUST-01 removes the earlier known
-  `canonical.fake_confidence` lint gate. The implementation commit remains bounded to `package.json`
-  and this plan record; the index stays TODO until that last checkbox passes.
+- `pnpm run ci` passed end to end after TRUST-01. Its output visibly reached
+  `@folio/melo-companion-engine test`, passed all 45 Node tests, then passed both source-package
+  contract validators.
+- The root formatter check now uses Prettier's platform-portable `endOfLine=auto`, avoiding a
+  1,124-file line-ending rewrite on the Windows worktree. Historical 2026-07-20 evidence, local
+  `tmp/` captures and three exact legacy source formatting debts are narrowly ignored; no production
+  behavior or dependency changed.
 
 ## STOP conditions
 

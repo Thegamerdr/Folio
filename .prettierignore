@@ -9,3 +9,14 @@ docs/ui-source
 apps/mobile/expo-env.d.ts
 services/ai-gateway/worker-configuration.d.ts
 pnpm-lock.yaml
+
+# Immutable historical convergence evidence predates the current formatter contract.
+docs/convergence/2026-07-20/
+
+# Local verification captures are not repository source and must never affect CI.
+tmp/
+
+# Narrow legacy formatting debt; keep explicit until each file is substantively owned.
+apps/mobile/src/folio/lib/exportNative.ts
+apps/mobile/src/folio/screens/BusinessOperationsScreen.tsx
+apps/mobile/src/folio/ui/PersonalBottomNav.tsx
