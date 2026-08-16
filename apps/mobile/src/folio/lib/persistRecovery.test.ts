@@ -1423,6 +1423,44 @@ describe('workspace partition migration', () => {
         bestCount: 4,
         updatedAt: '2026-07-01T00:00:00.000Z',
       },
+      meloPrimerSeen: true,
+      meloPrimerBeat: 2,
+      meloPrimerSeenAt: '2026-07-01T09:00:00.000Z',
+      melo: { quietMode: true, wardrobe: ['scarf'], tone: 'honest' },
+      chartStyle: 'bars',
+      oneMoveHistory: [{ key: 'recovery-personal', shownAt: '2026-07-01' }],
+      meloMoves: [
+        {
+          id: 'personal-money-move',
+          createdAt: '2026-07-01T09:00:00.000Z',
+          headline: 'Hold £45 in Personal',
+          kind: 'hold',
+          amount: 45,
+          targetId: 'personal-buffer',
+          status: 'accepted',
+          baselinePathSpare: -20,
+          baselineTightPoint: -75,
+        },
+      ],
+      meloDismissLog: [
+        {
+          kind: 'personal-review',
+          reason: 'not-now',
+          at: '2026-07-01T09:05:00.000Z',
+          amount: 45,
+        },
+      ],
+      meloMemoryThread: [
+        {
+          id: 'personal-cycle-memory',
+          at: '2026-07-01T09:10:00.000Z',
+          kind: 'cadence',
+          text: 'Personal closed June with £120 spare.',
+          editable: true,
+          source: 'observed',
+        },
+      ],
+      meloForgottenMemoryIds: ['personal-forgotten-money-memory'],
     });
 
     const business = await createPersistedBusinessWorkspace('Studio Ltd');
@@ -1442,6 +1480,32 @@ describe('workspace partition migration', () => {
     expect(getState().accounts).toEqual([]);
     expect(getState().stage.current).toBe('ember');
     expect(getState().streak.count).toBe(0);
+    expect(getState()).toMatchObject({
+      oneMoveHistory: [],
+      meloMoves: [],
+      meloDismissLog: [],
+      meloMemoryThread: [],
+      meloForgottenMemoryIds: [],
+      meloPrimerSeen: true,
+      meloPrimerBeat: 2,
+      meloPrimerSeenAt: '2026-07-01T09:00:00.000Z',
+      melo: { quietMode: true, wardrobe: ['scarf'], tone: 'honest' },
+      chartStyle: 'bars',
+    });
+
+    const firstBusinessPayload = saveNativeWorkspaceStateGeneration.mock.calls
+      .map((call) => String((call as unknown as readonly unknown[])[1] ?? ''))
+      .filter((payload) => payload.includes(`"dataWorkspaceId":"${String(business.id)}"`))
+      .at(-1);
+    expect(firstBusinessPayload).toBeDefined();
+    expect(JSON.parse(firstBusinessPayload!)).toMatchObject({
+      oneMoveHistory: [],
+      meloMoves: [],
+      meloDismissLog: [],
+      meloMemoryThread: [],
+      meloForgottenMemoryIds: [],
+    });
+
     setPartial({
       nextYouNote: 'Business only',
       stage: {
@@ -1456,6 +1520,39 @@ describe('workspace partition migration', () => {
         bestCount: 1,
         updatedAt: '2026-07-02T00:00:00.000Z',
       },
+      oneMoveHistory: [{ key: 'recovery-business', shownAt: '2026-07-02' }],
+      meloMoves: [
+        {
+          id: 'business-money-move',
+          createdAt: '2026-07-02T09:00:00.000Z',
+          headline: 'Reserve £900 VAT in Business',
+          kind: 'sweep',
+          amount: 900,
+          targetId: 'business-vat-pot',
+          status: 'suggested',
+          baselinePathSpare: 1_400,
+          baselineTightPoint: 300,
+        },
+      ],
+      meloDismissLog: [
+        {
+          kind: 'business-vat',
+          reason: 'another-plan',
+          at: '2026-07-02T09:05:00.000Z',
+          amount: 900,
+        },
+      ],
+      meloMemoryThread: [
+        {
+          id: 'business-cycle-memory',
+          at: '2026-07-02T09:10:00.000Z',
+          kind: 'cadence',
+          text: 'Business closed June with £2,400 spare.',
+          editable: true,
+          source: 'observed',
+        },
+      ],
+      meloForgottenMemoryIds: ['business-forgotten-vat-memory'],
     });
     await persistCurrentStateNow(business.id);
 
@@ -1464,16 +1561,73 @@ describe('workspace partition migration', () => {
     expect(getState().nextYouNote).toBe('');
     expect(getState().stage.current).toBe('ablaze');
     expect(getState().streak.count).toBe(4);
+    expect(getState().oneMoveHistory).toEqual([
+      { key: 'recovery-personal', shownAt: '2026-07-01' },
+    ]);
+    expect(getState().meloMoves).toEqual([
+      expect.objectContaining({
+        id: 'personal-money-move',
+        amount: 45,
+        targetId: 'personal-buffer',
+      }),
+    ]);
+    expect(getState().meloDismissLog).toEqual([
+      expect.objectContaining({ kind: 'personal-review', amount: 45 }),
+    ]);
+    expect(getState().meloMemoryThread).toEqual([
+      expect.objectContaining({
+        id: 'personal-cycle-memory',
+        text: 'Personal closed June with £120 spare.',
+      }),
+    ]);
+    expect(getState().meloForgottenMemoryIds).toEqual(['personal-forgotten-money-memory']);
+    expect(JSON.stringify(getState())).not.toContain('business-money-move');
+    expect(getState()).toMatchObject({
+      melo: { quietMode: true, wardrobe: ['scarf'], tone: 'honest' },
+      chartStyle: 'bars',
+    });
 
     await switchPersistedWorkspace(business.id);
     expect(getState().transactions).toEqual([]);
     expect(getState().nextYouNote).toBe('Business only');
     expect(getState().stage.current).toBe('rising');
     expect(getState().streak.count).toBe(1);
+    expect(getState().meloMoves).toEqual([
+      expect.objectContaining({
+        id: 'business-money-move',
+        amount: 900,
+        targetId: 'business-vat-pot',
+      }),
+    ]);
+    expect(getState().meloDismissLog).toEqual([
+      expect.objectContaining({ kind: 'business-vat', amount: 900 }),
+    ]);
+    expect(getState().meloMemoryThread).toEqual([
+      expect.objectContaining({
+        id: 'business-cycle-memory',
+        text: 'Business closed June with £2,400 spare.',
+      }),
+    ]);
+    expect(getState().meloForgottenMemoryIds).toEqual(['business-forgotten-vat-memory']);
+    expect(JSON.stringify(getState())).not.toContain('personal-money-move');
+    expect(getState()).toMatchObject({
+      melo: { quietMode: true, wardrobe: ['scarf'], tone: 'honest' },
+      chartStyle: 'bars',
+    });
     await expect(readWorkspaceManifest()).resolves.toMatchObject({
       activeWorkspaceId: business.id,
       workspaces: [{ kind: 'personal' }, { kind: 'business', name: 'Studio Ltd' }],
     });
+
+    resetAll();
+    await expect(loadPersistedActiveWorkspace()).resolves.toBe(business.id);
+    expect(getState().meloMoves).toEqual([
+      expect.objectContaining({ id: 'business-money-move', amount: 900 }),
+    ]);
+    expect(getState().meloMemoryThread).toEqual([
+      expect.objectContaining({ text: 'Business closed June with £2,400 spare.' }),
+    ]);
+    expect(JSON.stringify(getState())).not.toContain('personal-money-move');
   });
 
   it('serializes the UI create-and-open flow against the live background writer', async () => {

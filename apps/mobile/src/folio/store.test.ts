@@ -1796,7 +1796,7 @@ describe('editTransaction', () => {
 describe('schema migration v3', () => {
   it('defaults DEFAULTS/state to the current schema version with an empty edit history', () => {
     resetAll();
-    expect(getState().schemaVersion).toBe(18);
+    expect(getState().schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(getState().edits).toEqual([]);
   });
 });
@@ -1812,7 +1812,7 @@ describe('schema migration v15 workspace-local companion progression', () => {
     hydrateFromBlob(JSON.stringify(v14Blob));
 
     expect(getState()).toMatchObject({
-      schemaVersion: 18,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
       stage: {
         current: 'ember',
         enteredAt: fallbackAt,
@@ -1854,7 +1854,7 @@ describe('schema migration v17 Decision Ledger', () => {
 
     hydrateFromBlob(JSON.stringify(v16Blob));
 
-    expect(getState().schemaVersion).toBe(18);
+    expect(getState().schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(getState().decisionLedger).toEqual([]);
     expect(getState().transactions).toHaveLength(1);
     expect(getState().cycles).toHaveLength(1);
@@ -1878,12 +1878,149 @@ describe('schema migration v18 Critical Journey records', () => {
 
     hydrateFromBlob(JSON.stringify(v17Blob));
 
-    expect(getState().schemaVersion).toBe(18);
+    expect(getState().schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(getState().provisionalAnswers).toEqual([]);
     expect(getState().materialChanges).toEqual([]);
     expect(getState().correctionImpacts).toEqual([]);
     expect(getState().criticalJourneyContinuity).toEqual([]);
     expect(getState().transactions).toHaveLength(1);
+  });
+});
+
+describe('schema migration v19 workspace companion isolation', () => {
+  const financialCompanionState = {
+    oneMoveHistory: [{ key: 'recovery', shownAt: '2026-08-16' }],
+    meloMoves: [
+      {
+        id: 'move-workspace-money',
+        createdAt: '2026-08-16T12:00:00.000Z',
+        headline: 'Hold £40 today',
+        kind: 'hold' as const,
+        amount: 40,
+        targetId: 'workspace-pot',
+        status: 'accepted' as const,
+        baselinePathSpare: -25,
+        baselineTightPoint: -80,
+      },
+    ],
+    meloDismissLog: [
+      { kind: 'recovery', reason: 'not-now' as const, at: '2026-08-16T12:01:00.000Z' },
+    ],
+    meloMemoryThread: [
+      {
+        id: 'cycle-workspace-july',
+        at: '2026-07-31T12:00:00.000Z',
+        kind: 'cadence' as const,
+        text: 'Closed July with £120 spare.',
+        editable: true,
+        source: 'observed' as const,
+      },
+    ],
+    meloForgottenMemoryIds: ['workspace-forgotten-money-memory'],
+  };
+
+  it('preserves Personal financial companion history', () => {
+    resetToEmpty();
+    setPartial(financialCompanionState);
+    const personalV18 = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    personalV18.schemaVersion = 18;
+
+    expect(hydrateFromBlob(JSON.stringify(personalV18), PERSONAL_WORKSPACE_ID)).toEqual({
+      status: 'applied',
+    });
+
+    expect(getState().schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(getState()).toMatchObject(financialCompanionState);
+  });
+
+  it('privacy-cleans contaminated Business history once and preserves global preferences', () => {
+    resetToEmpty();
+    const personalRoot = createPersonalWorkspaceRoot();
+    const businessId = createWorkspaceId('workspace_business_companion_migration');
+    const business = createBusinessWorkspace({
+      id: businessId,
+      name: 'Companion Migration Ltd',
+      encryptedSubkeyId: 'workspace-subkey-business-companion-migration-v1',
+    });
+    const businessV18 = {
+      ...createEmptyWorkspacePartition(
+        {
+          workspaces: [...personalRoot.workspaces, business],
+          activeWorkspaceId: businessId,
+          dataWorkspaceId: businessId,
+        },
+        businessId,
+        '2026-08-16T12:00:00.000Z',
+      ),
+      schemaVersion: 18,
+      ...financialCompanionState,
+      meloPrimerSeen: true,
+      meloPrimerBeat: 2,
+      meloPrimerSeenAt: '2026-08-16T12:00:00.000Z',
+      melo: { quietMode: true, wardrobe: ['scarf'], tone: 'honest' as const },
+      chartStyle: 'bars' as const,
+    };
+
+    expect(hydrateFromBlob(JSON.stringify(businessV18), businessId)).toEqual({ status: 'applied' });
+
+    expect(getState()).toMatchObject({
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      oneMoveHistory: [],
+      meloMoves: [],
+      meloDismissLog: [],
+      meloMemoryThread: [],
+      meloForgottenMemoryIds: [],
+      meloPrimerSeen: true,
+      meloPrimerBeat: 2,
+      meloPrimerSeenAt: '2026-08-16T12:00:00.000Z',
+      melo: { quietMode: true, wardrobe: ['scarf'], tone: 'honest' },
+      chartStyle: 'bars',
+    });
+
+    const migrated = getPersistBlob(businessId);
+    expect(hydrateFromBlob(migrated, businessId)).toEqual({ status: 'applied' });
+    expect(getState()).toMatchObject({
+      oneMoveHistory: [],
+      meloMoves: [],
+      meloDismissLog: [],
+      meloMemoryThread: [],
+      meloForgottenMemoryIds: [],
+    });
+  });
+
+  it('defaults missing Business companion fields to empty collections', () => {
+    resetToEmpty();
+    const personalRoot = createPersonalWorkspaceRoot();
+    const businessId = createWorkspaceId('workspace_business_companion_missing');
+    const business = createBusinessWorkspace({
+      id: businessId,
+      name: 'Legacy Missing Ltd',
+      encryptedSubkeyId: 'workspace-subkey-business-companion-missing-v1',
+    });
+    const businessV18 = createEmptyWorkspacePartition(
+      {
+        workspaces: [...personalRoot.workspaces, business],
+        activeWorkspaceId: businessId,
+        dataWorkspaceId: businessId,
+      },
+      businessId,
+      '2026-08-16T12:00:00.000Z',
+    ) as unknown as Record<string, unknown>;
+    businessV18.schemaVersion = 18;
+    delete businessV18.oneMoveHistory;
+    delete businessV18.meloMoves;
+    delete businessV18.meloDismissLog;
+    delete businessV18.meloMemoryThread;
+    delete businessV18.meloForgottenMemoryIds;
+
+    expect(hydrateFromBlob(JSON.stringify(businessV18), businessId)).toEqual({ status: 'applied' });
+    expect(getState()).toMatchObject({
+      oneMoveHistory: [],
+      meloMoves: [],
+      meloDismissLog: [],
+      meloMemoryThread: [],
+      meloForgottenMemoryIds: [],
+    });
   });
 });
 
@@ -1896,7 +2033,7 @@ describe('schema migration v6', () => {
     hydrateFromBlob(JSON.stringify(v5Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(18);
+    expect(s.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(s.timelineEvents).toEqual([]);
   });
 
@@ -1982,7 +2119,7 @@ describe('persist blob round-trip', () => {
     hydrateFromBlob(blob);
 
     const s = getState();
-    expect(s.schemaVersion).toBe(18);
+    expect(s.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect((s.edits ?? []).length).toBe(1);
     expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
   });
@@ -2468,7 +2605,7 @@ describe('schema migration v7', () => {
     hydrateFromBlob(JSON.stringify(v6Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(18);
+    expect(s.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(s.reviewQueue).toEqual([]);
   });
 
@@ -2676,7 +2813,7 @@ describe('schema migration v8', () => {
     hydrateFromBlob(JSON.stringify(v7Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(18);
+    expect(s.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(s.incomeSources).toEqual([
       {
         id: 'income-migrated-pay',
@@ -2765,7 +2902,7 @@ describe('schema migration v9 workspace root', () => {
     hydrateFromBlob(JSON.stringify(v8Blob));
 
     const after = getState();
-    expect(after.schemaVersion).toBe(18);
+    expect(after.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(after.activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
     expect(after.dataWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
     expect(after.workspaces).toEqual([
@@ -2853,7 +2990,7 @@ describe('schema v11 isolated workspace partitions', () => {
       '2026-07-15T20:00:00.000Z',
     );
 
-    expect(partition.schemaVersion).toBe(18);
+    expect(partition.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(partition.accounts).toEqual([]);
     expect(partition.transactions).toEqual([]);
     expect(partition.pots).toEqual([]);
@@ -3112,7 +3249,7 @@ describe('schema migration v10 workspace-owned rows', () => {
     hydrateFromBlob(JSON.stringify(v9Blob));
 
     const after = getState();
-    expect(after.schemaVersion).toBe(18);
+    expect(after.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(after.transactions[0]).toMatchObject({
       id: 'legacy-transaction',
       merchant: 'Real shop',

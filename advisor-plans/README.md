@@ -11,7 +11,7 @@ or release state was changed while preparing them.
 | Order | Work ID                | Plan                                                                                                              | Priority | Effort | Risk | Status |
 | ----: | ---------------------- | ----------------------------------------------------------------------------------------------------------------- | :------: | :----: | :--: | :----: |
 |     1 | MIGRATION-01           | [001 — Block every write when persisted data is newer than the app](001-block-future-schema-overwrite.md)         |    P0    |   M    | HIGH |  DONE  |
-|     2 | ISOLATION-01           | [002 — Keep financial Melo state inside its owning workspace](002-stop-cross-workspace-melo-financial-state.md)   |    P0    |   M    | MED  |  TODO  |
+|     2 | ISOLATION-01           | [002 — Keep financial Melo state inside its owning workspace](002-stop-cross-workspace-melo-financial-state.md)   |    P0    |   M    | MED  |  DONE  |
 |     3 | TRUST-01               | [003 — Remove unsupported confidence claims and restore CI](003-remove-unsupported-confidence-claims.md)          |    P1    |   M    | MED  |  TODO  |
 |     4 | SECURITY-01            | [004 — Remove plaintext picker files from the app cache](004-remove-plaintext-picker-cache.md)                    |    P1    |   M    | MED  |  TODO  |
 |     5 | IMPORT-01              | [005 — Preserve legitimate repeated transactions during import](005-preserve-legitimate-repeated-transactions.md) |    P1    |   M    | MED  |  TODO  |

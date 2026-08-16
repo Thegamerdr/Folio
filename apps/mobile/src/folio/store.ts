@@ -1042,7 +1042,7 @@ export type MeloState = {
 };
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-export const CURRENT_SCHEMA_VERSION = 18;
+export const CURRENT_SCHEMA_VERSION = 19;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -1630,6 +1630,33 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
         )
       : [],
   }),
+  // v18 → v19: remove companion money/event history that the former shared-state allow-list may
+  // have copied into Business. Origin provenance does not exist for these records, so Business is
+  // privacy-cleaned once; Personal history and presentation preferences remain byte-for-byte.
+  19: (prev) => {
+    const dataWorkspaceId = prev['dataWorkspaceId'];
+    const workspaces = Array.isArray(prev['workspaces']) ? prev['workspaces'] : [];
+    const isBusinessPartition = workspaces.some(
+      (candidate) =>
+        candidate !== null &&
+        typeof candidate === 'object' &&
+        (candidate as Record<string, unknown>)['id'] === dataWorkspaceId &&
+        (candidate as Record<string, unknown>)['kind'] === 'business',
+    );
+    return {
+      ...prev,
+      schemaVersion: 19,
+      ...(isBusinessPartition
+        ? {
+            oneMoveHistory: [],
+            meloMoves: [],
+            meloDismissLog: [],
+            meloMemoryThread: [],
+            meloForgottenMemoryIds: [],
+          }
+        : {}),
+    };
+  },
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
