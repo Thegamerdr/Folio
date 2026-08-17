@@ -97,7 +97,7 @@ import { selectMonthlyIncome } from '@/folio/lib/income';
 import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
 import { buildTrustedSafeRangeFromAppState } from '@/folio/lib/trustedSafeRange';
 import { safeRangeSnapshotFromResult } from '@/folio/lib/decisionLedger';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { RecoveryBundlePreview } from '@/folio/ui/TrustedCoreSurfaces';
 import { AdjustPathTabs } from '@/folio/ui/AdjustPathTabs';
 import type { Nav } from '@/folio/types';
@@ -559,19 +559,19 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         <View style={styles.emptyJourneyNav}>
           <AdjustPathTabs active="recovery" nav={nav} />
         </View>
-        <EmptyState
-          mood="calm"
-          headline={needsSetup ? 'Add your first money picture' : 'Nothing to repair'}
+        <StatePanel
           body={
             needsSetup
               ? 'Set your balance and payday first. Recovery will appear only when a real route needs room.'
               : "You're on track to payday. Recovery shows up only when something needs a move."
           }
-          cta={
+          kind={needsSetup ? 'first-time-empty' : 'genuine-empty'}
+          primaryAction={
             needsSetup
               ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
               : { label: 'Back to today', onPress: () => nav.go('today') }
           }
+          title={needsSetup ? 'Add your first money picture' : 'Nothing to repair'}
         />
       </View>
     );
@@ -580,11 +580,12 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — working out what would move." />
-      </View>
+      <StatePanel
+        body="Testing the available moves against your current path."
+        fullScreen
+        kind="loading"
+        title="Working out what would move"
+      />
     );
   }
 

@@ -83,6 +83,7 @@ import Animated, {
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { MaterialChangeCard } from '@/folio/ui/TrustedCoreSurfaces';
 import { ReviewJourneyTabs } from '@/folio/ui/ReviewJourneyTabs';
@@ -304,11 +305,9 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
     );
   }, [transactions, edits, events]);
 
-  // error → "falls back": this screen invents no error UI; on failure it routes back to More.
+  // Keep a truthful recovery state in place rather than navigating away and making the failure look
+  // like a user action.
   const fallsBack = state === 'error';
-  useEffect(() => {
-    if (fallsBack) nav.go('more');
-  }, [fallsBack, nav]);
 
   // slide-in-r — drives every branch. Resolves to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -325,27 +324,27 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
   }));
 
   // ----- ERROR (falls back to More) --------------------------------------------------------------
-  if (fallsBack) return null;
+  if (fallsBack) {
+    return (
+      <StatePanel
+        body="Activity could not be assembled. Your saved records have not been changed."
+        fullScreen
+        kind="error"
+        primaryAction={{ label: 'Back to More', onPress: () => nav.go('more') }}
+        title={copy.err.generic}
+      />
+    );
+  }
 
   // ----- LOADING (Melo curious + one quoted line — never a spinner) -------------------------------
   if (state === 'loading') {
     return (
-      <Animated.View style={[s.root, enterStyle]}>
-        <View style={[s.screen, { paddingTop: insets.top + gap.md }]}>
-          <ScreenHeader
-            onBack={nav.back}
-            eyebrow={isBusiness ? 'Business activity' : 'Timeline'}
-            arrow="text"
-            spacerWidth={20}
-            backHitWidth={20}
-            backHitHeight={0}
-            eyebrowTracking={1.68}
-          />
-          <View style={s.loadingBlock}>
-            <MeloLine mood="curious" text="Gathering what you've added…" />
-          </View>
-        </View>
-      </Animated.View>
+      <StatePanel
+        body="Combining confirmed records, corrections and material changes."
+        fullScreen
+        kind="loading"
+        title="Gathering your activity"
+      />
     );
   }
 

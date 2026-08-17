@@ -76,6 +76,7 @@ import Animated, {
 
 import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { ReviewJourneyTabs } from '@/folio/ui/ReviewJourneyTabs';
 import { copy } from '@/folio/copy/copy';
 import {
@@ -729,11 +730,12 @@ export function ReviewScreen({
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — getting this ready for you." />
-      </View>
+      <StatePanel
+        body="Preparing the next item without adding it."
+        fullScreen
+        kind="loading"
+        title="Getting your review ready"
+      />
     );
   }
 

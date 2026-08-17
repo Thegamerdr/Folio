@@ -92,7 +92,7 @@ import Animated, {
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
   addEvidenceDocument,
@@ -635,24 +635,25 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness). The
   // single CTA still routes into the picker so the doorway never dead-ends.
   if (state === 'empty' || state === 'error') {
-    const headline =
-      state === 'error'
-        ? copy.err.generic
-        : isBusiness
-          ? 'Add business records.'
-          : 'Add what you have.';
-    const body =
-      state === 'error'
-        ? undefined
-        : isBusiness
-          ? 'Statements and receipts stay in this Business workspace and wait for your review.'
-          : 'Melo shows what it finds before anything is added.';
     return (
-      <EmptyState
-        mood="calm"
-        headline={headline}
-        body={body}
-        cta={{ label: 'Add a statement', onPress: () => nav.go('pdf-success') }}
+      <StatePanel
+        body={
+          state === 'error'
+            ? 'The intake options could not be prepared. Nothing has been added.'
+            : isBusiness
+              ? 'Statements and receipts stay in this Business workspace and wait for your review.'
+              : 'Melo shows what it finds before anything is added.'
+        }
+        fullScreen
+        kind={state === 'error' ? 'error' : 'first-time-empty'}
+        primaryAction={{ label: 'Add a statement', onPress: () => nav.go('pdf-success') }}
+        title={
+          state === 'error'
+            ? copy.err.generic
+            : isBusiness
+              ? 'Add business records.'
+              : 'Add what you have.'
+        }
       />
     );
   }
@@ -661,11 +662,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // centred holding moment while the picker settles; it falls through to the picker after the cap.
   if (state === 'loading' && !loadingTimedOut) {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — getting your options ready." />
-      </View>
+      <StatePanel
+        body="Preparing your available input methods."
+        fullScreen
+        kind="loading"
+        title="Getting your options ready"
+      />
     );
   }
 

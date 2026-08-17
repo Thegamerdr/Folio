@@ -59,8 +59,7 @@ import Animated, {
 
 import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
 import { Melo, type MeloMood } from '@/folio/melo/Melo';
-import { MeloLine } from '@/folio/melo/MeloLine';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { AdjustPathTabs } from '@/folio/ui/AdjustPathTabs';
 import {
   addWhatIfHold,
@@ -507,11 +506,11 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
         <View style={styles.emptyJourneyNav}>
           <AdjustPathTabs active="preview" nav={nav} />
         </View>
-        <EmptyState
-          mood="curious"
-          headline="Add some moves first."
-          body="Once there's something on your money path, you can try a spend here and see how the lowest point shifts — before any of it counts."
-          cta={{ label: 'Add what you have', onPress: () => nav.go('intake') }}
+        <StatePanel
+          body="Once there’s something on your money path, you can try a spend here and see how the lowest point shifts — before any of it counts."
+          kind="first-time-empty"
+          primaryAction={{ label: 'Add what you have', onPress: () => nav.go('intake') }}
+          title="Add some moves first."
         />
       </View>
     );
@@ -522,11 +521,12 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // branch only renders if the shell ever threads state="loading".
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — working out where this lands." />
-      </View>
+      <StatePanel
+        body="Recomputing the path without changing your saved money."
+        fullScreen
+        kind="loading"
+        title="Working out where this lands"
+      />
     );
   }
 
