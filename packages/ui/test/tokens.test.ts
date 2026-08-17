@@ -45,4 +45,16 @@ describe('@folio/ui tokens', () => {
     expect(folioTokens.money.rendering.neverUseBinaryFloat).toBe(true);
     expect(folioTokens.money.rendering.deriveFractionDigitsFromCurrency).toBe(true);
   });
+
+  it('freezes the accepted product type and radius scales', () => {
+    expect(Object.values(folioTokens.typography.scale)).toEqual([11, 12.5, 14, 16, 20, 28, 40, 56]);
+    expect(folioTokens.radius).toEqual({
+      row: 12,
+      field: 12,
+      card: 18,
+      sheet: 18,
+      hero: 24,
+      pill: 999,
+    });
+  });
 });

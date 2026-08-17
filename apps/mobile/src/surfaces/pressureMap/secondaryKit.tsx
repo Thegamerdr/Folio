@@ -9,7 +9,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { gap, pressed, serif, useTheme, type Palette } from './kit';
+import { gap, pressed, radius, serif, typeScale, useTheme, type Palette } from './kit';
 import { ProductIcon } from '@/folio/ui/ProductIcon';
 import { MeloFigure } from './melo/MeloFigure';
 import type { MeloMood } from './melo/meloStates';
@@ -169,7 +169,7 @@ function makeStyles(t: Palette) {
   return StyleSheet.create({
     headerLabel: {
       color: t.muted,
-      fontSize: 12,
+      fontSize: typeScale.caption,
       fontWeight: '700',
       letterSpacing: 1.6,
       textTransform: 'uppercase',
@@ -177,7 +177,7 @@ function makeStyles(t: Palette) {
 
     sectionLabel: {
       color: t.muted,
-      fontSize: 11,
+      fontSize: typeScale.micro,
       fontWeight: '700',
       letterSpacing: 1.6,
       textTransform: 'uppercase',
@@ -187,7 +187,7 @@ function makeStyles(t: Palette) {
     kicker: {
       color: t.muted,
       fontFamily: serif.displayItalic,
-      fontSize: 14,
+      fontSize: typeScale.bodySmall,
       lineHeight: 19,
     },
 
@@ -195,14 +195,14 @@ function makeStyles(t: Palette) {
       flex: 1,
       color: t.muted,
       fontFamily: serif.displayItalic,
-      fontSize: 14,
+      fontSize: typeScale.bodySmall,
       lineHeight: 20,
       paddingTop: 4,
     },
 
     rowCard: {
       backgroundColor: t.surface,
-      borderRadius: 20,
+      borderRadius: radius.card,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: t.hairlineStrong,
       overflow: 'hidden',
@@ -215,8 +215,8 @@ function makeStyles(t: Palette) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: t.hairline,
     },
-    rowLabel: { color: t.ink, fontSize: 15, fontWeight: '600' },
+    rowLabel: { color: t.ink, fontSize: typeScale.body, fontWeight: '600' },
     rowLabelNegative: { color: t.repairInk },
-    rowHint: { color: t.muted, fontSize: 12, marginTop: 2 },
+    rowHint: { color: t.muted, fontSize: typeScale.caption, marginTop: 2 },
   });
 }

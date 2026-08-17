@@ -167,9 +167,27 @@ export function weightFamily(
 
 export const gap = folioTokens.spacing.scale;
 
+// Frozen product type scale from the accepted visual contract. Components choose a semantic role
+// from this set; screens must not invent an in-between size because a line happens to fit today.
+export const typeScale = folioTokens.typography.scale;
+
 // Corner radii — mirrors the web scale. Web rounds cards/sheets to 2xl (24–32) and CTAs to 2xl (24);
 // pills stay fully round. Apply these instead of hard-coded radii as screens are ported to parity.
-export const radius = { sm: 8, md: 12, lg: 18, xl: 24, xxl: 32, pill: 999 } as const;
+export const radius = {
+  // Semantic roles are the production contract.
+  row: 12,
+  field: 12,
+  card: 18,
+  sheet: 18,
+  hero: 24,
+  // Compatibility aliases keep already-reviewed compositions stable while they migrate.
+  sm: 8,
+  md: 12,
+  lg: 18,
+  xl: 24,
+  xxl: 32,
+  pill: 999,
+} as const;
 
 export const pressed = {
   opacity: folioTokens.interaction.state.pressed.opacity,
@@ -995,7 +1013,7 @@ function makeStyles(t: Palette) {
   return StyleSheet.create({
     surface: {
       backgroundColor: t.surface,
-      borderRadius: 20,
+      borderRadius: radius.card,
       padding: gap.xl,
       // The soft lift replaces the hairline: a plain surface now floats on the cream
       // rather than being outlined on it. (Sunken wells stay flat below — they're insets,
@@ -1019,7 +1037,7 @@ function makeStyles(t: Palette) {
 
     eyebrow: {
       color: t.calmStrong, // deeper terracotta so the 13px eyebrow clears WCAG AA on paper
-      fontSize: 13,
+      fontSize: typeScale.caption,
       fontWeight: '700',
       letterSpacing: 1.4,
       textTransform: 'uppercase',
@@ -1030,15 +1048,15 @@ function makeStyles(t: Palette) {
     display: {
       color: t.ink,
       fontFamily: serif.display,
-      fontSize: 31,
-      lineHeight: 37,
+      fontSize: typeScale.display,
+      lineHeight: 46,
       letterSpacing: -0.3,
     },
     headline: {
       color: t.ink,
       fontFamily: serif.display,
-      fontSize: 29,
-      lineHeight: 36,
+      fontSize: typeScale.figure,
+      lineHeight: 35,
       letterSpacing: -0.3,
     },
     headlineAccent: {
@@ -1050,13 +1068,13 @@ function makeStyles(t: Palette) {
     },
     verdict: {
       fontFamily: serif.display,
-      fontSize: 27,
-      lineHeight: 33,
+      fontSize: typeScale.figure,
+      lineHeight: 34,
       letterSpacing: -0.2,
     },
     heroMoney: {
-      fontSize: 52,
-      lineHeight: 56,
+      fontSize: typeScale.hero,
+      lineHeight: 60,
       fontWeight: '800',
       letterSpacing: -1.6,
       fontVariant: ['tabular-nums'],
@@ -1065,20 +1083,20 @@ function makeStyles(t: Palette) {
       color: t.secondary,
       // Static per-weight family (not sans.family + fontWeight) — see weightFamily() above.
       fontFamily: weightFamily(400),
-      fontSize: 16,
+      fontSize: typeScale.body,
       lineHeight: 23,
     },
     muted: {
       color: t.muted,
       // Static per-weight family (not sans.family + fontWeight) — see weightFamily() above.
       fontFamily: weightFamily(400),
-      fontSize: 14,
+      fontSize: typeScale.bodySmall,
       lineHeight: 20,
     },
 
     primary: {
       backgroundColor: t.ink,
-      borderRadius: 18,
+      borderRadius: radius.card,
       paddingVertical: 18,
       paddingHorizontal: gap.xl,
       alignItems: 'center',
@@ -1097,19 +1115,19 @@ function makeStyles(t: Palette) {
     },
     primaryLabel: {
       color: t.canvas,
-      fontSize: 17,
+      fontSize: typeScale.body,
       fontWeight: '700',
       letterSpacing: 0.2,
     },
     primaryLabelInk: { color: t.canvas },
     primaryCaption: {
       color: t.canvas,
-      fontSize: 13,
+      fontSize: typeScale.caption,
       fontWeight: '500',
     },
 
     ghost: {
-      borderRadius: 16,
+      borderRadius: radius.row,
       paddingVertical: 15,
       paddingHorizontal: gap.lg,
       alignItems: 'center',
@@ -1117,10 +1135,10 @@ function makeStyles(t: Palette) {
       borderColor: t.hairlineStrong,
       backgroundColor: t.surface,
     },
-    ghostLabel: { color: t.ink, fontSize: 16, fontWeight: '600' },
+    ghostLabel: { color: t.ink, fontSize: typeScale.body, fontWeight: '600' },
     ghostLabelRepair: { color: t.repairInk },
 
-    quietLinkLabel: { color: t.secondary, fontSize: 15, fontWeight: '600' },
+    quietLinkLabel: { color: t.secondary, fontSize: typeScale.bodySmall, fontWeight: '600' },
 
     chip: {
       borderRadius: 999,
@@ -1134,16 +1152,16 @@ function makeStyles(t: Palette) {
       borderColor: t.calm,
       backgroundColor: t.calmSoft,
     },
-    chipLabel: { color: t.secondary, fontSize: 15, fontWeight: '600' },
+    chipLabel: { color: t.secondary, fontSize: typeScale.bodySmall, fontWeight: '600' },
     chipLabelSelected: { color: t.calmStrong },
 
     padKeyText: {
       color: t.ink,
-      fontSize: 27,
+      fontSize: typeScale.figure,
       fontWeight: '500',
       fontVariant: ['tabular-nums'],
     },
-    padKeyClear: { fontSize: 16, fontWeight: '600', color: t.muted },
+    padKeyClear: { fontSize: typeScale.body, fontWeight: '600', color: t.muted },
 
     nav: {
       flexDirection: 'row',
@@ -1154,7 +1172,7 @@ function makeStyles(t: Palette) {
     },
     navLabel: {
       color: t.muted,
-      fontSize: 11,
+      fontSize: typeScale.micro,
       fontWeight: '600',
       letterSpacing: 0.2,
     },

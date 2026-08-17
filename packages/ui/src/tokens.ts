@@ -104,6 +104,16 @@ export const folioTokens = {
         fontVariantNumeric: 'tabular-nums lining-nums',
       },
     },
+    scale: {
+      micro: 11,
+      caption: 12.5,
+      bodySmall: 14,
+      body: 16,
+      title: 20,
+      figure: 28,
+      display: 40,
+      hero: 56,
+    },
     policy: {
       supportsDynamicType: true,
       maximumContentSizeMultiplier: 2,
@@ -140,6 +150,14 @@ export const folioTokens = {
     radiusCompact: 4,
     icon: 24,
     focusRingWidth: 3,
+  },
+  radius: {
+    row: 12,
+    field: 12,
+    card: 18,
+    sheet: 18,
+    hero: 24,
+    pill: 999,
   },
   hitTarget: {
     minimumDp: 44,

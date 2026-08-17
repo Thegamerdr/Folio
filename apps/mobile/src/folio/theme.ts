@@ -30,7 +30,7 @@ export { serif } from '@/surfaces/pressureMap/kit';
 // ---------------------------------------------------------------------------
 // Rhythm + surface tokens: spacing scale, corner radii, pressed-state, elevation
 // ---------------------------------------------------------------------------
-export { gap, radius, pressed, elevation } from '@/surfaces/pressureMap/kit';
+export { gap, radius, typeScale, pressed, elevation } from '@/surfaces/pressureMap/kit';
 
 // ---------------------------------------------------------------------------
 // Money formatters (canonical — no formatting drift)
