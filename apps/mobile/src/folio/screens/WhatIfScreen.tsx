@@ -61,6 +61,7 @@ import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/
 import { Melo, type MeloMood } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { AdjustPathTabs } from '@/folio/ui/AdjustPathTabs';
 import {
   addWhatIfHold,
   bankAnalyticsTransactions,
@@ -502,12 +503,17 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // experiment never opens onto an empty path. The CTA routes to intake (add what you have).
   if (state === 'empty') {
     return (
-      <EmptyState
-        mood="curious"
-        headline="Add some moves first."
-        body="Once there's something on your money path, you can try a spend here and see how the lowest point shifts — before any of it counts."
-        cta={{ label: 'Add what you have', onPress: () => nav.go('intake') }}
-      />
+      <View style={[styles.flex, { backgroundColor: t.canvas, paddingTop: insets.top + gap.lg }]}>
+        <View style={styles.emptyJourneyNav}>
+          <AdjustPathTabs active="preview" nav={nav} />
+        </View>
+        <EmptyState
+          mood="curious"
+          headline="Add some moves first."
+          body="Once there's something on your money path, you can try a spend here and see how the lowest point shifts — before any of it counts."
+          cta={{ label: 'Add what you have', onPress: () => nav.go('intake') }}
+        />
+      </View>
     );
   }
 
@@ -551,6 +557,8 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
             <Text style={styles.eyebrow}>{modeCopy.eyebrow}</Text>
             <View style={styles.headerSpacer} />
           </View>
+
+          <AdjustPathTabs active="preview" nav={nav} />
 
           {/* Title — italic kicker · headline with the terracotta £{amount} accent word. Both are
               mode-tinted (BREAKS-PARITY fix — was fixed to survival's "What if I spend £X today?"). */}
@@ -824,6 +832,7 @@ function formatGBP(value: number): string {
 function makeStyles(t: Palette) {
   return StyleSheet.create({
     flex: { flex: 1 },
+    emptyJourneyNav: { paddingHorizontal: gap.xl },
 
     // Loading column (Melo curious + one line). px-7 ≈ gap.xl.
     loading: {

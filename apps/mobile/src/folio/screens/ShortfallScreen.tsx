@@ -87,6 +87,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { poseForContext } from '@/folio/lib/melo/poseForContext';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
+import { AdjustPathTabs } from '@/folio/ui/AdjustPathTabs';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
@@ -297,6 +298,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
             eyebrowSize={11}
             eyebrowTracking={1.54}
           />
+          <AdjustPathTabs active="resolve" nav={nav} />
           <View style={styles.flexFill}>
             <EmptyState
               mood="calm"
@@ -377,6 +379,8 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
           eyebrowSize={11}
           eyebrowTracking={1.54}
         />
+
+        <AdjustPathTabs active="resolve" nav={nav} />
 
         {/* Melo — mode-honest to the gap; briefly "cheer" on the relief close (web meloMood). */}
         <View style={styles.meloHead}>

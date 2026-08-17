@@ -64,8 +64,11 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         { label: 'Calendar', hint: 'the dates that matter', to: 'calendar' },
         { label: 'Plans', hint: "what's coming before payday", to: 'plans' },
         { label: 'Insights', hint: 'the shape of your months', to: 'insights' },
-        { label: 'What if I spend', hint: 'preview before you decide', to: 'whatif' },
-        { label: 'Recovery', hint: 'something has to move', to: 'recovery' },
+        {
+          label: 'Adjust path',
+          hint: 'preview a choice or make room',
+          to: 'whatif',
+        },
       ],
     },
     {

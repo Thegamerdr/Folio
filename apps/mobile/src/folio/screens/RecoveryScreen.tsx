@@ -99,6 +99,7 @@ import { buildTrustedSafeRangeFromAppState } from '@/folio/lib/trustedSafeRange'
 import { safeRangeSnapshotFromResult } from '@/folio/lib/decisionLedger';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { RecoveryBundlePreview } from '@/folio/ui/TrustedCoreSurfaces';
+import { AdjustPathTabs } from '@/folio/ui/AdjustPathTabs';
 import type { Nav } from '@/folio/types';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 import { triggerFeedback } from '@/folio/lib/feedback';
@@ -554,20 +555,25 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   if (state === 'empty' || (routeReady && !hasShortfall)) {
     const needsSetup = !hasMoneyPicture;
     return (
-      <EmptyState
-        mood="calm"
-        headline={needsSetup ? 'Add your first money picture' : 'Nothing to repair'}
-        body={
-          needsSetup
-            ? 'Set your balance and payday first. Recovery will appear only when a real route needs room.'
-            : "You're on track to payday. Recovery shows up only when something needs a move."
-        }
-        cta={
-          needsSetup
-            ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
-            : { label: 'Back to today', onPress: () => nav.go('today') }
-        }
-      />
+      <View style={[styles.root, { backgroundColor: t.canvas, paddingTop: insets.top + gap.lg }]}>
+        <View style={styles.emptyJourneyNav}>
+          <AdjustPathTabs active="recovery" nav={nav} />
+        </View>
+        <EmptyState
+          mood="calm"
+          headline={needsSetup ? 'Add your first money picture' : 'Nothing to repair'}
+          body={
+            needsSetup
+              ? 'Set your balance and payday first. Recovery will appear only when a real route needs room.'
+              : "You're on track to payday. Recovery shows up only when something needs a move."
+          }
+          cta={
+            needsSetup
+              ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
+              : { label: 'Back to today', onPress: () => nav.go('today') }
+          }
+        />
+      </View>
     );
   }
 
@@ -621,6 +627,8 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           <Text style={[styles.eyebrow, { color: t.muted }]}>{eyebrow}</Text>
           <View style={styles.headerSpacer} />
         </View>
+
+        <AdjustPathTabs active="recovery" nav={nav} />
 
         {/* Structural-fit signpost (BREAKS-PARITY fix) — bills alone outrun income, or 2+ hard
             cycles in a row: an empathetic, safety-relevant referral to free UK debt charities. */}
@@ -903,6 +911,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  emptyJourneyNav: { paddingHorizontal: gap.xl },
   // px-7 ≈ screen inset → gap.xl (24).
   content: {
     flexGrow: 1,
