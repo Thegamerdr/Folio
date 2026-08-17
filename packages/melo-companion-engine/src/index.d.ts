@@ -25,6 +25,8 @@ export type CompanionAnchor = Readonly<{
   disabled?: boolean;
   offset?: Readonly<{ x: number; y: number }>;
   gap?: number;
+  /** The anchor occupies a real layout slot, so sibling exclusion boxes cannot invalidate it. */
+  reserved?: boolean;
 }>;
 
 export type CompanionExclusion = Readonly<{

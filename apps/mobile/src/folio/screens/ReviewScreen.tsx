@@ -76,6 +76,7 @@ import Animated, {
 
 import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
+import { MeloCompanionPerch } from '@/folio/companion/MeloCompanionHost';
 import { StatePanel } from '@/folio/ui/StatePanel';
 import { ReviewJourneyTabs } from '@/folio/ui/ReviewJourneyTabs';
 import { copy } from '@/folio/copy/copy';
@@ -702,14 +703,19 @@ export function ReviewScreen({
             Nothing waiting for your check.
           </Text>
           <ReviewJourneyTabs active="check" nav={nav} />
-          <MeloLine
-            mood="calm"
-            text={
-              isBusiness
-                ? "Nothing to review in this business yet. Add a statement or receipt and I'll show what I find."
-                : "Nothing to review yet. Add a statement and I'll show what I find."
-            }
-          />
+          <View style={styles.emptyCompanionRow}>
+            <MeloCompanionPerch
+              companionSize={48}
+              id="review/empty-state"
+              priority={90}
+              style={styles.emptyCompanionPerch}
+            />
+            <Text style={[styles.emptyCompanionLine, { color: t.muted }]}>
+              {isBusiness
+                ? "“Nothing to review in this business yet. Add a statement or receipt and I'll show what I find.”"
+                : "“Nothing to review yet. Add a statement and I'll show what I find.”"}
+            </Text>
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Add a statement"
@@ -1164,6 +1170,20 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 32,
     marginTop: gap.xs,
+  },
+  emptyCompanionRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: gap.md,
+    marginTop: gap.lg,
+  },
+  emptyCompanionPerch: { marginRight: gap.lg },
+  emptyCompanionLine: {
+    flex: 1,
+    fontFamily: serif.displayItalic,
+    fontSize: 13.5,
+    lineHeight: 18,
+    paddingTop: gap.xs,
   },
   header: {
     alignItems: 'center',

@@ -273,7 +273,10 @@ export function MeloCompanionHost({
   }, [engine, wardrobe]);
 
   useEffect(() => {
-    engine.setOptions({ appHidden: AppState.currentState !== 'active' });
+    // Android may expose a null/unknown AppState during the first committed render and then never
+    // replay the already-active transition to this listener. Treat only an explicit background
+    // state as hidden during hydration so Melo cannot get stranded invisible on cold start.
+    engine.setOptions({ appHidden: AppState.currentState === 'background' });
     const subscription = AppState.addEventListener('change', (state) => {
       engine.setOptions({ appHidden: state !== 'active' });
       if (state === 'active') refreshMeasurements();
@@ -370,6 +373,7 @@ export function MeloCompanionPerch({
         size: { width: companionSize, height: companionSize },
         priority,
         gap: 0,
+        reserved: true,
       });
     });
   }, [companionSize, context, id, priority]);

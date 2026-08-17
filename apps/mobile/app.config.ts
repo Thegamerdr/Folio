@@ -25,6 +25,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: ['melo', 'folio'],
   version: '1.0.0',
   icon: './assets/canonical/favicon.png',
+  // Expo Updates must embed every locally-required product asset in its launch manifest. Without
+  // this explicit pattern a native release can contain a PNG in the APK while resolving its JS
+  // require() to an empty URI, which previously made the entire Melo character render invisible.
+  assetBundlePatterns: ['assets/**/*'],
   orientation: 'portrait',
   platforms: ['ios', 'android'],
   userInterfaceStyle: 'automatic',

@@ -15,7 +15,6 @@ import {
   MeloCompanionPerch,
   useMeloCompanionScrollHandlers,
 } from '@/folio/companion/MeloCompanionHost';
-import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { StatePanel } from '@/folio/ui/StatePanel';
@@ -197,9 +196,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         </View>
 
         <View style={styles.hero}>
-          <MeloCompanionPerch companionSize={48} id="more/header" priority={30}>
-            <Melo size={44} mood="calm" />
-          </MeloCompanionPerch>
+          <MeloCompanionPerch companionSize={48} id="more/quiet-hub" priority={30} />
           <View style={styles.heroText}>
             <Text style={[styles.eyebrow, { color: t.muted }]}>The quiet hub</Text>
             <Text accessibilityRole="header" style={[styles.heading, { color: t.ink }]}>

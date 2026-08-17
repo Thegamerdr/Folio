@@ -70,10 +70,6 @@ export function PlanHubScreen({ nav }: { nav: Nav }) {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <MeloCompanionPerch companionSize={60} id="plan/header" priority={90}>
-          <View style={styles.anchor} />
-        </MeloCompanionPerch>
-
         <Section eyebrow="Plan" title="Before payday">
           <Card style={styles.heroCard}>
             <Figure
@@ -94,6 +90,12 @@ export function PlanHubScreen({ nav }: { nav: Nav }) {
               </View>
             </View>
           </Card>
+          <MeloCompanionPerch
+            companionSize={48}
+            id="plan/after-summary"
+            priority={90}
+            style={styles.summaryPerch}
+          />
         </Section>
 
         <Section eyebrow="What's coming" title="Dates and commitments">
@@ -213,7 +215,7 @@ export function PlanHubScreen({ nav }: { nav: Nav }) {
 
 const styles = StyleSheet.create({
   actionCell: { flex: 1 },
-  anchor: { height: 1, width: 1 },
   heroActions: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg },
   heroCard: { marginTop: 0 },
+  summaryPerch: { alignSelf: 'flex-end', marginTop: gap.md },
 });

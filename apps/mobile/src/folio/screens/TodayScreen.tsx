@@ -2440,7 +2440,9 @@ const styles = StyleSheet.create({
 
   sectionDivider: {
     alignItems: 'center',
-    height: 44,
+    // This is an authored companion landing band, not decorative whitespace. Keep enough room for
+    // the 48dp reserved character slot without materially changing the frozen Today composition.
+    height: 52,
     justifyContent: 'center',
     marginBottom: 4,
     marginHorizontal: gap.xl,

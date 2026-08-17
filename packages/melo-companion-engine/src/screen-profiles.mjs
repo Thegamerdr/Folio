@@ -307,7 +307,18 @@ export const SCREEN_PROFILES = Object.freeze({
   'image-success': hidden('personal', 'file-intake'),
   'image-fallback': hidden('personal', 'file-input'),
   'paste-success': hidden('personal', 'file-intake'),
-  review: hidden('personal', 'review-flow'),
+  // Review owns explicit anchors only for its calm empty state and for the
+  // post-decision result. The item-editing composition registers no anchor,
+  // so Melo still disappears naturally while the user is making a decision.
+  review: {
+    domain: 'personal',
+    attention: 'review',
+    action: action(
+      'review.empty.explain',
+      'What will appear here?',
+      'Explain what Review checks and what will appear here.',
+    ),
+  },
   'business-review-item': hidden('business', 'review-flow'),
   ritual: hidden('personal', 'ritual-flow'),
   shortfall: hidden('personal', 'shortfall-flow'),

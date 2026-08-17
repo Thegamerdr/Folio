@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   frameIndexForFilename,
@@ -7,6 +9,26 @@ import {
 } from './MeloAtlasContract';
 
 describe('MeloAnimatedSprite', () => {
+  it('uses mobile-safe atlas rows instead of one oversized source texture', () => {
+    const source = fs.readFileSync(
+      path.join(import.meta.dirname, 'MeloAnimatedSprite.tsx'),
+      'utf8',
+    );
+
+    expect(source.match(/native-atlas-rows\/row-\d{2}\.png/g)).toHaveLength(24);
+    expect(source).not.toMatch(/require\([^)]*fenice-melo-atlas\.png/);
+  });
+
+  it('does not strand the companion hidden when the cold-start AppState is indeterminate', () => {
+    const host = fs.readFileSync(
+      path.join(import.meta.dirname, 'MeloCompanionHost.tsx'),
+      'utf8',
+    );
+
+    expect(host).toContain("AppState.currentState === 'background'");
+    expect(host).not.toContain("AppState.currentState !== 'active'");
+  });
+
   it('ships the validated A+ native atlas contract', () => {
     expect(meloAtlasContract()).toEqual({
       schemaVersion: 1,

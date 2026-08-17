@@ -6,6 +6,7 @@ import {
   PRESENCE,
   REACTION_EVENT_TYPES,
   resolveEventVisual,
+  resolvePlacement,
   resolveScreenProfile,
 } from '../src/index.mjs';
 import { createMemoryPersistence } from '../src/persistence.mjs';
@@ -109,6 +110,30 @@ test('safe placement remains inside representative mobile and desktop shells', (
       `placement escaped bottom at ${width}x${height}`,
     );
   }
+});
+
+test('a reserved layout slot is not rejected by its adjacent parent exclusion boxes', () => {
+  const placement = resolvePlacement({
+    shell: { x: 0, y: 0, width: 390, height: 844 },
+    anchors: [
+      {
+        id: 'today/section-divider',
+        placement: 'top-right',
+        priority: 90,
+        rect: { x: 171, y: 332, width: 48, height: 0 },
+        size: { width: 48, height: 48 },
+        gap: 0,
+        reserved: true,
+      },
+    ],
+    exclusions: [
+      { id: 'today/hero', rect: { x: 24, y: 80, width: 342, height: 228 } },
+      { id: 'today/money-path', rect: { x: 16, y: 328, width: 358, height: 400 } },
+    ],
+  });
+
+  assert.equal(placement.anchorId, 'today/section-divider');
+  assert.deepEqual(placement.rect, { x: 171, y: 284, width: 48, height: 48 });
 });
 
 test('a faithful screen perch can preserve the reference mascot footprint', () => {
@@ -532,7 +557,6 @@ test('full personal and business screen profile coverage hides blocking flows', 
     'start',
     'guided',
     'intake',
-    'review',
     'ritual',
     'shortfall',
     'business-intake',
@@ -561,6 +585,9 @@ test('full personal and business screen profile coverage hides blocking flows', 
   engine.navigate('business-corp-tax');
   assert.equal(engine.snapshot().screenProfile.domain, 'business');
   assert.equal(engine.snapshot().screenProfile.hidden, false);
+  engine.navigate('review');
+  assert.equal(engine.snapshot().screenProfile.hidden, false);
+  assert.equal(engine.snapshot().screenProfile.action.id, 'review.empty.explain');
 });
 
 test('the portable event vocabulary drives truthful visual states and lifecycle controls', () => {

@@ -87,7 +87,12 @@ export function resolvePlacement({
       rejected.push({ id: anchor.id, reason: 'outside-shell', rect });
       continue;
     }
-    const collision = exclusions.find((zone) => rectsIntersect(rect, zone.rect, margin));
+    // A reserved anchor is a real layout slot whose footprint has already displaced surrounding
+    // content. Its parent boxes may touch or overlap the slot geometrically, but the character
+    // cannot cover their rendered content. Normal edge/perch anchors still keep the full margin.
+    const collision = anchor.reserved
+      ? null
+      : exclusions.find((zone) => rectsIntersect(rect, zone.rect, margin));
     if (collision) {
       rejected.push({ id: anchor.id, reason: `collision:${collision.id}`, rect });
       continue;
