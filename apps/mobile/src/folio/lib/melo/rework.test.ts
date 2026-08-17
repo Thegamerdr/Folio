@@ -48,6 +48,7 @@ describe('Melo rework engines', () => {
       cycleOverdueDays: 0,
       caughtSubName: null,
       nav: nav(),
+      now: new Date('2026-07-19T10:00:00.000Z'),
       dismissLog: [
         {
           kind: 'review',

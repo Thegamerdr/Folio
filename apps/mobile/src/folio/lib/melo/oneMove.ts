@@ -54,6 +54,8 @@ export type OneMoveInputs = Readonly<{
   nav: Nav;
   history?: readonly OneMoveImpression[];
   dismissLog?: readonly DismissRecord[];
+  /** Injectable clock for deterministic policy evaluation and tests. */
+  now?: Date;
 }>;
 
 function seenRecently(key: string, history: readonly OneMoveImpression[] = []): boolean {
@@ -116,5 +118,5 @@ export function deriveOneMove(inputs: OneMoveInputs): OneMove {
     });
   }
   const dismissLog = inputs.dismissLog ?? [];
-  return candidates.find((candidate) => !isDampened(candidate.key, dismissLog)) ?? null;
+  return candidates.find((candidate) => !isDampened(candidate.key, dismissLog, inputs.now)) ?? null;
 }
