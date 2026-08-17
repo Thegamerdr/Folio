@@ -22,9 +22,9 @@
  *   - weekly           : `anchorISO` + 7-day steps.
  *   - fortnightly      : `anchorISO` + 14-day steps.
  *   - four-weekly      : `anchorISO` + 28-day steps.
- *   - last-working-day : the last non-weekend day of each calendar month
- *                         (walks backward from the month's last day, skipping
- *                         Sat/Sun — mirrors `isBusinessDay` from payday.ts).
+ *   - last-working-day : the last reviewed England/Wales working day of each month
+ *                         (walks backward across weekends and bank holidays through
+ *                         `isBusinessDay` from payday.ts).
  *
  * Pure and deterministic: no I/O, no react-native, no DOM, no local-timezone
  * dependence. All dates are plain ISO "YYYY-MM-DD" strings, which sort
@@ -113,16 +113,16 @@ function daysInMonth(year: number, month: number): number {
 }
 
 /**
- * The last non-weekend day of the month containing `ymd`'s year/month, as an
+ * The last business day of the month containing `ymd`'s year/month, as an
  * ISO date. Walks backward from the month's last calendar day, skipping
- * Sat/Sun — the same "walk to the nearest business day" idea `payday.ts` uses
+ * weekends and reviewed bank holidays — the same rule `payday.ts` uses
  * for its weekend shift, but always walking backward (a payday is never moved
  * INTO the next month by this cadence).
  */
 function lastWorkingDayOfMonth(year: number, month: number): string {
   const lastDay = daysInMonth(year, month);
   let ms = utcMillis({ year, month, day: lastDay });
-  while (new Date(ms).getUTCDay() === 0 || new Date(ms).getUTCDay() === 6) {
+  while (!isBusinessDay(isoFromMillis(ms))) {
     ms -= MILLIS_PER_DAY;
   }
   return isoFromMillis(ms);
@@ -142,12 +142,10 @@ function nextLastWorkingDay(now: Ymd): string {
 }
 
 /**
- * Shift a weekend-landing date to the working day before it, same rule
+ * Shift a non-working date to the working day before it, same rule
  * `payday.ts`'s default `weekendRule: "previous"` applies to monthly paydays
- * (UK payroll convention: pay early when a date lands on a weekend). Reuses
- * `isBusinessDay` rather than redefining the weekend check here. Walking
- * (rather than a fixed -1/-2) keeps the door open for the same post-MVP
- * bank-holiday lookup `payday.ts` documents.
+ * (UK payroll convention: pay early across weekends and bank holidays). Reuses
+ * `isBusinessDay` rather than redefining the calendar here.
  *
  * IMPORTANT: this shifts only the *emitted* date, never the anchor grid
  * itself — `nextFromAnchor` still computes `anchorISO + k*stepDays` on the
@@ -155,7 +153,7 @@ function nextLastWorkingDay(now: Ymd): string {
  * grid date + stepDays`, not `thisShiftedDate + stepDays` (which would drift
  * the whole cadence earlier every time it crosses a weekend).
  */
-function shiftWeekendToPrevious(iso: string): string {
+function shiftNonWorkingToPrevious(iso: string): string {
   let ms = utcMillis(parseIsoDate(iso));
   while (!isBusinessDay(isoFromMillis(ms))) {
     ms -= MILLIS_PER_DAY;
@@ -198,7 +196,7 @@ function nextFromAnchor(nowIso: string, anchorIso: string, stepDays: number): An
   // the first anchor-aligned date that is >= now (never strictly before).
   const steps = Math.ceil(diff / stepMs);
   const gridIso = isoFromMillis(anchorMs + steps * stepMs);
-  return { gridIso, shiftedIso: shiftWeekendToPrevious(gridIso) };
+  return { gridIso, shiftedIso: shiftNonWorkingToPrevious(gridIso) };
 }
 
 /**

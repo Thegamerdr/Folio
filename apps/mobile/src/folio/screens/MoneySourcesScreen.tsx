@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import type { OpenBankingRuntimeConnection } from '@folio/open-banking';
@@ -14,7 +14,16 @@ import {
   type BankSourceState,
 } from '@/folio/lib/accountSources';
 import { displayCurrency, isLaunchCurrency } from '@/folio/lib/launchCurrency';
-import { useAppStore, type Account, type IncomeSource } from '@/folio/store';
+import {
+  addAccount,
+  renameAccount,
+  setAccountBalance,
+  updateAccountPolicy,
+  useAppStore,
+  type Account,
+  type AccountKind,
+  type IncomeSource,
+} from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
 type Props = Readonly<{ nav: Nav }>;
@@ -48,6 +57,62 @@ export function MoneySourcesScreen({ nav }: Props) {
     () => importSourceSummary(imports, evidence.length),
     [evidence.length, imports],
   );
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [accountName, setAccountName] = useState('');
+  const [accountBalance, setAccountBalanceInput] = useState('');
+  const [accountKind, setAccountKind] = useState<AccountKind>('bank');
+  const editingAccount = accounts.find((account) => account.id === editingAccountId) ?? null;
+
+  const beginEditingAccount = (account: Account) => {
+    setAddingAccount(false);
+    setEditingAccountId(account.id);
+    setAccountName(account.name);
+    setAccountBalanceInput(String(account.balanceMinor));
+    setAccountKind(account.kind);
+  };
+
+  const saveNewAccount = () => {
+    const name = accountName.trim();
+    const balance = parseAccountAmount(accountBalance, accountKind);
+    if (!name) {
+      Alert.alert(
+        'Name this account',
+        'Use a name you will recognise in Review and source history.',
+      );
+      return;
+    }
+    if (balance === null) {
+      Alert.alert('Check the balance', 'Use a valid GBP amount.');
+      return;
+    }
+    addAccount({ name, kind: accountKind, balanceMinor: balance });
+    clearAccountEditor();
+  };
+
+  const saveEditedAccount = () => {
+    if (editingAccount === null) return;
+    const name = accountName.trim();
+    const balance = parseAccountAmount(accountBalance, editingAccount.kind);
+    if (!name || balance === null) {
+      Alert.alert('Check these account details', 'Add a name and a valid GBP balance.');
+      return;
+    }
+    renameAccount(editingAccount.id, name);
+    setAccountBalance(editingAccount.id, balance, undefined, {
+      source: 'corrected',
+      confidence: 'corrected',
+    });
+    clearAccountEditor();
+  };
+
+  const clearAccountEditor = () => {
+    setAddingAccount(false);
+    setEditingAccountId(null);
+    setAccountName('');
+    setAccountBalanceInput('');
+    setAccountKind('bank');
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
@@ -95,11 +160,46 @@ export function MoneySourcesScreen({ nav }: Props) {
                 detail={`${ACCOUNT_KIND[account.kind]} · ${accountState(account)}`}
                 value={formatAccountBalance(account)}
                 tone={account.closed || account.excludedFromTotals ? 'muted' : 'normal'}
+                onPress={() => beginEditingAccount(account)}
               />
             ))
           )}
-          <ActionRow label="Manage accounts" onPress={() => nav.go('account')} />
+          <ActionRow
+            label="Add an account"
+            onPress={() => {
+              setEditingAccountId(null);
+              setAddingAccount(true);
+              setAccountName('');
+              setAccountBalanceInput('');
+              setAccountKind('bank');
+            }}
+          />
         </Surface>
+
+        {addingAccount || editingAccount !== null ? (
+          <AccountEditor
+            account={editingAccount}
+            balance={accountBalance}
+            kind={accountKind}
+            name={accountName}
+            onBalanceChange={setAccountBalanceInput}
+            onCancel={clearAccountEditor}
+            onKindChange={setAccountKind}
+            onNameChange={setAccountName}
+            onSave={editingAccount === null ? saveNewAccount : saveEditedAccount}
+            {...(editingAccount === null
+              ? {}
+              : {
+                  onPolicyChange: (patch: {
+                    hidden?: boolean;
+                    excludedFromTotals?: boolean;
+                    closed?: boolean;
+                  }) => {
+                    updateAccountPolicy(editingAccount.id, patch);
+                  },
+                })}
+          />
+        ) : null}
 
         <SectionTitle title="Files and records" detail={`${imported.rowCount} rows accepted`} />
         <Surface style={[styles.card, { borderColor: t.hairline }]}>
@@ -312,15 +412,17 @@ function SourceRow({
   value,
   divided = false,
   tone = 'normal',
+  onPress,
 }: Readonly<{
   title: string;
   detail: string;
   value: string;
   divided?: boolean;
   tone?: 'normal' | 'muted';
+  onPress?: () => void;
 }>) {
   const t = useTheme();
-  return (
+  const content = (
     <View
       style={[
         styles.sourceRow,
@@ -335,6 +437,146 @@ function SourceRow({
       </View>
       <Text style={[styles.sourceValue, { color: t.muted }]}>{value}</Text>
     </View>
+  );
+  if (onPress === undefined) return content;
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress}>
+      {content}
+    </Pressable>
+  );
+}
+
+function AccountEditor({
+  account,
+  name,
+  balance,
+  kind,
+  onNameChange,
+  onBalanceChange,
+  onKindChange,
+  onSave,
+  onCancel,
+  onPolicyChange,
+}: Readonly<{
+  account: Account | null;
+  name: string;
+  balance: string;
+  kind: AccountKind;
+  onNameChange: (value: string) => void;
+  onBalanceChange: (value: string) => void;
+  onKindChange: (value: AccountKind) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onPolicyChange?: (patch: {
+    hidden?: boolean;
+    excludedFromTotals?: boolean;
+    closed?: boolean;
+  }) => void;
+}>) {
+  const t = useTheme();
+  const kinds: readonly Readonly<{ kind: AccountKind; label: string }>[] = [
+    { kind: 'bank', label: 'Current' },
+    { kind: 'savings', label: 'Savings' },
+    { kind: 'cash', label: 'Cash' },
+    { kind: 'credit-card', label: 'Credit card' },
+  ];
+  return (
+    <Surface style={[styles.editor, { backgroundColor: t.inset, borderColor: t.hairline }]}>
+      <Text style={[styles.editorTitle, { color: t.ink }]}>
+        {account === null ? 'Add account' : `Edit ${account.name}`}
+      </Text>
+      {account === null ? (
+        <View style={styles.kindGrid}>
+          {kinds.map((option) => {
+            const selected = option.kind === kind;
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                key={option.kind}
+                onPress={() => onKindChange(option.kind)}
+                style={[
+                  styles.kindButton,
+                  { backgroundColor: selected ? t.ink : t.surface, borderColor: t.hairline },
+                ]}
+              >
+                <Text style={[styles.kindLabel, { color: selected ? t.canvas : t.muted }]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+      <TextInput
+        accessibilityLabel="Account name"
+        onChangeText={onNameChange}
+        placeholder="Account name"
+        placeholderTextColor={t.muted}
+        style={[styles.input, { backgroundColor: t.surface, color: t.ink }]}
+        value={name}
+      />
+      <TextInput
+        accessibilityLabel={kind === 'credit-card' ? 'Amount owed' : 'Account balance'}
+        keyboardType="decimal-pad"
+        onChangeText={onBalanceChange}
+        placeholder={kind === 'credit-card' ? 'Amount owed' : 'Current balance'}
+        placeholderTextColor={t.muted}
+        style={[styles.input, { backgroundColor: t.surface, color: t.ink }]}
+        value={balance}
+      />
+      {account !== null && onPolicyChange !== undefined ? (
+        <View style={styles.policyList}>
+          <PolicyButton
+            label={account.hidden ? 'Show in lists' : 'Hide from lists'}
+            hint="Hidden accounts still count in current totals."
+            onPress={() => onPolicyChange({ hidden: !account.hidden })}
+          />
+          <PolicyButton
+            label={
+              account.excludedFromTotals
+                ? 'Include in current totals'
+                : 'Exclude from current totals'
+            }
+            hint="History stays available either way."
+            onPress={() => onPolicyChange({ excludedFromTotals: !account.excludedFromTotals })}
+          />
+          <PolicyButton
+            label={account.closed ? 'Restore account' : 'Close account'}
+            hint="Closed accounts keep their history and leave current totals."
+            onPress={() => onPolicyChange({ closed: !account.closed })}
+            negative={!account.closed}
+          />
+        </View>
+      ) : null}
+      <View style={styles.editorActions}>
+        <Pressable accessibilityRole="button" onPress={onCancel} style={styles.editorButton}>
+          <Text style={[styles.editorSecondary, { color: t.muted }]}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onSave}
+          style={[styles.editorButton, { backgroundColor: t.ink }]}
+        >
+          <Text style={[styles.editorPrimary, { color: t.canvas }]}>Save</Text>
+        </Pressable>
+      </View>
+    </Surface>
+  );
+}
+
+function PolicyButton({
+  label,
+  hint,
+  onPress,
+  negative = false,
+}: Readonly<{ label: string; hint: string; onPress: () => void; negative?: boolean }>) {
+  const t = useTheme();
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.policyButton}>
+      <Text style={[styles.policyLabel, { color: negative ? t.repairInk : t.ink }]}>{label}</Text>
+      <Text style={[styles.policyHint, { color: t.muted }]}>{hint}</Text>
+    </Pressable>
   );
 }
 
@@ -377,6 +619,12 @@ function formatAccountBalance(account: Account): string {
     ? '£'
     : `${displayCurrency(account.currency)} `;
   return `${account.isLiability ? 'owes ' : ''}${currency}${amount}`;
+}
+
+function parseAccountAmount(value: string, kind: AccountKind): number | null {
+  const parsed = Number(value.replace(/[^0-9.-]/gu, ''));
+  if (!Number.isFinite(parsed) || !Number.isSafeInteger(Math.round(parsed * 100))) return null;
+  return kind === 'credit-card' ? Math.abs(parsed) : parsed;
 }
 
 function sourceStateLabel(state: BankSourceState): string {
@@ -450,5 +698,43 @@ const styles = StyleSheet.create({
   },
   truthTitle: { fontFamily: serif.display, fontSize: 16, lineHeight: 21 },
   truthBody: { fontSize: 11.5, lineHeight: 17, marginTop: gap.xs },
+  editor: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.md,
+    padding: gap.md,
+  },
+  editorTitle: { fontFamily: serif.display, fontSize: 18, lineHeight: 23 },
+  kindGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.xs, marginTop: gap.md },
+  kindButton: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: gap.md,
+  },
+  kindLabel: { fontSize: 11.5, fontWeight: '600' },
+  input: {
+    borderRadius: radius.md,
+    fontSize: 14,
+    marginTop: gap.sm,
+    minHeight: 48,
+    paddingHorizontal: gap.md,
+  },
+  policyList: { marginTop: gap.md },
+  policyButton: { justifyContent: 'center', minHeight: 52, paddingVertical: gap.xs },
+  policyLabel: { fontSize: 13, fontWeight: '600' },
+  policyHint: { fontSize: 10.5, lineHeight: 15, marginTop: 2 },
+  editorActions: { flexDirection: 'row', gap: gap.sm, marginTop: gap.md },
+  editorButton: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  editorSecondary: { fontSize: 13, fontWeight: '600' },
+  editorPrimary: { fontSize: 13, fontWeight: '700' },
   pressed: { opacity: 0.62 },
 });

@@ -171,7 +171,7 @@ describe('projectIncomeEvents — four-weekly', () => {
 });
 
 // ---------------------------------------------------------------------------
-// last-working-day — last non-weekend day of each month
+// last-working-day — last reviewed working day of each month
 // ---------------------------------------------------------------------------
 describe('projectIncomeEvents — last-working-day', () => {
   it('resolves to the last weekday when the calendar last day is a Saturday', () => {
@@ -186,6 +186,13 @@ describe('projectIncomeEvents — last-working-day', () => {
     const s = source({ id: 'lwd2', cadence: 'last-working-day' });
     const events = projectIncomeEvents([s], '2026-05-01', 30);
     expect(events.map((e) => e.date)).toEqual(['2026-05-29']);
+  });
+
+  it('walks back across a month-end bank holiday as well as a weekend', () => {
+    // 31 August 2026 is the Summer bank holiday, so the last working day is Friday 28 August.
+    const s = source({ id: 'lwd-bank-holiday', cadence: 'last-working-day' });
+    const events = projectIncomeEvents([s], '2026-08-01', 31);
+    expect(events.map((event) => event.date)).toEqual(['2026-08-28']);
   });
 
   it('is the calendar last day itself when it is a weekday', () => {
