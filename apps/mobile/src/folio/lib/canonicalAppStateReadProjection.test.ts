@@ -119,7 +119,15 @@ describe('canonical AppState read projection', () => {
       (state.accounts ?? []).map((account) => ({ ...account, workspaceId: workspace.id })),
     );
     expect(read.transactions).toEqual(
-      state.transactions.map((transaction) => ({ ...transaction, workspaceId: workspace.id })),
+      state.transactions.map((transaction) =>
+        transaction.id === 'txn:future/bank'
+          ? { ...transaction, workspaceId: workspace.id }
+          : {
+              ...transaction,
+              workspaceId: workspace.id,
+              lifecycleStatus: transaction.lifecycleStatus ?? 'posted',
+            },
+      ),
     );
   });
 
@@ -154,7 +162,11 @@ describe('canonical AppState read projection', () => {
 
     expect(canonical.repositorySnapshot.collections.transactions).toHaveLength(2);
     expect(read.transactions).toEqual(
-      state.transactions.map((transaction) => ({ ...transaction, workspaceId: workspace.id })),
+      state.transactions.map((transaction) => ({
+        ...transaction,
+        workspaceId: workspace.id,
+        lifecycleStatus: transaction.lifecycleStatus ?? 'posted',
+      })),
     );
   });
 

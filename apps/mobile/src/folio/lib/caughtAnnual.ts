@@ -36,7 +36,7 @@
 
 import { useMemo } from 'react';
 
-import { useAppStore, bankTransactions, type Transaction } from '../store';
+import { useAppStore, bankAnalyticsTransactions, type Transaction } from '../store';
 import { detectAnnualCandidates, type AnnualCandidate } from './historyStats';
 
 // ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ export function useCaughtAnnual(): AnnualCaughtCandidate[] {
   const dismissedAnnualSignals = useAppStore((state) => state.dismissedAnnualSignals ?? []);
   const subs = useAppStore((state) => state.subs);
   const transactions = useMemo(
-    () => bankTransactions({ transactions: rawTransactions, accounts }),
+    () => bankAnalyticsTransactions({ transactions: rawTransactions, accounts }),
     [rawTransactions, accounts],
   );
 

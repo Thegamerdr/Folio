@@ -18,6 +18,7 @@ import {
   dismissImportDraft,
   editImportDraft,
   isPrivateExampleLedger,
+  localAnalyticsTransactions,
   refreshLocalLedgerAsOfDate,
   restoreRejectedImportForReview,
   searchLocalLedgerEvidenceRecords,
@@ -29,6 +30,79 @@ import {
 import { createLocalLedgerPortableVault, summariseLocalLedgerVault } from './localLedgerVault.js';
 
 describe('mobile local ledger state', () => {
+  it('keeps pending, void, reversed and linked own-account transfers out of realised calculations', () => {
+    const base = {
+      date: '2026-08-10',
+      source: 'open_banking' as const,
+      status: 'confirmed' as const,
+      protected: false,
+    };
+    expect(
+      localAnalyticsTransactions([
+        { ...base, id: 'posted', title: 'Grocer', amountMinor: -2_000 },
+        {
+          ...base,
+          id: 'pending',
+          title: 'Pending cafe',
+          amountMinor: -500,
+          lifecycleStatus: 'pending',
+        },
+        {
+          ...base,
+          id: 'void',
+          title: 'Voided',
+          amountMinor: -700,
+          lifecycleStatus: 'void',
+        },
+        {
+          ...base,
+          id: 'transfer-out',
+          title: 'Move out',
+          amountMinor: -1_000,
+          moneyMovementKind: 'transfer',
+          transferLinkId: 'move-1',
+        },
+        {
+          ...base,
+          id: 'transfer-in',
+          title: 'Move in',
+          amountMinor: 1_000,
+          moneyMovementKind: 'transfer',
+          transferLinkId: 'move-1',
+        },
+      ]),
+    ).toEqual([{ ...base, id: 'posted', title: 'Grocer', amountMinor: -2_000 }]);
+  });
+
+  it('nets linked refunds and reversals against the original local row', () => {
+    const base = {
+      date: '2026-08-10',
+      source: 'open_banking' as const,
+      status: 'confirmed' as const,
+      protected: false,
+    };
+    expect(
+      localAnalyticsTransactions([
+        { ...base, id: 'purchase', title: 'Shop', amountMinor: -5_000 },
+        {
+          ...base,
+          id: 'refund',
+          title: 'Shop refund',
+          amountMinor: 1_500,
+          moneyMovementKind: 'refund',
+          refundOfId: 'purchase',
+        },
+        {
+          ...base,
+          id: 'unlinked-refund',
+          title: 'Unknown refund',
+          amountMinor: 900,
+          moneyMovementKind: 'refund',
+        },
+      ]),
+    ).toEqual([{ ...base, id: 'purchase', title: 'Shop', amountMinor: -3_500 }]);
+  });
+
   it('starts from a route that Melo can answer from without cloud state', () => {
     const state = createInitialLocalLedgerState();
     const route = buildLocalRouteSummary(state);
@@ -333,7 +407,7 @@ describe('mobile local ledger state', () => {
     expect(lookup?.dataUsed).toContain('1 direct local record match');
     expect(lookup?.records[0]).toMatchObject({
       amountMinor: -2_500,
-      detail: 'Manual - confirmed - protected',
+      detail: 'Manual - confirmed - Protected in the route',
       title: 'Dentist',
     });
   });

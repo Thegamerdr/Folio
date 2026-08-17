@@ -33,7 +33,12 @@ import { deriveCalendarEvents } from './calendarEvents';
 import { resolvePayday } from './payday';
 import { nextIncomeDate, selectMonthlyIncome } from './income';
 import { monthlySpendBaseline } from './historyStats';
-import { useAppStore, selectBankBalanceMinor, bankTransactions, type AppState } from '../store';
+import {
+  useAppStore,
+  selectBankBalanceMinor,
+  bankAnalyticsTransactions,
+  type AppState,
+} from '../store';
 import { derivePressure } from '../screens/today/pressure';
 import { workspaceLocalDate } from './workspaceRoot';
 
@@ -213,7 +218,7 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // Bank-only (ACCOUNTS_MODEL.md §2.4): a credit-card statement's spend is borrowing, not a bank
   // outflow, so it must never feed the realized "Going out" figure. `bankTransactions` is a no-op
   // filter on a single-account (migrated) install.
-  const bankTxns = bankTransactions(state);
+  const bankTxns = bankAnalyticsTransactions(state);
   const projectedOutgoing =
     spend.reduce((acc, d) => acc + d.amount, 0) + holds.reduce((acc, d) => acc + d.amount, 0);
   const hasHistory = bankTxns.length > 0;

@@ -260,6 +260,13 @@ export type AvailablePositionSnapshot = Readonly<{
 }>;
 
 export type TransactionStatus = 'pending' | 'posted' | 'reversed' | 'void';
+export type TransactionLifecycleReason =
+  | 'declined'
+  | 'duplicate'
+  | 'user-voided'
+  | 'provider-expired'
+  | 'other';
+export type TransactionMovementKind = 'ordinary' | 'transfer' | 'refund';
 export type TransactionCertainty = AuthorityState;
 export type TransactionReviewStatus = 'proposed' | 'needs_review' | 'accepted' | 'rejected';
 export type TransactionSourceKind =
@@ -306,12 +313,20 @@ export type FinancialTransaction = Readonly<{
   replacedBy?: TransactionId;
   fulfils?: ExpectationId;
   reversalOf?: TransactionId;
+  refundOf?: TransactionId;
+  duplicateOf?: TransactionId;
+  movementKind?: TransactionMovementKind;
+  lifecycleReason?: TransactionLifecycleReason;
+  lifecycleChangedAt?: InstantString;
+  manuallyCorrectedAt?: InstantString;
+  providerUpdatedAt?: InstantString;
   /** Exact source-application identity retained across canonical namespacing. */
   sourceTransactionId?: string;
   sourceEvidenceId?: string;
   externalId?: string;
   connectionId?: string;
   sourceOrdinal?: number;
+  sourceTransferLinkId?: string;
 }>;
 
 export type TransferLink = Readonly<{
@@ -347,6 +362,7 @@ export type FinancialExpectation = Readonly<{
   externalId?: string;
   connectionId?: string;
   sourceOrdinal?: number;
+  sourceTransferLinkId?: string;
 }>;
 
 export type SourceRecordKind =
@@ -942,6 +958,8 @@ export type ReviewQueueItemState = Readonly<{
   addedAt: string;
   category?: string;
   rememberedCategory?: true;
+  lifecycleStatus?: 'pending' | 'posted';
+  providerUpdatedAt?: string;
 }>;
 
 /** Workspace-scoped source-preserving state used by transaction intake and evidence workflows.
@@ -2599,11 +2617,19 @@ export function createTransaction(input: {
   replacedBy?: string | TransactionId;
   fulfils?: string | ExpectationId;
   reversalOf?: string | TransactionId;
+  refundOf?: string | TransactionId;
+  duplicateOf?: string | TransactionId;
+  movementKind?: TransactionMovementKind;
+  lifecycleReason?: TransactionLifecycleReason;
+  lifecycleChangedAt?: string | InstantString;
+  manuallyCorrectedAt?: string | InstantString;
+  providerUpdatedAt?: string | InstantString;
   sourceTransactionId?: string;
   sourceEvidenceId?: string;
   externalId?: string;
   connectionId?: string;
   sourceOrdinal?: number;
+  sourceTransferLinkId?: string;
 }): FinancialTransaction {
   const amount = createMoney(input.amount);
   const splits = (input.splits ?? []).map((split) => createTransactionSplit(split));
@@ -2633,11 +2659,19 @@ export function createTransaction(input: {
     replacedBy?: TransactionId;
     fulfils?: ExpectationId;
     reversalOf?: TransactionId;
+    refundOf?: TransactionId;
+    duplicateOf?: TransactionId;
+    movementKind?: TransactionMovementKind;
+    lifecycleReason?: TransactionLifecycleReason;
+    lifecycleChangedAt?: InstantString;
+    manuallyCorrectedAt?: InstantString;
+    providerUpdatedAt?: InstantString;
     sourceTransactionId?: string;
     sourceEvidenceId?: string;
     externalId?: string;
     connectionId?: string;
     sourceOrdinal?: number;
+    sourceTransferLinkId?: string;
   } = {
     id: typeof input.id === 'string' ? createTransactionId(input.id) : input.id,
     workspaceId:
@@ -2706,12 +2740,43 @@ export function createTransaction(input: {
         ? createTransactionId(input.reversalOf)
         : input.reversalOf;
   }
+  if (input.refundOf !== undefined) {
+    transaction.refundOf =
+      typeof input.refundOf === 'string' ? createTransactionId(input.refundOf) : input.refundOf;
+  }
+  if (input.duplicateOf !== undefined) {
+    transaction.duplicateOf =
+      typeof input.duplicateOf === 'string'
+        ? createTransactionId(input.duplicateOf)
+        : input.duplicateOf;
+  }
+  if (input.movementKind !== undefined) transaction.movementKind = input.movementKind;
+  if (input.lifecycleReason !== undefined) transaction.lifecycleReason = input.lifecycleReason;
+  if (input.lifecycleChangedAt !== undefined) {
+    transaction.lifecycleChangedAt =
+      typeof input.lifecycleChangedAt === 'string'
+        ? createInstantString(input.lifecycleChangedAt)
+        : input.lifecycleChangedAt;
+  }
+  if (input.manuallyCorrectedAt !== undefined) {
+    transaction.manuallyCorrectedAt =
+      typeof input.manuallyCorrectedAt === 'string'
+        ? createInstantString(input.manuallyCorrectedAt)
+        : input.manuallyCorrectedAt;
+  }
+  if (input.providerUpdatedAt !== undefined) {
+    transaction.providerUpdatedAt =
+      typeof input.providerUpdatedAt === 'string'
+        ? createInstantString(input.providerUpdatedAt)
+        : input.providerUpdatedAt;
+  }
 
   for (const [label, value] of [
     ['Source transaction ID', input.sourceTransactionId],
     ['Source evidence ID', input.sourceEvidenceId],
     ['External transaction ID', input.externalId],
     ['Connection ID', input.connectionId],
+    ['Source transfer-link ID', input.sourceTransferLinkId],
   ] as const) {
     if (value !== undefined && (value.trim().length === 0 || value.length > 512)) {
       throw new Error(`${label} must be between 1 and 512 characters.`);
@@ -2723,6 +2788,9 @@ export function createTransaction(input: {
   if (input.sourceEvidenceId !== undefined) transaction.sourceEvidenceId = input.sourceEvidenceId;
   if (input.externalId !== undefined) transaction.externalId = input.externalId;
   if (input.connectionId !== undefined) transaction.connectionId = input.connectionId;
+  if (input.sourceTransferLinkId !== undefined) {
+    transaction.sourceTransferLinkId = input.sourceTransferLinkId;
+  }
   if (input.sourceOrdinal !== undefined) {
     if (!Number.isSafeInteger(input.sourceOrdinal) || input.sourceOrdinal < 0) {
       throw new Error('Source transaction ordinal must be a non-negative safe integer.');

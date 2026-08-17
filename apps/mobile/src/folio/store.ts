@@ -42,6 +42,15 @@ import {
   type OverdraftSummary,
 } from './lib/accountPolicy';
 import {
+  isCashEffectiveTransaction,
+  mergeProviderTransaction,
+  transactionAnalyticsRows,
+  transactionLifecycleStatusOf,
+  type TransactionLifecycleReason,
+  type TransactionLifecycleStatus,
+  type TransactionMoneyMovementKind,
+} from './lib/transactionPolicy';
+import {
   applyMemoryToCandidates,
   MERCHANT_CATEGORY_CAP,
   type CandidateWithMemory,
@@ -506,6 +515,21 @@ export type Transaction = {
    *  safe and never crashes a reader — always go through `accountIdOf()`, never read this field raw
    *  when you need "the effective account". */
   accountId?: string;
+  /** Provider/ledger lifecycle. Missing on legacy rows means posted. */
+  lifecycleStatus?: TransactionLifecycleStatus;
+  lifecycleReason?: TransactionLifecycleReason;
+  lifecycleChangedAt?: string;
+  /** Ordinary purchase/income, an explicitly linked own-account transfer, or a linked refund. */
+  moneyMovementKind?: TransactionMoneyMovementKind;
+  transferLinkId?: string;
+  refundOfId?: string;
+  reversalOfId?: string;
+  duplicateOfId?: string;
+  replacesId?: string;
+  replacedById?: string;
+  /** Protects a newer user correction from a stale provider refresh. */
+  manuallyCorrectedAt?: string;
+  providerUpdatedAt?: string;
 };
 
 /** ACCOUNTS_MODEL.md §2.1 — a single named account (bank, credit card, savings, or cash). Phase 1
@@ -592,12 +616,21 @@ export function isBankTxn(
  *  content as `state.transactions` (nothing is a liability account), so every existing fixture is
  *  unaffected. */
 export function bankTransactions(state: {
-  accounts?: Account[] | undefined;
-  transactions: Transaction[];
+  accounts?: readonly Account[] | undefined;
+  transactions: readonly Transaction[];
 }): Transaction[] {
   const accounts = state.accounts ?? [];
-  if (accounts.length === 0) return state.transactions;
-  return state.transactions.filter((t) => isBankTxn(state, t));
+  const cashEffective = state.transactions.filter(isCashEffectiveTransaction);
+  if (accounts.length === 0) return cashEffective;
+  return cashEffective.filter((t) => isBankTxn(state, t));
+}
+
+/** Posted cash-account rows with transfer/refund/reversal semantics applied for trend analytics. */
+export function bankAnalyticsTransactions(state: {
+  accounts?: readonly Account[] | undefined;
+  transactions: readonly Transaction[];
+}): Transaction[] {
+  return transactionAnalyticsRows(bankTransactions(state));
 }
 
 /** @rn-engine timeline-verbs — the missing event log the web's ScreenTimeline demo stubbed with 8
@@ -1041,6 +1074,9 @@ export type ReviewItem = {
   externalId?: string;
   /** Melo-local connection ID. Enables a separate "delete imported history" choice on disconnect. */
   bankConnectionId?: string;
+  /** Bank candidates retain pending/posted truth through review. Non-bank candidates default posted. */
+  lifecycleStatus?: Extract<TransactionLifecycleStatus, 'pending' | 'posted'>;
+  providerUpdatedAt?: string;
   /** Human hint the reader wrote ("looks like a bill"). */
   hint?: string;
   /** When Folio queued it. Used for sort + 14-day age-out. */
@@ -1072,7 +1108,7 @@ export type MeloState = {
 };
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-export const CURRENT_SCHEMA_VERSION = 20;
+export const CURRENT_SCHEMA_VERSION = 21;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -1727,6 +1763,31 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
     criticalJourneyContinuity: removeUnsupportedTrustedCoreConfidence(
       prev['criticalJourneyContinuity'],
     ),
+  }),
+  // v20 → v21: make transaction lifecycle explicit. Historical accepted rows were posted facts;
+  // this migration records that truth without changing any amount, date, account or provenance.
+  // Queued bank proposals preserve their provider status when present and otherwise remain posted.
+  21: (prev) => ({
+    ...prev,
+    schemaVersion: 21,
+    transactions: Array.isArray(prev['transactions'])
+      ? (prev['transactions'] as Transaction[]).map((transaction) => ({
+          ...transaction,
+          lifecycleStatus: transaction.lifecycleStatus ?? 'posted',
+        }))
+      : [],
+    reviewQueue: Array.isArray(prev['reviewQueue'])
+      ? (prev['reviewQueue'] as ReviewItem[]).map((item) => ({
+          ...item,
+          lifecycleStatus: item.lifecycleStatus ?? 'posted',
+        }))
+      : [],
+    reviewQueueSpillover: Array.isArray(prev['reviewQueueSpillover'])
+      ? (prev['reviewQueueSpillover'] as ReviewItem[]).map((item) => ({
+          ...item,
+          lifecycleStatus: item.lifecycleStatus ?? 'posted',
+        }))
+      : [],
   }),
 };
 
@@ -5727,23 +5788,17 @@ export function addTransaction(
 ): Transaction {
   requireSourceEvidence(t.sourceEvidenceId);
   const full: Transaction = {
+    ...t,
     id: t.id ?? `txn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     when: t.when ?? new Date().toISOString(),
-    merchant: t.merchant,
-    amount: t.amount,
-    category: t.category,
-    source: t.source,
-    ...(t.sourceEvidenceId !== undefined ? { sourceEvidenceId: t.sourceEvidenceId } : {}),
-    ...(t.accountId !== undefined ? { accountId: t.accountId } : {}),
-    ...(t.externalId !== undefined ? { externalId: t.externalId } : {}),
-    ...(t.bankConnectionId !== undefined ? { bankConnectionId: t.bankConnectionId } : {}),
+    lifecycleStatus: t.lifecycleStatus ?? 'posted',
   };
   const capture = beginMaterialWrite({
     type: full.category === 'income' || full.amount > 0 ? 'income_change' : 'new_transaction',
     sourceIds: transactionSourceIds(full),
     truth: transactionTruth(full),
     idempotencyKey: `transaction_add_${full.id}`,
-    monetaryEffectMinor: Math.round(full.amount * 100),
+    monetaryEffectMinor: isCashEffectiveTransaction(full) ? Math.round(full.amount * 100) : 0,
     occurredAt: full.when,
   });
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
@@ -5810,6 +5865,9 @@ export function recordWorkspaceOwnerTransferLeg(
     source: 'manual',
     accountId: account.id,
     externalId: input.transferId,
+    lifecycleStatus: 'posted',
+    moneyMovementKind: 'transfer',
+    transferLinkId: input.transferId,
   };
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
     [transaction, ...state.transactions.filter((row) => row.id !== transaction.id)],
@@ -5931,16 +5989,10 @@ export function addTransactionsBatch(
   if (rows.length === 0) return [];
   for (const row of rows) requireSourceEvidence(row.sourceEvidenceId);
   const fullRows: Transaction[] = rows.map((t, i) => ({
+    ...t,
     id: t.id ?? `txn-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
     when: t.when ?? new Date().toISOString(),
-    merchant: t.merchant,
-    amount: t.amount,
-    category: t.category,
-    source: t.source,
-    ...(t.sourceEvidenceId !== undefined ? { sourceEvidenceId: t.sourceEvidenceId } : {}),
-    ...(t.accountId !== undefined ? { accountId: t.accountId } : {}),
-    ...(t.externalId !== undefined ? { externalId: t.externalId } : {}),
-    ...(t.bankConnectionId !== undefined ? { bankConnectionId: t.bankConnectionId } : {}),
+    lifecycleStatus: t.lifecycleStatus ?? 'posted',
   }));
   const capture = beginMaterialWrite({
     type: 'reviewed_statement',
@@ -5952,7 +6004,10 @@ export function addTransactionsBatch(
       fullRows.map((row) => row.id).join('|'),
       0x01000193,
     )}`,
-    monetaryEffectMinor: Math.round(fullRows.reduce((sum, row) => sum + row.amount, 0) * 100),
+    monetaryEffectMinor: Math.round(
+      fullRows.reduce((sum, row) => sum + (isCashEffectiveTransaction(row) ? row.amount : 0), 0) *
+        100,
+    ),
     occurredAt: new Date().toISOString(),
   });
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
@@ -6025,7 +6080,7 @@ export function removeTransaction(id: string) {
     sourceIds: transactionSourceIds(target),
     truth: 'user_confirmed',
     idempotencyKey: `transaction_remove_${id}`,
-    monetaryEffectMinor: -Math.round(target.amount * 100),
+    monetaryEffectMinor: isCashEffectiveTransaction(target) ? -Math.round(target.amount * 100) : 0,
   });
   setPartialWithTypedCommand(
     {
@@ -6267,6 +6322,7 @@ export function addStatementAsHistory(
 
   const stateAfterAdd = getState();
   const overspent = isOverspentLanding(stateAfterAdd);
+  const analyticsTransactions = bankAnalyticsTransactions(stateAfterAdd);
   const droppedByThisImport = (stateAfterAdd.droppedTransactionCount ?? 0) - droppedBeforeAdd;
 
   // Same precedence ordering as ReviewScreen.tsx's onAdd (income > bill > drift > annual, gated off
@@ -6275,20 +6331,20 @@ export function addStatementAsHistory(
   const incomeSignals = overspent
     ? []
     : findCaughtIncome(
-        stateAfterAdd.transactions,
+        analyticsTransactions,
         stateAfterAdd.incomeSources ?? [],
         stateAfterAdd.dismissedIncomeSignals ?? [],
       );
   if (!overspent && incomeSignals.length === 0) {
     findCaughtBills(
-      stateAfterAdd.transactions,
+      analyticsTransactions,
       stateAfterAdd.subs.map((s) => s.name),
       stateAfterAdd.dismissedBillSignals ?? [],
     );
   }
   if (!overspent && incomeSignals.length === 0) {
     findCaughtAnnual(
-      stateAfterAdd.transactions,
+      analyticsTransactions,
       stateAfterAdd.dismissedAnnualSignals ?? [],
       stateAfterAdd.subs.map((s) => s.name),
     );
@@ -6408,7 +6464,12 @@ export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' |
   const target = state.transactions.find((t) => t.id === txnId);
   if (!target) return;
   const at = new Date().toISOString();
-  const { txn: edited, edits } = applyTxnEdit(target, patch, { at, by });
+  const result = applyTxnEdit(target, patch, { at, by });
+  const edited: Transaction = {
+    ...result.txn,
+    ...(by === 'user' ? { manuallyCorrectedAt: at } : {}),
+  };
+  const { edits } = result;
   if (edits.length === 0) return; // no-op edit records nothing and writes nothing.
   const sourceIds = transactionSourceIds(target);
   const capture = beginMaterialWrite({
@@ -6417,7 +6478,9 @@ export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' |
     truth: by === 'melo' ? 'inferred' : 'user_confirmed',
     idempotencyKey: `transaction_edit_${txnId}_${at}`,
     monetaryEffectMinor:
-      typeof patch.amount === 'number' ? Math.round((patch.amount - target.amount) * 100) : null,
+      typeof patch.amount === 'number' && isCashEffectiveTransaction(target)
+        ? Math.round((patch.amount - target.amount) * 100)
+        : null,
     occurredAt: at,
   });
   setPartialWithTypedCommand(
@@ -6476,6 +6539,218 @@ export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' |
       reversedByCorrectionId: null,
     });
   }
+}
+
+export function setTransactionLifecycle(
+  transactionId: string,
+  lifecycleStatus: TransactionLifecycleStatus,
+  options: Readonly<{ reason?: TransactionLifecycleReason; at?: string }> = {},
+): Transaction | null {
+  const target = state.transactions.find((transaction) => transaction.id === transactionId);
+  if (target === undefined) return null;
+  const at = options.at ?? new Date().toISOString();
+  const beforeEffective = isCashEffectiveTransaction(target);
+  const updated: Transaction = {
+    ...target,
+    lifecycleStatus,
+    lifecycleChangedAt: at,
+    ...(options.reason === undefined ? {} : { lifecycleReason: options.reason }),
+  };
+  const afterEffective = isCashEffectiveTransaction(updated);
+  const monetaryEffectMinor =
+    beforeEffective === afterEffective
+      ? 0
+      : Math.round(target.amount * 100) * (afterEffective ? 1 : -1);
+  setPartialWithTypedCommand(
+    {
+      transactions: state.transactions.map((transaction) =>
+        transaction.id === transactionId ? updated : transaction,
+      ),
+    },
+    {
+      commandType: 'folio.transaction.lifecycle.set.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'transaction', id: transactionId }],
+      before: { transaction: target },
+      after: { transaction: updated, monetaryEffectMinor },
+      changedEntityIds: [transactionId],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+      occurredAt: at,
+    },
+  );
+  return updated;
+}
+
+export function markTransactionDeclined(transactionId: string, at?: string): Transaction | null {
+  return setTransactionLifecycle(transactionId, 'void', {
+    reason: 'declined',
+    ...(at ? { at } : {}),
+  });
+}
+
+export function markTransactionDuplicate(
+  transactionId: string,
+  duplicateOfId: string,
+  at?: string,
+): Transaction | null {
+  const target = state.transactions.find((row) => row.id === transactionId);
+  const original = state.transactions.find((row) => row.id === duplicateOfId);
+  if (transactionId === duplicateOfId || original === undefined) {
+    throw new Error('A duplicate must reference a different transaction in this workspace.');
+  }
+  if (target === undefined) return null;
+  const occurredAt = at ?? new Date().toISOString();
+  const updated: Transaction = {
+    ...target,
+    lifecycleStatus: 'void',
+    lifecycleReason: 'duplicate',
+    lifecycleChangedAt: occurredAt,
+    duplicateOfId,
+  };
+  setPartialWithTypedCommand(
+    {
+      transactions: state.transactions.map((row) => (row.id === transactionId ? updated : row)),
+    },
+    {
+      commandType: 'folio.transaction.duplicate.mark.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'transaction', id: target.id },
+        { type: 'transaction', id: original.id },
+      ],
+      before: { transaction: target },
+      after: {
+        transaction: updated,
+        duplicateOfId: original.id,
+        monetaryEffectMinor: isCashEffectiveTransaction(target)
+          ? -Math.round(target.amount * 100)
+          : 0,
+      },
+      changedEntityIds: [target.id],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+      occurredAt,
+    },
+  );
+  return updated;
+}
+
+export function recordTransactionReversal(
+  transactionId: string,
+  options: Readonly<{ id?: string; when?: string; merchant?: string }> = {},
+): Transaction {
+  const original = state.transactions.find((transaction) => transaction.id === transactionId);
+  if (original === undefined || !isCashEffectiveTransaction(original)) {
+    throw new Error('Only a posted transaction can be reversed.');
+  }
+  if (state.transactions.some((transaction) => transaction.reversalOfId === transactionId)) {
+    throw new Error('This transaction already has a recorded reversal.');
+  }
+  return addTransaction({
+    ...(options.id === undefined ? {} : { id: options.id }),
+    ...(options.when === undefined ? {} : { when: options.when }),
+    merchant: options.merchant ?? `Reversal · ${original.merchant}`,
+    amount: -original.amount,
+    category: original.category,
+    source: original.source,
+    lifecycleStatus: 'posted',
+    reversalOfId: original.id,
+    ...(original.accountId === undefined ? {} : { accountId: original.accountId }),
+    ...(original.bankConnectionId === undefined
+      ? {}
+      : { bankConnectionId: original.bankConnectionId }),
+  });
+}
+
+export function recordTransactionRefund(
+  transactionId: string,
+  amount: number,
+  options: Readonly<{
+    id?: string;
+    when?: string;
+    merchant?: string;
+    category?: Transaction['category'];
+    source?: Transaction['source'];
+  }> = {},
+): Transaction {
+  const original = state.transactions.find((transaction) => transaction.id === transactionId);
+  if (
+    original === undefined ||
+    !isCashEffectiveTransaction(original) ||
+    original.amount >= 0 ||
+    !Number.isFinite(amount) ||
+    amount <= 0
+  ) {
+    throw new Error('A refund requires a positive amount linked to a posted debit.');
+  }
+  const alreadyRefunded = state.transactions
+    .filter(
+      (transaction) =>
+        transaction.refundOfId === transactionId && isCashEffectiveTransaction(transaction),
+    )
+    .reduce((sum, transaction) => sum + Math.max(0, transaction.amount), 0);
+  if (alreadyRefunded + amount > Math.abs(original.amount) + 0.000_001) {
+    throw new Error('Refunds cannot exceed the original posted debit.');
+  }
+  return addTransaction({
+    ...(options.id === undefined ? {} : { id: options.id }),
+    ...(options.when === undefined ? {} : { when: options.when }),
+    merchant: options.merchant ?? `Refund · ${original.merchant}`,
+    amount,
+    category: options.category ?? original.category,
+    source: options.source ?? original.source,
+    lifecycleStatus: 'posted',
+    moneyMovementKind: 'refund',
+    refundOfId: original.id,
+    ...(original.accountId === undefined ? {} : { accountId: original.accountId }),
+  });
+}
+
+export function linkOwnAccountTransfer(
+  debitTransactionId: string,
+  creditTransactionId: string,
+  transferLinkId = `transfer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+): readonly [Transaction, Transaction] {
+  const debit = state.transactions.find((transaction) => transaction.id === debitTransactionId);
+  const credit = state.transactions.find((transaction) => transaction.id === creditTransactionId);
+  if (
+    debit === undefined ||
+    credit === undefined ||
+    !isCashEffectiveTransaction(debit) ||
+    !isCashEffectiveTransaction(credit) ||
+    debit.amount >= 0 ||
+    credit.amount <= 0 ||
+    Math.abs(debit.amount + credit.amount) > 0.000_001 ||
+    accountIdOf(debit) === accountIdOf(credit) ||
+    debit.workspaceId !== credit.workspaceId
+  ) {
+    throw new Error('An own-account transfer needs equal opposite posted legs in two accounts.');
+  }
+  const linkedDebit: Transaction = { ...debit, moneyMovementKind: 'transfer', transferLinkId };
+  const linkedCredit: Transaction = { ...credit, moneyMovementKind: 'transfer', transferLinkId };
+  setPartialWithTypedCommand(
+    {
+      transactions: state.transactions.map((transaction) =>
+        transaction.id === debit.id
+          ? linkedDebit
+          : transaction.id === credit.id
+            ? linkedCredit
+            : transaction,
+      ),
+    },
+    {
+      commandType: 'folio.transaction.transfer.link.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'transaction', id: debit.id },
+        { type: 'transaction', id: credit.id },
+      ],
+      before: { debit, credit },
+      after: { debit: linkedDebit, credit: linkedCredit, transferLinkId },
+      changedEntityIds: [debit.id, credit.id],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+    },
+  );
+  return [linkedDebit, linkedCredit];
 }
 
 export function addCalendarEvent(e: Omit<CalendarEvent, 'id'> & { id?: string }): CalendarEvent {
@@ -7085,8 +7360,11 @@ export function enqueueReviewItems(
   candidates: Array<Omit<ReviewItem, 'id' | 'addedAt'>>,
 ): EnqueueReviewItemsResult {
   if (candidates.length === 0) return { fresh: [], dropped: 0 };
-  const existingQueue = state.reviewQueue ?? [];
-  const existingSpillover = state.reviewQueueSpillover ?? [];
+  let existingQueue = state.reviewQueue ?? [];
+  let existingSpillover = state.reviewQueueSpillover ?? [];
+  let reconciledTransactions = state.transactions;
+  const reconciledTransactionIds: string[] = [];
+  const reconciledProposalIds: string[] = [];
   const ignored = new Set(state.ignoredReviewSigs ?? []);
   const ignoredBankExternalIds = new Set(state.ignoredBankExternalIds ?? []);
   const now = Date.now();
@@ -7100,8 +7378,53 @@ export function enqueueReviewItems(
     ) {
       continue;
     }
+    if (c.externalId !== undefined) {
+      const accepted = reconciledTransactions.find(
+        (transaction) => transaction.externalId === c.externalId && transaction.source === 'bank',
+      );
+      if (accepted !== undefined) {
+        const updated = mergeProviderTransaction(accepted, {
+          lifecycleStatus: c.lifecycleStatus ?? 'posted',
+          providerUpdatedAt: c.providerUpdatedAt ?? new Date(now).toISOString(),
+          when: `${c.date ?? accepted.when.slice(0, 10)}T00:00:00.000Z`,
+          amount: c.amount,
+          merchant: c.merchant,
+          ...(c.accountId === undefined ? {} : { accountId: c.accountId }),
+        });
+        if (!structurallyEqual(accepted, updated)) {
+          reconciledTransactions = reconciledTransactions.map((transaction) =>
+            transaction.id === accepted.id ? updated : transaction,
+          );
+          reconciledTransactionIds.push(accepted.id);
+        }
+        continue;
+      }
+      const queueMatch = existingQueue.find((item) => item.externalId === c.externalId);
+      const spilloverMatch = existingSpillover.find((item) => item.externalId === c.externalId);
+      const proposal = queueMatch ?? spilloverMatch;
+      if (proposal !== undefined) {
+        const updated: ReviewItem = {
+          ...proposal,
+          merchant: c.merchant,
+          amount: c.amount,
+          ...(c.date === undefined ? {} : { date: c.date }),
+          ...(c.accountId === undefined ? {} : { accountId: c.accountId }),
+          lifecycleStatus:
+            proposal.lifecycleStatus === 'posted' || c.lifecycleStatus === 'posted'
+              ? 'posted'
+              : 'pending',
+          providerUpdatedAt: c.providerUpdatedAt ?? new Date(now).toISOString(),
+        };
+        existingQueue = existingQueue.map((item) => (item.id === proposal.id ? updated : item));
+        existingSpillover = existingSpillover.map((item) =>
+          item.id === proposal.id ? updated : item,
+        );
+        reconciledProposalIds.push(proposal.id);
+        continue;
+      }
+    }
     const dupe = c.externalId
-      ? state.transactions.some((it) => it.externalId === c.externalId) ||
+      ? reconciledTransactions.some((it) => it.externalId === c.externalId) ||
         existingQueue.some((it) => it.externalId === c.externalId) ||
         existingSpillover.some((it) => it.externalId === c.externalId)
       : existingQueue.some(
@@ -7123,7 +7446,13 @@ export function enqueueReviewItems(
       addedAt: new Date(now).toISOString(),
     });
   }
-  if (fresh.length === 0) return { fresh: [], dropped: 0 };
+  if (
+    fresh.length === 0 &&
+    reconciledTransactionIds.length === 0 &&
+    reconciledProposalIds.length === 0
+  ) {
+    return { fresh: [], dropped: 0 };
+  }
 
   // Newest-first, TTL-filtered pool of every row this call needs to place: the fresh candidates plus
   // everything already visible or already spilled over.
@@ -7133,16 +7462,32 @@ export function enqueueReviewItems(
   const nextSpillover = pool.slice(REVIEW_QUEUE_CAP, REVIEW_QUEUE_CAP + REVIEW_QUEUE_SPILLOVER_CAP);
 
   setPartialWithTypedCommand(
-    { reviewQueue: nextQueue, reviewQueueSpillover: nextSpillover },
+    {
+      reviewQueue: nextQueue,
+      reviewQueueSpillover: nextSpillover,
+      ...(reconciledTransactionIds.length === 0 ? {} : { transactions: reconciledTransactions }),
+    },
     {
       commandType: 'folio.review.enqueue.v1',
       actorKind: reviewActorKind(fresh),
-      entityRefs: fresh.map((item) => ({ type: 'review-proposal', id: item.id })),
+      entityRefs: [
+        ...fresh.map((item) => ({ type: 'review-proposal' as const, id: item.id })),
+        ...reconciledProposalIds.map((id) => ({ type: 'review-proposal' as const, id })),
+        ...reconciledTransactionIds.map((id) => ({ type: 'transaction' as const, id })),
+      ],
       before: {},
-      after: { proposals: fresh },
-      changedEntityIds: fresh.map((item) => item.id),
+      after: {
+        proposals: fresh,
+        reconciledProposalIds,
+        reconciledTransactionIds,
+      },
+      changedEntityIds: [
+        ...fresh.map((item) => item.id),
+        ...reconciledProposalIds,
+        ...reconciledTransactionIds,
+      ],
       invalidatedProjectionKinds: ['review-proposals'],
-      occurredAt: fresh[0]!.addedAt,
+      occurredAt: fresh[0]?.addedAt ?? new Date(now).toISOString(),
     },
   );
 
@@ -8840,17 +9185,14 @@ function recordBusinessCash(
  *       to 'income' but any valid category the model gives is respected.
  *       Source 'melo'.
  *
- *   log_refund({ merchant, amount>0, original?, category? })
- *     → one POSITIVE transaction tagged as a refund and "linked" to the
- *       original spend WITHOUT auto-deciding a verdict. There is no free-text
- *       note field on Transaction, so the link is recorded honestly in the
- *       `merchant` string as "<merchant> · refund" (and "· re <original>" when
- *       the model passes the original merchant/txn it relates to). Category
- *       stays the honest, non-judgemental 'other' unless the model supplies a
- *       valid one — a refund is NOT income, so it is never silently filed as
- *       income. Source 'melo'.
+ *   log_refund({ merchant, amount>0, original?, originalTransactionId?, category? })
+ *     → one POSITIVE transaction explicitly typed as a refund. When a real
+ *       original transaction id is supplied, the relationship is stored in
+ *       `refundOfId`; free text is presentation only and never masquerades as
+ *       a durable link. An unlinked refund stays out of inferred income until
+ *       the user identifies its original spend. Source 'melo'.
  *
- *   log_transfer({ from, to, amount>0 })
+ *   log_transfer({ from, to, amount>0, fromAccountId?, toAccountId? })
  *     → a PAIRED move recorded as TWO neutral transactions on one timestamp:
  *       a negative "out" leg ("<from> → <to> · transfer") and a positive "in"
  *       leg ("<to> ← <from> · transfer"), both category 'other'. A transfer is
@@ -8858,6 +9200,8 @@ function recordBusinessCash(
  *       never reads as a spend or an inflow. Undo removes BOTH legs. Source
  *       'melo'. (A single transfer-tagged record was the alternative; the
  *       paired shape is used so each side is visible where the money lands.)
+ *       Both endpoints must resolve to two real, active cash accounts; Melo
+ *       fails closed instead of inventing ownership or account placement.
  *
  */
 export function applyMeloTool(name: string, input: Record<string, unknown>): MeloToolResult {
@@ -8928,13 +9272,36 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
       const merchant = String(input.merchant ?? '').trim();
       const amount = Number(input.amount ?? 0);
       if (!merchant || !(amount > 0)) return { applied: false, reason: 'bad args' };
-      // Tag it as a refund and (optionally) "link" it to the original spend in the
-      // merchant string — the only free-text field we have. Honest, not a verdict.
       const original = String(input.original ?? '').trim();
       const label = original ? `${merchant} · refund · re ${original}` : `${merchant} · refund`;
-      // A refund is an inflow but NOT income; keep 'other' unless the model gives a real category.
       const category = input.category === undefined ? 'other' : coerceCategory(input.category);
-      const created = addTransaction({ merchant: label, amount: amount, category, source: 'melo' });
+      const originalTransactionId = String(
+        input.originalTransactionId ?? input.transactionId ?? input.originalId ?? '',
+      ).trim();
+      let created: Transaction;
+      if (originalTransactionId) {
+        try {
+          created = recordTransactionRefund(originalTransactionId, amount, {
+            merchant: label,
+            category,
+            source: 'melo',
+          });
+        } catch (reason) {
+          return {
+            applied: false,
+            reason: reason instanceof Error ? reason.message : 'original transaction unavailable',
+          };
+        }
+      } else {
+        created = addTransaction({
+          merchant: label,
+          amount,
+          category,
+          source: 'melo',
+          lifecycleStatus: 'posted',
+          moneyMovementKind: 'refund',
+        });
+      }
       recordMaterialDecision({
         idempotencyKey: `melo_log_refund_${created.id}`,
         decisionType: 'melo-confirmed-action',
@@ -8959,23 +9326,57 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
       const to = String(input.to ?? '').trim();
       const amount = Number(input.amount ?? 0);
       if (!from || !to || !(amount > 0)) return { applied: false, reason: 'bad args' };
-      // A neutral, paired move: one negative "out" leg + one positive "in" leg on a
-      // shared timestamp, so it nets to £0 and never reads as a spend or an inflow.
+      const resolveCashAccount = (label: string, explicitId: unknown): Account | undefined => {
+        const requestedId = typeof explicitId === 'string' ? explicitId.trim() : '';
+        const normalizedLabel = label.toLocaleLowerCase('en-GB');
+        const candidates = (state.accounts ?? []).filter(
+          (account) =>
+            !account.isLiability &&
+            isAccountSelectable(account) &&
+            (requestedId
+              ? account.id === requestedId
+              : account.id.toLocaleLowerCase('en-GB') === normalizedLabel ||
+                account.name.trim().toLocaleLowerCase('en-GB') === normalizedLabel),
+        );
+        return candidates.length === 1 ? candidates[0] : undefined;
+      };
+      const fromAccount = resolveCashAccount(from, input.fromAccountId);
+      const toAccount = resolveCashAccount(to, input.toAccountId);
+      if (fromAccount === undefined || toAccount === undefined || fromAccount.id === toAccount.id) {
+        return {
+          applied: false,
+          reason: 'Choose two different existing cash accounts for this transfer.',
+        };
+      }
       const when = new Date().toISOString();
-      const outLeg = addTransaction({
-        merchant: `${from} → ${to} · transfer`,
-        amount: -amount,
-        category: 'other',
-        source: 'melo',
-        when,
-      });
-      const inLeg = addTransaction({
-        merchant: `${to} ← ${from} · transfer`,
-        amount: amount,
-        category: 'other',
-        source: 'melo',
-        when,
-      });
+      const transferLinkId = `transfer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const [outLeg, inLeg] = addTransactionsBatch([
+        {
+          merchant: `${fromAccount.name} → ${toAccount.name} · transfer`,
+          amount: -amount,
+          category: 'other',
+          source: 'melo',
+          when,
+          accountId: fromAccount.id,
+          lifecycleStatus: 'posted',
+          moneyMovementKind: 'transfer',
+          transferLinkId,
+        },
+        {
+          merchant: `${toAccount.name} ← ${fromAccount.name} · transfer`,
+          amount,
+          category: 'other',
+          source: 'melo',
+          when,
+          accountId: toAccount.id,
+          lifecycleStatus: 'posted',
+          moneyMovementKind: 'transfer',
+          transferLinkId,
+        },
+      ]);
+      if (outLeg === undefined || inLeg === undefined) {
+        return { applied: false, reason: 'The transfer could not be recorded.' };
+      }
       recordMaterialDecision({
         idempotencyKey: `melo_log_transfer_${outLeg.id}_${inLeg.id}`,
         decisionType: 'melo-confirmed-action',

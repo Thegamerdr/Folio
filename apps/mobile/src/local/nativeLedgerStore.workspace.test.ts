@@ -84,6 +84,44 @@ describe('native SQLCipher physical workspace isolation', () => {
     }
   });
 
+  it('persists transaction lifecycle and relationship metadata in the encrypted workspace row', async () => {
+    const workspace = businessWorkspace();
+    const empty = createEmptyLocalLedgerState();
+    const state = {
+      ...empty,
+      transactions: [
+        {
+          id: 'refund-row',
+          title: 'Supplier refund',
+          amountMinor: 2_500,
+          date: '2026-08-01',
+          source: 'manual' as const,
+          status: 'confirmed' as const,
+          lifecycleStatus: 'posted' as const,
+          moneyMovementKind: 'refund' as const,
+          refundOfId: 'supplier-purchase',
+          providerUpdatedAt: '2026-08-01T12:00:00.000Z',
+          protected: false,
+        },
+      ],
+    };
+    const { saveLocalLedgerState } = await import('./nativeLedgerStore.js');
+
+    await saveLocalLedgerState(workspace, state);
+
+    const write = execute.mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO local_ledger_transactions'),
+    );
+    expect(write).toBeDefined();
+    const lifecycle = JSON.parse(String(write?.[1]?.[11])) as Record<string, unknown>;
+    expect(lifecycle).toMatchObject({
+      lifecycleStatus: 'posted',
+      moneyMovementKind: 'refund',
+      refundOfId: 'supplier-purchase',
+      providerUpdatedAt: '2026-08-01T12:00:00.000Z',
+    });
+  });
+
   it('does not inspect or clear the Personal compatibility database for Business', async () => {
     const workspace = businessWorkspace();
     const { clearLocalLedgerStorage, loadLocalLedgerState } =

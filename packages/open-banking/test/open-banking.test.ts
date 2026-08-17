@@ -571,6 +571,8 @@ describe('Open Banking runtime transport', () => {
           hint: 'Bank transaction · Current account',
           externalId: 'bank-public-txn-1',
           bankConnectionId: 'connection-1',
+          lifecycleStatus: 'posted',
+          providerUpdatedAt: '2026-07-14T10:02:00.000Z',
         },
       ],
       unsupportedCurrencyCount: 0,

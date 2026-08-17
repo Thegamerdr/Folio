@@ -17,7 +17,12 @@
 
 import { useMemo } from 'react';
 
-import { useAppStore, bankTransactions, type IncomeSource, type Transaction } from '../store';
+import {
+  useAppStore,
+  bankAnalyticsTransactions,
+  type IncomeSource,
+  type Transaction,
+} from '../store';
 import { detectIncomeSources, type IncomeSignal, type IncomeCadence } from './incomeSignals';
 
 // ---------------------------------------------------------------------------
@@ -206,7 +211,7 @@ export function useCaughtIncome(): IncomeCaughtCandidate[] {
   const incomeSources = useAppStore((state) => state.incomeSources ?? []);
   const dismissedIncomeSignals = useAppStore((state) => state.dismissedIncomeSignals ?? []);
   const transactions = useMemo(
-    () => bankTransactions({ transactions: rawTransactions, accounts }),
+    () => bankAnalyticsTransactions({ transactions: rawTransactions, accounts }),
     [rawTransactions, accounts],
   );
 

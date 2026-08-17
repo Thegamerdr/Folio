@@ -40,7 +40,7 @@
 
 import { useMemo } from 'react';
 
-import { useAppStore, bankTransactions, type Transaction } from '../store';
+import { useAppStore, bankAnalyticsTransactions, type Transaction } from '../store';
 import { detectRecurring, type Cadence, type Charge, type RecurringSignal } from './subSignals';
 import { findCaughtSubs } from './caughtSubs';
 
@@ -203,7 +203,7 @@ export function useCaughtBills(): CaughtBillCandidate[] {
   const subs = useAppStore((state) => state.subs);
   const dismissedBillSignals = useAppStore((state) => state.dismissedBillSignals ?? []);
   const transactions = useMemo(
-    () => bankTransactions({ transactions: rawTransactions, accounts }),
+    () => bankAnalyticsTransactions({ transactions: rawTransactions, accounts }),
     [rawTransactions, accounts],
   );
 

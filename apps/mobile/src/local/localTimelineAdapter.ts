@@ -14,6 +14,11 @@ export type LocalTimelineTone = 'confirmed' | 'estimated' | 'attention';
 
 export type LocalTimelineEntryKind =
   | 'confirmed-record'
+  | 'pending-record'
+  | 'reversed-record'
+  | 'void-record'
+  | 'refund'
+  | 'transfer'
   | 'imported-claim'
   | 'meaning-event'
   | 'expectation'
@@ -186,14 +191,52 @@ export function buildCanonicalTimelineModel(
         tone: balanceTone(adjustment.authorityState, adjustment.reviewState),
       }),
     ),
-    ...canonical.transactions.map((transaction) =>
-      timelineEvent({
+    ...canonical.transactions.map((transaction) => {
+      const kind: LocalTimelineEntryKind =
+        transaction.status === 'pending'
+          ? 'pending-record'
+          : transaction.status === 'reversed'
+            ? 'reversed-record'
+            : transaction.status === 'void'
+              ? 'void-record'
+              : transaction.movementKind === 'refund'
+                ? 'refund'
+                : transaction.movementKind === 'transfer'
+                  ? 'transfer'
+                  : 'confirmed-record';
+      const kindLabel =
+        kind === 'pending-record'
+          ? 'Pending'
+          : kind === 'reversed-record'
+            ? 'Reversed'
+            : kind === 'void-record'
+              ? 'Voided'
+              : kind === 'refund'
+                ? 'Refund'
+                : kind === 'transfer'
+                  ? 'Transfer'
+                  : 'Fact';
+      const detail =
+        kind === 'pending-record'
+          ? 'Pending provider record; retained but not counted as settled money'
+          : kind === 'reversed-record'
+            ? 'Reversed record retained in the audit trail and not counted as settled money'
+            : kind === 'void-record'
+              ? 'Voided or superseded record retained in the audit trail and not counted'
+              : kind === 'refund'
+                ? transaction.refundOf === undefined
+                  ? 'Refund recorded; original transaction is not linked'
+                  : 'Refund linked to its original transaction'
+                : kind === 'transfer'
+                  ? 'Own-account transfer; not treated as income or spending'
+                  : (transaction.reference ?? 'Confirmed financial record');
+      return timelineEvent({
         amountMinor: transaction.amount.minorUnits,
         canonical,
         date: transaction.localDate,
-        detail: transaction.reference ?? 'Confirmed financial record',
+        detail,
         evidence: {
-          actionPath: 'inspect',
+          actionPath: kind === 'pending-record' ? 'review' : 'inspect',
           authorityState: transaction.authorityState,
           linkedRecords: [
             { kind: 'transaction', id: String(transaction.id) },
@@ -203,17 +246,20 @@ export function buildCanonicalTimelineModel(
           ],
           provenanceId: stringOrUndefined(transaction.provenanceId),
           recordId: String(transaction.id),
-          recordKind: 'confirmed financial record',
+          recordKind: kindLabel.toLowerCase(),
           reviewState: transaction.reviewStatus,
           sourceRecordId: stringOrUndefined(transaction.sourceRecordId),
-          why: 'A posted transaction exists in local records.',
+          why:
+            kind === 'pending-record'
+              ? 'A provider record exists but has not settled.'
+              : 'The transaction and its lifecycle state remain in local records.',
         },
-        kind: 'confirmed-record',
-        kindLabel: 'Fact',
+        kind,
+        kindLabel,
         title: transaction.description ?? transaction.reference ?? 'Transaction',
-        tone: 'confirmed',
-      }),
-    ),
+        tone: kind === 'pending-record' ? 'estimated' : 'confirmed',
+      });
+    }),
     ...activeReviewImportDrafts(canonical).map((draft) =>
       timelineEvent({
         amountMinor: undefined,
@@ -524,13 +570,21 @@ export function buildCanonicalTimelineModel(
     ),
   ].sort(compareTimelineEvents);
 
-  const factCount = events.filter((event) => event.kind === 'confirmed-record').length;
+  const factCount = events.filter((event) =>
+    ['confirmed-record', 'reversed-record', 'void-record', 'refund', 'transfer'].includes(
+      event.kind,
+    ),
+  ).length;
   const expectationCount = events.filter((event) => event.kind === 'expectation').length;
   const reviewCount = events.filter(
     (event) =>
-      ['imported-claim', 'planner-item', 'melo-proposal', 'document-attachment'].includes(
-        event.kind,
-      ) ||
+      [
+        'pending-record',
+        'imported-claim',
+        'planner-item',
+        'melo-proposal',
+        'document-attachment',
+      ].includes(event.kind) ||
       (event.kind === 'balance-event' && event.tone === 'attention'),
   ).length;
   const firstReview = events.find((event) => event.tone === 'attention');
@@ -704,11 +758,18 @@ function compareTimelineEvents(left: LocalTimelineEvent, right: LocalTimelineEve
 }
 
 function timelineKindWeight(kind: LocalTimelineEntryKind): number {
-  if (kind === 'confirmed-record') return 0;
+  if (
+    kind === 'confirmed-record' ||
+    kind === 'reversed-record' ||
+    kind === 'void-record' ||
+    kind === 'refund' ||
+    kind === 'transfer'
+  )
+    return 0;
   if (kind === 'meaning-event') return 1;
   if (kind === 'audit-change') return 2;
   if (kind === 'decision-record') return 3;
-  if (kind === 'imported-claim') return 4;
+  if (kind === 'imported-claim' || kind === 'pending-record') return 4;
   if (kind === 'document-attachment') return 5;
   if (kind === 'melo-proposal') return 6;
   if (kind === 'planner-item') return 7;

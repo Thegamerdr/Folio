@@ -1,4 +1,4 @@
-import type { AppState, Sub } from '../store';
+import { bankAnalyticsTransactions, type AppState, type Sub } from '../store';
 import { routeFromStore } from './storeRoute';
 
 export const RECOVERY_BILL_NUDGE_DAYS = 5;
@@ -42,7 +42,7 @@ function nearestActiveSubscription(
 function averageDailyDiscretionary(state: AppState, nowMs: number): number {
   const since = nowMs - HOLD_LOOKBACK_DAYS * DAY_MS;
   let total = 0;
-  for (const transaction of state.transactions) {
+  for (const transaction of bankAnalyticsTransactions(state)) {
     if (transaction.amount >= 0 || !DISCRETIONARY.has(transaction.category)) continue;
     const when = new Date(transaction.when).getTime();
     if (!Number.isFinite(when) || when < since || when > nowMs) continue;

@@ -84,10 +84,13 @@ describe('canonical AppState projection', () => {
       reviewQueue: [
         {
           id: 'review-row',
-          source: 'pdf',
+          source: 'bank',
           merchant: 'Needs approval',
           amount: -12.34,
           accountId: 'acct-savings',
+          externalId: 'provider-review-row',
+          lifecycleStatus: 'pending',
+          providerUpdatedAt: '2026-07-16T08:44:00.000Z',
           addedAt: '2026-07-16T08:45:00.000Z',
         },
       ],
@@ -129,6 +132,13 @@ describe('canonical AppState projection', () => {
       ]),
     );
     expect(projection.mobileSnapshot.importDrafts).toHaveLength(1);
+    expect(
+      projection.repositorySnapshot.collections.transactionIntelligenceStates[0]?.reviewQueue[0],
+    ).toMatchObject({
+      id: 'review-row',
+      lifecycleStatus: 'pending',
+      providerUpdatedAt: '2026-07-16T08:44:00.000Z',
+    });
     expect(projection.mobileSnapshot.transactions).toHaveLength(2);
     expect(projection.mobileSnapshot.availablePositionSnapshots[0]).toMatchObject({
       openingBalance: { minorUnits: 150_000, currency: 'GBP' },
@@ -378,5 +388,122 @@ describe('canonical AppState projection', () => {
       actualNet: { minorUnits: -1_000, currency: 'GBP' },
       availableBalance: { minorUnits: 99_000, currency: 'GBP' },
     });
+  });
+
+  it('round-trips lifecycle, refund, reversal and transfer links without counting pending actuals', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const at = '2026-07-16T07:00:00.000Z';
+    const state: AppState = {
+      ...base,
+      currentBalance: { amount: 1_000, source: 'corrected', confidence: 'corrected', setAt: at },
+      accounts: [
+        {
+          id: DEFAULT_ACCOUNT_ID,
+          name: 'Current',
+          kind: 'bank',
+          isLiability: false,
+          balanceMinor: 1_000,
+          balanceAsOfISO: at,
+          addedAt: at,
+        },
+        {
+          id: 'acct-savings',
+          name: 'Savings',
+          kind: 'savings',
+          isLiability: false,
+          balanceMinor: 0,
+          balanceAsOfISO: at,
+          addedAt: at,
+        },
+      ],
+      transactions: [
+        {
+          id: 'purchase',
+          when: '2026-07-16T08:00:00.000Z',
+          merchant: 'Purchase',
+          amount: -100,
+          category: 'shopping',
+          source: 'manual',
+          accountId: DEFAULT_ACCOUNT_ID,
+          lifecycleStatus: 'posted',
+          manuallyCorrectedAt: '2026-07-16T08:30:00.000Z',
+        },
+        {
+          id: 'refund',
+          when: '2026-07-16T09:00:00.000Z',
+          merchant: 'Refund',
+          amount: 25,
+          category: 'shopping',
+          source: 'manual',
+          accountId: DEFAULT_ACCOUNT_ID,
+          lifecycleStatus: 'posted',
+          moneyMovementKind: 'refund',
+          refundOfId: 'purchase',
+        },
+        {
+          id: 'pending',
+          when: '2026-07-16T09:10:00.000Z',
+          merchant: 'Pending',
+          amount: -30,
+          category: 'other',
+          source: 'bank',
+          accountId: DEFAULT_ACCOUNT_ID,
+          lifecycleStatus: 'pending',
+          providerUpdatedAt: '2026-07-16T09:11:00.000Z',
+        },
+        {
+          id: 'transfer-out',
+          when: '2026-07-16T09:20:00.000Z',
+          merchant: 'Move',
+          amount: -200,
+          category: 'other',
+          source: 'manual',
+          accountId: DEFAULT_ACCOUNT_ID,
+          lifecycleStatus: 'posted',
+          moneyMovementKind: 'transfer',
+          transferLinkId: 'move-1',
+        },
+        {
+          id: 'transfer-in',
+          when: '2026-07-16T09:20:00.000Z',
+          merchant: 'Move',
+          amount: 200,
+          category: 'other',
+          source: 'manual',
+          accountId: 'acct-savings',
+          lifecycleStatus: 'posted',
+          moneyMovementKind: 'transfer',
+          transferLinkId: 'move-1',
+        },
+      ],
+    };
+
+    const projection = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-07-16T10:00:00.000Z',
+    );
+
+    expect(
+      projection.mobileSnapshot.transactions.find((row) => row.sourceTransactionId === 'pending')
+        ?.status,
+    ).toBe('pending');
+    expect(
+      projection.mobileSnapshot.transactions.find((row) => row.sourceTransactionId === 'refund'),
+    ).toMatchObject({
+      movementKind: 'refund',
+    });
+    expect(
+      projection.mobileSnapshot.transactions.find(
+        (row) => row.sourceTransactionId === 'transfer-out',
+      ),
+    ).toMatchObject({
+      movementKind: 'transfer',
+      sourceTransferLinkId: 'move-1',
+    });
+    expect(projection.mobileSnapshot.availablePositionSnapshots[0]?.actualNet.minorUnits).toBe(
+      -7_500,
+    );
   });
 });

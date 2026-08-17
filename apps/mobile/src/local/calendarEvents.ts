@@ -21,6 +21,7 @@ import {
   addIsoDays,
   expandRecurringTransactions,
   isoDayDistance,
+  localAnalyticsTransactions,
   type LocalLedgerState,
   type LocalLedgerTransaction,
   type UserCalendarEvent,
@@ -221,7 +222,9 @@ export function deriveCalendarEvents(
   // Expand recurring income + commitments with the SAME engine the Route uses, then keep only what
   // lands inside [asOf, windowEnd]. This is what makes the Calendar derive from real records rather
   // than a static bill seed.
-  const confirmed = ledger.transactions.filter((transaction) => transaction.status === 'confirmed');
+  const confirmed = localAnalyticsTransactions(
+    ledger.transactions.filter((transaction) => transaction.status === 'confirmed'),
+  );
   const expanded = expandRecurringTransactions(confirmed, asOfDateIso);
   for (const transaction of expanded) {
     if (transaction.date < asOfDateIso || transaction.date > windowEndIso) continue;

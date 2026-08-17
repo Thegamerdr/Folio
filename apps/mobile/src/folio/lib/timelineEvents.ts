@@ -22,7 +22,20 @@ import type { Transaction, StoredTxnEdit, TimelineEvent } from '../store';
 // The verbs the web's ScreenTimeline union defines, reproduced verbatim (COPY FROZEN — no new verb
 // strings. The web demo distinguished "Left for later" and "Ignored", but the real native action is
 // the latter: it writes a durable suppression signature and is reversible from Hidden review.
-export type TimelineVerb = 'Added' | 'Left for later' | 'Ignored' | 'Edited' | 'Paused' | 'Resumed';
+export type TimelineVerb =
+  | 'Added'
+  | 'Pending'
+  | 'Declined'
+  | 'Reversed'
+  | 'Voided'
+  | 'Duplicate'
+  | 'Refunded'
+  | 'Transferred'
+  | 'Left for later'
+  | 'Ignored'
+  | 'Edited'
+  | 'Paused'
+  | 'Resumed';
 
 export type TimelineRow = {
   id: string;
@@ -41,8 +54,40 @@ export function verbForTransaction(
   txn: Transaction,
   edits: readonly StoredTxnEdit[],
 ): TimelineVerb {
+  if (txn.lifecycleStatus === 'pending') return 'Pending';
+  if (txn.lifecycleStatus === 'reversed' || txn.reversalOfId !== undefined) return 'Reversed';
+  if (txn.lifecycleStatus === 'void') {
+    if (txn.lifecycleReason === 'declined') return 'Declined';
+    if (txn.lifecycleReason === 'duplicate') return 'Duplicate';
+    return 'Voided';
+  }
+  if (txn.moneyMovementKind === 'refund') return 'Refunded';
+  if (txn.moneyMovementKind === 'transfer') return 'Transferred';
   const wasEdited = edits.some((e) => e.txnId === txn.id);
   return wasEdited ? 'Edited' : 'Added';
+}
+
+function lifecycleNoteForTransaction(txn: Transaction): string | undefined {
+  switch (verbForTransaction(txn, [])) {
+    case 'Pending':
+      return 'waiting to settle · not counted yet';
+    case 'Declined':
+      return 'kept in history · not counted';
+    case 'Duplicate':
+      return 'linked as a duplicate · not counted';
+    case 'Reversed':
+      return 'reversal kept in history';
+    case 'Voided':
+      return 'kept in history · not counted';
+    case 'Refunded':
+      return txn.refundOfId === undefined
+        ? 'refund · original transaction not linked'
+        : 'refund linked to the original transaction';
+    case 'Transferred':
+      return 'between your accounts · not income or spending';
+    default:
+      return undefined;
+  }
 }
 
 /** TimelineEvent.kind → verb + calm note. */
@@ -70,12 +115,16 @@ export function buildTimelineRows(args: {
 }): TimelineRow[] {
   const { transactions, edits, events } = args;
 
-  const txnRows: TimelineRow[] = transactions.map((txn) => ({
-    id: txn.id,
-    at: txn.when,
-    verb: verbForTransaction(txn, edits),
-    what: txn.merchant,
-  }));
+  const txnRows: TimelineRow[] = transactions.map((txn) => {
+    const note = lifecycleNoteForTransaction(txn);
+    return {
+      id: txn.id,
+      at: txn.when,
+      verb: verbForTransaction(txn, edits),
+      what: txn.merchant,
+      ...(note === undefined ? {} : { note }),
+    };
+  });
 
   const eventRows: TimelineRow[] = events.map((evt) => {
     const { verb, note } = verbForEvent(evt.kind);

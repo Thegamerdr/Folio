@@ -35,6 +35,7 @@ import {
   applyMeloTool,
   attachEvidenceDocumentToTransaction,
   bankTransactions,
+  bankAnalyticsTransactions,
   borrowFromPot,
   clearReaderCandidates,
   clearReviewQueue,
@@ -60,6 +61,9 @@ import {
   isBankTxn,
   isRealUser,
   logDebtPayment,
+  linkOwnAccountTransfer,
+  markTransactionDeclined,
+  markTransactionDuplicate,
   matchMeloTool,
   purgeSeedIfReal,
   stripSeedData,
@@ -68,6 +72,8 @@ import {
   queueInputFromCandidates,
   rememberMerchantCategory,
   recordWorkspaceOwnerTransferLeg,
+  recordTransactionRefund,
+  recordTransactionReversal,
   recordMaterialDecision,
   restoreBackupFromBlob,
   removeEvidenceDocument,
@@ -1508,7 +1514,7 @@ describe('applyMeloTool — log_income', () => {
 });
 
 describe('applyMeloTool — log_refund', () => {
-  it('records a POSITIVE refund, tagged in the merchant string, category "other" (no verdict)', () => {
+  it('records an unlinked POSITIVE refund without misclassifying it as income', () => {
     const before = getState().transactions.length;
     const res = applyMeloTool('log_refund', { merchant: 'ASOS', amount: 24.99 });
     expect(res.applied).toBe(true);
@@ -1519,6 +1525,9 @@ describe('applyMeloTool — log_refund', () => {
     expect(top.merchant.toLowerCase()).toContain('refund'); // honestly tagged as a refund
     expect(top.category).toBe('other'); // a refund is NOT income — never auto-filed as income
     expect(top.source).toBe('melo');
+    expect(top.moneyMovementKind).toBe('refund');
+    expect(top.refundOfId).toBeUndefined();
+    expect(bankAnalyticsTransactions(getState()).some((row) => row.id === top.id)).toBe(false);
     expect(getState().decisionLedger).toHaveLength(1);
     expect(getState().decisionLedger?.[0]).toMatchObject({
       decisionType: 'melo-confirmed-action',
@@ -1526,10 +1535,45 @@ describe('applyMeloTool — log_refund', () => {
     });
   });
 
-  it('"links" to the original spend by recording it in the merchant string, candidate-only', () => {
-    applyMeloTool('log_refund', { merchant: 'ASOS', amount: 10, original: 'ASOS order #123' });
-    const merchant = getState().transactions[0]!.merchant;
-    expect(merchant).toContain('ASOS order #123'); // the link is recorded, not a decided verdict
+  it('uses a real transaction relationship when the original transaction id is supplied', () => {
+    resetToEmpty();
+    const original = addTransaction({
+      id: 'asos-order-123',
+      merchant: 'ASOS order #123',
+      amount: -40,
+      category: 'shopping',
+      source: 'manual',
+    });
+    const result = applyMeloTool('log_refund', {
+      merchant: 'ASOS',
+      amount: 10,
+      original: 'ASOS order #123',
+      originalTransactionId: original.id,
+    });
+
+    expect(result.applied).toBe(true);
+    expect(getState().transactions[0]).toMatchObject({
+      merchant: expect.stringContaining('ASOS order #123'),
+      refundOfId: original.id,
+      moneyMovementKind: 'refund',
+      source: 'melo',
+    });
+    expect(bankAnalyticsTransactions(getState())[0]).toMatchObject({
+      id: original.id,
+      amount: -30,
+    });
+  });
+
+  it('fails closed when a claimed original transaction id is unavailable', () => {
+    const before = getState().transactions.length;
+    const result = applyMeloTool('log_refund', {
+      merchant: 'ASOS',
+      amount: 10,
+      originalTransactionId: 'missing',
+    });
+
+    expect(result.applied).toBe(false);
+    expect(getState().transactions).toHaveLength(before);
   });
 
   it('rejects bad args (no merchant / non-positive amount)', () => {
@@ -1548,8 +1592,16 @@ describe('applyMeloTool — log_refund', () => {
 
 describe('applyMeloTool — log_transfer', () => {
   it('records a neutral PAIR (out + in) on one timestamp that nets to £0', () => {
+    resetToEmpty();
+    const savings = addAccount({ name: 'Savings', kind: 'savings' });
     const before = getState().transactions.length;
-    const res = applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 100 });
+    const res = applyMeloTool('log_transfer', {
+      from: 'Main',
+      to: 'Savings',
+      amount: 100,
+      fromAccountId: DEFAULT_ACCOUNT_ID,
+      toAccountId: savings.id,
+    });
     expect(res.applied).toBe(true);
     // Two legs added.
     expect(getState().transactions.length).toBe(before + 2);
@@ -1563,9 +1615,16 @@ describe('applyMeloTool — log_transfer', () => {
     expect(first!.source).toBe('melo');
     expect(first!.when).toBe(second!.when);
     const labels = `${first!.merchant} ${second!.merchant}`;
-    expect(labels).toContain('Current');
+    expect(labels).toContain('Main');
     expect(labels).toContain('Savings');
     expect(labels.toLowerCase()).toContain('transfer');
+    expect(first!.moneyMovementKind).toBe('transfer');
+    expect(second!.moneyMovementKind).toBe('transfer');
+    expect(first!.transferLinkId).toBe(second!.transferLinkId);
+    expect(new Set([first!.accountId, second!.accountId])).toEqual(
+      new Set([DEFAULT_ACCOUNT_ID, savings.id]),
+    );
+    expect(bankAnalyticsTransactions(getState())).toEqual([]);
   });
 
   it('rejects bad args (missing endpoint / non-positive amount)', () => {
@@ -1578,11 +1637,32 @@ describe('applyMeloTool — log_transfer', () => {
   });
 
   it('undo removes BOTH legs', () => {
+    resetToEmpty();
+    const savings = addAccount({ name: 'Savings', kind: 'savings' });
     const before = getState().transactions.length;
-    const res = applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 100 });
+    const res = applyMeloTool('log_transfer', {
+      from: 'Main',
+      to: 'Savings',
+      amount: 100,
+      fromAccountId: DEFAULT_ACCOUNT_ID,
+      toAccountId: savings.id,
+    });
     expect(getState().transactions.length).toBe(before + 2);
     if (res.applied) res.undo();
     expect(getState().transactions.length).toBe(before);
+  });
+
+  it('does not invent transfer ownership when either endpoint cannot be resolved', () => {
+    resetToEmpty();
+    const before = getState().transactions.length;
+    const result = applyMeloTool('log_transfer', {
+      from: 'Main',
+      to: 'Unknown savings account',
+      amount: 100,
+    });
+
+    expect(result.applied).toBe(false);
+    expect(getState().transactions).toHaveLength(before);
   });
 });
 
@@ -3934,6 +4014,225 @@ describe('merchantCategories', () => {
     expect(map['merchant 0']).toBeDefined();
     expect(map['merchant 250']?.category).toBe('other');
     expect(map['merchant 250']?.pendingCategory).toBe('food');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transaction lifecycle — pending/void/reversal/transfer/refund/provider correction truth.
+// ---------------------------------------------------------------------------
+describe('transaction lifecycle truth', () => {
+  it('migrates legacy rows to posted without changing the financial record', () => {
+    resetToEmpty();
+    const legacy = addTransaction({
+      id: 'legacy-row',
+      when: '2026-07-01T00:00:00.000Z',
+      merchant: 'Legacy row',
+      amount: -12.5,
+      category: 'other',
+      source: 'manual',
+    });
+    const old = JSON.parse(getPersistBlob()) as Record<string, unknown>;
+    old['schemaVersion'] = 20;
+    old['transactions'] = [{ ...legacy, lifecycleStatus: undefined }];
+
+    hydrateFromBlob(JSON.stringify(old));
+
+    expect(getState().transactions[0]).toMatchObject({
+      id: 'legacy-row',
+      amount: -12.5,
+      lifecycleStatus: 'posted',
+    });
+  });
+
+  it('retains pending and declined rows but excludes them from realised cashflow', () => {
+    resetToEmpty();
+    const pending = addTransaction({
+      merchant: 'Card authorisation',
+      amount: -25,
+      category: 'shopping',
+      source: 'bank',
+      lifecycleStatus: 'pending',
+    });
+    const declined = addTransaction({
+      merchant: 'Declined payment',
+      amount: -40,
+      category: 'shopping',
+      source: 'bank',
+      lifecycleStatus: 'pending',
+    });
+    markTransactionDeclined(declined.id, '2026-08-01T12:00:00.000Z');
+
+    expect(getState().transactions).toHaveLength(2);
+    expect(bankTransactions(getState())).toEqual([]);
+    expect(getState().transactions.find((row) => row.id === pending.id)?.lifecycleStatus).toBe(
+      'pending',
+    );
+    expect(getState().transactions.find((row) => row.id === declined.id)).toMatchObject({
+      lifecycleStatus: 'void',
+      lifecycleReason: 'declined',
+    });
+  });
+
+  it('keeps duplicate evidence while preventing a second financial effect', () => {
+    resetToEmpty();
+    const original = addTransaction({
+      merchant: 'Grocer',
+      amount: -30,
+      category: 'food',
+      source: 'manual',
+    });
+    const duplicate = addTransaction({
+      merchant: 'Grocer',
+      amount: -30,
+      category: 'food',
+      source: 'bank',
+    });
+    markTransactionDuplicate(duplicate.id, original.id, '2026-08-02T12:00:00.000Z');
+
+    expect(bankTransactions(getState()).map((row) => row.id)).toEqual([original.id]);
+    expect(getState().transactions.find((row) => row.id === duplicate.id)).toMatchObject({
+      lifecycleStatus: 'void',
+      lifecycleReason: 'duplicate',
+      duplicateOfId: original.id,
+    });
+  });
+
+  it('records reversal and partial/full refunds without inflating income', () => {
+    resetToEmpty();
+    const reversedSpend = addTransaction({
+      id: 'reversed-spend',
+      merchant: 'Cancelled order',
+      amount: -42,
+      category: 'shopping',
+      source: 'manual',
+    });
+    recordTransactionReversal(reversedSpend.id, {
+      id: 'reversal-row',
+      when: '2026-08-04T00:00:00.000Z',
+    });
+    const spend = addTransaction({
+      id: 'refunded-spend',
+      merchant: 'Shoes',
+      amount: -100,
+      category: 'shopping',
+      source: 'manual',
+    });
+    recordTransactionRefund(spend.id, 30, { id: 'partial-refund' });
+    recordTransactionRefund(spend.id, 70, { id: 'final-refund' });
+
+    expect(bankTransactions(getState())).toHaveLength(5);
+    expect(bankAnalyticsTransactions(getState())).toEqual([]);
+    expect(() => recordTransactionRefund(spend.id, 1)).toThrow(/cannot exceed/i);
+  });
+
+  it('links equal opposite legs across accounts and removes them from spend/income analytics', () => {
+    resetToEmpty();
+    const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 0 });
+    const debit = addTransaction({
+      id: 'transfer-debit',
+      merchant: 'Move to savings',
+      amount: -200,
+      category: 'other',
+      source: 'manual',
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+    const credit = addTransaction({
+      id: 'transfer-credit',
+      merchant: 'Move from current',
+      amount: 200,
+      category: 'other',
+      source: 'manual',
+      accountId: savings.id,
+    });
+
+    linkOwnAccountTransfer(debit.id, credit.id, 'own-transfer-1');
+
+    expect(bankTransactions(getState())).toHaveLength(2);
+    expect(bankAnalyticsTransactions(getState())).toEqual([]);
+  });
+
+  it('reconciles a stable provider ID from pending to posted without overwriting a newer manual correction', () => {
+    resetToEmpty();
+    vi.useFakeTimers();
+    const accepted = addTransaction({
+      id: 'provider-row',
+      when: '2026-08-01T00:00:00.000Z',
+      merchant: 'Initial provider name',
+      amount: -10,
+      category: 'other',
+      source: 'bank',
+      externalId: 'stable-provider-id',
+      lifecycleStatus: 'pending',
+      providerUpdatedAt: '2026-08-01T10:00:00.000Z',
+    });
+    vi.setSystemTime(new Date('2026-08-10T12:00:00.000Z'));
+    editTransaction(accepted.id, { merchant: 'My corrected name', amount: -12 }, 'user');
+
+    const result = enqueueReviewItems([
+      {
+        source: 'bank',
+        merchant: 'Stale provider name',
+        amount: -11,
+        date: '2026-08-02',
+        externalId: 'stable-provider-id',
+        bankConnectionId: 'connection-1',
+        lifecycleStatus: 'posted',
+        providerUpdatedAt: '2026-08-09T12:00:00.000Z',
+      },
+    ]);
+
+    expect(result.fresh).toEqual([]);
+    expect(getState().reviewQueue).toEqual([]);
+    expect(getState().transactions.find((row) => row.id === accepted.id)).toMatchObject({
+      merchant: 'My corrected name',
+      amount: -12,
+      lifecycleStatus: 'posted',
+      providerUpdatedAt: '2026-08-09T12:00:00.000Z',
+    });
+  });
+
+  it('reconciles a queued provider proposal in place when pending becomes posted', () => {
+    resetToEmpty();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-01T12:00:00.000Z'));
+    enqueueReviewItems([
+      {
+        source: 'bank',
+        merchant: 'Pending shop',
+        amount: -15,
+        date: '2026-08-01',
+        externalId: 'provider-pending-1',
+        bankConnectionId: 'connection-1',
+        lifecycleStatus: 'pending',
+        providerUpdatedAt: '2026-08-01T11:00:00.000Z',
+      },
+    ]);
+    const queuedId = getState().reviewQueue?.[0]?.id;
+
+    vi.setSystemTime(new Date('2026-08-02T12:00:00.000Z'));
+    const result = enqueueReviewItems([
+      {
+        source: 'bank',
+        merchant: 'Settled shop',
+        amount: -16,
+        date: '2026-08-02',
+        externalId: 'provider-pending-1',
+        bankConnectionId: 'connection-1',
+        lifecycleStatus: 'posted',
+        providerUpdatedAt: '2026-08-02T11:00:00.000Z',
+      },
+    ]);
+
+    expect(result.fresh).toEqual([]);
+    expect(getState().reviewQueue).toHaveLength(1);
+    expect(getState().reviewQueue?.[0]).toMatchObject({
+      id: queuedId,
+      merchant: 'Settled shop',
+      amount: -16,
+      date: '2026-08-02',
+      lifecycleStatus: 'posted',
+      providerUpdatedAt: '2026-08-02T11:00:00.000Z',
+    });
   });
 });
 

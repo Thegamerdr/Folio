@@ -81,6 +81,7 @@ import {
   addIgnoredBankExternalId,
   addIgnoredReviewSig,
   addTransaction,
+  bankAnalyticsTransactions,
   currentFinancialDate,
   forgetMerchantCategory,
   getState,
@@ -119,6 +120,8 @@ export type ReviewCandidate = {
   source?: 'bank';
   externalId?: string;
   bankConnectionId?: string;
+  lifecycleStatus?: Extract<Transaction['lifecycleStatus'], 'pending' | 'posted'>;
+  providerUpdatedAt?: string;
   /** The reader's suggested `Transaction['category']` bucket (model guess, or a
    *  merchant-memory recall — see `rememberedCategory`), when known. Used only
    *  to pre-select a chip below; the user's own tap always wins. */
@@ -336,6 +339,8 @@ function candidateFromQueueItem(item: ReviewItem, before: number): ReviewCandida
     ...(item.source === 'bank' ? { source: 'bank' as const } : {}),
     ...(item.externalId !== undefined ? { externalId: item.externalId } : {}),
     ...(item.bankConnectionId !== undefined ? { bankConnectionId: item.bankConnectionId } : {}),
+    ...(item.lifecycleStatus !== undefined ? { lifecycleStatus: item.lifecycleStatus } : {}),
+    ...(item.providerUpdatedAt !== undefined ? { providerUpdatedAt: item.providerUpdatedAt } : {}),
     ...(bucket !== undefined ? { category: bucket } : {}),
     ...(bucket !== undefined && item.rememberedCategory
       ? { rememberedCategory: true as const }
@@ -518,8 +523,10 @@ export function ReviewScreen({
     [],
   );
 
-  // Accept — the ONLY money-path mutation on this surface. The candidate becomes one posted
-  // Transaction (review-before-truth: the user's deliberate "add"), the stamp seals it, then Today.
+  const acceptingPending = candidate.lifecycleStatus === 'pending';
+
+  // Accept — the ONLY money-path mutation on this surface. A provider-pending candidate remains
+  // pending and is visibly saved as such; accepting it never silently promotes it to posted cash.
   function onAdd() {
     if (stamped || editedAmount <= 0) return;
     setStamped(true);
@@ -542,6 +549,10 @@ export function ReviewScreen({
       ...(candidate.externalId !== undefined ? { externalId: candidate.externalId } : {}),
       ...(candidate.bankConnectionId !== undefined
         ? { bankConnectionId: candidate.bankConnectionId }
+        : {}),
+      lifecycleStatus: candidate.lifecycleStatus ?? 'posted',
+      ...(candidate.providerUpdatedAt !== undefined
+        ? { providerUpdatedAt: candidate.providerUpdatedAt }
         : {}),
     });
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): every Accept confirms this
@@ -584,12 +595,13 @@ export function ReviewScreen({
     // already re-evaluated fresh on the NEXT landing (see the ordering comment above), so whatever
     // would have qualified here simply gets its turn once the user is out of the danger band.
     const stateAfterAdd = getState();
+    const analyticsTransactions = bankAnalyticsTransactions(stateAfterAdd);
     const overspent = !isBusiness && isOverspentLanding(stateAfterAdd);
     const incomeSignals =
       isBusiness || overspent
         ? []
         : findCaughtIncome(
-            stateAfterAdd.transactions,
+            analyticsTransactions,
             stateAfterAdd.incomeSources ?? [],
             stateAfterAdd.dismissedIncomeSignals ?? [],
           );
@@ -597,7 +609,7 @@ export function ReviewScreen({
       isBusiness || overspent || incomeSignals.length > 0
         ? []
         : findCaughtBills(
-            stateAfterAdd.transactions,
+            analyticsTransactions,
             stateAfterAdd.subs.map((s) => s.name),
             stateAfterAdd.dismissedBillSignals ?? [],
           );
@@ -605,7 +617,7 @@ export function ReviewScreen({
       isBusiness || overspent || incomeSignals.length > 0 || billSignals.length > 0
         ? []
         : findDriftCandidates(
-            stateAfterAdd.transactions,
+            analyticsTransactions,
             stateAfterAdd.incomeSources ?? [],
             stateAfterAdd.subs,
             stateAfterAdd.dismissedDriftSignals ?? [],
@@ -618,7 +630,7 @@ export function ReviewScreen({
       driftSignals.length > 0
         ? []
         : findCaughtAnnual(
-            stateAfterAdd.transactions,
+            analyticsTransactions,
             stateAfterAdd.dismissedAnnualSignals ?? [],
             stateAfterAdd.subs.map((s) => s.name),
           );
@@ -785,7 +797,9 @@ export function ReviewScreen({
               style={[styles.stamp, stampStyle, { borderColor: t.calm }]}
               pointerEvents="none"
             >
-              <Text style={[styles.stampLabel, { color: t.calmStrong }]}>Added</Text>
+              <Text style={[styles.stampLabel, { color: t.calmStrong }]}>
+                {acceptingPending ? 'Pending' : 'Added'}
+              </Text>
             </Animated.View>
           ) : null}
 
@@ -1015,12 +1029,18 @@ export function ReviewScreen({
               accessibilityState={{ disabled: stamped || editedAmount <= 0 }}
               accessibilityLabel={
                 stamped
-                  ? isBusiness
-                    ? 'Added to Business activity'
-                    : 'Added to your picture'
+                  ? acceptingPending
+                    ? 'Saved as pending and not counted yet'
+                    : isBusiness
+                      ? 'Added to Business activity'
+                      : 'Added to your picture'
                   : isBusiness
-                    ? 'Add to Business activity'
-                    : 'Add to my picture'
+                    ? acceptingPending
+                      ? 'Keep as pending in Business activity'
+                      : 'Add to Business activity'
+                    : acceptingPending
+                      ? 'Keep as pending, not counted yet'
+                      : 'Add to my picture'
               }
               disabled={stamped || editedAmount <= 0}
               onPress={onAdd}
@@ -1033,12 +1053,18 @@ export function ReviewScreen({
             >
               <Text style={[styles.primaryLabel, { color: t.accentInk }]}>
                 {stamped
-                  ? isBusiness
-                    ? 'Added to Business activity'
-                    : 'Added to your picture'
+                  ? acceptingPending
+                    ? 'Saved as pending'
+                    : isBusiness
+                      ? 'Added to Business activity'
+                      : 'Added to your picture'
                   : isBusiness
-                    ? 'Add to Business activity'
-                    : 'Add to my picture'}
+                    ? acceptingPending
+                      ? 'Keep as pending'
+                      : 'Add to Business activity'
+                    : acceptingPending
+                      ? 'Keep as pending'
+                      : 'Add to my picture'}
               </Text>
             </Pressable>
 

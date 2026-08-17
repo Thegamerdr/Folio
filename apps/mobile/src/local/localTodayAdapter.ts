@@ -381,15 +381,17 @@ function canonicalCashflows(
       event.expectationIds.map((expectationId) => [String(expectationId), event] as const),
     ),
   );
-  const transactionCashflows = canonical.transactions.map((transaction) => ({
-    id: String(transaction.id),
-    label: transaction.description ?? transaction.reference ?? 'Transaction',
-    date: transaction.localDate,
-    amount: transaction.amount,
-    state: 'actual' as const,
-    protected: false,
-    sourceId: String(transaction.provenanceId ?? transaction.id),
-  }));
+  const transactionCashflows = canonical.transactions
+    .filter((transaction) => transaction.status === 'posted')
+    .map((transaction) => ({
+      id: String(transaction.id),
+      label: transaction.description ?? transaction.reference ?? 'Transaction',
+      date: transaction.localDate,
+      amount: transaction.amount,
+      state: 'actual' as const,
+      protected: false,
+      sourceId: String(transaction.provenanceId ?? transaction.id),
+    }));
   const expectationCashflows = canonical.expectations.map((expectation) => {
     const commitment =
       expectation.commitmentId === undefined
@@ -423,16 +425,30 @@ function canonicalTodayEvents(
       event.expectationIds.map((expectationId) => [String(expectationId), event] as const),
     ),
   );
-  const transactionEvents = canonical.transactions.map<TimelineEventInput>((transaction) => ({
-    id: `transaction:${String(transaction.id)}`,
-    title: transaction.description ?? transaction.reference ?? 'Transaction',
-    localDate: transaction.localDate,
-    sourceKind: 'transaction',
-    state: 'actual',
-    amount: transaction.amount,
-    detail: transaction.reference ?? 'Confirmed financial record',
-    sourceIds: [String(transaction.provenanceId ?? transaction.id)],
-  }));
+  const transactionEvents = canonical.transactions.map<TimelineEventInput>((transaction) => {
+    const posted = transaction.status === 'posted';
+    const statusLabel =
+      transaction.status === 'pending'
+        ? 'Pending'
+        : transaction.status === 'reversed'
+          ? 'Reversed'
+          : transaction.status === 'void'
+            ? 'Voided'
+            : undefined;
+    const title = transaction.description ?? transaction.reference ?? 'Transaction';
+    return {
+      id: `transaction:${String(transaction.id)}`,
+      title: statusLabel === undefined ? title : `${statusLabel}: ${title}`,
+      localDate: transaction.localDate,
+      sourceKind: 'transaction',
+      state: posted ? 'actual' : 'expected',
+      amount: transaction.amount,
+      detail: posted
+        ? (transaction.reference ?? 'Confirmed financial record')
+        : `${statusLabel ?? 'Unsettled'} record retained in history and not counted as settled money`,
+      sourceIds: [String(transaction.provenanceId ?? transaction.id)],
+    };
+  });
   const expectationEvents = canonical.expectations.map<TimelineEventInput>((expectation) => {
     const commitment =
       expectation.commitmentId === undefined

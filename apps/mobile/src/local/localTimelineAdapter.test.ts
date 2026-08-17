@@ -76,6 +76,38 @@ describe('local canonical timeline adapter', () => {
     );
   });
 
+  it('renders a provider-pending transaction as reviewable history, not a confirmed fact', () => {
+    const empty = createEmptyLocalLedgerState('2026-06-22');
+    const timeline = buildLocalTimelineModel({
+      ...empty,
+      transactions: [
+        {
+          id: 'pending-card-row',
+          title: 'Pending card payment',
+          amountMinor: -2_000,
+          date: '2026-06-22',
+          source: 'open_banking',
+          status: 'confirmed',
+          lifecycleStatus: 'pending',
+          protected: false,
+        },
+      ],
+    });
+
+    expect(timeline.factCount).toBe(0);
+    expect(timeline.reviewCount).toBeGreaterThanOrEqual(1);
+    expect(timeline.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'pending-record',
+          kindLabel: 'Pending',
+          tone: 'estimated',
+          detail: expect.stringContaining('not counted as settled money'),
+        }),
+      ]),
+    );
+  });
+
   it('keeps empty balance timeline rows human and source-aware', () => {
     const timeline = buildLocalTimelineModel(createEmptyLocalLedgerState('2026-06-22'));
     const serialized = JSON.stringify(timeline);

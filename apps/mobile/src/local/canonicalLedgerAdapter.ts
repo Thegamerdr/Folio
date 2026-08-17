@@ -38,6 +38,7 @@ import {
   createTimelineEntryId,
   createTransactionSplit,
   createTransactionId,
+  createTransferLinkId,
   createUserCorrection,
   createUserCorrectionId,
   createForecastId,
@@ -1113,6 +1114,17 @@ export function createCanonicalMobileStorageRows(
       source_evidence_id: transaction.sourceEvidenceId ?? null,
       external_id: transaction.externalId ?? null,
       connection_id: transaction.connectionId ?? null,
+      transfer_link_id: transaction.transferLink ?? null,
+      reversal_of_id: transaction.reversalOf ?? null,
+      refund_of_id: transaction.refundOf ?? null,
+      duplicate_of_id: transaction.duplicateOf ?? null,
+      replaces_id: transaction.replaces ?? null,
+      replaced_by_id: transaction.replacedBy ?? null,
+      movement_kind: transaction.movementKind ?? null,
+      lifecycle_reason: transaction.lifecycleReason ?? null,
+      lifecycle_changed_at: transaction.lifecycleChangedAt ?? null,
+      manually_corrected_at: transaction.manuallyCorrectedAt ?? null,
+      provider_updated_at: transaction.providerUpdatedAt ?? null,
       data_version: transaction.version.dataVersion,
     })),
     events: snapshot.events.map((event) => ({
@@ -1618,7 +1630,9 @@ function createAvailablePositionFromCanonicalRecords(
   const actualNetMinor = input.transactions
     .filter(
       (transaction) =>
-        input.accountIds.has(transaction.accountId) && transaction.localDate >= context.asOfDate,
+        input.accountIds.has(transaction.accountId) &&
+        transaction.localDate >= context.asOfDate &&
+        transaction.status === 'posted',
     )
     .reduce((total, transaction) => total + transaction.amount.minorUnits, 0);
   const expectedNetMinor = input.expectations
@@ -1721,6 +1735,17 @@ function createSourceRecordForLocalTransaction(
       externalId: transaction.externalId ?? null,
       connectionId: transaction.connectionId ?? null,
       sourceOrdinal: transaction.sourceOrdinal ?? null,
+      lifecycleStatus: transaction.lifecycleStatus ?? 'posted',
+      lifecycleReason: transaction.lifecycleReason ?? null,
+      moneyMovementKind: transaction.moneyMovementKind ?? 'ordinary',
+      transferLinkId: transaction.transferLinkId ?? null,
+      refundOfId: transaction.refundOfId ?? null,
+      reversalOfId: transaction.reversalOfId ?? null,
+      duplicateOfId: transaction.duplicateOfId ?? null,
+      replacesId: transaction.replacesId ?? null,
+      replacedById: transaction.replacedById ?? null,
+      manuallyCorrectedAt: transaction.manuallyCorrectedAt ?? null,
+      providerUpdatedAt: transaction.providerUpdatedAt ?? null,
     }),
     externalId: transaction.externalId ?? transaction.sourceTransactionId ?? transaction.id,
     version: context.version,
@@ -2035,7 +2060,9 @@ function createTransactionProjection(
         id: transactionId,
         workspaceId: context.workspaceId,
         accountId,
-        status: transaction.status === 'confirmed' ? 'posted' : 'pending',
+        status:
+          transaction.lifecycleStatus ??
+          (transaction.status === 'confirmed' ? 'posted' : 'pending'),
         authorityState,
         amount,
         localDate,
@@ -2063,6 +2090,56 @@ function createTransactionProjection(
         sourceRecordId,
         provenanceId,
         eventId,
+        ...(transaction.transferLinkId === undefined
+          ? {}
+          : {
+              transferLink: createTransferLinkId(
+                canonicalId('transfer', transaction.transferLinkId),
+              ),
+              sourceTransferLinkId: transaction.transferLinkId,
+            }),
+        ...(transaction.replacesId === undefined
+          ? {}
+          : {
+              replaces: createTransactionId(canonicalId('transaction', transaction.replacesId)),
+            }),
+        ...(transaction.replacedById === undefined
+          ? {}
+          : {
+              replacedBy: createTransactionId(canonicalId('transaction', transaction.replacedById)),
+            }),
+        ...(transaction.reversalOfId === undefined
+          ? {}
+          : {
+              reversalOf: createTransactionId(canonicalId('transaction', transaction.reversalOfId)),
+            }),
+        ...(transaction.refundOfId === undefined
+          ? {}
+          : {
+              refundOf: createTransactionId(canonicalId('transaction', transaction.refundOfId)),
+            }),
+        ...(transaction.duplicateOfId === undefined
+          ? {}
+          : {
+              duplicateOf: createTransactionId(
+                canonicalId('transaction', transaction.duplicateOfId),
+              ),
+            }),
+        ...(transaction.moneyMovementKind === undefined
+          ? {}
+          : { movementKind: transaction.moneyMovementKind }),
+        ...(transaction.lifecycleReason === undefined
+          ? {}
+          : { lifecycleReason: transaction.lifecycleReason }),
+        ...(transaction.lifecycleChangedAt === undefined
+          ? {}
+          : { lifecycleChangedAt: createInstantString(transaction.lifecycleChangedAt) }),
+        ...(transaction.manuallyCorrectedAt === undefined
+          ? {}
+          : { manuallyCorrectedAt: createInstantString(transaction.manuallyCorrectedAt) }),
+        ...(transaction.providerUpdatedAt === undefined
+          ? {}
+          : { providerUpdatedAt: createInstantString(transaction.providerUpdatedAt) }),
         sourceTransactionId: transaction.sourceTransactionId ?? transaction.id,
         ...(transaction.sourceEvidenceId === undefined
           ? {}
@@ -2658,6 +2735,8 @@ function decisionKindFromHistory(
 function transactionAuthorityState(
   transaction: LocalLedgerState['transactions'][number],
 ): AuthorityState {
+  if (transaction.lifecycleStatus === 'reversed') return 'reversed';
+  if (transaction.replacedById !== undefined) return 'superseded';
   if (transaction.status === 'needs_review') return 'estimated';
   if (transaction.source === 'seed') return 'confirmed';
   return 'user-confirmed';

@@ -197,6 +197,17 @@ function transactionsCsv(transactions: readonly Transaction[]): string {
       'category',
       'source',
       'sourceEvidenceId',
+      'lifecycleStatus',
+      'lifecycleReason',
+      'moneyMovementKind',
+      'transferLinkId',
+      'refundOfId',
+      'reversalOfId',
+      'duplicateOfId',
+      'replacesId',
+      'replacedById',
+      'manuallyCorrectedAt',
+      'providerUpdatedAt',
     ],
     transactions.map((t) => [
       t.id,
@@ -208,6 +219,17 @@ function transactionsCsv(transactions: readonly Transaction[]): string {
       t.category,
       t.source,
       t.sourceEvidenceId ?? '',
+      t.lifecycleStatus ?? 'posted',
+      t.lifecycleReason ?? '',
+      t.moneyMovementKind ?? 'ordinary',
+      t.transferLinkId ?? '',
+      t.refundOfId ?? '',
+      t.reversalOfId ?? '',
+      t.duplicateOfId ?? '',
+      t.replacesId ?? '',
+      t.replacedById ?? '',
+      t.manuallyCorrectedAt ?? '',
+      t.providerUpdatedAt ?? '',
     ]),
   );
 }
@@ -345,6 +367,13 @@ function accountantRecordsCsv(state: AppState): string {
       'recordSource',
       'sourceEvidenceId',
       'sourceFilename',
+      'lifecycleStatus',
+      'lifecycleReason',
+      'moneyMovementKind',
+      'transferLinkId',
+      'refundOfId',
+      'reversalOfId',
+      'duplicateOfId',
     ],
     state.transactions.map((transaction) => [
       workspace?.name ?? '',
@@ -363,6 +392,13 @@ function accountantRecordsCsv(state: AppState): string {
             (document) => document.id === transaction.sourceEvidenceId,
           )?.filename ?? '')
         : '',
+      transaction.lifecycleStatus ?? 'posted',
+      transaction.lifecycleReason ?? '',
+      transaction.moneyMovementKind ?? 'ordinary',
+      transaction.transferLinkId ?? '',
+      transaction.refundOfId ?? '',
+      transaction.reversalOfId ?? '',
+      transaction.duplicateOfId ?? '',
     ]),
   );
 }
@@ -465,13 +501,22 @@ function calendarEventsCsv(calendarEvents: readonly CalendarEvent[]): string {
   );
 }
 
-/** Unreviewed intake candidates — the persisted review queue. Column set is
- *  the design source's review-queue export verbatim (web export.ts
- *  `review-queue.csv`: id · source · merchant · amount · date · hint ·
- *  addedAt); the file name follows this bundle's camelCase convention. */
+/** Unreviewed intake candidates — including provider lifecycle metadata so a backup/export never
+ *  turns a pending claim into a posted fact when restored or inspected elsewhere. */
 function reviewQueueCsv(reviewQueue: readonly ReviewItem[]): string {
   return toCsv(
-    ['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt', 'sourceEvidenceId'],
+    [
+      'id',
+      'source',
+      'merchant',
+      'amount',
+      'date',
+      'hint',
+      'addedAt',
+      'sourceEvidenceId',
+      'lifecycleStatus',
+      'providerUpdatedAt',
+    ],
     reviewQueue.map((r) => [
       r.id,
       r.source,
@@ -481,6 +526,8 @@ function reviewQueueCsv(reviewQueue: readonly ReviewItem[]): string {
       r.hint ?? '',
       r.addedAt,
       r.sourceEvidenceId ?? '',
+      r.lifecycleStatus ?? '',
+      r.providerUpdatedAt ?? '',
     ]),
   );
 }
@@ -574,19 +621,7 @@ function dismissedSignalsCsv(state: AppState): string {
  *  same column set as `reviewQueue.csv` (design-source shape) so the two files read as one logical
  *  list split only by whether a row currently fits the visible cap. */
 function reviewSpilloverCsv(reviewQueueSpillover: readonly ReviewItem[]): string {
-  return toCsv(
-    ['id', 'source', 'merchant', 'amount', 'date', 'hint', 'addedAt', 'sourceEvidenceId'],
-    reviewQueueSpillover.map((r) => [
-      r.id,
-      r.source,
-      r.merchant,
-      r.amount,
-      r.date ?? '',
-      r.hint ?? '',
-      r.addedAt,
-      r.sourceEvidenceId ?? '',
-    ]),
-  );
+  return reviewQueueCsv(reviewQueueSpillover);
 }
 
 /** Onboarding / payday rule — a single-row CSV. */

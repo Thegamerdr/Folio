@@ -53,6 +53,19 @@ export type LocalLedgerTransaction = Readonly<{
   categoryId?: string;
   source: LocalTransactionSource;
   status: LocalTransactionStatus;
+  /** Financial lifecycle is separate from review status; absent legacy rows are posted. */
+  lifecycleStatus?: 'pending' | 'posted' | 'reversed' | 'void';
+  lifecycleReason?: 'declined' | 'duplicate' | 'user-voided' | 'provider-expired' | 'other';
+  lifecycleChangedAt?: string;
+  moneyMovementKind?: 'ordinary' | 'transfer' | 'refund';
+  transferLinkId?: string;
+  refundOfId?: string;
+  reversalOfId?: string;
+  duplicateOfId?: string;
+  replacesId?: string;
+  replacedById?: string;
+  manuallyCorrectedAt?: string;
+  providerUpdatedAt?: string;
   protected: boolean;
   original?: string;
   provenanceHash?: string;
@@ -68,6 +81,77 @@ export type LocalLedgerTransaction = Readonly<{
   connectionId?: string;
   sourceOrdinal?: number;
 }>;
+
+export function localTransactionLifecycleStatusOf(
+  transaction: Pick<LocalLedgerTransaction, 'lifecycleStatus'>,
+): NonNullable<LocalLedgerTransaction['lifecycleStatus']> {
+  return transaction.lifecycleStatus ?? 'posted';
+}
+
+export function isLocalCashEffectiveTransaction(
+  transaction: Pick<LocalLedgerTransaction, 'lifecycleStatus'>,
+): boolean {
+  return localTransactionLifecycleStatusOf(transaction) === 'posted';
+}
+
+/**
+ * Posted rows for realised local calculations. Own-account transfers disappear; linked refunds and
+ * reversals adjust the original row on its original date. Unlinked refunds remain visible in the
+ * audit trail but cannot be inferred as income or silently reduce a later month's spend.
+ */
+export function localAnalyticsTransactions<T extends LocalLedgerTransaction>(
+  transactions: readonly T[],
+): T[] {
+  const posted = transactions.filter(isLocalCashEffectiveTransaction);
+  const byId = new Map(posted.map((transaction) => [transaction.id, transaction]));
+  const offsets = new Map<string, number>();
+  const linkedRowIds = new Set<string>();
+
+  for (const transaction of posted) {
+    if (transaction.moneyMovementKind === 'transfer' && transaction.transferLinkId) continue;
+    const targetId = transaction.refundOfId ?? transaction.reversalOfId;
+    if (targetId === undefined || !byId.has(targetId)) continue;
+    offsets.set(targetId, (offsets.get(targetId) ?? 0) + transaction.amountMinor);
+    linkedRowIds.add(transaction.id);
+  }
+
+  return posted.flatMap((transaction) => {
+    if (
+      (transaction.moneyMovementKind === 'transfer' && transaction.transferLinkId) ||
+      linkedRowIds.has(transaction.id) ||
+      (transaction.moneyMovementKind === 'refund' && transaction.refundOfId === undefined)
+    ) {
+      return [];
+    }
+    const offset = offsets.get(transaction.id) ?? 0;
+    if (offset === 0) return [transaction];
+    const adjusted = transaction.amountMinor + offset;
+    const bounded =
+      transaction.amountMinor < 0
+        ? Math.min(0, adjusted)
+        : transaction.amountMinor > 0
+          ? Math.max(0, adjusted)
+          : 0;
+    return bounded === 0 ? [] : [{ ...transaction, amountMinor: bounded }];
+  });
+}
+
+function localLifecycleDetail(transaction: LocalLedgerTransaction): string {
+  const lifecycle = localTransactionLifecycleStatusOf(transaction);
+  if (lifecycle === 'pending') return 'Pending provider record - not counted yet';
+  if (lifecycle === 'reversed') return 'Reversed record - not counted';
+  if (lifecycle === 'void') return 'Voided record - not counted';
+  if (transaction.moneyMovementKind === 'transfer' && transaction.transferLinkId) {
+    return 'Linked own-account transfer - excluded from income and spend';
+  }
+  if (transaction.moneyMovementKind === 'refund') {
+    return transaction.refundOfId
+      ? 'Linked refund - netted against the original payment'
+      : 'Unlinked refund - excluded from inferred income';
+  }
+  if (transaction.reversalOfId) return 'Reversal - netted against the original payment';
+  return transaction.protected ? 'Protected in the route' : 'Confirmed local record';
+}
 
 export type LocalImportDraft = Readonly<{
   rowId: string;
@@ -842,7 +926,9 @@ export function expandRecurringTransactions(
 
 export function buildLocalRouteSummary(state: LocalLedgerState): LocalRouteSummary {
   const confirmedTransactions = expandRecurringTransactions(
-    state.transactions.filter((transaction) => transaction.status === 'confirmed'),
+    localAnalyticsTransactions(
+      state.transactions.filter((transaction) => transaction.status === 'confirmed'),
+    ),
     state.asOfDate,
   );
   const forecast = buildLocalFinanceForecast(state, confirmedTransactions);
@@ -885,7 +971,8 @@ export function buildLocalRouteSummary(state: LocalLedgerState): LocalRouteSumma
     // adds — this is user-facing ("X added", "X confirmed records"), so it must stay honest about
     // what is really saved on the device.
     confirmedTransactionCount: state.transactions.filter(
-      (transaction) => transaction.status === 'confirmed',
+      (transaction) =>
+        transaction.status === 'confirmed' && isLocalCashEffectiveTransaction(transaction),
     ).length,
     lastActionLabel: state.history[0]?.label ?? 'Local route ready.',
   };
@@ -970,10 +1057,13 @@ export function searchLocalLedgerRecords(
       detail: `${transactionSourceLabel(transaction.source)} - ${transaction.status.replace(
         '_',
         ' ',
-      )}${transaction.protected ? ' - protected' : ''}`,
+      )} - ${localLifecycleDetail(transaction)}`,
       meta: transaction.original ?? transaction.date,
       amountMinor: transaction.amountMinor,
-      tone: transaction.status === 'needs_review' ? 'attention' : 'confirmed',
+      tone:
+        transaction.status === 'needs_review' || !isLocalCashEffectiveTransaction(transaction)
+          ? 'attention'
+          : 'confirmed',
     })),
     ...route.points.map<LocalSearchRecord>((point, index) => ({
       id: `route-${index}-${point.date}-${point.title}`,
@@ -1072,12 +1162,12 @@ export function buildMeloLocalEvidenceRecords(
     .map<LocalSearchRecord>((transaction) => ({
       id: `melo-transaction-${transaction.id}`,
       title: transaction.title,
-      detail: `${transactionSourceLabel(transaction.source)} - ${
-        transaction.protected ? 'protected in route' : 'confirmed local record'
-      }`,
+      detail: `${transactionSourceLabel(transaction.source)} - ${localLifecycleDetail(transaction)}`,
       meta: transaction.original ?? transaction.date,
       amountMinor: transaction.amountMinor,
-      tone: 'confirmed' as const,
+      tone: isLocalCashEffectiveTransaction(transaction)
+        ? ('confirmed' as const)
+        : ('attention' as const),
     }));
 
   return [...currentRouteRecords, ...reviewRecords, ...transactionRecords].slice(
@@ -2399,13 +2489,14 @@ function buildTimeline(state: LocalLedgerState): readonly LocalRouteEvent[] {
       day: dayLabel(transaction.date, state.asOfDate),
       title: transaction.title,
       detail:
+        localTransactionLifecycleStatusOf(transaction) === 'posted' &&
         transaction.source === 'manual'
           ? 'Added on this device'
-          : transaction.protected
-            ? 'Protected in the route'
-            : 'Confirmed local record',
+          : localLifecycleDetail(transaction),
       amountMinor: transaction.amountMinor,
-      tone: 'confirmed' as const,
+      tone: isLocalCashEffectiveTransaction(transaction)
+        ? ('confirmed' as const)
+        : ('attention' as const),
     }));
   const reviewEvents = state.importDrafts
     .slice()

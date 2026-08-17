@@ -20,6 +20,7 @@ import { useMemo } from 'react';
 
 import { useAppStore, type Transaction } from '../store';
 import { detectRecurring, type Cadence, type Charge, type RecurringSignal } from './subSignals';
+import { transactionAnalyticsRows } from './transactionPolicy';
 
 // ---------------------------------------------------------------------------
 // Candidate shape — mirrors SubCaughtSheet's `SubCandidate` exactly so the
@@ -150,7 +151,7 @@ export function findCaughtSubs(
 ): CaughtSubCandidate[] {
   if (transactions.length === 0) return [];
 
-  const charges = transactions.map(toCharge);
+  const charges = transactionAnalyticsRows(transactions).map(toCharge);
   const signals = detectRecurring(charges, now === undefined ? {} : { now });
 
   const known = new Set(knownSubNames.map(normaliseName));

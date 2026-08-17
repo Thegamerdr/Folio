@@ -78,7 +78,12 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
-import { currentFinancialDate, useAppStore, type CycleRecord } from '@/folio/store';
+import {
+  bankAnalyticsTransactions,
+  currentFinancialDate,
+  useAppStore,
+  type CycleRecord,
+} from '@/folio/store';
 import { getRetrospect, formatDelta } from '@/folio/lib/modes/retrospect';
 import { expectedMonthLabel, useCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import { computeGreenStreak } from '@/folio/lib/streaks';
@@ -171,6 +176,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   const subPaused = useAppStore((st) => st.subPaused);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const transactions = useAppStore((st) => st.transactions);
+  const accounts = useAppStore((st) => st.accounts);
   const tinyWins = useAppStore((st) => st.tinyWins ?? []);
   const cancelledSubs = useAppStore((st) => st.cancelledSubs ?? []);
   const onboardingDone = useAppStore((st) => st.onboarding.done);
@@ -223,12 +229,14 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   const weekly = useMemo(() => {
     const now = Date.now();
     const weekAgo = now - 7 * 86_400_000;
-    const week = transactions.filter((t) => new Date(t.when).getTime() >= weekAgo && t.amount < 0);
+    const week = bankAnalyticsTransactions({ transactions, accounts }).filter(
+      (t) => new Date(t.when).getTime() >= weekAgo && t.amount < 0,
+    );
     const spent = week.reduce((acc, t) => acc + Math.abs(t.amount), 0);
     const daysWithSpend = new Set(week.map((t) => currentFinancialDate(new Date(t.when)))).size;
     const quietDays = Math.max(0, 7 - daysWithSpend);
     return { spent: Math.round(spent), quietDays };
-  }, [transactions]);
+  }, [accounts, transactions]);
 
   // Tight-point trend: one point per closed cycle, oldest → newest (web: slice(0,6).reverse()).
   const trend = useMemo(() => cycles.slice(0, 6).reverse(), [cycles]);

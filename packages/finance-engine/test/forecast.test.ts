@@ -225,6 +225,19 @@ describe('source forecast vectors: fact reconciliation and transfers', () => {
     expect(forecast.spendingNetMinor).toBe(0);
     expect(forecast.countedIds).toEqual(['charge', 'reversal']);
   });
+
+  it('excludes a provider row whose lifecycle is reversed when no compensating fact exists', () => {
+    const forecast = buildForecast({
+      accounts: { main: 100000 },
+      occurrences: [
+        { id: 'provider-reversed', date: '2026-06-20', amountMinor: -12000, status: 'reversed' },
+      ],
+    });
+
+    expect(forecast.closingMinor).toBe(100000);
+    expect(forecast.countedIds).toEqual([]);
+    expect(forecast.excludedIds).toEqual(['provider-reversed']);
+  });
 });
 
 describe('source forecast vectors: workspace, FX, overdue, and scenarios', () => {

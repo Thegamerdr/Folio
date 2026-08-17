@@ -158,4 +158,34 @@ describe('local Today engine adapter', () => {
       ]),
     );
   });
+
+  it('keeps a pending provider row visible without counting it as actual movement', () => {
+    const empty = createEmptyLocalLedgerState('2026-06-22');
+    const today = buildLocalTodayModel({
+      ...empty,
+      transactions: [
+        {
+          id: 'pending-card-row',
+          title: 'Pending card payment',
+          amountMinor: -2_000,
+          date: '2026-06-22',
+          source: 'open_banking',
+          status: 'confirmed',
+          lifecycleStatus: 'pending',
+          protected: false,
+        },
+      ],
+    });
+
+    expect(today.position.actualNetMinor).toBe(0);
+    expect(today.timeline).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Pending: Pending card payment',
+          tone: 'estimated',
+          detail: expect.stringContaining('not counted as settled money'),
+        }),
+      ]),
+    );
+  });
 });

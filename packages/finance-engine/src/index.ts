@@ -747,6 +747,7 @@ function reconcileOccurrences(
   for (const occurrence of all) {
     const excluded =
       occurrence.status === 'void' ||
+      occurrence.status === 'reversed' ||
       replacedIds.has(occurrence.id) ||
       (occurrence.sourceKind === 'expectation' &&
         (occurrence.fulfilled === true || fulfilledExpectationIds.has(occurrence.id))) ||

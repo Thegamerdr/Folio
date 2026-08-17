@@ -34,6 +34,7 @@ import {
 } from '../store';
 import { isLaunchCurrency } from './launchCurrency';
 import { isCashAccountInLaunchPosition } from './accountPolicy';
+import { transactionLifecycleStatusOf } from './transactionPolicy';
 import type { PersistedWorkspace } from './workspaceRoot';
 import {
   createCanonicalMobileLedgerSnapshot,
@@ -837,6 +838,15 @@ function projectExactReviewQueueItem(
     ...(item.rememberedCategory === undefined
       ? {}
       : { rememberedCategory: item.rememberedCategory }),
+    ...(item.lifecycleStatus === undefined ? {} : { lifecycleStatus: item.lifecycleStatus }),
+    ...(item.providerUpdatedAt === undefined
+      ? {}
+      : {
+          providerUpdatedAt: requireIsoInstant(
+            item.providerUpdatedAt,
+            `Review queue item ${item.id} provider update time`,
+          ),
+        }),
   };
 }
 
@@ -1229,10 +1239,36 @@ function projectTransaction(
             ? 'seed'
             : 'manual',
     status: 'confirmed',
+    lifecycleStatus: transactionLifecycleStatusOf(transaction),
     protected: false,
     original: transaction.merchant,
     sourceTransactionId: transaction.id,
     sourceOrdinal,
+    ...(transaction.lifecycleReason === undefined
+      ? {}
+      : { lifecycleReason: transaction.lifecycleReason }),
+    ...(transaction.lifecycleChangedAt === undefined
+      ? {}
+      : { lifecycleChangedAt: transaction.lifecycleChangedAt }),
+    ...(transaction.moneyMovementKind === undefined
+      ? {}
+      : { moneyMovementKind: transaction.moneyMovementKind }),
+    ...(transaction.transferLinkId === undefined
+      ? {}
+      : { transferLinkId: transaction.transferLinkId }),
+    ...(transaction.refundOfId === undefined ? {} : { refundOfId: transaction.refundOfId }),
+    ...(transaction.reversalOfId === undefined ? {} : { reversalOfId: transaction.reversalOfId }),
+    ...(transaction.duplicateOfId === undefined
+      ? {}
+      : { duplicateOfId: transaction.duplicateOfId }),
+    ...(transaction.replacesId === undefined ? {} : { replacesId: transaction.replacesId }),
+    ...(transaction.replacedById === undefined ? {} : { replacedById: transaction.replacedById }),
+    ...(transaction.manuallyCorrectedAt === undefined
+      ? {}
+      : { manuallyCorrectedAt: transaction.manuallyCorrectedAt }),
+    ...(transaction.providerUpdatedAt === undefined
+      ? {}
+      : { providerUpdatedAt: transaction.providerUpdatedAt }),
     ...(transaction.sourceEvidenceId === undefined
       ? {}
       : { sourceEvidenceId: transaction.sourceEvidenceId }),

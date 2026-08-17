@@ -63,6 +63,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import {
   addWhatIfHold,
+  bankAnalyticsTransactions,
   removeWhatIfHold,
   useAppStore,
   type Transaction,
@@ -342,9 +343,9 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // Live store reads (read-only — WhatIf writes nothing).
   const tightPointGoal = useAppStore((s) => s.tightPointGoal);
   const potsTotal = useAppStore((s) => s.pots.reduce((sum, p) => sum + p.saved, 0));
-  const transactions = useAppStore((s) => s.transactions);
   const whatIfHolds = useAppStore((s) => s.whatIfHolds ?? []);
   const appState = useAppStore((s) => s);
+  const transactions = useMemo(() => bankAnalyticsTransactions(appState), [appState]);
 
   // Mode-tinted copy (BREAKS-PARITY fix) — eyebrow, intro, headline template, low/cover labels, and
   // CTA/cancel strings all vary by Money Mode (web `getWhatIfCopy(mode)`).

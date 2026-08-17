@@ -6,7 +6,7 @@ import type {
 } from '@folio/ai-contracts';
 import { projectDebtPortfolio, projectDebtSchedule } from '@folio/finance-engine';
 
-import { purgeSeedIfReal, type AppState } from '../store';
+import { bankAnalyticsTransactions, purgeSeedIfReal, type AppState } from '../store';
 import { monthlyIncomeSeries, percentile } from './historyStats';
 import { selectMonthlyIncome } from './income';
 import { planProgress, summarisePlans } from './modes/planEngine';
@@ -374,7 +374,10 @@ function buildGoalCalculation(
 }
 
 function buildIrregularIncomeCalculation(state: AppState, now: Date): MeloLocalCalculation {
-  const series = monthlyIncomeSeries(state.transactions, workspaceLocalDate(state, now));
+  const series = monthlyIncomeSeries(
+    bankAnalyticsTransactions(state),
+    workspaceLocalDate(state, now),
+  );
   const sufficientHistory = series.length >= MIN_IRREGULAR_HISTORY_MONTHS;
   return {
     kind: 'irregular-income-range',

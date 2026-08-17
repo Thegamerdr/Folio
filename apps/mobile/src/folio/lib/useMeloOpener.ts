@@ -19,7 +19,7 @@
 import { useMemo } from 'react';
 
 import { pickOpener } from '@/folio/lib/modes';
-import { useAppStore } from '@/folio/store';
+import { bankAnalyticsTransactions, useAppStore } from '@/folio/store';
 import type { MoneyMode } from '@/folio/store';
 
 const DAY_MS = 86_400_000;
@@ -37,6 +37,7 @@ export function useMeloOpener(overrideMode?: MoneyMode): string {
   const pots = useAppStore((s) => s.pots);
   const onboarding = useAppStore((s) => s.onboarding);
   const transactions = useAppStore((s) => s.transactions);
+  const accounts = useAppStore((s) => s.accounts ?? []);
   const currentBalance = useAppStore((s) => s.currentBalance);
 
   return useMemo(() => {
@@ -57,7 +58,9 @@ export function useMeloOpener(overrideMode?: MoneyMode): string {
 
     // 14-day spend snapshot — mirrors MeloChatSheet's snapshot inputs.
     const cutoff = Date.now() - RECENT_WINDOW_DAYS * DAY_MS;
-    const recent = transactions.filter((t) => t.amount < 0 && new Date(t.when).getTime() >= cutoff);
+    const recent = bankAnalyticsTransactions({ transactions, accounts }).filter(
+      (t) => t.amount < 0 && new Date(t.when).getTime() >= cutoff,
+    );
     const byCategory: Record<string, number> = {};
     let totalSpend14d = 0;
     for (const t of recent) {
@@ -86,5 +89,5 @@ export function useMeloOpener(overrideMode?: MoneyMode): string {
       totalSpend14d,
       tightestSpare,
     });
-  }, [mode, subs, subPaused, pots, onboarding, transactions, currentBalance]);
+  }, [mode, subs, subPaused, pots, onboarding, transactions, accounts, currentBalance]);
 }

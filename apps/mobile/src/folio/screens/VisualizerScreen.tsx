@@ -85,6 +85,7 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import {
   addTransactionsBatch,
+  bankAnalyticsTransactions,
   clearReaderCandidates,
   getState,
   syncHistoryCycles,
@@ -401,8 +402,9 @@ export function VisualizerScreen({
       nav.go('today-after');
       return;
     }
+    const analyticsTransactions = bankAnalyticsTransactions(state);
     const incomeSignals = findCaughtIncome(
-      state.transactions,
+      analyticsTransactions,
       state.incomeSources ?? [],
       state.dismissedIncomeSignals ?? [],
     );
@@ -411,7 +413,7 @@ export function VisualizerScreen({
       return;
     }
     const billSignals = findCaughtBills(
-      state.transactions,
+      analyticsTransactions,
       state.subs.map((s) => s.name),
       state.dismissedBillSignals ?? [],
     );
@@ -420,7 +422,7 @@ export function VisualizerScreen({
       return;
     }
     const driftSignals = findDriftCandidates(
-      state.transactions,
+      analyticsTransactions,
       state.incomeSources ?? [],
       state.subs,
       state.dismissedDriftSignals ?? [],
@@ -430,7 +432,7 @@ export function VisualizerScreen({
       return;
     }
     const annualSignals = findCaughtAnnual(
-      state.transactions,
+      analyticsTransactions,
       state.dismissedAnnualSignals ?? [],
       state.subs.map((s) => s.name),
     );

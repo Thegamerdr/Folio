@@ -125,11 +125,18 @@ function verbTone(verb: TimelineVerb, t: Palette): string {
   switch (verb) {
     case 'Added':
       return t.positive;
+    case 'Refunded':
+    case 'Transferred':
     case 'Edited':
     case 'Resumed':
       return t.calm; // web --accent
+    case 'Pending':
     case 'Paused':
       return t.caution;
+    case 'Declined':
+    case 'Reversed':
+    case 'Voided':
+    case 'Duplicate':
     case 'Left for later':
     case 'Ignored':
     default:
@@ -174,12 +181,13 @@ function relativeWhen(iso: string, now: Date): string {
 // category word is appended the way the web demo did ("£42 · groceries") — lower-cased, calm, no
 // banned vocabulary. Non-transaction rows (sub pause/resume, review-ignore) carry their own note from
 // the timeline event and never pass through this — see `noteForRow`.
-function noteForTransaction(txn: Transaction): string | undefined {
+function noteForTransaction(txn: Transaction, lifecycleNote?: string): string | undefined {
   const amount = Math.abs(txn.amount);
-  if (!(amount > 0)) return undefined;
+  if (!(amount > 0)) return lifecycleNote;
   const money = `£${amount.toLocaleString('en-GB', { maximumFractionDigits: 2 })}`;
   const word = CATEGORY_LABEL[txn.category]?.toLowerCase();
-  return word ? `${money} · ${word}` : money;
+  const amountNote = word ? `${money} · ${word}` : money;
+  return lifecycleNote === undefined ? amountNote : `${amountNote} · ${lifecycleNote}`;
 }
 
 // A quick lookup so the display layer can recover the full Transaction (for its note + category)
@@ -190,7 +198,7 @@ function noteForRow(
   txnById: ReadonlyMap<string, Transaction>,
 ): string | undefined {
   const txn = txnById.get(row.id);
-  if (txn) return noteForTransaction(txn);
+  if (txn) return noteForTransaction(txn, row.note);
   return row.note;
 }
 

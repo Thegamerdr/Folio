@@ -1061,6 +1061,8 @@ export type BankReviewQueueInput = Readonly<{
   hint: string;
   externalId: string;
   bankConnectionId: string;
+  lifecycleStatus: ProviderBookingStatus;
+  providerUpdatedAt: string;
 }>;
 
 export type StageBankCandidatesResult = Readonly<{
@@ -1145,6 +1147,9 @@ export function stageBankCandidatesForReview(
       hint: `${candidate.bookingStatus === 'pending' ? 'Pending bank transaction' : 'Bank transaction'} · ${account.label}`,
       externalId: candidate.externalId,
       bankConnectionId: candidate.connectionId,
+      lifecycleStatus: candidate.bookingStatus,
+      providerUpdatedAt:
+        input.sync.connection.lastSuccessfulRefreshAt ?? `${candidate.occurredAt}T00:00:00.000Z`,
     });
   }
   return { reviewItems, unsupportedCurrencyCount, unmappedAccountCount };

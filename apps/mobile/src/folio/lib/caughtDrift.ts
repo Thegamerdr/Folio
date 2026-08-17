@@ -35,7 +35,7 @@ import { useMemo } from 'react';
 
 import {
   useAppStore,
-  bankTransactions,
+  bankAnalyticsTransactions,
   type DriftCooldownEntry,
   type IncomeSource,
   type Sub,
@@ -238,7 +238,7 @@ export function useCaughtDrift(): DriftCaughtCandidate[] {
   const subs = useAppStore((state) => state.subs);
   const dismissedDriftSignals = useAppStore((state) => state.dismissedDriftSignals ?? []);
   const transactions = useMemo(
-    () => bankTransactions({ transactions: rawTransactions, accounts }),
+    () => bankAnalyticsTransactions({ transactions: rawTransactions, accounts }),
     [rawTransactions, accounts],
   );
 

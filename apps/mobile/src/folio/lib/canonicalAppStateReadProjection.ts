@@ -193,9 +193,19 @@ export function readCanonicalAppStateMoneyProjection(
       0,
     );
 
-  const transactionRows = workspaceRows(snapshot.collections.transactions, workspaceId)
-    .filter((transaction) => transaction.sourceTransactionId !== undefined)
-    .map((transaction) => readPostedTransaction(transaction, accountById));
+  const canonicalTransactions = workspaceRows(
+    snapshot.collections.transactions,
+    workspaceId,
+  ).filter((transaction) => transaction.sourceTransactionId !== undefined);
+  const sourceTransactionIdByCanonicalId = new Map(
+    canonicalTransactions.map((transaction) => [
+      String(transaction.id),
+      requiredText(transaction.sourceTransactionId, 'canonical source transaction ID'),
+    ]),
+  );
+  const transactionRows = canonicalTransactions.map((transaction) =>
+    readPostedTransaction(transaction, accountById, sourceTransactionIdByCanonicalId),
+  );
   const expectationRows = workspaceRows(snapshot.collections.expectations, workspaceId)
     .filter((expectation) => expectation.sourceTransactionId !== undefined)
     .map((expectation) => readExpectedTransaction(expectation, accountById));
@@ -694,13 +704,25 @@ export function assertCanonicalAppStateMoneyProjectionParity(
       'reviewQueue',
       'reviewQueueSpillover',
     ] as const
-  ).filter((key) => stableJson(actual[key]) !== stableJson(expected[key]));
+  ).filter(
+    (key) =>
+      stableJson(parityComparableValue(key, actual[key])) !==
+      stableJson(parityComparableValue(key, expected[key])),
+  );
   if (mismatches.length > 0) {
     throw new Error(
       `Canonical AppState money projection parity failed for ${mismatches.join(', ')}.`,
     );
   }
   return actual;
+}
+
+function parityComparableValue(key: string, value: unknown): unknown {
+  if (key !== 'transactions' || !Array.isArray(value)) return value;
+  return (value as Transaction[]).map((transaction) => ({
+    ...transaction,
+    lifecycleStatus: transaction.lifecycleStatus ?? 'posted',
+  }));
 }
 
 type OrderedTransaction = Readonly<{
@@ -745,6 +767,7 @@ function readSourceAccount(
 function readPostedTransaction(
   transaction: FinancialTransaction,
   accounts: ReadonlyMap<string, CanonicalAccount>,
+  sourceTransactionIds: ReadonlyMap<string, string>,
 ): OrderedTransaction {
   const categoryIds = [
     ...new Set(
@@ -770,6 +793,30 @@ function readPostedTransaction(
     externalId: transaction.externalId,
     connectionId: transaction.connectionId,
     workspaceId: transaction.workspaceId,
+    lifecycleStatus: transaction.status,
+    ...(transaction.lifecycleReason === undefined
+      ? {}
+      : { lifecycleReason: transaction.lifecycleReason }),
+    ...(transaction.lifecycleChangedAt === undefined
+      ? {}
+      : { lifecycleChangedAt: transaction.lifecycleChangedAt }),
+    ...(transaction.movementKind === undefined
+      ? {}
+      : { moneyMovementKind: transaction.movementKind }),
+    ...(transaction.sourceTransferLinkId === undefined
+      ? {}
+      : { transferLinkId: transaction.sourceTransferLinkId }),
+    ...relationField('refundOfId', transaction.refundOf, sourceTransactionIds),
+    ...relationField('reversalOfId', transaction.reversalOf, sourceTransactionIds),
+    ...relationField('duplicateOfId', transaction.duplicateOf, sourceTransactionIds),
+    ...relationField('replacesId', transaction.replaces, sourceTransactionIds),
+    ...relationField('replacedById', transaction.replacedBy, sourceTransactionIds),
+    ...(transaction.manuallyCorrectedAt === undefined
+      ? {}
+      : { manuallyCorrectedAt: transaction.manuallyCorrectedAt }),
+    ...(transaction.providerUpdatedAt === undefined
+      ? {}
+      : { providerUpdatedAt: transaction.providerUpdatedAt }),
   });
 }
 
@@ -813,6 +860,18 @@ function readTransactionFields(
     externalId: string | undefined;
     connectionId: string | undefined;
     workspaceId: Transaction['workspaceId'];
+    lifecycleStatus?: Transaction['lifecycleStatus'];
+    lifecycleReason?: Transaction['lifecycleReason'];
+    lifecycleChangedAt?: string;
+    moneyMovementKind?: Transaction['moneyMovementKind'];
+    transferLinkId?: string;
+    refundOfId?: string;
+    reversalOfId?: string;
+    duplicateOfId?: string;
+    replacesId?: string;
+    replacedById?: string;
+    manuallyCorrectedAt?: string;
+    providerUpdatedAt?: string;
   }>,
 ): OrderedTransaction {
   const merchant = input.merchant;
@@ -833,8 +892,45 @@ function readTransactionFields(
       ...(input.sourceEvidenceId === undefined ? {} : { sourceEvidenceId: input.sourceEvidenceId }),
       ...(input.externalId === undefined ? {} : { externalId: input.externalId }),
       ...(input.connectionId === undefined ? {} : { bankConnectionId: input.connectionId }),
+      ...(input.lifecycleStatus === undefined ? {} : { lifecycleStatus: input.lifecycleStatus }),
+      ...(input.lifecycleReason === undefined ? {} : { lifecycleReason: input.lifecycleReason }),
+      ...(input.lifecycleChangedAt === undefined
+        ? {}
+        : { lifecycleChangedAt: input.lifecycleChangedAt }),
+      ...(input.moneyMovementKind === undefined
+        ? {}
+        : { moneyMovementKind: input.moneyMovementKind }),
+      ...(input.transferLinkId === undefined ? {} : { transferLinkId: input.transferLinkId }),
+      ...(input.refundOfId === undefined ? {} : { refundOfId: input.refundOfId }),
+      ...(input.reversalOfId === undefined ? {} : { reversalOfId: input.reversalOfId }),
+      ...(input.duplicateOfId === undefined ? {} : { duplicateOfId: input.duplicateOfId }),
+      ...(input.replacesId === undefined ? {} : { replacesId: input.replacesId }),
+      ...(input.replacedById === undefined ? {} : { replacedById: input.replacedById }),
+      ...(input.manuallyCorrectedAt === undefined
+        ? {}
+        : { manuallyCorrectedAt: input.manuallyCorrectedAt }),
+      ...(input.providerUpdatedAt === undefined
+        ? {}
+        : { providerUpdatedAt: input.providerUpdatedAt }),
     },
   };
+}
+
+function sourceRelationId(
+  canonicalIdValue: unknown,
+  sourceIds: ReadonlyMap<string, string>,
+): string | undefined {
+  if (canonicalIdValue === undefined) return undefined;
+  return sourceIds.get(String(canonicalIdValue));
+}
+
+function relationField<K extends string>(
+  key: K,
+  canonicalIdValue: unknown,
+  sourceIds: ReadonlyMap<string, string>,
+): Partial<Record<K, string>> {
+  const sourceId = sourceRelationId(canonicalIdValue, sourceIds);
+  return sourceId === undefined ? {} : ({ [key]: sourceId } as Record<K, string>);
 }
 
 function sourceAccountId(
@@ -984,6 +1080,8 @@ function readExactReviewQueueItem(
     ...(item.rememberedCategory === undefined
       ? {}
       : { rememberedCategory: item.rememberedCategory }),
+    ...(item.lifecycleStatus === undefined ? {} : { lifecycleStatus: item.lifecycleStatus }),
+    ...(item.providerUpdatedAt === undefined ? {} : { providerUpdatedAt: item.providerUpdatedAt }),
   };
 }
 
@@ -1050,6 +1148,32 @@ function normalizedSourceMoneyProjection(
       ...(transaction.bankConnectionId === undefined
         ? {}
         : { bankConnectionId: transaction.bankConnectionId }),
+      lifecycleStatus: transaction.lifecycleStatus ?? 'posted',
+      ...(transaction.lifecycleReason === undefined
+        ? {}
+        : { lifecycleReason: transaction.lifecycleReason }),
+      ...(transaction.lifecycleChangedAt === undefined
+        ? {}
+        : { lifecycleChangedAt: transaction.lifecycleChangedAt }),
+      ...(transaction.moneyMovementKind === undefined
+        ? {}
+        : { moneyMovementKind: transaction.moneyMovementKind }),
+      ...(transaction.transferLinkId === undefined
+        ? {}
+        : { transferLinkId: transaction.transferLinkId }),
+      ...(transaction.refundOfId === undefined ? {} : { refundOfId: transaction.refundOfId }),
+      ...(transaction.reversalOfId === undefined ? {} : { reversalOfId: transaction.reversalOfId }),
+      ...(transaction.duplicateOfId === undefined
+        ? {}
+        : { duplicateOfId: transaction.duplicateOfId }),
+      ...(transaction.replacesId === undefined ? {} : { replacesId: transaction.replacesId }),
+      ...(transaction.replacedById === undefined ? {} : { replacedById: transaction.replacedById }),
+      ...(transaction.manuallyCorrectedAt === undefined
+        ? {}
+        : { manuallyCorrectedAt: transaction.manuallyCorrectedAt }),
+      ...(transaction.providerUpdatedAt === undefined
+        ? {}
+        : { providerUpdatedAt: transaction.providerUpdatedAt }),
     }));
   const pots: Pot[] = state.pots.map((pot) => ({
     id: pot.id,
@@ -1318,6 +1442,10 @@ function normalizedSourceMoneyProjection(
       ...(item.rememberedCategory === undefined
         ? {}
         : { rememberedCategory: item.rememberedCategory }),
+      ...(item.lifecycleStatus === undefined ? {} : { lifecycleStatus: item.lifecycleStatus }),
+      ...(item.providerUpdatedAt === undefined
+        ? {}
+        : { providerUpdatedAt: item.providerUpdatedAt }),
     })),
     reviewQueueSpillover: (state.reviewQueueSpillover ?? []).map((item) => ({
       id: item.id,
@@ -1336,6 +1464,10 @@ function normalizedSourceMoneyProjection(
       ...(item.rememberedCategory === undefined
         ? {}
         : { rememberedCategory: item.rememberedCategory }),
+      ...(item.lifecycleStatus === undefined ? {} : { lifecycleStatus: item.lifecycleStatus }),
+      ...(item.providerUpdatedAt === undefined
+        ? {}
+        : { providerUpdatedAt: item.providerUpdatedAt }),
     })),
   };
 }

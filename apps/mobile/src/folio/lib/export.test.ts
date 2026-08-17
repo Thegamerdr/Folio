@@ -403,6 +403,28 @@ describe('buildExport — per-surface csvs', () => {
     expect(ledger).toHaveLength(2); // header + 1 entry
   });
 
+  it('exports transaction lifecycle and relationship truth explicitly', () => {
+    const state = fullState();
+    state.transactions = [
+      {
+        ...state.transactions[0]!,
+        id: 'refund-row',
+        lifecycleStatus: 'posted',
+        moneyMovementKind: 'refund',
+        refundOfId: 'purchase-row',
+        providerUpdatedAt: '2026-06-21T12:00:00.000Z',
+      },
+    ];
+    const rows = parseCsv(buildExport(state).csvs['transactions.csv'] as string);
+    const header = rows[0]!;
+    const row = rows[1]!;
+
+    expect(row[header.indexOf('lifecycleStatus')]).toBe('posted');
+    expect(row[header.indexOf('moneyMovementKind')]).toBe('refund');
+    expect(row[header.indexOf('refundOfId')]).toBe('purchase-row');
+    expect(row[header.indexOf('providerUpdatedAt')]).toBe('2026-06-21T12:00:00.000Z');
+  });
+
   it('subs.csv reflects paused + nudge state from subPaused/subOverrides', () => {
     const { csvs } = buildExport(fullState());
     const rows = parseCsv(csvs['subs.csv'] as string);
@@ -429,6 +451,8 @@ describe('buildExport — per-surface csvs', () => {
       'hint',
       'addedAt',
       'sourceEvidenceId',
+      'lifecycleStatus',
+      'providerUpdatedAt',
     ]);
     expect(rows).toHaveLength(2); // header + 1 queued candidate
     const header = rows[0] as string[];
@@ -577,6 +601,8 @@ describe('buildExport — review-spillover.csv', () => {
       'hint',
       'addedAt',
       'sourceEvidenceId',
+      'lifecycleStatus',
+      'providerUpdatedAt',
     ]);
     expect(rows).toHaveLength(2); // header + 1 spillover row
     const header = rows[0] as string[];
@@ -598,6 +624,8 @@ describe('buildExport — review-spillover.csv', () => {
       'hint',
       'addedAt',
       'sourceEvidenceId',
+      'lifecycleStatus',
+      'providerUpdatedAt',
     ]);
   });
 });

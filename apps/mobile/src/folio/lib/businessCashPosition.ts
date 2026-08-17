@@ -1,4 +1,4 @@
-import { isBankTxn, type Account, type Transaction } from '../store';
+import { bankAnalyticsTransactions, type Account, type Transaction } from '../store';
 import { isAccountInLaunchMoneyPicture } from './accountPolicy';
 import type { DerivedEvent } from './calendarEvents';
 
@@ -48,9 +48,10 @@ export function buildBusinessCashPosition(
   }>,
 ): BusinessCashPosition {
   const activeAccounts = input.accounts.filter(isAccountInLaunchMoneyPicture);
-  const cashTransactions = input.transactions.filter((transaction) =>
-    isBankTxn({ accounts: input.accounts }, transaction),
-  );
+  const cashTransactions = bankAnalyticsTransactions({
+    accounts: input.accounts,
+    transactions: input.transactions,
+  });
   const cashBalance = activeAccounts
     .filter((account) => !account.isLiability)
     .reduce((total, account) => total + account.balanceMinor, 0);

@@ -65,6 +65,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import {
+  bankAnalyticsTransactions,
   setCalendarFocusDate,
   useAppStore,
   type AppState,
@@ -251,7 +252,7 @@ function billsForIso(state: AppState, now: Date, iso: string): RouteBill[] {
     .filter((b) => b.date === iso)
     .map((b) => ({ name: b.name, date: shortLabel(b.date), amount: b.amount }));
 
-  const spendBills: RouteBill[] = state.transactions
+  const spendBills: RouteBill[] = bankAnalyticsTransactions(state)
     .filter((tx) => tx.amount < 0 && toIsoDay(new Date(tx.when)) === iso)
     .map((tx) => ({ name: tx.merchant, date: shortLabel(iso), amount: -tx.amount }));
 

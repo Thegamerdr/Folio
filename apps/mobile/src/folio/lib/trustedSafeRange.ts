@@ -27,6 +27,7 @@ import {
 } from '@folio/domain';
 
 import {
+  bankAnalyticsTransactions,
   bankTransactions,
   selectBankBalanceMinor,
   type AppState,
@@ -311,8 +312,14 @@ function transferKey(transaction: Transaction): string | null {
 }
 
 function findExcludedTransfers(transactions: readonly Transaction[]): readonly string[] {
+  const explicitlyLinked = transactions
+    .filter(
+      (transaction) => transaction.moneyMovementKind === 'transfer' && transaction.transferLinkId,
+    )
+    .map((transaction) => transaction.id);
   const byKey = new Map<string, Transaction[]>();
   for (const transaction of transactions) {
+    if (explicitlyLinked.includes(transaction.id)) continue;
     const key = transferKey(transaction);
     if (key === null) continue;
     byKey.set(key, [...(byKey.get(key) ?? []), transaction]);
@@ -325,7 +332,7 @@ function findExcludedTransfers(transactions: readonly Transaction[]): readonly s
       excluded.push(...candidates.map((transaction) => transaction.id));
     }
   }
-  return excluded.sort();
+  return [...new Set([...explicitlyLinked, ...excluded])].sort();
 }
 
 function deriveTimeline(state: AppState, todayISO: LocalDate): SafeRangeTimelineEvent[] {
@@ -443,7 +450,7 @@ function safeForecastBundle(
 }
 
 function dailySpendEstimateMinor(state: AppState, routeOutgoingTotal: number | undefined): number {
-  const bankTxns = bankTransactions(state).filter((txn) => txn.amount < 0);
+  const bankTxns = bankAnalyticsTransactions(state).filter((txn) => txn.amount < 0);
   if (bankTxns.length === 0) return 0;
   const monthly =
     routeOutgoingTotal !== undefined && routeOutgoingTotal > 0 ? routeOutgoingTotal : 0;
@@ -485,12 +492,12 @@ function hasDeclaredOutflows(state: AppState): boolean {
     (state.debts?.length ?? 0) > 0 ||
     state.pots.some((pot) => pot.perWeek > 0 || pot.saved > 0) ||
     state.calendarEvents.some((event) => typeof event.amount === 'number' && event.amount < 0) ||
-    bankTransactions(state).some((txn) => txn.amount < 0)
+    bankAnalyticsTransactions(state).some((txn) => txn.amount < 0)
   );
 }
 
 function incomeHistoryExists(state: AppState): boolean {
-  return bankTransactions(state).some((txn) => txn.amount > 0);
+  return bankAnalyticsTransactions(state).some((txn) => txn.amount > 0);
 }
 
 function duplicateSubContradictions(subs: readonly Sub[]): TrustedSafeRangeIssue[] {

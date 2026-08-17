@@ -24,6 +24,10 @@ import { gap, pressed, radius, serif, useTheme, type Palette } from '@/folio/the
 import { addTransaction, removeTransaction, useAppStore, type Transaction } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 import { triggerFeedback } from '@/folio/lib/feedback';
+import {
+  transactionAnalyticsRows,
+  transactionLifecycleStatusOf,
+} from '@/folio/lib/transactionPolicy';
 import type { Nav } from '@/folio/types';
 
 const MIN_TAP = 44;
@@ -50,14 +54,15 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
   const { showUndo } = useUndo();
   const transactions = useAppStore((st) => st.transactions);
   const recent = useMemo(
-    () => transactions.filter((tx) => tx.amount < 0).slice(0, 5),
+    () =>
+      transactions.filter((tx) => tx.amount < 0 && tx.moneyMovementKind !== 'transfer').slice(0, 5),
     [transactions],
   );
 
   const weekly = useMemo(() => {
     const cutoff = Date.now() - 7 * 86_400_000;
     const acc: Record<string, number> = {};
-    for (const tx of transactions) {
+    for (const tx of transactionAnalyticsRows(transactions)) {
       if (tx.amount >= 0) continue;
       if (new Date(tx.when).getTime() < cutoff) continue;
       acc[tx.category] = (acc[tx.category] ?? 0) + Math.abs(tx.amount);
@@ -140,6 +145,15 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
             const days = Math.round((Date.now() - d.getTime()) / 86_400_000);
             const when = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
             const abs = Math.abs(tx.amount).toFixed(2);
+            const lifecycle = transactionLifecycleStatusOf(tx);
+            const lifecycleLabel =
+              lifecycle === 'pending'
+                ? 'pending'
+                : lifecycle === 'reversed'
+                  ? 'reversed'
+                  : lifecycle === 'void'
+                    ? (tx.lifecycleReason ?? 'void')
+                    : null;
             return (
               <View
                 key={tx.id}
@@ -156,6 +170,7 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                   </Text>
                   <Text style={[styles.meta, { color: t.muted }]}>
                     {tx.category} · {when}
+                    {lifecycleLabel === null ? '' : ` · ${lifecycleLabel}`}
                   </Text>
                 </View>
                 <Text style={[styles.amount, { color: t.ink }]}>£{abs}</Text>

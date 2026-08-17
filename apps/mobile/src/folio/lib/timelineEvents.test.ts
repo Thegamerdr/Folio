@@ -62,6 +62,45 @@ describe('verbForTransaction', () => {
     const t = txn('t1', '2026-07-01T00:00:00.000Z', 'Tesco');
     expect(verbForTransaction(t, [edit('other-txn')])).toBe('Added');
   });
+
+  it('uses truthful lifecycle and movement verbs before generic edit history', () => {
+    expect(
+      verbForTransaction(
+        txn('pending', '2026-07-01T00:00:00.000Z', 'Card hold', {
+          lifecycleStatus: 'pending',
+        }),
+        [edit('pending')],
+      ),
+    ).toBe('Pending');
+    expect(
+      verbForTransaction(
+        txn('declined', '2026-07-01T00:00:00.000Z', 'Declined card', {
+          lifecycleStatus: 'void',
+          lifecycleReason: 'declined',
+        }),
+        [],
+      ),
+    ).toBe('Declined');
+    expect(
+      verbForTransaction(
+        txn('refund', '2026-07-01T00:00:00.000Z', 'Refund', {
+          amount: 10,
+          moneyMovementKind: 'refund',
+          refundOfId: 'purchase',
+        }),
+        [],
+      ),
+    ).toBe('Refunded');
+    expect(
+      verbForTransaction(
+        txn('transfer', '2026-07-01T00:00:00.000Z', 'Move', {
+          moneyMovementKind: 'transfer',
+          transferLinkId: 'move-1',
+        }),
+        [],
+      ),
+    ).toBe('Transferred');
+  });
 });
 
 describe('buildTimelineRows', () => {
@@ -83,6 +122,29 @@ describe('buildTimelineRows', () => {
       events: [],
     });
     expect(rows[0]!.verb).toBe('Edited');
+  });
+
+  it('explains why lifecycle rows are retained without affecting the money picture', () => {
+    const rows = buildTimelineRows({
+      transactions: [
+        txn('pending', '2026-07-01T09:00:00.000Z', 'Card hold', {
+          lifecycleStatus: 'pending',
+        }),
+        txn('duplicate', '2026-07-01T08:00:00.000Z', 'Repeated row', {
+          lifecycleStatus: 'void',
+          lifecycleReason: 'duplicate',
+          duplicateOfId: 'original',
+        }),
+      ],
+      edits: [],
+      events: [],
+    });
+
+    expect(rows[0]).toMatchObject({ verb: 'Pending', note: 'waiting to settle · not counted yet' });
+    expect(rows[1]).toMatchObject({
+      verb: 'Duplicate',
+      note: 'linked as a duplicate · not counted',
+    });
   });
 
   it('maps sub-paused to "Paused" with a "for one cycle" note', () => {

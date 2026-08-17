@@ -71,6 +71,7 @@ type TransactionRow = Readonly<{
   protected_in_route?: unknown;
   original?: unknown;
   provenance_hash?: unknown;
+  lifecycle_json?: unknown;
 }>;
 
 type ImportDraftRow = Readonly<{
@@ -413,10 +414,16 @@ async function ensureLocalLedgerTables(db: ReturnType<typeof open>): Promise<voi
         status TEXT NOT NULL,
         protected_in_route INTEGER NOT NULL,
         original TEXT,
-        provenance_hash TEXT
+        provenance_hash TEXT,
+        lifecycle_json TEXT
       )
     `,
   );
+  try {
+    await db.execute('ALTER TABLE local_ledger_transactions ADD COLUMN lifecycle_json TEXT');
+  } catch {
+    // Column already present.
+  }
   await db.execute(
     `
       CREATE TABLE IF NOT EXISTS local_ledger_import_drafts (
@@ -530,7 +537,8 @@ async function loadNormalizedLedgerState(
 
   const transactions = await db.execute(
     `
-      SELECT id, title, amount_minor, posted_date, source, status, protected_in_route, original, provenance_hash
+      SELECT id, title, amount_minor, posted_date, source, status, protected_in_route, original,
+             provenance_hash, lifecycle_json
       FROM local_ledger_transactions
       WHERE workspace_id = ?
       ORDER BY sort_order
@@ -682,8 +690,8 @@ async function saveNormalizedLedgerState(
       `
         INSERT INTO local_ledger_transactions (
           workspace_id, id, sort_order, title, amount_minor, posted_date, source, status,
-          protected_in_route, original, provenance_hash
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          protected_in_route, original, provenance_hash, lifecycle_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         workspaceId,
@@ -697,6 +705,20 @@ async function saveNormalizedLedgerState(
         transaction.protected ? 1 : 0,
         transaction.original ?? null,
         transaction.provenanceHash ?? null,
+        JSON.stringify({
+          lifecycleStatus: transaction.lifecycleStatus ?? 'posted',
+          lifecycleReason: transaction.lifecycleReason ?? null,
+          lifecycleChangedAt: transaction.lifecycleChangedAt ?? null,
+          moneyMovementKind: transaction.moneyMovementKind ?? null,
+          transferLinkId: transaction.transferLinkId ?? null,
+          refundOfId: transaction.refundOfId ?? null,
+          reversalOfId: transaction.reversalOfId ?? null,
+          duplicateOfId: transaction.duplicateOfId ?? null,
+          replacesId: transaction.replacesId ?? null,
+          replacedById: transaction.replacedById ?? null,
+          manuallyCorrectedAt: transaction.manuallyCorrectedAt ?? null,
+          providerUpdatedAt: transaction.providerUpdatedAt ?? null,
+        }),
       ],
     );
     await db.execute(
@@ -869,6 +891,7 @@ function rowToTransaction(row: Record<string, unknown>): LocalLedgerTransaction 
     return null;
   }
 
+  const lifecycle = parseTransactionLifecycle(candidate.lifecycle_json);
   return {
     id: candidate.id,
     title: candidate.title,
@@ -881,7 +904,53 @@ function rowToTransaction(row: Record<string, unknown>): LocalLedgerTransaction 
     ...(typeof candidate.provenance_hash === 'string'
       ? { provenanceHash: candidate.provenance_hash }
       : {}),
+    ...lifecycle,
   };
+}
+
+function parseTransactionLifecycle(value: unknown): Partial<LocalLedgerTransaction> {
+  if (typeof value !== 'string') return { lifecycleStatus: 'posted' };
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!isRecord(parsed)) return { lifecycleStatus: 'posted' };
+    const lifecycleStatus = parsed['lifecycleStatus'];
+    if (
+      lifecycleStatus !== 'pending' &&
+      lifecycleStatus !== 'posted' &&
+      lifecycleStatus !== 'reversed' &&
+      lifecycleStatus !== 'void'
+    ) {
+      return { lifecycleStatus: 'posted' };
+    }
+    const text = (key: string): string | undefined =>
+      typeof parsed[key] === 'string' ? (parsed[key] as string) : undefined;
+    const movement = parsed['moneyMovementKind'];
+    const reason = parsed['lifecycleReason'];
+    return {
+      lifecycleStatus,
+      ...(reason === 'declined' ||
+      reason === 'duplicate' ||
+      reason === 'user-voided' ||
+      reason === 'provider-expired' ||
+      reason === 'other'
+        ? { lifecycleReason: reason }
+        : {}),
+      ...(movement === 'ordinary' || movement === 'transfer' || movement === 'refund'
+        ? { moneyMovementKind: movement }
+        : {}),
+      ...(text('lifecycleChangedAt') ? { lifecycleChangedAt: text('lifecycleChangedAt')! } : {}),
+      ...(text('transferLinkId') ? { transferLinkId: text('transferLinkId')! } : {}),
+      ...(text('refundOfId') ? { refundOfId: text('refundOfId')! } : {}),
+      ...(text('reversalOfId') ? { reversalOfId: text('reversalOfId')! } : {}),
+      ...(text('duplicateOfId') ? { duplicateOfId: text('duplicateOfId')! } : {}),
+      ...(text('replacesId') ? { replacesId: text('replacesId')! } : {}),
+      ...(text('replacedById') ? { replacedById: text('replacedById')! } : {}),
+      ...(text('manuallyCorrectedAt') ? { manuallyCorrectedAt: text('manuallyCorrectedAt')! } : {}),
+      ...(text('providerUpdatedAt') ? { providerUpdatedAt: text('providerUpdatedAt')! } : {}),
+    };
+  } catch {
+    return { lifecycleStatus: 'posted' };
+  }
 }
 
 function rowToImportDraft(row: Record<string, unknown>): LocalImportDraft | null {
@@ -1050,7 +1119,13 @@ function isPresent<T>(value: T | null): value is T {
 }
 
 function isTransactionSource(value: unknown): value is LocalLedgerTransaction['source'] {
-  return value === 'seed' || value === 'manual' || value === 'import';
+  return (
+    value === 'seed' ||
+    value === 'manual' ||
+    value === 'import' ||
+    value === 'melo' ||
+    value === 'open_banking'
+  );
 }
 
 function isTransactionStatus(value: unknown): value is LocalLedgerTransaction['status'] {
