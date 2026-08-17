@@ -9,7 +9,7 @@ import {
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { fastForwardMonth, useAppStore } from '@/folio/store';
 import { CHART_STYLE_HINT, CHART_STYLE_LABEL, useChartStyle } from '@/folio/lib/chartStyle';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
@@ -134,22 +134,28 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
 
   if (state === 'empty' || state === 'error') {
     return (
-      <EmptyState
-        mood="calm"
-        headline={state === 'error' ? copy.err.generic : 'Everything else, calmly.'}
-        body={state === 'error' ? undefined : 'The quiet hub — back in a moment.'}
-        cta={{ label: 'Back to today', onPress: () => nav.go('today') }}
+      <StatePanel
+        body={
+          state === 'error'
+            ? 'Settings and account tools could not be shown right now.'
+            : 'There are no additional settings to show yet.'
+        }
+        fullScreen
+        kind={state === 'error' ? 'error' : 'genuine-empty'}
+        primaryAction={{ label: 'Back to today', onPress: () => nav.go('today') }}
+        title={state === 'error' ? copy.err.generic : 'Everything else, calmly.'}
       />
     );
   }
 
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — gathering everything else." />
-      </View>
+      <StatePanel
+        body="Gathering account, preferences and support settings."
+        fullScreen
+        kind="loading"
+        title="Loading More"
+      />
     );
   }
 

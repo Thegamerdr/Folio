@@ -31,7 +31,7 @@ import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
 import { safeZoneMath } from '@/folio/lib/modes/safeZone';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { useAppStore } from '@/folio/store';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { Surface, gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 
@@ -209,16 +209,18 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
 
   if (state === 'error' || state === 'offline' || state === 'empty') {
     return (
-      <EmptyState
-        body={state === 'offline' ? copy.err.offline : undefined}
-        cta={{ label: 'Back', onPress: nav.back }}
-        headline={state === 'error' ? copy.err.generic : copy.plans.title}
+      <StatePanel
+        body={state === 'offline' ? copy.err.offline : 'Plan options are unavailable right now.'}
+        fullScreen
+        kind={state === 'offline' ? 'offline' : state === 'error' ? 'error' : 'genuine-empty'}
+        primaryAction={{ label: 'Back', onPress: nav.back }}
+        title={state === 'error' ? copy.err.generic : copy.plans.title}
       />
     );
   }
 
   if (state === 'loading') {
-    return <EmptyState headline={copy.plans.title} />;
+    return <StatePanel fullScreen kind="loading" title="Loading plan options" />;
   }
 
   const restore = async () => {

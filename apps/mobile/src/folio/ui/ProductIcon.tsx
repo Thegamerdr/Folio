@@ -1,11 +1,18 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ArchiveRestore,
+  CircleCheckBig,
   CircleGauge,
+  CircleHelp,
+  Clock3,
   Ellipsis,
   ListChecks,
   Route,
+  TriangleAlert,
   WalletCards,
+  WifiOff,
+  LockKeyhole,
   X,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -18,7 +25,14 @@ export type ProductIconName =
   | 'money'
   | 'review'
   | 'more'
-  | 'close';
+  | 'close'
+  | 'info'
+  | 'warning'
+  | 'offline'
+  | 'locked'
+  | 'queued'
+  | 'success'
+  | 'restore';
 
 const ICONS: Readonly<Record<ProductIconName, LucideIcon>> = {
   back: ArrowLeft,
@@ -29,6 +43,13 @@ const ICONS: Readonly<Record<ProductIconName, LucideIcon>> = {
   review: ListChecks,
   more: Ellipsis,
   close: X,
+  info: CircleHelp,
+  warning: TriangleAlert,
+  offline: WifiOff,
+  locked: LockKeyhole,
+  queued: Clock3,
+  success: CircleCheckBig,
+  restore: ArchiveRestore,
 };
 
 /**

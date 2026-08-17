@@ -69,7 +69,7 @@ import { normaliseBusinessOperationsState } from '@folio/business-workspace';
 
 import { Surface, Hairline, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { copy } from '@/folio/copy/copy';
 import {
   addAccount,
@@ -506,11 +506,12 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
     const headline = state === 'error' ? copy.err.generic : 'Your plan, plainly.';
     const body = state === 'error' ? undefined : 'Who you are to Melo — back in a moment.';
     return (
-      <EmptyState
-        mood="calm"
-        headline={headline}
-        body={body}
-        cta={{ label: 'Back', onPress: () => nav.back() }}
+      <StatePanel
+        body={body ?? 'Account details could not be shown right now.'}
+        fullScreen
+        kind={state === 'error' ? 'error' : 'genuine-empty'}
+        primaryAction={{ label: 'Back', onPress: () => nav.back() }}
+        title={headline}
       />
     );
   }
@@ -518,11 +519,12 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
   // loading — Melo curious + a line, never a spinner (STATES.md convention).
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.huge }]}
-      >
-        <MeloLine mood="curious" text="One moment — pulling up your account." />
-      </View>
+      <StatePanel
+        body="Gathering your plan, money sources and account controls."
+        fullScreen
+        kind="loading"
+        title="Loading account"
+      />
     );
   }
 
@@ -1295,22 +1297,28 @@ function PersonalAccountScreen({ nav, state = 'populated' }: AccountScreenProps)
 
   if (state === 'empty' || state === 'error') {
     return (
-      <EmptyState
-        mood="calm"
-        headline={state === 'error' ? copy.err.generic : 'You & Melo.'}
-        body={state === 'error' ? undefined : 'Your account will be back in a moment.'}
-        cta={{ label: 'Back', onPress: () => nav.back() }}
+      <StatePanel
+        body={
+          state === 'error'
+            ? 'Account details could not be shown right now.'
+            : 'There are no account details to show yet.'
+        }
+        fullScreen
+        kind={state === 'error' ? 'error' : 'genuine-empty'}
+        primaryAction={{ label: 'Back', onPress: () => nav.back() }}
+        title={state === 'error' ? copy.err.generic : 'You & Melo.'}
       />
     );
   }
 
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.huge }]}
-      >
-        <MeloLine mood="curious" text="One moment — pulling up your account." />
-      </View>
+      <StatePanel
+        body="Gathering money sources and local account controls."
+        fullScreen
+        kind="loading"
+        title="Loading account"
+      />
     );
   }
 
