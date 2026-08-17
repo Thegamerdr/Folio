@@ -3,7 +3,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import type { WorkspaceId } from '@folio/domain';
 
-import { getPersistBlob } from '@/folio/store';
+import { getPersistBlob, recordServiceAccess } from '@/folio/store';
 import { applyRestore, type ApplyRestoreResult } from '@/folio/lib/restoreNative';
 import { summarizeRestore, validateRestoreJson, type RestoreSummary } from '@/folio/lib/restore';
 
@@ -264,19 +264,42 @@ async function requestJson<T = unknown>(
   workspaceRef: string | null,
   init: RequestInit,
 ): Promise<T> {
-  const response = await cloudFetch(path, token, workspaceRef, init);
-  const parsed = (await response.json().catch(() => null)) as { error?: unknown } | null;
-  if (!response.ok) throw new Error(apiError(parsed, response.status));
-  return parsed as T;
+  const operation = cloudOperation(path, init.method);
+  try {
+    const response = await cloudFetch(path, token, workspaceRef, init);
+    const parsed = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    if (!response.ok) throw new Error(apiError(parsed, response.status));
+    recordServiceAccess({ service: 'backup', operation, outcome: 'completed' });
+    return parsed as T;
+  } catch (reason: unknown) {
+    recordServiceAccess({ service: 'backup', operation, outcome: 'failed' });
+    throw reason;
+  }
 }
 
 async function requestText(path: string, token: string, workspaceRef: string): Promise<string> {
-  const response = await cloudFetch(path, token, workspaceRef, { method: 'GET' });
-  if (!response.ok) {
-    const parsed = (await response.json().catch(() => null)) as { error?: unknown } | null;
-    throw new Error(apiError(parsed, response.status));
+  const operation = cloudOperation(path, 'GET');
+  try {
+    const response = await cloudFetch(path, token, workspaceRef, { method: 'GET' });
+    if (!response.ok) {
+      const parsed = (await response.json().catch(() => null)) as { error?: unknown } | null;
+      throw new Error(apiError(parsed, response.status));
+    }
+    const text = await response.text();
+    recordServiceAccess({ service: 'backup', operation, outcome: 'completed' });
+    return text;
+  } catch (reason: unknown) {
+    recordServiceAccess({ service: 'backup', operation, outcome: 'failed' });
+    throw reason;
   }
-  return response.text();
+}
+
+function cloudOperation(path: string, method = 'GET'): string {
+  if (path.includes('/content')) return 'restore-download';
+  if (path === '/v1/account') return 'account-delete';
+  if (method === 'PUT') return 'backup-upload';
+  if (method === 'DELETE') return 'backup-delete';
+  return 'backup-status';
 }
 
 async function cloudFetch(

@@ -91,7 +91,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           hint: 'receipts for material money choices',
           to: 'decision-history',
         },
-        { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
+        { label: 'Data & Security', hint: 'privacy, access, backup and export', to: 'privacy' },
         {
           label: 'Appearance',
           hint: isDark ? 'dark · tap for light' : 'light · tap for dark',

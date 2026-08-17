@@ -664,6 +664,17 @@ export type TimelineEvent = {
   note?: string;
 };
 
+/** Privacy-safe record of an actual request to an optional Melo service. Never stores money,
+ * document content, prompts, provider credentials, account identifiers or response bodies. */
+export type ServiceAccessEvent = {
+  id: string;
+  workspaceId: WorkspaceId;
+  at: string;
+  service: 'bank' | 'backup';
+  operation: string;
+  outcome: 'completed' | 'failed';
+};
+
 /** A user-added calendar event. Derived events (paydays, bills, sub renewals,
  *  deadlines) come from `deriveCalendarEvents()` and are NOT stored. */
 export type CalendarEvent = {
@@ -905,6 +916,8 @@ export type AppState = {
    *  `TimelineEvent`). Newest first, capped at 200. Optional for shape back-compat; `DEFAULTS`/
    *  `load()`/`resetToEmpty()` always populate it ([]). */
   timelineEvents?: TimelineEvent[];
+  /** Actual optional-service requests, newest first and capped at 200. Content-free by design. */
+  serviceAccessLog?: ServiceAccessEvent[];
   /** Unreviewed candidates from the intake pipeline (PDF / paste / image / CSV
    *  / TXT) — the PERSISTED review queue, ported 1:1 from the design source
    *  (folio-melo store.ts `reviewQueue`, its v7→v8 seam). Each entry is one row
@@ -1133,7 +1146,7 @@ export type MeloState = {
 };
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-export const CURRENT_SCHEMA_VERSION = 21;
+export const CURRENT_SCHEMA_VERSION = 22;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -1385,6 +1398,7 @@ const DEFAULTS: AppState = normaliseWorkspaceRows(
     chartStyle: 'curve',
     tinyWins: [],
     timelineEvents: [],
+    serviceAccessLog: [],
     // Empty by default — a fresh install has NOT declared income sources yet, so
     // every caller falls back to the legacy `onboarding.payday`/`monthlyIncome`
     // single-lump derivation until the user (or the v7→v8 migration, for an
@@ -1814,6 +1828,16 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
         }))
       : [],
   }),
+  // v21 → v22: introduce a content-free record of real optional-service requests. Historical
+  // access is not reconstructed from imports, connections or backups because that would fabricate
+  // events that may never have left the device.
+  22: (prev) => ({
+    ...prev,
+    schemaVersion: 22,
+    serviceAccessLog: Array.isArray(prev['serviceAccessLog'])
+      ? (prev['serviceAccessLog'] as ServiceAccessEvent[]).slice(0, 200)
+      : [],
+  }),
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -2203,6 +2227,9 @@ function load(): AppState {
       timelineEvents: Array.isArray(migrated.timelineEvents)
         ? migrated.timelineEvents
         : DEFAULT_TIMELINE_EVENTS,
+      serviceAccessLog: Array.isArray(migrated.serviceAccessLog)
+        ? migrated.serviceAccessLog.slice(0, 200)
+        : [],
       incomeSources: Array.isArray(migrated.incomeSources)
         ? migrated.incomeSources
         : DEFAULT_INCOME_SOURCES,
@@ -2609,6 +2636,29 @@ function publishState(next: AppState): void {
 
 export function setPartial(patch: Partial<AppState>) {
   publishState(nextStateForPartial(patch));
+}
+
+export function recordServiceAccess(
+  input: Readonly<{
+    service: ServiceAccessEvent['service'];
+    operation: string;
+    outcome: ServiceAccessEvent['outcome'];
+    workspaceId?: WorkspaceId;
+    now?: Date;
+  }>,
+): ServiceAccessEvent {
+  const workspaceId = input.workspaceId ?? state.activeWorkspaceId;
+  const at = (input.now ?? new Date()).toISOString();
+  const event: ServiceAccessEvent = {
+    id: `service-${input.service}-${input.operation}-${at}-${(state.serviceAccessLog ?? []).length}`,
+    workspaceId,
+    at,
+    service: input.service,
+    operation: input.operation,
+    outcome: input.outcome,
+  };
+  setPartial({ serviceAccessLog: [event, ...(state.serviceAccessLog ?? [])].slice(0, 200) });
+  return event;
 }
 
 type AppStateCommandDescriptor = Omit<PendingAppStateCommandInput, 'workspaceId' | 'occurredAt'> & {
@@ -8665,6 +8715,7 @@ export function resetAll() {
       transactions: seedTransactions(),
       calendarEvents: [],
       timelineEvents: [],
+      serviceAccessLog: [],
       incomeSources: [],
     },
     PERSONAL_WORKSPACE_ID,
@@ -8767,6 +8818,7 @@ export function createEmptyWorkspacePartition(
     chartStyle: 'curve',
     tinyWins: [],
     timelineEvents: [],
+    serviceAccessLog: [],
     incomeSources: [],
     merchantCategories: {},
   };
@@ -8879,6 +8931,7 @@ export function resetToEmpty(options?: Readonly<{ onboardingDone?: boolean }>) {
     chartStyle: 'curve',
     tinyWins: [],
     timelineEvents: [],
+    serviceAccessLog: [],
     incomeSources: [],
     merchantCategories: {},
   };

@@ -11,6 +11,7 @@ import {
 import type { WorkspaceId } from '@folio/domain';
 
 import { workspaceBackupRef } from './cloudBackup';
+import { recordServiceAccess } from '@/folio/store';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -180,7 +181,14 @@ async function requestJson(
   workspaceId: WorkspaceId | null,
   init: RequestInit,
 ): Promise<unknown> {
+  const operation = bankOperation(path, init.method);
   if (token.trim().length === 0) {
+    recordServiceAccess({
+      service: 'bank',
+      operation,
+      outcome: 'failed',
+      ...(workspaceId === null ? {} : { workspaceId }),
+    });
     throw new OpenBankingClientError('Sign in again to use bank connection.', 'unauthorized', 401);
   }
   const controller = new AbortController();
@@ -208,8 +216,20 @@ async function requestJson(
         response.status,
       );
     }
+    recordServiceAccess({
+      service: 'bank',
+      operation,
+      outcome: 'completed',
+      ...(workspaceId === null ? {} : { workspaceId }),
+    });
     return payload;
   } catch (reason: unknown) {
+    recordServiceAccess({
+      service: 'bank',
+      operation,
+      outcome: 'failed',
+      ...(workspaceId === null ? {} : { workspaceId }),
+    });
     if (reason instanceof OpenBankingClientError) throw reason;
     if (reason instanceof Error && reason.name === 'AbortError') {
       throw new OpenBankingClientError(
@@ -226,6 +246,14 @@ async function requestJson(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function bankOperation(path: string, method = 'GET'): string {
+  if (path.endsWith('/sync')) return 'connection-refresh';
+  if (path === '/v1/account') return 'account-delete';
+  if (method === 'POST') return 'connection-start';
+  if (method === 'DELETE') return 'connection-disconnect';
+  return 'connection-status';
 }
 
 async function readPayload(response: Response): Promise<unknown> {

@@ -87,6 +87,8 @@ import {
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { CloudBackupSheet } from '@/folio/sheets/CloudBackupSheet';
+import { isClerkConfigured } from '@/folio/lib/clerkAuth';
 import { runExport } from '@/folio/lib/exportNative';
 import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
@@ -121,7 +123,7 @@ export type PrivacyScreenProps = {
 // deletion are named as separate boundaries instead of implying everything stays on-device.
 const HONEST_CLAIMS = [
   'No ads or behavioural tracking',
-  'Bank, backup, Melo and statement services run only when you choose them',
+  'Bank and backup services run only when you choose them; Melo and statement reading stay local',
   'Local clearing and cloud account deletion stay separate',
 ] as const;
 
@@ -144,6 +146,13 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   const [changingAppLock, setChangingAppLock] = useState(false);
   const [supportPreview, setSupportPreview] = useState<SupportDiagnosticBundle | null>(null);
   const [sharingSupportReport, setSharingSupportReport] = useState(false);
+  const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
+  const clerkConfigured = isClerkConfigured();
+  const serviceAccess = useAppStore((current) =>
+    (current.serviceAccessLog ?? [])
+      .filter((event) => String(event.workspaceId) === String(current.activeWorkspaceId))
+      .slice(0, 8),
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -656,6 +665,38 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
 
           <Pressable
             accessibilityHint={
+              clerkConfigured
+                ? 'Opens cloud backup and restore controls'
+                : 'Explains why cloud backup is unavailable in this build'
+            }
+            accessibilityRole="button"
+            onPress={() => {
+              if (clerkConfigured) {
+                setCloudBackupVisible(true);
+                return;
+              }
+              Alert.alert(
+                'Cloud backup is unavailable',
+                'This build has no account provider configured. Local export and restore still work without an account.',
+              );
+            }}
+            style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
+          >
+            <View style={styles.actionText}>
+              <Text style={[styles.actionTitle, { color: t.ink }]}>Cloud backup & restore</Text>
+              <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+                {clerkConfigured
+                  ? 'optional · protected by a separate recovery code'
+                  : 'not configured · local export remains available'}
+              </Text>
+            </View>
+            <ChevronRight color={t.muted} />
+          </Pressable>
+
+          <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
+
+          <Pressable
+            accessibilityHint={
               appLockSettings.enabled
                 ? 'Authenticates before turning off app lock'
                 : 'Authenticates before turning on app lock'
@@ -752,6 +793,48 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           </Pressable>
         </View>
 
+        <Text style={[styles.sectionLabel, { color: t.muted }]}>Optional-service access</Text>
+        <View style={[styles.accessCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          {serviceAccess.length === 0 ? (
+            <Text style={[styles.accessEmpty, { color: t.muted }]}>
+              No bank or backup request has been recorded for this workspace.
+            </Text>
+          ) : (
+            serviceAccess.map((event, index) => (
+              <View key={event.id}>
+                {index > 0 ? (
+                  <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
+                ) : null}
+                <View
+                  accessibilityLabel={`${serviceAccessLabel(event.service, event.operation)}. ${event.outcome}. ${formatServiceAccessTime(event.at)}`}
+                  style={styles.accessRow}
+                >
+                  <View style={styles.actionText}>
+                    <Text style={[styles.actionTitle, { color: t.ink }]}>
+                      {serviceAccessLabel(event.service, event.operation)}
+                    </Text>
+                    <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+                      {formatServiceAccessTime(event.at)}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.accessOutcome,
+                      { color: event.outcome === 'completed' ? t.positive : t.repairInk },
+                    ]}
+                  >
+                    {event.outcome}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+        <Text style={[styles.accessNote, { color: t.muted }]}>
+          This history records only service, action, time and outcome. It never stores money,
+          document text, conversations, credentials or response content.
+        </Text>
+
         {/* Spacer pushes the Melo footer line to the bottom, mirroring the web flex-1 spacer. */}
         <View style={styles.spacer} />
 
@@ -770,8 +853,30 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           />
         </View>
       </ScrollView>
+      {clerkConfigured ? (
+        <CloudBackupSheet
+          visible={cloudBackupVisible}
+          onClose={() => setCloudBackupVisible(false)}
+        />
+      ) : null}
     </View>
   );
+}
+
+function serviceAccessLabel(service: 'bank' | 'backup', operation: string): string {
+  const operationLabel = operation.replaceAll('-', ' ');
+  return `${service === 'bank' ? 'Bank connection' : 'Cloud backup'} · ${operationLabel}`;
+}
+
+function formatServiceAccessTime(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return 'Time unavailable';
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 const styles = StyleSheet.create({
@@ -953,4 +1058,27 @@ const styles = StyleSheet.create({
     marginBottom: gap.xl,
     marginTop: gap.xl,
   },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginTop: gap.xl,
+    textTransform: 'uppercase',
+  },
+  accessCard: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.sm,
+    overflow: 'hidden',
+  },
+  accessRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 56,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+  },
+  accessEmpty: { fontSize: 12, lineHeight: 17, padding: gap.md },
+  accessOutcome: { fontSize: 10.5, fontWeight: '700', textTransform: 'capitalize' },
+  accessNote: { fontSize: 11, lineHeight: 16, marginTop: gap.sm },
 });

@@ -225,7 +225,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   insights: 'Insights',
   shortfall: 'Shortfall',
   more: 'More',
-  privacy: 'Privacy',
+  privacy: 'Data & Security',
   'decision-history': 'Decision history',
   melo: 'Melo',
   'melo-memory': 'What I remember',

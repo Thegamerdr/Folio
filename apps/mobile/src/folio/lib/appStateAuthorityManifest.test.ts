@@ -7,7 +7,7 @@ import {
 
 describe('AppState authority manifest', () => {
   it('keeps every shipping AppState field explicitly classified', () => {
-    expect(Object.keys(appStateAuthorityManifest)).toHaveLength(70);
+    expect(Object.keys(appStateAuthorityManifest)).toHaveLength(71);
     expect(appStateFieldsWithAuthority('workspace-root')).toEqual([
       'schemaVersion',
       'workspaces',
@@ -103,6 +103,7 @@ describe('AppState authority manifest', () => {
       'chartStyle',
       'stage',
       'streak',
+      'serviceAccessLog',
     ]);
   });
 });

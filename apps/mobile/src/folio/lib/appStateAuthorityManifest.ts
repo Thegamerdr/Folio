@@ -95,6 +95,9 @@ export const appStateAuthorityManifest = {
   merchantCategories: 'canonical-transaction-intelligence-authority',
   statementImports: 'canonical-transaction-intelligence-authority',
   evidenceDocuments: 'canonical-transaction-intelligence-authority',
+  // Content-free local audit metadata for optional network services. It is
+  // workspace-scoped and deliberately excludes financial or response data.
+  serviceAccessLog: 'exact-encrypted-authority',
 
   calendarFocusDate: 'transient-not-persisted',
   routeFocusDate: 'transient-not-persisted',

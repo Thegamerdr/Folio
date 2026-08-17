@@ -77,6 +77,7 @@ import {
   recordTransactionRefund,
   recordTransactionReversal,
   recordMaterialDecision,
+  recordServiceAccess,
   restoreBackupFromBlob,
   removeEvidenceDocument,
   removeIncomeSource,
@@ -2443,6 +2444,54 @@ describe('schema migration v6', () => {
     expect(events.length).toBe(1);
     expect(events[0]!.kind).toBe('sub-paused');
     expect(events[0]!.subject).toBe('Spotify');
+  });
+});
+
+describe('service access history', () => {
+  it('starts empty, records only privacy-safe request metadata, and survives persistence', () => {
+    resetToEmpty({ onboardingDone: true });
+    expect(getState().serviceAccessLog).toEqual([]);
+
+    const recorded = recordServiceAccess({
+      service: 'backup',
+      operation: 'backup-upload',
+      outcome: 'completed',
+      now: new Date('2026-08-17T12:30:00.000Z'),
+    });
+    expect(recorded).toMatchObject({
+      service: 'backup',
+      operation: 'backup-upload',
+      outcome: 'completed',
+      at: '2026-08-17T12:30:00.000Z',
+    });
+    expect(Object.keys(recorded).sort()).toEqual([
+      'at',
+      'id',
+      'operation',
+      'outcome',
+      'service',
+      'workspaceId',
+    ]);
+
+    const persisted = getPersistBlob();
+    resetAll();
+    expect(hydrateFromBlob(persisted)).toEqual({ status: 'applied' });
+    expect(getState().serviceAccessLog?.[0]).toEqual(recorded);
+  });
+
+  it('is bounded and cleared with local data', () => {
+    resetToEmpty({ onboardingDone: true });
+    for (let index = 0; index < 205; index += 1) {
+      recordServiceAccess({
+        service: 'bank',
+        operation: 'connection-status',
+        outcome: index % 2 === 0 ? 'completed' : 'failed',
+        now: new Date(Date.UTC(2026, 7, 17, 0, 0, index)),
+      });
+    }
+    expect(getState().serviceAccessLog).toHaveLength(200);
+    resetToEmpty({ onboardingDone: true });
+    expect(getState().serviceAccessLog).toEqual([]);
   });
 });
 
