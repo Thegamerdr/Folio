@@ -24,6 +24,7 @@ import {
   startOpenBankingConnection,
   syncOpenBankingConnection,
 } from '@/folio/lib/openBankingNative';
+import { isLaunchCurrency } from '@/folio/lib/launchCurrency';
 
 const TRUELAYER_LEGAL_URL = 'https://truelayer.com/legal/';
 
@@ -54,7 +55,7 @@ export function BankConnectionSheet({
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const localAccounts = useAppStore((state) => state.accounts ?? []);
   const availableLocalAccounts = useMemo(
-    () => localAccounts.filter((account) => !account.closed),
+    () => localAccounts.filter((account) => !account.closed && isLaunchCurrency(account.currency)),
     [localAccounts],
   );
   const [remote, setRemote] = useState<OpenBankingConnectionsResponse | null>(null);
@@ -191,6 +192,7 @@ export function BankConnectionSheet({
       setAccountMappings((current) => {
         const next = { ...current };
         result.connection.accounts.forEach((account, index) => {
+          if (!isLaunchCurrency(account.currency) || availableLocalAccounts.length === 0) return;
           if (next[account.accountRef] !== undefined) return;
           next[account.accountRef] =
             availableLocalAccounts[index]?.id ??
@@ -397,6 +399,7 @@ export function BankConnectionSheet({
             </Text>
             <Text style={[styles.sectionBody, { color: t.muted }]}>{copy.bank.review.body}</Text>
             {stagedSync.connection.accounts.map((bankAccount) => {
+              const supported = isLaunchCurrency(bankAccount.currency);
               const localId = accountMappings[bankAccount.accountRef];
               const local =
                 availableLocalAccounts.find((account) => account.id === localId) ??
@@ -404,22 +407,32 @@ export function BankConnectionSheet({
               return (
                 <Pressable
                   accessibilityHint={
-                    availableLocalAccounts.length > 1
+                    supported && availableLocalAccounts.length > 1
                       ? 'Changes the destination Melo account.'
-                      : undefined
+                      : supported
+                        ? undefined
+                        : 'Melo launches in GBP only. This account will not be imported.'
                   }
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: !supported || local === undefined }}
+                  disabled={!supported || local === undefined}
                   key={bankAccount.accountRef}
-                  onPress={() => cycleMapping(bankAccount.accountRef)}
+                  onPress={() => {
+                    if (supported) cycleMapping(bankAccount.accountRef);
+                  }}
                   style={[styles.mappingRow, { borderColor: t.hairline }]}
                 >
                   <View style={styles.mappingText}>
                     <Text style={[styles.mappingBank, { color: t.ink }]}>{bankAccount.label}</Text>
                     <Text style={[styles.mappingLocal, { color: t.muted }]}>
-                      Add to {local?.name ?? 'Main'} · {bankAccount.currency}
+                      {supported
+                        ? local === undefined
+                          ? 'Add a GBP Melo account before importing'
+                          : `Add to ${local.name} · GBP`
+                        : `${bankAccount.currency} is not included in Melo's GBP picture`}
                     </Text>
                   </View>
-                  {availableLocalAccounts.length > 1 ? (
+                  {supported && availableLocalAccounts.length > 1 ? (
                     <Text style={[styles.mappingChange, { color: t.calmStrong }]}>Change</Text>
                   ) : null}
                 </Pressable>

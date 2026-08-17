@@ -349,6 +349,28 @@ describe('parseSheet — confidence + candidate-only', () => {
   });
 });
 
+describe('parseSheet — GBP-only launch boundary', () => {
+  it('accepts GBP notation but does not coerce euro symbols into pounds', () => {
+    const { candidates, issues } = parseSheet(
+      ['description,amount', 'Salary,GBP 1200.00', 'Cafe,€12.40'].join('\n'),
+    );
+
+    expect(byMerchant(candidates, 'Salary')?.amount).toBe(1200);
+    expect(byMerchant(candidates, 'Cafe')).toBeUndefined();
+    expect(issues).toEqual([expect.objectContaining({ code: 'unsupported-currency', row: 2 })]);
+  });
+
+  it('reads an explicit currency column and leaves foreign rows out', () => {
+    const { candidates, issues } = parseSheet(
+      ['description,amount,currency', 'Rent,-900.00,GBP', 'Hotel,-150.00,EUR'].join('\n'),
+    );
+
+    expect(candidates.map((candidate) => candidate.merchant)).toEqual(['Rent']);
+    expect(issues[0]?.message).toContain('EUR');
+    expect(issues[0]?.message).toContain('rather than turn it into pounds');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Folio CSV template
 // ---------------------------------------------------------------------------

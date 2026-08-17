@@ -6,6 +6,7 @@ import type {
   CandidateSource,
 } from '@/folio/lib/importSheet';
 import type { StatementClosingBalance } from './statementReaderParse';
+import { detectUnsupportedDocumentCurrency } from '../folio/lib/launchCurrency';
 
 const READER_CONFIDENCE: CandidateConfidence = 'low';
 
@@ -19,6 +20,7 @@ export type LocalOcrCandidateInput = Readonly<{
 export type LocalOcrCandidateResult = Readonly<{
   candidates: CandidateMoneyItem[];
   issueCount: number;
+  unsupportedCurrency: string | null;
   closingBalance: StatementClosingBalance | null;
   reconciliationState: 'exact_match' | 'explained_mismatch' | 'unresolved_mismatch';
 }>;
@@ -32,6 +34,16 @@ export type LocalOcrCandidateResult = Readonly<{
  * reviewed before it becomes money truth.
  */
 export function parseLocalOcrCandidates(input: LocalOcrCandidateInput): LocalOcrCandidateResult {
+  const unsupportedCurrency = detectUnsupportedDocumentCurrency(input.text);
+  if (unsupportedCurrency !== null) {
+    return {
+      candidates: [],
+      issueCount: 1,
+      unsupportedCurrency: unsupportedCurrency.label,
+      closingBalance: null,
+      reconciliationState: 'unresolved_mismatch',
+    };
+  }
   const now = input.now ?? new Date();
   const normalized = normalizeOcrStatementText(input.text, now);
   const fingerprint = stableFingerprint(`${input.filename}\n${input.text}`);
@@ -60,6 +72,7 @@ export function parseLocalOcrCandidates(input: LocalOcrCandidateInput): LocalOcr
       };
     }),
     issueCount: parsed.issues.length,
+    unsupportedCurrency: null,
     closingBalance: statementClosingBalanceFromParsedText(input.text, parsed.reconciliation),
     reconciliationState: parsed.reconciliation?.state ?? 'unresolved_mismatch',
   };

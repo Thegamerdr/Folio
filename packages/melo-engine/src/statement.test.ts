@@ -142,6 +142,24 @@ describe('parseStatementCSV — amount parsing', () => {
     expect(result.rows).toHaveLength(1);
     expect(result.warnings).toEqual(['2 rows skipped — the amounts would not read.']);
   });
+
+  it('does not strip foreign symbols or explicit currency codes into GBP', () => {
+    const result = parseStatementCSV(
+      csv(
+        'Date,Description,Amount,Currency',
+        '2026-07-01,GBP row,GBP 10.00,GBP',
+        '2026-07-02,Euro symbol,€12.00,EUR',
+        '2026-07-03,Dollar row,$20.00,USD',
+      ),
+    );
+
+    expect(result.rows).toEqual([
+      expect.objectContaining({ description: 'GBP row', amountPence: 1000 }),
+    ]);
+    expect(result.warnings).toEqual([
+      '2 non-GBP rows were left out — Melo will not turn foreign amounts into pounds.',
+    ]);
+  });
 });
 
 describe('parseStatementCSV — bill detection', () => {

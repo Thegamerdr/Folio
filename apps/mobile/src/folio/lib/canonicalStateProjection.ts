@@ -25,12 +25,14 @@ import { normaliseBusinessOperationsState } from '@folio/business-workspace';
 import {
   DEFAULT_ACCOUNT_ID,
   accountIdOf,
+  selectBankBalanceMinor,
   type Account,
   type AppState,
   type ReviewItem,
   type TimelineEvent,
   type Transaction,
 } from '../store';
+import { isLaunchCurrency } from './launchCurrency';
 import type { PersistedWorkspace } from './workspaceRoot';
 import {
   createCanonicalMobileLedgerSnapshot,
@@ -64,10 +66,17 @@ export function createCanonicalAppStateProjection(
   assertWorkspacePartition(state, workspace);
   const projectionInstant = requireIsoInstant(nowISO, 'Canonical projection time');
   const asOfDate = localDateFromInstant(projectionInstant, workspace.timeZone);
-  const transactions = state.transactions.map((transaction, sourceOrdinal) =>
-    projectTransaction(transaction, workspace, sourceOrdinal),
+  const unsupportedAccountIds = new Set(
+    (state.accounts ?? [])
+      .filter((account) => !isLaunchCurrency(account.currency))
+      .map((account) => account.id),
   );
-  const reviewItems = [...(state.reviewQueue ?? []), ...(state.reviewQueueSpillover ?? [])];
+  const transactions = state.transactions
+    .filter((transaction) => !unsupportedAccountIds.has(accountIdOf(transaction)))
+    .map((transaction, sourceOrdinal) => projectTransaction(transaction, workspace, sourceOrdinal));
+  const reviewItems = [...(state.reviewQueue ?? []), ...(state.reviewQueueSpillover ?? [])].filter(
+    (item) => !unsupportedAccountIds.has(item.accountId ?? DEFAULT_ACCOUNT_ID),
+  );
   const importDrafts = uniqueById(reviewItems).map((item) =>
     projectReviewItem(item, workspace, asOfDate),
   );
@@ -1054,8 +1063,9 @@ function projectAccounts(
   workspace: PersistedWorkspace,
   referencedAccountIds: readonly (string | undefined)[],
 ): readonly CanonicalMobileAccountInput[] {
-  const sourceAccounts = state.accounts ?? [];
-  for (const account of sourceAccounts) assertRowWorkspace(account, workspace, 'Account');
+  const allSourceAccounts = state.accounts ?? [];
+  for (const account of allSourceAccounts) assertRowWorkspace(account, workspace, 'Account');
+  const sourceAccounts = allSourceAccounts.filter((account) => isLaunchCurrency(account.currency));
 
   const projected = new Map<string, CanonicalMobileAccountInput>();
   if (sourceAccounts.length === 0) {
@@ -1067,7 +1077,10 @@ function projectAccounts(
           name: 'Main',
           kind: 'bank',
           isLiability: false,
-          balanceMinor: state.currentBalance.amount,
+          balanceMinor:
+            allSourceAccounts.length > 0
+              ? selectBankBalanceMinor(state)
+              : state.currentBalance.amount,
           balanceAsOfISO: state.currentBalance.setAt,
           addedAt: state.currentBalance.setAt,
         },
@@ -1108,7 +1121,13 @@ function reconcileVisibleCurrentBalance(
   state: AppState,
   workspace: PersistedWorkspace,
 ): void {
-  const visibleBalanceMinor = majorToMinor(state.currentBalance.amount, 'Current balance');
+  const hasUnsupportedAccount = (state.accounts ?? []).some(
+    (account) => !isLaunchCurrency(account.currency),
+  );
+  const visibleBalanceMinor = majorToMinor(
+    hasUnsupportedAccount ? selectBankBalanceMinor(state) : state.currentBalance.amount,
+    'Current balance',
+  );
   const availableAccounts = [...accounts.values()].filter(
     (account) => account.includeInAvailablePosition !== false,
   );

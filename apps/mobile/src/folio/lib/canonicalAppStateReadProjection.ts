@@ -18,6 +18,7 @@ import {
 import {
   DEFAULT_ACCOUNT_ID,
   accountIdOf,
+  selectBankBalanceMinor,
   type Account,
   type AppState,
   type BalanceSource,
@@ -30,6 +31,7 @@ import {
   type Transaction,
 } from '../store';
 import { reanchorRenewals } from './renewalMath';
+import { isLaunchCurrency } from './launchCurrency';
 import { PERSONAL_WORKSPACE_TIME_ZONE, workspaceLocalDate } from './workspaceRoot';
 
 export type CanonicalAppStateMoneyProjection = Readonly<{
@@ -986,7 +988,13 @@ function normalizedSourceMoneyProjection(
   state: AppState,
   todayISO: string,
 ): CanonicalAppStateMoneyProjection {
-  const sourceAccounts = state.accounts ?? [];
+  const allSourceAccounts = state.accounts ?? [];
+  const unsupportedAccountIds = new Set(
+    allSourceAccounts
+      .filter((account) => !isLaunchCurrency(account.currency))
+      .map((account) => account.id),
+  );
+  const sourceAccounts = allSourceAccounts.filter((account) => isLaunchCurrency(account.currency));
   const accounts: Account[] =
     sourceAccounts.length === 0
       ? [
@@ -995,7 +1003,10 @@ function normalizedSourceMoneyProjection(
             name: 'Main',
             kind: 'bank',
             isLiability: false,
-            balanceMinor: state.currentBalance.amount,
+            balanceMinor:
+              allSourceAccounts.length > 0
+                ? selectBankBalanceMinor(state)
+                : state.currentBalance.amount,
             balanceAsOfISO: state.currentBalance.setAt,
             addedAt: state.currentBalance.setAt,
             currency: 'GBP',
@@ -1014,23 +1025,25 @@ function normalizedSourceMoneyProjection(
           workspaceId: account.workspaceId ?? state.dataWorkspaceId,
           ...(account.closed === true ? { closed: true } : {}),
         }));
-  const transactions: Transaction[] = state.transactions.map((transaction) => ({
-    id: transaction.id,
-    when: transaction.when,
-    merchant: transaction.merchant,
-    amount: transaction.amount,
-    category: transaction.category,
-    source: transaction.source,
-    accountId: accountIdOf(transaction),
-    workspaceId: transaction.workspaceId ?? state.dataWorkspaceId,
-    ...(transaction.sourceEvidenceId === undefined
-      ? {}
-      : { sourceEvidenceId: transaction.sourceEvidenceId }),
-    ...(transaction.externalId === undefined ? {} : { externalId: transaction.externalId }),
-    ...(transaction.bankConnectionId === undefined
-      ? {}
-      : { bankConnectionId: transaction.bankConnectionId }),
-  }));
+  const transactions: Transaction[] = state.transactions
+    .filter((transaction) => !unsupportedAccountIds.has(accountIdOf(transaction)))
+    .map((transaction) => ({
+      id: transaction.id,
+      when: transaction.when,
+      merchant: transaction.merchant,
+      amount: transaction.amount,
+      category: transaction.category,
+      source: transaction.source,
+      accountId: accountIdOf(transaction),
+      workspaceId: transaction.workspaceId ?? state.dataWorkspaceId,
+      ...(transaction.sourceEvidenceId === undefined
+        ? {}
+        : { sourceEvidenceId: transaction.sourceEvidenceId }),
+      ...(transaction.externalId === undefined ? {} : { externalId: transaction.externalId }),
+      ...(transaction.bankConnectionId === undefined
+        ? {}
+        : { bankConnectionId: transaction.bankConnectionId }),
+    }));
   const pots: Pot[] = state.pots.map((pot) => ({
     id: pot.id,
     workspaceId: pot.workspaceId ?? state.dataWorkspaceId,
@@ -1101,7 +1114,10 @@ function normalizedSourceMoneyProjection(
   }));
   return {
     currentBalance: {
-      amount: state.currentBalance.amount,
+      amount:
+        unsupportedAccountIds.size > 0
+          ? selectBankBalanceMinor(state)
+          : state.currentBalance.amount,
       source: state.currentBalance.source,
       confidence: state.currentBalance.confidence,
       setAt: state.currentBalance.setAt,

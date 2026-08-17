@@ -157,4 +157,16 @@ describe('local OCR candidate adapter', () => {
     expect(result.reconciliationState).toBe('exact_match');
     expect(result.closingBalance).toBeNull();
   });
+
+  it('fails closed on an explicitly foreign statement currency', () => {
+    const result = parseLocalOcrCandidates({
+      text: 'Account currency EUR\n03 Jun 2026 Cafe -12.00',
+      source: 'pdf',
+      filename: 'eur.pdf',
+    });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.unsupportedCurrency).toBe('EUR');
+    expect(result.closingBalance).toBeNull();
+  });
 });

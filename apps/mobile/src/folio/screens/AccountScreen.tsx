@@ -87,6 +87,7 @@ import { useLens, type LensTier } from '@/folio/lib/lens';
 import { hasStatementSourceData } from '@/folio/lib/accountSources';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
+import { displayCurrency, isLaunchCurrency } from '@/folio/lib/launchCurrency';
 import {
   deleteRemoteMeloAccount,
   RemoteAccountDeletionError,
@@ -353,6 +354,7 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editAccountName, setEditAccountName] = useState('');
   const [editAccountBalance, setEditAccountBalance] = useState('');
+  const editingAccount = accounts.find((account) => account.id === editingAccountId);
 
   const parseBalance = (value: string, kind: AccountKind): number => {
     const parsed = Number(value.replace(/[^0-9.-]/g, ''));
@@ -381,11 +383,13 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
   };
 
   const saveAccountEdit = () => {
-    const account = accounts.find((candidate) => candidate.id === editingAccountId);
+    const account = editingAccount;
     const name = editAccountName.trim();
     if (!account || !name) return;
     renameAccount(account.id, name);
-    setAccountBalance(account.id, parseBalance(editAccountBalance, account.kind));
+    if (isLaunchCurrency(account.currency)) {
+      setAccountBalance(account.id, parseBalance(editAccountBalance, account.kind));
+    }
     setEditingAccountId(null);
   };
 
@@ -639,8 +643,12 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
               <View key={account.id}>
                 {index > 0 ? <Hairline /> : null}
                 <Pressable
-                  accessibilityLabel={`${account.name}, ${ACCOUNT_KIND_LABEL[account.kind]}, ${account.isLiability ? 'owed' : 'balance'} £${Math.abs(account.balanceMinor).toFixed(2)}`}
-                  accessibilityHint="Edit this account name and balance"
+                  accessibilityLabel={`${account.name}, ${ACCOUNT_KIND_LABEL[account.kind]}, ${account.isLiability ? 'owed' : 'balance'} ${isLaunchCurrency(account.currency) ? '£' : `${displayCurrency(account.currency)} `}${Math.abs(account.balanceMinor).toFixed(2)}${isLaunchCurrency(account.currency) ? '' : ', not included in GBP totals'}`}
+                  accessibilityHint={
+                    isLaunchCurrency(account.currency)
+                      ? 'Edit this account name and balance'
+                      : 'Edit this account name. Foreign balances are read-only in the GBP-only launch.'
+                  }
                   accessibilityRole="button"
                   onPress={() => startEditingAccount(account)}
                   style={({ pressed: isPressed }) => [
@@ -652,16 +660,27 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
                     <Text style={[styles.rowLabel, { color: t.ink }]}>{account.name}</Text>
                     <Text style={[styles.rowHint, { color: t.muted }]}>
                       {ACCOUNT_KIND_LABEL[account.kind]}
+                      {!isLaunchCurrency(account.currency)
+                        ? ` · ${displayCurrency(account.currency)} · not in GBP totals`
+                        : ''}
                     </Text>
                   </View>
                   <View style={styles.accountAmountWrap}>
                     <Text
                       style={[
                         styles.accountAmount,
-                        { color: account.isLiability ? t.repairInk : t.ink },
+                        {
+                          color: !isLaunchCurrency(account.currency)
+                            ? t.muted
+                            : account.isLiability
+                              ? t.repairInk
+                              : t.ink,
+                        },
                       ]}
                     >
-                      £
+                      {isLaunchCurrency(account.currency)
+                        ? '£'
+                        : `${displayCurrency(account.currency)} `}
                       {Math.abs(account.balanceMinor).toLocaleString('en-GB', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -777,9 +796,17 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
                 value={editAccountName}
               />
               <View style={[styles.addAccountBalanceRow, { backgroundColor: t.inset }]}>
-                <Text style={[styles.addAccountCurrency, { color: t.ink }]}>£</Text>
+                <Text style={[styles.addAccountCurrency, { color: t.ink }]}>
+                  {isLaunchCurrency(editingAccount?.currency)
+                    ? '£'
+                    : displayCurrency(editingAccount?.currency)}
+                </Text>
                 <TextInput
                   accessibilityLabel="Current account balance"
+                  accessibilityState={{
+                    disabled: !isLaunchCurrency(editingAccount?.currency),
+                  }}
+                  editable={isLaunchCurrency(editingAccount?.currency)}
                   keyboardType="decimal-pad"
                   onChangeText={setEditAccountBalance}
                   placeholder="0.00"
@@ -789,6 +816,12 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
                 />
                 <Text style={[styles.addAccountBalanceHint, { color: t.muted }]}>current</Text>
               </View>
+              {!isLaunchCurrency(editingAccount?.currency) ? (
+                <Text style={[styles.sectionHint, { color: t.muted }]}>
+                  Melo launches in GBP only. This balance stays visible but is not editable or
+                  included in your GBP picture.
+                </Text>
+              ) : null}
               <View style={styles.accountEditActions}>
                 <Pressable
                   accessibilityRole="button"

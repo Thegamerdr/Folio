@@ -26,6 +26,8 @@
 // (`proposeMatches`) that runs on the candidate list AFTER this parse. This
 // engine only produces the candidates; it must not merge or drop look-alikes.
 
+import { detectUnsupportedRowCurrency } from './launchCurrency';
+
 // ---------------------------------------------------------------------------
 // §0 Candidate item contract — the normalised shape Review receives.
 // This is the sheet-import subset of the full §0 union (pdf/image/manual are
@@ -80,6 +82,7 @@ export type ColumnIssueCode =
   | 'missing-amount'
   | 'missing-merchant'
   | 'bad-amount'
+  | 'unsupported-currency'
   | 'no-rows';
 
 export type ColumnIssue = {
@@ -104,6 +107,7 @@ export type ColumnMapping = {
   credit?: number;
   type?: number;
   account?: number;
+  currency?: number;
   category?: number;
   note?: number;
 };
@@ -146,6 +150,7 @@ const HEADER_ALIASES: Readonly<Record<keyof ColumnMapping, readonly string[]>> =
   credit: ['credit', 'in', 'money in', 'deposit', 'paid in', 'credit amount'],
   type: ['type', 'kind', 'direction', 'flow'],
   account: ['account', 'acct', 'source', 'bank', 'card'],
+  currency: ['currency', 'currency code', 'ccy', 'iso currency'],
   category: ['category', 'cat', 'tag', 'bucket'],
   note: ['note', 'notes', 'memo', 'comment', 'comments', 'reference', 'ref'],
 };
@@ -266,9 +271,9 @@ function parseAmount(raw: string): number | null {
     body = body.slice(1);
   }
 
-  // Strip currency symbols, spaces, thousands separators, and sign glyphs.
-  // Keep digits, a decimal point. (UK/US format; comma = thousands.)
-  const cleaned = body.replace(/[£$€,\s+\-]/g, '');
+  // Only GBP notation is stripped. Foreign symbols are rejected before this parser runs and are
+  // deliberately not converted into a bare number here.
+  const cleaned = body.replace(/\bGBP\b/giu, '').replace(/[£,\s+\-]/g, '');
   if (cleaned === '' || !/^\d*\.?\d+$/.test(cleaned)) return null;
 
   const value = Number(cleaned);
@@ -497,6 +502,7 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
     const rawAmount = cellAt(cells, mapping.amount);
     const rawDebit = cellAt(cells, mapping.debit);
     const rawCredit = cellAt(cells, mapping.credit);
+    const currencyCell = cellAt(cells, mapping.currency);
 
     // A row missing both its core cells is just blank padding — skip quietly.
     if (
@@ -520,6 +526,19 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
       issues.push({
         code: 'bad-amount',
         message: `Row ${rowNumber} has money in both debit and credit columns — we left it out rather than guess.`,
+        row: rowNumber,
+      });
+      return;
+    }
+
+    const unsupportedCurrency = detectUnsupportedRowCurrency({
+      ...(currencyCell === undefined ? {} : { currencyCell }),
+      amountCells: [rawAmount, rawDebit, rawCredit],
+    });
+    if (unsupportedCurrency !== null) {
+      issues.push({
+        code: 'unsupported-currency',
+        message: `Melo launches in GBP only. Row ${rowNumber} is ${unsupportedCurrency.label}, so we left it out rather than turn it into pounds.`,
         row: rowNumber,
       });
       return;

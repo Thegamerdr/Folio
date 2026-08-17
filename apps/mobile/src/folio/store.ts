@@ -27,6 +27,11 @@ import { anchorIsoFor, reanchorRenewals } from './lib/renewalMath';
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import {
+  assertLaunchCurrency,
+  isLaunchCurrency,
+  normalizedCurrencyCode,
+} from './lib/launchCurrency';
+import {
   applyMemoryToCandidates,
   MERCHANT_CATEGORY_CAP,
   type CandidateWithMemory,
@@ -558,7 +563,7 @@ export function isBankTxn(
   if (accounts.length === 0) return true;
   const account = accounts.find((a) => a.id === accountIdOf(txn));
   if (account === undefined) return true;
-  return !account.isLiability;
+  return !account.isLiability && isLaunchCurrency(account.currency);
 }
 
 /** ACCOUNTS_MODEL.md §2.4 — `state.transactions` filtered to bank/savings/cash accounts only (excludes
@@ -2132,13 +2137,52 @@ function load(): AppState {
         workspaceRoot.dataWorkspaceId,
       ),
     );
+    const launchSafe = reconcileLaunchCurrencyState(cleaned);
     // Older development builds explicitly persisted a complete demo regime. It is not user data and
     // must not survive as a hidden alternative first-run product after sample mode is removed.
-    return cleaned.currentBalance.source === 'sample' ? firstRunState() : cleaned;
+    return launchSafe.currentBalance.source === 'sample' ? firstRunState() : launchSafe;
   } catch {
     loadDegraded = true;
     return firstRunState();
   }
+}
+
+/**
+ * Fail closed when a legacy/restore blob contains foreign accounts. The account remains visible so
+ * the owner can identify it, but it cannot contaminate the GBP current-balance scalar or any GBP
+ * selector. Explicit lower-case GBP values are canonicalised while missing legacy currency remains
+ * valid GBP.
+ */
+function reconcileLaunchCurrencyState(candidate: AppState): AppState {
+  const accounts = candidate.accounts ?? [];
+  if (accounts.length === 0) return candidate;
+
+  let accountsChanged = false;
+  let hasUnsupportedAccount = false;
+  const normalizedAccounts = accounts.map((account) => {
+    const normalized = normalizedCurrencyCode(account.currency);
+    if (normalized !== 'GBP') hasUnsupportedAccount = true;
+    if (normalized === 'GBP' && account.currency !== undefined && account.currency !== normalized) {
+      accountsChanged = true;
+      return { ...account, currency: normalized };
+    }
+    return account;
+  });
+  if (!hasUnsupportedAccount) {
+    return accountsChanged ? { ...candidate, accounts: normalizedAccounts } : candidate;
+  }
+  const gbpBankTotal = normalizedAccounts
+    .filter((account) => !account.isLiability && isLaunchCurrency(account.currency))
+    .reduce((sum, account) => sum + account.balanceMinor, 0);
+  const balanceChanged = candidate.currentBalance.amount !== gbpBankTotal;
+  if (!accountsChanged && !balanceChanged) return candidate;
+  return {
+    ...candidate,
+    accounts: normalizedAccounts,
+    currentBalance: balanceChanged
+      ? { ...candidate.currentBalance, amount: gbpBankTotal }
+      : candidate.currentBalance,
+  };
 }
 
 /** Drop overrides whose effective renewal has already passed
@@ -4005,11 +4049,11 @@ export function setCurrentBalance(next: Omit<CurrentBalance, 'setAt'>) {
   // instead of a stale echo of the default account alone.
   const accounts = state.accounts ?? [];
   const nextAccounts = accounts.map((a) =>
-    a.id === DEFAULT_ACCOUNT_ID && !a.isLiability
+    a.id === DEFAULT_ACCOUNT_ID && !a.isLiability && isLaunchCurrency(a.currency)
       ? { ...a, balanceMinor: next.amount, balanceAsOfISO: setAt }
       : a,
   );
-  const bankAccounts = nextAccounts.filter((a) => !a.isLiability);
+  const bankAccounts = nextAccounts.filter((a) => !a.isLiability && isLaunchCurrency(a.currency));
   const bankTotal =
     bankAccounts.length === 0
       ? next.amount
@@ -4107,7 +4151,12 @@ export function addCardPayoffDetails(
 ): Debt | null {
   const accounts = state.accounts ?? [];
   const account = accounts.find((a) => a.id === accountId);
-  if (account === undefined || account.kind !== 'credit-card') return null;
+  if (
+    account === undefined ||
+    account.kind !== 'credit-card' ||
+    !isLaunchCurrency(account.currency)
+  )
+    return null;
   const debts = state.debts ?? [];
   const linkedId = cardDebtId(accountId);
   if (debts.some((d) => d.id === linkedId)) return null;
@@ -4152,6 +4201,7 @@ export function addCardPayoffDetails(
 export function addAccount(
   input: Partial<Omit<Account, 'id'>> & Pick<Account, 'name' | 'kind'>,
 ): Account {
+  const currency = assertLaunchCurrency(input.currency);
   const now = new Date().toISOString();
   const account: Account = {
     id: `acct-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -4161,7 +4211,7 @@ export function addAccount(
     balanceMinor: input.balanceMinor ?? 0,
     balanceAsOfISO: input.balanceAsOfISO ?? now,
     addedAt: input.addedAt ?? now,
-    ...(input.currency !== undefined ? { currency: input.currency } : {}),
+    ...(input.currency !== undefined ? { currency } : {}),
     ...(input.closed !== undefined ? { closed: input.closed } : {}),
   };
   const nextAccounts = [...(state.accounts ?? []), account];
@@ -4172,7 +4222,7 @@ export function addAccount(
     // write. (The current UI creates accounts at £0 and sets the balance later, so this is a
     // guard for the API contract, not a behavior change for any live flow.)
     const bankTotal = nextAccounts
-      .filter((a) => !a.isLiability)
+      .filter((a) => !a.isLiability && isLaunchCurrency(a.currency))
       .reduce((sum, a) => sum + a.balanceMinor, 0);
     patch = {
       accounts: nextAccounts,
@@ -4243,7 +4293,7 @@ export function setAccountBalance(
 ) {
   const accounts = state.accounts ?? [];
   const account = accounts.find((a) => a.id === accountId);
-  if (account === undefined) return;
+  if (account === undefined || !isLaunchCurrency(account.currency)) return false;
   const balanceAsOfISO = asOfISO ?? new Date().toISOString();
   const capture = beginMaterialWrite({
     type: account.isLiability ? 'debt_payment' : 'balance_correction',
@@ -4276,7 +4326,7 @@ export function setAccountBalance(
     patch = { accounts: nextAccounts, ...(linkedDebtChanged ? { debts: nextDebts } : {}) };
   } else {
     const bankTotal = nextAccounts
-      .filter((a) => !a.isLiability)
+      .filter((a) => !a.isLiability && isLaunchCurrency(a.currency))
       .reduce((sum, a) => sum + a.balanceMinor, 0);
     patch = {
       accounts: nextAccounts,
@@ -4305,6 +4355,7 @@ export function setAccountBalance(
     occurredAt: balanceAsOfISO,
   });
   completeMaterialWrite(capture);
+  return true;
 }
 
 /** ACCOUNTS_MODEL.md §2.4 — sum of non-liability (`bank`/`savings`/`cash`) account balances. This is
@@ -4317,7 +4368,9 @@ export function setAccountBalance(
 export function selectBankBalanceMinor(state: AppState): number {
   const accounts = state.accounts ?? [];
   if (accounts.length === 0) return state.currentBalance.amount;
-  return accounts.filter((a) => !a.isLiability).reduce((sum, a) => sum + a.balanceMinor, 0);
+  return accounts
+    .filter((a) => !a.isLiability && isLaunchCurrency(a.currency))
+    .reduce((sum, a) => sum + a.balanceMinor, 0);
 }
 
 /** ACCOUNTS_MODEL.md §2.4 — net position: Σ(non-liability balances) − Σ(liability balances). This is
@@ -4327,7 +4380,9 @@ export function selectBankBalanceMinor(state: AppState): number {
 export function selectNetPositionMinor(state: AppState): number {
   const accounts = state.accounts ?? [];
   if (accounts.length === 0) return state.currentBalance.amount;
-  return accounts.reduce((sum, a) => sum + (a.isLiability ? -a.balanceMinor : a.balanceMinor), 0);
+  return accounts
+    .filter((a) => isLaunchCurrency(a.currency))
+    .reduce((sum, a) => sum + (a.isLiability ? -a.balanceMinor : a.balanceMinor), 0);
 }
 
 /** ACCOUNTS_MODEL.md §2.4 point 2 — the "total owed" figure the payoff view needs: every
@@ -4345,7 +4400,7 @@ export function totalDebtMinor(state: AppState): number {
   const accounts = state.accounts ?? [];
   const debts = state.debts ?? [];
   const cardAccountTotal = accounts
-    .filter((a) => a.isLiability)
+    .filter((a) => a.isLiability && isLaunchCurrency(a.currency))
     .reduce((sum, a) => sum + a.balanceMinor, 0);
   const unlinkedDebtTotal = debts
     .filter((d) => d.linkedAccountId === undefined)
@@ -5222,8 +5277,9 @@ export function payCreditCardFromBank(
   const accounts = state.accounts ?? [];
   const bank = accounts.find((a) => a.id === bankAccountId);
   const card = accounts.find((a) => a.id === cardAccountId);
-  if (bank === undefined || bank.isLiability) return false;
-  if (card === undefined || card.kind !== 'credit-card') return false;
+  if (bank === undefined || bank.isLiability || !isLaunchCurrency(bank.currency)) return false;
+  if (card === undefined || card.kind !== 'credit-card' || !isLaunchCurrency(card.currency))
+    return false;
 
   const now = new Date().toISOString();
   const capture = beginMaterialWrite({
@@ -5251,7 +5307,7 @@ export function payCreditCardFromBank(
   // `currentBalance` scalar must move with it in the SAME atomic write — its readers would
   // otherwise show the pre-payment bank balance.
   const bankTotal = nextAccounts
-    .filter((a) => !a.isLiability)
+    .filter((a) => !a.isLiability && isLaunchCurrency(a.currency))
     .reduce((sum, a) => sum + a.balanceMinor, 0);
   setPartialWithTypedCommand(
     {

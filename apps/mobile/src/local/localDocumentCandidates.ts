@@ -4,6 +4,7 @@ import type {
   CandidateSource,
 } from '@/folio/lib/importSheet';
 import { cleanMerchantName } from '../folio/lib/merchantCleaner';
+import { detectUnsupportedDocumentCurrency } from '../folio/lib/launchCurrency';
 
 import type { ExtractedText } from './nativeTextExtraction';
 import { parseLocalOcrCandidates, type LocalOcrCandidateResult } from './localOcrCandidates';
@@ -28,12 +29,26 @@ export function parseLocalDocumentCandidates(
 ): LocalDocumentCandidateResult {
   const lines = documentLines(input.text, input.extraction);
   const documentKind = classifyLocalDocument(lines);
+  const unsupportedCurrency = detectUnsupportedDocumentCurrency(input.text, {
+    singleMoneySymbolIsEnough: documentKind === 'receipt' || documentKind === 'invoice',
+  });
+  if (unsupportedCurrency !== null) {
+    return {
+      documentKind,
+      candidates: [],
+      issueCount: 1,
+      unsupportedCurrency: unsupportedCurrency.label,
+      closingBalance: null,
+      reconciliationState: 'unresolved_mismatch',
+    };
+  }
 
   if (documentKind === 'receipt') {
     return {
       documentKind,
       candidates: parseReceiptCandidate(lines, input.source, input.filename),
       issueCount: 0,
+      unsupportedCurrency: null,
       closingBalance: null,
       reconciliationState: 'unresolved_mismatch',
     };
@@ -50,6 +65,7 @@ export function parseLocalDocumentCandidates(
       documentKind,
       candidates: parseReceiptCandidate(lines, input.source, input.filename),
       issueCount: 0,
+      unsupportedCurrency: null,
       closingBalance: null,
       reconciliationState: 'unresolved_mismatch',
     };

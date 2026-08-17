@@ -52,6 +52,7 @@ import {
 import { buildStatementSummary } from '@/folio/lib/statementSummary';
 import { reconcileStatement, statementTotalsFrom } from '@/folio/lib/reconcileStatement';
 import { detectAccountName } from '@/folio/lib/detectAccountName';
+import { isLaunchCurrency } from '@/folio/lib/launchCurrency';
 import type { CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
   addAccount,
@@ -121,7 +122,9 @@ export function BulkStatementLanding({
   // ACCOUNTS_MODEL.md §3 step 1/5 — "Which account is this?" step, shown BEFORE the existing
   // summary/CTA card, confirm-gated (owner spec). `existingAccounts` reads live so a freshly-created
   // account from a PRIOR statement in the same session already appears in the picker.
-  const existingAccounts = useAppStore((s) => s.accounts ?? []);
+  const existingAccounts = useAppStore((s) =>
+    (s.accounts ?? []).filter((account) => isLaunchCurrency(account.currency)),
+  );
   const detection = useMemo(() => detectAccountName(candidates), [candidates]);
   const [accountConfirmed, setAccountConfirmed] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string>(NEW_ACCOUNT_OPTION);
@@ -158,7 +161,10 @@ export function BulkStatementLanding({
     }
     const trimmedName = newAccountName.trim();
     if (trimmedName.length === 0) {
-      setResolvedAccountId(DEFAULT_ACCOUNT_ID);
+      const defaultAccount = existingAccounts.find((account) => account.id === DEFAULT_ACCOUNT_ID);
+      const fallback =
+        defaultAccount ?? existingAccounts[0] ?? addAccount({ name: 'Main', kind: 'bank' });
+      setResolvedAccountId(fallback.id);
       setAccountConfirmed(true);
       return;
     }

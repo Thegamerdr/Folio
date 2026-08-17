@@ -251,25 +251,43 @@ function useReduceMotion(): boolean {
 // issues are not hard; a single bad row still lets the good rows through to the preview. Returns the
 // candidate list to STAGE when the read succeeded, or `null` when it did not — so the caller stages
 // the real candidates before routing to the preview, never an empty list.
+type TextCandidateRead =
+  | Readonly<{
+      kind: 'ready';
+      candidates: CandidateMoneyItem[];
+      unsupportedCurrencyCount: number;
+    }>
+  | Readonly<{ kind: 'unsupported-currency' }>
+  | Readonly<{ kind: 'unreadable' }>;
+
 function readTextCandidates(
   text: string,
   source: Extract<CandidateMoneyItem['source'], 'csv' | 'paste'>,
   filename: string,
-): CandidateMoneyItem[] | null {
+): TextCandidateRead {
   const { candidates, issues } = parseSheet(text, { source });
+  const unsupportedCurrencyCount = issues.filter(
+    (issue) => issue.code === 'unsupported-currency',
+  ).length;
   const hasHardIssue = issues.some(
     (issue) =>
       issue.code === 'missing-amount' ||
       issue.code === 'missing-merchant' ||
       issue.code === 'empty-input',
   );
-  if (candidates.length > 0 && !hasHardIssue) return candidates;
+  if (candidates.length > 0 && !hasHardIssue) {
+    return { kind: 'ready', candidates, unsupportedCurrencyCount };
+  }
+  if (unsupportedCurrencyCount > 0) return { kind: 'unsupported-currency' };
 
   // Common bank clipboard/TXT exports are line-oriented rather than spreadsheets (for example
   // `25 Jun Tesco -42.00`). The shipping import engine already parses that shape for local OCR.
   // Reuse it as a review-only fallback instead of sending the user to a blank manual form.
   const unstructured = parseLocalOcrCandidates({ text, source, filename });
-  return unstructured.candidates.length > 0 ? unstructured.candidates : null;
+  if (unstructured.unsupportedCurrency !== null) return { kind: 'unsupported-currency' };
+  return unstructured.candidates.length > 0
+    ? { kind: 'ready', candidates: unstructured.candidates, unsupportedCurrencyCount: 0 }
+    : { kind: 'unreadable' };
 }
 
 // Split a deck string carrying a single **accent** run into its three parts. The headline is read
@@ -346,6 +364,15 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       filename,
       ...(extraction === undefined ? {} : { extraction }),
     });
+    if (local.unsupportedCurrency !== null) {
+      setReaderCandidates([]);
+      setReaderClosingBalance(null);
+      showToast(
+        'GBP only for launch',
+        `${local.unsupportedCurrency} was not imported. Melo will not turn foreign amounts into pounds.`,
+      );
+      return true;
+    }
     if (local.candidates.length === 0) return false;
     setReaderCandidates(local.candidates.map((candidate) => ({ ...candidate, sourceEvidenceId })));
     setReaderClosingBalance(local.closingBalance);
@@ -427,15 +454,30 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         /text\/csv|application\/csv|tab-separated|text\/plain/i.test(src.mediaType) ||
         /\.(csv|tsv|txt)$/i.test(src.filename);
       if (result.kind === 'picked' && looksDelimited) {
-        const candidates = readTextCandidates(result.text, 'csv', src.filename);
-        if (candidates !== null) {
-          setReaderCandidates(candidates.map((candidate) => ({ ...candidate, sourceEvidenceId })));
+        const read = readTextCandidates(result.text, 'csv', src.filename);
+        if (read.kind === 'ready') {
+          setReaderCandidates(
+            read.candidates.map((candidate) => ({ ...candidate, sourceEvidenceId })),
+          );
           // A delimited (CSV/TSV/TXT) statement never carries a closing balance — the offline
           // column parser has no such concept — so explicitly clear any balance staged by a
           // prior reader read rather than letting it leak into this landing.
           setReaderClosingBalance(null);
           setReaderFallbackEvidenceId(undefined);
+          if (read.unsupportedCurrencyCount > 0) {
+            showToast(
+              'Some entries left out',
+              `${read.unsupportedCurrencyCount} non-GBP ${read.unsupportedCurrencyCount === 1 ? 'entry was' : 'entries were'} not imported.`,
+            );
+          }
           nav.go('pdf-success');
+        } else if (read.kind === 'unsupported-currency') {
+          setReaderCandidates([]);
+          setReaderClosingBalance(null);
+          showToast(
+            'GBP only for launch',
+            'Those foreign-currency entries were not imported. Melo will not turn them into pounds.',
+          );
         } else {
           finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
         }
@@ -506,9 +548,24 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       showToast(copy.add.clipboard.empty.head, copy.add.clipboard.empty.body);
       return;
     }
-    const candidates = readTextCandidates(text, 'paste', 'pasted transactions');
-    setReaderCandidates(candidates ?? []);
+    const read = readTextCandidates(text, 'paste', 'pasted transactions');
+    if (read.kind === 'unsupported-currency') {
+      setReaderCandidates([]);
+      setReaderClosingBalance(null);
+      showToast(
+        'GBP only for launch',
+        'Those foreign-currency entries were not imported. Melo will not turn them into pounds.',
+      );
+      return;
+    }
+    setReaderCandidates(read.kind === 'ready' ? read.candidates : []);
     setReaderClosingBalance(null);
+    if (read.kind === 'ready' && read.unsupportedCurrencyCount > 0) {
+      showToast(
+        'Some entries left out',
+        `${read.unsupportedCurrencyCount} non-GBP ${read.unsupportedCurrencyCount === 1 ? 'entry was' : 'entries were'} not imported.`,
+      );
+    }
     nav.go('paste-success');
   }
 

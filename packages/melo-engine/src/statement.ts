@@ -102,6 +102,7 @@ const AMOUNT_HEADERS = ['amount', 'value', 'transaction amount'];
 const DEBIT_HEADERS = ['debit', 'money out', 'paid out', 'out'];
 const CREDIT_HEADERS = ['credit', 'money in', 'paid in', 'in'];
 const BALANCE_HEADERS = ['balance', 'running balance', 'balance after transaction'];
+const CURRENCY_HEADERS = ['currency', 'currency code', 'ccy', 'iso currency'];
 
 interface ColumnMap {
   readonly date: number;
@@ -110,6 +111,7 @@ interface ColumnMap {
   readonly debit: number;
   readonly credit: number;
   readonly balance: number;
+  readonly currency: number;
 }
 
 function normalizeHeaderCell(cell: string): string {
@@ -127,6 +129,7 @@ function mapColumns(record: readonly string[]): ColumnMap {
   let debit = -1;
   let credit = -1;
   let balance = -1;
+  let currency = -1;
   record.forEach((cell, idx) => {
     const h = normalizeHeaderCell(cell);
     if (date === -1 && DATE_HEADERS.includes(h)) date = idx;
@@ -135,8 +138,9 @@ function mapColumns(record: readonly string[]): ColumnMap {
     else if (debit === -1 && DEBIT_HEADERS.includes(h)) debit = idx;
     else if (credit === -1 && CREDIT_HEADERS.includes(h)) credit = idx;
     else if (balance === -1 && BALANCE_HEADERS.includes(h)) balance = idx;
+    else if (currency === -1 && CURRENCY_HEADERS.includes(h)) currency = idx;
   });
-  return { date, description, amount, debit, credit, balance };
+  return { date, description, amount, debit, credit, balance, currency };
 }
 
 function findHeader(records: readonly (readonly string[])[]): {
@@ -223,7 +227,7 @@ function parseStatementAmount(raw: string): Pence | null {
     negative = true;
     s = s.slice(1, -1);
   }
-  s = s.replace(/[£$€\s,]/g, '');
+  s = s.replace(/\bGBP\b/gi, '').replace(/[£\s,]/g, '');
   if (s.startsWith('-')) {
     negative = true;
     s = s.slice(1);
@@ -253,6 +257,23 @@ function readAmount(record: readonly string[], cols: ColumnMap): Pence | null {
   const out = debit === null ? 0 : -Math.abs(debit);
   const inn = credit === null ? 0 : Math.abs(credit);
   return out + inn;
+}
+
+function hasUnsupportedCurrency(record: readonly string[], cols: ColumnMap): boolean {
+  const explicit = fieldAt(record, cols.currency).trim().toUpperCase();
+  if (explicit !== '' && !['GBP', '£', 'STERLING', 'POUND', 'POUNDS'].includes(explicit)) {
+    return true;
+  }
+  const moneyCells = [cols.amount, cols.debit, cols.credit, cols.balance]
+    .filter((index) => index !== -1)
+    .map((index) => fieldAt(record, index));
+  return moneyCells.some(
+    (cell) =>
+      /[$€¥₹₽₩₺₴₦₫฿]/u.test(cell) ||
+      /\b(?:EUR|USD|CAD|AUD|NZD|CHF|JPY|CNY|RMB|INR|SEK|NOK|DKK|PLN|CZK|HUF|RON|TRY|AED|ZAR|NGN)\b/iu.test(
+        cell,
+      ),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +411,10 @@ function skippedWarning(count: number, what: 'date' | 'amount'): string {
   return `${count} ${rowWord} skipped — ${subject} would not read.`;
 }
 
+function unsupportedCurrencyWarning(count: number): string {
+  return `${count} non-GBP ${count === 1 ? 'row was' : 'rows were'} left out — Melo will not turn foreign amounts into pounds.`;
+}
+
 // ---------------------------------------------------------------------------
 // The parser.
 // ---------------------------------------------------------------------------
@@ -413,10 +438,15 @@ export function parseStatementCSV(text: string): StatementParse {
   const rows: StatementRow[] = [];
   let dateSkips = 0;
   let amountSkips = 0;
+  let unsupportedCurrencySkips = 0;
   for (const record of records.slice(header.index + 1)) {
     const dateISO = parseStatementDate(fieldAt(record, cols.date));
     if (dateISO === null) {
       dateSkips += 1;
+      continue;
+    }
+    if (hasUnsupportedCurrency(record, cols)) {
+      unsupportedCurrencySkips += 1;
       continue;
     }
     const amountPence = readAmount(record, cols);
@@ -471,6 +501,9 @@ export function parseStatementCSV(text: string): StatementParse {
   const warnings: string[] = [];
   if (dateSkips > 0) warnings.push(skippedWarning(dateSkips, 'date'));
   if (amountSkips > 0) warnings.push(skippedWarning(amountSkips, 'amount'));
+  if (unsupportedCurrencySkips > 0) {
+    warnings.push(unsupportedCurrencyWarning(unsupportedCurrencySkips));
+  }
 
   return {
     rows,

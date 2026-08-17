@@ -851,6 +851,55 @@ describe('accounts (ACCOUNTS_MODEL.md P1)', () => {
     expect(accounts.length).toBe(3); // Main + card + savings
   });
 
+  it('normalises explicit GBP and rejects foreign accounts without mutating state', () => {
+    resetToEmpty();
+    const gbp = addAccount({ name: 'Savings', kind: 'savings', currency: ' gbp ' });
+    expect(gbp.currency).toBe('GBP');
+
+    const before = getState().accounts;
+    expect(() =>
+      addAccount({ name: 'Euro account', kind: 'bank', currency: 'EUR', balanceMinor: 9_999 }),
+    ).toThrow(/GBP only/u);
+    expect(getState().accounts).toEqual(before);
+  });
+
+  it('keeps restored foreign accounts visible but excludes them from every GBP money path', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 500, '2026-07-05T00:00:00.000Z');
+    const main = getState().accounts?.find((account) => account.id === DEFAULT_ACCOUNT_ID)!;
+    const foreign: Account = {
+      ...main,
+      id: 'acct-eur-legacy',
+      name: 'Euro account',
+      currency: 'EUR',
+      balanceMinor: 9_999,
+    };
+    setPartial({ accounts: [main, foreign] });
+    const blob = getPersistBlob();
+    resetToEmpty();
+
+    expect(hydrateFromBlob(blob)).toEqual({ status: 'applied' });
+    expect(getState().accounts?.some((account) => account.id === foreign.id)).toBe(true);
+    expect(selectBankBalanceMinor(getState())).toBe(500);
+    expect(selectNetPositionMinor(getState())).toBe(500);
+    expect(getState().currentBalance.amount).toBe(500);
+    expect(setAccountBalance(foreign.id, 1)).toBe(false);
+    expect(getState().accounts?.find((account) => account.id === foreign.id)?.balanceMinor).toBe(
+      9_999,
+    );
+
+    const foreignTransaction = addTransaction({
+      merchant: 'Foreign row',
+      amount: -20,
+      category: 'other',
+      source: 'manual',
+      accountId: foreign.id,
+    });
+    expect(bankTransactions(getState()).some((row) => row.id === foreignTransaction.id)).toBe(
+      false,
+    );
+  });
+
   it('renameAccount updates the name and is a no-op for an unknown id', () => {
     resetAll();
     renameAccount(DEFAULT_ACCOUNT_ID, 'Monzo Current');

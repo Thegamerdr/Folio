@@ -65,4 +65,31 @@ describe('local document candidates', () => {
     expect(result.candidates).toHaveLength(2);
     expect(result.reconciliationState).toBe('exact_match');
   });
+
+  it('refuses a euro receipt instead of reading its total as pounds', () => {
+    const result = parseLocalDocumentCandidates({
+      text: ['CAFE EUROPA', 'RECEIPT', '14/07/2026', 'TOTAL €12.50'].join('\n'),
+      source: 'photo',
+      filename: 'euro-receipt.jpg',
+    });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.unsupportedCurrency).toBe('EUR');
+  });
+
+  it('refuses an explicitly non-GBP statement', () => {
+    const result = parseLocalDocumentCandidates({
+      text: [
+        'Statement currency: USD',
+        'Statement Period 01 Jun 2026 - 30 Jun 2026',
+        '03 Jun Salary 500.00',
+        '05 Jun Rent -300.00',
+      ].join('\n'),
+      source: 'pdf',
+      filename: 'usd-statement.pdf',
+    });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.unsupportedCurrency).toBe('USD');
+  });
 });

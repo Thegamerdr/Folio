@@ -210,4 +210,75 @@ describe('canonical AppState projection', () => {
       createCanonicalAppStateProjection(invalid, workspace, '2026-07-16T09:00:00.000Z'),
     ).toThrow(/outside the canonical appstate workspace/i);
   });
+
+  it('quarantines restored foreign accounts and their rows from the GBP canonical projection', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const state: AppState = {
+      ...base,
+      currentBalance: {
+        ...base.currentBalance,
+        amount: 10_499,
+        setAt: '2026-07-16T07:00:00.000Z',
+      },
+      accounts: [
+        {
+          id: DEFAULT_ACCOUNT_ID,
+          name: 'Current',
+          kind: 'bank',
+          isLiability: false,
+          balanceMinor: 500,
+          balanceAsOfISO: '2026-07-16T07:00:00.000Z',
+          addedAt: '2026-07-01T07:00:00.000Z',
+          currency: 'GBP',
+        },
+        {
+          id: 'acct-eur',
+          name: 'Euro account',
+          kind: 'bank',
+          isLiability: false,
+          balanceMinor: 9_999,
+          balanceAsOfISO: '2026-07-16T07:00:00.000Z',
+          addedAt: '2026-07-01T07:00:00.000Z',
+          currency: 'EUR',
+        },
+      ],
+      transactions: [
+        {
+          id: 'txn-gbp',
+          when: '2026-07-16T08:00:00.000Z',
+          merchant: 'GBP row',
+          amount: -10,
+          category: 'other',
+          source: 'manual',
+          accountId: DEFAULT_ACCOUNT_ID,
+        },
+        {
+          id: 'txn-eur',
+          when: '2026-07-16T08:05:00.000Z',
+          merchant: 'EUR row',
+          amount: -20,
+          category: 'other',
+          source: 'manual',
+          accountId: 'acct-eur',
+        },
+      ],
+    };
+
+    const projection = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-07-16T09:00:00.000Z',
+    );
+
+    expect(projection.mobileSnapshot.accounts.map((account) => account.name)).not.toContain(
+      'Euro account',
+    );
+    expect(projection.mobileSnapshot.transactions).toHaveLength(1);
+    expect(projection.mobileSnapshot.transactions[0]?.sourceTransactionId).toBe('txn-gbp');
+    expect(projection.mobileSnapshot.availablePositionSnapshots[0]?.openingBalance).toEqual({
+      minorUnits: 50_000,
+      currency: 'GBP',
+    });
+  });
 });
