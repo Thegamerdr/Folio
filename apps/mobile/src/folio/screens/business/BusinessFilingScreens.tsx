@@ -84,20 +84,45 @@ export function BusinessFilingsScreen({ nav }: { nav: Nav }) {
     },
   ];
   const visible = rows.filter((row) => row.visible);
+  const packs = visible.map((row) => {
+    const copy = buildBusinessFilingWorkingCopy(row.kind, business);
+    const latest = business.filings
+      .filter((filing) => filing.kind === row.kind)
+      .sort((left, right) => right.preparedAt.localeCompare(left.preparedAt))[0];
+
+    return {
+      ...row,
+      copy,
+      latest,
+      currentPrepared: copy !== null && latest?.period === copy.period,
+    };
+  });
+  const readyCount = packs.filter((pack) => pack.copy !== null).length;
+  const preparedCount = packs.filter((pack) => pack.currentPrepared).length;
+  const estimatedAmountMinor = packs.reduce(
+    (sum, pack) => sum + Math.max(0, pack.copy?.amountMinor ?? 0),
+    0,
+  );
+  const nextPack = packs.find((pack) => !pack.currentPrepared) ?? packs[0];
+  const periods = Array.from(
+    new Set(packs.flatMap((pack) => (pack.copy ? [pack.copy.period] : []))),
+  );
 
   return (
     <BusinessScreenFrame
-      eyebrow="Filings"
-      headline="Everything the business has to send in."
-      intro="One place for returns. Numbers already worked out. You confirm, then submit through the official service."
+      eyebrow="Tax Pack"
+      headline="Prepare the figures. Export when you are ready."
+      intro="A local working pack from saved business figures. Melo does not file or submit anything for you."
     >
       {visible.length === 0 ? (
         <>
           <BusinessCard>
-            <Text style={[styles.emptyTitle, { color: t.ink }]}>Nothing to send in yet.</Text>
+            <Text style={[styles.emptyTitle, { color: t.ink }]}>
+              Choose the business type first.
+            </Text>
             <Text style={[styles.emptyBody, { color: t.muted }]}>
-              Once the business type is set, this becomes the one place for VAT, Self-Assessment or
-              Corporation Tax, the Confirmation Statement, and annual accounts.
+              Tax Pack will then show only the relevant estimates, preparation checks and working
+              copies for this workspace.
             </Text>
           </BusinessCard>
           <BusinessSecondaryAction
@@ -106,27 +131,85 @@ export function BusinessFilingsScreen({ nav }: { nav: Nav }) {
           />
         </>
       ) : (
-        <View style={styles.filingCards}>
-          {visible.map((row) => {
-            const last = business.filings
-              .filter((filing) => filing.kind === row.kind)
-              .sort((left, right) => right.preparedAt.localeCompare(left.preparedAt))[0];
-            return (
+        <>
+          <BusinessCard tone="inset">
+            <Text style={[styles.periodLabel, { color: t.muted }]}>Current saved periods</Text>
+            <Text numberOfLines={2} style={[styles.periodValue, { color: t.ink }]}>
+              {periods.length > 0 ? periods.join(' · ') : 'No complete period yet'}
+            </Text>
+            <View style={[styles.estimateDivider, { backgroundColor: t.hairline }]} />
+            <Text style={[styles.estimateLabel, { color: t.muted }]}>
+              Estimated amount to plan for
+            </Text>
+            <Text style={[styles.estimateValue, { color: t.ink }]}>
+              {formatMinor(estimatedAmountMinor, { pence: true })}
+            </Text>
+            <Text style={[styles.estimateNote, { color: t.muted }]}>
+              Current saved figures only. Refunds and non-payment packs are not added to this total.
+            </Text>
+          </BusinessCard>
+
+          <BusinessCard>
+            <Text style={[styles.checklistTitle, { color: t.ink }]}>Preparation check</Text>
+            <TaxPackCheckRow done={entity !== null} label="Business details saved" />
+            <TaxPackCheckRow
+              done={readyCount === visible.length}
+              label={`${readyCount} of ${visible.length} working packs have enough saved figures`}
+            />
+            <TaxPackCheckRow
+              done={preparedCount === visible.length}
+              label={`${preparedCount} of ${visible.length} packs prepared or recorded`}
+            />
+            <Text style={[styles.policy, { color: t.muted }]}>
+              Policy {business.policyPackVersion} · verified {business.policyVerifiedOn}
+            </Text>
+          </BusinessCard>
+
+          {nextPack ? (
+            <BusinessPrimaryAction
+              label={`${nextPack.currentPrepared ? 'Review' : 'Prepare'} ${nextPack.label} →`}
+              onPress={() => nav.go(nextPack.route)}
+            />
+          ) : null}
+
+          <Text style={[styles.sectionLabel, { color: t.muted }]}>Working packs</Text>
+          <View style={styles.filingCards}>
+            {packs.map((row) => (
               <FilingRouteCard
                 hint={
-                  last
-                    ? `${last.status === 'submitted-external' ? 'Last' : 'Working copy'}: ${last.period}`
-                    : row.hint
+                  row.currentPrepared && row.latest
+                    ? `${row.latest.status === 'submitted-external' ? 'Externally submitted' : 'Prepared'} · ${row.latest.period}`
+                    : row.copy
+                      ? `Ready to prepare · ${row.copy.period}`
+                      : row.hint
                 }
                 key={row.kind}
                 label={row.label}
                 onPress={() => nav.go(row.route)}
               />
-            );
-          })}
-        </View>
+            ))}
+          </View>
+        </>
       )}
     </BusinessScreenFrame>
+  );
+}
+
+function TaxPackCheckRow({ done, label }: Readonly<{ done: boolean; label: string }>) {
+  const t = useTheme();
+  return (
+    <View
+      accessibilityLabel={`${label}. ${done ? 'Complete' : 'Needs attention'}`}
+      style={styles.checkRow}
+    >
+      <View
+        accessibilityElementsHidden
+        style={[styles.checkMark, { backgroundColor: done ? t.positiveSoft : t.repairSoft }]}
+      >
+        <Text style={{ color: done ? t.positive : t.repairInk }}>{done ? '✓' : '·'}</Text>
+      </View>
+      <Text style={[styles.checkLabel, { color: t.ink }]}>{label}</Text>
+    </View>
   );
 }
 
@@ -142,6 +225,8 @@ function FilingRouteCard({
   const t = useTheme();
   return (
     <Pressable
+      accessibilityHint={hint}
+      accessibilityLabel={label}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [
@@ -462,6 +547,35 @@ function missingCopyReason(
 }
 
 const styles = StyleSheet.create({
+  periodLabel: { fontSize: 10.5, fontWeight: '700', textTransform: 'uppercase' },
+  periodValue: { fontSize: 13, fontWeight: '600', lineHeight: 18, marginTop: gap.xs },
+  estimateDivider: { height: StyleSheet.hairlineWidth, marginVertical: gap.lg },
+  estimateLabel: { fontSize: 11.5, lineHeight: 17 },
+  estimateValue: {
+    fontSize: 28,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '600',
+    marginTop: gap.xs,
+  },
+  estimateNote: { fontSize: 11, lineHeight: 16, marginTop: gap.xs },
+  checklistTitle: { fontSize: 14, fontWeight: '700', marginBottom: gap.sm },
+  checkRow: { alignItems: 'center', flexDirection: 'row', minHeight: 44 },
+  checkMark: {
+    alignItems: 'center',
+    borderRadius: 12,
+    height: 24,
+    justifyContent: 'center',
+    marginRight: gap.sm,
+    width: 24,
+  },
+  checkLabel: { flex: 1, fontSize: 12.5, lineHeight: 18 },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginTop: gap.md,
+    textTransform: 'uppercase',
+  },
   filingCards: { gap: gap.sm },
   filingCard: {
     alignItems: 'flex-start',

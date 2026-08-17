@@ -247,7 +247,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'business-dividends': 'Dividends',
   'business-dla': "Director's loan",
   'business-companies-house': 'Companies House',
-  'business-filings': 'Filings',
+  'business-filings': 'Tax Pack',
   'business-filing-vat': 'VAT working copy',
   'business-filing-sa': 'Self-Assessment working copy',
   'business-filing-ct': 'CT600 working copy',

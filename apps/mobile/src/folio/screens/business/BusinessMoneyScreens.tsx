@@ -1505,7 +1505,7 @@ export function BusinessInsightsScreen({ nav }: { nav: Nav }) {
         )}
       </BusinessCard>
 
-      <BusinessRouteRow label="File a return" onPress={() => nav.go('business-filings')} />
+      <BusinessRouteRow label="Prepare Tax Pack" onPress={() => nav.go('business-filings')} />
     </BusinessScreenFrame>
   );
 }

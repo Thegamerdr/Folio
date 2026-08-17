@@ -25,6 +25,11 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
     {
       title: 'Business tools',
       rows: [
+        {
+          label: 'Tax Pack',
+          hint: 'estimates, preparation checks and PDF handoff',
+          to: 'business-filings',
+        },
         { label: 'Accounts', hint: 'business balances and account details', to: 'account' },
         { label: 'Activity', hint: 'everything confirmed or corrected', to: 'timeline' },
         { label: 'Read a document', hint: 'statements and receipts, reviewed first', to: 'intake' },
