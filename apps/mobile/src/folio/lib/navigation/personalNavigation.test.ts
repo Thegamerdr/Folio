@@ -26,6 +26,7 @@ describe('personal navigation', () => {
     ['timeline', 'review'],
     ['decision-history', 'review'],
     ['privacy', 'more'],
+    ['money-sources', 'more'],
     ['intake', 'more'],
   ] as const)('maps %s to the %s tab', (screen, tab) => {
     expect(personalTabForScreen(screen)).toBe(tab);

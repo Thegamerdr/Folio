@@ -861,7 +861,13 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
             <Text style={[styles.sectionTitle, { color: t.ink }]}>
               {isBusiness ? 'Where business records come from' : 'Where your money comes from'}
             </Text>
-            <Text style={[styles.sectionHint, { color: t.muted }]}>set by you · imported</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('money-sources')}
+              style={({ pressed: isPressed }) => (isPressed ? styles.rowPressed : undefined)}
+            >
+              <Text style={[styles.sectionHint, { color: t.calmStrong }]}>View all sources</Text>
+            </Pressable>
           </View>
           <Surface style={[styles.card, { borderColor: t.hairline }]}>
             {sources.map((s, index) => (
@@ -1218,7 +1224,7 @@ function PersonalAccountScreen({ nav, state = 'populated' }: AccountScreenProps)
   const cadenceLabel = primaryIncome
     ? (CADENCE_LABEL[primaryIncome.cadence] ?? primaryIncome.cadence)
     : 'monthly';
-  const sourceCount = statementImportsCount + subsCount + potsCount;
+  const sourceCount = statementImportsCount + incomeSources.length;
 
   const removeOtherIncome = (source: IncomeSource) => {
     Alert.alert(`Remove ${source.label}?`, 'Melo will stop including it in your income rhythm.', [
@@ -1379,9 +1385,9 @@ function PersonalAccountScreen({ nav, state = 'populated' }: AccountScreenProps)
         <PersonalGroup title="Your money">
           <PersonalRow
             label="Sources"
-            hint="Statements, receipts, paste"
+            hint="Accounts, files, income, bank"
             value={sourceCount > 0 ? `${sourceCount} added` : 'none yet'}
-            onPress={() => nav.go('intake')}
+            onPress={() => nav.go('money-sources')}
           />
           <PersonalRow
             label="Payday & primary income"

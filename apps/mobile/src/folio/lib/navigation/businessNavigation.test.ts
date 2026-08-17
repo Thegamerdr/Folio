@@ -27,6 +27,7 @@ describe('business navigation', () => {
     ['business-filing-payroll', 'more'],
     ['business-insights', 'money'],
     ['melo', 'more'],
+    ['money-sources', 'more'],
   ] as const)('maps %s to the %s tab', (screen, tab) => {
     expect(businessTabForScreen(screen)).toBe(tab);
   });

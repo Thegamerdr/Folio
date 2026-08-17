@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { hasStatementSourceData } from './accountSources';
+import { bankSourceHealth, hasStatementSourceData, importSourceSummary } from './accountSources';
 
 describe('hasStatementSourceData', () => {
   it('is false when neither the import log nor the transaction ledger has anything', () => {
@@ -34,5 +34,61 @@ describe('hasStatementSourceData', () => {
     // This helper takes no pots/subs input at all, so a fresh demo install with zero real imports and
     // zero real transactions reads as "not yet" regardless of how many seed pots/subs exist.
     expect(hasStatementSourceData(0, 0)).toBe(false);
+  });
+});
+
+describe('bankSourceHealth', () => {
+  const active = {
+    status: 'active' as const,
+    expiresAt: '2026-11-01T00:00:00.000Z',
+    lastSuccessfulRefreshAt: '2026-08-15T12:00:00.000Z',
+    lastErrorCode: null,
+  };
+
+  it('separates fresh, stale and expired consent truth', () => {
+    expect(bankSourceHealth(active, '2026-08-17T12:00:00.000Z').state).toBe('active');
+    expect(
+      bankSourceHealth(
+        { ...active, lastSuccessfulRefreshAt: '2026-08-01T12:00:00.000Z' },
+        '2026-08-17T12:00:00.000Z',
+      ),
+    ).toMatchObject({ state: 'stale', usableForRefresh: true, needsAction: true });
+    expect(
+      bankSourceHealth(
+        { ...active, expiresAt: '2026-08-16T12:00:00.000Z' },
+        '2026-08-17T12:00:00.000Z',
+      ),
+    ).toMatchObject({ state: 'reauth', usableForRefresh: false, needsAction: true });
+  });
+
+  it('does not call a disconnected or authorisation-failed source active', () => {
+    expect(
+      bankSourceHealth({ ...active, status: 'disconnected' }, '2026-08-17T12:00:00.000Z'),
+    ).toMatchObject({ state: 'disconnected', usableForRefresh: false });
+    expect(
+      bankSourceHealth(
+        { ...active, status: 'error', lastErrorCode: 'authorization_failed' },
+        '2026-08-17T12:00:00.000Z',
+      ),
+    ).toMatchObject({ state: 'reauth', usableForRefresh: false });
+  });
+});
+
+describe('importSourceSummary', () => {
+  it('counts only real imports, landed rows and retained source evidence', () => {
+    expect(
+      importSourceSummary(
+        [
+          { rowCount: 12, atISO: '2026-07-01T12:00:00.000Z' },
+          { rowCount: 3, atISO: '2026-08-01T12:00:00.000Z' },
+        ],
+        1,
+      ),
+    ).toEqual({
+      importCount: 2,
+      rowCount: 15,
+      latestAt: '2026-08-01T12:00:00.000Z',
+      retainedEvidenceCount: 1,
+    });
   });
 });

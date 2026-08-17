@@ -87,7 +87,7 @@ export const REFERENCE_SCREEN_DISPOSITIONS: readonly ReferenceScreenDisposition[
   screen('shortfall', 'personal', 'merge', 'live', 'shortfall', 'Adjust Path / Resolve'),
   screen('account', 'personal', 'evolve', 'partial', 'account', 'More / Account'),
   screen('decisions', 'personal', 'merge', 'live', 'decision-history', 'Review / Decisions'),
-  screen('connections', 'personal', 'evolve', 'partial', 'account', 'Money Sources'),
+  screen('connections', 'personal', 'evolve', 'live', 'money-sources', 'Money Sources'),
   screen('debts', 'personal', 'evolve', 'partial', 'plans', 'Plan / Debts'),
   screen('returning-recap', 'personal', 'keep', 'partial', 'today', 'One-time Today recap'),
   screen('global-search', 'personal', 'keep', 'partial', 'more', 'Global search action'),
