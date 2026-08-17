@@ -95,6 +95,7 @@ import { PrivacyScreen } from '@/folio/screens/PrivacyScreen';
 import { DecisionHistoryScreen } from '@/folio/screens/DecisionHistoryScreen';
 import { TimelineScreen } from '@/folio/screens/TimelineScreen';
 import { PlansScreen } from '@/folio/screens/PlansScreen';
+import { PlanHubScreen } from '@/folio/screens/PlanHubScreen';
 import { GuidedCheckInScreen } from '@/folio/screens/GuidedCheckInScreen';
 import { MeloScreen } from '@/folio/screens/MeloScreen';
 import { MeloMemoryScreen } from '@/folio/screens/MeloMemoryScreen';
@@ -215,6 +216,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'today-mode': 'Today',
   'today-stability': 'Today',
   'today-after': 'After',
+  plan: 'Plan',
   whatif: 'What if',
   plans: 'Plans',
   calendar: 'Calendar',
@@ -1207,6 +1209,7 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   if (screen === 'privacy') return <PrivacyScreen nav={nav} />;
   if (screen === 'decision-history') return <DecisionHistoryScreen nav={nav} />;
   if (screen === 'timeline') return <TimelineScreen nav={nav} />;
+  if (screen === 'plan') return <PlanHubScreen nav={nav} />;
   if (screen === 'plans') return <PlansScreen nav={nav} />;
   if (screen === 'guided') return <GuidedCheckInScreen nav={nav} />;
   if (screen === 'melo') return <MeloScreen nav={nav} pressure={pressure} />;

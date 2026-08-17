@@ -35,7 +35,7 @@ describe('personal navigation', () => {
 
   it.each([
     ['today', 'today'],
-    ['plan', 'plans'],
+    ['plan', 'plan'],
     ['review', 'review'],
     ['more', 'more'],
   ] as const)('maps the %s tab to %s', (tab, screen) => {

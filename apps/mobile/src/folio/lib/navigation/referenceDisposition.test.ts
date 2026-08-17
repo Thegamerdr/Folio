@@ -9,9 +9,9 @@ import {
 } from './referenceDisposition';
 
 describe('complete Lovable reference disposition', () => {
-  it('accounts for all 92 reference screens exactly once', () => {
-    expect(REFERENCE_SCREEN_DISPOSITIONS).toHaveLength(92);
-    expect(new Set(REFERENCE_SCREEN_IDS).size).toBe(92);
+  it('accounts for all 93 reference screens exactly once', () => {
+    expect(REFERENCE_SCREEN_DISPOSITIONS).toHaveLength(93);
+    expect(new Set(REFERENCE_SCREEN_IDS).size).toBe(93);
   });
 
   it('accounts for all 41 reference sheets exactly once', () => {

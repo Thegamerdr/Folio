@@ -37,6 +37,7 @@ export const SCREEN_IDS = [
   'today-mode',
   'today-stability',
   'today-after',
+  'plan',
   'privacy',
   'decision-history',
   'melo',

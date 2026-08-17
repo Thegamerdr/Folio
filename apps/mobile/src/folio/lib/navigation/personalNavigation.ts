@@ -11,6 +11,7 @@ const TODAY_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
 ]);
 
 const PLAN_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
+  'plan',
   'plans',
   'calendar',
   'whatif',
@@ -63,7 +64,7 @@ export function isPersonalTransientScreen(screen: ScreenId): boolean {
 }
 
 export function screenForPersonalTab(tab: PersonalPrimaryTab): ScreenId {
-  if (tab === 'plan') return 'plans';
+  if (tab === 'plan') return 'plan';
   if (tab === 'review') return 'review';
   if (tab === 'more') return 'more';
   return 'today';

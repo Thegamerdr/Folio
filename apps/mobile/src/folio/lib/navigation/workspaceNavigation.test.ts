@@ -66,10 +66,12 @@ describe('workspace navigation state', () => {
     state = navigateWorkspaceBack(state);
     expect(currentWorkspaceScreen(state)).toBe('plans');
     state = navigateWorkspaceBack(state);
+    expect(currentWorkspaceScreen(state)).toBe('plan');
+    state = navigateWorkspaceBack(state);
     expect(currentWorkspaceScreen(state)).toBe('today');
 
     state = selectWorkspaceTab(state, 'plan');
-    expect(currentWorkspaceScreen(state)).toBe('plans');
+    expect(currentWorkspaceScreen(state)).toBe('plan');
   });
 
   it('does not duplicate a route when the same destination is selected repeatedly', () => {

@@ -46,8 +46,8 @@ type MoreGroup = {
   demo?: boolean;
 };
 
-/** Personal More hub, ported from the refrozen Lovable ScreenMore.
- *  Review and Workspace are deliberate first-class rows here; they are not primary chrome. */
+/** Personal More hub, ported from Lovable authority `98a8648b`.
+ *  Plan and Review are primary tabs; More contains secondary settings, identity and data only. */
 export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -57,9 +57,6 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const companionScroll = useMeloCompanionScrollHandlers();
   const workspaces = useAppStore((s) => s.workspaces);
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
-  const reviewCount = useAppStore(
-    (s) => (s.reviewQueue?.length ?? 0) + (s.reviewQueueSpillover?.length ?? 0),
-  );
   const activeWorkspace =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
   const workspaceLabel = activeWorkspace?.name || 'Personal';
@@ -67,28 +64,21 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
 
   const groups: MoreGroup[] = [
     {
-      title: 'Money path',
+      title: 'Find & jump',
       rows: [
-        { label: 'First answer', hint: 'rough answer before full setup', to: 'first-answer' },
-        { label: 'Timeline', hint: 'what you added, what you left', to: 'timeline' },
-        { label: 'Calendar', hint: 'the dates that matter', to: 'calendar' },
-        { label: 'Plans', hint: "what's coming before payday", to: 'plans' },
-        { label: 'Insights', hint: 'the shape of your months', to: 'insights' },
         {
-          label: 'Adjust path',
-          hint: 'preview a choice or make room',
-          to: 'whatif',
+          label: 'Search anything',
+          hint: 'screens, pots, subs, merchants',
+          onPress: () => nav.openMelo({ prefill: 'Help me find something in Melo.' }),
         },
       ],
     },
     {
-      title: 'Set aside & keep',
+      title: 'Money settings',
       rows: [
-        { label: 'Subscriptions', hint: 'what still earns its place', to: 'subs' },
-        { label: 'Pots', hint: 'set aside, calmly', to: 'pots' },
         { label: 'Payday & income', hint: 'change when money lands', sheet: 'onboarding' },
-        { label: 'Payday review', hint: 'wrap up the month in four steps', to: 'ritual' },
         { label: 'Share a cycle', hint: 'a quiet win card', sheet: 'share' },
+        { label: 'Export a cycle', hint: 'a working copy to share', sheet: 'share' },
       ],
     },
     {
@@ -96,12 +86,18 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
       rows: [
         { label: 'Account & plan', hint: 'tier, sources, export, wipe', to: 'account' },
         { label: 'Melo', hint: 'companion, plumage, quiet mode', to: 'melo' },
+        { label: 'Memory', hint: 'what Melo remembers with you', to: 'melo-memory' },
         {
-          label: 'Decision history',
-          hint: 'receipts for material money choices',
+          label: 'Decisions',
+          hint: 'what you approved, what you passed on',
           to: 'decision-history',
         },
-        { label: 'Data & Security', hint: 'privacy, access, backup and export', to: 'privacy' },
+        { label: 'Recent activity', hint: 'what moved and what can be undone', to: 'timeline' },
+      ],
+    },
+    {
+      title: 'How it looks',
+      rows: [
         {
           label: 'Appearance',
           hint: isDark ? 'dark · tap for light' : 'light · tap for dark',
@@ -112,6 +108,19 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           hint: `${CHART_STYLE_LABEL[chartStyle]} · ${CHART_STYLE_HINT[chartStyle]}`,
           sheet: 'chart-style',
         },
+        { label: 'Notifications', hint: 'what Melo whispers, when', to: 'account' },
+      ],
+    },
+    {
+      title: 'Your data',
+      rows: [
+        { label: 'Trust & data', hint: 'privacy, backup, lock, sign-in', to: 'privacy' },
+        { label: 'Backup', hint: 'take, restore, clear', to: 'privacy' },
+        { label: 'App lock', hint: 'face or code', to: 'privacy' },
+        { label: 'Privacy', hint: 'what stays with you', to: 'privacy' },
+        { label: 'Data access', hint: 'every optional service request', to: 'privacy' },
+        { label: 'Accessibility', hint: 'text, contrast and motion', to: 'account' },
+        { label: 'Quiet hours', hint: 'when Melo says nothing', to: 'account' },
       ],
     },
     ...(__DEV__
@@ -222,37 +231,6 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
               <Text style={[styles.specialHint, { color: t.muted }]}>
                 · switch to {alternateWorkspace}
               </Text>
-            </View>
-          </View>
-          <ProductIcon color={t.muted} name="forward" size={16} />
-        </Pressable>
-
-        <Pressable
-          accessibilityLabel={reviewCount > 0 ? `Review — ${reviewCount} to check` : 'Review'}
-          accessibilityRole="button"
-          onPress={() => nav.go('review')}
-          style={({ pressed }) => [
-            styles.reviewRow,
-            {
-              backgroundColor: t.surface,
-              borderColor: t.hairline,
-            },
-            pressed ? styles.rowPressed : undefined,
-          ]}
-        >
-          <View style={styles.specialText}>
-            <Text style={[styles.specialEyebrow, { color: t.muted }]}>Review</Text>
-            <View style={styles.specialValueRow}>
-              <Text style={[styles.specialValue, { color: t.ink }]}>
-                {reviewCount > 0 ? 'Waiting to be checked' : 'Nothing waiting'}
-              </Text>
-              {reviewCount > 0 ? (
-                <View style={[styles.reviewBadge, { backgroundColor: t.calmSoft }]}>
-                  <Text style={[styles.reviewBadgeLabel, { color: t.calmStrong }]}>
-                    {reviewCount}
-                  </Text>
-                </View>
-              ) : null}
             </View>
           </View>
           <ProductIcon color={t.muted} name="forward" size={16} />
