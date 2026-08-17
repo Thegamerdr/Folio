@@ -17,6 +17,7 @@ describe('business navigation', () => {
     ['plans', 'money'],
     ['review', 'review'],
     ['timeline', 'review'],
+    ['intake-history', 'review'],
     ['business-obligations', 'more'],
     ['business-filings', 'more'],
     ['business-filing-vat', 'more'],

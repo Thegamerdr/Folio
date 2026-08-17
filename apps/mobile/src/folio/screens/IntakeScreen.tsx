@@ -97,6 +97,7 @@ import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
   addEvidenceDocument,
   getState,
+  logIntakeAttempt,
   setReaderCandidates,
   setReaderClosingBalance,
   useAppStore,
@@ -365,6 +366,13 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       ...(extraction === undefined ? {} : { extraction }),
     });
     if (local.unsupportedCurrency !== null) {
+      logIntakeAttempt({
+        source: source === 'photo' ? 'image' : source,
+        outcome: 'unsupported-currency',
+        filename,
+        sourceEvidenceId,
+        reason: 'The selected source contained no supported GBP rows.',
+      });
       setReaderCandidates([]);
       setReaderClosingBalance(null);
       showToast(
@@ -430,6 +438,16 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   }
 
   function finishLocalReaderFallback(fallbackScreen: ScreenId, sourceEvidenceId: string): void {
+    const evidence = getState().evidenceDocuments?.find(
+      (document) => document.id === sourceEvidenceId,
+    );
+    logIntakeAttempt({
+      source: fallbackScreen === 'image-fallback' ? 'image' : 'pdf',
+      outcome: 'read-failed',
+      sourceEvidenceId,
+      ...(evidence === undefined ? {} : { filename: evidence.filename }),
+      reason: 'On-device reading could not find reliable rows.',
+    });
     setReaderFallbackReason(
       'On-device reading could not find reliable rows. You can add the important numbers yourself.',
     );
@@ -472,6 +490,13 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           }
           nav.go('pdf-success');
         } else if (read.kind === 'unsupported-currency') {
+          logIntakeAttempt({
+            source: 'csv',
+            outcome: 'unsupported-currency',
+            filename: src.filename,
+            sourceEvidenceId,
+            reason: 'The selected source contained no supported GBP rows.',
+          });
           setReaderCandidates([]);
           setReaderClosingBalance(null);
           showToast(
@@ -545,11 +570,21 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   async function runClipboardPaste() {
     const text = await Clipboard.getString();
     if (text.trim().length === 0) {
+      logIntakeAttempt({
+        source: 'paste',
+        outcome: 'read-failed',
+        reason: 'The clipboard did not contain transaction text.',
+      });
       showToast(copy.add.clipboard.empty.head, copy.add.clipboard.empty.body);
       return;
     }
     const read = readTextCandidates(text, 'paste', 'pasted transactions');
     if (read.kind === 'unsupported-currency') {
+      logIntakeAttempt({
+        source: 'paste',
+        outcome: 'unsupported-currency',
+        reason: 'The pasted source contained no supported GBP rows.',
+      });
       setReaderCandidates([]);
       setReaderClosingBalance(null);
       showToast(
@@ -557,6 +592,13 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         'Those foreign-currency entries were not imported. Melo will not turn them into pounds.',
       );
       return;
+    }
+    if (read.kind === 'unreadable') {
+      logIntakeAttempt({
+        source: 'paste',
+        outcome: 'read-failed',
+        reason: 'The pasted text did not contain reliable rows.',
+      });
     }
     setReaderCandidates(read.kind === 'ready' ? read.candidates : []);
     setReaderClosingBalance(null);

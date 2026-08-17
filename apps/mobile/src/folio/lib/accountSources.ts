@@ -127,17 +127,22 @@ export type ImportSourceSummary = Readonly<{
 
 /** Honest aggregate for the Money Sources screen; never infers imports from unrelated app data. */
 export function importSourceSummary(
-  imports: readonly Readonly<{ rowCount: number; atISO: string }>[],
+  imports: readonly Readonly<{
+    rowCount: number;
+    atISO: string;
+    outcome?: 'added' | 'already-present' | 'read-failed' | 'unsupported-currency';
+  }>[],
   retainedEvidenceCount: number,
 ): ImportSourceSummary {
-  const latest = imports
+  const accepted = imports.filter((item) => item.outcome === undefined || item.outcome === 'added');
+  const latest = accepted
     .map((item) => item.atISO)
     .filter((value) => Number.isFinite(Date.parse(value)))
     .sort()
     .at(-1);
   return {
-    importCount: imports.length,
-    rowCount: imports.reduce((total, item) => total + Math.max(0, Math.trunc(item.rowCount)), 0),
+    importCount: accepted.length,
+    rowCount: accepted.reduce((total, item) => total + Math.max(0, Math.trunc(item.rowCount)), 0),
     latestAt: latest ?? null,
     retainedEvidenceCount: Math.max(0, Math.trunc(retainedEvidenceCount)),
   };

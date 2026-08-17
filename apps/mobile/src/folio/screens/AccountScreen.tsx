@@ -226,7 +226,12 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
   const cyclesCount = useAppStore((s) => s.cycles.length);
   const transactionsCount = useAppStore((s) => s.transactions.length);
   const transactions = useAppStore((s) => s.transactions);
-  const statementImportsCount = useAppStore((s) => s.statementImports?.length ?? 0);
+  const statementImportsCount = useAppStore(
+    (s) =>
+      s.statementImports?.filter(
+        (entry) => entry.outcome === undefined || entry.outcome === 'added',
+      ).length ?? 0,
+  );
   const evidenceDocuments = useAppStore((s) => s.evidenceDocuments);
   const readerCandidates = useAppStore((s) => s.readerCandidates);
   const reviewQueue = useAppStore((s) => s.reviewQueue);
@@ -1180,7 +1185,12 @@ function PersonalAccountScreen({ nav, state = 'populated' }: AccountScreenProps)
   const cycles = useAppStore((s) => s.cycles);
   const subsCount = useAppStore((s) => s.subs.length);
   const potsCount = useAppStore((s) => s.pots.length);
-  const statementImportsCount = useAppStore((s) => s.statementImports?.length ?? 0);
+  const statementImportsCount = useAppStore(
+    (s) =>
+      s.statementImports?.filter(
+        (entry) => entry.outcome === undefined || entry.outcome === 'added',
+      ).length ?? 0,
+  );
   const incomeSources = useAppStore((s) => s.incomeSources ?? []);
   const monthlyIncome = useAppStore((s) => selectMonthlyIncome(s));
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);

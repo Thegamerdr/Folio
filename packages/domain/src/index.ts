@@ -932,6 +932,13 @@ export type StatementImportState = Readonly<{
   filename?: string;
   closingBalanceMinor?: number;
   sourceEvidenceId?: string;
+  outcome?: 'added' | 'already-present' | 'read-failed' | 'unsupported-currency';
+  candidateCount?: number;
+  duplicatesSkipped?: number;
+  droppedTransactionCount?: number;
+  reconciliationStatus?: 'ok' | 'mismatch' | 'unverified';
+  reason?: string;
+  retryOfId?: string;
 }>;
 
 export type EvidenceDocumentState = Readonly<{

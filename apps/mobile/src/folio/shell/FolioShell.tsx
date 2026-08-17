@@ -99,6 +99,7 @@ import { MeloMovesScreen } from '@/folio/screens/MeloMovesScreen';
 import { PaywallScreen } from '@/folio/screens/PaywallScreen';
 import { AccountScreen } from '@/folio/screens/AccountScreen';
 import { MoneySourcesScreen } from '@/folio/screens/MoneySourcesScreen';
+import { IntakeHistoryScreen } from '@/folio/screens/IntakeHistoryScreen';
 import { OnboardingSheet } from '@/folio/sheets/OnboardingSheet';
 import { EditItemSheet } from '@/folio/sheets/EditItemSheet';
 import { EditTxnSheet } from '@/folio/sheets/EditTxnSheet';
@@ -231,6 +232,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   paywall: 'Melo plans',
   account: 'Account',
   'money-sources': 'Money Sources',
+  'intake-history': 'Intake history',
   'business-entity-setup': 'Business type',
   'business-money': 'Business money',
   'business-runway': 'Cash runway',
@@ -1196,6 +1198,7 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   if (screen === 'paywall') return <PaywallScreen nav={nav} />;
   if (screen === 'account') return <AccountScreen nav={nav} />;
   if (screen === 'money-sources') return <MoneySourcesScreen nav={nav} />;
+  if (screen === 'intake-history') return <IntakeHistoryScreen nav={nav} />;
 
   // Exhaustive fallback only — every current ScreenId is handled above, so this branch is
   // unreachable today. Kept so an un-wired future ScreenId still renders a calm title instead of

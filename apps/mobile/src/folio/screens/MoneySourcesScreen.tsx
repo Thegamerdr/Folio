@@ -218,6 +218,7 @@ export function MoneySourcesScreen({ nav }: Props) {
             detail="Encrypted originals retained in this workspace"
             value={`${imported.retainedEvidenceCount} saved`}
           />
+          <ActionRow label="View intake history" onPress={() => nav.go('intake-history')} />
           <ActionRow label="Add records" onPress={() => nav.go('intake')} />
         </Surface>
 

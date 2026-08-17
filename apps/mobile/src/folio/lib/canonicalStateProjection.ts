@@ -772,6 +772,38 @@ function projectTransactionIntelligenceState(
         ...(entry.sourceEvidenceId === undefined
           ? {}
           : { sourceEvidenceId: entry.sourceEvidenceId }),
+        ...(entry.outcome === undefined ? {} : { outcome: entry.outcome }),
+        ...(entry.candidateCount === undefined
+          ? {}
+          : {
+              candidateCount: requireNonNegativeSafeInteger(
+                entry.candidateCount,
+                `Statement import ${entry.id} candidate count`,
+              ),
+            }),
+        ...(entry.duplicatesSkipped === undefined
+          ? {}
+          : {
+              duplicatesSkipped: requireNonNegativeSafeInteger(
+                entry.duplicatesSkipped,
+                `Statement import ${entry.id} duplicate count`,
+              ),
+            }),
+        ...(entry.droppedTransactionCount === undefined
+          ? {}
+          : {
+              droppedTransactionCount: requireNonNegativeSafeInteger(
+                entry.droppedTransactionCount,
+                `Statement import ${entry.id} dropped row count`,
+              ),
+            }),
+        ...(entry.reconciliationStatus === undefined
+          ? {}
+          : { reconciliationStatus: entry.reconciliationStatus }),
+        ...(entry.reason === undefined
+          ? {}
+          : { reason: requireString(entry.reason, `Statement import ${entry.id} reason`) }),
+        ...(entry.retryOfId === undefined ? {} : { retryOfId: entry.retryOfId }),
       };
     }),
     evidenceDocuments: (state.evidenceDocuments ?? []).map((document, index) => {

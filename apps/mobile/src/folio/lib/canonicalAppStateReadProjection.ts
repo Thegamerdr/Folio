@@ -463,6 +463,19 @@ export function readCanonicalAppStateMoneyProjection(
         ? {}
         : { closingBalanceMinor: entry.closingBalanceMinor }),
       ...(entry.sourceEvidenceId === undefined ? {} : { sourceEvidenceId: entry.sourceEvidenceId }),
+      ...(entry.outcome === undefined ? {} : { outcome: entry.outcome }),
+      ...(entry.candidateCount === undefined ? {} : { candidateCount: entry.candidateCount }),
+      ...(entry.duplicatesSkipped === undefined
+        ? {}
+        : { duplicatesSkipped: entry.duplicatesSkipped }),
+      ...(entry.droppedTransactionCount === undefined
+        ? {}
+        : { droppedTransactionCount: entry.droppedTransactionCount }),
+      ...(entry.reconciliationStatus === undefined
+        ? {}
+        : { reconciliationStatus: entry.reconciliationStatus }),
+      ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+      ...(entry.retryOfId === undefined ? {} : { retryOfId: entry.retryOfId }),
     }));
   const evidenceDocuments: NonNullable<AppState['evidenceDocuments']> =
     transactionIntelligence.evidenceDocuments.map((document) => ({
@@ -1415,6 +1428,19 @@ function normalizedSourceMoneyProjection(
         ? {}
         : { closingBalanceMinor: entry.closingBalanceMinor }),
       ...(entry.sourceEvidenceId === undefined ? {} : { sourceEvidenceId: entry.sourceEvidenceId }),
+      ...(entry.outcome === undefined ? {} : { outcome: entry.outcome }),
+      ...(entry.candidateCount === undefined ? {} : { candidateCount: entry.candidateCount }),
+      ...(entry.duplicatesSkipped === undefined
+        ? {}
+        : { duplicatesSkipped: entry.duplicatesSkipped }),
+      ...(entry.droppedTransactionCount === undefined
+        ? {}
+        : { droppedTransactionCount: entry.droppedTransactionCount }),
+      ...(entry.reconciliationStatus === undefined
+        ? {}
+        : { reconciliationStatus: entry.reconciliationStatus }),
+      ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+      ...(entry.retryOfId === undefined ? {} : { retryOfId: entry.retryOfId }),
     })),
     evidenceDocuments: (state.evidenceDocuments ?? []).map((document) => ({
       id: document.id,

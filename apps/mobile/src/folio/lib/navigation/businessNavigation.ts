@@ -14,7 +14,11 @@ const MONEY_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'plans',
 ]);
 
-const REVIEW_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>(['review', 'timeline']);
+const REVIEW_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
+  'review',
+  'timeline',
+  'intake-history',
+]);
 
 /** Current Business workspace IA: Today / Money / Review / More. */
 export function businessTabForScreen(screen: ScreenId): BusinessPrimaryTab {

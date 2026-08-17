@@ -61,6 +61,7 @@ import {
   isBankTxn,
   isRealUser,
   logDebtPayment,
+  logIntakeAttempt,
   linkOwnAccountTransfer,
   unlinkOwnAccountTransfer,
   markTransactionDeclined,
@@ -5493,7 +5494,7 @@ describe('addStatementAsHistory', () => {
       expect(getState().statementImports?.[1]?.rowCount).toBe(2);
     });
 
-    it('does not log an entry for a no-op call (empty candidates, or an all-duplicate re-import)', () => {
+    it('does not log an empty call but records an all-duplicate re-import honestly', () => {
       setPartial({ transactions: [], statementImports: [] });
       addStatementAsHistory([]);
       expect(getState().statementImports).toHaveLength(0);
@@ -5502,9 +5503,39 @@ describe('addStatementAsHistory', () => {
       addStatementAsHistory(fixture);
       expect(getState().statementImports).toHaveLength(1);
 
-      // Re-importing the exact same statement adds nothing new — no phantom second log entry.
+      // Re-importing the exact same statement adds no money, but remains visible as an attempt.
       addStatementAsHistory(fixture);
-      expect(getState().statementImports).toHaveLength(1);
+      expect(getState().statementImports).toHaveLength(2);
+      expect(getState().statementImports?.[0]).toMatchObject({
+        outcome: 'already-present',
+        candidateCount: 1,
+        rowCount: 0,
+        duplicatesSkipped: 1,
+      });
+    });
+
+    it('records safe reader failures and links a later retry without retaining source text', () => {
+      setPartial({ statementImports: [] });
+      const first = logIntakeAttempt({
+        source: 'pdf',
+        outcome: 'read-failed',
+        filename: 'statement.pdf',
+        sourceEvidenceId: 'evidence-retry',
+        reason: 'On-device reading could not find reliable rows.',
+      });
+      const retry = logIntakeAttempt({
+        source: 'pdf',
+        outcome: 'unsupported-currency',
+        filename: 'statement.pdf',
+        sourceEvidenceId: 'evidence-retry',
+        reason: 'The selected source contained no supported GBP rows.',
+      });
+
+      expect(retry.retryOfId).toBe(first.id);
+      expect(JSON.stringify(getState().statementImports)).not.toContain('merchant');
+      expect(getState().statementImports?.[0]?.reason).toBe(
+        'The selected source contained no supported GBP rows.',
+      );
     });
 
     it('maps the landed candidate source onto the log entry, translating photo -> image', () => {

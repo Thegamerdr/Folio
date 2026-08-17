@@ -28,6 +28,7 @@ const REVIEW_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'timeline',
   'decision-history',
   'visualizer',
+  'intake-history',
 ]);
 
 /**

@@ -25,6 +25,7 @@ describe('personal navigation', () => {
     ['review', 'review'],
     ['timeline', 'review'],
     ['decision-history', 'review'],
+    ['intake-history', 'review'],
     ['privacy', 'more'],
     ['money-sources', 'more'],
     ['intake', 'more'],

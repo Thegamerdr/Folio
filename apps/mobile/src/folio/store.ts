@@ -1041,6 +1041,22 @@ export type StatementImportRecord = {
   closingBalanceMinor?: number;
   /** Encrypted original that produced this landing, when one was retained. */
   sourceEvidenceId?: string;
+  /** Every confirmed attempt is retained, including a repeat that added nothing. Older rows omit
+   *  this and therefore read as a successful `added` attempt. Reader failures are recorded by the
+   *  intake boundary without copying statement text, balances or merchant names into diagnostics. */
+  outcome?: 'added' | 'already-present' | 'read-failed' | 'unsupported-currency';
+  /** Rows presented to the landing boundary before exact source-row deduplication. */
+  candidateCount?: number;
+  /** Exact source rows already present in Melo and therefore not added again. */
+  duplicatesSkipped?: number;
+  /** Older rows evicted by the bounded on-device transaction retention policy. */
+  droppedTransactionCount?: number;
+  /** Statement arithmetic result when the source supplied enough figures to check it. */
+  reconciliationStatus?: 'ok' | 'mismatch' | 'unverified';
+  /** Safe product copy only; never extracted statement text, merchant names or balances. */
+  reason?: string;
+  /** Previous failed attempt for the same source/evidence, when this attempt is an explicit retry. */
+  retryOfId?: string;
 };
 
 export type EvidenceDocument = {
@@ -6316,7 +6332,9 @@ export function addStatementAsHistory(
   // it found rows it then silently didn't add.
   const summary = buildStatementSummary(newCandidates);
   if (newCandidates.length === 0) {
-    return { ...summary, droppedTransactionCount: 0, duplicatesSkipped, reconciliation };
+    const result = { ...summary, droppedTransactionCount: 0, duplicatesSkipped, reconciliation };
+    recordCandidateIntakeAttempt(candidates, result, accountId, closingBalance);
+    return result;
   }
 
   const droppedBeforeAdd = getState().droppedTransactionCount ?? 0;
@@ -6327,7 +6345,6 @@ export function addStatementAsHistory(
     })),
   );
   syncHistoryCycles();
-  logStatementImport(newCandidates, accountId);
 
   const stateAfterAdd = getState();
   const overspent = isOverspentLanding(stateAfterAdd);
@@ -6374,6 +6391,7 @@ export function addStatementAsHistory(
       accountId,
     };
   }
+  recordCandidateIntakeAttempt(candidates, result, accountId, closingBalance);
   void import('./lib/melo/reactionBus').then(({ emitMeloReaction }) => {
     emitMeloReaction('companion-root', {
       mood: 'cheer',
@@ -6414,39 +6432,55 @@ function toStatementImportSource(
   return source === 'photo' ? 'image' : source;
 }
 
-/** Interim import-log writer (task: coherence-fix) — the single write path for
- *  `AppState.statementImports`. Called ONCE per `addStatementAsHistory` call that actually lands at
- *  least one new transaction (the caller already guards on `newCandidates.length === 0` before
- *  reaching this, so a byte-identical re-import that adds nothing never logs a phantom row). The
- *  record's `source` is the first landed candidate's own source — good enough for an honest label on
- *  a single-import row without a second "was this a mixed-source batch" concept the UI doesn't need
- *  yet. Newest first, capped at `STATEMENT_IMPORT_CAP` (200), mirroring `timelineEvents`' own
- *  retention shape. Not exported — `addStatementAsHistory` is the only real caller (every import must
- *  go through it, so a caller should never log an import without actually landing one).
- *
- *  `accountId` defaults to `DEFAULT_ACCOUNT_ID` when omitted, mirroring `accountIdOf`'s own back-compat
- *  contract — `addStatementAsHistory` now passes through whatever account the caller resolved (a
- *  named account from BulkStatementLanding's picker, or the default when the caller didn't resolve
- *  one), so this log entry always matches which account the batch's transactions were tagged with. */
-function logStatementImport(
-  newCandidates: readonly CandidateMoneyItem[],
-  accountId?: string,
-): void {
-  if (newCandidates.length === 0) return;
-  const first = newCandidates[0]!;
-  const evidence = first.sourceEvidenceId
-    ? (state.evidenceDocuments ?? []).find((document) => document.id === first.sourceEvidenceId)
-    : undefined;
+export type IntakeAttemptInput = Readonly<{
+  source: StatementImportRecord['source'];
+  outcome: NonNullable<StatementImportRecord['outcome']>;
+  accountId?: string;
+  filename?: string;
+  sourceEvidenceId?: string;
+  closingBalanceMinor?: number;
+  candidateCount?: number;
+  rowCount?: number;
+  duplicatesSkipped?: number;
+  droppedTransactionCount?: number;
+  reconciliationStatus?: NonNullable<StatementImportRecord['reconciliationStatus']>;
+  reason?: string;
+}>;
+
+/** Record one privacy-bounded intake attempt. This is the authority behind Intake history: it
+ *  retains source type, safe counts, result and retry lineage, but never extracted text, merchants,
+ *  balances or provider payloads. Cancelled picker interactions are not attempts and are not logged. */
+export function logIntakeAttempt(input: IntakeAttemptInput): StatementImportRecord {
+  const existing = state.statementImports ?? [];
+  const inputIdentity = input.sourceEvidenceId ?? input.filename;
+  const priorFailure = existing.find(
+    (entry) =>
+      entry.source === input.source &&
+      (entry.sourceEvidenceId ?? entry.filename) === inputIdentity &&
+      (entry.outcome === 'read-failed' || entry.outcome === 'unsupported-currency'),
+  );
+  const safeReason = input.reason?.trim().slice(0, 180);
   const entry: StatementImportRecord = {
     id: `imp-log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    source: toStatementImportSource(first.source),
-    rowCount: newCandidates.length,
+    source: input.source,
+    rowCount: input.rowCount ?? 0,
     atISO: new Date().toISOString(),
-    accountId: accountId ?? DEFAULT_ACCOUNT_ID,
-    ...(evidence !== undefined ? { filename: evidence.filename } : {}),
-    ...(first.sourceEvidenceId !== undefined ? { sourceEvidenceId: first.sourceEvidenceId } : {}),
+    accountId: input.accountId ?? DEFAULT_ACCOUNT_ID,
+    outcome: input.outcome,
+    candidateCount: input.candidateCount ?? input.rowCount ?? 0,
+    duplicatesSkipped: input.duplicatesSkipped ?? 0,
+    droppedTransactionCount: input.droppedTransactionCount ?? 0,
+    ...(input.filename === undefined ? {} : { filename: input.filename }),
+    ...(input.sourceEvidenceId === undefined ? {} : { sourceEvidenceId: input.sourceEvidenceId }),
+    ...(input.closingBalanceMinor === undefined
+      ? {}
+      : { closingBalanceMinor: input.closingBalanceMinor }),
+    ...(input.reconciliationStatus === undefined
+      ? {}
+      : { reconciliationStatus: input.reconciliationStatus }),
+    ...(safeReason === undefined || safeReason.length === 0 ? {} : { reason: safeReason }),
+    ...(priorFailure === undefined ? {} : { retryOfId: priorFailure.id }),
   };
-  const existing = state.statementImports ?? [];
   const statementImports = [entry, ...existing].slice(0, STATEMENT_IMPORT_CAP);
   setPartialWithTypedCommand(
     { statementImports },
@@ -6459,6 +6493,33 @@ function logStatementImport(
       invalidatedProjectionKinds: ['statement-imports', 'evidence'],
     },
   );
+  return entry;
+}
+
+function recordCandidateIntakeAttempt(
+  candidates: readonly CandidateMoneyItem[],
+  result: AddStatementAsHistoryResult,
+  accountId: string,
+  closingBalance?: ReaderClosingBalance,
+): void {
+  const first = candidates[0];
+  if (first === undefined) return;
+  const evidence = first.sourceEvidenceId
+    ? (state.evidenceDocuments ?? []).find((document) => document.id === first.sourceEvidenceId)
+    : undefined;
+  logIntakeAttempt({
+    source: toStatementImportSource(first.source),
+    outcome: result.added > 0 ? 'added' : 'already-present',
+    accountId,
+    candidateCount: candidates.length,
+    rowCount: result.added,
+    duplicatesSkipped: result.duplicatesSkipped ?? 0,
+    droppedTransactionCount: result.droppedTransactionCount ?? 0,
+    reconciliationStatus: result.reconciliation?.status ?? 'unverified',
+    ...(evidence === undefined ? {} : { filename: evidence.filename }),
+    ...(first.sourceEvidenceId === undefined ? {} : { sourceEvidenceId: first.sourceEvidenceId }),
+    ...(closingBalance === undefined ? {} : { closingBalanceMinor: closingBalance.amount }),
+  });
 }
 
 /** ENGINES.md §6 "Editing existing transactions — required, never destructive".
