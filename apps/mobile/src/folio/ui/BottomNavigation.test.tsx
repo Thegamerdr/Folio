@@ -29,6 +29,8 @@ describe('bottom navigation contracts', () => {
     expect(personal).toContain('accessibilityRole="tab"');
     expect(personal).toContain('accessibilityState={{ selected }}');
     expect(personal).toContain('onPress={() => onChange(tab.id)}');
+    expect(personal).toContain('<ProductIcon');
+    expect(personal).not.toContain('glyph:');
     expect(personal).not.toContain('Talk to Melo');
   });
 
@@ -40,6 +42,8 @@ describe('bottom navigation contracts', () => {
     expect(business).toContain('accessibilityRole="tab"');
     expect(business).toContain('accessibilityState={{ selected }}');
     expect(business).toContain('onPress={() => onChange(tab.id)}');
+    expect(business).toContain('<ProductIcon');
+    expect(business).not.toContain('glyph:');
     expect(business).not.toContain("label: 'Filings'");
   });
 

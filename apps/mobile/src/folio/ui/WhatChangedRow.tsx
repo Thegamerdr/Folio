@@ -23,6 +23,7 @@ import { buildTimelineRows } from '@/folio/lib/timelineEvents';
 import { summarizeWhatChanged } from '@/folio/lib/whatChanged';
 import { gap, pressed, radius, useTheme, type Palette } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
+import { ProductIcon } from './ProductIcon';
 
 export function WhatChangedRow({ nav }: { nav: Nav }) {
   const t = useTheme();
@@ -70,7 +71,7 @@ export function WhatChangedRow({ nav }: { nav: Nav }) {
       <Text style={s.headline} numberOfLines={1}>
         {summary.headline}
       </Text>
-      <Text style={s.chevron}>→</Text>
+      <ProductIcon color={t.calmStrong} name="forward" size={16} />
     </Pressable>
   );
 }
@@ -105,10 +106,6 @@ function makeStyles(t: Palette) {
       color: t.muted,
       flex: 1,
       fontSize: 12,
-    },
-    chevron: {
-      color: t.calmStrong,
-      fontSize: 13,
     },
   });
 }

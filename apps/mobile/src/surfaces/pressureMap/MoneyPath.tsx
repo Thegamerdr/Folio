@@ -45,6 +45,7 @@ import {
 } from './kit';
 import { MeloPresence } from './melo';
 import { routeHasMeaningfulPath } from './routeMath';
+import { ProductIcon } from '@/folio/ui/ProductIcon';
 
 export { routeHasMeaningfulPath };
 
@@ -705,7 +706,7 @@ export function PointExplanation({
                 ]}
               >
                 <Text style={s.sheetSecondaryText}>See this day on the calendar</Text>
-                <Text style={s.sheetSecondaryArrow}>→</Text>
+                <ProductIcon color={t.calmStrong} name="forward" size={16} />
               </Pressable>
             ) : null}
             <Pressable
@@ -905,7 +906,6 @@ function makeStyles(t: Palette) {
       backgroundColor: t.surface,
     },
     sheetSecondaryText: { color: t.ink, fontSize: 16, fontWeight: '700' },
-    sheetSecondaryArrow: { color: t.calmStrong, fontSize: 16, fontWeight: '700' },
   });
 }
 

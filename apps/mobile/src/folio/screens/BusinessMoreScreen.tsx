@@ -2,6 +2,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { ProductIcon } from '@/folio/ui/ProductIcon';
 import {
   MeloCompanionPerch,
   useMeloCompanionScrollHandlers,
@@ -151,12 +152,7 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
                       <Text style={[styles.rowLabel, { color: t.ink }]}>{row.label}</Text>
                       <Text style={[styles.rowHint, { color: t.muted }]}>{row.hint}</Text>
                     </View>
-                    <Text
-                      accessibilityElementsHidden
-                      style={[styles.arrow, { color: t.calmStrong }]}
-                    >
-                      →
-                    </Text>
+                    <ProductIcon color={t.calmStrong} name="forward" />
                   </Pressable>
                 ))}
               </View>
@@ -209,5 +205,4 @@ const styles = StyleSheet.create({
   rowCopy: { flex: 1, paddingRight: gap.lg },
   rowLabel: { fontSize: 14.5, fontWeight: '600', lineHeight: 19 },
   rowHint: { fontSize: 12.5, lineHeight: 17, marginTop: 2 },
-  arrow: { fontSize: 18 },
 });

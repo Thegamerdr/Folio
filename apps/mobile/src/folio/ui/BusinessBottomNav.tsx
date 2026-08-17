@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { BusinessPrimaryTab } from '@/folio/lib/navigation/businessNavigation';
 import { pressed, useTheme } from '@/folio/theme';
+import { ProductIcon, type ProductIconName } from './ProductIcon';
 
 type BusinessBottomNavProps = Readonly<{
   active: BusinessPrimaryTab;
@@ -15,12 +16,12 @@ const SAFE_GAP = 6;
 const TABS: readonly Readonly<{
   id: BusinessPrimaryTab;
   label: string;
-  glyph: string;
+  icon: ProductIconName;
 }>[] = [
-  { id: 'today', label: 'Today', glyph: '◐' },
-  { id: 'money', label: 'Money', glyph: '£' },
-  { id: 'review', label: 'Review', glyph: '✓' },
-  { id: 'more', label: 'More', glyph: '⋯' },
+  { id: 'today', label: 'Today', icon: 'today' },
+  { id: 'money', label: 'Money', icon: 'money' },
+  { id: 'review', label: 'Review', icon: 'review' },
+  { id: 'more', label: 'More', icon: 'more' },
 ];
 
 /** Business workspace chrome. Melo remains the companion, not a navigation tab. */
@@ -54,9 +55,7 @@ export function BusinessBottomNav({ active, onChange }: BusinessBottomNavProps) 
             onPress={() => onChange(tab.id)}
             style={({ pressed: isPressed }) => [styles.tab, isPressed ? pressed : undefined]}
           >
-            <Text style={[styles.glyph, { color: selected ? t.calmStrong : t.muted }]}>
-              {tab.glyph}
-            </Text>
+            <ProductIcon color={selected ? t.calmStrong : t.muted} name={tab.icon} />
             <Text
               numberOfLines={1}
               style={[
@@ -94,10 +93,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 8,
     paddingVertical: 6,
-  },
-  glyph: {
-    fontSize: 14,
-    lineHeight: 17,
   },
   label: {
     fontSize: 10,

@@ -1,5 +1,4 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 
 import { gap, radius, useTheme } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
@@ -8,6 +7,7 @@ import {
   type IntakeResultOutcome,
   type IntakeResultSource,
 } from './intakeResultHelp';
+import { ProductIcon } from './ProductIcon';
 
 /** The same native header geometry and back affordance across every intake outcome. */
 export function IntakeResultHeader({ nav, title }: Readonly<{ nav: Nav; title: string }>) {
@@ -21,16 +21,7 @@ export function IntakeResultHeader({ nav, title }: Readonly<{ nav: Nav; title: s
         onPress={nav.back}
         style={({ pressed }) => [styles.back, pressed ? styles.pressed : undefined]}
       >
-        <Svg width={20} height={20} viewBox="0 0 20 20">
-          <Path
-            d="M12 4 L6 10 L12 16 M6 10 H16"
-            fill="none"
-            stroke={t.muted}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.6}
-          />
-        </Svg>
+        <ProductIcon color={t.muted} name="back" />
       </Pressable>
       <Text style={[styles.headerLabel, { color: t.muted }]}>{title}</Text>
       <View style={styles.headerSpacer} />

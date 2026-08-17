@@ -8,9 +8,9 @@
 
 import { useMemo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 
-import { ChevronRight, gap, pressed, serif, useTheme, type Palette } from './kit';
+import { gap, pressed, serif, useTheme, type Palette } from './kit';
+import { ProductIcon } from '@/folio/ui/ProductIcon';
 import { MeloFigure } from './melo/MeloFigure';
 import type { MeloMood } from './melo/meloStates';
 
@@ -24,22 +24,6 @@ export function meloMoodFor(tone: MeloTone): MeloMood {
 }
 
 // SVG glyph — can't read a StyleSheet, so its default colour follows the active palette via a prop.
-function ChevronLeft({ color }: { color?: string | undefined }) {
-  const t = useTheme();
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Path
-        d="M15 6l-6 6 6 6"
-        stroke={color ?? t.secondary}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
-  );
-}
-
 /** The calm secondary-screen header: a back chevron, a centred quiet label, and a balancing spacer. */
 export function ScreenHeader({
   label,
@@ -61,7 +45,7 @@ export function ScreenHeader({
           onPress={onBack}
           style={({ pressed: isPressed }) => [layout.headerBack, isPressed ? pressed : undefined]}
         >
-          <ChevronLeft />
+          <ProductIcon color={t.secondary} name="back" />
         </Pressable>
       ) : (
         <View style={layout.headerSpacer} />
@@ -136,7 +120,7 @@ export function HubRow({
         </Text>
         <Text style={s.rowHint}>{hint}</Text>
       </View>
-      <ChevronRight />
+      <ProductIcon color={t.muted} name="forward" />
     </Pressable>
   );
 }

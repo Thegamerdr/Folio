@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { ProductIcon } from '@/folio/ui/ProductIcon';
 import {
   MeloCompanionExclusion,
   useMeloCompanionScrollHandlers,
@@ -42,7 +43,7 @@ export function BusinessScreenFrame({
             onPress={onBack}
             style={({ pressed }) => [ui.back, { opacity: pressed ? 0.6 : 1 }]}
           >
-            <Text style={[ui.backLabel, { color: t.muted }]}>←</Text>
+            <ProductIcon color={t.muted} name="back" />
           </Pressable>
         ) : null}
         <MeloCompanionExclusion id="business-frame/hero" attentionSalience={0.65} style={ui.hero}>
@@ -174,9 +175,7 @@ export function BusinessRouteRow({
       {value ? (
         <Text style={[ui.routeValue, { color: t.muted }]}>{value}</Text>
       ) : (
-        <Text accessibilityElementsHidden style={[ui.routeArrow, { color: t.calmStrong }]}>
-          →
-        </Text>
+        <ProductIcon color={t.calmStrong} name="forward" />
       )}
     </Pressable>
   );
@@ -325,7 +324,7 @@ export function BusinessFormSheet({
               onPress={onClose}
               style={({ pressed }) => [ui.close, { opacity: pressed ? 0.6 : 1 }]}
             >
-              <Text style={[ui.closeLabel, { color: t.muted }]}>×</Text>
+              <ProductIcon color={t.muted} name="close" />
             </Pressable>
           </View>
           <ScrollView
@@ -380,7 +379,6 @@ const ui = StyleSheet.create({
     marginLeft: -8,
     width: 44,
   },
-  backLabel: { fontSize: 22 },
   hero: { marginTop: gap.sm },
   eyebrow: { fontFamily: serif.displayItalic, fontSize: 13 },
   headline: {
@@ -439,7 +437,6 @@ const ui = StyleSheet.create({
   routeLabel: { fontSize: 14, fontWeight: '600' },
   routeHint: { fontSize: 11.5, lineHeight: 16, marginTop: 2 },
   routeValue: { fontSize: 12, fontVariant: ['tabular-nums'] },
-  routeArrow: { fontSize: 18 },
   metric: { flex: 1 },
   metricValue: {
     fontFamily: serif.medium,
@@ -495,7 +492,6 @@ const ui = StyleSheet.create({
     marginRight: -10,
     width: 44,
   },
-  closeLabel: { fontSize: 24 },
   sheetScroll: { flexGrow: 0, maxHeight: 500 },
 });
 

@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PersonalPrimaryTab } from '@/folio/lib/navigation/personalNavigation';
 import { pressed, useTheme } from '@/folio/theme';
+import { ProductIcon, type ProductIconName } from './ProductIcon';
 
 type PersonalBottomNavProps = Readonly<{
   active: PersonalPrimaryTab;
@@ -15,12 +16,12 @@ const SAFE_GAP = 6;
 const TABS: readonly Readonly<{
   id: PersonalPrimaryTab;
   label: string;
-  glyph: string;
+  icon: ProductIconName;
 }>[] = [
-  { id: 'today', label: 'Today', glyph: '◐' },
-  { id: 'plan', label: 'Plan', glyph: '◇' },
-  { id: 'review', label: 'Review', glyph: '✓' },
-  { id: 'more', label: 'More', glyph: '⋯' },
+  { id: 'today', label: 'Today', icon: 'today' },
+  { id: 'plan', label: 'Plan', icon: 'plan' },
+  { id: 'review', label: 'Review', icon: 'review' },
+  { id: 'more', label: 'More', icon: 'more' },
 ];
 
 /** Personal workspace chrome. Melo remains the contextual companion, not a navigation tab. */
@@ -54,7 +55,7 @@ export function PersonalBottomNav({ active, onChange }: PersonalBottomNavProps) 
             onPress={() => onChange(tab.id)}
             style={({ pressed: isPressed }) => [styles.tab, isPressed ? pressed : undefined]}
           >
-            <Text style={[styles.glyph, { color: selected ? t.calm : t.muted }]}>{tab.glyph}</Text>
+            <ProductIcon color={selected ? t.calm : t.muted} name={tab.icon} />
             <Text
               numberOfLines={1}
               style={[
@@ -92,10 +93,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingHorizontal: 8,
     paddingVertical: 6,
-  },
-  glyph: {
-    fontSize: 14,
-    lineHeight: 17,
   },
   label: {
     fontSize: 10,
