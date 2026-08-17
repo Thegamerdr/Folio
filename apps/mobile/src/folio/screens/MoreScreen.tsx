@@ -1,7 +1,16 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Hairline, gap, radius, serif, useIsDark, useTheme, useThemeMode } from '@/folio/theme';
+import {
+  Hairline,
+  gap,
+  radius,
+  serif,
+  typeScale,
+  useIsDark,
+  useTheme,
+  useThemeMode,
+} from '@/folio/theme';
 import {
   MeloCompanionPerch,
   useMeloCompanionScrollHandlers,
@@ -10,6 +19,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { StatePanel } from '@/folio/ui/StatePanel';
+import { ProductIcon } from '@/folio/ui/ProductIcon';
 import { fastForwardMonth, useAppStore } from '@/folio/store';
 import { CHART_STYLE_HINT, CHART_STYLE_LABEL, useChartStyle } from '@/folio/lib/chartStyle';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
@@ -214,7 +224,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
               </Text>
             </View>
           </View>
-          <Text style={[styles.specialChevron, { color: t.muted }]}>›</Text>
+          <ProductIcon color={t.muted} name="forward" size={16} />
         </Pressable>
 
         <Pressable
@@ -245,7 +255,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
               ) : null}
             </View>
           </View>
-          <Text style={[styles.specialChevron, { color: t.muted }]}>›</Text>
+          <ProductIcon color={t.muted} name="forward" size={16} />
         </Pressable>
 
         <View style={styles.groups}>
@@ -312,7 +322,7 @@ function MoreRowView({ demo, nav, row }: { demo: boolean; nav: Nav; row: MoreRow
         </Text>
         <Text style={[styles.rowHint, { color: t.muted }]}>{row.hint}</Text>
       </View>
-      <Text style={[styles.chevron, { color: t.muted }]}>›</Text>
+      <ProductIcon color={t.muted} name="forward" size={16} />
     </Pressable>
   );
 }
@@ -328,23 +338,23 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     fontFamily: serif.displayItalic,
-    fontSize: 14,
+    fontSize: typeScale.bodySmall,
   },
   balanceSpacer: { width: 20 },
   hero: {
     alignItems: 'flex-start',
     columnGap: gap.md,
     flexDirection: 'row',
-    marginTop: 20,
+    marginTop: gap.xl,
   },
   heroText: { flex: 1 },
   eyebrow: {
     fontFamily: serif.displayItalic,
-    fontSize: 13,
+    fontSize: typeScale.caption,
   },
   heading: {
     fontFamily: serif.display,
-    fontSize: 28,
+    fontSize: typeScale.figure,
     lineHeight: 30,
     marginTop: gap.xs,
   },
@@ -354,83 +364,79 @@ const styles = StyleSheet.create({
   },
   specialRow: {
     alignItems: 'center',
-    borderRadius: radius.xl,
+    borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    marginTop: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    marginTop: gap.xl,
+    paddingHorizontal: gap.xl,
+    paddingVertical: gap.lg,
   },
   reviewRow: {
     alignItems: 'center',
-    borderRadius: radius.xl,
+    borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    marginTop: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    marginTop: gap.md,
+    paddingHorizontal: gap.xl,
+    paddingVertical: gap.lg,
   },
   specialText: { flex: 1 },
   specialEyebrow: {
-    fontSize: 10.5,
+    fontSize: typeScale.micro,
     letterSpacing: 1.45,
     textTransform: 'uppercase',
   },
   specialValueRow: {
     alignItems: 'center',
-    columnGap: 8,
+    columnGap: gap.sm,
     flexDirection: 'row',
-    marginTop: 4,
+    marginTop: gap.xs,
   },
   workspaceDot: {
-    borderRadius: 999,
+    borderRadius: radius.pill,
     height: 6,
     width: 6,
   },
   specialValue: {
-    fontSize: 14.5,
+    fontSize: typeScale.bodySmall,
     fontWeight: '500',
   },
   specialHint: {
     flexShrink: 1,
-    fontSize: 11.5,
-  },
-  specialChevron: {
-    fontSize: 18,
-    fontWeight: '300',
+    fontSize: typeScale.micro,
   },
   reviewBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
+    borderRadius: radius.pill,
+    paddingHorizontal: gap.sm,
     paddingVertical: 2,
   },
   reviewBadgeLabel: {
-    fontSize: 10.5,
+    fontSize: typeScale.micro,
     fontVariant: ['tabular-nums'],
   },
   groups: {
     marginTop: gap.xl,
-    rowGap: 20,
+    rowGap: gap.xl,
   },
   groupHeading: {
     alignItems: 'center',
-    columnGap: 8,
+    columnGap: gap.sm,
     flexDirection: 'row',
     marginBottom: gap.sm,
     paddingHorizontal: gap.xs,
   },
   groupDot: {
-    borderRadius: 999,
+    borderRadius: radius.pill,
     height: 4,
     width: 4,
   },
   groupTitle: {
-    fontSize: 10.5,
+    fontSize: typeScale.micro,
     letterSpacing: 1.45,
     textTransform: 'uppercase',
   },
   card: {
-    borderRadius: radius.xl,
+    borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
@@ -441,15 +447,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     minHeight: 58,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: gap.xl,
+    paddingVertical: gap.lg,
   },
   demoRow: {
     alignItems: 'center',
     flexDirection: 'row',
     minHeight: 54,
     paddingHorizontal: gap.xs,
-    paddingVertical: 12,
+    paddingVertical: gap.md,
   },
   rowPressed: {
     opacity: 0.6,
@@ -457,16 +463,12 @@ const styles = StyleSheet.create({
   },
   rowText: { flex: 1 },
   rowLabel: {
-    fontSize: 14.5,
+    fontSize: typeScale.bodySmall,
     fontWeight: '500',
   },
   rowHint: {
-    fontSize: 11.5,
+    fontSize: typeScale.micro,
     marginTop: 2,
-  },
-  chevron: {
-    fontSize: 18,
-    fontWeight: '300',
   },
   closing: {
     marginBottom: gap.xl,

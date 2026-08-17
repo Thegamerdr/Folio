@@ -1,8 +1,8 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
-import { ProductIcon } from '@/folio/ui/ProductIcon';
+import { gap, serif, typeScale, useTheme } from '@/folio/theme';
+import { ListGroup, Row } from '@/folio/ui/ProductPrimitives';
 import {
   MeloCompanionPerch,
   useMeloCompanionScrollHandlers,
@@ -133,29 +133,16 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
           {groups.map((group) => (
             <View key={group.title}>
               <Text style={[styles.groupTitle, { color: t.muted }]}>{group.title}</Text>
-              <View style={[styles.group, { backgroundColor: t.surface }]}>
-                {group.rows.map((row, index) => (
-                  <Pressable
-                    accessibilityHint={row.hint}
-                    accessibilityRole="button"
+              <ListGroup label={group.title}>
+                {group.rows.map((row) => (
+                  <Row
+                    description={row.hint}
                     key={row.label}
                     onPress={() => nav.go(row.to)}
-                    style={({ pressed }) => [
-                      styles.row,
-                      index > 0
-                        ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
-                        : undefined,
-                      { opacity: pressed ? 0.62 : 1 },
-                    ]}
-                  >
-                    <View style={styles.rowCopy}>
-                      <Text style={[styles.rowLabel, { color: t.ink }]}>{row.label}</Text>
-                      <Text style={[styles.rowHint, { color: t.muted }]}>{row.hint}</Text>
-                    </View>
-                    <ProductIcon color={t.calmStrong} name="forward" />
-                  </Pressable>
+                    title={row.label}
+                  />
                 ))}
-              </View>
+              </ListGroup>
             </View>
           ))}
         </View>
@@ -173,36 +160,25 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: gap.xl },
   wordmarkRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  wordmark: { fontFamily: serif.displayItalic, fontSize: 14 },
-  workspaceKind: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.7 },
+  wordmark: { fontFamily: serif.displayItalic, fontSize: typeScale.bodySmall },
+  workspaceKind: { fontSize: typeScale.micro, fontWeight: '600', letterSpacing: 0.7 },
   hero: { alignItems: 'flex-start', flexDirection: 'row', gap: gap.md, marginTop: gap.xl },
   heroCopy: { flex: 1 },
-  eyebrow: { fontFamily: serif.displayItalic, fontSize: 13 },
+  eyebrow: { fontFamily: serif.displayItalic, fontSize: typeScale.caption },
   headline: {
     fontFamily: serif.display,
-    fontSize: 29,
+    fontSize: typeScale.figure,
     letterSpacing: -0.3,
     lineHeight: 35,
     marginTop: gap.xs,
   },
-  intro: { fontSize: 13.5, lineHeight: 20, marginTop: gap.md, maxWidth: 520 },
+  intro: { fontSize: typeScale.bodySmall, lineHeight: 20, marginTop: gap.md, maxWidth: 520 },
   groups: { gap: gap.xl, marginTop: gap.xl },
   groupTitle: {
-    fontSize: 11,
+    fontSize: typeScale.micro,
     fontWeight: '600',
     letterSpacing: 1.1,
     marginBottom: gap.sm,
     textTransform: 'uppercase',
   },
-  group: { borderRadius: radius.lg, overflow: 'hidden' },
-  row: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    minHeight: 66,
-    paddingHorizontal: gap.lg,
-    paddingVertical: gap.md,
-  },
-  rowCopy: { flex: 1, paddingRight: gap.lg },
-  rowLabel: { fontSize: 14.5, fontWeight: '600', lineHeight: 19 },
-  rowHint: { fontSize: 12.5, lineHeight: 17, marginTop: 2 },
 });

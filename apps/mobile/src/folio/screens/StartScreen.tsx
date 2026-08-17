@@ -49,7 +49,7 @@ import Animated, {
 import { gap, PrimaryAction, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Start is populated-only and offline is
@@ -111,15 +111,17 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
   // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness). The
   // single CTA still routes to the guided check-in so the doorway never dead-ends.
   if (state === 'empty' || state === 'error') {
-    const headline = state === 'error' ? copy.err.generic : 'Will your money last to payday?';
-    const body =
-      state === 'error' ? undefined : 'Start with a rough number. Nothing counts until you choose.';
     return (
-      <EmptyState
-        mood="calm"
-        headline={headline}
-        body={body}
-        cta={{ label: 'See where you stand', onPress: () => nav.go('first-answer') }}
+      <StatePanel
+        body={
+          state === 'error'
+            ? 'The first step could not be shown.'
+            : 'Start with a rough number. Nothing counts until you choose.'
+        }
+        fullScreen
+        kind={state === 'error' ? 'error' : 'first-time-empty'}
+        primaryAction={{ label: 'See where you stand', onPress: () => nav.go('first-answer') }}
+        title={state === 'error' ? copy.err.generic : 'Will your money last to payday?'}
       />
     );
   }
@@ -128,11 +130,12 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
   // centred holding moment while the doorway settles.
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — getting your doorway ready." />
-      </View>
+      <StatePanel
+        body="Preparing the first step."
+        fullScreen
+        kind="loading"
+        title="Getting Melo ready"
+      />
     );
   }
 

@@ -75,7 +75,7 @@ import Animated, {
 import { gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { setCurrentBalance, useAppStore } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
@@ -215,14 +215,17 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
   // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness). The
   // single CTA still routes onward so the doorway never dead-ends.
   if (state === 'empty' || state === 'error') {
-    const headline = state === 'error' ? copy.err.generic : 'What money can you see today?';
-    const body = state === 'error' ? undefined : 'A rough number is fine.';
     return (
-      <EmptyState
-        mood="calm"
-        headline={headline}
-        body={body}
-        cta={{ label: 'Continue', onPress: () => nav.go('intake') }}
+      <StatePanel
+        body={
+          state === 'error'
+            ? 'The guided check-in could not be prepared.'
+            : 'A rough number is fine.'
+        }
+        fullScreen
+        kind={state === 'error' ? 'error' : 'first-time-empty'}
+        primaryAction={{ label: 'Continue', onPress: () => nav.go('intake') }}
+        title={state === 'error' ? copy.err.generic : 'What money can you see today?'}
       />
     );
   }
@@ -231,11 +234,12 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
   // holding moment while the check-in settles.
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — getting your check-in ready." />
-      </View>
+      <StatePanel
+        body="Preparing your rough-number check-in."
+        fullScreen
+        kind="loading"
+        title="Getting your check-in ready"
+      />
     );
   }
 

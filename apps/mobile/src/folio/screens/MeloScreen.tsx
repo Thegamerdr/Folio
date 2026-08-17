@@ -90,7 +90,7 @@ import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { syncMeloMemoryThread, useAppStore, setMelo } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
@@ -224,15 +224,17 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
   // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness).
   if (state === 'empty' || state === 'error') {
-    const headline = state === 'error' ? copy.err.generic : 'Meet Melo, your quiet companion.';
-    const body =
-      state === 'error' ? undefined : 'A quiet presence across the journey. Nothing to set up.';
     return (
-      <EmptyState
-        mood="calm"
-        headline={headline}
-        body={body}
-        cta={{ label: 'Back', onPress: () => nav.back() }}
+      <StatePanel
+        body={
+          state === 'error'
+            ? 'Melo’s companion settings could not be shown.'
+            : 'A quiet presence across the journey. Nothing to set up.'
+        }
+        fullScreen
+        kind={state === 'error' ? 'error' : 'genuine-empty'}
+        primaryAction={{ label: 'Back', onPress: () => nav.back() }}
+        title={state === 'error' ? copy.err.generic : 'Meet Melo, your quiet companion.'}
       />
     );
   }
@@ -240,11 +242,12 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   // loading — Melo curious + a line, never a spinner (per the hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.huge }]}
-      >
-        <MeloLine mood="curious" text="One moment — Melo's settling in." />
-      </View>
+      <StatePanel
+        body="Gathering Melo’s current settings."
+        fullScreen
+        kind="loading"
+        title="Melo is settling in"
+      />
     );
   }
 

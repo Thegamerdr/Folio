@@ -86,7 +86,7 @@ import {
 } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { CloudBackupSheet } from '@/folio/sheets/CloudBackupSheet';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
 import { runExport } from '@/folio/lib/exportNative';
@@ -428,17 +428,17 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // empty / error — the calm EmptyState doorway (n/a in practice — no async path — rendered for
   // completeness). The single CTA routes back to the doorway so it never dead-ends.
   if (state === 'empty' || state === 'error') {
-    const headline = state === 'error' ? copy.err.generic : 'Your data, your call.';
-    const body =
-      state === 'error'
-        ? undefined
-        : 'Melo shows what is local, what is remote, and lets you clear each separately.';
     return (
-      <EmptyState
-        mood="calm"
-        headline={headline}
-        body={body}
-        cta={{ label: 'Export my data', onPress: handleExport }}
+      <StatePanel
+        body={
+          state === 'error'
+            ? 'Data controls could not be shown. Nothing has been cleared.'
+            : 'Melo shows what is local, what is remote, and lets you clear each separately.'
+        }
+        fullScreen
+        kind={state === 'error' ? 'error' : 'genuine-empty'}
+        primaryAction={{ label: 'Export my data', onPress: handleExport }}
+        title={state === 'error' ? copy.err.generic : 'Your data, your call.'}
       />
     );
   }
@@ -447,11 +447,12 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // moment while the surface settles.
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — gathering what's saved." />
-      </View>
+      <StatePanel
+        body="Reading local and optional-service records."
+        fullScreen
+        kind="loading"
+        title="Gathering what’s saved"
+      />
     );
   }
 
