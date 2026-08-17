@@ -11,8 +11,27 @@
     "ENTITLEMENT_AUDIENCE": "com.melomoney.app",
     "ENTITLEMENT_SIGNING_KEY_ID": "melo-billing-ed25519-2026-07",
     "ENTITLEMENT_SIGNING_PUBLIC_JWK": "{\"crv\":\"Ed25519\",\"x\":\"OKponTUZ9ZP1APZpvUeUK5BmKmlJm8FZQ5IDAd92HL8\",\"kty\":\"OKP\"}",
+    "BILLING_PUBLIC_VERIFICATION_ENABLED": "false",
     "ALLOWED_ORIGINS": "",
   },
+  "ratelimits": [
+    {
+      "name": "VERIFY_SOURCE_RATE_LIMITER",
+      "namespace_id": "21001",
+      "simple": {
+        "limit": 300,
+        "period": 60,
+      },
+    },
+    {
+      "name": "VERIFY_PURCHASE_RATE_LIMITER",
+      "namespace_id": "21002",
+      "simple": {
+        "limit": 10,
+        "period": 60,
+      },
+    },
+  ],
   "kv_namespaces": [
     {
       "binding": "ENTITLEMENTS",

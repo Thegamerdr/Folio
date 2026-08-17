@@ -19,7 +19,7 @@ or release state was changed while preparing them.
 |     7 | TEST-01                | [007 — Run the shipping companion test suite in root CI](007-run-companion-tests-in-ci.md)                        |    P2    |   S    | LOW  |  DONE  |
 |     8 | AUTHORITY-01 + DOCS-01 | [008 — Publish repository authority and reconcile navigation](008-publish-authority-and-reconcile-navigation.md)  |    P1    |   M    | MED  |  DONE  |
 |     9 | BETA-01                | [009 — Keep Business creation behind a fail-closed beta gate](009-gate-business-workspace-creation.md)            |    P1    |   S    | MED  |  DONE  |
-|    10 | SECURITY-02            | [010 — Harden Play verification before public reachability](010-harden-public-play-verification.md)               |    P1    |   M    | HIGH |  TODO  |
+|    10 | SECURITY-02            | [010 — Harden Play verification before public reachability](010-harden-public-play-verification.md)               |    P1    |   M    | HIGH |  DONE  |
 
 DOCS-01 is intentionally folded into plan 008. It does not have a separate branch, status line or
 large workstream.

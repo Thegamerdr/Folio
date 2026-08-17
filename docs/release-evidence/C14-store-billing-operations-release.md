@@ -95,6 +95,32 @@ These checks prove code, deployment and cryptographic trust boundaries. They do 
 charge, Play acknowledgement, refund/revocation, renewal, cancellation, release-track restore or
 offline lifecycle because the listing and minimum-privilege service account do not exist yet.
 
+## SECURITY-02 local hardening — 2026-08-17
+
+The repository now keeps public Play verification independently fail-closed through
+`BILLING_PUBLIC_VERIFICATION_ENABLED=false`; provider credentials alone cannot expose the POST
+route. The route has an 8,192-byte streaming limit, strict JSON/UTF-8 validation, a hashed
+`VERIFY_SOURCE_RATE_LIMITER` decision before body parsing, and a hashed
+`VERIFY_PURCHASE_RATE_LIMITER` decision after product/token validation but before Google work.
+
+The account owner confirmed namespace `21001` at 300 calls per 60 seconds for the loose shared-source
+guard and namespace `21002` at 10 calls per 60 seconds for repeated product/purchase proofs. Raw
+connecting addresses, purchase tokens, composed identifiers and limiter keys are absent from logs
+and durable storage. Cloudflare rate limiting remains permissive, eventually consistent and
+location-local defence-in-depth, not exact purchase accounting or fraud proof.
+
+No Worker deployment, secret change, public enablement or production verification occurred during
+this implementation. The previously deployed health endpoint still reports provider configuration
+false and does not yet include the new switch field. A reviewed operator must deploy disabled,
+observe health and the documented 429/503 alerts, complete controlled purchase/restore evidence,
+then enable deliberately only after the remaining T184 security and store gates close.
+
+Local verification passed: 33 focused Worker tests, generated Worker binding types, service
+typecheck, and a Wrangler `--dry-run` bundle of 60.28 KiB / 14.40 KiB gzip. Full root CI passed 242
+Vitest files / 2,819 tests, all 45 companion Node tests and both source-package validators. These are
+code/configuration proofs only; they do not substitute for a controlled Play purchase/restore or
+authorise public reachability.
+
 Focused checks completed on 2026-06-21:
 
 - `pnpm --filter @folio/store-release typecheck`: passed.
