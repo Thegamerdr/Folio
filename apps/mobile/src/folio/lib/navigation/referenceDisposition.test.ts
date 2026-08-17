@@ -39,6 +39,23 @@ describe('complete Lovable reference disposition', () => {
     expect(invalid).toEqual([]);
   });
 
+  it('records the consolidated intake, review and data-security destinations as live', () => {
+    const required = [
+      'pdf-success',
+      'pdf-fallback',
+      'image-success',
+      'image-fallback',
+      'paste-success',
+      'review',
+      'privacy',
+    ];
+    expect(
+      REFERENCE_SCREEN_DISPOSITIONS.filter((item) => required.includes(item.referenceId)).map(
+        (item) => [item.referenceId, item.status],
+      ),
+    ).toEqual(required.map((id) => [id, 'live']));
+  });
+
   it('keeps intentional deferrals explicit instead of silently dropping them', () => {
     expect(
       REFERENCE_SCREEN_DISPOSITIONS.filter((item) => item.status === 'deferred').map(

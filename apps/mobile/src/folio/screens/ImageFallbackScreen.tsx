@@ -58,7 +58,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -70,6 +69,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { IntakeResultHeader, IntakeResultRail } from '@/folio/ui/IntakeResultRail';
 import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import {
   consumeReaderFallbackEvidenceId,
@@ -226,23 +226,7 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — back glyph · Image label · balancing spacer. */}
-        <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={12}
-            onPress={nav.back}
-            style={({ pressed: isPressed }) => [
-              styles.pressIcon,
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <BackArrow color={t.muted} />
-          </Pressable>
-          <Text style={[styles.headerLabel, { color: t.muted }]}>Image</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <IntakeResultHeader nav={nav} title="Image" />
 
         {/* Intro — italic "Saved" eyebrow, headline with the single accent word "saved.", calm body. */}
         <View style={styles.intro}>
@@ -256,6 +240,8 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
             {readerReason ?? 'I could not read it clearly enough to show things to check.'}
           </Text>
         </View>
+
+        <IntakeResultRail nav={nav} outcome="needs-help" source="image" />
 
         {/* Image card — thumb + truncating name + "saved in Melo" + a quiet View. */}
         <View style={[styles.imageCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
@@ -344,23 +330,6 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
         </View>
       </ScrollView>
     </Animated.View>
-  );
-}
-
-// Back arrow — the web '←' glyph, drawn inline (matches PdfSuccessScreen). 20×20 user space.
-function BackArrow({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Path
-        d="M12 4 L6 10 L12 16"
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path d="M6 10 H16" stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none" />
-    </Svg>
   );
 }
 

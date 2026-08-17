@@ -101,6 +101,7 @@ import { elevation, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { IntakeResultHeader, IntakeResultRail } from '@/folio/ui/IntakeResultRail';
 import { showToast } from '@/folio/ui/Toast';
 import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
 import { isBulkStatement } from '@/folio/lib/bulkLanding';
@@ -361,16 +362,10 @@ export function PdfSuccessScreen({
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — back glyph · PDF label · balancing spacer. */}
-        <View style={styles.header}>
-          <PressIcon onPress={nav.back} accessibilityLabel="Go back">
-            <BackArrow color={t.muted} />
-          </PressIcon>
-          <Text style={[styles.headerLabel, { color: t.muted }]}>
-            {statementProp ? 'PDF' : sourcePresentation.headerLabel}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <IntakeResultHeader
+          nav={nav}
+          title={statementProp ? 'PDF' : sourcePresentation.headerLabel}
+        />
 
         {/* Intro — green eyebrow, the headline with the single accent word "read", a calm body. */}
         <View style={styles.intro}>
@@ -382,6 +377,8 @@ export function PdfSuccessScreen({
             Check what you want to add. Nothing counts until you choose.
           </Text>
         </View>
+
+        <IntakeResultRail nav={nav} outcome="found" source="pdf" />
 
         {/* File + found card. */}
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
@@ -543,30 +540,6 @@ function splitAccent(source: string): { lead: string; accent: string; tail: stri
   };
 }
 
-// A small inline pressable that carries the kit `pressed` feel — used for icon-only tappables (the
-// back arrow). hitSlop guarantees the tap area clears 44px around the 20px glyph.
-function PressIcon({
-  onPress,
-  accessibilityLabel,
-  children,
-}: {
-  onPress: () => void;
-  accessibilityLabel: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      hitSlop={12}
-      onPress={onPress}
-      style={({ pressed: isPressed }) => [styles.pressIcon, isPressed ? styles.pressed : undefined]}
-    >
-      {children}
-    </Pressable>
-  );
-}
-
 // A full-width pressable carrying the kit `pressed` feel (scale 0.97 / lowered opacity) — the token
 // equivalent of the web `press` util, matching StartScreen's CTA treatment.
 function PressButton({
@@ -596,23 +569,6 @@ function PressButton({
     >
       {children}
     </Pressable>
-  );
-}
-
-// Back arrow — the web '←' glyph, drawn inline (the codebase ships no icon font). 20×20 user space.
-function BackArrow({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Path
-        d="M12 4 L6 10 L12 16"
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path d="M6 10 H16" stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none" />
-    </Svg>
   );
 }
 

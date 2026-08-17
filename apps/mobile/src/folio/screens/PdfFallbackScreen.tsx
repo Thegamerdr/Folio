@@ -70,6 +70,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { IntakeResultHeader, IntakeResultRail } from '@/folio/ui/IntakeResultRail';
 import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import {
   consumeReaderFallbackEvidenceId,
@@ -221,23 +222,7 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — back glyph · PDF label · balancing spacer. */}
-        <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={12}
-            onPress={nav.back}
-            style={({ pressed: isPressed }) => [
-              styles.pressIcon,
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <BackArrow color={t.muted} />
-          </Pressable>
-          <Text style={[styles.headerLabel, { color: t.muted }]}>PDF</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <IntakeResultHeader nav={nav} title="PDF" />
 
         {/* Intro — italic "Saved" eyebrow, headline with the single accent word "saved.", calm body. */}
         <View style={styles.intro}>
@@ -252,6 +237,8 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
               'I could not read this statement clearly enough to show things to check.'}
           </Text>
         </View>
+
+        <IntakeResultRail nav={nav} outcome="needs-help" source="pdf" />
 
         {/* File card — icon chip + truncating filename + "saved in Melo" + a quiet View. */}
         <View style={[styles.fileCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
@@ -341,23 +328,6 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
         </View>
       </ScrollView>
     </Animated.View>
-  );
-}
-
-// Back arrow — the web '←' glyph, drawn inline (matches PdfSuccessScreen). 20×20 user space.
-function BackArrow({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Path
-        d="M12 4 L6 10 L12 16"
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path d="M6 10 H16" stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none" />
-    </Svg>
   );
 }
 
