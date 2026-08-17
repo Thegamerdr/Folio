@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import type { WorkspaceId } from '@folio/domain';
 
 import { getPersistBlob } from '@/folio/store';
-import { applyRestore } from '@/folio/lib/restoreNative';
+import { applyRestore, type ApplyRestoreResult } from '@/folio/lib/restoreNative';
 import { summarizeRestore, validateRestoreJson, type RestoreSummary } from '@/folio/lib/restore';
 
 import {
@@ -183,7 +183,7 @@ export async function stageCloudRestore(
 export async function applyCloudRestore(
   workspaceId: WorkspaceId,
   staged: StagedCloudRestore,
-): Promise<{ degraded: boolean }> {
+): Promise<ApplyRestoreResult> {
   if (String(staged.workspaceId) !== String(workspaceId)) {
     throw new Error('This staged backup belongs to a different Melo workspace.');
   }

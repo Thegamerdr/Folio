@@ -12,7 +12,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
 // Same SDK import errorReporting.ts uses internally — that module only inits Sentry, it exposes
 // no captureException helper.
@@ -50,14 +50,35 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
     }
   }
 
+  private readonly retry = (): void => {
+    this.setState({ hasError: false });
+  };
+
   override render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <View style={rootErrorStyles.container}>
-          <Text style={rootErrorStyles.title}>Something broke on the way in.</Text>
-          <Text style={rootErrorStyles.body}>
-            Your data is safe on this device. Close and reopen the app.
+        <View
+          accessibilityLiveRegion="assertive"
+          accessibilityRole="alert"
+          style={rootErrorStyles.container}
+        >
+          <Text accessibilityRole="header" style={rootErrorStyles.title}>
+            Something broke on the way in.
           </Text>
+          <Text style={rootErrorStyles.body}>
+            Melo did not clear anything. Try opening the app again from here.
+          </Text>
+          <Pressable
+            accessibilityHint="Retries the app without clearing local data"
+            accessibilityRole="button"
+            onPress={this.retry}
+            style={({ pressed }) => [
+              rootErrorStyles.retry,
+              pressed && rootErrorStyles.retryPressed,
+            ]}
+          >
+            <Text style={rootErrorStyles.retryLabel}>Try again</Text>
+          </Pressable>
         </View>
       );
     }
@@ -84,6 +105,24 @@ const rootErrorStyles = StyleSheet.create({
     color: '#c9c9c9',
     fontSize: 14,
     textAlign: 'center',
+  },
+  retry: {
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 16,
+    justifyContent: 'center',
+    marginTop: 24,
+    minHeight: 48,
+    minWidth: 140,
+    paddingHorizontal: 20,
+  },
+  retryPressed: {
+    opacity: 0.72,
+  },
+  retryLabel: {
+    color: '#1a1a1a',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

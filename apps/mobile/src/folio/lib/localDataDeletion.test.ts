@@ -37,6 +37,11 @@ vi.mock('./persist', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearLocalLedgerStorage.mockResolvedValue(undefined);
+  clearQuarantinedNativeWorkspaceVaults.mockResolvedValue(undefined);
+  clearAllMeloNotifications.mockResolvedValue(undefined);
+  saveNotifyRuntimeState.mockResolvedValue(undefined);
+  persistEmptyWorkspaceSetAfterLocalClear.mockResolvedValue(undefined);
   clearPersistedLocalUserDataArtifacts.mockResolvedValue({
     removed: ['folio.state.v3.bak.json', 'folio-export.json'],
     failed: [],
@@ -70,8 +75,10 @@ describe('local Melo data deletion', () => {
     const { clearLocalMeloData } = await import('./localDataDeletion');
     await expect(clearLocalMeloData(workspaceId)).resolves.toEqual({
       complete: true,
+      liveStateCleared: true,
       removedArtifacts: ['folio.state.v3.bak.json', 'folio-export.json'],
       failedArtifacts: [],
+      failedSurfaces: [],
     });
     expect(getWorkspaceRowRepository).toHaveBeenCalledWith(workspaceId);
     expect(quiescePersistenceWrites).toHaveBeenCalledTimes(1);
@@ -99,7 +106,7 @@ describe('local Melo data deletion', () => {
     expect(resumePersistence).toHaveBeenCalledTimes(1);
   });
 
-  it('reports an incomplete wipe when an old artifact could not be removed', async () => {
+  it('empties the authoritative store and reports residual files instead of aborting the wipe', async () => {
     getState.mockReturnValue({ workspaces: [workspace] });
     clearPersistedLocalUserDataArtifacts.mockResolvedValueOnce({
       removed: [],
@@ -109,11 +116,48 @@ describe('local Melo data deletion', () => {
     await expect(clearLocalMeloData(workspaceId)).resolves.toEqual(
       expect.objectContaining({
         complete: false,
+        liveStateCleared: true,
         failedArtifacts: ['folio.state.v3.unreadable.json'],
       }),
     );
-    expect(clearFutureSchemaWriteBlocksAfterLocalDeletion).not.toHaveBeenCalled();
-    expect(resetToEmpty).not.toHaveBeenCalled();
-    expect(persistEmptyWorkspaceSetAfterLocalClear).not.toHaveBeenCalled();
+    expect(clearFutureSchemaWriteBlocksAfterLocalDeletion).toHaveBeenCalledTimes(1);
+    expect(resetToEmpty).toHaveBeenCalledTimes(1);
+    expect(persistEmptyWorkspaceSetAfterLocalClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues across auxiliary-store failures and identifies every residual scope', async () => {
+    getState.mockReturnValue({ workspaces: [workspace, businessWorkspace] });
+    clearLocalLedgerStorage.mockRejectedValueOnce(new Error('ledger locked'));
+    saveNotifyRuntimeState.mockRejectedValueOnce(new Error('runtime file locked'));
+
+    const { clearLocalMeloData } = await import('./localDataDeletion');
+    await expect(clearLocalMeloData(workspaceId)).resolves.toEqual(
+      expect.objectContaining({
+        complete: false,
+        liveStateCleared: true,
+        failedSurfaces: [
+          { surface: 'native-ledger', workspaceId: String(workspace.id) },
+          { surface: 'notification-runtime', workspaceId: String(workspace.id) },
+        ],
+      }),
+    );
+    expect(clearLocalLedgerStorage).toHaveBeenCalledWith(businessWorkspace);
+    expect(clearAllMeloNotifications).toHaveBeenCalledTimes(2);
+    expect(resetToEmpty).toHaveBeenCalledTimes(1);
+    expect(persistEmptyWorkspaceSetAfterLocalClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces a durable-write failure without pretending the empty state will survive relaunch', async () => {
+    getState.mockReturnValue({ workspaces: [workspace] });
+    persistEmptyWorkspaceSetAfterLocalClear.mockRejectedValueOnce(new Error('disk full'));
+
+    const { clearLocalMeloData } = await import('./localDataDeletion');
+    await expect(clearLocalMeloData(workspaceId)).rejects.toMatchObject({
+      name: 'LocalDataDeletionError',
+      liveStateCleared: true,
+      failedSurfaces: [],
+    });
+    expect(resetToEmpty).toHaveBeenCalledTimes(1);
+    expect(resumePersistence).toHaveBeenCalledTimes(1);
   });
 });

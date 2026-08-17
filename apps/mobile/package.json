@@ -14,6 +14,7 @@
     "eas-build-pre-install": "pnpm --dir ../.. check:business-beta-exposure",
     "ios": "expo run:ios",
     "native:apk:android": "cd android && gradlew.bat :app:assembleRelease",
+    "native:aab:android": "cd android && gradlew.bat :app:bundleRelease",
     "native:install:android": "adb install -r android/app/build/outputs/apk/release/app-release.apk",
     "native:prebuild": "expo prebuild",
     "native:prebuild:clean": "expo prebuild --clean",

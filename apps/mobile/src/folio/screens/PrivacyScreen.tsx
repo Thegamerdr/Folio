@@ -91,7 +91,12 @@ import { runExport } from '@/folio/lib/exportNative';
 import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
 import { clearLocalMeloData } from '@/folio/lib/localDataDeletion';
-import { useAppStore } from '@/folio/store';
+import {
+  prepareSupportDiagnosticBundle,
+  shareSupportDiagnosticBundle,
+  type SupportDiagnosticBundle,
+} from '@/folio/lib/supportDiagnosticNative';
+import { getState, useAppStore } from '@/folio/store';
 import {
   changeAppLockEnabled,
   getCachedAppLockSettings,
@@ -137,6 +142,8 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   const [appLockSettings, setAppLockSettings] = useState(getCachedAppLockSettings());
   const [appLockCapability, setAppLockCapability] = useState<AppLockCapability | null>(null);
   const [changingAppLock, setChangingAppLock] = useState(false);
+  const [supportPreview, setSupportPreview] = useState<SupportDiagnosticBundle | null>(null);
+  const [sharingSupportReport, setSharingSupportReport] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -213,11 +220,12 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     try {
       const result = await clearLocalMeloData(activeWorkspaceId);
       nav.go('start');
+      const residualCount = result.failedArtifacts.length + result.failedSurfaces.length;
       Alert.alert(
         result.complete ? 'Local data cleared' : 'Local data cleared with one warning',
         result.complete
           ? 'Money, setup details, imports, history and app-owned export files were cleared from this device. Your sign-in, cloud backup and bank connections are separate and unchanged.'
-          : `Your live Melo data is empty, but ${result.failedArtifacts.length} older app file${result.failedArtifacts.length === 1 ? '' : 's'} could not be removed. Do not treat this device as fully wiped yet.`,
+          : `Your live Melo data is empty, but Melo could not verify ${residualCount} local cleanup item${residualCount === 1 ? '' : 's'}. Retry this clear before transferring or disposing of the device.`,
         [{ text: 'OK', style: 'cancel' }],
         { cancelable: true },
       );
@@ -327,16 +335,21 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
                     text: 'Restore',
                     style: 'destructive',
                     onPress: () => {
-                      void applyRestore(raw, activeWorkspaceId).then(({ degraded }) => {
-                        Alert.alert(
-                          degraded ? 'Restored with gaps' : 'Restored',
-                          degraded
-                            ? 'The file couldn’t be fully read — what loaded is in place, the rest was reset.'
-                            : 'Your data is back.',
-                          [{ text: 'OK', style: 'cancel' }],
-                          { cancelable: true },
-                        );
-                      });
+                      void applyRestore(raw, activeWorkspaceId)
+                        .then(() => {
+                          Alert.alert('Restored', 'Your data is back and saved on this device.', [
+                            { text: 'OK', style: 'cancel' },
+                          ]);
+                        })
+                        .catch((reason: unknown) => {
+                          const message =
+                            reason instanceof Error
+                              ? reason.message
+                              : 'Restore could not finish on this device.';
+                          Alert.alert('Restore didn’t finish', message, [
+                            { text: 'OK', style: 'cancel' },
+                          ]);
+                        });
                     },
                   },
                 ],
@@ -372,6 +385,37 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     });
   };
 
+  const handlePrepareSupportReport = () => {
+    const bundle = prepareSupportDiagnosticBundle(getState(), {
+      appLockEnabled: appLockSettings.enabled,
+      currentScreen: 'privacy',
+    });
+    if (!bundle.safeForExport) {
+      Alert.alert(
+        'Support report stopped',
+        'Melo found content that did not pass the local privacy check. Nothing was written or shared.',
+      );
+      return;
+    }
+    setSupportPreview(bundle);
+  };
+
+  const handleShareSupportReport = () => {
+    if (supportPreview === null || sharingSupportReport) return;
+    setSharingSupportReport(true);
+    void shareSupportDiagnosticBundle(supportPreview)
+      .then(() => {
+        setSupportPreview(null);
+      })
+      .catch((reason: unknown) => {
+        Alert.alert(
+          'Support report wasn’t shared',
+          reason instanceof Error ? reason.message : 'The share sheet could not be opened.',
+        );
+      })
+      .finally(() => setSharingSupportReport(false));
+  };
+
   // empty / error — the calm EmptyState doorway (n/a in practice — no async path — rendered for
   // completeness). The single CTA routes back to the doorway so it never dead-ends.
   if (state === 'empty' || state === 'error') {
@@ -398,6 +442,101 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
         <MeloLine mood="curious" text="One second — gathering what's saved." />
+      </View>
+    );
+  }
+
+  if (supportPreview !== null) {
+    return (
+      <View
+        style={[
+          styles.screen,
+          {
+            backgroundColor: t.canvas,
+            paddingTop: insets.top + gap.md,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
+        <ScrollView
+          style={styles.scrollFlex}
+          contentContainerStyle={styles.supportPreviewBody}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.topBar}>
+            <Pressable
+              accessibilityLabel="Back to data and privacy"
+              accessibilityRole="button"
+              hitSlop={16}
+              onPress={() => setSupportPreview(null)}
+              style={({ pressed: isPressed }) => [styles.backHit, isPressed ? pressed : undefined]}
+            >
+              <Text style={[styles.backGlyph, { color: t.muted }]}>←</Text>
+            </Pressable>
+            <Text style={[styles.eyebrow, { color: t.muted }]}>Support report</Text>
+            <View style={styles.topBarSpacer} aria-hidden />
+          </View>
+
+          <View style={styles.headlineBlock}>
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+              Check exactly{' '}
+              <Text style={[styles.headlineAccent, { color: t.calm }]}>what leaves.</Text>
+            </Text>
+            <Text style={[styles.body, { color: t.muted }]}>
+              This is the complete report. It contains app and device versions, workspace type,
+              counts and health states—not money values, names, account details, document text,
+              conversations, tokens or recovery secrets.
+            </Text>
+          </View>
+
+          <View
+            accessibilityLabel="Exact support report contents"
+            style={[
+              styles.supportPreviewCard,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+            ]}
+          >
+            <Text selectable style={[styles.supportPreviewText, { color: t.ink }]}>
+              {supportPreview.jsonText}
+            </Text>
+          </View>
+
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.supportPrivacyNote, { color: t.muted }]}
+          >
+            Nothing is uploaded automatically. The temporary file is removed after the share sheet
+            closes.
+          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ busy: sharingSupportReport, disabled: sharingSupportReport }}
+            disabled={sharingSupportReport}
+            onPress={handleShareSupportReport}
+            style={({ pressed: isPressed }) => [
+              styles.primary,
+              { backgroundColor: t.calmStrong },
+              isPressed ? pressed : undefined,
+              sharingSupportReport ? styles.disabledAction : undefined,
+            ]}
+          >
+            <Text style={[styles.primaryLabel, { color: t.canvas }]}>
+              {sharingSupportReport ? 'Opening share sheet…' : 'Share this exact report'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setSupportPreview(null)}
+            style={({ pressed: isPressed }) => [
+              styles.supportCancel,
+              isPressed ? pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.supportCancelLabel, { color: t.muted }]}>Cancel</Text>
+          </Pressable>
+        </ScrollView>
       </View>
     );
   }
@@ -555,6 +694,23 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
 
           <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
 
+          <Pressable
+            accessibilityHint="Shows the exact redacted contents before anything is shared"
+            accessibilityRole="button"
+            onPress={handlePrepareSupportReport}
+            style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
+          >
+            <View style={styles.actionText}>
+              <Text style={[styles.actionTitle, { color: t.ink }]}>Create support report</Text>
+              <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+                preview first · no money values or names
+              </Text>
+            </View>
+            <ChevronRight color={t.muted} />
+          </Pressable>
+
+          <View style={[styles.rowDivider, { backgroundColor: t.hairline }]} />
+
           {/* Restore from an export — loads a folio-export.json back in (plan 113). Ink title (its
             intent is recovery), truthful subtitle; the two-gate confirm carries the replace weight. */}
           <Pressable
@@ -635,6 +791,38 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     paddingHorizontal: gap.xl,
+  },
+  supportPreviewBody: {
+    paddingBottom: gap.xxl,
+  },
+  supportPreviewCard: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.xl,
+    padding: gap.lg,
+  },
+  supportPreviewText: {
+    fontFamily: 'monospace',
+    fontSize: 11,
+    lineHeight: 17,
+  },
+  supportPrivacyNote: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: gap.md,
+  },
+  supportCancel: {
+    alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+    marginTop: gap.sm,
+  },
+  supportCancelLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  disabledAction: {
+    opacity: 0.55,
   },
   // Top bar — back · eyebrow · spacer.
   topBar: {

@@ -2,14 +2,17 @@
  * Native port of the live Lovable plans surface: Free / Melo Plus / Melo Pro,
  * monthly/yearly pricing, one-cycle trial, suppression guard, and real store restore.
  */
-import type { ProductSubscription } from 'expo-iap';
+import type { ProductSubscription, Purchase } from 'expo-iap';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { copy } from '@/folio/copy/copy';
 import { reconcileEntitlements, saveVerifiedEntitlement } from '@/folio/lib/billing/entitlements';
-import { verifyGooglePurchase } from '@/folio/lib/billing/billingVerification';
+import {
+  storeBillingCapability,
+  verifyGooglePurchase,
+} from '@/folio/lib/billing/billingVerification';
 import { resolveCtaMode } from '@/folio/lib/billing/ctaMode';
 import {
   closeConnection,
@@ -18,7 +21,7 @@ import {
   productIdFor,
   purchase,
   queryProducts,
-  restore as restorePurchases,
+  restoreWithStatus as restorePurchases,
   tierForProductId,
   type BillingCadence,
 } from '@/folio/lib/billing/iap';
@@ -93,6 +96,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingProducts, setBillingProducts] = useState<ProductSubscription[]>([]);
   const [billingBusy, setBillingBusy] = useState(false);
+  const billingCapability = useMemo(() => storeBillingCapability(Platform.OS), []);
 
   const moneyMode = useAppStore((store) => store.moneyMode ?? 'survival');
   const currentBalance = useAppStore((store) => store.currentBalance);
@@ -108,6 +112,14 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
 
   useEffect(() => {
     let mounted = true;
+    if (!billingCapability.supported) {
+      setBillingProducts([]);
+      setBillingAvailable(false);
+      setBillingLoading(false);
+      return () => {
+        mounted = false;
+      };
+    }
     void (async () => {
       const availability = await probeAvailability();
       const products = availability.available ? await queryProducts() : [];
@@ -120,7 +132,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       mounted = false;
       void closeConnection();
     };
-  }, []);
+  }, [billingCapability.supported]);
 
   const safeZoneTotal = useMemo(
     () =>
@@ -211,15 +223,35 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
 
   const restore = async () => {
     if (billingBusy) return;
+    if (!billingCapability.supported) {
+      Alert.alert(copy.plans.restore, billingCapability.message);
+      return;
+    }
     setBillingBusy(true);
     try {
-      const owned = await restorePurchases();
+      const restored = await restorePurchases();
+      if (restored.status === 'unavailable') {
+        Alert.alert(copy.err.generic, restored.message);
+        return;
+      }
       let restoredTier: 'plus' | 'pro' | null = null;
-      for (const storePurchase of owned) {
+      let pending = false;
+      let verificationMessage: string | null = null;
+      for (const storePurchase of restored.purchases) {
         const verification = await verifyGooglePurchase(storePurchase);
-        if (verification.status !== 'verified') continue;
+        if (verification.status === 'pending') {
+          pending = true;
+          continue;
+        }
+        if (verification.status !== 'verified') {
+          verificationMessage ??= verification.message;
+          continue;
+        }
         const saved = await saveVerifiedEntitlement(verification.grant);
-        if (saved === null) continue;
+        if (saved === null) {
+          verificationMessage ??= copy.plans.billing.save_failed;
+          continue;
+        }
         await finishPurchase(storePurchase);
         if (verification.entitlement.tier === 'pro') restoredTier = 'pro';
         else if (restoredTier === null) restoredTier = 'plus';
@@ -234,8 +266,15 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       Alert.alert(
         copy.plans.restore,
         activeTier === null
-          ? copy.plans.restore_result.none
+          ? pending
+            ? copy.plans.billing.processing
+            : (verificationMessage ?? copy.plans.restore_result.none)
           : copy.plans.restore_result.active(activeTier),
+      );
+    } catch (reason: unknown) {
+      Alert.alert(
+        copy.err.generic,
+        reason instanceof Error ? reason.message : 'Purchases could not be restored right now.',
       );
     } finally {
       setBillingBusy(false);
@@ -243,6 +282,10 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   };
 
   const buySelectedPlan = async () => {
+    if (!billingCapability.supported) {
+      Alert.alert(copy.plans.title, billingCapability.message);
+      return;
+    }
     if (
       billingBusy ||
       selected === 'free' ||
@@ -253,7 +296,15 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
     }
     setBillingBusy(true);
     try {
-      const owned = lens.plusUnlocked && !lens.proUnlocked ? await restorePurchases() : [];
+      let owned: readonly Purchase[] = [];
+      if (lens.plusUnlocked && !lens.proUnlocked) {
+        const restored = await restorePurchases();
+        if (restored.status === 'unavailable') {
+          Alert.alert(copy.err.generic, restored.message);
+          return;
+        }
+        owned = restored.purchases;
+      }
       const oldPlus = owned.find(
         (storePurchase) =>
           tierForProductId(storePurchase.productId) === 'plus' &&
@@ -267,6 +318,13 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               purchaseToken: oldPlus.purchaseToken,
             }
           : undefined;
+      if (selected === 'pro' && lens.plusUnlocked && replacement === undefined) {
+        Alert.alert(
+          copy.plans.title,
+          'Melo needs the current Plus purchase token to replace that subscription safely. Restore purchases before upgrading.',
+        );
+        return;
+      }
       const outcome = await purchase(selectedProductId, selectedProduct, replacement);
       if (outcome.status === 'cancelled') return;
       if (outcome.status === 'pending') {
@@ -300,6 +358,11 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
             ? copy.plans.tier.pro.name
             : copy.plans.tier.plus.name,
         ),
+      );
+    } catch (reason: unknown) {
+      Alert.alert(
+        copy.err.generic,
+        reason instanceof Error ? reason.message : 'The store could not complete this purchase.',
       );
     } finally {
       setBillingBusy(false);

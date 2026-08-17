@@ -10,7 +10,15 @@
 // shared kit primitives + ported screens rely on the gesture system and safe-area insets.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, StyleSheet, View, type AppStateStatus } from 'react-native';
+import {
+  Alert,
+  AppState,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type AppStateStatus,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
@@ -44,6 +52,8 @@ export default function FolioRoute() {
   const [lockBusy, setLockBusy] = useState(false);
   const [lockMessage, setLockMessage] = useState<string | null>(null);
   const [recoveredRemovedDeviceLock, setRecoveredRemovedDeviceLock] = useState(false);
+  const [startupFailure, setStartupFailure] = useState<string | null>(null);
+  const [startupAttempt, setStartupAttempt] = useState(0);
   const lockEnabledRef = useRef(false);
   const lockedRef = useRef(false);
   const authenticatingRef = useRef(false);
@@ -62,10 +72,12 @@ export default function FolioRoute() {
     authenticatingRef.current = true;
     setLockBusy(true);
     setLockMessage(null);
-    const result = await authenticateAppLock();
-    if (result.success) {
-      updateLocked(false);
-    } else {
+    try {
+      const result = await authenticateAppLock();
+      if (result.success) {
+        updateLocked(false);
+        return;
+      }
       updateLocked(true);
       setLockMessage(
         result.reason === 'cancelled'
@@ -74,9 +86,13 @@ export default function FolioRoute() {
             ? 'Your device screen lock is no longer available. Restart Melo to recover safely.'
             : 'Your device could not finish authentication. Try again.',
       );
+    } catch {
+      updateLocked(true);
+      setLockMessage('Your device could not finish authentication. Try again.');
+    } finally {
+      authenticatingRef.current = false;
+      setLockBusy(false);
     }
-    authenticatingRef.current = false;
-    setLockBusy(false);
   }, [updateLocked]);
 
   useEffect(
@@ -122,56 +138,68 @@ export default function FolioRoute() {
     let stopWidgetSync: (() => void) | undefined;
     let cancelled = false;
     void (async () => {
-      await sweepOwnedPickerStaging().catch(() => undefined);
-      if (cancelled) return;
-      const activeWorkspaceId = await loadPersistedActiveWorkspace();
-      if (cancelled) return;
-      if (getHydrationOutcome() === 'incompatible-future-schema') {
-        // A rollback must remain completely read-only. Do not run imports, entitlement repair,
-        // companion persistence, notifications, widgets, or the background writer over data from a
-        // newer Melo schema. FolioShell renders the non-dismissible update gate instead.
+      try {
+        setStartupFailure(null);
+        await sweepOwnedPickerStaging().catch(() => undefined);
+        if (cancelled) return;
+        const activeWorkspaceId = await loadPersistedActiveWorkspace();
+        if (cancelled) return;
+        if (getHydrationOutcome() === 'incompatible-future-schema') {
+          // A rollback must remain completely read-only. Do not run imports, entitlement repair,
+          // companion persistence, notifications, widgets, or the background writer over data from
+          // a newer Melo schema. FolioShell renders the non-dismissible update gate instead.
+          setReady(true);
+          return;
+        }
+        // One-time data-continuity import from the archived Melo surface's own
+        // blob, if the folio store is still empty. Runs AFTER loadPersisted so
+        // the emptiness check reads real hydrated state. Silent no-op on any
+        // failure — see lib/persist.ts `importMeloBlobIfPresent`.
+        if (activeWorkspaceId === PERSONAL_WORKSPACE_ID) {
+          await importMeloBlobIfPresent(PERSONAL_WORKSPACE_ID);
+        }
+        if (cancelled) return;
+        await reconcileEntitlements();
+        if (cancelled) return;
+
+        // Companion memory is useful but must never prevent access to the financial app.
+        await hydrateMeloCompanionBehavior().catch(() => undefined);
+        if (cancelled) return;
+
+        // App-lock preparation is security-critical. If it cannot establish whether a saved lock
+        // is enforceable, fail closed into the retry surface instead of silently opening the app.
+        const preparedLock = await prepareAppLock();
+        if (cancelled) return;
+        lockEnabledRef.current = preparedLock.settings.enabled;
+        setLockEnabled(preparedLock.settings.enabled);
+        updateLocked(preparedLock.settings.enabled);
+        setRecoveredRemovedDeviceLock(preparedLock.recoveredAfterDeviceLockRemoval);
+        stop = startPersisting(activeWorkspaceId);
+
+        // Notifications and widgets are optional projections. A platform/service failure here must
+        // not strand the user behind the native splash after their encrypted money state loaded.
+        await ensureAndroidChannel().catch(() => undefined);
+        if (cancelled) return;
+        try {
+          stopNotifications = startNotificationScheduler();
+        } catch {
+          stopNotifications = undefined;
+        }
+        try {
+          stopWidgetSync = startWidgetSync();
+        } catch {
+          stopWidgetSync = undefined;
+        }
         setReady(true);
-        return;
+      } catch (reason: unknown) {
+        if (cancelled) return;
+        setStartupFailure(
+          reason instanceof Error && reason.message.includes('read-only')
+            ? reason.message
+            : 'Melo could not safely open the encrypted workspace on this attempt.',
+        );
+        setReady(true);
       }
-      // One-time data-continuity import from the archived Melo surface's own
-      // blob, if the folio store is still empty. Runs AFTER loadPersisted so
-      // the emptiness check reads real hydrated state. Silent no-op on any
-      // failure — see lib/persist.ts `importMeloBlobIfPresent`.
-      if (activeWorkspaceId === PERSONAL_WORKSPACE_ID) {
-        await importMeloBlobIfPresent(PERSONAL_WORKSPACE_ID);
-      }
-      if (cancelled) return;
-      // Reconcile the persisted store-purchase entitlement record against the lens store's own
-      // unlock flags (see lib/billing/entitlements.ts `reconcileEntitlements` for the exact
-      // repair rule + why an expired entitlement is never revoked here). Runs after the melo
-      // import so it reconciles against the final hydrated lens state, before persistence starts.
-      await reconcileEntitlements();
-      if (cancelled) return;
-      // Companion cadence, dismissals and preferred perches are non-financial but must survive an
-      // app restart. Hydrate that small encrypted record before mounting the one persistent host.
-      await hydrateMeloCompanionBehavior();
-      if (cancelled) return;
-      // Resolve the optional app-lock preference before first paint. A removed device credential
-      // disables only this foreground gate so the user is never permanently locked out; the
-      // encrypted vault and device-only key remain unchanged.
-      const preparedLock = await prepareAppLock();
-      if (cancelled) return;
-      lockEnabledRef.current = preparedLock.settings.enabled;
-      setLockEnabled(preparedLock.settings.enabled);
-      updateLocked(preparedLock.settings.enabled);
-      setRecoveredRemovedDeviceLock(preparedLock.recoveredAfterDeviceLockRemoval);
-      stop = startPersisting(activeWorkspaceId); // persist whichever isolated partition is active.
-      // Reminders: create the Android channel once, then start the reschedule loop (reads real
-      // hydrated state — see notifyScheduler.ts). A denied/undetermined permission makes every
-      // schedule call a graceful no-op, so this is safe to start unconditionally.
-      await ensureAndroidChannel();
-      if (cancelled) return;
-      stopNotifications = startNotificationScheduler();
-      // Keep the SafeZoneWidget snapshot (widget/widgetSnapshotStore.ts) and any widget already on
-      // a home screen in sync with the store, debounced. Android-only under the hood
-      // (react-native-android-widget no-ops on iOS), so this is safe to start unconditionally.
-      stopWidgetSync = startWidgetSync();
-      setReady(true);
     })();
     return () => {
       cancelled = true;
@@ -179,13 +207,54 @@ export default function FolioRoute() {
       stopNotifications?.();
       stopWidgetSync?.();
     };
-  }, [updateLocked]);
+  }, [startupAttempt, updateLocked]);
 
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync().catch(() => undefined);
   }, [ready]);
 
-  if (!ready) return null; // keep the native splash up until hydration finishes.
+  if (!ready) {
+    // The native splash covers the first attempt. On an explicit retry it has already been hidden,
+    // so keep an accessible in-app holding surface rather than flashing a blank window.
+    if (startupAttempt === 0) return null;
+    return (
+      <View style={[styles.recovery, { backgroundColor: t.canvas }]}>
+        <Text accessibilityRole="header" style={[styles.recoveryTitle, { color: t.ink }]}>
+          Opening your encrypted workspace…
+        </Text>
+      </View>
+    );
+  }
+
+  if (startupFailure !== null) {
+    return (
+      <View
+        accessibilityLiveRegion="assertive"
+        accessibilityRole="alert"
+        style={[styles.recovery, { backgroundColor: t.canvas }]}
+      >
+        <Text accessibilityRole="header" style={[styles.recoveryTitle, { color: t.ink }]}>
+          Melo couldn’t open safely.
+        </Text>
+        <Text style={[styles.recoveryBody, { color: t.muted }]}>{startupFailure}</Text>
+        <Text style={[styles.recoveryBody, { color: t.muted }]}>
+          Nothing was cleared. Keep the app installed and try again.
+        </Text>
+        <Pressable
+          accessibilityHint="Retries opening the encrypted workspace"
+          accessibilityRole="button"
+          onPress={() => {
+            setReady(false);
+            setStartupFailure(null);
+            setStartupAttempt((value) => value + 1);
+          }}
+          style={[styles.retry, { backgroundColor: t.calmStrong }]}
+        >
+          <Text style={[styles.retryLabel, { color: t.canvas }]}>Try again</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={[styles.flex, { backgroundColor: t.canvas }]}>
@@ -209,4 +278,31 @@ export default function FolioRoute() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   frame: { flex: 1 },
+  recovery: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  recoveryTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    lineHeight: 32,
+  },
+  recoveryBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 12,
+  },
+  retry: {
+    alignItems: 'center',
+    borderRadius: 18,
+    marginTop: 24,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  retryLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });

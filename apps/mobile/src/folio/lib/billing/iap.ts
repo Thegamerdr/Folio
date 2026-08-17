@@ -180,16 +180,36 @@ export async function finishPurchase(purchaseToFinish: Purchase): Promise<void> 
   }
 }
 
-/** Currently owned Melo products, used for restore and Plus-to-Pro replacement. */
-export async function restore(): Promise<Purchase[]> {
+export type RestorePurchasesOutcome =
+  | Readonly<{ status: 'ok'; purchases: readonly Purchase[] }>
+  | Readonly<{ status: 'unavailable'; message: string }>;
+
+/**
+ * Query currently owned Melo products without confusing a store/network failure with "you own
+ * nothing". That distinction is essential for both honest Restore copy and Plus-to-Pro replacement:
+ * proceeding without the old purchase token can accidentally leave two subscriptions active.
+ */
+export async function restoreWithStatus(): Promise<RestorePurchasesOutcome> {
   try {
     const all = await getAvailablePurchases();
-    return all.filter((purchaseToRestore) =>
-      SUBSCRIPTION_PRODUCT_IDS.includes(purchaseToRestore.productId),
-    );
+    return {
+      status: 'ok',
+      purchases: all.filter((purchaseToRestore) =>
+        SUBSCRIPTION_PRODUCT_IDS.includes(purchaseToRestore.productId),
+      ),
+    };
   } catch {
-    return [];
+    return {
+      status: 'unavailable',
+      message: 'The store could not check your purchases. Try again when the store is available.',
+    };
   }
+}
+
+/** Compatibility helper for non-UI callers that intentionally treat unavailable as empty. */
+export async function restore(): Promise<Purchase[]> {
+  const outcome = await restoreWithStatus();
+  return outcome.status === 'ok' ? [...outcome.purchases] : [];
 }
 
 export async function closeConnection(): Promise<void> {

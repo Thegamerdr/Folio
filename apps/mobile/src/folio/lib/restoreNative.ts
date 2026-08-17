@@ -19,9 +19,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { WorkspaceId } from '@folio/domain';
 
-import { restoreBackupFromBlob } from '@/folio/store';
+import { getPersistBlob, hydrateFromBlob, restoreBackupFromBlob } from '@/folio/store';
 import { reconcileEntitlements } from '@/folio/lib/billing/entitlements';
-import { reconcileMissingEvidenceFiles } from '@/folio/lib/persist';
+import {
+  persistCurrentStateNow,
+  quiescePersistenceWrites,
+  reconcileMissingEvidenceFiles,
+} from '@/folio/lib/persist';
 import { deleteOwnedPickerStage, stagePickerSource } from '@/folio/lib/pickerCache';
 
 import { summarizeRestore, validateRestoreJson } from './restore';
@@ -75,13 +79,19 @@ export async function pickRestoreFile(workspaceId: WorkspaceId): Promise<PickRes
 }
 
 export type ApplyRestoreResult = Readonly<{
-  /** True when the store's load pipeline THREW and degraded the state to safe
-   *  defaults — the file passed the envelope check but was fundamentally
-   *  unreadable. (Per-FIELD corruption is silently defaulted by load()'s
-   *  guards, same as a cold boot, and is NOT reported here — see
-   *  restore.test.ts "field tolerance".) The caller must say so honestly. */
-  degraded: boolean;
+  applied: true;
+  durable: true;
 }>;
+
+export class RestoreApplyError extends Error {
+  readonly previousLiveStateRestored: boolean;
+
+  constructor(message: string, previousLiveStateRestored: boolean, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'RestoreApplyError';
+    this.previousLiveStateRestored = previousLiveStateRestored;
+  }
+}
 
 /**
  * Replace live state with a staged export. Runs the store's cold-boot path
@@ -95,14 +105,47 @@ export async function applyRestore(
 ): Promise<ApplyRestoreResult> {
   const validation = validateRestoreJson(raw, workspaceId);
   if (!validation.ok) throw new Error('This backup cannot replace the selected Melo workspace.');
-  const hydration = restoreBackupFromBlob(raw, workspaceId);
-  if (hydration.status === 'incompatible-future-schema') {
-    throw new Error(
-      'This backup was created by a newer Melo version. Update Melo before restoring it.',
+  const previousBlob = getPersistBlob(workspaceId);
+  const resumePersistence = await quiescePersistenceWrites();
+  let changedLiveState = false;
+  try {
+    const hydration = restoreBackupFromBlob(raw, workspaceId);
+    if (hydration.status === 'incompatible-future-schema') {
+      throw new Error(
+        'This backup was created by a newer Melo version. Update Melo before restoring it.',
+      );
+    }
+    if (hydration.status !== 'applied') {
+      throw new Error('This backup could not be loaded safely. Nothing was replaced.');
+    }
+    changedLiveState = true;
+    await reconcileMissingEvidenceFiles(workspaceId);
+    await reconcileEntitlements();
+
+    // A restore is not complete merely because React state changed. Commit the exact restored
+    // partition through the read-verified SQLCipher authority before telling the user it worked.
+    // The ordinary debounced writer is paused so it cannot race this explicit destructive write.
+    await persistCurrentStateNow(workspaceId);
+    return { applied: true, durable: true };
+  } catch (cause: unknown) {
+    let previousLiveStateRestored = !changedLiveState;
+    if (changedLiveState) {
+      try {
+        previousLiveStateRestored = hydrateFromBlob(previousBlob, workspaceId).status === 'applied';
+      } catch {
+        previousLiveStateRestored = false;
+      }
+    }
+    const baseMessage =
+      cause instanceof Error ? cause.message : 'This backup could not be restored safely.';
+    throw new RestoreApplyError(
+      previousLiveStateRestored
+        ? `${baseMessage} Your previous live data is still in place.`
+        : `${baseMessage} Keep Melo open and do not make changes until you retry or recover from an export.`,
+      previousLiveStateRestored,
+      { cause },
     );
+  } finally {
+    resumePersistence();
   }
-  const degraded = hydration.status !== 'applied';
-  if (!degraded) await reconcileMissingEvidenceFiles(workspaceId);
-  await reconcileEntitlements();
-  return { degraded };
 }

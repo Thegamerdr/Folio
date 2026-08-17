@@ -101,13 +101,7 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
       confirmRestore(staged, async () => {
         setBusy('restore');
         try {
-          const applied = await applyCloudRestore(activeWorkspaceId, staged);
-          if (applied.degraded) {
-            setError(
-              'The backup opened, but its data could not be loaded safely. Nothing was claimed as restored.',
-            );
-            return;
-          }
+          await applyCloudRestore(activeWorkspaceId, staged);
           // CLAIM: cloud backup envelopes are client-encrypted by the shipped cloud-vault engine.
           Alert.alert(
             'Backup restored',

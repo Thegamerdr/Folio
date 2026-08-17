@@ -11,6 +11,28 @@ const DEFAULT_BILLING_URL = 'https://melo-billing-entitlements.tgdroppin.workers
 const ISSUER = DEFAULT_BILLING_URL;
 const AUDIENCE = 'com.melomoney.app';
 const KEY_ID = 'melo-billing-ed25519-2026-07';
+const REQUEST_TIMEOUT_MS = 20_000;
+
+export type StoreBillingCapability =
+  | Readonly<{ supported: true; verificationRoute: 'google-play' }>
+  | Readonly<{ supported: false; message: string }>;
+
+/**
+ * The shipped entitlement service currently verifies Google Play purchase tokens only. Keep the
+ * native store UI fail-closed on every other platform until a signed Apple verification route is
+ * implemented; discovering an App Store product is not sufficient proof that Melo can safely grant
+ * or restore its entitlement.
+ */
+export function storeBillingCapability(platform: string): StoreBillingCapability {
+  if (platform === 'android') return { supported: true, verificationRoute: 'google-play' };
+  return {
+    supported: false,
+    message:
+      platform === 'ios'
+        ? 'App Store purchase verification is not available in this Melo build yet.'
+        : 'Store purchases are not available on this platform.',
+  };
+}
 
 export type BillingVerificationOutcome =
   | { status: 'verified'; grant: string; entitlement: VerifiedEntitlementGrant }
@@ -36,11 +58,14 @@ export async function verifyGooglePurchase(
       message: 'Store verification is not configured for this Melo build yet.',
     };
   }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(`${billingUrl()}/v1/google/verify`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ productId: purchase.productId, purchaseToken }),
+      signal: controller.signal,
     });
     const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
     if (!response.ok) {
@@ -68,6 +93,8 @@ export async function verifyGooglePurchase(
       status: 'unavailable',
       message: 'Store verification is temporarily unavailable. Try Restore purchases shortly.',
     };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
