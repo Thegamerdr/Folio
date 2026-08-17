@@ -10,13 +10,11 @@
  *       (or 29 in a leap year), never overflowing to March. JS `new Date(y, 1,
  *       31)` silently rolls to Mar 3 — that throws the whole path off by days,
  *       so we clamp to the last valid day of the month instead.
- *   (2) Weekend shift. UK payroll convention pays early when a date lands on a
- *       weekend. Default `weekendRule: "previous"` (the working day before);
- *       `"next"` moves to the following Monday; `"exact"` leaves it untouched.
+ *   (2) Non-working-day shift. UK payroll convention pays early when a date lands
+ *       on a weekend or bank holiday. Default `weekendRule: "previous"` (the
+ *       working day before); `"next"` moves forward; `"exact"` leaves it untouched.
  *
- * UK bank holidays are post-MVP. `isBusinessDay(date)` is the documented hook —
- * for now it reports weekends-only; the holiday lookup wires in later without
- * changing this contract.
+ * England/Wales bank holidays use the versioned, reviewed launch policy in `bankHolidays.ts`.
  *
  * Pure and deterministic: no I/O, no react-native, no DOM, no local-timezone
  * dependence. All arithmetic is on plain numbers; the only `Date` use is a
@@ -25,7 +23,9 @@
  * `../store` so the pure-logic test runner (no `@` alias) resolves it.
  */
 
-/** How to handle a payday that lands on a Saturday or Sunday. */
+import { isEnglandWalesBankHoliday } from './bankHolidays';
+
+/** How to handle a payday that lands on a weekend or reviewed bank holiday. */
 export type WeekendRule = 'previous' | 'next' | 'exact';
 
 /** A recurring day-of-month payday rule (income, bill, sub, pot top-up). */
@@ -103,13 +103,12 @@ function addOneDay({ year, month, day }: Ymd, direction: 1 | -1): Ymd {
 }
 
 /**
- * Shift a weekend date to the nearest working day per the rule. `"previous"`
+ * Shift a non-working date to the nearest working day per the rule. `"previous"`
  * walks back, `"next"` walks forward, `"exact"` returns the date untouched.
- * Walking (rather than fixed ±1/±2) keeps the door open for the post-MVP
- * bank-holiday lookup: once `isBusinessDay` knows about holidays, the same loop
- * skips them too.
+ * Walking rather than applying a fixed ±1/±2 correctly skips consecutive weekends
+ * and bank holidays.
  */
-function shiftForWeekend(ymd: Ymd, rule: WeekendRule): Ymd {
+function shiftForNonWorkingDay(ymd: Ymd, rule: WeekendRule): Ymd {
   if (rule === 'exact') return ymd;
   const direction: 1 | -1 = rule === 'next' ? 1 : -1;
   let cursor = ymd;
@@ -121,7 +120,7 @@ function shiftForWeekend(ymd: Ymd, rule: WeekendRule): Ymd {
 
 function isBusinessDayYmd(ymd: Ymd): boolean {
   const weekday = weekdayOf(ymd);
-  return weekday !== SATURDAY && weekday !== SUNDAY;
+  return weekday !== SATURDAY && weekday !== SUNDAY && !isEnglandWalesBankHoliday(formatYmd(ymd));
 }
 
 /**
@@ -143,16 +142,14 @@ export function resolvePayday(rule: PaydayRule, yearMonth: string): string {
 
   const clamped: Ymd = { year, month, day };
   const weekendRule = rule.weekendRule ?? DEFAULT_WEEKEND_RULE;
-  return formatYmd(shiftForWeekend(clamped, weekendRule));
+  return formatYmd(shiftForNonWorkingDay(clamped, weekendRule));
 }
 
 /**
  * Whether an ISO date ("YYYY-MM-DD") is a UK working day.
  *
- * MVP: weekends-only — Saturday and Sunday are non-business, everything else is
- * business. UK bank holidays are post-MVP (documented hook): the holiday lookup
- * slots in here later without changing the signature. Read in UTC so the answer
- * never depends on the runtime's local timezone.
+ * Saturday, Sunday and reviewed England/Wales bank holidays are non-business. Read in UTC so the
+ * answer never depends on the runtime's local timezone.
  */
 export function isBusinessDay(date: string): boolean {
   if (date.length < ISO_DATE_LENGTH) {

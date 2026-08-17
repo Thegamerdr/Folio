@@ -11,7 +11,7 @@
 //     rule = { dayOfMonth: 1..31, weekendRule?: 'previous'|'next'|'exact' }
 //   (1) clamp dayOfMonth to the last valid day of the month (never overflow);
 //   (2) if the clamped date is Sat/Sun, shift per weekendRule (default 'previous');
-//   (3) isBusinessDay(date) — weekends-only for now (UK bank holidays post-MVP).
+//   (3) isBusinessDay(date) — weekends plus versioned England/Wales bank holidays.
 
 import { describe, expect, it } from 'vitest';
 
@@ -111,10 +111,19 @@ describe('resolvePayday — weekend shift', () => {
       '2026-10-30',
     );
   });
+
+  it('pays early across a bank holiday and weekend without inventing a later date', () => {
+    // 31 August 2026 is the Summer bank holiday; previous working day is Friday 28 August.
+    expect(resolvePayday({ dayOfMonth: 31 }, '2026-08')).toBe('2026-08-28');
+  });
+
+  it('moves next past consecutive Christmas bank holidays', () => {
+    expect(resolvePayday({ dayOfMonth: 25, weekendRule: 'next' }, '2026-12')).toBe('2026-12-29');
+  });
 });
 
 // ---------------------------------------------------------------------------
-// (3) isBusinessDay — weekends only for now (UK bank holidays post-MVP)
+// (3) isBusinessDay — weekends and reviewed England/Wales bank holidays
 // ---------------------------------------------------------------------------
 describe('isBusinessDay', () => {
   it('returns true for Monday through Friday', () => {
@@ -130,10 +139,9 @@ describe('isBusinessDay', () => {
     expect(isBusinessDay('2026-06-21')).toBe(false); // Sun
   });
 
-  it('does not yet treat a UK bank holiday as non-business (post-MVP)', () => {
-    // 2025-12-25 (Christmas Day) is a Thursday — a bank holiday, but the
-    // weekends-only MVP rule still reports it as a business day.
-    expect(isBusinessDay('2025-12-25')).toBe(true);
+  it('treats bank holidays and substitute days as non-business', () => {
+    expect(isBusinessDay('2025-12-25')).toBe(false);
+    expect(isBusinessDay('2026-12-28')).toBe(false);
   });
 });
 

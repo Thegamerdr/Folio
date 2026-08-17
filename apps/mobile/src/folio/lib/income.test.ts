@@ -83,7 +83,9 @@ describe('projectIncomeEvents — monthly', () => {
   it('rolls correctly across a year boundary (Dec -> Jan)', () => {
     const s = source({ id: 'm5', cadence: 'monthly', dayOfMonth: 28 });
     const events = projectIncomeEvents([s], '2026-12-01', 60);
-    expect(events.map((e) => e.date)).toEqual(['2026-12-28', '2027-01-28']);
+    // 28 December 2026 is the Boxing Day substitute, so UK payroll convention
+    // pays before the whole Christmas closure rather than on the bank holiday.
+    expect(events.map((e) => e.date)).toEqual(['2026-12-24', '2027-01-28']);
   });
 
   it('throws if a monthly source is missing dayOfMonth', () => {
@@ -154,7 +156,9 @@ describe('projectIncomeEvents — fortnightly', () => {
   it('holds cadence across a year boundary', () => {
     const s = source({ id: 'f2', cadence: 'fortnightly', anchorISO: '2026-12-18' });
     const events = projectIncomeEvents([s], '2026-12-20', 26);
-    expect(events.map((e) => e.date)).toEqual(['2027-01-01', '2027-01-15']);
+    // The underlying fortnightly grid still lands on New Year's Day. Only the
+    // emitted payday is moved to the previous working day; the cadence does not drift.
+    expect(events.map((e) => e.date)).toEqual(['2026-12-31', '2027-01-15']);
   });
 });
 
