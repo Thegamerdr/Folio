@@ -1,5 +1,9 @@
 # PORT_BIBLE — condensed digest for the port fleet
 
+> **Current design authority:** `docs/design-contract/LOVABLE_AUTHORITY_2026-08-17.md`. This digest
+> is retained for historical feature/engine detail; its old repository path, screen counts, frozen
+> copy and pricing assumptions must not override the pinned 17 August Lovable reference.
+
 Source: `C:/dev/folio-melo/.claude/worktrees/design-main` (read-only design repo, Lovable-connected).
 Read THIS file, not the 17 source docs, unless you need verbatim wording for a specific rule.
 If this digest and a source doc conflict, the source doc wins — flag it, don't silently pick.
