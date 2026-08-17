@@ -83,6 +83,29 @@ export { BottomNav } from '@/surfaces/pressureMap/kit';
 export { Sheet } from '@/surfaces/pressureMap/Sheet';
 
 // ---------------------------------------------------------------------------
+// Canonical product compositions. These are the accepted reusable patterns used by new and
+// migrated screens; they deliberately compose the pressure-map tokens instead of creating another
+// visual system.
+// ---------------------------------------------------------------------------
+export {
+  Screen,
+  Section,
+  Card,
+  Row,
+  Figure,
+  Field,
+  Button,
+  Chip,
+  SegmentedControl,
+  ChartFrame,
+  CalendarCell,
+  ListGroup,
+  MeloPerch,
+  ExplainSheet,
+} from '@/folio/ui/ProductPrimitives';
+export { StatePanel } from '@/folio/ui/StatePanel';
+
+// ---------------------------------------------------------------------------
 // Count-up tween hook
 // ---------------------------------------------------------------------------
 export { useCountUp } from '@/surfaces/pressureMap/useCountUp';
