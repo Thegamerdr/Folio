@@ -90,7 +90,7 @@ import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { AdjustPathTabs } from '@/folio/ui/AdjustPathTabs';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import { getShortfallCopy } from '@/folio/lib/modes/action';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import type { Nav } from '@/folio/types';
@@ -121,7 +121,7 @@ const GAP_PULSE_TROUGH = 0.62;
 // A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be called
 // conditionally, so it runs against this until `now` is set; that transient frame is discarded
 // (`route = null`). Module-level so its identity never churns the hook's memo. Mirrors TodayScreen.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 // The body line's web max-w-[28ch]. RN has no 'ch' unit; ~260 holds the editorial line-length at the
 // 14px body face without dropping the constraint (the rhythm breaks if the line runs full width).

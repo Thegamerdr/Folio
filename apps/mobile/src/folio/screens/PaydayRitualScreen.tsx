@@ -110,7 +110,7 @@ import {
 } from '@/folio/store';
 import { computeGreenStreak } from '@/folio/lib/streaks';
 import { poseForContext } from '@/folio/lib/melo/poseForContext';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import { buildTrustedSafeRangeFromAppState } from '@/folio/lib/trustedSafeRange';
 import { safeRangeSnapshotFromResult } from '@/folio/lib/decisionLedger';
 import { evaluatePaydayForecastAccountability } from '@/folio/lib/criticalJourneys';
@@ -556,7 +556,7 @@ const NO_NOTE = 'No note this cycle.';
 // A stable sentinel "now" for the one render before the mount-gate opens (mirrors TodayScreen). The
 // route hook can't be called conditionally, so it runs against this until `now` is set; that frame's
 // route result is discarded (`route = null`). Module-level so its identity never churns the memo.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 // ---------------------------------------------------------------------------
 // Money — whole-pound grouping, matching the web's `£${n.toLocaleString("en-GB")}`

@@ -115,8 +115,8 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
           <Text style={[styles.workspaceKind, { color: t.muted }]}>Business</Text>
         </View>
         <View style={styles.hero}>
-          <MeloCompanionPerch companionSize={30} id="business-more/header" priority={30}>
-            <Melo mood="calm" size={30} />
+          <MeloCompanionPerch companionSize={48} id="business-more/header" priority={30}>
+            <Melo mood="calm" size={44} />
           </MeloCompanionPerch>
           <View style={styles.heroCopy}>
             <Text style={[styles.eyebrow, { color: t.muted }]}>{workspace.name}</Text>

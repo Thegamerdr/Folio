@@ -39,6 +39,7 @@ import { useReducedMotion } from '@/folio/lib/motion';
 import { subscribeAllMeloReactions } from '@/folio/lib/melo/reactionBus';
 import type { MeloIntent, ScreenId } from '@/folio/types';
 import { MeloCompanionVisibilityProvider } from './MeloCompanionVisibility';
+import { MeloAnimatedSprite } from './MeloAnimatedSprite';
 import { meloCompanionBehaviorSeed, persistMeloCompanionBehavior } from './persistence';
 
 const COMPANION_WIDTH = 58;
@@ -331,6 +332,7 @@ export function MeloCompanionHost({
             scrolling={scrolling}
             tuck={() => setTucked(true)}
             snapshot={snapshot}
+            wardrobeActive={wardrobe.length > 0}
           />
         </View>
       </CompanionContext.Provider>
@@ -496,12 +498,14 @@ function MeloCompanionLayer({
   scrolling,
   tuck,
   snapshot,
+  wardrobeActive,
 }: {
   engage: () => void;
   engine: CompanionEngine;
   scrolling: boolean;
   tuck: () => void;
   snapshot: CompanionSnapshot;
+  wardrobeActive: boolean;
 }) {
   const position = useRef(new Animated.ValueXY()).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -626,16 +630,26 @@ function MeloCompanionLayer({
         onPress={engage}
         style={styles.characterButton}
       >
-        <Melo
-          ambientMotion={false}
-          asleep={performance.asleep}
-          effects={performance.effects}
-          facing={snapshot.gaze.direction}
-          grounded
-          mood={performance.mood}
-          persistent
-          pose={performance.pose}
-          size={Math.min(desiredRect.width, desiredRect.height)}
+        <MeloAnimatedSprite
+          height={desiredRect.height}
+          paused={!visible || snapshot.lifecycle.animationPaused}
+          reducedMotion={snapshot.reducedMotion}
+          visualState={snapshot.visualState}
+          wardrobeActive={wardrobeActive}
+          wardrobeFallback={
+            <Melo
+              ambientMotion={false}
+              asleep={performance.asleep}
+              effects={performance.effects}
+              facing={snapshot.gaze.direction}
+              grounded
+              mood={performance.mood}
+              persistent
+              pose={performance.pose}
+              size={Math.min(desiredRect.width, desiredRect.height)}
+            />
+          }
+          width={desiredRect.width}
         />
       </Pressable>
     </Animated.View>

@@ -188,8 +188,8 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         </View>
 
         <View style={styles.hero}>
-          <MeloCompanionPerch companionSize={30} id="more/header" priority={30}>
-            <Melo size={30} mood="calm" />
+          <MeloCompanionPerch companionSize={48} id="more/header" priority={30}>
+            <Melo size={44} mood="calm" />
           </MeloCompanionPerch>
           <View style={styles.heroText}>
             <Text style={[styles.eyebrow, { color: t.muted }]}>The quiet hub</Text>

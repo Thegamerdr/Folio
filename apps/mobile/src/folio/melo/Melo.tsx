@@ -54,14 +54,19 @@ import { useMeloInlineCharacterVisible } from '@/folio/companion/MeloCompanionVi
 import { takeCelebrateSlot, takeHeroSlot } from '@/folio/lib/melo/cadence';
 import { useMeloVitality, useWeatherIntensityBias } from '@/folio/lib/melo/useVitality';
 
-const phoenixHero = CANONICAL_ASSETS['melo/phoenix-hero.png'];
-const phoenixAsleep = CANONICAL_ASSETS['melo/phoenix-asleep.png'];
-const phoenixCurious = CANONICAL_ASSETS['melo/phoenix-curious.png'];
-const phoenixCheer = CANONICAL_ASSETS['melo/phoenix-cheer.png'];
-const phoenixProtect = CANONICAL_ASSETS['melo/phoenix-protect.png'];
-const phoenixCelebrate = CANONICAL_ASSETS['melo/phoenix-celebrate.png'];
-const phoenixThink = CANONICAL_ASSETS['melo/phoenix-think.png'];
-const phoenixConcern = CANONICAL_ASSETS['melo/phoenix-concern.png'];
+// One identity across production surfaces. The A+ master is the static/reduced-motion source for
+// every unwardrobed inline avatar; authored state performance belongs to the persistent atlas host.
+// Until A+ cosmetic layers exist, wardrobe deliberately uses the complete legacy full-body assets
+// below instead of drawing a false attachment over the new anatomy.
+const phoenixAPlus = require('../../../assets/melo/motion/fenice-a-plus-static.png') as number;
+const phoenixHero = phoenixAPlus;
+const phoenixAsleep = phoenixAPlus;
+const phoenixCurious = phoenixAPlus;
+const phoenixCheer = phoenixAPlus;
+const phoenixProtect = phoenixAPlus;
+const phoenixCelebrate = phoenixAPlus;
+const phoenixThink = phoenixAPlus;
+const phoenixConcern = phoenixAPlus;
 const phoenixScarf = CANONICAL_ASSETS['melo/phoenix-hero-scarf.png'];
 const phoenixCrown = CANONICAL_ASSETS['melo/phoenix-hero-crown.png'];
 const phoenixHeadphones = CANONICAL_ASSETS['melo/phoenix-hero-headphones.png'];

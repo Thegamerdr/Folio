@@ -31,7 +31,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { isOverspentLanding, routeFromStore } from './storeRoute';
+import { ROUTE_MOUNT_SENTINEL, isOverspentLanding, routeFromStore } from './storeRoute';
 import { deriveCalendarEvents, groupByDay, computeSpareAndTightest } from './calendarEvents';
 import {
   addAccount,
@@ -69,6 +69,13 @@ const NOW = '2026-06-10';
 // is in both pictures or neither. `routeFromStore` keeps this private; the tests
 // assert against the resulting sample count (windowDays + 1, today inclusive).
 const ROUTE_WINDOW_DAYS = 35;
+
+describe('route mount sentinel', () => {
+  it('stays inside the reviewed bank-holiday policy so pre-mount route renders cannot crash', () => {
+    expect(ROUTE_MOUNT_SENTINEL.toISOString()).toBe('2024-06-15T12:00:00.000Z');
+    expect(() => routeFromStore(seedState(), ROUTE_MOUNT_SENTINEL)).not.toThrow();
+  });
+});
 
 describe('routeFromStore — seed state', () => {
   it('yields a tight point with a real date and a positive days-to-payday', () => {

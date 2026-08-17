@@ -27,7 +27,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle } from '@/folio/lib/chartStyle';
@@ -45,7 +45,7 @@ import { formatGBP } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
 
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 const WEEKS = 4;
 
 const BALANCE_SOURCE_LABEL: Record<string, string> = {

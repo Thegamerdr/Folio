@@ -72,7 +72,7 @@ import {
   type Pot,
   type PotCadence,
 } from '@/folio/store';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import { type Nav, type Pressure } from '@/folio/types';
 import { Melo, type MeloMood } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
@@ -439,7 +439,7 @@ export function RouteDetailSheet({
 // called conditionally, so it runs against this until `now` is set; that frame's route is discarded
 // (`route = null`) and the sheet keeps the per-pressure sample. Module-level so its identity never
 // churns the hook's memo. Mirrors TodayScreen's mount-gate pattern.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 function RouteDetailBody({
   styles: s,

@@ -95,6 +95,7 @@ import {
 } from '@/folio/store';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
+import { ROUTE_MOUNT_SENTINEL } from '@/folio/lib/storeRoute';
 import { buildTrustedSafeRangeFromAppState } from '@/folio/lib/trustedSafeRange';
 import { safeRangeSnapshotFromResult } from '@/folio/lib/decisionLedger';
 import { StatePanel } from '@/folio/ui/StatePanel';
@@ -274,7 +275,7 @@ export type RecoveryScreenProps = {
 // A stable sentinel "now" for the one render before the mount-gate opens. `routeFromStore` needs an
 // honest "today"; until `now` is set we route against this and discard the figure that frame.
 // Module-level so its identity never churns. (Same pattern as TodayScreen's EPOCH.)
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 // When the real route shows no overspend (tight point ≥ 0) the shortfall is £0 — shown as-is.
 // The web source faked £94 here ("so the screen renders coherently"), but this screen is reachable

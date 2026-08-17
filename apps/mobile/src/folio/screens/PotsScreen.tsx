@@ -141,8 +141,6 @@ const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 // A stable sentinel "now" for the one render before the mount-gate opens. `routeFromStore` needs an
 // honest "today"; until `now` is set we route against this and discard the figure that frame.
 // Module-level so its identity never churns the memo. (Same pattern as TodayScreen / RecoveryScreen.)
-const EPOCH = new Date(0);
-
 // The REAL reallocate impact — replaces the web's "Rough preview only" heuristic (which faked a
 // buffer-only ±round(clamped·0.6) nudge). The lowest balance comes from the shared money-path engine
 // via `routeFromStore`; the delta comes from re-routing a HYPOTHETICAL COPY of the live state with the

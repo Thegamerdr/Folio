@@ -163,7 +163,7 @@ import {
   refreshMeloStage,
   useAppStore,
 } from '@/folio/store';
-import { routeFromStore, useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, routeFromStore, useRoute } from '@/folio/lib/storeRoute';
 import { useLens } from '@/folio/lib/lens';
 import {
   getHydrationOutcome,
@@ -188,7 +188,7 @@ const DEFAULT_PRESSURE: Pressure = 'calm';
 // A stable sentinel "now" for the one render before the shell's pressure mount-gate opens (mirrors
 // TodayScreen's EPOCH). `useRoute` can't be called conditionally, so it runs against this until the
 // real clock is set; that frame's result is discarded and the shell shows DEFAULT_PRESSURE.
-const PRESSURE_EPOCH = new Date(0);
+const PRESSURE_EPOCH = ROUTE_MOUNT_SENTINEL;
 
 // How long after first reaching Today before the onboarding sheet is offered — byte-faithful to the
 // web index (setTimeout 600ms before setSheet('onboarding')).

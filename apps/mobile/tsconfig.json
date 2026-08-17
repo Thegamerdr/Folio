@@ -34,6 +34,7 @@
     "app/**/*.ts",
     "app/**/*.tsx",
     "app.config.ts",
+    "assets/**/*.json",
     "expo-env.d.ts",
     "modules/**/*.ts",
     "modules/**/*.tsx",

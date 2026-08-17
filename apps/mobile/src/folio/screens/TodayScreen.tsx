@@ -89,7 +89,7 @@ import {
   sweepSubOverrides,
   touchOpened,
 } from '@/folio/store';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import {
   buildTrustedSafeRangeFromAppState,
   formatTrustedSafeRangePounds,
@@ -140,7 +140,7 @@ const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 // A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be
 // called conditionally, so it runs against this until `now` is set; the result is discarded
 // (`route = null`) that frame. Module-level so its identity never churns the hook's memo.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 type ScreenState = 'populated' | 'loading' | 'error' | 'offline';
 
@@ -749,11 +749,13 @@ export function TodayScreen({
                 p ? pressed : undefined,
               ]}
             >
-              <Melo
-                size={22}
-                mood={isLoading ? 'curious' : todayPose.mood}
-                asleep={!isLoading && todayPose.asleep}
-              />
+              <MeloCompanionPerch companionSize={48} id="today/header" priority={50}>
+                <Melo
+                  size={44}
+                  mood={isLoading ? 'curious' : todayPose.mood}
+                  asleep={!isLoading && todayPose.asleep}
+                />
+              </MeloCompanionPerch>
             </Pressable>
           </View>
         </View>
@@ -890,7 +892,19 @@ export function TodayScreen({
           </View>
         </MeloCompanionExclusion>
 
-        {safeRange ? <TrustedSafeRangeCard result={safeRange} nav={nav} palette={t} /> : null}
+        {/* The trusted calculation feeds the hero number, while its full evidence stays behind the
+            existing Safe Zone / worked-out-number explanation door. The Lovable authority keeps
+            Today answer-first, so a second full proof card must not displace the money path. */}
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={styles.sectionDivider}
+        >
+          <View style={[styles.sectionDividerRule, { backgroundColor: t.hairline }]} />
+          <MeloCompanionPerch companionSize={48} id="today/section-divider" priority={90}>
+            <View style={[styles.sectionDividerDot, { backgroundColor: t.calm }]} />
+          </MeloCompanionPerch>
+        </View>
 
         {/* Path card — the hero object */}
         <MeloCompanionExclusion id="today/money-path" attentionSalience={1}>
@@ -903,7 +917,23 @@ export function TodayScreen({
           >
             <View style={styles.pathHead}>
               <Text style={[styles.pathEyebrow, { color: t.muted }]}>Your money path</Text>
-              <Text style={[styles.pathRange, { color: t.muted }]}>{activeBand.range}</Text>
+              <View style={styles.pathHeadActions}>
+                <Text style={[styles.pathRange, { color: t.muted }]}>{activeBand.range}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open the day-by-day calendar"
+                  onPress={() => nav.go('calendar')}
+                  style={({ pressed: isPressed }) => [
+                    styles.pathCalendar,
+                    { backgroundColor: t.inset, borderColor: t.hairline },
+                    isPressed ? pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.pathCalendarLabel, { color: t.calmStrong }]}>
+                    Calendar →
+                  </Text>
+                </Pressable>
+              </View>
             </View>
 
             <View
@@ -1240,9 +1270,9 @@ export function TodayScreen({
             p ? pressed : undefined,
           ]}
         >
-          <MeloCompanionPerch companionSize={28} id="today/summary" priority={30}>
+          <MeloCompanionPerch companionSize={48} id="today/summary" priority={30}>
             <Melo
-              size={28}
+              size={44}
               mood={isLoading ? 'curious' : todayPose.mood}
               asleep={!isLoading && todayPose.asleep}
             />
@@ -2183,8 +2213,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   meloButton: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
@@ -2408,6 +2438,26 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
 
+  sectionDivider: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    marginBottom: 4,
+    marginHorizontal: gap.xl,
+    marginTop: gap.sm,
+  },
+  sectionDividerRule: {
+    height: StyleSheet.hairlineWidth,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+  },
+  sectionDividerDot: {
+    borderRadius: 3,
+    height: 6,
+    width: 6,
+  },
+
   safeRangeCard: {
     marginTop: gap.lg,
     marginHorizontal: gap.lg,
@@ -2527,6 +2577,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: gap.sm,
   },
+  pathHeadActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: gap.sm,
+  },
   pathEyebrow: {
     fontSize: 11,
     letterSpacing: 1.4,
@@ -2535,6 +2590,19 @@ const styles = StyleSheet.create({
   pathRange: {
     fontSize: 11,
     fontVariant: ['tabular-nums'],
+  },
+  pathCalendar: {
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
+    minHeight: 28,
+    paddingHorizontal: gap.sm,
+  },
+  pathCalendarLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   svgWrap: {
     width: '100%',

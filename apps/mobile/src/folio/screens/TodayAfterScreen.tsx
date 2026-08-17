@@ -48,7 +48,7 @@ import {
   useCountUp,
   useTheme,
 } from '@/folio/theme';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import { useAppStore } from '@/folio/store';
 import type { RoutePoint } from '@/folio/lib/moneyPath';
 import { Melo } from '@/folio/melo/Melo';
@@ -186,7 +186,7 @@ function previewGeometry(points: readonly RoutePoint[]): PreviewGeometry {
 // A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be called
 // conditionally, so it runs against this until `now` is set; that frame's result is discarded (the
 // screen holds the loading affordance). Module-level so its identity never churns the hook's memo.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 /** STATES.md branch. 'populated' (the only designed layout) · 'loading' (route-draw into populated —
  *  Melo curious + line, never a spinner) · 'error' / 'empty' (no in-screen UI — the contract is

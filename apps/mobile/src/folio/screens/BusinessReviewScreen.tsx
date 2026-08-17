@@ -58,8 +58,8 @@ export function BusinessReviewScreen({ nav }: { nav: Nav }) {
 
         {queueCount === 0 ? (
           <View style={[styles.empty, { backgroundColor: t.inset }]}>
-            <MeloCompanionPerch companionSize={34} id="business-review/empty" priority={30}>
-              <Melo mood="calm" size={34} />
+            <MeloCompanionPerch companionSize={48} id="business-review/empty" priority={30}>
+              <Melo mood="calm" size={44} />
             </MeloCompanionPerch>
             <View style={styles.emptyCopy}>
               <Text style={[styles.emptyTitle, { color: t.ink }]}>Nothing waiting.</Text>

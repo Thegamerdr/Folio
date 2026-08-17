@@ -86,7 +86,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useAppStore } from '@/folio/store';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import type { Nav } from '@/folio/types';
 
@@ -166,7 +166,7 @@ const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 // A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be called
 // conditionally, so it runs against this until `now` is set; the result is discarded (`route = null`)
 // that frame. Module-level so its identity never churns the hook's memo. Mirrors TodayScreen.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 const MONTH_SHORT = [
   'Jan',

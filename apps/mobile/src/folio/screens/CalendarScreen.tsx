@@ -110,7 +110,7 @@ import {
   previewSubNudge,
   type DerivedEvent,
 } from '@/folio/lib/calendarEvents';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import {
   calendarDefaultAnchor,
@@ -148,7 +148,7 @@ const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 // A stable sentinel "now" for the one frame before the mount-gate opens. `useRoute` can't be called
 // conditionally, so it runs against this until `today` is set; the result is discarded (`route = null`)
 // that frame. Module-level so its identity never churns the hook's memo. Mirrors TodayScreen.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 // The legend / dot vocabulary. KIND_DOT resolves a kind to a palette colour at render time (it takes
 // the active palette, because an SVG-free coloured dot still needs a theme colour, not a class).

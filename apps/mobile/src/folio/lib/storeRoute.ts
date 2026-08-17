@@ -52,6 +52,15 @@ const DEFAULT_PAYDAY_DOM = 25;
  *  after payday (next month's start-of-month bills) is in BOTH or neither. */
 const ROUTE_WINDOW_DAYS = 35;
 
+/**
+ * Stable, policy-covered date used only during the single pre-mount render of route consumers.
+ *
+ * The old `new Date(0)` sentinel resolved to 1970 and therefore crashed before the mount effect
+ * could install the real clock: the deliberately strict 2024–2035 bank-holiday policy rejected it.
+ * Consumers discard the route produced for this frame, but the calculation must still be valid.
+ */
+export const ROUTE_MOUNT_SENTINEL = new Date('2024-06-15T12:00:00.000Z');
+
 // --- Date helpers ----------------------------------------------------------------------------
 // `routeFromStore` resolves a Date through the active data workspace's explicit IANA timezone.
 // Calendar derivation still receives UTC midnight of that resolved date because its Date inputs are

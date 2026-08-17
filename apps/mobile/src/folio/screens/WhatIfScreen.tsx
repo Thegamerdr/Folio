@@ -69,7 +69,7 @@ import {
   type Transaction,
   type WhatIfHold,
 } from '@/folio/store';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, useRoute } from '@/folio/lib/storeRoute';
 import { buildTrustedSafeRangeFromAppState } from '@/folio/lib/trustedSafeRange';
 import { safeRangeSnapshotFromResult } from '@/folio/lib/decisionLedger';
 import { buildDecisionScenarioComparison } from '@/folio/lib/criticalJourneys';
@@ -265,7 +265,7 @@ const MINUS = '−';
 // conditionally, so it runs against this until `now` is set; that frame's result is discarded (baseLow
 // falls back to pressureLow[pressure]). Module-level so its identity never churns the hook's memo.
 // Mirrors TodayScreen's EPOCH exactly.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 // DAY_MS for the trailing-window cut-off (local-clock millisecond subtraction; consistent with the
 // transaction `when` ISO timestamps the burn-rate averages over).

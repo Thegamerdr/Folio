@@ -93,8 +93,8 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
                 isPressed ? pressed : undefined,
               ]}
             >
-              <MeloCompanionPerch companionSize={24} id="business-today/header" priority={30}>
-                <Melo mood={runwayPose.mood} asleep={runwayPose.asleep} size={24} />
+              <MeloCompanionPerch companionSize={48} id="business-today/header" priority={30}>
+                <Melo mood={runwayPose.mood} asleep={runwayPose.asleep} size={44} />
               </MeloCompanionPerch>
             </Pressable>
           </View>
@@ -311,9 +311,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
-    height: 40,
+    height: 48,
     justifyContent: 'center',
-    width: 40,
+    width: 48,
   },
   hero: { marginTop: gap.lg },
   eyebrow: { fontFamily: serif.displayItalic, fontSize: 13 },

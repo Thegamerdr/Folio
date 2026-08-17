@@ -65,7 +65,7 @@ import {
   useAppStore,
 } from '@/folio/store';
 import { elevation, gap, type Palette, radius, serif, useCountUp, useTheme } from '@/folio/theme';
-import { routeFromStore, useRoute } from '@/folio/lib/storeRoute';
+import { ROUTE_MOUNT_SENTINEL, routeFromStore, useRoute } from '@/folio/lib/storeRoute';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { MeloReaction } from '@/folio/ui/MeloReaction';
@@ -88,7 +88,7 @@ function formatDayProse(iso: string): string {
 // called conditionally, so it runs against this until `now` is set; the result is discarded
 // (`route === null`) that frame. Module-level so its identity never churns the hook's memo —
 // exactly the pattern TodayScreen uses.
-const EPOCH = new Date(0);
+const EPOCH = ROUTE_MOUNT_SENTINEL;
 
 // The web's tight-day spare is rounded and floored at zero (computeSpareAndTightest →
 // Math.max(0, Math.round(...))). The money-path engine's `tightPoint.amount` is the same low-point
