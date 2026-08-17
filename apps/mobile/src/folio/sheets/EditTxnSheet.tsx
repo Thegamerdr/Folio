@@ -70,8 +70,15 @@ import {
   attachEvidenceDocumentToTransaction,
   detachEvidenceDocumentFromTransaction,
   editTransaction,
+  linkOwnAccountTransfer,
+  recordTransactionRefund,
+  recordTransactionReversal,
   rememberMerchantCategory,
+  removeTransaction,
   removeEvidenceDocument,
+  setTransactionLifecycle,
+  setTransactionSplits,
+  unlinkOwnAccountTransfer,
   useAppStore,
   type Transaction,
 } from '@/folio/store';
@@ -97,6 +104,15 @@ import {
 } from '@/folio/lib/evidencePicker';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import { deleteOwnedPickerStage } from '@/folio/lib/pickerCache';
+import {
+  outstandingRefundAmount,
+  ownTransferCandidates,
+  relatedTransactions,
+} from '@/folio/lib/transactionDetail';
+import {
+  isCashEffectiveTransaction,
+  transactionLifecycleStatusOf,
+} from '@/folio/lib/transactionPolicy';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -227,7 +243,7 @@ export function EditTxnSheet({ visible, onClose, target }: EditTxnSheetProps) {
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
       {txn ? (
-        <EditTxnForm styles={s} palette={t} onClose={onClose} txn={txn} />
+        <EditTxnForm key={txn.id} styles={s} palette={t} onClose={onClose} txn={txn} />
       ) : (
         <InertFallback styles={s} palette={t} onClose={onClose} />
       )}
@@ -271,6 +287,24 @@ function EditTxnForm({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [attachingEvidence, setAttachingEvidence] = useState(false);
+  const [splitOpen, setSplitOpen] = useState((txn.splits?.length ?? 0) > 0);
+  const [splitFirstAmount, setSplitFirstAmount] = useState(
+    Math.abs(txn.splits?.[0]?.amount ?? txn.amount / 2).toFixed(2),
+  );
+  const [splitFirstCategory, setSplitFirstCategory] = useState<Transaction['category']>(
+    txn.splits?.[0]?.category ?? txn.category,
+  );
+  const [splitSecondCategory, setSplitSecondCategory] = useState<Transaction['category']>(
+    txn.splits?.[1]?.category ?? 'other',
+  );
+  const transactions = useAppStore((state) => state.transactions);
+  const refundable = useMemo(() => outstandingRefundAmount(txn, transactions), [transactions, txn]);
+  const [refundAmount, setRefundAmount] = useState(refundable > 0 ? refundable.toFixed(2) : '');
+  const transferCandidates = useMemo(
+    () => ownTransferCandidates(txn, transactions),
+    [transactions, txn],
+  );
+  const relationships = useMemo(() => relatedTransactions(txn, transactions), [transactions, txn]);
   const accountName = useAppStore((state) => {
     const id = accountIdOf(txn);
     return state.accounts?.find((account) => account.id === id)?.name ?? 'Main';
@@ -306,6 +340,19 @@ function EditTxnForm({
   const { showUndo } = useUndo();
 
   const title = `${txn.merchant} · ${monthDay(txn.when)}`.replace(/ · $/, '');
+  const lifecycleStatus = transactionLifecycleStatusOf(txn);
+  const splitFirstMagnitude = Number(splitFirstAmount.replace(/[^0-9.]/gu, '')) || 0;
+  const splitSecondMagnitude = Math.max(
+    0,
+    Math.round((Math.abs(txn.amount) - splitFirstMagnitude) * 100) / 100,
+  );
+  const hasReversal = transactions.some((candidate) => candidate.reversalOfId === txn.id);
+  const canReverse =
+    isCashEffectiveTransaction(txn) &&
+    txn.moneyMovementKind !== 'transfer' &&
+    txn.moneyMovementKind !== 'refund' &&
+    txn.reversalOfId === undefined &&
+    !hasReversal;
 
   // The preview and the commit share one normalized patch. Empty merchant input falls back to the
   // current merchant; an invalid amount falls back to the current amount. Neither can fabricate an
@@ -448,6 +495,138 @@ function EditTxnForm({
           style: 'destructive',
           onPress: () => {
             detachEvidenceDocumentFromTransaction(document.id, txn.id);
+          },
+        },
+      ],
+    );
+  }
+
+  function saveSplit() {
+    const firstMagnitude = Number(splitFirstAmount.replace(/[^0-9.]/gu, ''));
+    const totalMagnitude = Math.abs(txn.amount);
+    if (
+      !Number.isFinite(firstMagnitude) ||
+      firstMagnitude <= 0 ||
+      firstMagnitude >= totalMagnitude
+    ) {
+      Alert.alert(
+        'Check the split',
+        'The first part must be greater than zero and below the total.',
+      );
+      return;
+    }
+    const sign = txn.amount < 0 ? -1 : 1;
+    const first = Math.round(firstMagnitude * 100) / 100;
+    const second = Math.round((totalMagnitude - first) * 100) / 100;
+    const previous = txn.splits ?? [];
+    try {
+      setTransactionSplits(txn.id, [
+        {
+          id: previous[0]?.id ?? `${txn.id}-split-1`,
+          label: CATEGORY_LABEL[splitFirstCategory],
+          amount: sign * first,
+          category: splitFirstCategory,
+        },
+        {
+          id: previous[1]?.id ?? `${txn.id}-split-2`,
+          label: CATEGORY_LABEL[splitSecondCategory],
+          amount: sign * second,
+          category: splitSecondCategory,
+        },
+      ]);
+      void triggerFeedback('transaction-corrected');
+      showUndo('Split saved', () => setTransactionSplits(txn.id, previous));
+    } catch (reason: unknown) {
+      Alert.alert('Could not save split', reason instanceof Error ? reason.message : 'Retry.');
+    }
+  }
+
+  function removeSplit() {
+    const previous = txn.splits ?? [];
+    setTransactionSplits(txn.id, []);
+    setSplitOpen(false);
+    showUndo('Split removed', () => setTransactionSplits(txn.id, previous));
+  }
+
+  function confirmRefund() {
+    const amount = Number(refundAmount.replace(/[^0-9.]/gu, ''));
+    if (!Number.isFinite(amount) || amount <= 0 || amount > refundable) {
+      Alert.alert('Check the refund', `Enter an amount up to £${refundable.toFixed(2)}.`);
+      return;
+    }
+    Alert.alert('Record this refund?', `£${amount.toFixed(2)} will be linked to ${txn.merchant}.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Record refund',
+        onPress: () => {
+          const created = recordTransactionRefund(txn.id, amount);
+          void triggerFeedback('transaction-corrected');
+          showUndo('Refund recorded', () => removeTransaction(created.id));
+        },
+      },
+    ]);
+  }
+
+  function confirmTransfer(candidate: Transaction) {
+    Alert.alert(
+      'Link as your transfer?',
+      `${txn.merchant} and ${candidate.merchant} will stop counting as spend or income.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Link transfer',
+          onPress: () => {
+            const [debit, credit] = txn.amount < 0 ? [txn, candidate] : [candidate, txn];
+            const [linked] = linkOwnAccountTransfer(debit.id, credit.id);
+            void triggerFeedback('transaction-corrected');
+            showUndo('Transfer linked', () => unlinkOwnAccountTransfer(linked.transferLinkId!));
+          },
+        },
+      ],
+    );
+  }
+
+  function confirmReversal() {
+    Alert.alert(
+      'Record a full reversal?',
+      'The original remains in the audit trail and nets to zero.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Record reversal',
+          onPress: () => {
+            const created = recordTransactionReversal(txn.id);
+            void triggerFeedback('transaction-corrected');
+            showUndo('Reversal recorded', () => removeTransaction(created.id));
+          },
+        },
+      ],
+    );
+  }
+
+  function toggleVoid() {
+    const status = transactionLifecycleStatusOf(txn);
+    const restoring = status === 'void';
+    Alert.alert(
+      restoring ? 'Restore this record?' : 'Void this record?',
+      restoring
+        ? 'It will count in balances and insights.'
+        : 'It stays visible for audit, but stops counting in balances and insights.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: restoring ? 'Restore' : 'Void record',
+          style: restoring ? 'default' : 'destructive',
+          onPress: () => {
+            setTransactionLifecycle(txn.id, restoring ? 'posted' : 'void', {
+              ...(restoring ? {} : { reason: 'user-voided' as const }),
+            });
+            void triggerFeedback('transaction-corrected');
+            showUndo(restoring ? 'Record restored' : 'Record voided', () =>
+              setTransactionLifecycle(txn.id, status, {
+                ...(txn.lifecycleReason === undefined ? {} : { reason: txn.lifecycleReason }),
+              }),
+            );
           },
         },
       ],
@@ -708,13 +887,217 @@ function EditTxnForm({
             </View>
           </View>
 
+          <View style={s.detailBlock}>
+            <Text style={s.categoryLabel}>Record truth</Text>
+            <View style={s.detailCard}>
+              <View style={s.detailLine}>
+                <Text style={s.detailKey}>Status</Text>
+                <Text style={s.detailValue}>{lifecycleStatus}</Text>
+              </View>
+              <View style={s.detailLine}>
+                <Text style={s.detailKey}>Source</Text>
+                <Text style={s.detailValue}>{txn.source}</Text>
+              </View>
+              <View style={s.detailLine}>
+                <Text style={s.detailKey}>Kind</Text>
+                <Text style={s.detailValue}>{txn.moneyMovementKind ?? 'ordinary'}</Text>
+              </View>
+            </View>
+          </View>
+
+          {txn.moneyMovementKind !== 'transfer' &&
+          txn.moneyMovementKind !== 'refund' &&
+          txn.reversalOfId === undefined &&
+          isCashEffectiveTransaction(txn) ? (
+            <View style={s.detailBlock}>
+              <Text style={s.categoryLabel}>Split</Text>
+              {splitOpen ? (
+                <View style={s.detailCard}>
+                  <View style={s.fieldRowFlat}>
+                    <Text style={s.detailKey}>First part</Text>
+                    <View style={s.amountInputWrap}>
+                      <Text style={s.amountPrefix}>£</Text>
+                      <TextInput
+                        accessibilityLabel="First split amount"
+                        keyboardType="decimal-pad"
+                        onChangeText={setSplitFirstAmount}
+                        style={s.amountInput}
+                        value={splitFirstAmount}
+                      />
+                    </View>
+                  </View>
+                  <View style={s.splitCategories}>
+                    {CATEGORY_ORDER.map((candidate) => (
+                      <Pressable
+                        key={`first-${candidate}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: candidate === splitFirstCategory }}
+                        onPress={() => setSplitFirstCategory(candidate)}
+                        style={[
+                          s.catChip,
+                          candidate === splitFirstCategory ? s.catChipOn : undefined,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            s.catChipLabel,
+                            candidate === splitFirstCategory ? s.catChipLabelOn : undefined,
+                          ]}
+                        >
+                          {CATEGORY_LABEL[candidate]}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={s.fieldRowFlat}>
+                    <Text style={s.detailKey}>Remainder</Text>
+                    <Text style={s.detailValue}>£{splitSecondMagnitude.toFixed(2)}</Text>
+                  </View>
+                  <View style={s.splitCategories}>
+                    {CATEGORY_ORDER.map((candidate) => (
+                      <Pressable
+                        key={`second-${candidate}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: candidate === splitSecondCategory }}
+                        onPress={() => setSplitSecondCategory(candidate)}
+                        style={[
+                          s.catChip,
+                          candidate === splitSecondCategory ? s.catChipOn : undefined,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            s.catChipLabel,
+                            candidate === splitSecondCategory ? s.catChipLabelOn : undefined,
+                          ]}
+                        >
+                          {CATEGORY_LABEL[candidate]}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={s.inlineActions}>
+                    <Pressable accessibilityRole="button" onPress={saveSplit} style={s.smallAction}>
+                      <Text style={s.smallActionLabel}>Save split</Text>
+                    </Pressable>
+                    {txn.splits?.length ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={removeSplit}
+                        style={s.smallAction}
+                      >
+                        <Text style={s.destructiveActionLabel}>Remove split</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setSplitOpen(true)}
+                  style={s.actionRow}
+                >
+                  <Text style={s.actionLabel}>Split this transaction</Text>
+                </Pressable>
+              )}
+            </View>
+          ) : null}
+
+          {refundable > 0 ? (
+            <View style={s.detailBlock}>
+              <Text style={s.categoryLabel}>Refund</Text>
+              <View style={s.detailCard}>
+                <Text style={s.detailHelp}>Up to £{refundable.toFixed(2)} remains refundable.</Text>
+                <View style={s.fieldRowFlat}>
+                  <Text style={s.detailKey}>Amount</Text>
+                  <View style={s.amountInputWrap}>
+                    <Text style={s.amountPrefix}>£</Text>
+                    <TextInput
+                      accessibilityLabel="Refund amount"
+                      keyboardType="decimal-pad"
+                      onChangeText={setRefundAmount}
+                      style={s.amountInput}
+                      value={refundAmount}
+                    />
+                  </View>
+                </View>
+                <Pressable accessibilityRole="button" onPress={confirmRefund} style={s.actionRow}>
+                  <Text style={s.actionLabel}>Record linked refund</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          {transferCandidates.length > 0 ? (
+            <View style={s.detailBlock}>
+              <Text style={s.categoryLabel}>Possible own-account transfer</Text>
+              {transferCandidates.slice(0, 3).map((candidate) => (
+                <Pressable
+                  key={candidate.id}
+                  accessibilityLabel={`Link ${candidate.merchant} as the other transfer leg`}
+                  accessibilityRole="button"
+                  onPress={() => confirmTransfer(candidate)}
+                  style={s.actionRow}
+                >
+                  <Text style={s.actionLabel}>{candidate.merchant}</Text>
+                  <Text style={s.detailValue}>£{Math.abs(candidate.amount).toFixed(2)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {relationships.length > 0 ? (
+            <View style={s.detailBlock}>
+              <Text style={s.categoryLabel}>Linked records</Text>
+              {relationships.map(({ relation, transaction }) => (
+                <View key={`${relation}-${transaction.id}`} style={s.detailCardRow}>
+                  <View style={s.relationshipCopy}>
+                    <Text style={s.detailKey}>{relation}</Text>
+                    <Text numberOfLines={1} style={s.actionLabel}>
+                      {transaction.merchant}
+                    </Text>
+                  </View>
+                  <Text style={s.detailValue}>
+                    {transaction.amount < 0 ? '−' : '+'}£{Math.abs(transaction.amount).toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <View style={s.detailBlock}>
+            <Text style={s.categoryLabel}>Record actions</Text>
+            {canReverse ? (
+              <Pressable accessibilityRole="button" onPress={confirmReversal} style={s.actionRow}>
+                <Text style={s.actionLabel}>Record full reversal</Text>
+              </Pressable>
+            ) : null}
+            <Pressable accessibilityRole="button" onPress={toggleVoid} style={s.actionRow}>
+              <Text style={lifecycleStatus === 'void' ? s.actionLabel : s.destructiveActionLabel}>
+                {lifecycleStatus === 'void' ? 'Restore record' : 'Void record'}
+              </Text>
+            </Pressable>
+          </View>
+
           {corrections.length > 0 ? (
             <View style={s.historyBlock}>
               <Text style={s.categoryLabel}>Correction history</Text>
-              <Text style={s.historyLine}>
-                {corrections.length} {corrections.length === 1 ? 'change' : 'changes'} kept with
-                this transaction.
-              </Text>
+              {corrections
+                .slice()
+                .reverse()
+                .map((correction) => (
+                  <View key={correction.id} style={s.historyEntry}>
+                    <Text style={s.detailKey}>{correction.field}</Text>
+                    <Text style={s.historyLine}>
+                      {String(correction.before ?? 'Not set')} →{' '}
+                      {String(correction.after ?? 'Not set')}
+                    </Text>
+                    <Text style={s.historyMeta}>
+                      {correction.by === 'melo' ? 'Melo' : 'You'} ·{' '}
+                      {new Date(correction.at).toLocaleString('en-GB')}
+                    </Text>
+                  </View>
+                ))}
             </View>
           ) : null}
         </>
@@ -1005,11 +1388,129 @@ function makeStyles(t: Palette) {
     historyBlock: {
       marginTop: gap.lg,
     },
+    detailBlock: {
+      marginTop: gap.lg,
+    },
+    detailCard: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      padding: gap.md,
+      rowGap: gap.sm,
+    },
+    detailCardRow: {
+      alignItems: 'center',
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: gap.sm,
+      minHeight: 58,
+      paddingHorizontal: gap.md,
+      paddingVertical: gap.sm,
+    },
+    detailLine: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      minHeight: 28,
+    },
+    fieldRowFlat: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      minHeight: 42,
+    },
+    detailKey: {
+      color: t.muted,
+      fontSize: 11,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    detailValue: {
+      color: t.ink,
+      fontSize: 13,
+      fontWeight: '600',
+      textTransform: 'capitalize',
+    },
+    detailHelp: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    splitCategories: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: gap.xs,
+    },
+    inlineActions: {
+      flexDirection: 'row',
+      gap: gap.sm,
+      marginTop: gap.xs,
+    },
+    smallAction: {
+      alignItems: 'center',
+      backgroundColor: t.inset,
+      borderRadius: radius.md,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: gap.sm,
+    },
+    smallActionLabel: {
+      color: t.ink,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    actionRow: {
+      alignItems: 'center',
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: gap.sm,
+      minHeight: 48,
+      paddingHorizontal: gap.md,
+    },
+    actionLabel: {
+      color: t.ink,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    destructiveActionLabel: {
+      color: t.repairInk,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    relationshipCopy: {
+      flex: 1,
+      marginRight: gap.sm,
+      rowGap: 3,
+    },
+    historyEntry: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      marginBottom: gap.sm,
+      padding: gap.md,
+      rowGap: 4,
+    },
     historyLine: {
       color: t.muted,
       fontFamily: serif.displayItalic,
       fontSize: 12,
       lineHeight: 17,
+    },
+    historyMeta: {
+      color: t.muted,
+      fontSize: 10.5,
     },
     reviewBlock: {
       marginTop: gap.lg + gap.xs,

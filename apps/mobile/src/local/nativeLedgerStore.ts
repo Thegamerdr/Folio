@@ -718,6 +718,7 @@ async function saveNormalizedLedgerState(
           replacedById: transaction.replacedById ?? null,
           manuallyCorrectedAt: transaction.manuallyCorrectedAt ?? null,
           providerUpdatedAt: transaction.providerUpdatedAt ?? null,
+          splits: transaction.splits ?? [],
         }),
       ],
     );
@@ -926,6 +927,23 @@ function parseTransactionLifecycle(value: unknown): Partial<LocalLedgerTransacti
       typeof parsed[key] === 'string' ? (parsed[key] as string) : undefined;
     const movement = parsed['moneyMovementKind'];
     const reason = parsed['lifecycleReason'];
+    const rawSplits = parsed['splits'];
+    const splits = Array.isArray(rawSplits)
+      ? rawSplits.flatMap((candidate) => {
+          if (!isRecord(candidate)) return [];
+          const id = candidate['id'];
+          const label = candidate['label'];
+          const amountMinor = candidate['amountMinor'];
+          const categoryId = candidate['categoryId'];
+          return typeof id === 'string' &&
+            typeof label === 'string' &&
+            typeof amountMinor === 'number' &&
+            Number.isInteger(amountMinor) &&
+            typeof categoryId === 'string'
+            ? [{ id, label, amountMinor, categoryId }]
+            : [];
+        })
+      : [];
     return {
       lifecycleStatus,
       ...(reason === 'declined' ||
@@ -947,6 +965,7 @@ function parseTransactionLifecycle(value: unknown): Partial<LocalLedgerTransacti
       ...(text('replacedById') ? { replacedById: text('replacedById')! } : {}),
       ...(text('manuallyCorrectedAt') ? { manuallyCorrectedAt: text('manuallyCorrectedAt')! } : {}),
       ...(text('providerUpdatedAt') ? { providerUpdatedAt: text('providerUpdatedAt')! } : {}),
+      ...(splits.length > 0 ? { splits } : {}),
     };
   } catch {
     return { lifecycleStatus: 'posted' };

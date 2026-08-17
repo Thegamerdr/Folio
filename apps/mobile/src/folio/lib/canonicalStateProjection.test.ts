@@ -70,6 +70,10 @@ describe('canonical AppState projection', () => {
           category: 'food',
           source: 'bank',
           accountId: DEFAULT_ACCOUNT_ID,
+          splits: [
+            { id: 'groceries', label: 'Groceries', amount: -8, category: 'food' },
+            { id: 'household', label: 'Household', amount: -2.25, category: 'shopping' },
+          ],
         },
         {
           id: 'card-row',
@@ -123,7 +127,10 @@ describe('canonical AppState projection', () => {
           sourceTransactionId: 'bank-row',
           sourceOrdinal: 0,
           bookedAt: '2026-07-16T08:00:00.000Z',
-          splits: [expect.objectContaining({ categoryId: 'food' })],
+          splits: [
+            expect.objectContaining({ categoryId: 'food', sourceSplitId: 'groceries' }),
+            expect.objectContaining({ categoryId: 'shopping', sourceSplitId: 'household' }),
+          ],
         }),
         expect.objectContaining({
           accountId: cardId,

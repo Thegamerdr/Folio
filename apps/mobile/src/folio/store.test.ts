@@ -62,6 +62,7 @@ import {
   isRealUser,
   logDebtPayment,
   linkOwnAccountTransfer,
+  unlinkOwnAccountTransfer,
   markTransactionDeclined,
   markTransactionDuplicate,
   matchMeloTool,
@@ -104,6 +105,8 @@ import {
   startLensTrial,
   setReaderCandidates,
   setReaderClosingBalance,
+  setTransactionLifecycle,
+  setTransactionSplits,
   setTightPointGoal,
   sweepReviewQueue,
   sweepAutoResumeNow,
@@ -4021,6 +4024,42 @@ describe('merchantCategories', () => {
 // Transaction lifecycle — pending/void/reversal/transfer/refund/provider correction truth.
 // ---------------------------------------------------------------------------
 describe('transaction lifecycle truth', () => {
+  it('stores exact transaction splits without changing the parent amount and keeps an audit record', () => {
+    resetToEmpty();
+    const transaction = addTransaction({
+      id: 'split-me',
+      merchant: 'Supermarket',
+      amount: -42,
+      category: 'food',
+      source: 'manual',
+    });
+
+    setTransactionSplits(
+      transaction.id,
+      [
+        { id: 'split-food', label: 'Groceries', amount: -30, category: 'food' },
+        { id: 'split-home', label: 'Household', amount: -12, category: 'shopping' },
+      ],
+      { at: '2026-08-03T12:00:00.000Z' },
+    );
+
+    expect(getState().transactions[0]).toMatchObject({
+      id: 'split-me',
+      amount: -42,
+      splits: [
+        { id: 'split-food', label: 'Groceries', amount: -30, category: 'food' },
+        { id: 'split-home', label: 'Household', amount: -12, category: 'shopping' },
+      ],
+    });
+    expect(getState().edits?.at(-1)).toMatchObject({
+      txnId: 'split-me',
+      field: 'splits',
+      before: 'Not split',
+      after: 'Groceries: -30.00 (food) | Household: -12.00 (shopping)',
+    });
+    expect(bankAnalyticsTransactions(getState()).map((row) => row.amount)).toEqual([-42]);
+  });
+
   it('migrates legacy rows to posted without changing the financial record', () => {
     resetToEmpty();
     const legacy = addTransaction({
@@ -4149,6 +4188,46 @@ describe('transaction lifecycle truth', () => {
 
     expect(bankTransactions(getState())).toHaveLength(2);
     expect(bankAnalyticsTransactions(getState())).toEqual([]);
+
+    unlinkOwnAccountTransfer('own-transfer-1');
+    expect(
+      getState().transactions.filter((transaction) => transaction.transferLinkId !== undefined),
+    ).toEqual([]);
+    expect(bankAnalyticsTransactions(getState()).map(({ id }) => id)).toEqual([
+      credit.id,
+      debit.id,
+    ]);
+  });
+
+  it('clears an old lifecycle reason when a void record is restored and audits the change', () => {
+    resetToEmpty();
+    const row = addTransaction({
+      id: 'void-restore',
+      merchant: 'Correction',
+      amount: -10,
+      category: 'other',
+      source: 'manual',
+    });
+    setTransactionLifecycle(row.id, 'void', {
+      reason: 'user-voided',
+      at: '2026-08-04T10:00:00.000Z',
+    });
+    setTransactionLifecycle(row.id, 'posted', { at: '2026-08-04T10:01:00.000Z' });
+
+    expect(getState().transactions.find((transaction) => transaction.id === row.id)).toMatchObject({
+      lifecycleStatus: 'posted',
+    });
+    expect(
+      getState().transactions.find((transaction) => transaction.id === row.id)?.lifecycleReason,
+    ).toBeUndefined();
+    expect(
+      getState()
+        .edits?.slice(-2)
+        .map(({ field, before, after }) => ({ field, before, after })),
+    ).toEqual([
+      { field: 'lifecycle', before: 'posted', after: 'void' },
+      { field: 'lifecycle', before: 'void', after: 'posted' },
+    ]);
   });
 
   it('reconciles a stable provider ID from pending to posted without overwriting a newer manual correction', () => {

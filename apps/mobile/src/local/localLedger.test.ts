@@ -103,6 +103,38 @@ describe('mobile local ledger state', () => {
     ).toEqual([{ ...base, id: 'purchase', title: 'Shop', amountMinor: -3_500 }]);
   });
 
+  it('omits stale split allocation from a partially refunded analytics row', () => {
+    const base = {
+      date: '2026-08-10',
+      source: 'open_banking' as const,
+      status: 'confirmed' as const,
+      protected: false,
+    };
+    const rows = localAnalyticsTransactions([
+      {
+        ...base,
+        id: 'split-purchase',
+        title: 'Market',
+        amountMinor: -5_000,
+        splits: [
+          { id: 'food', label: 'Food', amountMinor: -3_000, categoryId: 'food' },
+          { id: 'home', label: 'Home', amountMinor: -2_000, categoryId: 'shopping' },
+        ],
+      },
+      {
+        ...base,
+        id: 'split-refund',
+        title: 'Market refund',
+        amountMinor: 1_500,
+        moneyMovementKind: 'refund' as const,
+        refundOfId: 'split-purchase',
+      },
+    ]);
+
+    expect(rows).toEqual([expect.objectContaining({ id: 'split-purchase', amountMinor: -3_500 })]);
+    expect(rows[0]).not.toHaveProperty('splits');
+  });
+
   it('starts from a route that Melo can answer from without cloud state', () => {
     const state = createInitialLocalLedgerState();
     const route = buildLocalRouteSummary(state);

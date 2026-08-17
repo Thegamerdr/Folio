@@ -2070,16 +2070,29 @@ function createTransactionProjection(
         certainty: authorityState,
         reviewStatus: transaction.status === 'confirmed' ? 'accepted' : 'needs_review',
         splits:
-          transaction.categoryId === undefined
-            ? []
-            : [
+          transaction.splits !== undefined && transaction.splits.length > 0
+            ? transaction.splits.map((split) =>
                 createTransactionSplit({
-                  id: canonicalId('split', `${transaction.id}_${transaction.categoryId}`),
-                  amount,
-                  label: transaction.title,
-                  categoryId: transaction.categoryId,
+                  id: canonicalId('split', `${transaction.id}_${split.id}`),
+                  amount: createMoney({
+                    minorUnits: split.amountMinor,
+                    currency: context.currency,
+                  }),
+                  label: split.label,
+                  categoryId: split.categoryId,
+                  sourceSplitId: split.id,
                 }),
-              ],
+              )
+            : transaction.categoryId === undefined
+              ? []
+              : [
+                  createTransactionSplit({
+                    id: canonicalId('split', `${transaction.id}_${transaction.categoryId}`),
+                    amount,
+                    label: transaction.title,
+                    categoryId: transaction.categoryId,
+                  }),
+                ],
         version: context.version,
         bookedAt:
           transaction.bookedAt === undefined

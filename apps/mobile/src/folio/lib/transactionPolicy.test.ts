@@ -67,6 +67,28 @@ describe('transaction lifecycle policy', () => {
     expect(transactionAnalyticsRows([refund])).toEqual([]);
   });
 
+  it('does not pretend a partial refund has been allocated across source splits', () => {
+    const original = {
+      ...row({ id: 'split-spend', amount: -100 }),
+      splits: [
+        { id: 'food', amount: -60 },
+        { id: 'home', amount: -40 },
+      ],
+    };
+    const refund = row({
+      id: 'split-refund',
+      amount: 25,
+      moneyMovementKind: 'refund',
+      refundOfId: original.id,
+    });
+
+    expect(transactionAnalyticsRows([original, refund])).toEqual([
+      expect.objectContaining({ id: original.id, amount: -75 }),
+    ]);
+    expect(transactionAnalyticsRows([original, refund])[0]).not.toHaveProperty('splits');
+    expect(original.splits).toHaveLength(2);
+  });
+
   it('nets a full reversal without erasing the auditable rows', () => {
     const rows = [
       row({ id: 'original', amount: -42 }),

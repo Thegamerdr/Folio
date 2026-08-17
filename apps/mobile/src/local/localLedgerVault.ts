@@ -68,6 +68,7 @@ export function createLocalLedgerDataVersion(state: LocalLedgerState): string {
       replacedById: transaction.replacedById ?? null,
       manuallyCorrectedAt: transaction.manuallyCorrectedAt ?? null,
       providerUpdatedAt: transaction.providerUpdatedAt ?? null,
+      splits: transaction.splits ?? null,
     })),
     importDrafts: state.importDrafts.map((draft) => ({
       rowId: draft.rowId,
@@ -145,6 +146,7 @@ export function createLocalLedgerPortableVault(
           protected_in_route: transaction.protected,
           original: transaction.original ?? null,
           provenance_hash: transaction.provenanceHash ?? null,
+          splits_json: JSON.stringify(transaction.splits ?? []),
         })),
       ),
       createLocalVaultTable(

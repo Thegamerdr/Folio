@@ -106,7 +106,14 @@ export function transactionAnalyticsRows<T extends TransactionPolicyInput>(
         : transaction.amount > 0
           ? Math.max(0, adjusted)
           : 0;
-    return bounded === 0 ? [] : [{ ...transaction, amount: bounded }];
+    if (bounded === 0) return [];
+    // A linked partial refund changes the realised parent amount, but there is no truthful basis for
+    // guessing which user-authored split absorbed it. Do not expose a stale split total on the
+    // analytics projection; the immutable source transaction still retains the original breakdown.
+    const { splits: _sourceSplits, ...withoutSplits } = transaction as T & {
+      splits?: unknown;
+    };
+    return [{ ...withoutSplits, amount: bounded } as T];
   });
 }
 

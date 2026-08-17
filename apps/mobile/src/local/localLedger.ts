@@ -66,6 +66,12 @@ export type LocalLedgerTransaction = Readonly<{
   replacedById?: string;
   manuallyCorrectedAt?: string;
   providerUpdatedAt?: string;
+  splits?: readonly Readonly<{
+    id: string;
+    label: string;
+    amountMinor: number;
+    categoryId: string;
+  }>[];
   protected: boolean;
   original?: string;
   provenanceHash?: string;
@@ -132,7 +138,11 @@ export function localAnalyticsTransactions<T extends LocalLedgerTransaction>(
         : transaction.amountMinor > 0
           ? Math.max(0, adjusted)
           : 0;
-    return bounded === 0 ? [] : [{ ...transaction, amountMinor: bounded }];
+    if (bounded === 0) return [];
+    // A partial refund cannot be allocated across the user's source splits without inventing data.
+    // Keep the split truth on the immutable ledger row, but omit it from this adjusted projection.
+    const { splits: _sourceSplits, ...withoutSplits } = transaction;
+    return [{ ...withoutSplits, amountMinor: bounded } as T];
   });
 }
 

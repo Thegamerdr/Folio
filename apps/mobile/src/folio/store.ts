@@ -25,6 +25,11 @@ import { dedupeKey } from '../local/statementReaderDedup';
 import { readCacheEvictions, READ_CACHE_MAX_CANDIDATES } from './lib/billing/readAllowance';
 import { anchorIsoFor, reanchorRenewals } from './lib/renewalMath';
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
+import {
+  normaliseTransactionSplits,
+  transactionSplitsAuditValue,
+  type TransactionSplit,
+} from './lib/transactionSplits';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import {
   assertLaunchCurrency,
@@ -530,7 +535,11 @@ export type Transaction = {
   /** Protects a newer user correction from a stale provider refresh. */
   manuallyCorrectedAt?: string;
   providerUpdatedAt?: string;
+  /** Optional user-confirmed allocation. Parts always sum exactly to `amount`. */
+  splits?: readonly TransactionSplit[];
 };
+
+export type { TransactionSplit } from './lib/transactionSplits';
 
 /** ACCOUNTS_MODEL.md §2.1 — a single named account (bank, credit card, savings, or cash). Phase 1
  *  (this pass) only ever creates the synthesized `'acct-main'` bank account via migration; the
@@ -6541,6 +6550,70 @@ export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' |
   }
 }
 
+/** Replace one transaction's allocation without changing its total. The split is validated in
+ * integer pennies, stored on the parent row, and recorded as one immutable correction entry. */
+export function setTransactionSplits(
+  transactionId: string,
+  splits: readonly TransactionSplit[],
+  options: Readonly<{ at?: string; by?: 'user' | 'melo' }> = {},
+): Transaction | null {
+  const target = state.transactions.find((transaction) => transaction.id === transactionId);
+  if (target === undefined) return null;
+  if (!isCashEffectiveTransaction(target)) {
+    throw new Error('Only a posted transaction can be split.');
+  }
+  if (
+    target.moneyMovementKind === 'transfer' ||
+    target.moneyMovementKind === 'refund' ||
+    target.reversalOfId !== undefined
+  ) {
+    throw new Error('Transfers, refunds and reversals cannot be split.');
+  }
+  const normalised = normaliseTransactionSplits(target.amount, splits);
+  const beforeValue = transactionSplitsAuditValue(target.splits ?? []);
+  const afterValue = transactionSplitsAuditValue(normalised);
+  if (beforeValue === afterValue) return target;
+  const at = options.at ?? new Date().toISOString();
+  const by = options.by ?? 'user';
+  const edit: StoredTxnEdit = {
+    id: `edit_${fnv1a32Hex(`${transactionId}:splits:${at}`, 0x811c9dc5)}`,
+    txnId: transactionId,
+    field: 'splits',
+    before: beforeValue,
+    after: afterValue,
+    at,
+    by,
+  };
+  const { splits: _previousSplits, ...targetWithoutSplits } = target;
+  const updated: Transaction = {
+    ...(normalised.length === 0 ? targetWithoutSplits : target),
+    ...(normalised.length === 0 ? {} : { splits: normalised }),
+    ...(by === 'user' ? { manuallyCorrectedAt: at } : {}),
+  };
+  setPartialWithTypedCommand(
+    {
+      transactions: state.transactions.map((transaction) =>
+        transaction.id === transactionId ? updated : transaction,
+      ),
+      edits: [...(state.edits ?? []), edit],
+    },
+    {
+      commandType: 'folio.transaction.split.set.v1',
+      actorKind: by === 'melo' ? 'melo' : 'user',
+      entityRefs: [
+        { type: 'transaction', id: transactionId },
+        { type: 'edit', id: edit.id! },
+      ],
+      before: { transaction: target },
+      after: { transaction: updated },
+      changedEntityIds: [transactionId, edit.id!],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+      occurredAt: at,
+    },
+  );
+  return updated;
+}
+
 export function setTransactionLifecycle(
   transactionId: string,
   lifecycleStatus: TransactionLifecycleStatus,
@@ -6550,11 +6623,21 @@ export function setTransactionLifecycle(
   if (target === undefined) return null;
   const at = options.at ?? new Date().toISOString();
   const beforeEffective = isCashEffectiveTransaction(target);
+  const { lifecycleReason: _previousReason, ...targetWithoutReason } = target;
   const updated: Transaction = {
-    ...target,
+    ...targetWithoutReason,
     lifecycleStatus,
     lifecycleChangedAt: at,
     ...(options.reason === undefined ? {} : { lifecycleReason: options.reason }),
+  };
+  const edit: StoredTxnEdit = {
+    id: `edit_${fnv1a32Hex(`${transactionId}:lifecycle:${at}`, 0x811c9dc5)}`,
+    txnId: transactionId,
+    field: 'lifecycle',
+    before: transactionLifecycleStatusOf(target),
+    after: lifecycleStatus,
+    at,
+    by: 'user',
   };
   const afterEffective = isCashEffectiveTransaction(updated);
   const monetaryEffectMinor =
@@ -6566,14 +6649,18 @@ export function setTransactionLifecycle(
       transactions: state.transactions.map((transaction) =>
         transaction.id === transactionId ? updated : transaction,
       ),
+      edits: [...(state.edits ?? []), edit],
     },
     {
       commandType: 'folio.transaction.lifecycle.set.v1',
       actorKind: 'user',
-      entityRefs: [{ type: 'transaction', id: transactionId }],
+      entityRefs: [
+        { type: 'transaction', id: transactionId },
+        { type: 'edit', id: edit.id! },
+      ],
       before: { transaction: target },
       after: { transaction: updated, monetaryEffectMinor },
-      changedEntityIds: [transactionId],
+      changedEntityIds: [transactionId, edit.id!],
       invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
       occurredAt: at,
     },
@@ -6751,6 +6838,39 @@ export function linkOwnAccountTransfer(
     },
   );
   return [linkedDebit, linkedCredit];
+}
+
+export function unlinkOwnAccountTransfer(transferLinkId: string): readonly Transaction[] {
+  const linked = state.transactions.filter(
+    (transaction) => transaction.transferLinkId === transferLinkId,
+  );
+  if (linked.length !== 2) {
+    throw new Error('A linked own-account transfer must have exactly two legs.');
+  }
+  const occurredAt = new Date().toISOString();
+  const updated = linked.map(
+    ({ moneyMovementKind: _kind, transferLinkId: _link, ...transaction }) =>
+      ({ ...transaction }) as Transaction,
+  );
+  const byId = new Map(updated.map((transaction) => [transaction.id, transaction]));
+  setPartialWithTypedCommand(
+    {
+      transactions: state.transactions.map(
+        (transaction) => byId.get(transaction.id) ?? transaction,
+      ),
+    },
+    {
+      commandType: 'folio.transaction.transfer.unlink.v1',
+      actorKind: 'user',
+      entityRefs: linked.map((transaction) => ({ type: 'transaction', id: transaction.id })),
+      before: { transactions: linked, transferLinkId },
+      after: { transactions: updated },
+      changedEntityIds: linked.map((transaction) => transaction.id),
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'merchant-memory'],
+      occurredAt,
+    },
+  );
+  return updated;
 }
 
 export function addCalendarEvent(e: Omit<CalendarEvent, 'id'> & { id?: string }): CalendarEvent {

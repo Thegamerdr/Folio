@@ -73,6 +73,10 @@ describe('canonical AppState read projection', () => {
           externalId: 'external-neutral-1',
           bankConnectionId: 'connection-local-1',
           accountId: DEFAULT_ACCOUNT_ID,
+          splits: [
+            { id: 'food-part', label: 'Food', amount: -7.25, category: 'food' },
+            { id: 'home-part', label: 'Home', amount: -3, category: 'shopping' },
+          ],
         },
         {
           id: 'txn:future/bank',

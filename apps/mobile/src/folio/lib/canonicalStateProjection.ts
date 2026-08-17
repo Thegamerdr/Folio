@@ -1269,6 +1269,19 @@ function projectTransaction(
     ...(transaction.providerUpdatedAt === undefined
       ? {}
       : { providerUpdatedAt: transaction.providerUpdatedAt }),
+    ...(transaction.splits === undefined
+      ? {}
+      : {
+          splits: transaction.splits.map((split) => ({
+            id: split.id,
+            label: split.label,
+            amountMinor: majorToMinor(
+              split.amount,
+              `Transaction ${transaction.id} split ${split.id} amount`,
+            ),
+            categoryId: split.category,
+          })),
+        }),
     ...(transaction.sourceEvidenceId === undefined
       ? {}
       : { sourceEvidenceId: transaction.sourceEvidenceId }),

@@ -769,14 +769,21 @@ function readPostedTransaction(
   accounts: ReadonlyMap<string, CanonicalAccount>,
   sourceTransactionIds: ReadonlyMap<string, string>,
 ): OrderedTransaction {
-  const categoryIds = [
-    ...new Set(
-      transaction.splits.flatMap((split) =>
-        split.categoryId === undefined ? [] : [split.categoryId],
-      ),
-    ),
-  ];
-  const category = appCategory(singleRequired(categoryIds, 'canonical transaction category'));
+  const category = appCategory(
+    requiredText(transaction.splits[0]?.categoryId, 'canonical transaction category'),
+  );
+  const splits = transaction.splits.flatMap((split) =>
+    split.sourceSplitId === undefined
+      ? []
+      : [
+          {
+            id: split.sourceSplitId,
+            label: split.label,
+            amount: minorToMajor(split.amount.minorUnits),
+            category: appCategory(requiredText(split.categoryId, 'canonical split category')),
+          },
+        ],
+  );
   return readTransactionFields({
     sourceTransactionId: requiredText(
       transaction.sourceTransactionId,
@@ -794,6 +801,7 @@ function readPostedTransaction(
     connectionId: transaction.connectionId,
     workspaceId: transaction.workspaceId,
     lifecycleStatus: transaction.status,
+    ...(splits.length === 0 ? {} : { splits }),
     ...(transaction.lifecycleReason === undefined
       ? {}
       : { lifecycleReason: transaction.lifecycleReason }),
@@ -872,6 +880,7 @@ function readTransactionFields(
     replacedById?: string;
     manuallyCorrectedAt?: string;
     providerUpdatedAt?: string;
+    splits?: Transaction['splits'];
   }>,
 ): OrderedTransaction {
   const merchant = input.merchant;
@@ -912,6 +921,7 @@ function readTransactionFields(
       ...(input.providerUpdatedAt === undefined
         ? {}
         : { providerUpdatedAt: input.providerUpdatedAt }),
+      ...(input.splits === undefined ? {} : { splits: input.splits }),
     },
   };
 }
@@ -1174,6 +1184,9 @@ function normalizedSourceMoneyProjection(
       ...(transaction.providerUpdatedAt === undefined
         ? {}
         : { providerUpdatedAt: transaction.providerUpdatedAt }),
+      ...(transaction.splits === undefined
+        ? {}
+        : { splits: transaction.splits.map((split) => ({ ...split })) }),
     }));
   const pots: Pot[] = state.pots.map((pot) => ({
     id: pot.id,

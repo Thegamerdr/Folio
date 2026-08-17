@@ -413,6 +413,10 @@ describe('buildExport — per-surface csvs', () => {
         moneyMovementKind: 'refund',
         refundOfId: 'purchase-row',
         providerUpdatedAt: '2026-06-21T12:00:00.000Z',
+        splits: [
+          { id: 'refund-food', label: 'Food', amount: 4, category: 'food' },
+          { id: 'refund-other', label: 'Other', amount: 6, category: 'other' },
+        ],
       },
     ];
     const rows = parseCsv(buildExport(state).csvs['transactions.csv'] as string);
@@ -423,6 +427,7 @@ describe('buildExport — per-surface csvs', () => {
     expect(row[header.indexOf('moneyMovementKind')]).toBe('refund');
     expect(row[header.indexOf('refundOfId')]).toBe('purchase-row');
     expect(row[header.indexOf('providerUpdatedAt')]).toBe('2026-06-21T12:00:00.000Z');
+    expect(JSON.parse(row[header.indexOf('splits')]!)).toEqual(state.transactions[0]!.splits);
   });
 
   it('subs.csv reflects paused + nudge state from subPaused/subOverrides', () => {

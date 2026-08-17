@@ -101,6 +101,10 @@ describe('native SQLCipher physical workspace isolation', () => {
           moneyMovementKind: 'refund' as const,
           refundOfId: 'supplier-purchase',
           providerUpdatedAt: '2026-08-01T12:00:00.000Z',
+          splits: [
+            { id: 'vat', label: 'VAT', amountMinor: 500, categoryId: 'bills' },
+            { id: 'net', label: 'Net', amountMinor: 2_000, categoryId: 'other' },
+          ],
           protected: false,
         },
       ],
@@ -119,6 +123,10 @@ describe('native SQLCipher physical workspace isolation', () => {
       moneyMovementKind: 'refund',
       refundOfId: 'supplier-purchase',
       providerUpdatedAt: '2026-08-01T12:00:00.000Z',
+      splits: [
+        { id: 'vat', label: 'VAT', amountMinor: 500, categoryId: 'bills' },
+        { id: 'net', label: 'Net', amountMinor: 2_000, categoryId: 'other' },
+      ],
     });
   });
 

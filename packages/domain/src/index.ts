@@ -287,6 +287,8 @@ export type TransactionSplit = Readonly<{
   amount: Money;
   label: string;
   categoryId?: string;
+  /** Stable ID from the owning app/store, retained across canonical projection round-trips. */
+  sourceSplitId?: string;
 }>;
 
 export type FinancialTransaction = Readonly<{
@@ -888,7 +890,15 @@ export type IncomeSchedule = Readonly<{
   anchorDate?: LocalDate;
 }>;
 
-export type TransactionCorrectionField = 'merchant' | 'amount' | 'when' | 'category' | 'note';
+export type TransactionCorrectionField =
+  | 'merchant'
+  | 'amount'
+  | 'when'
+  | 'category'
+  | 'note'
+  | 'splits'
+  | 'lifecycle'
+  | 'relationship';
 
 export type TransactionCorrectionState = Readonly<{
   id?: string;
@@ -2569,6 +2579,7 @@ export function createTransactionSplit(input: {
   amount: MoneyInput | Money;
   label: string;
   categoryId?: string;
+  sourceSplitId?: string;
 }): TransactionSplit {
   const label = input.label.trim();
   if (label.length === 0) {
@@ -2580,6 +2591,7 @@ export function createTransactionSplit(input: {
     amount: Money;
     label: string;
     categoryId?: string;
+    sourceSplitId?: string;
   } = {
     id: typeof input.id === 'string' ? createTransactionSplitId(input.id) : input.id,
     amount: createMoney(input.amount),
@@ -2588,6 +2600,11 @@ export function createTransactionSplit(input: {
 
   if (input.categoryId !== undefined) {
     split.categoryId = input.categoryId;
+  }
+  if (input.sourceSplitId !== undefined) {
+    const sourceSplitId = input.sourceSplitId.trim();
+    if (sourceSplitId.length === 0) throw new Error('Source split ID cannot be blank.');
+    split.sourceSplitId = sourceSplitId;
   }
 
   return split;

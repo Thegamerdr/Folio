@@ -34,6 +34,7 @@ import type { Transaction } from '../store';
 /** The user-facing fields a correction may touch. `originalSource` is
  *  structural (de-dupe anchor), never an editable field — see §6. */
 export type EditableField = 'merchant' | 'amount' | 'when' | 'category' | 'note';
+export type TxnEditField = EditableField | 'splits' | 'lifecycle' | 'relationship';
 
 /** One immutable correction record. The transaction row shows the latest
  *  values; the history (these records) is auditable from the txn detail.
@@ -44,7 +45,7 @@ export type TxnEdit = {
   id: string;
   /** The transaction this correction belongs to. */
   txnId: string;
-  field: EditableField;
+  field: TxnEditField;
   /** Prior value (the original lives here — never overwritten elsewhere). */
   before: string | number | undefined;
   /** New value written by this edit. */

@@ -208,6 +208,7 @@ function transactionsCsv(transactions: readonly Transaction[]): string {
       'replacedById',
       'manuallyCorrectedAt',
       'providerUpdatedAt',
+      'splits',
     ],
     transactions.map((t) => [
       t.id,
@@ -230,6 +231,7 @@ function transactionsCsv(transactions: readonly Transaction[]): string {
       t.replacedById ?? '',
       t.manuallyCorrectedAt ?? '',
       t.providerUpdatedAt ?? '',
+      JSON.stringify(t.splits ?? []),
     ]),
   );
 }
@@ -374,6 +376,7 @@ function accountantRecordsCsv(state: AppState): string {
       'refundOfId',
       'reversalOfId',
       'duplicateOfId',
+      'splits',
     ],
     state.transactions.map((transaction) => [
       workspace?.name ?? '',
@@ -399,6 +402,7 @@ function accountantRecordsCsv(state: AppState): string {
       transaction.refundOfId ?? '',
       transaction.reversalOfId ?? '',
       transaction.duplicateOfId ?? '',
+      JSON.stringify(transaction.splits ?? []),
     ]),
   );
 }
