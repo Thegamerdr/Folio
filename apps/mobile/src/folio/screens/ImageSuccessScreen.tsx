@@ -72,7 +72,7 @@ import Animated, {
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { IntakeResultHeader, IntakeResultRail } from '@/folio/ui/IntakeResultRail';
 import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
@@ -264,11 +264,12 @@ export function ImageSuccessScreen({
   // directly, show the calm fallback doorway rather than dead-ending.
   if (state === 'error') {
     return (
-      <EmptyState
-        mood="calm"
-        headline="Image saved."
-        body="Melo couldn't read this one clearly. Try a different image."
-        cta={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
+      <StatePanel
+        body="Melo couldn’t read this one clearly. Try a different image."
+        fullScreen
+        kind="error"
+        primaryAction={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
+        title="Image saved."
       />
     );
   }
@@ -277,11 +278,12 @@ export function ImageSuccessScreen({
   // EmptyState so the screen never shows a hollow "0 things found" card.
   if (state === 'empty' || image.items.length === 0) {
     return (
-      <EmptyState
-        mood="calm"
-        headline="Nothing to add."
-        body="Melo didn't find money items in this one. Try a different image."
-        cta={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
+      <StatePanel
+        body="Melo didn’t find money items in this one. Try a different image."
+        fullScreen
+        kind="genuine-empty"
+        primaryAction={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
+        title="Nothing to add."
       />
     );
   }
@@ -289,11 +291,12 @@ export function ImageSuccessScreen({
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="Melo is reading…" />
-      </View>
+      <StatePanel
+        body="Reading the image before showing a review."
+        fullScreen
+        kind="loading"
+        title="Melo is reading"
+      />
     );
   }
 

@@ -68,7 +68,7 @@ import Animated, {
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { IntakeResultHeader, IntakeResultRail } from '@/folio/ui/IntakeResultRail';
 import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
@@ -259,10 +259,12 @@ export function PasteSuccessScreen({
   // error — the read failed; the calm EmptyState doorway, routing back to intake to paste again.
   if (state === 'error' || (hasHardIssue && items.length === 0)) {
     return (
-      <EmptyState
-        mood="calm"
-        headline={copy.err.statement.unreadable}
-        cta={{ label: 'Paste again', onPress: () => nav.go('intake') }}
+      <StatePanel
+        body="Nothing was added. Check the columns or paste a clearer section."
+        fullScreen
+        kind="error"
+        primaryAction={{ label: 'Paste again', onPress: () => nav.go('intake') }}
+        title={copy.err.statement.unreadable}
       />
     );
   }
@@ -271,11 +273,12 @@ export function PasteSuccessScreen({
   // EmptyState so the screen never shows a hollow "0 things" card.
   if (state === 'empty' || items.length === 0) {
     return (
-      <EmptyState
-        mood="calm"
-        headline="Nothing to check."
-        body="Melo didn't find money in this one. Paste a bit more, or add one thing yourself."
-        cta={{ label: 'Paste again', onPress: () => nav.go('intake') }}
+      <StatePanel
+        body="Melo didn’t find money in this one. Paste a bit more, or add one thing yourself."
+        fullScreen
+        kind="genuine-empty"
+        primaryAction={{ label: 'Paste again', onPress: () => nav.go('intake') }}
+        title="Nothing to check."
       />
     );
   }
@@ -283,11 +286,12 @@ export function PasteSuccessScreen({
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="Melo is reading…" />
-      </View>
+      <StatePanel
+        body="Reading the pasted text before showing a review."
+        fullScreen
+        kind="loading"
+        title="Melo is reading"
+      />
     );
   }
 

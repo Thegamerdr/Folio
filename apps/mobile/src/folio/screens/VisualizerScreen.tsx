@@ -80,9 +80,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { type Palette, gap, radius, serif, useTheme } from '@/folio/theme';
-import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import {
   addTransactionsBatch,
   bankAnalyticsTransactions,
@@ -464,11 +463,12 @@ export function VisualizerScreen({
   // to intake so the doorway never dead-ends. (verbatim: add.option.statement)
   if (state === 'empty' || (items.length === 0 && state !== 'loading')) {
     return (
-      <EmptyState
-        mood="calm"
-        headline="Add a statement first."
+      <StatePanel
         body="When Melo reads one, what it finds shows up here for you to check — before any of it counts."
-        cta={{ label: copy.add.option.statement, onPress: () => nav.go('intake') }}
+        fullScreen
+        kind="first-time-empty"
+        primaryAction={{ label: copy.add.option.statement, onPress: () => nav.go('intake') }}
+        title="Add a statement first."
       />
     );
   }
@@ -488,10 +488,12 @@ export function VisualizerScreen({
   // routing to the PDF fallback where the file is kept as a note rather than dead-ending.
   if (state === 'error' || (hasHardIssue && items.length === 0)) {
     return (
-      <EmptyState
-        mood="concern"
-        headline={copy.err.statement.unreadable}
-        cta={{ label: copy.add.review.fix, onPress: () => nav.go('pdf-fallback') }}
+      <StatePanel
+        body="Nothing from this source has counted yet."
+        fullScreen
+        kind="error"
+        primaryAction={{ label: copy.add.review.fix, onPress: () => nav.go('pdf-fallback') }}
+        title={copy.err.statement.unreadable}
       />
     );
   }
@@ -500,11 +502,12 @@ export function VisualizerScreen({
   // then we fall through to the populated checklist below.
   if (state === 'loading' && !loadingTimedOut) {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One second — reading what's here." />
-      </View>
+      <StatePanel
+        body="Reading what’s here before anything counts."
+        fullScreen
+        kind="loading"
+        title="Preparing your review"
+      />
     );
   }
 

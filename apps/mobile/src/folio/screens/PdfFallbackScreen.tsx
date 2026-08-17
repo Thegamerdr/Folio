@@ -69,7 +69,7 @@ import Animated, {
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { IntakeResultHeader, IntakeResultRail } from '@/folio/ui/IntakeResultRail';
 import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import {
@@ -192,11 +192,12 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
   // empty — n/a in practice; rendered as the calm doorway so the screen never dead-ends.
   if (state === 'empty') {
     return (
-      <EmptyState
-        mood="calm"
-        headline="Nothing to add."
+      <StatePanel
         body="Try a different file, or add one thing yourself."
-        cta={{ label: 'Try another file', onPress: () => nav.go('intake') }}
+        fullScreen
+        kind="genuine-empty"
+        primaryAction={{ label: 'Try another file', onPress: () => nav.go('intake') }}
+        title="Nothing to add."
       />
     );
   }
@@ -204,11 +205,12 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
   // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="Melo is reading…" />
-      </View>
+      <StatePanel
+        body="Checking the saved file."
+        fullScreen
+        kind="loading"
+        title="Melo is reading"
+      />
     );
   }
 

@@ -76,7 +76,7 @@ import Animated, {
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { addCalendarEvent, currentFinancialDate, setSubs, type Sub } from '@/folio/store';
 import { buildDebtSchedule, type DebtCadence } from '@/folio/lib/debt';
 import { anchorIsoFor, daysUntilDayOfMonth } from '@/folio/lib/renewalMath';
@@ -330,11 +330,12 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
   // ---- empty — n/a for AddEntry, mapped to the calm doorway so the branch never dead-ends ---------
   if (state === 'empty') {
     return (
-      <EmptyState
-        mood="calm"
-        headline={kind === 'bill' ? 'Add a bill' : 'Add a debt'}
-        body="One thing at a time. Type it in when you're ready."
-        cta={{ label: 'Not yet', onPress: nav.back }}
+      <StatePanel
+        body="One thing at a time. Type it in when you’re ready."
+        fullScreen
+        kind="first-time-empty"
+        primaryAction={{ label: 'Not yet', onPress: nav.back }}
+        title={kind === 'bill' ? 'Add a bill' : 'Add a debt'}
       />
     );
   }
@@ -343,10 +344,12 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
   // The reader couldn't read this one; it was saved as a note. The user can still type the entry in.
   if (state === 'error') {
     return (
-      <EmptyState
-        mood="calm"
-        headline={copy.err.statement.unreadable}
-        cta={{ label: 'Type it in', onPress: nav.back }}
+      <StatePanel
+        body="The source could not be read, but you can still add the item yourself."
+        fullScreen
+        kind="error"
+        primaryAction={{ label: 'Type it in', onPress: nav.back }}
+        title={copy.err.statement.unreadable}
       />
     );
   }
@@ -357,19 +360,22 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
     // honest copy, one clear recovery. Keeps the contract "never an indefinite wait".
     if (loadingTimedOut) {
       return (
-        <EmptyState
-          mood="calm"
-          headline={copy.err.statement.unreadable}
-          cta={{ label: 'Type it in', onPress: nav.back }}
+        <StatePanel
+          body="The read took too long. Nothing was added."
+          fullScreen
+          kind="error"
+          primaryAction={{ label: 'Type it in', onPress: nav.back }}
+          title={copy.err.statement.unreadable}
         />
       );
     }
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="One moment — getting this ready for you." />
-      </View>
+      <StatePanel
+        body="Checking the source before anything is added."
+        fullScreen
+        kind="loading"
+        title="Melo is reading"
+      />
     );
   }
 

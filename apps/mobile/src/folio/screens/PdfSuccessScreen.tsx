@@ -100,7 +100,7 @@ import Animated, {
 import { elevation, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { EmptyState } from '@/folio/ui/EmptyState';
+import { StatePanel } from '@/folio/ui/StatePanel';
 import { IntakeResultHeader, IntakeResultRail } from '@/folio/ui/IntakeResultRail';
 import { showToast } from '@/folio/ui/Toast';
 import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
@@ -314,11 +314,12 @@ export function PdfSuccessScreen({
   // doorway rather than dead-ending. The single CTA routes back to intake to pick another file.
   if (state === 'error') {
     return (
-      <EmptyState
-        mood="calm"
-        headline="File saved."
-        body="Melo couldn't read this one. It's saved as a note — try a different file."
-        cta={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
+      <StatePanel
+        body="Melo couldn’t read this one. It’s saved as a note — try a different file."
+        fullScreen
+        kind="error"
+        primaryAction={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
+        title="File saved."
       />
     );
   }
@@ -328,11 +329,12 @@ export function PdfSuccessScreen({
   // screen never shows a hollow "0 things found" card.
   if (state === 'empty' || statement.items.length === 0) {
     return (
-      <EmptyState
-        mood="calm"
-        headline="Nothing to add."
-        body="Melo didn't find money items in this one. Try a different file."
-        cta={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
+      <StatePanel
+        body="Melo didn’t find money items in this one. Try a different file."
+        fullScreen
+        kind="genuine-empty"
+        primaryAction={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
+        title="Nothing to add."
       />
     );
   }
@@ -341,11 +343,12 @@ export function PdfSuccessScreen({
   // while the read settles; in practice the read happens upstream and this success screen mounts after.
   if (state === 'loading') {
     return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="Melo is reading…" />
-      </View>
+      <StatePanel
+        body="Reading the file before showing a review."
+        fullScreen
+        kind="loading"
+        title="Melo is reading"
+      />
     );
   }
 
