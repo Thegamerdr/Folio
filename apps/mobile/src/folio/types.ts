@@ -112,6 +112,7 @@ export const SHEET_IDS = [
   'calendar-export',
   'calendar-connect',
   'safe-zone',
+  'worked-out-number',
   'shelf',
   'afford-check',
   'lens-picker',
@@ -142,6 +143,8 @@ export type SheetPayload = {
   amount?: number;
   addEventKind?: 'in' | 'out' | 'review' | 'deadline';
   addEventTitle?: string;
+  /** The consequential figure whose live inputs and arithmetic the explanation sheet shows. */
+  workedNumber?: 'safe-range' | 'business-runway';
 };
 
 // The route pressure mood — the emotional weather of the money. Mirrors the web Pressure union.

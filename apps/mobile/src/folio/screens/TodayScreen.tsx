@@ -1925,6 +1925,31 @@ function TrustedSafeRangeCard({
         ))}
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Show how the Trusted Safe Range is worked out"
+        onPress={() =>
+          nav.openSheet('worked-out-number', {
+            workedNumber: 'safe-range',
+          })
+        }
+        style={({ pressed: isPressed }) => [
+          styles.safeRangeExplain,
+          { borderColor: palette.hairline },
+          isPressed ? pressed : undefined,
+        ]}
+      >
+        <Text style={[styles.safeRangeExplainText, { color: palette.ink }]}>
+          Show how this is worked out
+        </Text>
+        <Text
+          accessibilityElementsHidden
+          style={[styles.safeRangeExplainArrow, { color: palette.calmStrong }]}
+        >
+          →
+        </Text>
+      </Pressable>
+
       {next ? (
         <Pressable
           accessibilityRole="button"
@@ -2477,6 +2502,17 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
+  safeRangeExplain: {
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: gap.md,
+    minHeight: 48,
+  },
+  safeRangeExplainText: { fontSize: 12.5, fontWeight: '600' },
+  safeRangeExplainArrow: { fontSize: 18 },
 
   pathCard: {
     marginTop: gap.xl - 4,

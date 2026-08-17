@@ -318,6 +318,12 @@ export function BusinessRunwayScreen({ nav }: { nav: Nav }) {
                 ? `At this burn, cash runs out around ${formatBusinessDate(runway.runsOutOn)}.`
                 : "Nothing is burning cash faster than it's coming in."}
             </Text>
+            <BusinessSecondaryAction
+              label="Show how this is worked out"
+              onPress={() =>
+                nav.openSheet('worked-out-number', { workedNumber: 'business-runway' })
+              }
+            />
           </BusinessCard>
         </View>
 

@@ -121,6 +121,7 @@ import { HiddenReviewSheet } from '@/folio/sheets/HiddenReviewSheet';
 import { LogInvoiceSheet } from '@/folio/sheets/LogInvoiceSheet';
 import { LensPickerSheet } from '@/folio/sheets/LensPickerSheet';
 import { SafeZoneSheet } from '@/folio/sheets/SafeZoneSheet';
+import { WorkedOutNumberSheet } from '@/folio/sheets/WorkedOutNumberSheet';
 import { AddPlanSheet } from '@/folio/sheets/AddPlanSheet';
 import { AddDebtSheet } from '@/folio/sheets/AddDebtSheet';
 import { DebtScheduleSheet } from '@/folio/sheets/DebtScheduleSheet';
@@ -372,6 +373,7 @@ function ReadyFolioShell() {
   // Carried into quick spend entry only after the user explicitly chooses to turn a preview into a
   // real log. A scrub or What-if experiment never writes by itself.
   const [logSpendAmount, setLogSpendAmount] = useState<number | undefined>(undefined);
+  const [workedNumber, setWorkedNumber] = useState<SheetPayload['workedNumber']>(undefined);
   const [navigationPaintEpoch, setNavigationPaintEpoch] = useState(0);
   const surfaceRepaintEpoch = useSyncExternalStore(
     subscribeSurfaceRepaint,
@@ -522,6 +524,7 @@ function ReadyFolioShell() {
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
+    setWorkedNumber(undefined);
   }, []);
 
   // Route state is kept per workspace and per primary tab. A forward route starts as a new screen,
@@ -587,6 +590,7 @@ function ReadyFolioShell() {
     setDayDetailDate(next === 'day-detail' ? payload?.date : undefined);
     setAddEventIntent(next === 'add-event' ? payload : undefined);
     setLogSpendAmount(next === 'log-spend' ? payload?.amount : undefined);
+    setWorkedNumber(next === 'worked-out-number' ? payload?.workedNumber : undefined);
     setSheet(next);
   }, []);
 
@@ -597,6 +601,7 @@ function ReadyFolioShell() {
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
+    setWorkedNumber(undefined);
   }, []);
 
   // Open the Melo companion CHAT sheet, carrying any prefill/seed the flow provided (web intent).
@@ -835,6 +840,9 @@ function ReadyFolioShell() {
           sibling hosts like RouteDetailSheet/MeloChatSheet rather than through the generic host. */}
             {sheet === 'lens-picker' && <LensPickerSheet visible onClose={closeSheet} nav={nav} />}
             {sheet === 'safe-zone' && <SafeZoneSheet visible onClose={closeSheet} nav={nav} />}
+            {sheet === 'worked-out-number' && workedNumber ? (
+              <WorkedOutNumberSheet visible nav={nav} onClose={closeSheet} subject={workedNumber} />
+            ) : null}
             {/* Route-detail — the money-path point sheet. Owns its own kit Sheet, so it is a sibling host;
           it needs the shell's nav (its CTA bridges to the Calendar) and the shell's pressure default
           (the "Left after this" figure + Melo mood, threaded the same way as the screens). The tapped
@@ -1082,6 +1090,7 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'household-setup',
   'lens-picker',
   'safe-zone',
+  'worked-out-number',
   'chart-style',
 ]);
 
@@ -1324,6 +1333,7 @@ const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {
   'calendar-export': 'Export your calendar',
   'calendar-connect': 'Connect your calendar',
   'safe-zone': 'Your Safe Zone',
+  'worked-out-number': 'Worked-out number',
   shelf: '24-Hour Shelf',
   'afford-check': 'Before you spend',
   'lens-picker': 'Choose a lens',
