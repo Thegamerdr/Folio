@@ -522,6 +522,8 @@ test('screen profiles provide useful context without fabricating a money reactio
   assert.equal(state.bubble.id, 'business-runway.explain');
   assert.equal(state.financialContext, null);
   assert.equal(resolveScreenProfile('unknown').domain, 'unknown');
+  assert.equal(resolveScreenProfile('business-review-item').domain, 'business');
+  assert.equal(resolveScreenProfile('business-review-item').hidden, true);
 });
 
 test('full personal and business screen profile coverage hides blocking flows', () => {

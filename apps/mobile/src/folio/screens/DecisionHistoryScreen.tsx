@@ -17,6 +17,7 @@ import {
   DecisionReceipt,
   MaterialChangeCard,
 } from '@/folio/ui/TrustedCoreSurfaces';
+import { ReviewJourneyTabs } from '@/folio/ui/ReviewJourneyTabs';
 import type { Nav } from '@/folio/types';
 
 export function DecisionHistoryScreen({ nav }: { nav: Nav }) {
@@ -68,12 +69,41 @@ export function DecisionHistoryScreen({ nav }: { nav: Nav }) {
 
   if (visible.length === 0) {
     return (
-      <EmptyState
-        mood="calm"
-        headline="No decision receipts yet."
-        body="Melo records material choices only after you confirm them."
-        cta={{ label: 'Back to More', onPress: nav.back }}
-      />
+      <View style={[styles.root, { backgroundColor: t.canvas }]}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Pressable
+              accessibilityLabel="Back"
+              accessibilityRole="button"
+              hitSlop={12}
+              onPress={nav.back}
+              style={({ pressed }) => [styles.back, { opacity: pressed ? 0.65 : 1 }]}
+            >
+              <Text style={[styles.backLabel, { color: t.muted }]}>‹</Text>
+            </Pressable>
+            <View style={styles.headerCopy}>
+              <Text style={[styles.eyebrow, { color: t.muted }]}>Review</Text>
+              <Text accessibilityRole="header" style={[styles.title, { color: t.ink }]}>
+                Decision history
+              </Text>
+            </View>
+          </View>
+          <ReviewJourneyTabs active="decisions" nav={nav} />
+          <View style={styles.emptyJourney}>
+            <EmptyState
+              mood="calm"
+              headline="No decision receipts yet."
+              body="Melo records material choices only after you confirm them."
+            />
+          </View>
+        </ScrollView>
+      </View>
     );
   }
 
@@ -108,6 +138,7 @@ export function DecisionHistoryScreen({ nav }: { nav: Nav }) {
           Receipts for material money choices. No chat transcripts, raw documents or full app
           snapshots live here.
         </Text>
+        <ReviewJourneyTabs active="decisions" nav={nav} />
 
         <DecisionGroup
           entries={groups.awaitingOutcome}
@@ -260,6 +291,7 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: serif.display, fontSize: 34, letterSpacing: -1.2, lineHeight: 38 },
   intro: { fontSize: 14, lineHeight: 21, marginTop: gap.md },
+  emptyJourney: { marginTop: gap.lg },
   group: { marginTop: gap.xl },
   groupTitle: {
     fontSize: 11,

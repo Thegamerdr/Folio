@@ -85,6 +85,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { MaterialChangeCard } from '@/folio/ui/TrustedCoreSurfaces';
+import { ReviewJourneyTabs } from '@/folio/ui/ReviewJourneyTabs';
 import { useAppStore, type Transaction } from '@/folio/store';
 import { buildTimelineRows, type TimelineRow, type TimelineVerb } from '@/folio/lib/timelineEvents';
 import { shouldShowTimelineEmptyState } from '@/folio/lib/timelineVisibility';
@@ -371,6 +372,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
             backHitHeight={0}
             eyebrowTracking={1.68}
           />
+          <ReviewJourneyTabs active="activity" nav={nav} />
 
           <View style={s.titleBlock}>
             <Text accessibilityRole="header" style={s.headline}>
@@ -425,6 +427,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
           backHitHeight={0}
           eyebrowTracking={1.68}
         />
+        <ReviewJourneyTabs active="activity" nav={nav} />
 
         {/* Title block — Fraunces 28px, the single upright terracotta accent word. */}
         <View style={s.titleBlock}>

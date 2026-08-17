@@ -63,6 +63,7 @@ export const SCREEN_IDS = [
   'money-sources',
   'intake-history',
   'business-entity-setup',
+  'business-review-item',
   'business-money',
   'business-runway',
   'business-clients',

@@ -308,6 +308,7 @@ export const SCREEN_PROFILES = Object.freeze({
   'image-fallback': hidden('personal', 'file-input'),
   'paste-success': hidden('personal', 'file-intake'),
   review: hidden('personal', 'review-flow'),
+  'business-review-item': hidden('business', 'review-flow'),
   ritual: hidden('personal', 'ritual-flow'),
   shortfall: hidden('personal', 'shortfall-flow'),
   paywall: hidden('personal', 'auth-payment'),

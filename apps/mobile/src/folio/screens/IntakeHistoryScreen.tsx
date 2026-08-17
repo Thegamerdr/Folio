@@ -10,6 +10,7 @@ import {
 } from '@/folio/store';
 import { deleteEvidenceDocumentFile, openEvidenceDocument } from '@/folio/lib/documentVault';
 import { gap, radius, serif, Surface, useTheme } from '@/folio/theme';
+import { ReviewJourneyTabs } from '@/folio/ui/ReviewJourneyTabs';
 import type { Nav } from '@/folio/types';
 
 type Props = Readonly<{ nav: Nav }>;
@@ -118,6 +119,8 @@ export function IntakeHistoryScreen({ nav }: Props) {
           Attempts stay inside {workspace.name}. Open a saved original, see what reached Review, or
           retry a source that could not be read.
         </Text>
+
+        <ReviewJourneyTabs active="imports" nav={nav} />
 
         <View style={styles.summaryGrid}>
           <Summary value={String(attempts.length)} label="attempts" />

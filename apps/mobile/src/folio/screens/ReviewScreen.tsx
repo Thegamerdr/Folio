@@ -76,6 +76,7 @@ import Animated, {
 
 import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
+import { ReviewJourneyTabs } from '@/folio/ui/ReviewJourneyTabs';
 import { copy } from '@/folio/copy/copy';
 import {
   addIgnoredBankExternalId,
@@ -695,6 +696,11 @@ export function ReviewScreen({
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.emptyWrap, { paddingTop: insets.top + gap.xxl }]}>
+          <Text style={[styles.kicker, { color: t.muted }]}>Review</Text>
+          <Text accessibilityRole="header" style={[styles.emptyJourneyTitle, { color: t.ink }]}>
+            Nothing waiting for your check.
+          </Text>
+          <ReviewJourneyTabs active="check" nav={nav} />
           <MeloLine
             mood="calm"
             text={
@@ -786,6 +792,19 @@ export function ReviewScreen({
               {merchant.trim() || candidate.merchant}
             </Text>
             {isBusiness ? ' record?' : ' payment?'}
+          </Text>
+        </View>
+
+        <ReviewJourneyTabs active="check" nav={nav} />
+
+        <View
+          accessibilityLabel="Unconfirmed. This item does not change your cash until you accept it."
+          accessibilityRole="summary"
+          style={[styles.unconfirmed, { backgroundColor: t.inset, borderColor: t.hairline }]}
+        >
+          <Text style={[styles.unconfirmedLabel, { color: t.caution }]}>Unconfirmed</Text>
+          <Text style={[styles.unconfirmedBody, { color: t.muted }]}>
+            Not counted until you accept it
           </Text>
         </View>
 
@@ -1138,6 +1157,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: gap.xl,
   },
+  emptyJourneyTitle: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 32,
+    marginTop: gap.xs,
+  },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -1179,6 +1204,18 @@ const styles = StyleSheet.create({
     fontFamily: serif.display,
     fontStyle: 'normal',
   },
+  unconfirmed: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: gap.sm,
+    marginTop: gap.md,
+    minHeight: 44,
+    paddingHorizontal: gap.md,
+  },
+  unconfirmedLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
+  unconfirmedBody: { flex: 1, fontSize: 11.5 },
   // Card — surface, hairline, 2xl radius, p-6, mt-6, relative for the absolute stamp.
   // Web carries boxShadow var(--shadow-card); the kit's elevation.card is that token's RN form
   // (warm near-black lift, the same one the kit's own Surface uses) — the card floats on the cream.

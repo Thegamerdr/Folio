@@ -235,6 +235,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'money-sources': 'Money Sources',
   'intake-history': 'Intake history',
   'business-entity-setup': 'Business type',
+  'business-review-item': 'Check a business item',
   'business-money': 'Business money',
   'business-runway': 'Cash runway',
   'business-clients': 'Clients',
@@ -1133,7 +1134,9 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
     if (screen === 'today') return <BusinessTodayScreen nav={nav} />;
     if (screen === 'more') return <BusinessMoreScreen nav={nav} />;
     if (screen === 'melo') return <BusinessMeloScreen nav={nav} />;
-    if (screen === 'review' || screen === 'timeline') return <BusinessReviewScreen nav={nav} />;
+    if (screen === 'review') return <BusinessReviewScreen nav={nav} />;
+    if (screen === 'business-review-item') return <ReviewScreen nav={nav} />;
+    if (screen === 'timeline') return <TimelineScreen nav={nav} />;
     if (screen === 'calendar') return <BusinessCalendarScreen nav={nav} />;
     if (screen === 'plans') return <BusinessPlansScreen nav={nav} />;
     if (screen === 'business-entity-setup') return <BusinessEntitySetupScreen nav={nav} />;

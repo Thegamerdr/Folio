@@ -8,6 +8,7 @@ import {
 import { Melo } from '@/folio/melo/Melo';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { useAppStore } from '@/folio/store';
+import { ReviewJourneyTabs } from '@/folio/ui/ReviewJourneyTabs';
 import type { Nav } from '@/folio/types';
 
 /**
@@ -53,6 +54,8 @@ export function BusinessReviewScreen({ nav }: { nav: Nav }) {
           </Text>
         </View>
 
+        <ReviewJourneyTabs active="check" nav={nav} />
+
         {queueCount === 0 ? (
           <View style={[styles.empty, { backgroundColor: t.inset }]}>
             <MeloCompanionPerch companionSize={34} id="business-review/empty" priority={30}>
@@ -78,7 +81,7 @@ export function BusinessReviewScreen({ nav }: { nav: Nav }) {
         ) : (
           <Pressable
             accessibilityRole="button"
-            onPress={() => nav.go('review')}
+            onPress={() => nav.go('business-review-item')}
             style={({ pressed }) => [
               styles.queueAction,
               { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },

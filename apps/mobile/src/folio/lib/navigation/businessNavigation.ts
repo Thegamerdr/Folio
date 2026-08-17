@@ -16,6 +16,7 @@ const MONEY_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
 
 const REVIEW_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'review',
+  'business-review-item',
   'timeline',
   'intake-history',
 ]);
