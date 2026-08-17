@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { gap, radius, useTheme } from '@/folio/theme';
+import { gap, radius, typeScale, useTheme } from '@/folio/theme';
 import { useAppStore } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
 
@@ -82,6 +82,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingHorizontal: 3,
   },
-  label: { fontSize: 10.5, fontWeight: '700' },
+  label: { fontSize: typeScale.micro, fontWeight: '700' },
   pressed: { opacity: 0.62 },
 });

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { gap, radius, useTheme } from '@/folio/theme';
+import { gap, radius, typeScale, useTheme } from '@/folio/theme';
 import type { Nav, ScreenId } from '@/folio/types';
 
 export type AdjustPathMode = 'preview' | 'resolve' | 'recovery';
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: gap.xs,
   },
-  label: { fontSize: 11, fontWeight: '700' },
+  label: { fontSize: typeScale.micro, fontWeight: '700' },
   saved: {
     alignItems: 'center',
     alignSelf: 'flex-end',
@@ -87,6 +87,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: gap.xs,
   },
-  savedLabel: { fontSize: 11, fontWeight: '600' },
+  savedLabel: { fontSize: typeScale.micro, fontWeight: '600' },
   pressed: { opacity: 0.62 },
 });

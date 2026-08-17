@@ -20,7 +20,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { MoneyMode } from '@/folio/store';
-import { gap, pressed, radius, type Palette, useTheme } from '@/folio/theme';
+import { gap, pressed, radius, type Palette, typeScale, useTheme } from '@/folio/theme';
 
 export type { MoneyMode };
 
@@ -96,7 +96,7 @@ function makeStyles(t: Palette) {
       borderColor: t.hairline,
     },
     label: {
-      fontSize: 12,
+      fontSize: typeScale.caption,
       fontWeight: '600',
       letterSpacing: 0.2,
     },
@@ -109,7 +109,7 @@ function makeStyles(t: Palette) {
     dot: {
       width: 7,
       height: 7,
-      borderRadius: 4,
+      borderRadius: radius.pill,
     },
     dotActive: {
       backgroundColor: t.calm,

@@ -15,7 +15,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useAppStore } from '@/folio/store';
 import { getFraming, type FramingSurface } from '@/folio/lib/modes/framing';
-import { gap, radius, useTheme } from '@/folio/theme';
+import { gap, radius, typeScale, useTheme } from '@/folio/theme';
 
 export function ModeFramingBanner({ surface }: { surface: FramingSurface }) {
   const t = useTheme();
@@ -59,15 +59,15 @@ function makeStyles() {
       width: 6,
     },
     eyebrow: {
-      fontSize: 11,
+      fontSize: typeScale.micro,
       letterSpacing: 1.3,
       textTransform: 'uppercase',
     },
     sep: {
-      fontSize: 11,
+      fontSize: typeScale.micro,
     },
     sublabel: {
-      fontSize: 11,
+      fontSize: typeScale.micro,
     },
   });
 }

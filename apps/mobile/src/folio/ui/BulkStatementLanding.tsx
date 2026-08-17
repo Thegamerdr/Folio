@@ -40,7 +40,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { gap, radius, serif, typeScale, useTheme } from '@/folio/theme';
 import { copy } from '@/folio/copy/copy';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import {
@@ -487,16 +487,16 @@ const styles = StyleSheet.create({
   },
   summary: {
     fontFamily: serif.display,
-    fontSize: 17,
+    fontSize: typeScale.title,
     lineHeight: 22,
   },
   reconcileOk: {
-    fontSize: 13,
+    fontSize: typeScale.bodySmall,
     lineHeight: 18,
     marginTop: gap.xs,
   },
   reconcileWarn: {
-    fontSize: 13,
+    fontSize: typeScale.bodySmall,
     lineHeight: 18,
     marginTop: gap.xs,
   },
@@ -516,16 +516,16 @@ const styles = StyleSheet.create({
   },
   merchant: {
     flex: 1,
-    fontSize: 13.5,
+    fontSize: typeScale.bodySmall,
   },
   amount: {
     fontFamily: serif.display,
-    fontSize: 14,
+    fontSize: typeScale.bodySmall,
     fontVariant: ['tabular-nums'],
     fontWeight: '500',
   },
   more: {
-    fontSize: 11.5,
+    fontSize: typeScale.micro,
     marginTop: gap.xxs,
   },
   meloBlock: {
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
     marginTop: gap.lg,
   },
   primaryLabel: {
-    fontSize: 15.5,
+    fontSize: typeScale.body,
     fontWeight: '500',
   },
   secondary: {
@@ -553,12 +553,12 @@ const styles = StyleSheet.create({
     marginTop: gap.sm,
   },
   secondaryLabel: {
-    fontSize: 13,
+    fontSize: typeScale.bodySmall,
   },
   // Offer confirm card — head line + two-button row (primary confirm / quiet skip).
   offerHead: {
     fontFamily: serif.display,
-    fontSize: 16,
+    fontSize: typeScale.body,
     lineHeight: 21,
   },
   offerRow: {
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   offerPrimaryLabel: {
-    fontSize: 14,
+    fontSize: typeScale.bodySmall,
     fontWeight: '600',
   },
   offerSecondary: {
@@ -586,12 +586,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   offerSecondaryLabel: {
-    fontSize: 14,
+    fontSize: typeScale.bodySmall,
   },
   // Account-picker step (ACCOUNTS_MODEL.md §3 step 1/5) — detected-name hint + option list + new-
   // account name/kind fields, reusing the offer card's head/row/button styles above.
   accountHint: {
-    fontSize: 12.5,
+    fontSize: typeScale.caption,
     fontStyle: 'italic',
     marginTop: gap.xs,
   },
@@ -605,13 +605,13 @@ const styles = StyleSheet.create({
     paddingVertical: gap.sm + gap.xxs,
   },
   accountOptionLabel: {
-    fontSize: 13.5,
+    fontSize: typeScale.bodySmall,
     fontWeight: '500',
   },
   accountNameInput: {
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    fontSize: 13.5,
+    fontSize: typeScale.bodySmall,
     height: 44,
     marginTop: gap.md,
     paddingHorizontal: gap.md,
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
     paddingVertical: gap.sm,
   },
   kindToggleLabel: {
-    fontSize: 12.5,
+    fontSize: typeScale.caption,
     fontWeight: '500',
   },
   pressed: {

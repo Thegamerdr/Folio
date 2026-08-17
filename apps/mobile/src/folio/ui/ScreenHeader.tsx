@@ -29,7 +29,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { gap, useTheme } from '@/folio/theme';
+import { gap, typeScale, useTheme } from '@/folio/theme';
 import { ProductIcon } from './ProductIcon';
 
 export type ScreenHeaderProps = {
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   title: {
-    fontSize: 16,
+    fontSize: typeScale.body,
     fontWeight: '600',
   },
   trailing: {

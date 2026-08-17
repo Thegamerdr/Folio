@@ -20,7 +20,7 @@
 import { StyleSheet, Text } from 'react-native';
 
 import type { BalanceSource, CurrentBalance, MoneyMode } from '@/folio/store';
-import { type Palette, useTheme } from '@/folio/theme';
+import { type Palette, typeScale, useTheme } from '@/folio/theme';
 
 const BALANCE_SOURCE_LABEL: Record<BalanceSource, string> = {
   'user-entered': 'you set this',
@@ -56,7 +56,7 @@ export function StubDisclaimer({ mode: _mode, balance, shipped = true }: StubDis
 function makeStyles(t: Palette) {
   return StyleSheet.create({
     line: {
-      fontSize: 10.5,
+      fontSize: typeScale.micro,
       color: t.muted,
       opacity: 0.7,
       marginTop: 12,

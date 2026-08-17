@@ -38,7 +38,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { serif, useTheme } from '@/folio/theme';
+import { serif, typeScale, useTheme } from '@/folio/theme';
 import { subscribeMeloReaction, type MeloReactionPayload } from '@/folio/lib/melo/reactionBus';
 
 export type MeloReactionAnchor = 'under-melo' | 'under-row';
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   line: {
     flex: 1,
     fontFamily: serif.displayItalic,
-    fontSize: 12.5,
+    fontSize: typeScale.caption,
     fontStyle: 'italic',
     lineHeight: 16,
   },

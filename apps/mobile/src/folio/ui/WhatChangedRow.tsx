@@ -21,7 +21,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { markWhatChangedSeen, useAppStore } from '@/folio/store';
 import { buildTimelineRows } from '@/folio/lib/timelineEvents';
 import { summarizeWhatChanged } from '@/folio/lib/whatChanged';
-import { gap, pressed, radius, useTheme, type Palette } from '@/folio/theme';
+import { gap, pressed, radius, typeScale, useTheme, type Palette } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 import { ProductIcon } from './ProductIcon';
 
@@ -93,19 +93,19 @@ function makeStyles(t: Palette) {
     },
     dot: {
       backgroundColor: t.calm,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       height: 6,
       width: 6,
     },
     label: {
       color: t.ink,
-      fontSize: 12,
+      fontSize: typeScale.caption,
       fontWeight: '500',
     },
     headline: {
       color: t.muted,
       flex: 1,
-      fontSize: 12,
+      fontSize: typeScale.caption,
     },
   });
 }

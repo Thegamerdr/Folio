@@ -46,6 +46,9 @@ import {
   Muted,
   PressureScreen,
   PrimaryAction,
+  gap,
+  radius,
+  typeScale,
   useTheme,
 } from '@/surfaces/pressureMap/kit';
 import {
@@ -904,21 +907,21 @@ const shellStyles = StyleSheet.create({
   futureGate: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: gap.xl,
   },
   futureGateCard: {
-    borderRadius: 18,
-    padding: 24,
+    borderRadius: radius.card,
+    padding: gap.xl,
   },
   futureGateTitle: {
-    fontSize: 24,
+    fontSize: typeScale.title,
     fontWeight: '600',
     lineHeight: 30,
   },
   futureGateBody: {
-    fontSize: 15,
+    fontSize: typeScale.bodySmall,
     lineHeight: 22,
-    marginTop: 12,
+    marginTop: gap.md,
   },
   statusBarMask: {
     position: 'absolute',
@@ -1037,16 +1040,21 @@ function PersistenceSaveNotice() {
 
 const noticeStyles = StyleSheet.create({
   card: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 14,
+    marginHorizontal: gap.lg,
+    marginTop: gap.sm,
+    borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: 14,
+    padding: gap.lg,
   },
-  title: { fontSize: 13.5, fontWeight: '600' },
-  body: { fontSize: 12, lineHeight: 17, marginTop: 4 },
-  dismiss: { alignSelf: 'flex-end', marginTop: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  dismissLabel: { fontSize: 12.5, fontWeight: '500' },
+  title: { fontSize: typeScale.bodySmall, fontWeight: '600' },
+  body: { fontSize: typeScale.caption, lineHeight: 17, marginTop: gap.xs },
+  dismiss: {
+    alignSelf: 'flex-end',
+    marginTop: gap.sm,
+    paddingHorizontal: gap.sm,
+    paddingVertical: gap.xs,
+  },
+  dismissLabel: { fontSize: typeScale.caption, fontWeight: '500' },
   pressed: { opacity: 0.6 },
 });
 

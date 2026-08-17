@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PersonalPrimaryTab } from '@/folio/lib/navigation/personalNavigation';
-import { pressed, useTheme } from '@/folio/theme';
+import { pressed, typeScale, useTheme } from '@/folio/theme';
 import { ProductIcon, type ProductIconName } from './ProductIcon';
 
 type PersonalBottomNavProps = Readonly<{
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   label: {
-    fontSize: 10,
+    fontSize: typeScale.micro,
     letterSpacing: 0.2,
     lineHeight: 13,
     textAlign: 'center',

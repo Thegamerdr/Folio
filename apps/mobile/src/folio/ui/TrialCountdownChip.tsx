@@ -24,7 +24,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { copy } from '@/folio/copy/copy';
-import { gap, pressed, radius, type Palette, useTheme } from '@/folio/theme';
+import { gap, pressed, radius, type Palette, typeScale, useTheme } from '@/folio/theme';
 
 // Callers pass useLens()'s derived `paidUnlocked`; the chip only needs to know
 // whether any paid tier is owned.
@@ -94,7 +94,7 @@ function makeStyles(t: Palette) {
       backgroundColor: t.calm,
     },
     label: {
-      fontSize: 10.5,
+      fontSize: typeScale.micro,
       fontWeight: '600',
       letterSpacing: 0.6,
       textTransform: 'uppercase',

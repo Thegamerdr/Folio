@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { gap, pressed, serif, useTheme } from '@/folio/theme';
+import { gap, pressed, radius, serif, typeScale, useTheme } from '@/folio/theme';
 import type { PersistedWorkspace } from '@/folio/lib/workspaceRoot';
 
 export type WorkspaceControlProps = Readonly<{
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   },
   control: {
     alignItems: 'center',
-    borderRadius: 999,
+    borderRadius: radius.pill,
     flexDirection: 'row',
     justifyContent: 'center',
     minHeight: 44,
@@ -69,12 +69,12 @@ const styles = StyleSheet.create({
   dot: { borderRadius: 3, height: 5, marginRight: gap.sm, width: 5 },
   name: {
     fontFamily: serif.displayItalic,
-    fontSize: 12.5,
+    fontSize: typeScale.caption,
     lineHeight: 16,
     maxWidth: 180,
   },
   action: {
-    fontSize: 11,
+    fontSize: typeScale.micro,
     fontWeight: '600',
     marginLeft: gap.sm,
   },

@@ -21,7 +21,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { elevation, gap, type Palette, pressed, radius, useTheme } from '@/folio/theme';
+import { elevation, gap, type Palette, pressed, radius, typeScale, useTheme } from '@/folio/theme';
 
 // The undo affordance label — the one verb. Kept as a constant so the action reads identically
 // wherever a toast is raised.
@@ -164,7 +164,7 @@ function makeStyles(t: Palette) {
     },
     label: {
       color: t.canvas,
-      fontSize: 13,
+      fontSize: typeScale.bodySmall,
       lineHeight: 18,
     },
     // The undo action — a calm-toned text affordance on the ink bar; a >=44px tap area via padding
@@ -177,7 +177,7 @@ function makeStyles(t: Palette) {
     },
     undoLabel: {
       color: t.calmStrong,
-      fontSize: 13,
+      fontSize: typeScale.bodySmall,
       fontWeight: '700',
       letterSpacing: 0.3,
     },

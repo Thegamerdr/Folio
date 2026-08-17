@@ -1141,7 +1141,7 @@ function makeStyles(t: Palette) {
     quietLinkLabel: { color: t.secondary, fontSize: typeScale.bodySmall, fontWeight: '600' },
 
     chip: {
-      borderRadius: 999,
+      borderRadius: radius.pill,
       paddingVertical: 10,
       paddingHorizontal: gap.lg,
       borderWidth: 1.5,

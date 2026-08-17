@@ -7,7 +7,7 @@ import type {
   TrustedSafeRangeSourceBreakdown,
 } from '@folio/domain';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { gap, radius, serif, typeScale, useTheme } from '@/folio/theme';
 import { receiptSummary } from '@/folio/lib/decisionLedger';
 import type {
   PaydayForecastAccountability,
@@ -320,8 +320,8 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  arrow: { fontSize: 20, paddingTop: gap.lg },
-  body: { fontSize: 12.5, lineHeight: 18, marginTop: gap.xs },
+  arrow: { fontSize: typeScale.title, paddingTop: gap.lg },
+  body: { fontSize: typeScale.caption, lineHeight: 18, marginTop: gap.xs },
   card: {
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
@@ -329,14 +329,19 @@ const styles = StyleSheet.create({
     padding: gap.md,
   },
   compareRow: { alignItems: 'stretch', flexDirection: 'row', gap: gap.sm, marginTop: gap.sm },
-  eyebrow: { fontSize: 10, fontWeight: '700', letterSpacing: 1.3, textTransform: 'uppercase' },
+  eyebrow: {
+    fontSize: typeScale.micro,
+    fontWeight: '700',
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+  },
   fact: { borderRadius: radius.md, flex: 1, minWidth: 128, padding: gap.sm },
   factGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm, marginTop: gap.md },
-  factValue: { fontSize: 12, lineHeight: 16, marginTop: 3 },
-  meta: { fontSize: 11.5, lineHeight: 16, marginTop: 2 },
+  factValue: { fontSize: typeScale.caption, lineHeight: 16, marginTop: 3 },
+  meta: { fontSize: typeScale.micro, lineHeight: 16, marginTop: 2 },
   money: {
     fontFamily: serif.display,
-    fontSize: 15,
+    fontSize: typeScale.body,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
@@ -346,10 +351,15 @@ const styles = StyleSheet.create({
     marginTop: gap.sm,
     padding: gap.md,
   },
-  optionTitle: { fontSize: 13.5, fontWeight: '700' },
+  optionTitle: { fontSize: typeScale.bodySmall, fontWeight: '700' },
   rangeColumn: { borderRadius: radius.md, flex: 1, padding: gap.sm },
-  smallLabel: { fontSize: 9.5, letterSpacing: 1, textTransform: 'uppercase' },
-  sourceLabel: { fontSize: 13, fontWeight: '700' },
+  smallLabel: { fontSize: typeScale.micro, letterSpacing: 1, textTransform: 'uppercase' },
+  sourceLabel: { fontSize: typeScale.bodySmall, fontWeight: '700' },
   sourceRow: { marginTop: gap.sm },
-  title: { fontFamily: serif.display, fontSize: 18, lineHeight: 22, marginTop: gap.xs },
+  title: {
+    fontFamily: serif.display,
+    fontSize: typeScale.title,
+    lineHeight: 24,
+    marginTop: gap.xs,
+  },
 });

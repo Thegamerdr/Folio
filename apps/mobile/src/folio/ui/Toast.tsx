@@ -21,7 +21,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
-import { elevation, gap, type Palette, radius, useTheme } from '@/folio/theme';
+import { elevation, gap, type Palette, radius, typeScale, useTheme } from '@/folio/theme';
 
 // How long a toast rests on screen before auto-dismissing — matches the web's typical sonner
 // `duration` (3500-4500ms across the ported call sites) at a single representative value.
@@ -168,14 +168,14 @@ function makeStyles(t: Palette) {
     },
     title: {
       color: t.ink,
-      fontSize: 13.5,
+      fontSize: typeScale.bodySmall,
       fontWeight: '500',
       lineHeight: 18,
     },
     description: {
       marginTop: 2,
       color: t.muted,
-      fontSize: 12,
+      fontSize: typeScale.caption,
       lineHeight: 17,
     },
   });

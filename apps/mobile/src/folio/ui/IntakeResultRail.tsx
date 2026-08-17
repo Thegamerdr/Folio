@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { gap, radius, useTheme } from '@/folio/theme';
+import { gap, radius, typeScale, useTheme } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 import {
   intakeResultHelpPrompt,
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     minWidth: 44,
   },
   headerLabel: {
-    fontSize: 12,
+    fontSize: typeScale.caption,
     letterSpacing: 1.7,
     textTransform: 'uppercase',
   },
@@ -108,6 +108,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: gap.xs,
   },
-  label: { fontSize: 11, fontWeight: '700' },
+  label: { fontSize: typeScale.micro, fontWeight: '700' },
   pressed: { opacity: 0.62 },
 });

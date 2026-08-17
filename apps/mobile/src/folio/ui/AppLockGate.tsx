@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Melo } from '@/folio/melo/Melo';
-import { gap, pressed, radius, serif, useTheme } from '@/folio/theme';
+import { gap, pressed, radius, serif, typeScale, useTheme } from '@/folio/theme';
 
 export function AppLockGate({
   busy,
@@ -79,27 +79,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   eyebrow: {
-    fontSize: 11,
+    fontSize: typeScale.micro,
     letterSpacing: 1.7,
     marginTop: gap.xl,
     textTransform: 'uppercase',
   },
   title: {
     fontFamily: serif.display,
-    fontSize: 42,
+    fontSize: typeScale.display,
     lineHeight: 46,
     marginTop: gap.sm,
     textAlign: 'center',
   },
   body: {
-    fontSize: 16,
+    fontSize: typeScale.body,
     lineHeight: 24,
     marginTop: gap.md,
     maxWidth: 340,
     textAlign: 'center',
   },
   message: {
-    fontSize: 14,
+    fontSize: typeScale.bodySmall,
     lineHeight: 20,
     marginTop: gap.lg,
     maxWidth: 340,
@@ -115,11 +115,11 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   buttonLabel: {
-    fontSize: 16,
+    fontSize: typeScale.body,
     fontWeight: '600',
   },
   footnote: {
-    fontSize: 12,
+    fontSize: typeScale.caption,
     lineHeight: 18,
     marginTop: gap.lg,
     maxWidth: 320,

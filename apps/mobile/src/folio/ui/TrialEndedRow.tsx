@@ -19,7 +19,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useLens } from '@/folio/lib/lens';
 import { copy } from '@/folio/copy/copy';
-import { gap, pressed, radius, useTheme, type Palette } from '@/folio/theme';
+import { gap, pressed, radius, typeScale, useTheme, type Palette } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 
 export function TrialEndedRow({ nav }: { nav: Nav }) {
@@ -82,7 +82,7 @@ function makeStyles(t: Palette) {
     },
     dot: {
       backgroundColor: t.calm,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       height: 6,
       width: 6,
     },
@@ -92,16 +92,16 @@ function makeStyles(t: Palette) {
     },
     title: {
       color: t.ink,
-      fontSize: 12,
+      fontSize: typeScale.caption,
       fontWeight: '500',
     },
     body: {
       color: t.muted,
-      fontSize: 12,
+      fontSize: typeScale.caption,
     },
     plansLink: {
       color: t.calmStrong,
-      fontSize: 12,
+      fontSize: typeScale.caption,
     },
     okButton: {
       alignItems: 'center',
@@ -110,7 +110,7 @@ function makeStyles(t: Palette) {
     },
     okText: {
       color: t.muted,
-      fontSize: 12,
+      fontSize: typeScale.caption,
       fontWeight: '500',
     },
   });
