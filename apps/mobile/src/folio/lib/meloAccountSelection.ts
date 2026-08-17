@@ -1,4 +1,5 @@
 import { purgeSeedIfReal, type AccountKind, type AppState } from '../store';
+import { isAccountSelectable } from './accountPolicy';
 import { requireWorkspaceData } from './workspaceRoot';
 
 export type MeloAccountChoice = Readonly<{
@@ -34,7 +35,7 @@ function normalize(value: string): string {
 
 function accountChoices(state: AppState): readonly MeloAccountChoice[] {
   return (purgeSeedIfReal(state).accounts ?? [])
-    .filter((account) => !account.closed)
+    .filter(isAccountSelectable)
     .map((account) => ({ accountId: account.id, label: account.name }));
 }
 
@@ -49,7 +50,7 @@ export function resolveMeloAccountSelection(
   workspaceId = state.activeWorkspaceId,
 ): MeloAccountSelection {
   const localState = purgeSeedIfReal(requireWorkspaceData(state, workspaceId));
-  const accounts = (localState.accounts ?? []).filter((account) => !account.closed);
+  const accounts = (localState.accounts ?? []).filter(isAccountSelectable);
   const choices = accountChoices(localState);
   if (accounts.length === 0) return { state: 'not-requested' };
 

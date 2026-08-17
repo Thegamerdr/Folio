@@ -65,6 +65,30 @@ describe('resolveMeloAccountSelection', () => {
     });
   });
 
+  it('does not offer hidden, closed, excluded or foreign accounts for a new Melo action', () => {
+    const current = getState().accounts ?? [];
+    setPartial({
+      accounts: [
+        ...current,
+        { ...current[0]!, id: 'hidden', name: 'Hidden account', hidden: true },
+        { ...current[0]!, id: 'closed', name: 'Closed account', closed: true },
+        {
+          ...current[0]!,
+          id: 'excluded',
+          name: 'Excluded account',
+          excludedFromTotals: true,
+        },
+        { ...current[0]!, id: 'foreign', name: 'Euro account', currency: 'EUR' },
+      ],
+    });
+
+    const result = resolveMeloAccountSelection(getState(), 'What is my account balance?');
+    expect(result).toMatchObject({ state: 'needs-selection' });
+    expect(
+      result.state === 'needs-selection' ? result.choices.map((choice) => choice.label) : [],
+    ).toEqual(['Daily current', 'Rainy day']);
+  });
+
   it('refuses account-name access after a crafted Business workspace switch', () => {
     const state = {
       ...getState(),

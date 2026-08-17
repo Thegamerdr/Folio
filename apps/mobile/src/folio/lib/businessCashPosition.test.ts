@@ -8,6 +8,7 @@ const NOW = new Date('2026-07-15T12:00:00.000Z');
 
 function account(input: Partial<Account> & Pick<Account, 'id' | 'name'>): Account {
   return {
+    ...input,
     id: input.id,
     name: input.name,
     kind: input.kind ?? 'bank',
@@ -18,7 +19,7 @@ function account(input: Partial<Account> & Pick<Account, 'id' | 'name'>): Accoun
   };
 }
 
-function transaction(when: string, amount: number): Transaction {
+function transaction(when: string, amount: number, accountId?: string): Transaction {
   return {
     id: `txn-${when}-${amount}`,
     when,
@@ -26,6 +27,7 @@ function transaction(when: string, amount: number): Transaction {
     amount,
     category: amount >= 0 ? 'income' : 'other',
     source: 'manual',
+    ...(accountId === undefined ? {} : { accountId }),
   };
 }
 
@@ -121,6 +123,56 @@ describe('buildBusinessCashPosition', () => {
       runwayDays: null,
       runwayHistoryDays: 0,
       runwayExpenseRows: 0,
+    });
+  });
+
+  it('excludes card, closed, foreign and owner-excluded rows from cashflow and runway', () => {
+    const result = buildBusinessCashPosition({
+      accounts: [
+        account({ id: 'bank', name: 'Business current', balanceMinor: 2_000 }),
+        account({
+          id: 'card',
+          name: 'Business card',
+          kind: 'credit-card',
+          isLiability: true,
+          balanceMinor: 350,
+        }),
+        account({ id: 'closed', name: 'Closed current', balanceMinor: 4_000, closed: true }),
+        account({
+          id: 'excluded',
+          name: 'Excluded current',
+          balanceMinor: 5_000,
+          excludedFromTotals: true,
+        }),
+        account({
+          id: 'foreign',
+          name: 'Euro current',
+          balanceMinor: 9_000,
+          currency: 'EUR',
+        }),
+      ],
+      transactions: [
+        transaction('2026-07-01T00:00:00.000Z', -100, 'bank'),
+        transaction('2026-07-08T00:00:00.000Z', -50, 'bank'),
+        transaction('2026-07-15T00:00:00.000Z', -60, 'bank'),
+        transaction('2026-07-12T00:00:00.000Z', -500, 'card'),
+        transaction('2026-07-12T00:00:00.000Z', -600, 'closed'),
+        transaction('2026-07-12T00:00:00.000Z', 700, 'excluded'),
+        transaction('2026-07-12T00:00:00.000Z', 800, 'foreign'),
+      ],
+      upcomingEvents: [],
+      now: NOW,
+    });
+
+    expect(result).toMatchObject({
+      cashBalance: 2_000,
+      liabilityBalance: 350,
+      netPosition: 1_650,
+      confirmedIncome30Days: 0,
+      confirmedExpense30Days: 210,
+      runwayExpenseRows: 3,
+      runwayHistoryDays: 15,
+      runwayDays: 142,
     });
   });
 });

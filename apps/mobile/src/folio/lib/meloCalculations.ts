@@ -13,6 +13,7 @@ import { planProgress, summarisePlans } from './modes/planEngine';
 import { buildRecoveryRoutePreview } from './recoveryPreview';
 import { reviewMatch } from './reviewDedupe';
 import { requireWorkspaceData, workspaceLocalDate } from './workspaceRoot';
+import { isAccountSelectable } from './accountPolicy';
 
 const PENCE_PER_POUND = 100;
 const MIN_IRREGULAR_HISTORY_MONTHS = 3;
@@ -204,7 +205,7 @@ function buildSourceExplanation(
   const selectedAccount =
     intent === 'review_accounts' && selectedAccountId
       ? (state.accounts ?? []).find(
-          (account) => account.id === selectedAccountId && !account.closed,
+          (account) => account.id === selectedAccountId && isAccountSelectable(account),
         )
       : undefined;
   const values: Extract<MeloLocalCalculation, { kind: 'source-explanation' }>['values'] =

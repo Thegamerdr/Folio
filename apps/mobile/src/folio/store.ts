@@ -32,6 +32,16 @@ import {
   normalizedCurrencyCode,
 } from './lib/launchCurrency';
 import {
+  isAccountCurrent,
+  isAccountInLaunchMoneyPicture,
+  isAccountSelectable,
+  isCashAccountInLaunchPosition,
+  summarizeCreditAvailability,
+  summarizeOverdrafts,
+  type CreditAvailabilitySummary,
+  type OverdraftSummary,
+} from './lib/accountPolicy';
+import {
   applyMemoryToCandidates,
   MERCHANT_CATEGORY_CAP,
   type CandidateWithMemory,
@@ -523,6 +533,14 @@ export type Account = {
    *  (ACCOUNTS_MODEL.md §6 open question 1); omit rather than half-build FX conversion nobody asked
    *  for. Absent means GBP. */
   currency?: string;
+  /** Presentation-only: hidden accounts remain part of current totals and history. */
+  hidden?: boolean;
+  /** Explicit owner choice to omit this account from current totals while retaining its history. */
+  excludedFromTotals?: boolean;
+  /** Credit-card facility limit, in the same legacy major-unit convention as `balanceMinor`. */
+  creditLimit?: number;
+  /** Arranged current-account overdraft limit. It is never added to safe cash. */
+  arrangedOverdraftLimit?: number;
   /** ISO timestamp this account's balance was last set/confirmed by an import or manual entry. */
   balanceAsOfISO: string;
   /** ISO timestamp the account was created — sort stability / "added N days ago" copy only. */
@@ -556,14 +574,14 @@ export function accountIdOf(t: Pick<Transaction, 'accountId'>): string {
  *  construction) — so this predicate is always safe to call and never silently drops a pre-accounts
  *  transaction. */
 export function isBankTxn(
-  state: { accounts?: Account[] | undefined },
+  state: { accounts?: readonly Account[] | undefined },
   txn: Pick<Transaction, 'accountId'>,
 ): boolean {
   const accounts = state.accounts ?? [];
   if (accounts.length === 0) return true;
   const account = accounts.find((a) => a.id === accountIdOf(txn));
   if (account === undefined) return true;
-  return !account.isLiability && isLaunchCurrency(account.currency);
+  return isCashAccountInLaunchPosition(account);
 }
 
 /** ACCOUNTS_MODEL.md §2.4 — `state.transactions` filtered to bank/savings/cash accounts only (excludes
@@ -2148,10 +2166,10 @@ function load(): AppState {
 }
 
 /**
- * Fail closed when a legacy/restore blob contains foreign accounts. The account remains visible so
- * the owner can identify it, but it cannot contaminate the GBP current-balance scalar or any GBP
- * selector. Explicit lower-case GBP values are canonicalised while missing legacy currency remains
- * valid GBP.
+ * Fail closed when a legacy/restore blob contains foreign, closed or explicitly excluded cash
+ * accounts. The account remains visible so the owner can identify it, but it cannot contaminate the
+ * GBP current-balance scalar. Explicit lower-case GBP values are canonicalised while missing legacy
+ * currency remains valid GBP.
  */
 function reconcileLaunchCurrencyState(candidate: AppState): AppState {
   const accounts = candidate.accounts ?? [];
@@ -2168,11 +2186,14 @@ function reconcileLaunchCurrencyState(candidate: AppState): AppState {
     }
     return account;
   });
-  if (!hasUnsupportedAccount) {
+  const hasUnavailableCashAccount = normalizedAccounts.some(
+    (account) => !account.isLiability && !isCashAccountInLaunchPosition(account),
+  );
+  if (!hasUnsupportedAccount && !hasUnavailableCashAccount) {
     return accountsChanged ? { ...candidate, accounts: normalizedAccounts } : candidate;
   }
   const gbpBankTotal = normalizedAccounts
-    .filter((account) => !account.isLiability && isLaunchCurrency(account.currency))
+    .filter(isCashAccountInLaunchPosition)
     .reduce((sum, account) => sum + account.balanceMinor, 0);
   const balanceChanged = candidate.currentBalance.amount !== gbpBankTotal;
   if (!accountsChanged && !balanceChanged) return candidate;
@@ -4049,15 +4070,13 @@ export function setCurrentBalance(next: Omit<CurrentBalance, 'setAt'>) {
   // instead of a stale echo of the default account alone.
   const accounts = state.accounts ?? [];
   const nextAccounts = accounts.map((a) =>
-    a.id === DEFAULT_ACCOUNT_ID && !a.isLiability && isLaunchCurrency(a.currency)
+    a.id === DEFAULT_ACCOUNT_ID && isCashAccountInLaunchPosition(a)
       ? { ...a, balanceMinor: next.amount, balanceAsOfISO: setAt }
       : a,
   );
-  const bankAccounts = nextAccounts.filter((a) => !a.isLiability && isLaunchCurrency(a.currency));
+  const bankAccounts = nextAccounts.filter(isCashAccountInLaunchPosition);
   const bankTotal =
-    bankAccounts.length === 0
-      ? next.amount
-      : bankAccounts.reduce((sum, a) => sum + a.balanceMinor, 0);
+    accounts.length === 0 ? next.amount : bankAccounts.reduce((sum, a) => sum + a.balanceMinor, 0);
   const nextBalance = { ...next, amount: bankTotal, setAt };
   setPartialWithTypedCommand(
     { currentBalance: nextBalance, accounts: nextAccounts },
@@ -4139,6 +4158,30 @@ function cardDebtId(accountId: string): string {
   return `debt-for-${accountId}`;
 }
 
+function validateAccountFacility(value: number, label: string): number;
+function validateAccountFacility(value: undefined, label: string): undefined;
+function validateAccountFacility(value: number | undefined, label: string): number | undefined;
+function validateAccountFacility(value: number | undefined, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isFinite(value) || value < 0 || !Number.isSafeInteger(Math.round(value * 100))) {
+    throw new Error(
+      `${label} must be a finite amount of zero or more that fits safely to the penny.`,
+    );
+  }
+  return value;
+}
+
+function isValidAccountAmount(value: number): boolean {
+  return Number.isFinite(value) && Number.isSafeInteger(Math.round(value * 100));
+}
+
+function assertValidAccountAmount(value: number, label: string): number {
+  if (!isValidAccountAmount(value)) {
+    throw new Error(`${label} must be a finite amount that fits safely to the penny.`);
+  }
+  return value;
+}
+
 /** ACCOUNTS_MODEL.md §2.4 — declare payoff details (APR/min payment/due day) for a credit-card
  *  `Account` that has no linked `Debt` row yet. Creates the linked `Debt` row keyed by
  *  `debt-for-${accountId}` with the account's CURRENT
@@ -4154,7 +4197,7 @@ export function addCardPayoffDetails(
   if (
     account === undefined ||
     account.kind !== 'credit-card' ||
-    !isLaunchCurrency(account.currency)
+    !isAccountInLaunchMoneyPicture(account)
   )
     return null;
   const debts = state.debts ?? [];
@@ -4202,27 +4245,45 @@ export function addAccount(
   input: Partial<Omit<Account, 'id'>> & Pick<Account, 'name' | 'kind'>,
 ): Account {
   const currency = assertLaunchCurrency(input.currency);
+  const creditLimit = validateAccountFacility(input.creditLimit, 'Credit limit');
+  const arrangedOverdraftLimit = validateAccountFacility(
+    input.arrangedOverdraftLimit,
+    'Arranged overdraft limit',
+  );
+  const balance = assertValidAccountAmount(input.balanceMinor ?? 0, 'Account balance');
+  if (creditLimit !== undefined && input.kind !== 'credit-card') {
+    throw new Error('Only a credit-card account can have a credit limit.');
+  }
+  if (arrangedOverdraftLimit !== undefined && input.kind !== 'bank') {
+    throw new Error('Only a bank account can have an arranged overdraft limit.');
+  }
   const now = new Date().toISOString();
   const account: Account = {
     id: `acct-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name: input.name,
     kind: input.kind,
     isLiability: input.isLiability ?? input.kind === 'credit-card',
-    balanceMinor: input.balanceMinor ?? 0,
+    balanceMinor: balance,
     balanceAsOfISO: input.balanceAsOfISO ?? now,
     addedAt: input.addedAt ?? now,
     ...(input.currency !== undefined ? { currency } : {}),
+    ...(input.hidden !== undefined ? { hidden: input.hidden } : {}),
+    ...(input.excludedFromTotals !== undefined
+      ? { excludedFromTotals: input.excludedFromTotals }
+      : {}),
+    ...(creditLimit !== undefined ? { creditLimit } : {}),
+    ...(arrangedOverdraftLimit !== undefined ? { arrangedOverdraftLimit } : {}),
     ...(input.closed !== undefined ? { closed: input.closed } : {}),
   };
   const nextAccounts = [...(state.accounts ?? []), account];
   let patch: Partial<AppState>;
-  if (!account.isLiability && account.balanceMinor !== 0) {
+  if (isCashAccountInLaunchPosition(account) && account.balanceMinor !== 0) {
     // Same two-way sync invariant as `setAccountBalance`: a new bank account arriving WITH an
     // opening balance moves bank money, so the legacy scalar follows the bank sum in the same
     // write. (The current UI creates accounts at £0 and sets the balance later, so this is a
     // guard for the API contract, not a behavior change for any live flow.)
     const bankTotal = nextAccounts
-      .filter((a) => !a.isLiability && isLaunchCurrency(a.currency))
+      .filter(isCashAccountInLaunchPosition)
       .reduce((sum, a) => sum + a.balanceMinor, 0);
     patch = {
       accounts: nextAccounts,
@@ -4269,6 +4330,129 @@ export function renameAccount(accountId: string, name: string) {
   );
 }
 
+export type AccountPolicyUpdate = Readonly<{
+  hidden?: boolean;
+  excludedFromTotals?: boolean;
+  closed?: boolean;
+}>;
+
+/**
+ * Update presentation/lifecycle policy without deleting account history. Hidden is presentation
+ * only; excluded and closed accounts leave current totals immediately. Reopening/re-including an
+ * account recomputes the same aggregate in the same typed write.
+ */
+export function updateAccountPolicy(accountId: string, input: AccountPolicyUpdate): boolean {
+  const accounts = state.accounts ?? [];
+  const account = accounts.find((candidate) => candidate.id === accountId);
+  if (account === undefined) return false;
+  const updated: Account = {
+    ...account,
+    ...(input.hidden === undefined ? {} : { hidden: input.hidden }),
+    ...(input.excludedFromTotals === undefined
+      ? {}
+      : { excludedFromTotals: input.excludedFromTotals }),
+    ...(input.closed === undefined ? {} : { closed: input.closed }),
+  };
+  if (
+    updated.hidden === account.hidden &&
+    updated.excludedFromTotals === account.excludedFromTotals &&
+    updated.closed === account.closed
+  ) {
+    return true;
+  }
+  const now = new Date().toISOString();
+  const nextAccounts = accounts.map((candidate) =>
+    candidate.id === accountId ? updated : candidate,
+  );
+  const cashAvailabilityChanged =
+    isCashAccountInLaunchPosition(account) !== isCashAccountInLaunchPosition(updated);
+  const currentBalance: CurrentBalance | undefined = cashAvailabilityChanged
+    ? {
+        ...state.currentBalance,
+        amount: nextAccounts
+          .filter(isCashAccountInLaunchPosition)
+          .reduce((sum, candidate) => sum + candidate.balanceMinor, 0),
+        source: 'corrected',
+        confidence: 'corrected',
+        setAt: now,
+      }
+    : undefined;
+  setPartialWithTypedCommand(
+    { accounts: nextAccounts, ...(currentBalance === undefined ? {} : { currentBalance }) },
+    {
+      commandType: 'folio.account.policy.update.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'account', id: accountId }],
+      before: { account },
+      after: { account: updated },
+      changedEntityIds: [accountId],
+      invalidatedProjectionKinds: ['accounts', 'account-balances', 'cashflow', 'debt-summary'],
+      occurredAt: now,
+    },
+  );
+  return true;
+}
+
+export type AccountFacilityUpdate = Readonly<{
+  creditLimit?: number | null;
+  arrangedOverdraftLimit?: number | null;
+}>;
+
+/** Stores declared facilities separately from actual money; neither changes current balance. */
+export function setAccountFacilities(accountId: string, input: AccountFacilityUpdate): boolean {
+  const accounts = state.accounts ?? [];
+  const account = accounts.find((candidate) => candidate.id === accountId);
+  if (account === undefined || !isAccountCurrent(account) || !isLaunchCurrency(account.currency)) {
+    return false;
+  }
+  const hasCreditLimit = Object.prototype.hasOwnProperty.call(input, 'creditLimit');
+  const hasOverdraftLimit = Object.prototype.hasOwnProperty.call(input, 'arrangedOverdraftLimit');
+  if (!hasCreditLimit && !hasOverdraftLimit) return true;
+  if (hasCreditLimit && account.kind !== 'credit-card') {
+    throw new Error('Only a credit-card account can have a credit limit.');
+  }
+  if (hasOverdraftLimit && account.kind !== 'bank') {
+    throw new Error('Only a bank account can have an arranged overdraft limit.');
+  }
+  let updated: Account = { ...account };
+  if (hasCreditLimit) {
+    if (input.creditLimit === null || input.creditLimit === undefined) {
+      const { creditLimit: _removed, ...withoutCreditLimit } = updated;
+      updated = withoutCreditLimit;
+    } else {
+      updated.creditLimit = validateAccountFacility(input.creditLimit, 'Credit limit');
+    }
+  }
+  if (hasOverdraftLimit) {
+    if (input.arrangedOverdraftLimit === null || input.arrangedOverdraftLimit === undefined) {
+      const { arrangedOverdraftLimit: _removed, ...withoutOverdraftLimit } = updated;
+      updated = withoutOverdraftLimit;
+    } else {
+      updated.arrangedOverdraftLimit = validateAccountFacility(
+        input.arrangedOverdraftLimit,
+        'Arranged overdraft limit',
+      );
+    }
+  }
+  const now = new Date().toISOString();
+  setPartialWithTypedCommand(
+    {
+      accounts: accounts.map((candidate) => (candidate.id === accountId ? updated : candidate)),
+    },
+    {
+      commandType: 'folio.account.facilities.update.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'account', id: accountId }],
+      before: { account },
+      after: { account: updated },
+      changedEntityIds: [accountId],
+      invalidatedProjectionKinds: ['accounts', 'debt-summary'],
+      occurredAt: now,
+    },
+  );
+  return true;
+}
+
 /** ACCOUNTS_MODEL.md §3 step 4 — set a SPECIFIC account's balance (replaces the global
  *  `setCurrentBalance` write for any account-aware caller). Stamps `balanceAsOfISO`. No-op if the
  *  account id doesn't exist (never silently creates one — callers must `addAccount` first).
@@ -4293,7 +4477,13 @@ export function setAccountBalance(
 ) {
   const accounts = state.accounts ?? [];
   const account = accounts.find((a) => a.id === accountId);
-  if (account === undefined || !isLaunchCurrency(account.currency)) return false;
+  if (
+    account === undefined ||
+    !isAccountCurrent(account) ||
+    !isLaunchCurrency(account.currency) ||
+    !isValidAccountAmount(amount)
+  )
+    return false;
   const balanceAsOfISO = asOfISO ?? new Date().toISOString();
   const capture = beginMaterialWrite({
     type: account.isLiability ? 'debt_payment' : 'balance_correction',
@@ -4326,7 +4516,7 @@ export function setAccountBalance(
     patch = { accounts: nextAccounts, ...(linkedDebtChanged ? { debts: nextDebts } : {}) };
   } else {
     const bankTotal = nextAccounts
-      .filter((a) => !a.isLiability && isLaunchCurrency(a.currency))
+      .filter(isCashAccountInLaunchPosition)
       .reduce((sum, a) => sum + a.balanceMinor, 0);
     patch = {
       accounts: nextAccounts,
@@ -4368,9 +4558,7 @@ export function setAccountBalance(
 export function selectBankBalanceMinor(state: AppState): number {
   const accounts = state.accounts ?? [];
   if (accounts.length === 0) return state.currentBalance.amount;
-  return accounts
-    .filter((a) => !a.isLiability && isLaunchCurrency(a.currency))
-    .reduce((sum, a) => sum + a.balanceMinor, 0);
+  return accounts.filter(isCashAccountInLaunchPosition).reduce((sum, a) => sum + a.balanceMinor, 0);
 }
 
 /** ACCOUNTS_MODEL.md §2.4 — net position: Σ(non-liability balances) − Σ(liability balances). This is
@@ -4381,8 +4569,18 @@ export function selectNetPositionMinor(state: AppState): number {
   const accounts = state.accounts ?? [];
   if (accounts.length === 0) return state.currentBalance.amount;
   return accounts
-    .filter((a) => isLaunchCurrency(a.currency))
+    .filter(isAccountInLaunchMoneyPicture)
     .reduce((sum, a) => sum + (a.isLiability ? -a.balanceMinor : a.balanceMinor), 0);
+}
+
+/** Credit-card facility headroom is informational debt capacity and is never included in cash. */
+export function selectCreditAvailability(state: AppState): CreditAvailabilitySummary {
+  return summarizeCreditAvailability(state.accounts ?? []);
+}
+
+/** Arranged overdraft headroom is reported separately and is never included in safe cash. */
+export function selectOverdraftSummary(state: AppState): OverdraftSummary {
+  return summarizeOverdrafts(state.accounts ?? []);
 }
 
 /** ACCOUNTS_MODEL.md §2.4 point 2 — the "total owed" figure the payoff view needs: every
@@ -4400,8 +4598,8 @@ export function totalDebtMinor(state: AppState): number {
   const accounts = state.accounts ?? [];
   const debts = state.debts ?? [];
   const cardAccountTotal = accounts
-    .filter((a) => a.isLiability && isLaunchCurrency(a.currency))
-    .reduce((sum, a) => sum + a.balanceMinor, 0);
+    .filter((a) => a.isLiability && isAccountInLaunchMoneyPicture(a))
+    .reduce((sum, a) => sum + Math.max(0, a.balanceMinor), 0);
   const unlinkedDebtTotal = debts
     .filter((d) => d.linkedAccountId === undefined)
     .reduce((sum, d) => sum + d.balance, 0);
@@ -5265,34 +5463,37 @@ export function undoDebtPayment(id: string, amount: number) {
  *  account, or `cardAccountId` isn't a `kind: 'credit-card'` account. Never overdraws the bank
  *  account below the amount available is NOT enforced here (mirrors `logDebtPayment`'s existing
  *  "trust the amount the user typed" contract) — the caller's confirm-sheet is responsible for any
- *  "you don't have that much" warning copy, this function only does the arithmetic honestly. The
- *  card's balance is clamped at £0 (can't go negative from overpaying), matching every other
- *  debt-balance write in this file. */
+ *  "you don't have that much" warning copy, this function only does the arithmetic honestly. A
+ *  requested overpayment applies only the amount actually owed, so bank money cannot disappear and
+ *  the card cannot acquire an invented credit balance through this debt-payment action. */
 export function payCreditCardFromBank(
   bankAccountId: string,
   cardAccountId: string,
   amount: number,
 ): boolean {
-  if (!(amount > 0)) return false;
+  if (!(amount > 0) || !isValidAccountAmount(amount)) return false;
   const accounts = state.accounts ?? [];
   const bank = accounts.find((a) => a.id === bankAccountId);
   const card = accounts.find((a) => a.id === cardAccountId);
-  if (bank === undefined || bank.isLiability || !isLaunchCurrency(bank.currency)) return false;
-  if (card === undefined || card.kind !== 'credit-card' || !isLaunchCurrency(card.currency))
+  if (bank === undefined || !isCashAccountInLaunchPosition(bank)) return false;
+  if (card === undefined || card.kind !== 'credit-card' || !isAccountInLaunchMoneyPicture(card))
     return false;
+
+  const amountApplied = Math.min(amount, Math.max(0, card.balanceMinor));
+  if (amountApplied === 0) return false;
 
   const now = new Date().toISOString();
   const capture = beginMaterialWrite({
     type: 'debt_payment',
     sourceIds: [`fact_debt_account_${cardAccountId}`, 'fact_current_balance'],
     idempotencyKey: `credit_card_payment_${bankAccountId}_${cardAccountId}_${now}`,
-    monetaryEffectMinor: -Math.round(amount * 100),
+    monetaryEffectMinor: -Math.round(amountApplied * 100),
     occurredAt: now,
   });
-  const nextCardBalance = Math.max(0, card.balanceMinor - amount);
+  const nextCardBalance = card.balanceMinor - amountApplied;
   const nextAccounts = accounts.map((a) => {
     if (a.id === bankAccountId) {
-      return { ...a, balanceMinor: a.balanceMinor - amount, balanceAsOfISO: now };
+      return { ...a, balanceMinor: a.balanceMinor - amountApplied, balanceAsOfISO: now };
     }
     if (a.id === cardAccountId) {
       return { ...a, balanceMinor: nextCardBalance, balanceAsOfISO: now };
@@ -5307,7 +5508,7 @@ export function payCreditCardFromBank(
   // `currentBalance` scalar must move with it in the SAME atomic write — its readers would
   // otherwise show the pre-payment bank balance.
   const bankTotal = nextAccounts
-    .filter((a) => !a.isLiability && isLaunchCurrency(a.currency))
+    .filter(isCashAccountInLaunchPosition)
     .reduce((sum, a) => sum + a.balanceMinor, 0);
   setPartialWithTypedCommand(
     {
@@ -5591,7 +5792,7 @@ export function recordWorkspaceOwnerTransferLeg(
     throw new Error('Owner transfer leg requires a valid time.');
   }
   const account = (state.accounts ?? []).find(
-    (candidate) => !candidate.isLiability && candidate.closed !== true,
+    (candidate) => !candidate.isLiability && isAccountSelectable(candidate),
   );
   if (!account)
     throw new Error('Add an active cash account before moving money between workspaces.');
@@ -5624,7 +5825,7 @@ export function recordWorkspaceOwnerTransferLeg(
       : candidate,
   );
   const bankTotal = accounts
-    .filter((candidate) => !candidate.isLiability && candidate.closed !== true)
+    .filter(isCashAccountInLaunchPosition)
     .reduce((sum, candidate) => sum + candidate.balanceMinor, 0);
   const currentBalance: CurrentBalance = {
     ...state.currentBalance,
@@ -5675,7 +5876,7 @@ export function rollbackWorkspaceOwnerTransferLeg(transactionId: string): boolea
   const currentBalance: CurrentBalance = {
     ...state.currentBalance,
     amount: accounts
-      .filter((candidate) => !candidate.isLiability && candidate.closed !== true)
+      .filter(isCashAccountInLaunchPosition)
       .reduce((sum, candidate) => sum + candidate.balanceMinor, 0),
     source: 'user-entered',
     confidence: 'corrected',
@@ -8566,7 +8767,7 @@ function businessCashAccount(
   input: Record<string, unknown>,
 ): { ok: true; account: Account } | { ok: false; result: MeloToolResult } {
   const accounts = (state.accounts ?? []).filter(
-    (account) => !account.isLiability && account.closed !== true,
+    (account) => !account.isLiability && isAccountSelectable(account),
   );
   const resolved = resolveMeloTarget(
     input.account ?? input.accountName,

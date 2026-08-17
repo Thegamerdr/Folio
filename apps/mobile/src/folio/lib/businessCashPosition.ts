@@ -1,4 +1,5 @@
-import type { Account, Transaction } from '../store';
+import { isBankTxn, type Account, type Transaction } from '../store';
+import { isAccountInLaunchMoneyPicture } from './accountPolicy';
 import type { DerivedEvent } from './calendarEvents';
 
 const DAY_MS = 86_400_000;
@@ -46,7 +47,10 @@ export function buildBusinessCashPosition(
     now: Date;
   }>,
 ): BusinessCashPosition {
-  const activeAccounts = input.accounts.filter((account) => account.closed !== true);
+  const activeAccounts = input.accounts.filter(isAccountInLaunchMoneyPicture);
+  const cashTransactions = input.transactions.filter((transaction) =>
+    isBankTxn({ accounts: input.accounts }, transaction),
+  );
   const cashBalance = activeAccounts
     .filter((account) => !account.isLiability)
     .reduce((total, account) => total + account.balanceMinor, 0);
@@ -59,7 +63,7 @@ export function buildBusinessCashPosition(
   const historyStart = new Date(today.getTime() - (HISTORY_WINDOW_DAYS - 1) * DAY_MS);
   let confirmedIncome30Days = 0;
   let confirmedExpense30Days = 0;
-  const runwayExpenses: Readonly<{ at: Date; amount: number }>[] = input.transactions.flatMap(
+  const runwayExpenses: Readonly<{ at: Date; amount: number }>[] = cashTransactions.flatMap(
     (transaction) => {
       const at = parseDate(transaction.when);
       if (at === null || at < historyStart || at > input.now || transaction.amount >= 0) return [];
@@ -67,7 +71,7 @@ export function buildBusinessCashPosition(
     },
   );
 
-  for (const transaction of input.transactions) {
+  for (const transaction of cashTransactions) {
     const at = parseDate(transaction.when);
     if (at === null || at < last30Start || at > input.now) continue;
     if (transaction.amount >= 0) confirmedIncome30Days += transaction.amount;

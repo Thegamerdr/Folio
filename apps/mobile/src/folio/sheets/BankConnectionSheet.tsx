@@ -25,6 +25,7 @@ import {
   syncOpenBankingConnection,
 } from '@/folio/lib/openBankingNative';
 import { isLaunchCurrency } from '@/folio/lib/launchCurrency';
+import { isAccountSelectable } from '@/folio/lib/accountPolicy';
 
 const TRUELAYER_LEGAL_URL = 'https://truelayer.com/legal/';
 
@@ -55,7 +56,7 @@ export function BankConnectionSheet({
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const localAccounts = useAppStore((state) => state.accounts ?? []);
   const availableLocalAccounts = useMemo(
-    () => localAccounts.filter((account) => !account.closed && isLaunchCurrency(account.currency)),
+    () => localAccounts.filter(isAccountSelectable),
     [localAccounts],
   );
   const [remote, setRemote] = useState<OpenBankingConnectionsResponse | null>(null);

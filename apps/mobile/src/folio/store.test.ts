@@ -82,7 +82,10 @@ import {
   rollbackWorkspaceOwnerTransferLeg,
   reviewCandidateSig,
   selectBankBalanceMinor,
+  selectCreditAvailability,
   selectNetPositionMinor,
+  selectOverdraftSummary,
+  setAccountFacilities,
   setAccountBalance,
   setCurrentBalance,
   setIncomeSources,
@@ -103,6 +106,7 @@ import {
   totalDebtMinor,
   undoDebtPayment,
   updateBusinessOperations,
+  updateAccountPolicy,
   upsertIncomeSource,
 } from './store';
 import { createWorkspaceId } from '@folio/domain';
@@ -1070,6 +1074,107 @@ describe('accounts (ACCOUNTS_MODEL.md P1)', () => {
     expect(filtered.length).toBe(state.transactions.length - 1);
     expect(isBankTxn(state, cardTxn)).toBe(false);
   });
+
+  it('keeps hidden accounts in totals but closes and excludes them without deleting history', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 500, '2026-07-05T00:00:00.000Z');
+    const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 300 });
+    const row = addTransaction({
+      merchant: 'Savings interest',
+      amount: 3,
+      category: 'income',
+      source: 'manual',
+      accountId: savings.id,
+    });
+
+    const balanceBeforeHide = getState().currentBalance;
+    expect(updateAccountPolicy(savings.id, { hidden: true })).toBe(true);
+    expect(selectBankBalanceMinor(getState())).toBe(800);
+    expect(getState().currentBalance).toEqual(balanceBeforeHide);
+    expect(bankTransactions(getState()).some((transaction) => transaction.id === row.id)).toBe(
+      true,
+    );
+
+    expect(updateAccountPolicy(savings.id, { excludedFromTotals: true })).toBe(true);
+    expect(selectBankBalanceMinor(getState())).toBe(500);
+    expect(getState().currentBalance.amount).toBe(500);
+    expect(bankTransactions(getState()).some((transaction) => transaction.id === row.id)).toBe(
+      false,
+    );
+    expect(getState().transactions.some((transaction) => transaction.id === row.id)).toBe(true);
+
+    expect(updateAccountPolicy(savings.id, { excludedFromTotals: false, closed: true })).toBe(true);
+    expect(selectBankBalanceMinor(getState())).toBe(500);
+    expect(setAccountBalance(savings.id, 999)).toBe(false);
+    expect(getState().accounts?.find((account) => account.id === savings.id)?.balanceMinor).toBe(
+      300,
+    );
+
+    expect(updateAccountPolicy(savings.id, { hidden: false, closed: false })).toBe(true);
+    expect(selectBankBalanceMinor(getState())).toBe(800);
+    expect(bankTransactions(getState()).some((transaction) => transaction.id === row.id)).toBe(
+      true,
+    );
+  });
+
+  it('reports credit and overdraft facilities separately from actual cash and debt', () => {
+    resetToEmpty();
+    expect(setAccountBalance(DEFAULT_ACCOUNT_ID, -150, '2026-07-05T00:00:00.000Z')).toBe(true);
+    expect(setAccountFacilities(DEFAULT_ACCOUNT_ID, { arrangedOverdraftLimit: 300 })).toBe(true);
+    const card = addAccount({
+      name: 'Card',
+      kind: 'credit-card',
+      balanceMinor: 250,
+      creditLimit: 1_000,
+    });
+    addAccount({
+      name: 'Card in credit',
+      kind: 'credit-card',
+      balanceMinor: -40,
+      creditLimit: 500,
+    });
+
+    expect(selectBankBalanceMinor(getState())).toBe(-150);
+    expect(selectCreditAvailability(getState())).toEqual({
+      knownAvailableCredit: 1_290,
+      unknownLimitAccountCount: 0,
+      overLimitBy: 0,
+    });
+    expect(selectOverdraftSummary(getState())).toEqual({
+      arrangedUsed: 150,
+      arrangedRemaining: 150,
+      unarrangedBy: 0,
+      overdrawnAccountCount: 1,
+    });
+    expect(totalDebtMinor(getState())).toBe(250);
+    expect(selectNetPositionMinor(getState())).toBe(-360);
+
+    expect(setAccountFacilities(DEFAULT_ACCOUNT_ID, { arrangedOverdraftLimit: 100 })).toBe(true);
+    expect(selectOverdraftSummary(getState()).unarrangedBy).toBe(50);
+    expect(setAccountFacilities(card.id, { creditLimit: null })).toBe(true);
+    expect(selectCreditAvailability(getState()).unknownLimitAccountCount).toBe(1);
+  });
+
+  it('rejects malformed balances and facilities without mutating account state', () => {
+    resetToEmpty();
+    const before = structuredClone(getState().accounts);
+
+    expect(() => addAccount({ name: 'Broken', kind: 'bank', balanceMinor: Number.NaN })).toThrow(
+      /finite amount/u,
+    );
+    expect(() =>
+      addAccount({
+        name: 'Broken card',
+        kind: 'credit-card',
+        creditLimit: Number.POSITIVE_INFINITY,
+      }),
+    ).toThrow(/finite amount/u);
+    expect(setAccountBalance(DEFAULT_ACCOUNT_ID, Number.NaN)).toBe(false);
+    expect(() =>
+      setAccountFacilities(DEFAULT_ACCOUNT_ID, { arrangedOverdraftLimit: Number.MAX_VALUE }),
+    ).toThrow(/fits safely/u);
+    expect(getState().accounts).toEqual(before);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1197,17 +1302,19 @@ describe('credit-cards as liabilities (ACCOUNTS_MODEL.md P2)', () => {
     expect(getState().debts?.find((d) => d.linkedAccountId === card.id)?.balance).toBe(300);
   });
 
-  it('payCreditCardFromBank clamps the card balance at £0 on overpayment and is a no-op for invalid inputs', () => {
+  it('payCreditCardFromBank applies only what is owed on overpayment and is a no-op for invalid inputs', () => {
     resetToEmpty();
     setAccountBalance(DEFAULT_ACCOUNT_ID, 1000, '2026-07-05T00:00:00.000Z');
     const card = addAccount({ name: 'Amex', kind: 'credit-card', balanceMinor: 100 });
     addCardPayoffDetails(card.id, { apr: 22.9, minPayment: 25, dueDom: 15 });
 
     expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, card.id, 500)).toBe(true);
+    expect(selectBankBalanceMinor(getState())).toBe(900);
     expect(getState().accounts?.find((a) => a.id === card.id)?.balanceMinor).toBe(0);
     expect(getState().debts?.find((d) => d.linkedAccountId === card.id)?.balance).toBe(0);
 
     expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, card.id, 0)).toBe(false);
+    expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, card.id, 10)).toBe(false);
     expect(payCreditCardFromBank(DEFAULT_ACCOUNT_ID, 'acct-nope', 10)).toBe(false);
     expect(payCreditCardFromBank(card.id, card.id, 10)).toBe(false); // "bank" side is itself a liability
   });

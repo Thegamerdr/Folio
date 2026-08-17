@@ -11,6 +11,7 @@ import {
 import { gap, pressed, radius, serif, useTheme } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { poseForContext } from '@/folio/lib/melo/poseForContext';
+import { isAccountInLaunchMoneyPicture } from '@/folio/lib/accountPolicy';
 import { useAppStore } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
 import { formatMinor } from './business/BusinessUi';
@@ -33,7 +34,7 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
   const companionScroll = useMeloCompanionScrollHandlers();
   const cashAccounts = useMemo(
     () =>
-      accounts.map((account) => ({
+      accounts.filter(isAccountInLaunchMoneyPicture).map((account) => ({
         ...account,
         // The inherited Account model stores major units despite the legacy field name.
         // Business engines use integer minor units end-to-end.
@@ -58,7 +59,7 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
     [business.vatReturns],
   );
   const vatLiabilityMinor = openVatReturn ? calculateVatBoxes(openVatReturn).box5Minor : 0;
-  const accountCount = accounts.filter((account) => account.closed !== true).length;
+  const accountCount = accounts.filter(isAccountInLaunchMoneyPicture).length;
   const hasCash = accountCount > 0;
   const entity = business.entity;
 

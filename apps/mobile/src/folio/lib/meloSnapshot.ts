@@ -29,6 +29,7 @@ import { summarizeWhatChanged } from './whatChanged';
 import { buildWidgetSnapshot } from './widgetSnapshot';
 import { requireWorkspaceData } from './workspaceRoot';
 import { buildBusinessCashPosition } from './businessCashPosition';
+import { isAccountInLaunchMoneyPicture } from './accountPolicy';
 
 const PENCE_PER_POUND = 100;
 
@@ -85,7 +86,7 @@ export function buildMeloSnapshot(
   const activeDebts = (localState.debts ?? []).filter((debt) => debt.balance > 0);
   const activePots = localState.pots.filter((pot) => pot.goal > 0);
   const activePlans = (localState.plans ?? []).filter((plan) => plan.target > 0);
-  const activeAccounts = (localState.accounts ?? []).filter((account) => !account.closed);
+  const activeAccounts = (localState.accounts ?? []).filter(isAccountInLaunchMoneyPicture);
   const calendar = deriveCalendarEvents({
     subs: localState.subs,
     subPaused: localState.subPaused,

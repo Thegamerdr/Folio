@@ -88,6 +88,7 @@ import { hasStatementSourceData } from '@/folio/lib/accountSources';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
 import { displayCurrency, isLaunchCurrency } from '@/folio/lib/launchCurrency';
+import { isAccountCurrent } from '@/folio/lib/accountPolicy';
 import {
   deleteRemoteMeloAccount,
   RemoteAccountDeletionError,
@@ -235,10 +236,7 @@ function OperationalAccountScreen({ nav, state = 'populated' }: AccountScreenPro
   // Keep the external-store selector referentially stable. Filtering inside the selector creates a
   // new array on every snapshot read, which React correctly treats as an endless update loop.
   const allAccounts = useAppStore((s) => s.accounts);
-  const accounts = useMemo(
-    () => (allAccounts ?? []).filter((account) => !account.closed),
-    [allAccounts],
-  );
+  const accounts = useMemo(() => (allAccounts ?? []).filter(isAccountCurrent), [allAccounts]);
   const incomeSources = useAppStore((s) => s.incomeSources);
   const monthlyIncome = useAppStore((s) => selectMonthlyIncome(s));
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);

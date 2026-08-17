@@ -32,6 +32,7 @@ import {
 } from '../store';
 import { reanchorRenewals } from './renewalMath';
 import { isLaunchCurrency } from './launchCurrency';
+import { isCashAccountInLaunchPosition } from './accountPolicy';
 import { PERSONAL_WORKSPACE_TIME_ZONE, workspaceLocalDate } from './workspaceRoot';
 
 export type CanonicalAppStateMoneyProjection = Readonly<{
@@ -177,6 +178,7 @@ export function readCanonicalAppStateMoneyProjection(
         (account.projectionRole === 'source' ||
           account.projectionRole === 'synthesized-default' ||
           account.projectionRole === 'reconciliation') &&
+        account.state === 'active' &&
         account.kind !== 'credit' &&
         account.kind !== 'loan',
     )
@@ -735,7 +737,8 @@ function readSourceAccount(
     addedAt: String(account.createdAt ?? balanceAsOfISO),
     currency: String(account.currency),
     workspaceId: account.workspaceId,
-    ...(account.state === 'active' ? {} : { closed: true }),
+    ...(account.state === 'closed' ? { closed: true } : {}),
+    ...(account.state === 'archived' ? { excludedFromTotals: true } : {}),
   };
 }
 
@@ -994,6 +997,9 @@ function normalizedSourceMoneyProjection(
       .filter((account) => !isLaunchCurrency(account.currency))
       .map((account) => account.id),
   );
+  const hasUnavailableCashAccount = allSourceAccounts.some(
+    (account) => !account.isLiability && !isCashAccountInLaunchPosition(account),
+  );
   const sourceAccounts = allSourceAccounts.filter((account) => isLaunchCurrency(account.currency));
   const accounts: Account[] =
     sourceAccounts.length === 0
@@ -1024,6 +1030,7 @@ function normalizedSourceMoneyProjection(
           currency: account.currency ?? 'GBP',
           workspaceId: account.workspaceId ?? state.dataWorkspaceId,
           ...(account.closed === true ? { closed: true } : {}),
+          ...(account.excludedFromTotals === true ? { excludedFromTotals: true } : {}),
         }));
   const transactions: Transaction[] = state.transactions
     .filter((transaction) => !unsupportedAccountIds.has(accountIdOf(transaction)))
@@ -1114,10 +1121,9 @@ function normalizedSourceMoneyProjection(
   }));
   return {
     currentBalance: {
-      amount:
-        unsupportedAccountIds.size > 0
-          ? selectBankBalanceMinor(state)
-          : state.currentBalance.amount,
+      amount: hasUnavailableCashAccount
+        ? selectBankBalanceMinor(state)
+        : state.currentBalance.amount,
       source: state.currentBalance.source,
       confidence: state.currentBalance.confidence,
       setAt: state.currentBalance.setAt,

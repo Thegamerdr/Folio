@@ -33,6 +33,7 @@ import {
   type Transaction,
 } from '../store';
 import { isLaunchCurrency } from './launchCurrency';
+import { isCashAccountInLaunchPosition } from './accountPolicy';
 import type { PersistedWorkspace } from './workspaceRoot';
 import {
   createCanonicalMobileLedgerSnapshot,
@@ -1121,11 +1122,11 @@ function reconcileVisibleCurrentBalance(
   state: AppState,
   workspace: PersistedWorkspace,
 ): void {
-  const hasUnsupportedAccount = (state.accounts ?? []).some(
-    (account) => !isLaunchCurrency(account.currency),
+  const hasUnavailableCashAccount = (state.accounts ?? []).some(
+    (account) => !account.isLiability && !isCashAccountInLaunchPosition(account),
   );
   const visibleBalanceMinor = majorToMinor(
-    hasUnsupportedAccount ? selectBankBalanceMinor(state) : state.currentBalance.amount,
+    hasUnavailableCashAccount ? selectBankBalanceMinor(state) : state.currentBalance.amount,
     'Current balance',
   );
   const availableAccounts = [...accounts.values()].filter(
@@ -1171,7 +1172,12 @@ function projectAccount(
     name: account.name,
     kind: canonicalAccountKind(account),
     currency: account.currency ?? 'GBP',
-    state: account.closed === true ? 'closed' : 'active',
+    state:
+      account.closed === true
+        ? 'closed'
+        : account.excludedFromTotals === true
+          ? 'archived'
+          : 'active',
     balanceMinor: majorToMinor(account.balanceMinor, `Account ${account.id} balance`),
     balanceAsOfISO: requireIsoInstant(account.balanceAsOfISO, `Account ${account.id} balance time`),
     addedAt: requireIsoInstant(account.addedAt, `Account ${account.id} creation time`),
@@ -1180,7 +1186,8 @@ function projectAccount(
     balanceSourceVariant: state.currentBalance.source,
     projectionRole,
     authorityState: state.currentBalance.source === 'sample' ? 'estimated' : 'user-confirmed',
-    includeInAvailablePosition: !account.isLiability,
+    includeInAvailablePosition:
+      !account.isLiability && account.closed !== true && account.excludedFromTotals !== true,
   };
 }
 

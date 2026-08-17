@@ -281,4 +281,102 @@ describe('canonical AppState projection', () => {
       currency: 'GBP',
     });
   });
+
+  it('retains closed and excluded account history but removes it from current available money', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const at = '2026-07-16T07:00:00.000Z';
+    const state: AppState = {
+      ...base,
+      currentBalance: {
+        amount: 1_000,
+        source: 'corrected',
+        confidence: 'corrected',
+        setAt: at,
+      },
+      accounts: [
+        {
+          id: DEFAULT_ACCOUNT_ID,
+          name: 'Current',
+          kind: 'bank',
+          isLiability: false,
+          balanceMinor: 1_000,
+          balanceAsOfISO: at,
+          addedAt: at,
+        },
+        {
+          id: 'acct-closed',
+          name: 'Closed account',
+          kind: 'bank',
+          isLiability: false,
+          balanceMinor: 500,
+          balanceAsOfISO: at,
+          addedAt: at,
+          closed: true,
+        },
+        {
+          id: 'acct-excluded',
+          name: 'Excluded account',
+          kind: 'bank',
+          isLiability: false,
+          balanceMinor: 300,
+          balanceAsOfISO: at,
+          addedAt: at,
+          excludedFromTotals: true,
+        },
+      ],
+      transactions: [
+        {
+          id: 'txn-current',
+          when: '2026-07-16T08:00:00.000Z',
+          merchant: 'Current row',
+          amount: -10,
+          category: 'other',
+          source: 'manual',
+          accountId: DEFAULT_ACCOUNT_ID,
+        },
+        {
+          id: 'txn-closed',
+          when: '2026-07-16T08:05:00.000Z',
+          merchant: 'Closed history',
+          amount: -20,
+          category: 'other',
+          source: 'manual',
+          accountId: 'acct-closed',
+        },
+        {
+          id: 'txn-excluded',
+          when: '2026-07-16T08:10:00.000Z',
+          merchant: 'Excluded history',
+          amount: -30,
+          category: 'other',
+          source: 'manual',
+          accountId: 'acct-excluded',
+        },
+      ],
+    };
+
+    const projection = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-07-16T09:00:00.000Z',
+    );
+
+    expect(projection.mobileSnapshot.transactions).toHaveLength(3);
+    expect(
+      projection.mobileSnapshot.accounts.find(
+        (candidate) => candidate.id === canonicalAccountIdForSource(workspace.id, 'acct-closed'),
+      )?.state,
+    ).toBe('closed');
+    expect(
+      projection.mobileSnapshot.accounts.find(
+        (candidate) => candidate.id === canonicalAccountIdForSource(workspace.id, 'acct-excluded'),
+      )?.state,
+    ).toBe('archived');
+    expect(projection.mobileSnapshot.availablePositionSnapshots[0]).toMatchObject({
+      openingBalance: { minorUnits: 100_000, currency: 'GBP' },
+      actualNet: { minorUnits: -1_000, currency: 'GBP' },
+      availableBalance: { minorUnits: 99_000, currency: 'GBP' },
+    });
+  });
 });

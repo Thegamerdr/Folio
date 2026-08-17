@@ -49,7 +49,6 @@ describe('canonical AppState read projection', () => {
           balanceAsOfISO: '2026-07-16T07:02:03.004Z',
           addedAt: '2026-06-02T10:11:12.013Z',
           currency: 'GBP',
-          closed: true,
         },
         {
           id: 'acct-card',
