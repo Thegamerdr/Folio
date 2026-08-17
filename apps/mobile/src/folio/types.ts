@@ -18,100 +18,107 @@
 // file. The screens/sheets themselves still render only the shell's placeholder body until the
 // batch that owns them lands the real port.
 
-// Every screen the shell can show. Mirrors the web ScreenId union, name-for-name.
-export type ScreenId =
-  | 'start'
-  | 'first-answer'
-  | 'guided'
-  | 'intake'
-  | 'pdf-success'
-  | 'pdf-fallback'
-  | 'image-success'
-  | 'image-fallback'
-  | 'paste-success'
-  | 'visualizer'
-  | 'review'
-  | 'today'
-  | 'today-mode'
-  | 'today-stability'
-  | 'today-after'
-  | 'privacy'
-  | 'decision-history'
-  | 'melo'
-  | 'melo-memory'
-  | 'melo-moves'
-  | 'more'
-  | 'timeline'
-  | 'calendar'
-  | 'plans'
-  | 'paywall'
-  | 'whatif'
-  | 'recovery'
-  | 'add-bill'
+// Every screen the current native shell can show. Keeping the runtime list beside the type lets
+// navigation/coverage tests prove that every native route has an explicit home; a TypeScript union
+// alone disappears at runtime and previously let newly added routes silently fall into More.
+export const SCREEN_IDS = [
+  'start',
+  'first-answer',
+  'guided',
+  'intake',
+  'pdf-success',
+  'pdf-fallback',
+  'image-success',
+  'image-fallback',
+  'paste-success',
+  'visualizer',
+  'review',
+  'today',
+  'today-mode',
+  'today-stability',
+  'today-after',
+  'privacy',
+  'decision-history',
+  'melo',
+  'melo-memory',
+  'melo-moves',
+  'more',
+  'timeline',
+  'calendar',
+  'plans',
+  'paywall',
+  'whatif',
+  'recovery',
+  'add-bill',
   // NOTE: this is the recurring bill/debt-PAYMENT quick-add (AddEntryScreen kind="debt") — an
   // unrelated feature from the SheetId 'declare-debt' below (the real Debt-lens record with
   // APR/min-payment/due-day, ported from the web's SheetAddDebt). Do not conflate the two.
-  | 'add-debt'
-  | 'subs'
-  | 'pots'
-  | 'ritual'
-  | 'insights'
-  | 'shortfall'
-  | 'account'
-  | 'business-entity-setup'
-  | 'business-money'
-  | 'business-runway'
-  | 'business-clients'
-  | 'business-invoices'
-  | 'business-obligations'
-  | 'business-vat'
-  | 'business-corp-tax'
-  | 'business-payroll'
-  | 'business-dividends'
-  | 'business-dla'
-  | 'business-companies-house'
-  | 'business-filings'
-  | 'business-filing-vat'
-  | 'business-filing-sa'
-  | 'business-filing-ct'
-  | 'business-filing-cs'
-  | 'business-filing-accounts'
-  | 'business-filing-payroll'
-  | 'business-insights'
-  | 'business-deductions';
+  'add-debt',
+  'subs',
+  'pots',
+  'ritual',
+  'insights',
+  'shortfall',
+  'account',
+  'business-entity-setup',
+  'business-money',
+  'business-runway',
+  'business-clients',
+  'business-invoices',
+  'business-obligations',
+  'business-vat',
+  'business-corp-tax',
+  'business-payroll',
+  'business-dividends',
+  'business-dla',
+  'business-companies-house',
+  'business-filings',
+  'business-filing-vat',
+  'business-filing-sa',
+  'business-filing-ct',
+  'business-filing-cs',
+  'business-filing-accounts',
+  'business-filing-payroll',
+  'business-insights',
+  'business-deductions',
+] as const;
 
-// The single sheet the shell hosts at a time. `null` = no sheet. Mirrors the web SheetId union.
-export type SheetId =
-  | null
-  | 'route-detail'
-  | 'edit-txn'
-  | 'edit-item'
-  | 'melo-chat'
-  | 'companion-touches'
-  | 'share'
-  | 'onboarding'
-  | 'log-spend'
-  | 'log-invoice'
-  | 'log-payment'
-  | 'add-plan'
-  | 'declare-debt'
-  | 'debt-schedule'
-  | 'household-setup'
-  | 'sub-caught'
-  | 'income-caught'
-  | 'bill-caught'
-  | 'drift-caught'
-  | 'annual-caught'
-  | 'add-event'
-  | 'calendar-export'
-  | 'calendar-connect'
-  | 'safe-zone'
-  | 'shelf'
-  | 'afford-check'
-  | 'lens-picker'
-  | 'chart-style'
-  | 'hidden-review'
-  | 'day-detail';
+export type ScreenId = (typeof SCREEN_IDS)[number];
+
+// The single sheet the current native shell hosts at a time. `null` = no sheet.
+export const SHEET_IDS = [
+  'route-detail',
+  'edit-txn',
+  'edit-item',
+  'melo-chat',
+  'companion-touches',
+  'share',
+  'onboarding',
+  'log-spend',
+  'log-invoice',
+  'log-payment',
+  'add-plan',
+  'declare-debt',
+  'debt-schedule',
+  'household-setup',
+  'sub-caught',
+  'income-caught',
+  'bill-caught',
+  'drift-caught',
+  'annual-caught',
+  'add-event',
+  'calendar-export',
+  'calendar-connect',
+  'safe-zone',
+  'shelf',
+  'afford-check',
+  'lens-picker',
+  'chart-style',
+  'hidden-review',
+  'day-detail',
+] as const;
+
+export type SheetId = null | (typeof SHEET_IDS)[number];
 
 // Carried when a flow opens Melo so the companion can start with a prefilled draft / seed.
 export type MeloIntent = { prefill?: string; seed?: string };

@@ -135,14 +135,21 @@ import { WorkspaceControl } from '@/folio/ui/WorkspaceControl';
 import { BusinessBottomNav } from '@/folio/ui/BusinessBottomNav';
 import { PersonalBottomNav } from '@/folio/ui/PersonalBottomNav';
 import { MeloCompanionHost } from '@/folio/companion/MeloCompanionHost';
+import { businessTabForScreen } from '@/folio/lib/navigation/businessNavigation';
 import {
-  businessTabForScreen,
-  screenForBusinessTab,
-} from '@/folio/lib/navigation/businessNavigation';
-import {
+  PERSONAL_TRANSIENT_SCREENS,
   personalTabForScreen,
-  screenForPersonalTab,
 } from '@/folio/lib/navigation/personalNavigation';
+import {
+  canNavigateWorkspaceBack,
+  createWorkspaceNavigation,
+  currentWorkspaceScreen,
+  navigateWorkspace,
+  navigateWorkspaceBack,
+  selectWorkspaceTab,
+  type WorkspaceNavigationState,
+  type WorkspacePrimaryTab,
+} from '@/folio/lib/navigation/workspaceNavigation';
 import {
   getState,
   reanchorSubRenewals,
@@ -245,20 +252,6 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'business-deductions': 'Business deductions',
 };
 
-const PERSONAL_NO_TAB_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
-  'start',
-  'first-answer',
-  'guided',
-  'intake',
-  'pdf-success',
-  'pdf-fallback',
-  'image-success',
-  'image-fallback',
-  'paste-success',
-  'add-bill',
-  'add-debt',
-]);
-
 // ---------------------------------------------------------------------------
 // Reduced-motion preference (final state). Read once from the OS so the Sheet appears at rest
 // instead of sliding when the user has asked for reduced motion. No animation of our own here.
@@ -330,13 +323,29 @@ function ReadyFolioShell() {
   const insets = useSafeAreaInsets();
   // The refrozen Personal first-run doorway is authoritative. Returning Personal users and every
   // Business workspace still open on Today; only an unfinished Personal setup starts at Start.
-  const [screen, setScreen] = useState<ScreenId>(() => {
+  const initialNavigationRef = useRef<{
+    workspaceId: string;
+    navigation: WorkspaceNavigationState;
+    screen: ScreenId;
+  } | null>(null);
+  if (initialNavigationRef.current === null) {
     const initial = getState();
     const activeWorkspace = initial.workspaces.find(
       (workspace) => workspace.id === initial.activeWorkspaceId,
-    );
-    return activeWorkspace?.kind === 'personal' && !initial.onboarding.done ? 'start' : 'today';
-  });
+    )!;
+    const initialScreen: ScreenId =
+      activeWorkspace.kind === 'personal' && !initial.onboarding.done ? 'start' : 'today';
+    initialNavigationRef.current = {
+      workspaceId: String(activeWorkspace.id),
+      navigation: createWorkspaceNavigation(activeWorkspace.kind, initialScreen),
+      screen: initialScreen,
+    };
+  }
+  const initialNavigation = initialNavigationRef.current;
+  const workspaceNavigationRef = useRef<Map<string, WorkspaceNavigationState>>(
+    new Map([[initialNavigation.workspaceId, initialNavigation.navigation]]),
+  );
+  const [screen, setScreen] = useState<ScreenId>(initialNavigation.screen);
   const [sheet, setSheet] = useState<SheetId>(null);
   const [workspaceSheetVisible, setWorkspaceSheetVisible] = useState(false);
   // Carried into the melo-chat sheet when a flow opens Melo with a prefill/seed (web intent.*).
@@ -380,13 +389,6 @@ function ReadyFolioShell() {
       clearTimeout(afterSettle);
     };
   }, [screen]);
-
-  // Back-history stack — a faithful port of the web shell's `historyRef` (HeroPhone.tsx): `go` pushes
-  // the destination, `back` pops to the previous screen. The shell opens on `today` (not the web's
-  // `start`), so the stack is seeded with `today` and `back` falls back to `today` when it empties.
-  // A ref (not state) so pushing/popping the trail never itself triggers a re-render — the screen
-  // state drives rendering; this only records where the user came from.
-  const historyRef = useRef<ScreenId[]>(['today']);
 
   // The onboarding gate reads the live store flag (faithful to the web index, which reads
   // `useAppStore((s) => s.onboarding.done)`). A returning, set-up user is never offered onboarding.
@@ -497,11 +499,18 @@ function ReadyFolioShell() {
     );
   }, []);
 
-  // Opening a screen closes any open sheet (a navigation supersedes a transient sheet) — faithful
-  // to the web setScreen, which clears the sheet before navigating. Each navigation also pushes the
-  // destination onto the back-history trail (web nav.go pushes to historyRef before setScreen).
-  const go = useCallback((next: ScreenId) => {
-    historyRef.current.push(next);
+  const ensureWorkspaceNavigation = useCallback(
+    (workspaceId: string, kind: 'personal' | 'business'): WorkspaceNavigationState => {
+      const existing = workspaceNavigationRef.current.get(workspaceId);
+      if (existing?.kind === kind) return existing;
+      const created = createWorkspaceNavigation(kind, 'today');
+      workspaceNavigationRef.current.set(workspaceId, created);
+      return created;
+    },
+    [],
+  );
+
+  const clearTransientNavigationUi = useCallback(() => {
     setSheet(null);
     setWorkspaceSheetVisible(false);
     setMeloIntent(undefined);
@@ -509,27 +518,58 @@ function ReadyFolioShell() {
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
-    setScreen(next);
   }, []);
 
+  // Route state is kept per workspace and per primary tab. A forward route starts as a new screen,
+  // while switching tabs restores that tab's last nested destination. Full-focus setup/import
+  // routes sit in a transient stack and never replace the remembered More route.
+  const go = useCallback(
+    (next: ScreenId) => {
+      const workspaceId = String(activeWorkspace.id);
+      const current = ensureWorkspaceNavigation(workspaceId, activeWorkspace.kind);
+      const updated = navigateWorkspace(current, next);
+      workspaceNavigationRef.current.set(workspaceId, updated);
+      clearTransientNavigationUi();
+      setScreen(currentWorkspaceScreen(updated));
+    },
+    [
+      activeWorkspace.id,
+      activeWorkspace.kind,
+      clearTransientNavigationUi,
+      ensureWorkspaceNavigation,
+    ],
+  );
+
   const back = useCallback(() => {
-    // Pop the current screen off the trail and return to the previous one — a faithful port of the
-    // web nav.back (historyRef.pop() then setScreen to the new top). Back also closes any open
-    // sheet and clears a pending intent, matching go's "a navigation supersedes a transient sheet"
-    // contract. The 'today' seed is never popped: UI Back buttons call this directly (no depth
-    // guard like the hardware handler), and popping the seed would leave the NEXT go() as a
-    // length-1 stack whose hardware back exits the app from a non-root screen.
-    if (historyRef.current.length > 1) historyRef.current.pop();
-    const prev = historyRef.current[historyRef.current.length - 1] ?? 'today';
-    setSheet(null);
-    setWorkspaceSheetVisible(false);
-    setMeloIntent(undefined);
-    setEditTxnTarget(undefined);
-    setDayDetailDate(undefined);
-    setAddEventIntent(undefined);
-    setLogSpendAmount(undefined);
-    setScreen(prev);
-  }, []);
+    const workspaceId = String(activeWorkspace.id);
+    const current = ensureWorkspaceNavigation(workspaceId, activeWorkspace.kind);
+    const updated = navigateWorkspaceBack(current);
+    workspaceNavigationRef.current.set(workspaceId, updated);
+    clearTransientNavigationUi();
+    setScreen(currentWorkspaceScreen(updated));
+  }, [
+    activeWorkspace.id,
+    activeWorkspace.kind,
+    clearTransientNavigationUi,
+    ensureWorkspaceNavigation,
+  ]);
+
+  const selectPrimaryTab = useCallback(
+    (tab: WorkspacePrimaryTab) => {
+      const workspaceId = String(activeWorkspace.id);
+      const current = ensureWorkspaceNavigation(workspaceId, activeWorkspace.kind);
+      const updated = selectWorkspaceTab(current, tab);
+      workspaceNavigationRef.current.set(workspaceId, updated);
+      clearTransientNavigationUi();
+      setScreen(currentWorkspaceScreen(updated));
+    },
+    [
+      activeWorkspace.id,
+      activeWorkspace.kind,
+      clearTransientNavigationUi,
+      ensureWorkspaceNavigation,
+    ],
+  );
 
   // Open a sheet, carrying the optional payload for sheets that need a real subject. 'edit-txn'
   // reads `payload.id` (the posted transaction the user chose to correct), parked in the
@@ -583,18 +623,26 @@ function ReadyFolioShell() {
     [go, back, openWorkspaceSheet, openSheet, openMelo],
   );
 
-  const workspaceActivated = useCallback((_workspaceId: typeof activeWorkspaceId) => {
-    historyRef.current = ['today'];
-    setWorkspaceSheetVisible(false);
-    setSheet(null);
-    setMeloIntent(undefined);
-    setEditTxnTarget(undefined);
-    setDayDetailDate(undefined);
-    setAddEventIntent(undefined);
-    setLogSpendAmount(undefined);
-    setPressureOverride(null);
-    setScreen('today');
-  }, []);
+  const workspaceActivated = useCallback(
+    (workspaceId: typeof activeWorkspaceId) => {
+      const snapshot = getState();
+      const workspace = snapshot.workspaces.find((candidate) => candidate.id === workspaceId);
+      const restored = ensureWorkspaceNavigation(
+        String(workspaceId),
+        workspace?.kind ?? 'personal',
+      );
+      setWorkspaceSheetVisible(false);
+      setSheet(null);
+      setMeloIntent(undefined);
+      setEditTxnTarget(undefined);
+      setDayDetailDate(undefined);
+      setAddEventIntent(undefined);
+      setLogSpendAmount(undefined);
+      setPressureOverride(null);
+      setScreen(currentWorkspaceScreen(restored));
+    },
+    [ensureWorkspaceNavigation],
+  );
 
   // Android hardware back — bridged to the shell's own nav machine, in UI-stack order: an open
   // sheet closes first, then the back-history pops, and only at the root (Today, empty trail) does
@@ -612,14 +660,26 @@ function ReadyFolioShell() {
         closeSheet();
         return true;
       }
-      if (historyRef.current.length > 1) {
+      const navigation = ensureWorkspaceNavigation(
+        String(activeWorkspace.id),
+        activeWorkspace.kind,
+      );
+      if (canNavigateWorkspaceBack(navigation)) {
         back();
         return true;
       }
       return false; // at the root — let the OS handle it.
     });
     return () => subscription.remove();
-  }, [workspaceSheetVisible, sheet, back, closeSheet]);
+  }, [
+    activeWorkspace.id,
+    activeWorkspace.kind,
+    workspaceSheetVisible,
+    sheet,
+    back,
+    closeSheet,
+    ensureWorkspaceNavigation,
+  ]);
 
   // Renewal re-anchor runs at boot/foreground: every sub's relative day count is re-derived from
   // its persisted date anchor (store.ts `reanchorSubRenewals` → lib/renewalMath.ts), so a phone
@@ -706,14 +766,11 @@ function ReadyFolioShell() {
                   <BusinessBottomNav
                     key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
                     active={businessActiveTab}
-                    onChange={(tab) => go(screenForBusinessTab(tab))}
+                    onChange={selectPrimaryTab}
                   />
                 </>
-              ) : PERSONAL_NO_TAB_SCREENS.has(screen) ? null : (
-                <PersonalBottomNav
-                  active={personalActiveTab}
-                  onChange={(tab) => go(screenForPersonalTab(tab))}
-                />
+              ) : PERSONAL_TRANSIENT_SCREENS.has(screen) ? null : (
+                <PersonalBottomNav active={personalActiveTab} onChange={selectPrimaryTab} />
               )}
             </View>
             <View
@@ -1063,7 +1120,7 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
     if (screen === 'today') return <BusinessTodayScreen nav={nav} />;
     if (screen === 'more') return <BusinessMoreScreen nav={nav} />;
     if (screen === 'melo') return <BusinessMeloScreen nav={nav} />;
-    if (screen === 'timeline') return <BusinessReviewScreen nav={nav} />;
+    if (screen === 'review' || screen === 'timeline') return <BusinessReviewScreen nav={nav} />;
     if (screen === 'calendar') return <BusinessCalendarScreen nav={nav} />;
     if (screen === 'plans') return <BusinessPlansScreen nav={nav} />;
     if (screen === 'business-entity-setup') return <BusinessEntitySetupScreen nav={nav} />;

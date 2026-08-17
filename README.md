@@ -22,10 +22,12 @@ pnpm run ci
 
 ## Authority and evidence
 
+- [100% completion execution ledger](docs/convergence/2026-08-17/MELO_100_PERCENT_EXECUTION_LEDGER.md)
 - [Current repository and navigation authority](docs/convergence/2026-08-16/MELO_REPOSITORY_AND_NAVIGATION_AUTHORITY.md)
 - [Delivery status](STATUS.md)
 - [Release evidence index](docs/release-evidence/README.md)
 - [Release operations](docs/release-operations/README.md)
 
 Extend this repository and `apps/mobile`; do not create a second Melo repository, product runtime
-or app lineage.
+or app lineage. A completed task, phase contract, test run or platform checkpoint is not completion
+of the whole programme; use the execution ledger for the current full-app state.

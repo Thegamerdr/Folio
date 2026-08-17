@@ -262,7 +262,7 @@ export type WhatIfHold = {
  *  Purely local; ports the Lovable design's Debt lens data shape 1:1
  *  (folio-melo `src/lib/store.ts` `Debt`). APR is annual %, min payment is
  *  monthly £, `dueDom` is day-of-month the payment falls. Balance is
- *  decremented by future debt-payment logging (not yet wired here). */
+ *  decremented by `logDebtPayment`, with linked card accounts updated in the same write. */
 export type Debt = {
   id: string;
   workspaceId?: WorkspaceId;

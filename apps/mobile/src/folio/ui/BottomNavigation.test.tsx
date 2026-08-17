@@ -45,8 +45,8 @@ describe('bottom navigation contracts', () => {
 
   it('keeps Melo as a labelled contextual action in the shell', () => {
     expect(shell).toContain('onOpenMelo={openMelo}');
-    expect(shell).toContain('screenForPersonalTab(tab)');
-    expect(shell).toContain('screenForBusinessTab(tab)');
+    expect(shell).toContain('onChange={selectPrimaryTab}');
+    expect(shell).toContain('selectWorkspaceTab(current, tab)');
     expect(companion).toContain('accessibilityLabel={`Melo companion, ${performance.label}`}');
     expect(companion).toContain('accessibilityRole="button"');
     expect(companion).toContain('onPress={engage}');

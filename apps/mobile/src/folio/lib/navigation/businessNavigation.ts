@@ -5,17 +5,22 @@ export type BusinessPrimaryTab = 'today' | 'money' | 'review' | 'more';
 const MONEY_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'business-money',
   'business-runway',
+  'business-clients',
   'business-invoices',
   'business-vat',
-  'business-obligations',
   'business-insights',
+  'business-deductions',
+  'calendar',
+  'plans',
 ]);
+
+const REVIEW_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>(['review', 'timeline']);
 
 /** Current Business workspace IA: Today / Money / Review / More. */
 export function businessTabForScreen(screen: ScreenId): BusinessPrimaryTab {
   if (screen === 'today') return 'today';
   if (MONEY_SCREENS.has(screen)) return 'money';
-  if (screen === 'review') return 'review';
+  if (REVIEW_SCREENS.has(screen)) return 'review';
   return 'more';
 }
 

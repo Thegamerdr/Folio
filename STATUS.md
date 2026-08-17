@@ -1,5 +1,11 @@
 # Melo delivery status
 
+> **Whole-programme authority:** this file contains historical implementation and release evidence.
+> It does not define the full remaining product backlog. The controlling programme state is the
+> [Melo 100% completion execution ledger](docs/convergence/2026-08-17/MELO_100_PERCENT_EXECUTION_LEDGER.md),
+> derived from the authoritative 16 August product and delivery plan. A completed checkpoint below
+> must not be reported as completion of the application.
+
 > **Current authority, 2026-08-17:** this repository and its `apps/mobile` React Native runtime are
 > the authoritative Melo implementation. Delivery work is on
 > [`codex/melo-one-app-convergence-2026-08-15`](https://github.com/Thegamerdr/Folio/tree/codex/melo-one-app-convergence-2026-08-15),
@@ -602,11 +608,19 @@ local record match`, `No cloud model or remote search used` and the checked `Tyr
   and additional jurisdictions require separate privacy, threat, legal and regulatory approval.
 - Manual TalkBack, large text and reduced-motion checks remain required before release accessibility claims.
 
-## Next exact step
+## Next exact programme step
 
-No further implementation-backlog phase remains after Phase 15 local Android hardening. Use the
-standalone APK as a local tester build, not a public release claim. Do not convert the local tester
-APK into public release, native billing, account deletion, direct HMRC, household collaboration or
-jurisdiction launch claims until the explicit release blockers above are closed with external
-evidence. Use `pnpm release:status` to inspect the current blocker register and `pnpm release:guard`
-in any public release workflow; `pnpm release:guard` is expected to fail until those blockers close.
+Phase 15 local Android hardening and the advisor-plan work are bounded checkpoints, not the end of
+the product implementation backlog. Continue from the
+[100% completion execution ledger](docs/convergence/2026-08-17/MELO_100_PERCENT_EXECUTION_LEDGER.md):
+
+1. complete the canonical visual-kit pass and inspect its single design diff;
+2. close the full 92-screen/41-sheet IA and scroll/route ownership contract;
+3. complete consolidated journeys, trust/account states and native-fit design freeze;
+4. implement the approved reference faithfully in `apps/mobile` through Personal, connected
+   account/provider/entitlement, narrowed Business, authored Melo and release-gate phases.
+
+External iPhone, physical-device, provider, store, independent-review and owner-signoff evidence
+remains required, but must not stop unrelated local implementation work. Use `pnpm release:status`
+to inspect release blockers and `pnpm release:guard` only in public-release workflows; the guard is
+expected to fail until release-blocking evidence closes.
