@@ -19,7 +19,8 @@ state, persistence, navigation, privacy/security, and platform integrations.
 
 - Native implementation checkpoint entering final acceptance:
   `47a074a992d55d020b6789e07ccce0bf3cdb286c` in the clean worktree above. The
-  final correction/evidence commit is recorded below after it is created.
+  final correction and complete evidence set are durable at
+  `c97608e56841223fe430c56a1c13c9923c1ec365`.
 - Build: `:app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64` with Android
   Studio JBR/local SDK and `SENTRY_DISABLE_AUTO_UPLOAD=true`; **BUILD SUCCESSFUL** (1m 29s).
   Final stable-mood/32dp APK: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`,
