@@ -2,18 +2,19 @@
 
 ## Submission identity
 
-| Field                  | Current engineering truth                                          | Evidence/state                                                              |
-| ---------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| Product name           | Melo                                                               | `apps/mobile/app.config.ts`                                                 |
-| Android application ID | `com.folio.v2.greenfield`                                          | Deliberately retained; do not rename from stale Folio-era checklists        |
-| iOS bundle ID          | `com.folio.v2.greenfield`                                          | `apps/mobile/app.config.ts`                                                 |
-| App version            | `0.0.1`                                                            | `apps/mobile/app.config.ts`                                                 |
-| Android versionCode    | `1`                                                                | `apps/mobile/android/app/build.gradle`                                      |
-| Candidate artifact     | `app-release.aab`                                                  | **OWNER/RELEASE INTEGRATION REQUIRED** — no candidate hash is recorded here |
-| Candidate SHA-256      | `OWNER/RELEASE INTEGRATION REQUIRED: paste the actual AAB SHA-256` | Must be set only after hashing the exact submitted AAB                      |
-| Play submission        | Not submitted                                                      | Console submission must not be claimed from repository evidence             |
-| Privacy policy URL     | `OWNER INPUT REQUIRED: choose/confirm an owned public URL`         | No owned public URL is present in repo/config                               |
-| Support contact        | `OWNER INPUT REQUIRED: choose/confirm support contact`             | No inbox/service is present in repo/config                                  |
+| Field                  | Current engineering truth                                            | Evidence/state                                                           |
+| ---------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Product name           | Melo                                                                 | `apps/mobile/app.config.ts`                                              |
+| Android application ID | `com.folio.v2.greenfield`                                            | Deliberately retained; do not rename from stale Folio-era checklists     |
+| iOS bundle ID          | `com.folio.v2.greenfield`                                            | `apps/mobile/app.config.ts`                                              |
+| App version            | `0.0.1`                                                              | `apps/mobile/app.config.ts`                                              |
+| Android versionCode    | `1`                                                                  | Candidate manifest and native config                                     |
+| Candidate artifact     | `melo-0.0.1-1-production.aab`                                        | Upload-signed arm64 candidate; bundletool/signature/manifest checks pass |
+| Candidate SHA-256      | `3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1`   | Exact 63,834,054-byte AAB; not yet uploaded                              |
+| Candidate evidence     | `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md` | Matching signed x86_64 runtime/accessibility evidence                    |
+| Play submission        | Not submitted                                                        | Console submission must not be claimed from repository evidence          |
+| Privacy policy URL     | `OWNER INPUT REQUIRED: choose/confirm an owned public URL`           | No owned public URL is present in repo/config                            |
+| Support contact        | `OWNER INPUT REQUIRED: choose/confirm support contact`               | No inbox/service is present in repo/config                               |
 
 The existing Google Play developer account is authenticated, but it currently has no apps and
 Google disables **Create app** until the owner completes identity-document and contact-phone
@@ -83,15 +84,17 @@ review must be checked against the actual iOS binary; no iOS submission is claim
 
 Use synthetic reviewer data only. Melo works locally without an account; account/cloud/bank flows
 are optional. Do not ask a reviewer to provide real financial data. The reviewer must be given the
-exact candidate artifact/hash and an owner-confirmed privacy/support URL before console submission.
+candidate SHA-256 `3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1`
+and an owner-confirmed privacy/support URL before console submission.
 
 ## Submission gate
 
 This package is engineering-complete as a declaration draft. The billing Worker catalog and signing
 boundary are deployed, but `providerConfigured` is false until the owner supplies the Google Play
 service credential. EAS is authenticated, but iOS production credentials/provisioning need an
-interactive Apple setup. The package is **not** console-submitted and does not claim a current public
-privacy URL, support inbox, candidate hash, billing purchase proof, external account-deletion proof
-or independent reviewer sign-off. Apple export-compliance treatment for the app's standard AES-GCM
-implementation is also an owner/legal determination. Update `tooling/config/store-declarations.json`
-only after those external facts exist and the exact candidate binary has been matched.
+interactive Apple setup. The exact Android candidate is integrated and its Android declaration and
+permission identity is matched. The package is **not** console-submitted and does not claim a current
+public privacy URL, support inbox, billing purchase proof, external account-deletion proof or
+independent reviewer sign-off. Apple export-compliance treatment for the app's standard AES-GCM
+implementation is also an owner/legal determination. Keep `consoleSubmitted` and the iOS/both-
+platform binary-match fields false until those external facts and the iOS binary actually exist.

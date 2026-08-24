@@ -44,7 +44,14 @@ describe('commitment copy', () => {
     expect(
       summarisePotLedger([
         { id: 'a', potId: 'holiday', at: '', kind: 'deposit', amount: 100, source: 'manual' },
-        { id: 'b', potId: 'holiday', at: '', kind: 'borrow', amount: 25, source: 'shortfall-borrow' },
+        {
+          id: 'b',
+          potId: 'holiday',
+          at: '',
+          kind: 'borrow',
+          amount: 25,
+          source: 'shortfall-borrow',
+        },
         { id: 'c', potId: 'holiday', at: '', kind: 'repay', amount: 10, source: 'manual' },
         { id: 'd', potId: 'holiday', at: '', kind: 'withdraw', amount: 5, source: 'manual' },
       ]),

@@ -1745,7 +1745,8 @@ function buildBusinessMeloLocalAnswer(input: {
       if (input.snapshot.businessVatRegistered !== true) {
         return 'This Business entity is not recorded as VAT registered. I will not create a VAT liability until that status and a real return are saved.';
       }
-      const gap = (input.snapshot.businessVatDueMinor ?? 0) - (input.snapshot.businessVatPotMinor ?? 0);
+      const gap =
+        (input.snapshot.businessVatDueMinor ?? 0) - (input.snapshot.businessVatPotMinor ?? 0);
       return `The current saved VAT return is ${vatDue}; the VAT pot holds ${vatPot}. ${
         gap > 0
           ? `${formatMinorAmount(gap)} is not yet covered.`
@@ -1759,7 +1760,8 @@ function buildBusinessMeloLocalAnswer(input: {
         input.snapshot.businessEntityKind === 'ltd'
           ? 'Corporation Tax'
           : 'Self-Assessment income tax and National Insurance';
-      const gap = (input.snapshot.businessTaxEstimateMinor ?? 0) - (input.snapshot.businessTaxPotMinor ?? 0);
+      const gap =
+        (input.snapshot.businessTaxEstimateMinor ?? 0) - (input.snapshot.businessTaxPotMinor ?? 0);
       return `The current local ${label} estimate is ${taxEstimate}; the recorded tax pot is ${taxPot}. ${
         gap > 0
           ? `${formatMinorAmount(gap)} is not yet covered.`

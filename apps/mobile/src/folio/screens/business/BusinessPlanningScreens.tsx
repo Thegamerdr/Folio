@@ -1,9 +1,6 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import {
-  businessDeadlines,
-  type BusinessDeadline,
-} from '@folio/business-workspace';
+import { businessDeadlines, type BusinessDeadline } from '@folio/business-workspace';
 
 import { gap, useTheme } from '@/folio/theme';
 import type { Nav, ScreenId } from '@/folio/types';
@@ -49,20 +46,14 @@ export function BusinessCalendarScreen({ nav }: { nav: Nav }) {
           </BusinessCard>
           <BusinessPrimaryAction
             label={business.entity ? 'Add an invoice' : 'Set up the business'}
-            onPress={() =>
-              nav.go(business.entity ? 'business-invoices' : 'business-entity-setup')
-            }
+            onPress={() => nav.go(business.entity ? 'business-invoices' : 'business-entity-setup')}
           />
         </>
       ) : (
         <>
           <BusinessCard tone="inset">
             <View style={styles.metrics}>
-              <BusinessMetric
-                accent
-                label="Money in"
-                value={`+${formatMinor(incomingMinor)}`}
-              />
+              <BusinessMetric accent label="Money in" value={`+${formatMinor(incomingMinor)}`} />
               <BusinessMetric label="Money out" value={formatMinor(outgoingMinor)} />
             </View>
           </BusinessCard>
@@ -115,10 +106,7 @@ export function BusinessPlansScreen({ nav }: { nav: Nav }) {
       onBack={nav.back}
     >
       <View style={styles.section}>
-        <BusinessSectionTitle
-          title="Money out · next 45 days"
-          value={formatMinor(outTotal)}
-        />
+        <BusinessSectionTitle title="Money out · next 45 days" value={formatMinor(outTotal)} />
         {moneyOut.length === 0 ? (
           <BusinessCard tone="inset">
             <Text style={[styles.emptyTitle, { color: t.ink }]}>Nothing dated yet.</Text>
@@ -148,10 +136,7 @@ export function BusinessPlansScreen({ nav }: { nav: Nav }) {
       </View>
 
       <View style={styles.section}>
-        <BusinessSectionTitle
-          title="Money in · expected"
-          value={`+${formatMinor(inTotal)}`}
-        />
+        <BusinessSectionTitle title="Money in · expected" value={`+${formatMinor(inTotal)}`} />
         {moneyIn.length === 0 ? (
           <BusinessCard tone="inset">
             <Text style={[styles.emptyBody, { color: t.muted }]}>
@@ -197,9 +182,7 @@ function groupDeadlines(deadlines: readonly BusinessDeadline[]): readonly Deadli
   ];
   const mutable = groups.map((group) => ({ ...group, items: [...group.items] }));
   for (const deadline of deadlines) {
-    const days = Math.floor(
-      (Date.parse(`${deadline.date}T00:00:00.000Z`) - today) / 86_400_000,
-    );
+    const days = Math.floor((Date.parse(`${deadline.date}T00:00:00.000Z`) - today) / 86_400_000);
     const index = days < 0 ? 0 : days <= 7 ? 1 : days <= 30 ? 2 : 3;
     mutable[index]!.items.push(deadline);
   }

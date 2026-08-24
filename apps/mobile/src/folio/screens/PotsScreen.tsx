@@ -547,7 +547,9 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
                 : 'No deposits yet'}
             </Text>
           </View>
-          {ledgerSummary.contributed > 0 || ledgerSummary.borrowed > 0 || ledgerSummary.repaid > 0 ? (
+          {ledgerSummary.contributed > 0 ||
+          ledgerSummary.borrowed > 0 ||
+          ledgerSummary.repaid > 0 ? (
             <Text style={[styles.ledgerDetail, { color: t.muted }]}>
               {`Contributed ${formatAvailableAfterSetAside(ledgerSummary.contributed)} · borrowed ${formatAvailableAfterSetAside(ledgerSummary.borrowed)} · repaid ${formatAvailableAfterSetAside(ledgerSummary.repaid)} · available effect ${formatAvailableAfterSetAside(ledgerSummary.availableEffect)}`}
             </Text>

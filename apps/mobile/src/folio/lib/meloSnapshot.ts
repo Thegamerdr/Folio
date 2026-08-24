@@ -143,10 +143,8 @@ export function buildMeloSnapshot(
     businessOperations?.entity?.kind === 'ltd'
       ? corporationTaxMinor(businessOperations.ytdProfitMinor)
       : businessOperations?.entity?.kind === 'sole-trader'
-        ? calculateSelfAssessmentSummary(
-            businessOperations,
-            businessOperations.entity,
-          ).amountDueMinor
+        ? calculateSelfAssessmentSummary(businessOperations, businessOperations.entity)
+            .amountDueMinor
         : 0;
   const openBusinessDeadlines = businessOperations
     ? businessDeadlines(businessOperations, { now: nowDate, withinDays: 365 })
@@ -215,14 +213,13 @@ export function buildMeloSnapshot(
         : 0,
     ),
     monthlyIncomeMinor: isBusiness
-      ? operationsRunway?.incoming30Minor ??
-        toPence(businessPosition?.confirmedIncome30Days ?? 0)
+      ? (operationsRunway?.incoming30Minor ?? toPence(businessPosition?.confirmedIncome30Days ?? 0))
       : hasMoneyPicture
         ? toPence(selectMonthlyIncome(localState))
         : 0,
     monthlyOutgoingsMinor: isBusiness
-      ? operationsRunway?.outgoing30Minor ??
-        toPence(businessPosition?.confirmedExpense30Days ?? 0)
+      ? (operationsRunway?.outgoing30Minor ??
+        toPence(businessPosition?.confirmedExpense30Days ?? 0))
       : hasMoneyPicture
         ? toPence(route.outgoingTotal ?? 0)
         : 0,
@@ -261,8 +258,7 @@ export function buildMeloSnapshot(
       ? {
           businessCashBalanceMinor: businessCashMinor,
           businessLiabilityBalanceMinor: toPence(businessPosition.liabilityBalance),
-          businessNetPositionMinor:
-            businessCashMinor - toPence(businessPosition.liabilityBalance),
+          businessNetPositionMinor: businessCashMinor - toPence(businessPosition.liabilityBalance),
           businessProjectedCashMinor: businessProjectedMinor,
           businessUpcomingIncomeMinor,
           businessUpcomingCommitmentsMinor: businessCommitmentsMinor,
@@ -279,8 +275,7 @@ export function buildMeloSnapshot(
       ? {
           businessEntityKind: businessOperations.entity?.kind,
           businessClientCount: businessOperations.clients.length,
-          businessOutstandingInvoicesMinor:
-            totalOutstandingInvoicesMinor(businessOperations),
+          businessOutstandingInvoicesMinor: totalOutstandingInvoicesMinor(businessOperations),
           businessOverdueInvoicesMinor: overdueInvoices.reduce(
             (sum, invoice) => sum + outstandingInvoiceMinor(invoice),
             0,
@@ -294,8 +289,7 @@ export function buildMeloSnapshot(
           businessObligations30Minor: operationsRunway?.outgoing30Minor ?? 0,
           businessEmployeeCount: businessOperations.employees.length,
           businessOpenFilingCount: openBusinessDeadlines.filter(
-            (deadline) =>
-              deadline.kind !== 'invoice' && deadline.kind !== 'obligation',
+            (deadline) => deadline.kind !== 'invoice' && deadline.kind !== 'obligation',
           ).length,
         }
       : {}),

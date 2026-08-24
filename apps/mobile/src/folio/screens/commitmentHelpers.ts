@@ -33,9 +33,7 @@ export function subscriptionStatusLine(
 
 /** Annualised payment cost from the stored renewal period. This is a payment projection, not a
  * usage or value judgement. Legacy rows without a period retain the monthly convention. */
-export function subscriptionAnnualCost(
-  sub: Pick<Sub, 'renewalPeriodDays' | 'cost'>,
-): number {
+export function subscriptionAnnualCost(sub: Pick<Sub, 'renewalPeriodDays' | 'cost'>): number {
   switch (sub.renewalPeriodDays) {
     case 7:
       return sub.cost * 52;

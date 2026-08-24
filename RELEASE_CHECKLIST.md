@@ -29,22 +29,27 @@ would orphan installed devices and the billing audience. `apps/mobile/app.config
 
 ## Hard gates before first Play upload
 
-1. Produce the actual upload-signed `app-release.aab`, verify package, version/versionCode and
-   signature, and record SHA-256. Never upload a debug-signed artifact or print keystore secrets.
-2. Keep `tooling/config/store-declarations.json.submittedBinarySha256` null until the exact candidate
-   has been hashed; then set it and `binaryMatched` only after the package/hash match is performed.
-3. Publish an owner-confirmed privacy policy URL, support contact and (because accounts exist) public
+1. **Complete:** the upload-signed `melo-0.0.1-1-production.aab` matches package
+   `com.folio.v2.greenfield`, version `0.0.1`, versionCode `1`, arm64 ABI and the upload signature.
+   SHA-256 is `3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1`.
+2. **Complete:** `tooling/config/store-declarations.json.submittedBinarySha256` is populated only
+   after bundletool/manifest/signature/hash review. Android declaration rows are marked
+   `binaryMatched` only where this exact AAB was reviewed; console submission remains false.
+3. Complete Google Play developer identity-document and contact-phone verification. The current
+   account has no apps and **Create app** is disabled until Google accepts both checks.
+4. Publish an owner-confirmed privacy policy URL, support contact and (because accounts exist) public
    deletion URL. Do not invent any address or domain.
-4. Create the current Play products (`folio.full`, `folio.live.monthly`, `folio.live.yearly`) and
+5. Create the current Play products (`folio.full`, `folio.live.monthly`, `folio.live.yearly`) and
    run license-test purchase, pending/invalid rejection, restore, expiry/cancellation/grace and
    account/device-boundary proof. Do not sell legacy Plus/Pro IDs.
-5. Match Google Data Safety, Financial Features, account deletion, SDK/permission and reviewer
-   answers against the exact AAB. Do not set `consoleSubmitted` without real console evidence.
-6. Run signed-candidate Android runtime/accessibility/resilience smoke on a disposable or owner-
-   approved device. This machine has two authorized emulators, but the attached physical Android
-   device is `adb unauthorized`; no physical-device PASS is claimed until the owner accepts the USB
-   debugging authorization prompt.
-7. Obtain independent security, accessibility and privacy/legal sign-off; internal evidence cannot
+6. **Engineering match complete:** Google Data Safety, Financial Features, account-deletion and
+   Android SDK/permission drafts were checked against the exact AAB. Do not set `consoleSubmitted`
+   without real console evidence; re-check the completed console forms before rollout.
+7. **Emulator smoke complete:** the matching signed x86_64 tester passed onboarding, restart,
+   background/Back, 200% text, reduced motion and real TalkBack checks on `emulator-5570`. The
+   attached physical Android device remains `adb unauthorized`; physical secure-key/biometric,
+   notification, picker/share and destructive-recovery proof still requires owner authorization.
+8. Obtain independent security, accessibility and privacy/legal sign-off; internal evidence cannot
    close those blockers.
 
 ## iOS gate

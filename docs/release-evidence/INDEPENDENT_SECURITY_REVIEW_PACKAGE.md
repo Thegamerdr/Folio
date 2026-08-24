@@ -2,6 +2,10 @@
 
 Status: engineering evidence prepared; independent security review is not self-approved.
 
+Android review target: `melo-0.0.1-1-production.aab`, SHA-256
+`3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1`; upload certificate SHA-256
+`547396e1fd99681c2a6d768b8b7d1b4484b5f42a17597cad6c495221267a5488`.
+
 ## Review target and architecture
 
 The Android/iOS client is a local-first React Native/Expo app. Durable workspace state is written
@@ -62,13 +66,15 @@ workspace binding, raw-AI rejection, response limits and the HTTPS-only transpor
    no upstream fetch.
 4. Inspect `apps/mobile/app/_layout.tsx` and `apps/mobile/src/folio/shell/FolioShell.tsx` crash
    boundaries; induce a test render error and confirm logs contain only the generic marker.
-5. Execute the Android release smoke/accessibility scenarios in the existing `docs/release-evidence`
-   XML/PNG packs on a disposable device or emulator. Do not use real financial data.
+5. Review `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md` and repeat its
+   Android release smoke/accessibility scenarios on a disposable device or emulator. Do not use
+   real financial data.
 
 ## Known risks requiring independent review
 
-Physical-device keystore loss, production account deletion E2E, cloud cross-device restore, release
-binary signing, and provider console configuration need external/runtime evidence. A reviewer should
+Physical-device keystore loss, production account deletion E2E, cloud cross-device restore and
+provider console configuration need external/runtime evidence. The upload-signed Android AAB,
+manifest, ABI and hash are now verified internally. A reviewer should
 also inspect dependency provenance, generated native manifests, release artifact/source-map handling,
-Clerk/JWKS rotation, billing grant replay/expiry, and the final candidate hash. These are review
+Clerk/JWKS rotation, billing grant replay/expiry, and the candidate identity above. These are review
 inputs, not claims of independent signoff.

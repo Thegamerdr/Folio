@@ -15,19 +15,7 @@ safe rotation drills, declaration drafts and DPIA evidence are already delivered
 - Evidence to save: public URL response and owner confirmation; legal/privacy approval record.
 - Blocks: Android public and iOS public; support/disclosure readiness.
 
-## 2. Integrate the exact Android candidate
-
-- Exact action: supply the upload-signed `app-release.aab` built from the final release commit; verify
-  package `com.folio.v2.greenfield`, version `0.0.1`, versionCode `1`, signature and SHA-256.
-- Where: release build machine with the existing secure upload keystore; keep signing material out of
-  the repo and logs.
-- Required value: artifact filename `app-release.aab` and its actual SHA-256; do not invent a hash.
-- Expected result: store config `submittedBinarySha256` is populated only after the exact artifact is
-  matched; `binaryMatched` remains false until that check is performed.
-- Evidence to save: AAB, `apksigner`/bundletool verification output, metadata and SHA-256.
-- Blocks: Android beta/public.
-
-## 3. Configure and test Google Play billing
+## 2. Verify the Google Play account, create Melo and test billing
 
 - Exact action: complete Google Play developer identity and contact-phone verification first; the
   current account has no apps and **Create app** is disabled. Then create the Melo app for
@@ -44,7 +32,7 @@ safe rotation drills, declaration drafts and DPIA evidence are already delivered
   cancellation/expiry proof with no card data.
 - Blocks: Android beta upload and Android public.
 
-## 4. Prove production account/cloud/provider deletion
+## 3. Prove production account/cloud/provider deletion if those optional services ship
 
 - Exact action: configure production Clerk/Cloud Vault and, only if the owner approves a future
   Open Banking build, its regulated provider. Create a disposable test account and run
@@ -59,10 +47,11 @@ safe rotation drills, declaration drafts and DPIA evidence are already delivered
   provider revocation result.
 - Blocks: Android public and iOS public if those optional routes ship.
 
-## 5. Obtain independent review signatures
+## 4. Obtain independent review signatures
 
 - Exact action: send the completed security, accessibility and DPIA/privacy/legal packages to named
-  independent reviewers and record decisions; include the final binary/hash when available.
+  independent reviewers and record decisions against Android candidate SHA-256
+  `3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1`.
 - Where: owner-selected independent security, accessibility and legal/privacy reviewers.
 - Required value: reviewer names/organisations, scope, date, findings and sign-off.
 - Expected result: no unaccepted high/critical findings and explicit approval of store/privacy/
@@ -70,21 +59,22 @@ safe rotation drills, declaration drafts and DPIA evidence are already delivered
 - Evidence to save: signed review records and remediation evidence; do not self-approve.
 - Blocks: Android public and iOS public.
 
-## 6. Complete physical/iOS release evidence
+## 5. Complete remaining physical Android and iOS release evidence
 
-- Exact action: on an approved disposable/owner test device, install the signed candidate and run
-  launch/restart/background/back/keyboard/share/notifications/app-lock/biometric/file-picker/
-  TalkBack/large-text/reduced-motion and safe destructive drills. For iOS, use authenticated EAS /
-  macOS/Xcode and an iOS device or simulator.
+- Exact action: authorize the attached physical Android device and run the remaining hardware-bound
+  secure-key, biometric, notification, picker/share and safe destructive-recovery drills against the
+  signed candidate. Emulator launch/restart/background/Back/onboarding, 200% text, reduced motion
+  and real TalkBack smoke are already complete. For iOS, use authenticated EAS / macOS/Xcode and an
+  iOS device or simulator.
 - Where: authorize the currently attached Android device for USB debugging, then use `adb`;
   complete interactive Apple credential/provisioning setup in EAS or use macOS/Xcode for iOS.
-- Required value: device/build logs, screenshots/XML and exact candidate metadata.
-- Expected result: runtime and accessibility evidence tied to the candidate; no claim based on the
-  emulator-only historical evidence.
+- Required value: physical-device/build logs, screenshots and exact candidate metadata.
+- Expected result: hardware-bound Android and iOS evidence complements the signed-candidate emulator
+  record without converting internal accessibility checks into independent sign-off.
 - Evidence to save: install/launch logs, screenshots, accessibility observations and recovery proof.
 - Blocks: Android beta/public; iOS beta/public.
 
-## 7. Resolve Apple export compliance
+## 6. Resolve Apple export compliance
 
 - Exact action: determine the correct App Store export-compliance answer for standard AES-GCM
   encryption implemented outside the operating system, and record the owner/legal decision.

@@ -3,6 +3,9 @@
 Status: internal Android accessibility readiness evidence prepared; independent accessibility review
 is not self-approved.
 
+Android review target: `melo-0.0.1-1-production.aab`, SHA-256
+`3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1`.
+
 ## Review scope
 
 Representative high-risk native surfaces are: first launch/onboarding, Today and Today Mode, import
@@ -33,8 +36,11 @@ pnpm exec vitest run packages/ui/test/tokens.test.ts apps/mobile/src/folio/ui/To
 Existing Android evidence is retained under `docs/release-evidence/android-a11y-security-*.xml/png`
 and `apps/mobile/evidence/android-today-batch1/`, including TalkBack-oriented hierarchy captures,
 font-scale captures, dark/system appearance captures, recovery/import controls, and modal/sheet
-flows. Reviewers should repeat the representative paths with TalkBack, 1.3x/2.0x font scale,
-Remove animations, hardware keyboard, dark/light appearance and back navigation.
+flows. Exact-candidate emulator captures are under `docs/release-evidence/android-runtime/`; the
+matching signed x86_64 tester completed onboarding, restart/background/Back, 2.0x font scale,
+Remove animations and a real TalkBack focus pass. Reviewers should repeat the representative paths
+with TalkBack, 1.3x/2.0x font scale, Remove animations, hardware keyboard, dark/light appearance and
+back navigation.
 
 ## Reviewer reproduction checklist
 
@@ -53,4 +59,5 @@ Remove animations, hardware keyboard, dark/light appearance and back navigation.
 This package does not claim independent TalkBack, VoiceOver, contrast or cognitive signoff. A physical
 device pass is still needed for OEM-specific focus announcements, keyboard behavior, font metrics and
 screen-reader speech. The reviewer should inspect the final signed binary, generated Android manifest,
-and any newly added native module surfaces before issuing an independent decision.
+and any newly added native module surfaces before issuing an independent decision. Internal emulator
+evidence does not replace that independent decision.

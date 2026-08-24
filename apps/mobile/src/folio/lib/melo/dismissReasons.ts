@@ -1,9 +1,4 @@
-export type DismissReason =
-  | 'not-now'
-  | 'wrong-amount'
-  | 'wrong-pot'
-  | 'another-plan'
-  | 'just-no';
+export type DismissReason = 'not-now' | 'wrong-amount' | 'wrong-pot' | 'another-plan' | 'just-no';
 
 export type DismissChoice = Readonly<{
   id: DismissReason;
@@ -42,11 +37,7 @@ export function dampenDaysFor(reason: DismissReason | null): number {
   }
 }
 
-export function isDampened(
-  kind: string,
-  log: readonly DismissRecord[],
-  now = new Date(),
-): boolean {
+export function isDampened(kind: string, log: readonly DismissRecord[], now = new Date()): boolean {
   const recent = [...log]
     .filter((record) => record.kind === kind)
     .sort((left, right) => right.at.localeCompare(left.at))[0];

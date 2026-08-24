@@ -86,7 +86,7 @@
     },
     "RB-T183-STORE-DECLARATIONS": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Match the exact AAB/iOS binary and hash, then submit and review store declarations in the consoles."
+      "action": "Android AAB/hash match is complete; finish Play developer verification and console review, then match the future iOS binary and App Store declarations."
     },
     "RB-T184-NATIVE-BILLING": {
       "classification": "BLOCKED EXTERNAL",
@@ -102,7 +102,7 @@
     },
     "RB-T187-FULL-REGRESSION-STORE-BUILDS": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Attach the final AAB/hash, run device/runtime gates and complete signed account-deletion/store-build proof."
+      "action": "Android AAB/hash and signed-candidate emulator gates are complete; finish physical Android, account-deletion, Play Console and iOS proof."
     },
     "RB-T188-LIMITED-UK-LAUNCH": {
       "classification": "BLOCKED OWNER DECISION",
@@ -273,9 +273,10 @@
         "docs/release-store/sdk-permission-financial-declarations.md",
         "docs/release-store/reviewer-notes.md",
         "tooling/config/store-declarations.json",
-        "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md"
+        "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md"
       ],
-      "note": "Current Melo declaration package and SDK/processor inventory are prepared; candidate hash, owner URL/contact and console submission remain external."
+      "note": "Current Melo declaration package and SDK/processor inventory are prepared and matched to Android AAB SHA-256 3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1; owner URL/contact, Play developer verification and console submission remain external."
     },
     {
       "blockerId": "RB-T184-NATIVE-BILLING",
@@ -330,9 +331,10 @@
         "docs/release-evidence/ANDROID_CANONICAL_FULL_APPSTATE_AUTHORITY_2026-07-16.md",
         "docs/release-evidence/ANDROID_IMPORT_CORPUS_AND_CRASH_RECOVERY_2026-07-16.md",
         "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md",
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md",
         "STATUS.md"
       ],
-      "note": "Historical CI/emulator and persistence evidence is retained. Two emulators are authorized, but the attached physical Android device is adb-unauthorized; no current AAB/hash or physical release-device proof is claimed yet. Final account-deletion E2E, store match and iOS proof remain external."
+      "note": "Historical CI/emulator and persistence evidence is retained. The upload-signed arm64 AAB is bundletool/signature/hash verified and a matching signed x86_64 tester passed onboarding, restart/background/Back, 200% text, reduced-motion and real TalkBack smoke on emulator-5570. The attached physical Android device remains adb-unauthorized, so physical secure-key/biometric/picker/share/recovery proof is not claimed. Final account-deletion E2E, Play Console and iOS proof remain external."
     },
     {
       "blockerId": "RB-T188-LIMITED-UK-LAUNCH",

@@ -168,20 +168,11 @@ export function BusinessFilingsScreen({ nav }: { nav: Nav }) {
   );
 }
 
-export function BusinessFilingWorkingCopyScreen({
-  nav,
-  route,
-}: {
-  nav: Nav;
-  route: FilingRoute;
-}) {
+export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; route: FilingRoute }) {
   const t = useTheme();
   const business = useBusinessOperations();
   const kind = kindForRoute(route);
-  const copy = useMemo(
-    () => buildBusinessFilingWorkingCopy(kind, business),
-    [business, kind],
-  );
+  const copy = useMemo(() => buildBusinessFilingWorkingCopy(kind, business), [business, kind]);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [externalOpen, setExternalOpen] = useState(false);
@@ -214,9 +205,7 @@ export function BusinessFilingWorkingCopyScreen({
         </BusinessCard>
         <BusinessPrimaryAction
           label={kind === 'vat' ? 'Open VAT' : 'Open Business type'}
-          onPress={() =>
-            nav.go(kind === 'vat' ? 'business-vat' : 'business-entity-setup')
-          }
+          onPress={() => nav.go(kind === 'vat' ? 'business-vat' : 'business-entity-setup')}
         />
       </BusinessScreenFrame>
     );
@@ -293,9 +282,7 @@ export function BusinessFilingWorkingCopyScreen({
       vatReturns:
         copy.kind === 'vat'
           ? state.vatReturns.map((item) =>
-              !item.filedExternallyOn
-                ? { ...item, filedExternallyOn: submittedOn }
-                : item,
+              !item.filedExternallyOn ? { ...item, filedExternallyOn: submittedOn } : item,
             )
           : state.vatReturns,
     }));
@@ -305,9 +292,7 @@ export function BusinessFilingWorkingCopyScreen({
 
   const saveSelfAssessmentBasis = () => {
     const ytdProfitMinor = parseMinor(profit);
-    const transitionMinor = transitionRemaining.trim()
-      ? parseMinor(transitionRemaining)
-      : 0;
+    const transitionMinor = transitionRemaining.trim() ? parseMinor(transitionRemaining) : 0;
     if (ytdProfitMinor === null || ytdProfitMinor < 0 || transitionMinor === null) return;
     updateBusinessOperations({
       ytdProfitMinor,
@@ -331,9 +316,7 @@ export function BusinessFilingWorkingCopyScreen({
         onBack={nav.back}
       >
         <BusinessCard>
-          <Text style={[styles.copyFlag, { color: t.repair }]}>
-            Working copy · not lodged
-          </Text>
+          <Text style={[styles.copyFlag, { color: t.repair }]}>Working copy · not lodged</Text>
           <Text style={[styles.copyEntity, { color: t.ink }]}>{copy.entityName}</Text>
           <View style={styles.copyRows}>
             {copy.rows.map((row, index) => (
@@ -353,9 +336,7 @@ export function BusinessFilingWorkingCopyScreen({
           </View>
           {copy.amountMinor !== undefined ? (
             <View style={[styles.copyAmount, { backgroundColor: t.inset }]}>
-              <Text style={[styles.copyAmountLabel, { color: t.muted }]}>
-                Calculated amount
-              </Text>
+              <Text style={[styles.copyAmountLabel, { color: t.muted }]}>Calculated amount</Text>
               <Text style={[styles.copyAmountValue, { color: t.ink }]}>
                 {formatMinor(copy.amountMinor, { pence: true })}
               </Text>

@@ -40,13 +40,7 @@ import {
 } from './BusinessUi';
 import { useBusinessOperations } from './useBusinessOperations';
 
-function LtdGuard({
-  nav,
-  children,
-}: {
-  nav: Nav;
-  children: (entity: LtdEntity) => ReactNode;
-}) {
+function LtdGuard({ nav, children }: { nav: Nav; children: (entity: LtdEntity) => ReactNode }) {
   const t = useTheme();
   const business = useBusinessOperations();
   if (business.entity?.kind === 'ltd') return <>{children(business.entity)}</>;
@@ -103,7 +97,8 @@ function CorpTaxBody({ nav, entity }: { nav: Nav; entity: LtdEntity }) {
         <Text style={[styles.kicker, { color: t.muted }]}>Suggested set-aside</Text>
         <Text style={[styles.heroMoney, { color: t.ink }]}>{formatMinor(tax)}</Text>
         <Text style={[styles.heroMeta, { color: t.muted }]}>
-          {rate.toFixed(1)}% effective rate · due {formatBusinessDate(corporationTaxDueDate(entity))}
+          {rate.toFixed(1)}% effective rate · due{' '}
+          {formatBusinessDate(corporationTaxDueDate(entity))}
         </Text>
         <View style={[styles.progressTrack, { backgroundColor: t.surface }]}>
           <View
@@ -246,7 +241,10 @@ function PayrollBody({ nav, entity }: { nav: Nav; entity: LtdEntity }) {
         onBack={nav.back}
       >
         <View style={styles.section}>
-          <BusinessSectionTitle title="Employees and directors" value={String(business.employees.length)} />
+          <BusinessSectionTitle
+            title="Employees and directors"
+            value={String(business.employees.length)}
+          />
           <BusinessCard>
             {business.employees.length === 0 ? (
               <Text style={[styles.emptyBody, { color: t.muted }]}>
@@ -287,13 +285,9 @@ function PayrollBody({ nav, entity }: { nav: Nav; entity: LtdEntity }) {
           <BusinessSecondaryAction label="Add someone" onPress={() => setAdding(true)} />
         </View>
 
-        <View
-          style={[styles.switchRow, { backgroundColor: t.surface, borderColor: t.hairline }]}
-        >
+        <View style={[styles.switchRow, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <View style={styles.switchCopy}>
-            <Text style={[styles.switchTitle, { color: t.ink }]}>
-              Claim Employment Allowance
-            </Text>
+            <Text style={[styles.switchTitle, { color: t.ink }]}>Claim Employment Allowance</Text>
             <Text style={[styles.switchHint, { color: t.muted }]}>
               This is never assumed. Turn it on only if the company is eligible and has chosen to
               claim it.
@@ -363,7 +357,10 @@ function PayrollBody({ nav, entity }: { nav: Nav; entity: LtdEntity }) {
 
         {business.payrollRuns.length > 0 ? (
           <View style={styles.section}>
-            <BusinessSectionTitle title="Recorded runs" value={String(business.payrollRuns.length)} />
+            <BusinessSectionTitle
+              title="Recorded runs"
+              value={String(business.payrollRuns.length)}
+            />
             <BusinessCard>
               {business.payrollRuns.slice(0, 6).map((run, index) => (
                 <View
@@ -498,7 +495,10 @@ function DividendsBody({ nav, entity }: { nav: Nav; entity: LtdEntity }) {
         </BusinessCard>
 
         <View style={styles.section}>
-          <BusinessSectionTitle title="Dividend vouchers" value={String(business.dividends.length)} />
+          <BusinessSectionTitle
+            title="Dividend vouchers"
+            value={String(business.dividends.length)}
+          />
           <BusinessCard>
             {business.dividends.length === 0 ? (
               <Text style={[styles.emptyBody, { color: t.muted }]}>No dividends declared.</Text>
@@ -722,9 +722,7 @@ function DlaBody({ nav, entity }: { nav: Nav; entity: LtdEntity }) {
 
 export function BusinessCompaniesHouseScreen({ nav }: { nav: Nav }) {
   return (
-    <LtdGuard nav={nav}>
-      {(entity) => <CompaniesHouseBody entity={entity} nav={nav} />}
-    </LtdGuard>
+    <LtdGuard nav={nav}>{(entity) => <CompaniesHouseBody entity={entity} nav={nav} />}</LtdGuard>
   );
 }
 

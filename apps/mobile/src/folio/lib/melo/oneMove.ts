@@ -1,14 +1,12 @@
 import type { Nav } from '../../types';
 import { isDampened, type DismissRecord } from './dismissReasons';
 
-export type OneMove =
-  | Readonly<{
-      key: 'review' | 'recovery' | 'ritual' | 'caught-sub';
-      line: string;
-      cta: string;
-      onTap: () => void;
-    }>
-  | null;
+export type OneMove = Readonly<{
+  key: 'review' | 'recovery' | 'ritual' | 'caught-sub';
+  line: string;
+  cta: string;
+  onTap: () => void;
+}> | null;
 
 export type OneMoveImpression = Readonly<{
   key: string;

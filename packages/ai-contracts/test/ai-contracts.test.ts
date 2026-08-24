@@ -364,7 +364,11 @@ describe('local Melo AI functions', () => {
     ['How is my VAT pot?', 'review_business_vat', '£300 is not yet covered'],
     ['How is my Corporation Tax pot?', 'review_business_tax', '£300 is not yet covered'],
     ['Review payroll', 'review_business_payroll', '2 recorded employees'],
-    ['What filing deadlines are open?', 'review_business_filings', '3 open Business filing deadlines'],
+    [
+      'What filing deadlines are open?',
+      'review_business_filings',
+      '3 open Business filing deadlines',
+    ],
     ['Review my clients', 'review_business_clients', '3 recorded clients'],
   ] as const)('answers %s from aggregate-only Business records', (prompt, intent, expected) => {
     const draft = draftMeloLocalAiResponse({

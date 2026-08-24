@@ -235,8 +235,7 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // filter on a single-account (migrated) install.
   const bankTxns = bankTransactions(state);
   const projectedOutgoing =
-    spend.reduce((acc, d) => acc + d.amount, 0) +
-    holds.reduce((acc, d) => acc + d.amount, 0);
+    spend.reduce((acc, d) => acc + d.amount, 0) + holds.reduce((acc, d) => acc + d.amount, 0);
   const hasHistory = bankTxns.length > 0;
   const incomingTotal = selectMonthlyIncome(state);
   const outgoingTotal = hasHistory

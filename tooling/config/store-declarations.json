@@ -8,15 +8,15 @@
   "privacyPolicyCurrent": false,
   "processorListCurrent": true,
   "sdkInventoryCurrent": true,
-  "submittedBinarySha256": null,
+  "submittedBinarySha256": "3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1",
   "binaryIdentity": {
     "productName": "Melo",
     "androidPackage": "com.folio.v2.greenfield",
     "iosBundleIdentifier": "com.folio.v2.greenfield",
     "version": "0.0.1",
     "androidVersionCode": 1,
-    "expectedArtifactName": "app-release.aab",
-    "artifactSha256Status": "OWNER/RELEASE INTEGRATION REQUIRED: actual candidate hash is not known"
+    "expectedArtifactName": "melo-0.0.1-1-production.aab",
+    "artifactSha256Status": "matched 2026-08-24: package, version, versionCode, arm64 ABI, upload signature and SHA-256 verified"
   },
   "runtimeEvidence": {
     "billingWorker": "services/billing-entitlements/RUNTIME_EVIDENCE.md",
@@ -24,8 +24,8 @@
     "billingCatalog": ["folio.full", "folio.live.monthly", "folio.live.yearly"],
     "openBankingWorkerHealth": "deployed; featureEnabled=false; providerConfigured=false; /v1 routes return feature_disabled",
     "eas": "authenticated; iOS production build requires interactive Apple credential/provisioning setup",
-    "androidArtifact": "pending; no AAB or SHA-256 recorded",
-    "physicalAndroid": "adb unauthorized/unavailable for release evidence"
+    "androidArtifact": "upload-signed arm64 AAB validated; SHA-256 3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1; matching x86_64 tester APK exercised on emulator-5570",
+    "physicalAndroid": "attached physical device remains adb unauthorized; signed-candidate emulator runtime/TalkBack/large-text/reduced-motion evidence complete"
   },
   "appleExportCompliance": {
     "status": "OWNER INPUT REQUIRED",
@@ -76,9 +76,9 @@
       "title": "Google Play Data safety form",
       "prepared": true,
       "consoleSubmitted": false,
-      "binaryMatched": false,
+      "binaryMatched": true,
       "evidencePath": "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
-      "blocker": "BLOCKED EXTERNAL: exact AAB hash and Play Console review are not available"
+      "blocker": "BLOCKED EXTERNAL: exact AAB is matched; Play Console submission/review is unavailable until developer verification is complete"
     },
     {
       "id": "google-account-deletion",
@@ -86,7 +86,7 @@
       "title": "Google Play account and data deletion",
       "prepared": true,
       "consoleSubmitted": false,
-      "binaryMatched": false,
+      "binaryMatched": true,
       "evidencePath": "docs/release-store/account-deletion-checklist.md",
       "blocker": "BLOCKED EXTERNAL: owner-confirmed public deletion URL and production provider E2E proof are required"
     },
@@ -96,7 +96,7 @@
       "title": "Google Play Financial features declaration",
       "prepared": true,
       "consoleSubmitted": false,
-      "binaryMatched": false,
+      "binaryMatched": true,
       "evidencePath": "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
       "blocker": "BLOCKED EXTERNAL: Play Console declaration has not been submitted or reviewed"
     },
@@ -108,7 +108,7 @@
       "consoleSubmitted": false,
       "binaryMatched": false,
       "evidencePath": "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
-      "blocker": "BLOCKED EXTERNAL: inventory still needs exact candidate-binary and console match"
+      "blocker": "BLOCKED EXTERNAL: Android inventory is matched to the exact candidate; iOS binary and both console reviews remain unavailable"
     },
     {
       "id": "reviewer-notes",

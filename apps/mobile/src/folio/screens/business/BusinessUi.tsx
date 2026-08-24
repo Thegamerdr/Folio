@@ -1,13 +1,5 @@
 import type { ReactNode } from 'react';
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { gap, radius, serif, useTheme } from '@/folio/theme';
@@ -81,13 +73,7 @@ export function BusinessCard({
   );
 }
 
-export function BusinessSectionTitle({
-  title,
-  value,
-}: {
-  title: string;
-  value?: string;
-}) {
+export function BusinessSectionTitle({ title, value }: { title: string; value?: string }) {
   const t = useTheme();
   return (
     <View style={ui.sectionHeader}>
@@ -316,10 +302,7 @@ export function BusinessFormSheet({
         <Pressable
           accessibilityRole="none"
           onPress={(event) => event.stopPropagation()}
-          style={[
-            ui.sheet,
-            { backgroundColor: t.canvas, paddingBottom: insets.bottom + gap.lg },
-          ]}
+          style={[ui.sheet, { backgroundColor: t.canvas, paddingBottom: insets.bottom + gap.lg }]}
         >
           <View style={[ui.handle, { backgroundColor: t.hairline }]} />
           <View style={ui.sheetHeader}>

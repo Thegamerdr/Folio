@@ -19,11 +19,17 @@ not an unresolved owner decision.
 - Cloudflare runtime evidence: billing Worker is deployed with signer/token store configured and
   `providerConfigured=false`; its catalog is the current Full/Live matrix. Open Banking Worker is
   deployed disabled (`featureEnabled=false`; `/v1` returns `feature_disabled`).
+- Current upload-signed Android candidate: `melo-0.0.1-1-production.aab`, 63,834,054 bytes,
+  SHA-256 `3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1`. Bundletool,
+  manifest, arm64 ABI and upload signature checks pass. The matching signed x86_64 tester completed
+  onboarding, restart/background/Back, 200% text, reduced-motion and real TalkBack emulator smoke;
+  see `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md`.
 - EAS is authenticated, but iOS production credentials/provisioning need interactive Apple setup.
-  No AAB/SHA-256 or physical Android release PASS is claimed; Apple export compliance for standard
-  AES-GCM remains an owner/legal determination.
-- No AAB/hash, Play Console submission, public policy/support/deletion URL or independent review is
-  claimed by this addendum. The exact remaining actions are in `OWNER_ACTION_PACK.md`.
+  The attached physical Android device remains `adb unauthorized`, so no physical-device release
+  PASS is claimed. Apple export compliance for standard AES-GCM remains an owner/legal determination.
+- No Play Console submission, public policy/support/deletion URL, physical-device sign-off, iOS
+  artifact/runtime proof or independent review is claimed by this addendum. The exact remaining
+  actions are in `OWNER_ACTION_PACK.md`.
 
 Run the current tools from the repository root:
 

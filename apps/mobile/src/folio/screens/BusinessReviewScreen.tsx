@@ -86,9 +86,7 @@ export function BusinessReviewScreen({ nav }: { nav: Nav }) {
               <Text style={[styles.queueLabel, { color: t.inverse }]}>
                 Check {queueCount} {queueCount === 1 ? 'amount' : 'amounts'}
               </Text>
-              <Text style={[styles.queueHint, { color: t.inverse }]}>
-                One decision at a time
-              </Text>
+              <Text style={[styles.queueHint, { color: t.inverse }]}>One decision at a time</Text>
             </View>
             <Text accessibilityElementsHidden style={[styles.queueArrow, { color: t.inverse }]}>
               →
