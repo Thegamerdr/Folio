@@ -1,13 +1,13 @@
 # Lovable → React Native port ledger
 
-Status: **BATCH 1 COMPLETE — TODAY PORTED; EXPLICIT EVIDENCE GAPS RECORDED**
+Status: **BATCH 2 COMPLETE — CORE PERSONAL-MONEY SURFACES PORTED; EXPLICIT EVIDENCE GAPS RECORDED**
 
 ## Immutable batch pins
 
 - `DESIGN_SOURCE_SHA=ad90b4fee36c58be156e145e8663d8c6be1bf0eb`
 - `NATIVE_BASE_SHA=8cf2f9ba2656b6980cca1e58459521de71bb9967`
 - `NATIVE_BRANCH=codex/melo-native-ux`
-- `IMPLEMENTATION_BRANCH=codex/lovable-native-today-batch1-2026-08-24`
+- `IMPLEMENTATION_BRANCH=codex/melo-native-port-2026-08-24`
 - `IMPLEMENTATION_WORKTREE=C:\dev\melo-native-today-batch1-2026-08-24`
 
 The design source is immutable for this batch. Later Lovable commits are a
@@ -123,3 +123,60 @@ variants remain explicit evidence gaps below; no implementation gap was found in
 Plan, Calendar, Pots, Subscriptions, Debts, What If, Recovery, Shortfall,
 Review, Intake, More/settings, and Business surfaces are excluded except for a
 strictly necessary shared primitive change required for Today to compile.
+
+## Batch 2 acceptance evidence — 2026-08-24
+
+- Durability: the accepted Batch 1 chain begins this batch at
+  `7476594e8a34f9e39808cae7084af42d3b8b5c19`. Planning and commitment surfaces are durable at
+  `b8920e09708a2ecc74efcba33ffed2e15a3089b0`; recovery and insight surfaces are durable at
+  `22f581ef394b88423ea37b05de7856f84ddebf7c`. All are on
+  `origin/codex/melo-native-port-2026-08-24`; the final visual/evidence checkpoint follows them
+  without rebasing or squashing Batch 1.
+- Build: `:app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64` with Android Studio
+  JBR/local SDK and `SENTRY_DISABLE_AUTO_UPLOAD=true`; **BUILD SUCCESSFUL**. Final evidence APK:
+  `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, 95,065,064 bytes, SHA-256
+  `F320E73D4F733B64943505E511273B4EDAB909EDA8643AC6289C984C3D2AF8D9` (written
+  `2026-08-24T18:13:01.5295497Z`). The x86_64 override remains emulator-only; tracked production
+  architecture configuration was not changed.
+- Runtime: `adb -s emulator-5554 install -r` succeeded, followed by a cold
+  `am start -W -n com.folio.v2.greenfield/.MainActivity` in 2,507 ms. Android reported
+  `topResumedActivity=com.folio.v2.greenfield/.MainActivity`; the focused app-fatal filter returned
+  `APP_FATAL_MATCHES=0`. The supported account correction used to exercise pressure was restored;
+  [restored-account.xml](../../evidence/batch2-native-2026-08-24/restored-account.xml) retains the
+  Main balance at £100.00 and [restored-today.xml](../../evidence/batch2-native-2026-08-24/restored-today.xml)
+  retains Survival / `getting through` / storm.
+- Verification: `pnpm --filter @folio/mobile typecheck` passed. Focused Vitest coverage passed
+  **99/99**: calendar events 25, store-route 22, money path 11, Melo calculations 11, recovery
+  preview 2, commitment helpers 6, authored insight read 7, no-fabricated-content 3, and debt/store
+  authority 12. `git diff --check` reported no whitespace errors (only the repository's CRLF notice).
+- Visual sampling: representative 1080×2160 Plan, What If, and Recovery states passed in Light and
+  Dark; Shortfall passed in a real negative Dark state; Pots passed in Light and Dark. Calendar,
+  Subscriptions, Insights, and the integrated Debt lens were spot-checked in Light. Matching UI dumps
+  sit beside each retained screenshot under `evidence/batch2-native-2026-08-24/`.
+
+## Batch 2 surfaces
+
+| surface | source SHA | native implementation | data authority | visual parity | behaviour parity | Light | Dark | evidence | status / exact gap |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Plan | `ad90b4fe` | `PlansScreen` | `useRoute` + `deriveCalendarEvents`; native plans, pots, subscriptions, and debts | PASS (pressured representative) | PASS for live route/timeline/navigation | PASS | PASS | `plan-light-final.png/xml`, `plan-dark-final.png/xml` | PASS; no dedicated component-render test |
+| Calendar | `ad90b4fe` | `CalendarScreen` | `deriveCalendarEvents`, historical transactions, `useRoute`, native nudge mutators | PASS (agenda representative) | PASS for engine grouping/route anchors; interaction paths retained | PASS | NOT SEPARATELY CAPTURED | `calendar-light-final.png/xml`; 25 calendar tests | PASS WITH DARK EVIDENCE OPEN |
+| Pots | `ad90b4fe` | `PotsScreen` + `commitmentHelpers` | canonical `addToPot`, `borrowFromPot`, `repayToPot`, pot ledger, `routeFromStore` preview | PASS (populated allocation state) | PASS for native ledger/preview authorities | PASS | PASS | `pots-light.png/xml`, `pots-dark-system.png/xml`; 6 helper tests | PASS; borrow/repay commit was not executed in acceptance data |
+| Subscriptions | `ad90b4fe` | `SubscriptionsScreen` + `commitmentHelpers` | native recurring rows, cadence/date anchor, pause state, hypothetical `routeFromStore` consequence | PASS (empty state) | PASS for native route and store wiring; no fabricated usage insight | PASS | NOT SEPARATELY CAPTURED | `subscriptions-light-final.png/xml`; helper + no-fabrication tests | PASS WITH POPULATED/DARK VISUAL EVIDENCE OPEN |
+| Debts | `ad90b4fe` | `DebtCommitmentSurface` integrated in `TodayModeScreen` Debt lens | existing `debtEngine.summarise` / `totalInterest`, Debt store, live route tight point | PASS (empty integrated state) | PASS for existing engine/store authority | PASS | NOT SEPARATELY CAPTURED | `debts-light-final.png/xml`; 12 focused debt/store tests | PASS WITH POPULATED/DARK VISUAL EVIDENCE OPEN |
+| What If | `ad90b4fe` | `WhatIfScreen` | `useRoute`, real trailing-28-day transactions, preview-local scenario state | PASS (pressured representative) | PASS for live recalculation; no legacy £28/day fixture; route ends at payday | PASS | PASS | `whatif-light-final.png/xml`, `whatif-dark-final.png/xml` | PASS; cadence/amount controls not exhaustively interaction-tested |
+| Recovery | `ad90b4fe` | `RecoveryScreen` + `buildRecoveryRoutePreview` | pure `routeFromStore` candidate previews and existing preview-then-commit writes | PASS (negative representative) | PASS for non-mutating ranked preview authority | PASS | PASS | `recovery-light-final.png/xml`, `recovery-dark-final.png/xml`; 2 preview tests | PASS; final commit action intentionally not executed during evidence capture |
+| Shortfall | `ad90b4fe` | `ShortfallScreen` | `useRoute`, `deriveCalendarEvents`, canonical `borrowFromPot` commit | PASS (real −£80 state) | PASS for live gap and preview-then-commit wiring | NOT SEPARATELY CAPTURED | PASS | `shortfall-dark-final.png/xml` | PASS WITH LIGHT EVIDENCE OPEN; borrow commit not executed |
+| Insights | `ad90b4fe` | `InsightsScreen` + `buildInsightsRead` | native completed cycles, retrospect, subscriptions, transactions, and tiny wins | PASS (honest empty state) | PASS for authored fact/pattern/interpretation logic without manufactured certainty | PASS | NOT SEPARATELY CAPTURED | `insights-light-final.png/xml`; 7 authored-read tests | PASS WITH POPULATED/DARK VISUAL EVIDENCE OPEN |
+
+## Explicit Batch 2 evidence gaps
+
+- No implementation defect was observed in the representative states above. Remaining gaps are
+  bounded runtime-evidence gaps rather than substituted authorities: populated Subscriptions,
+  populated Debts, and populated Insights were unavailable in the retained emulator data, so their
+  populated visual compositions were not claimed as exercised.
+- Calendar, Subscriptions, Debts, and Insights were not separately repeated in Dark; Shortfall was
+  not separately repeated in Light. Both themes are exercised across each surface family, but those
+  sibling state/theme combinations remain open.
+- Destructive/financial commits were deliberately not used merely to manufacture screenshots:
+  Recovery's final commit, Shortfall's borrow commit, and Pots' borrow/repay commit remain covered by
+  their canonical write wiring and focused authorities, not by acceptance-data mutation.

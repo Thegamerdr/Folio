@@ -220,11 +220,9 @@ const PAYDAY_SHIFT_MAX = 3;
 // Burn-rate window: the trailing days of transactions whose average daily spend gives the real daily
 // burn (ENGINES §6 "days this would last"). The web used a fixed 28 as the divisor itself; here 28 is
 // the LOOK-BACK WINDOW — Σ spend magnitude over the last 28 days ÷ 28 = £/day. daysCover =
-// max(0, round((newLow / burn) * 10) / 10). When there is no recent spend the burn is 0 (a divide-by-
-// zero / Infinity), so we fall back to the web's literal 28-£/day stand-in to keep the figure honest
-// and the render identical to the pre-engine state.
+// max(0, round((newLow / burn) * 10) / 10). With no recent spend there is no honest burn rate, so
+// the duration stays unavailable instead of substituting the old design fixture.
 const TRAILING_DAYS = 28;
-const BURN_FALLBACK = 28;
 
 // Verdict thresholds — load-bearing (preserve exactly). New lowest reads negative when
 // breachesGoal || newLow < TIGHT; Days reads negative when daysCover < DAYS_NEGATIVE.
@@ -295,8 +293,12 @@ function buildScenarioGeometry(
   shiftCost: number,
 ): ScenarioGeometry | null {
   if (points.length < 2) return null;
-  const projected = points.map((point, index) => ({
-    x: 18 + (index / Math.max(1, points.length - 1)) * (VB_W - 36),
+  const paydayIndex = Math.min(points.length - 1, Math.max(0, daysToPayday));
+  // The signature route ends at payday, matching Today. Keeping later points in this compact view
+  // made payday look like an arbitrary interior station rather than the decision horizon.
+  const visible = points.slice(0, Math.max(2, paydayIndex + 1));
+  const projected = visible.map((point, index) => ({
+    x: 18 + (index / Math.max(1, visible.length - 1)) * (VB_W - 36),
     value: point.y - amount - shiftCost,
   }));
   const values = projected.map((point) => point.value);
@@ -313,11 +315,10 @@ function buildScenarioGeometry(
     (best, value, index) => (value < values[best]! ? index : best),
     0,
   );
-  const paydayIndex = Math.min(points.length - 1, Math.max(0, daysToPayday));
   return {
     d: smoothPath(mapped),
     lowest: mapped[lowestIndex] ?? mapped[0]!,
-    payday: mapped[paydayIndex] ?? mapped[mapped.length - 1]!,
+    payday: mapped[Math.min(paydayIndex, mapped.length - 1)] ?? mapped[mapped.length - 1]!,
   };
 }
 
@@ -426,19 +427,18 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   const baseLow = route ? route.tightPoint.amount : pressureLow[pressure];
 
   // Days this would last — newLow ÷ the real daily burn (trailing-28-day average spend from
-  // transactions, ENGINES §6). With no recent spend the burn is 0; fall back to the web's literal
-  // 28-£/day stand-in so the figure stays honest and the divide never blows up. Same rounding shape as
-  // the web (one decimal place, floored at 0).
+  // transactions, ENGINES §6). With no recent spend there is no defensible duration, so the screen
+  // shows that as unavailable rather than reviving the Lovable £28/day fixture.
   const liveBurn = now ? trailingDailyBurn(transactions, now) : 0;
-  const burn = liveBurn > 0 ? liveBurn : BURN_FALLBACK;
+  const burn = Math.max(0, liveBurn);
   const shiftCost = Math.round(paydayShift * burn);
   const newLow = baseLow - amount - shiftCost;
-  const daysCover = Math.max(0, Math.round((newLow / burn) * 10) / 10);
+  const daysCover = burn > 0 ? Math.max(0, Math.round((newLow / burn) * 10) / 10) : null;
 
   // count-up (380ms) drives the two stat-tile figures; reduce-motion snaps to the target. The centre
   // £{amount} uses the raw value (it is the input — instant, never animated).
   const lowDisplay = useCountUp(newLow, COUNT_UP_MS, reduceMotion);
-  const coverDisplay = useCountUp(daysCover, COUNT_UP_MS, reduceMotion);
+  const coverDisplay = useCountUp(daysCover ?? 0, COUNT_UP_MS, reduceMotion);
 
   // Honest signal: would this drop you below your Melo-set floor?
   const breachesGoal = tightPointGoal !== null && newLow < tightPointGoal;
@@ -486,7 +486,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // The negative tones (web): New lowest negative when breachesGoal || newLow < 50; Days negative when
   // daysCover < 5; the floor caption is negative ONLY on breach.
   const lowIsNegative = breachesGoal || newLow < TIGHT;
-  const daysIsNegative = daysCover < DAYS_NEGATIVE;
+  const daysIsNegative = daysCover !== null && daysCover < DAYS_NEGATIVE;
 
   // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -700,9 +700,11 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
               <Text
                 style={[styles.tileValue, daysIsNegative ? styles.tileValueNegative : undefined]}
               >
-                {coverDisplay.toFixed(1)}d
+                {daysCover === null ? '—' : `${coverDisplay.toFixed(1)}d`}
               </Text>
-              <Text style={[styles.tileCaption, styles.tabular]}>£{potsTotal} in pots</Text>
+              <Text style={[styles.tileCaption, styles.tabular]}>
+                {daysCover === null ? 'No recent spend rate' : `£${potsTotal} in pots`}
+              </Text>
             </View>
           </View>
 

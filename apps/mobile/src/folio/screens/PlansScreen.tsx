@@ -467,12 +467,15 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
               onPress={() => nav.go('calendar')}
               style={({ pressed: isPressed }) => [
                 styles.primaryCta,
+                styles.dominantPrimary,
                 { backgroundColor: t.calm },
                 elevation.cta,
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              <Text style={[styles.primaryCtaLabel, { color: t.inverse }]}>See what's coming</Text>
+              <Text numberOfLines={1} style={[styles.primaryCtaLabel, { color: t.inverse }]}>
+                See what's coming
+              </Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -800,6 +803,10 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 52,
     justifyContent: 'center',
+  },
+  dominantPrimary: {
+    flex: 1,
+    paddingHorizontal: gap.sm,
   },
   pressureNote: {
     alignItems: 'center',

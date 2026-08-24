@@ -261,12 +261,13 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
       ? `A recurring payment from ${tightEvent.subName} lands in that stretch.`
       : `${tightEvent.title} is one of the outgoings in that stretch.`
     : 'Your current balance runs out before the next payday.';
+  const dayLabel = daysLeft === 1 ? 'day' : 'days';
   const recoverabilityLine =
     lendingPot && lendingPot.saved >= gapNow && gapNow > 0
       ? `${lendingPot.name} could cover the whole gap.`
       : pausableSub
         ? `Pausing ${pausableSub.name} is the first named move in hand.`
-        : `A daily cap is the clearest move in hand for ${daysLeft} days.`;
+        : `A daily cap is the clearest move in hand for ${daysLeft} ${dayLabel}.`;
 
   const resolvedState: ShortfallState = state ?? 'populated';
 
@@ -459,7 +460,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         {/* Body — "{daysLeft} days until payday. Here's what would close the gap — pick one, or none." */}
         <Text style={[styles.body, { color: t.muted, maxWidth: BODY_MAX_WIDTH }]}>
           <Text style={styles.tabular}>{`${daysLeft}`}</Text>
-          {" days until payday. Here's what would close the gap — pick one, or none."}
+          {` ${dayLabel} until payday. Here's what would close the gap — pick one, or none.`}
         </Text>
 
         {/* A calm severity read: when the low lands, the native event that contributes to it, and the
@@ -556,7 +557,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
             value={`${formatGBP(dailyCap)}/day`}
           >
             <Text style={[styles.cardBody, { color: t.ink }]}>
-              {`Keep daily spend at ${formatGBP(dailyCap)} for ${daysLeft} days`}
+              {`Keep daily spend at ${formatGBP(dailyCap)} for ${daysLeft} ${dayLabel}`}
             </Text>
           </MoveCard>
         </View>
