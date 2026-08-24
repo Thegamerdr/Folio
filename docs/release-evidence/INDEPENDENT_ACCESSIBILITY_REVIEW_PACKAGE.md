@@ -4,7 +4,7 @@ Status: internal Android accessibility readiness evidence prepared; independent 
 is not self-approved.
 
 Android review target: `melo-0.0.1-1-production.aab`, SHA-256
-`3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1`.
+`5120F437F7C004F323576DEBEF32CD9C17203A4E7E376E6ACED1248D074ED14F`.
 
 ## Review scope
 

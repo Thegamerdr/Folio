@@ -8,7 +8,7 @@
   "privacyPolicyCurrent": false,
   "processorListCurrent": true,
   "sdkInventoryCurrent": true,
-  "submittedBinarySha256": "3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1",
+  "submittedBinarySha256": "5120F437F7C004F323576DEBEF32CD9C17203A4E7E376E6ACED1248D074ED14F",
   "binaryIdentity": {
     "productName": "Melo",
     "androidPackage": "com.folio.v2.greenfield",
@@ -24,7 +24,7 @@
     "billingCatalog": ["folio.full", "folio.live.monthly", "folio.live.yearly"],
     "openBankingWorkerHealth": "deployed; featureEnabled=false; providerConfigured=false; /v1 routes return feature_disabled",
     "eas": "authenticated; iOS production build requires interactive Apple credential/provisioning setup",
-    "androidArtifact": "upload-signed arm64 AAB validated; SHA-256 3354FB6F69B589BC15776520820AD3E66ECD62DAEB0CB72F7A1E97F7EC326FF1; matching x86_64 tester APK exercised on emulator-5570",
+    "androidArtifact": "upload-signed arm64 AAB validated; SHA-256 5120F437F7C004F323576DEBEF32CD9C17203A4E7E376E6ACED1248D074ED14F; matching x86_64 tester APK exercised on emulator-5570",
     "physicalAndroid": "attached physical device remains adb unauthorized; signed-candidate emulator runtime/TalkBack/large-text/reduced-motion evidence complete"
   },
   "appleExportCompliance": {
