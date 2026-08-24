@@ -252,11 +252,12 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
           />
           <KeyboardAvoidingView
             // Edge-to-edge Android no longer guarantees that adjustResize will lift an absolute
-            // sheet. Constrain the avoider height there so focused inputs stay above the IME; iOS
-            // keeps its padding behaviour.
+            // sheet. Constrain the avoider height there so focused inputs stay above the IME, and
+            // reserve the top safe area so a tall keyboard-lifted form never sits under the status
+            // bar. iOS keeps its padding behaviour.
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             pointerEvents="box-none"
-            style={layout.avoider}
+            style={[layout.avoider, { paddingTop: insets.top }]}
           >
             <Animated.View
               accessibilityViewIsModal
@@ -289,6 +290,7 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
       children,
       handleClose,
       insets.bottom,
+      insets.top,
       maxHeight,
       s,
       scrimOpacity,

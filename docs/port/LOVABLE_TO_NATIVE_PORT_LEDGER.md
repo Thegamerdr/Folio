@@ -1,6 +1,6 @@
 # Lovable → React Native port ledger
 
-Status: **BATCH 2 COMPLETE — CORE PERSONAL-MONEY SURFACES PORTED; EXPLICIT EVIDENCE GAPS RECORDED**
+Status: **BATCH 3 COMPLETE — PERSONAL REVIEW, INTAKE, HISTORY, AND CONTROL SURFACES PORTED; EXPLICIT EVIDENCE GAPS RECORDED**
 
 ## Immutable batch pins
 
@@ -180,3 +180,130 @@ strictly necessary shared primitive change required for Today to compile.
 - Destructive/financial commits were deliberately not used merely to manufacture screenshots:
   Recovery's final commit, Shortfall's borrow commit, and Pots' borrow/repay commit remain covered by
   their canonical write wiring and focused authorities, not by acceptance-data mutation.
+
+## Batch 3 — Lane C personal control checkpoint (2026-08-24)
+
+Source SHA: `ad90b4fee36c58be156e145e8663d8c6be1bf0eb`
+Native start SHA: `d51a92ddd60270b80579939ac45a50b450fe0648`
+
+| surface | native implementation | authority preserved | visual parity | behaviour parity | Light/Dark evidence | status / exact gap |
+| --- | --- | --- | --- | --- | --- | --- |
+| More / personal control hub | `MoreScreen` | theme store, notification settings, OS accessibility, Account, Privacy, Melo | PASS (shared Quiet Paper Luxury primitives) | PASS for routing and live preference reads; notifications toggle requests permission only on tap | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; representative Light + Dark emulator captures remain open |
+| Appearance | `MoreScreen` Appearance row | `useThemeMode` / `useIsDark` | PASS (existing native theme language) | PASS (explicit light ↔ dark toggle) | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; system-follow mode remains intentionally outside this binary row |
+| Notifications / accessibility | `MoreScreen` + `lib/notifySettings` + `lib/notifications` | local notification policy and device `AccessibilityInfo` | PASS (flat preference rows) | PASS for persisted reminders, lock-screen detail preference, and live reduced-motion report | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; OS settings handoff and notification permission denial need device evidence |
+| Money sources / connections | `AccountScreen` source rows + `BankConnectionSheet` | account store, evidence vault, provider-isolated bank connection | PASS (source rows remain restrained and status-led) | PASS for statement/manual/source evidence routing and native connection boundary | Existing source/account evidence; no new Light/Dark capture | IMPLEMENTED; connected-provider runtime state not exercised here |
+| Account / export-share controls | `AccountScreen` | lens/account state, native `Share.share`, Privacy export engine | PASS (account controls remain grouped, not duplicated) | PASS for one-off snapshot share and canonical full export route | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; OS share-sheet success/cancel evidence remains open |
+| Data & privacy / trust / security | `PrivacyScreen` | `runExport`, restore pipeline, `clearLocalMeloData`, app-lock capability/authentication | PASS (live footprint plus quiet action list) | PASS for live workspace footprint, export/restore, gated destructive clear, and app lock handoff | Existing Privacy Light/Dark evidence; footprint variant not captured | IMPLEMENTED; destructive clear and restore remain intentionally un-executed in visual sampling |
+| AI & automation / Melo memory | `MoreScreen` → native Review/Melo owners | statement-read allowance, Review confirmation pipeline, `deriveMeloMemory` | PASS (status row, no decorative mascot) | PASS for honest read/confirm explanation and canonical Melo memory route | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; read-threshold and memory populated visual evidence remain open |
+
+Lane C verification: `copyLint`, `sourceVoiceLint`, `notifySettings`, `appLock`, and
+`PrivacyScreen.cleanSlate` focused tests passed (35/35). The integrated mobile typecheck passes; the
+temporary shared review-history union error present during the lane checkpoint was corrected before
+final acceptance. No native destructive data was mutated for evidence.
+
+## Batch 3 — Lane B intake / evidence checkpoint (2026-08-24)
+
+Source SHA: `ad90b4fee36c58be156e145e8663d8c6be1bf0eb`
+Native start SHA: `d51a92ddd60270b80579939ac45a50b450fe0648`
+
+| surface | native implementation | authority preserved | visual parity | behaviour parity | Light/Dark evidence | status / exact gap |
+| --- | --- | --- | --- | --- | --- | --- |
+| Statement/file doorway | `IntakeScreen` + native document/image pickers | Expo document/photo/camera pickers, local OCR/text readers, evidence vault | PASS by existing Quiet Paper Luxury primitives | PASS for cancel, permission, retained evidence, staged candidates, and review-only handoff | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; native picker and theme screenshots remain open |
+| PDF / image success | `PdfSuccessScreen`, `ImageSuccessScreen` | `readerCandidates`, closing-balance staging, evidence metadata, `BulkStatementLanding` | PASS by existing preview/card language | PASS for waiting state, real candidate counts, source evidence, bulk/history or one-by-one review | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; populated Light/Dark runtime sampling remains open |
+| Paste / CSV success | `PasteSuccessScreen` | `parseSheet`, transient reader staging, review queue | PASS by existing preview/card language | PASS for clipboard/CSV staged handoff, source-preserving queueing, honest row-check notice, and staging clear | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; direct native clipboard/CSV emulator evidence remains open |
+| Unreadable / manual workbench | `PdfFallbackScreen`, `ImageFallbackScreen`, `LogSpendSheet` | retained encrypted original and canonical manual transaction write | PASS by existing calm fallback language | PASS for source viewing, retry, and manual entry without routing to a blank Review | NOT CAPTURED IN THIS CHECKPOINT | IMPLEMENTED; source-open and manual-save runtime evidence remains open |
+| Candidate classification / source correction | `EditItemSheet`, `EditTxnSheet`, Review-owned queue | candidate review-before-truth, transaction edit engine, evidence links | PASS by existing native sheet language | PASS for income/bill/debt/transfer/refund labels, posted correction, duplicate proposal, ignore/link paths, and source attach/detach | NOT CAPTURED IN THIS CHECKPOINT | Existing native authorities preserved; row-tap-to-candidate-sheet remains a shell payload gap |
+
+Lane B verification: mobile typecheck passed. Focused intake/evidence tests passed **74/74** (`importSheet`,
+`documentVault`, `bulkLanding`, bulk wiring, fallback reason, and edit-save coverage). `git diff --check`
+reported no whitespace errors (only the repository's CRLF notice). No destructive financial data was
+mutated for evidence.
+
+## Batch 3 — Lane A review, history, and decisions checkpoint (2026-08-24)
+
+Source SHA: `ad90b4fee36c58be156e145e8663d8c6be1bf0eb`
+Native start SHA: `d51a92ddd60270b80579939ac45a50b450fe0648`
+
+| surface | native implementation | authority preserved | visual parity | behaviour parity | Light/Dark evidence | status / exact gap |
+| --- | --- | --- | --- | --- | --- | --- |
+| Review hub | `ReviewHubScreen` + `FolioShell` Review tab | persisted `reviewQueue`, transactions, edits, timeline events, ignored signatures | PASS (calm three-lane Review hierarchy) | PASS for separate proposal, confirmed-activity, and decision lanes | Light empty/populated/pending; Dark pending | PASS |
+| Pending review detail | existing `ReviewScreen` reached through `review-item` | candidate queue, evidence links, category learning, explicit add/ignore decisions | PASS (existing Review workbench retained) | PASS for editable merchant/amount/category, evidence open, add, and ignore | Dark populated detail | PASS; direct candidate-row payload into the separate `EditItemSheet` remains unclaimed |
+| Confirmed activity | `ReviewHubScreen` Activity lane + `buildReviewHistory` | immutable native transactions and correction records | PASS | PASS; base transaction rows remain `Added`, while later edits are separate correction rows | Light populated | PASS |
+| Decisions | `ReviewHubScreen` Decisions lane + `buildReviewHistory` | ignored proposal signatures and correction history | PASS | PASS for durable put-aside/correction history without converting proposals into money truth | Dark populated | PASS |
+| Timeline | existing `TimelineScreen` + shared timeline builders | native transaction/edit/timeline authorities | PASS | PASS for newest-first added/changed history and source/category context | Light populated | PASS |
+
+Lane A focused tests passed **22/22** (`reviewHistory` 3, `timelineEvents` 12,
+`reviewCategoryLearning` 7). Integrated typecheck and the final Android build also pass.
+
+## Batch 3 final acceptance evidence — 2026-08-24
+
+- Durability: Batch 3 starts exactly at `d51a92ddd60270b80579939ac45a50b450fe0648` on
+  `codex/melo-native-port-2026-08-24`. The independently reviewed implementation checkpoints are
+  `8bfec1906d0ff5804f7c29266dd1916fdd0348c6` (review/history),
+  `237fc324810e2c5bde2b3a3c9bd37001adb07a1a` (intake/evidence), and
+  `44d733b59e1537da02acfdcd9df737244a6034bb` (personal control/trust), all pushed in order to the
+  same remote branch. The final shared-sheet safe-area correction and this evidence ledger are in
+  the following integration commit; no rewrite or replacement app was created.
+- Build: `:app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64` with Android Studio
+  JBR/local SDK and `SENTRY_DISABLE_AUTO_UPLOAD=true`; **BUILD SUCCESSFUL** after the final
+  safe-area correction. APK:
+  `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, 95,080,184 bytes, SHA-256
+  `CB38518169E9ABC1271ADE3FC75F1D3BB8AC8627EC3FD4E2B8F906105DB507E5` (written
+  `2026-08-24T19:43:55.4154816+01:00`). The x86_64 override is emulator-only; tracked production
+  architecture configuration was not changed.
+- Runtime: `adb -s emulator-5554 install -r` succeeded, followed by a cold
+  `am start -W -n com.folio.v2.greenfield/.MainActivity` in 2,853 ms. The app package remains
+  `com.folio.v2.greenfield`. App-PID logcat contained no `FATAL EXCEPTION`, AndroidRuntime crash, or
+  ReactNativeJS error; the retained platform messages were a debugger-agent notice and an Android
+  IME frame-tracker timeout, not an app exception.
+- Verification: `pnpm --filter @folio/mobile typecheck` passed after final integration.
+  The focused Batch 3 suite passed **153/153** across 16 files: review/history/category learning,
+  import parsing, evidence vault, bulk landing/wiring, fallback reason, transaction correction/save,
+  copy/source-voice lint, notification settings, app lock, privacy clean-slate, and
+  no-fabricated-content. `git diff --check` reported no whitespace errors (only the repository's
+  CRLF notice).
+- Real Android intake evidence uses the platform document picker and the retained one-row fixture
+  [batch3-review-fixture.csv](../../evidence/batch3-native-2026-08-24/batch3-review-fixture.csv).
+  The file first rendered as a proposal in
+  [intake-review-light.png](../../evidence/batch3-native-2026-08-24/intake-review-light.png), then as
+  pending Review in
+  [review-pending-light.png](../../evidence/batch3-native-2026-08-24/review-pending-light.png), and
+  was finally put aside through Review's supported decision action. It never entered confirmed
+  money history.
+- Representative visual evidence, each with a matching UI hierarchy dump, is retained under
+  `evidence/batch3-native-2026-08-24/`: Review empty and populated Activity in Light
+  (`review-light`, `review-activity-light`), pending Review in Light/Dark
+  (`review-pending-light`, `review-pending-dark`), populated Review detail and Decisions in Dark
+  (`review-detail-dark`, `review-decisions-dark`), Timeline in Light (`timeline-light`), intake
+  doorway and staged read in Light (`intake-light`, `intake-review-light`), More and trust controls
+  in Light/Dark (`more-light`, `more-lower-light`, `more-mid-dark`, `more-trust-dark`), and live
+  Privacy footprint in Light/Dark (`privacy-light`, `privacy-dark`).
+- The Android keyboard initially showed the manual fallback sheet against the status bar. The final
+  shared `Sheet` primitive reserves `insets.top` in its keyboard avoider. The rebuilt release APK
+  proves the corrected state in
+  [manual-entry-dark-fixed.png](../../evidence/batch3-native-2026-08-24/manual-entry-dark-fixed.png)
+  and the complete keyboard-dismissed composition in
+  [manual-entry-dark.png](../../evidence/batch3-native-2026-08-24/manual-entry-dark.png).
+
+## Batch 3 final surface status
+
+| family | shipped native surfaces | authorities retained | representative evidence | final status / exact gap |
+| --- | --- | --- | --- | --- |
+| Review / history / decisions | Review hub, candidate detail, Activity, Decisions, Timeline | review queue, transactions, immutable edits, timeline events, evidence links, category memory | populated, empty, pending, detail, decision, and timeline across Light/Dark | PASS; the separate `EditItemSheet` is not directly opened by a candidate-row payload because Review detail already owns inline candidate correction |
+| Intake / evidence | native document/image doorway, CSV/TXT/paste handoff, PDF/image success and fallback paths, bulk landing, manual entry | Expo pickers, reader staging, evidence vault, import parser, review-before-truth queue, canonical manual transaction write | real Android CSV picker, intake doorway, staged read, pending Review, manual fallback | PASS; unreadable PDF/image fallback and camera-permission denial were not separately captured on-device |
+| More / account / preferences | More hub, money sources, account controls, Appearance, Notifications, Accessibility | native theme/reminder/accessibility/account stores and OS handoffs | More top/preferences/trust in Light/Dark | PASS; notification permission denial/OS-settings handoff and connected-provider state were not exercised |
+| Data / privacy / trust / security | live local footprint, export/restore/clear owners, app lock, AI-read boundary, Melo memory doorway | export engine, restore pipeline, clear-local authority, secure app-lock capability, review confirmation, Melo memory derivation | Privacy and trust controls in Light/Dark | PASS; destructive clear/restore, OS share completion/cancel, and populated Melo-memory thresholds were intentionally not executed merely for screenshots |
+
+## Explicit Batch 3 evidence gaps
+
+- No iOS build or simulator claim is made in this batch. The source remains React Native and
+  cross-platform, but the requested install/build/visual acceptance run is Android-only.
+- Native camera permission denial, unreadable PDF/image fallbacks, notification permission denial,
+  connected bank-provider state, and OS share completion/cancel were not separately exercised.
+  Their existing native owners and routing are retained; no fabricated success state substitutes
+  for those platform/runtime gaps.
+- Destructive clear/restore and financial add/save actions were not used to manufacture evidence.
+  The only new runtime fixture remained provisional and was put aside through Review, leaving the
+  two existing confirmed transactions unchanged.
+- Candidate correction is fully available inline in Review detail and posted corrections continue
+  through `EditTxnSheet`; a distinct candidate-row-to-`EditItemSheet` payload path is not claimed.
