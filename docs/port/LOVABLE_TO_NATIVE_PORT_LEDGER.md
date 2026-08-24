@@ -307,3 +307,65 @@ Lane A focused tests passed **22/22** (`reviewHistory` 3, `timelineEvents` 12,
   two existing confirmed transactions unchanged.
 - Candidate correction is fully available inline in Review detail and posted corrections continue
   through `EditTxnSheet`; a distinct candidate-row-to-`EditItemSheet` payload path is not claimed.
+
+## Batch 4 final acceptance evidence — 2026-08-24
+
+- Durability: Batch 4 starts exactly at
+  `c1bf333d64a6e1c241d2f6a0aa403af72979bbcd` on
+  `codex/melo-native-port-2026-08-24`. The pushed implementation checkpoints are
+  `8d790cf` (complete Melo companion), `e9c8b50` (complete native Business registry/surfaces),
+  and `ba34760` (secondary-surface parity and registry closure). No accepted Batch 1–3 commit was
+  rebased, squashed, or redesigned.
+- Build: `:app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64` with Android Studio
+  JBR/local SDK and `SENTRY_DISABLE_AUTO_UPLOAD=true`; **BUILD SUCCESSFUL** in 1m 29s. APK:
+  `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, 95,093,204 bytes, SHA-256
+  `738307659D5DF099D2B31284E1D7FD88195FF745CD98E4C0D3E443BE8854A85B`. The x86_64
+  override remains emulator-only; tracked production architecture configuration was not changed.
+- Runtime: `adb -s emulator-5554 install -r` succeeded for the existing package
+  `com.folio.v2.greenfield`. A force-stop plus launcher cold start resumed `.MainActivity`; the
+  app-PID fatal filter returned `app_fatal_matches=0`. The retained emulator-only Business
+  workspace was created through the shipping workspace flow and configured through the shipping
+  entity form; no account, invoice, tax, or cash figure was fabricated for screenshots.
+- Verification: `pnpm --filter @folio/mobile typecheck` passed. Focused Vitest coverage passed
+  **32/32** across eight files: companion semantics, Melo reaction/rework, canonical state
+  projections, Business registry/current-year invoicing, and Appearance/edit-ownership contracts.
+  The coverage closure command compared the live unions with the coverage table exactly:
+  52/52 screens and 27/27 sheets, with zero set differences. `git diff --check` passed (repository
+  CRLF notices only).
+- Visual sampling: retained 1080×2160 Android evidence under
+  `evidence/batch4-native-2026-08-24/` covers Melo first-run introduction, dedicated Melo in Light
+  and Dark, personal and Business context sheets, Business Today in Sole Trader and Limited
+  Company states, Business Today in Light and Dark, runway, invoices, filings, Appearance, workspace
+  onboarding, cold launch, and reduced-motion device settings/static rendering. Matching UI
+  hierarchy dumps sit beside each screenshot.
+
+## Batch 4 surface status
+
+| family                       | shipped native surfaces                                                                                                                                                                          | native authority retained                                                                                                                 | representative evidence                                                                                                                                                | final status / exact gap                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Melo companion               | dedicated personal and Business Melo screens; canonical companion host; mood/presence; context action; quiet mode; safe auto/left/right position; memory; first-run introduction; reduced motion | existing canonical `Melo` sprite/atlas renderer, money/business-derived mood and action selectors, canonical companion runtime projection | `melo-screen-dark`, `melo-dedicated-light`, `melo-dedicated-dark`, `melo-context-dark`, `business-melo-dark`, `business-melo-context-dark`, `melo-reduced-motion-dark` | PASS; no second renderer or floating global overlay introduced                   |
+| Business workspace and Today | workspace creation/switching; entity setup; dynamic Business Today; honest empty/cash state; Sole Trader and Limited Company variants                                                            | workspace partition, saved entity, accounts, invoices, recurring obligations, native tax/business engines                                 | `workspace-light`, `business-today-sole-light`, `business-today-ltd-light`, `business-today-ltd-dark`                                                                  | PASS; populated cash/invoice figures were not manufactured for evidence          |
+| Business money movement      | 90-day runway, clients, invoices, recurring money out, VAT, deductions, insights                                                                                                                 | native account balances, dated invoices, obligation schedules, VAT boxes, deduction authorities                                           | `business-runway-sole-light`, `business-invoices-sole-light`                                                                                                           | PASS; visual evidence uses honest empty states, not screenshot-only calculations |
+| Business tax and filing      | VAT, Corporation Tax, payroll, dividends, DLA, Companies House, filing hub and VAT/SA/CT/CS/accounts/payroll working copies                                                                      | native VAT/tax/payroll/dividend/DLA/filing engines and saved entity                                                                       | `business-filings-sole-light`; route registry tests                                                                                                                    | PASS; only the representative Sole Trader filing hub was separately captured     |
+| Appearance                   | System, Light, Dark picker reached from More                                                                                                                                                     | existing `useThemeMode` persistence and `useColorScheme` resolution                                                                       | `appearance-dark`, Melo and Business Light/Dark samples                                                                                                                | PASS; System remains the same single authority and follows OS while selected     |
+| Candidate correction         | Review detail owns provisional candidate correction; posted transaction correction remains in `EditTxnSheet`; redundant `edit-item` route removed from the active registry                       | review-before-truth queue, Review inline draft fields, canonical posted-transaction edit                                                  | source contract test plus 79-surface registry closure                                                                                                                  | PASS; one owner, no half-connected duplicate flow                                |
+| Secondary shipping surfaces  | every active `ScreenId` and non-null `SheetId`, including intake success/fallback, search/detail, onboarding, day/detail, confirmation and auxiliary sheets                                      | existing screen/sheet owners and native persistence/permission/entitlement boundaries                                                     | `BATCH4_SHIPPING_SURFACE_COVERAGE.md`; exact registry comparison; `cold-launch`, `workspace-light`, `appearance-dark`                                                  | PASS; 79 ported, 0 unknown, 0 open in the active registry                        |
+
+## Explicit Batch 4 gaps
+
+- **Implementation gaps:** none known within the Batch 4 shipping registry. All 52 screens and 27
+  sheets are classified and mapped to active native owners; no active surface is marked open.
+- **Evidence gaps:** this Android batch does not claim an iOS build or simulator run. It also does
+  not claim exhaustive runtime interaction across all 79 routes (reserved for final whole-app
+  convergence), populated Business cash/invoice/tax fixtures, every filing working copy, or a live
+  OS theme flip while System remained selected. The underlying native authorities and the System
+  theme resolution path are covered by typecheck/focused contracts; no fabricated state substitutes
+  for the missing runtime samples.
+- The retained Android acceptance state ends in the added `Batch4Studio` Business workspace as a
+  Limited Company and Dark appearance. Its financial records remain empty; existing Personal money
+  records were not altered.
+
+Shipping coverage artifact:
+`docs/port/BATCH4_SHIPPING_SURFACE_COVERAGE.md` — **52 screens + 27 sheets = 79 active registered
+surfaces; 79 ported, 0 intentionally native-only, 0 deprecated/not shipping in the active registry,
+0 open.**

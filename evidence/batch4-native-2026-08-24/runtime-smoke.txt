@@ -1,0 +1,8 @@
+serial=emulator-5554
+package=com.folio.v2.greenfield
+pid=14573
+app_fatal_matches=0
+topResumedActivity=ActivityRecord{e815fbb u0 com.folio.v2.greenfield/.MainActivity t123}
+animator_duration_scale=1
+transition_animation_scale=1
+window_animation_scale=1

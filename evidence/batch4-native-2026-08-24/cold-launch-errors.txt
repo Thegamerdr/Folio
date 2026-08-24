@@ -1,0 +1,21 @@
+--------- beginning of main
+08-24 20:13:55.828   594   661 E AtomicFile: Failed to rename /data/system/install_sessions.xml.new to /data/system/install_sessions.xml
+08-24 20:13:55.871   988   988 E SmsApplication: com.google.android.apps.messaging lost android:read_cell_broadcasts:  (fixing)
+08-24 20:13:55.889   988   988 E CellBroadcastUtils: getDefaultCellBroadcastReceiverPackageName: no package found
+08-24 20:13:55.906   988   988 E SmsApplication: com.google.android.apps.messaging lost android:read_cell_broadcasts:  (fixing)
+08-24 20:13:55.914   988   988 E CellBroadcastUtils: getDefaultCellBroadcastReceiverPackageName: no package found
+--------- beginning of system
+08-24 20:13:56.020   594  1682 E ActivityManager: Unable to freeze binder for 12880: -11
+--------- beginning of kernel
+08-24 20:13:56.038     0     0 E binder  : invalid inc weak node for 1840549
+08-24 20:13:56.041     0     0 E binder  : invalid inc weak node for 1840551
+08-24 20:13:56.046     0     0 E binder  : invalid inc weak node for 1840553
+08-24 20:13:56.048     0     0 E binder  : invalid inc weak node for 1840555
+08-24 20:13:56.049     0     0 E binder  : invalid inc weak node for 1840557
+08-24 20:13:56.053     0     0 E binder  : invalid inc weak node for 1840559
+08-24 20:13:56.054     0     0 E binder  : invalid inc weak node for 1840561
+08-24 20:13:56.056     0     0 E binder  : invalid inc weak node for 1840563
+08-24 20:13:56.057     0     0 E binder  : invalid inc weak node for 1840565
+08-24 20:13:56.060     0     0 E binder  : invalid inc weak node for 1840567
+08-24 20:13:56.618 12945 12945 E o.v2.greenfield: Not starting debugger since process cannot load the jdwp agent.
+08-24 20:14:00.052   594  1407 E TaskPersister: File error accessing recents directory (directory doesn't exist?).

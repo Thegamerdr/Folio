@@ -1,0 +1,6 @@
+--------- beginning of main
+08-24 20:24:28.478   594   930 E IPCThreadState: Binder transaction failure. id: 2004065, BR_*: 29189, error: -22 (Invalid argument)
+08-24 20:24:28.543   466   466 E BpTransactionCompletedListener: Failed to transact (-32)
+08-24 20:24:28.811 14573 14573 E o.v2.greenfield: Not starting debugger since process cannot load the jdwp agent.
+--------- beginning of system
+08-24 20:24:32.499   594  1407 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
