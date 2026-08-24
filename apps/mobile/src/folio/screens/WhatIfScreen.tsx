@@ -5,7 +5,7 @@
  *               (default £40, step £5, clamp 0..500) and watch, in real time with a count-up, what the
  *               new lowest point to payday becomes, how many days that figure covers, and whether it
  *               breaches the Melo-set floor or would eat into pots. A mini money-path SVG redraws its
- *               dip as the amount changes. Preview stays read-only unless the user explicitly saves
+ *               native route as the amount changes. Preview stays read-only unless the user explicitly saves
  *               the scenario as a hold. Faithful RN port of the approved web design source
  *               (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenWhatIf.tsx).
  * @reads        pressure (mood band → baseLow via pressureLow) · tightPointGoal · pots (potsTotal)
@@ -38,7 +38,7 @@
  *            it runs against `now ?? EPOCH` and the result is discarded for the single pre-mount frame,
  *            where baseLow falls back to the per-pressure sample (pressureLow[pressure]) — the same
  *            mount-gate convention TodayScreen uses, so a normal open never flashes a different figure.
- *            The mini path keeps its design dip shape (it is illustrative, bound to `amount`). Still
+ *            The mini path maps those native route points into the compact editorial SVG. Still
  *            preview-only — nothing is committed and no path is mutated.
  *
  * Banned visible words (import / rows / parser / extraction / OCR / sync / dashboard / analytics /
@@ -214,6 +214,8 @@ const AMOUNT_MIN = 0;
 const AMOUNT_MAX = 500;
 const AMOUNT_STEP = 5;
 const AMOUNT_DEFAULT = 40;
+const PAYDAY_SHIFT_MIN = -3;
+const PAYDAY_SHIFT_MAX = 3;
 
 // Burn-rate window: the trailing days of transactions whose average daily spend gives the real daily
 // burn (ENGINES §6 "days this would last"). The web used a fixed 28 as the divisor itself; here 28 is
@@ -265,6 +267,59 @@ const EPOCH = new Date(0);
 // DAY_MS for the trailing-window cut-off (local-clock millisecond subtraction; consistent with the
 // transaction `when` ISO timestamps the burn-rate averages over).
 const DAY_MS = 86_400_000;
+
+type ScenarioGeometry = {
+  d: string;
+  lowest: { x: number; y: number };
+  payday: { x: number; y: number };
+};
+
+function smoothPath(points: readonly { x: number; y: number }[]): string {
+  if (points.length < 2) return '';
+  let d = `M ${points[0]!.x} ${points[0]!.y}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i - 1] ?? points[i]!;
+    const p1 = points[i]!;
+    const p2 = points[i + 1]!;
+    const p3 = points[i + 2] ?? p2;
+    d += ` C ${p1.x + (p2.x - p0.x) / 6} ${p1.y + (p2.y - p0.y) / 6}, ${p2.x - (p3.x - p1.x) / 6} ${p2.y - (p3.y - p1.y) / 6}, ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+/** Map the shared native route into this screen's compact editorial viewBox. */
+function buildScenarioGeometry(
+  points: readonly { y: number }[],
+  daysToPayday: number,
+  amount: number,
+  shiftCost: number,
+): ScenarioGeometry | null {
+  if (points.length < 2) return null;
+  const projected = points.map((point, index) => ({
+    x: 18 + (index / Math.max(1, points.length - 1)) * (VB_W - 36),
+    value: point.y - amount - shiftCost,
+  }));
+  const values = projected.map((point) => point.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const padding = Math.max(80, (max - min) * 0.2);
+  const domainMin = min - padding;
+  const domainMax = max + padding;
+  const mapped = projected.map((point) => ({
+    x: point.x,
+    y: 34 + ((domainMax - point.value) / Math.max(1, domainMax - domainMin)) * 132,
+  }));
+  const lowestIndex = values.reduce(
+    (best, value, index) => (value < values[best]! ? index : best),
+    0,
+  );
+  const paydayIndex = Math.min(points.length - 1, Math.max(0, daysToPayday));
+  return {
+    d: smoothPath(mapped),
+    lowest: mapped[lowestIndex] ?? mapped[0]!,
+    payday: mapped[paydayIndex] ?? mapped[mapped.length - 1]!,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Reduced-motion read — mirrors Melo.tsx / VisualizerScreen.tsx exactly: read once, then subscribe.
@@ -349,6 +404,9 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // The single piece of local state — the hypothetical spend. Clamp 0..500, step 5.
   const [amount, setAmount] = useState(AMOUNT_DEFAULT);
   const [recurrence, setRecurrence] = useState<WhatIfHold['recurrence']>('once');
+  // A second preview-only lever from the pinned Lovable instrument. Moving payday changes the
+  // number of ordinary days the same native route must carry; it is never persisted here.
+  const [paydayShift, setPaydayShift] = useState(0);
 
   // Mount-gate (mirrors TodayScreen): defer `new Date()` so nothing date-derived renders on the first
   // frame and the engine has an honest "today". Until it opens, baseLow falls back to the per-pressure
@@ -366,7 +424,6 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
   const baseLow = route ? route.tightPoint.amount : pressureLow[pressure];
-  const newLow = baseLow - amount;
 
   // Days this would last — newLow ÷ the real daily burn (trailing-28-day average spend from
   // transactions, ENGINES §6). With no recent spend the burn is 0; fall back to the web's literal
@@ -374,6 +431,8 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // the web (one decimal place, floored at 0).
   const liveBurn = now ? trailingDailyBurn(transactions, now) : 0;
   const burn = liveBurn > 0 ? liveBurn : BURN_FALLBACK;
+  const shiftCost = Math.round(paydayShift * burn);
+  const newLow = baseLow - amount - shiftCost;
   const daysCover = Math.max(0, Math.round((newLow / burn) * 10) / 10);
 
   // count-up (380ms) drives the two stat-tile figures; reduce-motion snaps to the target. The centre
@@ -389,13 +448,23 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // The mode-tinted headline for the current amount (BREAKS-PARITY fix).
   const headline = modeCopy.headlineTemplate(amount);
 
-  // Mini money path — the illustrative envelope of the engine's route. `route.points` is the real
-  // today→payday curve (the same series Today plots); its minimum IS `route.tightPoint`, which this
-  // screen already consumes as `baseLow` above — so the mini path's lowest-point band sits on the real
-  // engine low. The pixel geometry is the FROZEN web shape (dipY = min(190, 130 + amount*0.55)): a fixed
-  // editorial stand-in whose dip depth tracks the hypothetical spend. Coordinates and copy unchanged.
-  const dipY = Math.min(190, 130 + amount * 0.55);
-  const d = `M 18 80 C 70 90, 110 70, 160 110 S 240 ${dipY}, 300 150 S 350 60, 372 50`;
+  // Mini money path — the same native route points Today plots, mapped to this
+  // screen's compact SVG. This keeps the visual response tied to real dates and
+  // balances rather than maintaining a second illustrative curve.
+  const scenarioGeometry = useMemo(
+    () =>
+      route ? buildScenarioGeometry(route.points, route.daysToPayday, amount, shiftCost) : null,
+    [amount, route, shiftCost],
+  );
+  const fallbackGeometry: ScenarioGeometry = {
+    d: 'M 18 80 C 70 90, 110 70, 160 110 S 240 150, 300 160 S 350 60, 372 50',
+    lowest: { x: 300, y: Math.min(190, Math.max(60, 130 + amount * 0.55 + paydayShift * 3)) },
+    payday: {
+      x: Math.min(390, Math.max(320, 372 + paydayShift * 6)),
+      y: Math.min(150, Math.max(20, 50 + paydayShift * 2.5)),
+    },
+  };
+  const geometry = scenarioGeometry ?? fallbackGeometry;
 
   // The dynamic verdict band (web kit calm|soft|alert), reconciled to the canonical Melo vocabulary the
   // same way the Today wave did: alert → concern, soft → curious, calm → calm.
@@ -444,7 +513,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
     }
     draw.value = 0;
     draw.value = withTiming(1, { duration: ROUTE_DRAW_MS, easing: EASE_OUT_EXPO });
-  }, [draw, reduceMotion, amount]);
+  }, [draw, reduceMotion, amount, paydayShift]);
   const routeProps = useAnimatedProps(() => ({
     strokeDashoffset: ROUTE_DASH * (1 - draw.value),
   }));
@@ -557,10 +626,16 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
             <View style={styles.svgWrap}>
               <Svg width="100%" height="100%" viewBox={`0 0 ${VB_W} ${VB_H}`} fill="none">
                 {/* Dashed guide path. */}
-                <Path d={d} stroke={t.hairline} strokeWidth={1} strokeDasharray="2 4" fill="none" />
+                <Path
+                  d={geometry.d}
+                  stroke={t.hairline}
+                  strokeWidth={1}
+                  strokeDasharray="2 4"
+                  fill="none"
+                />
                 {/* Accent route — animated dash-offset draw. */}
                 <AnimatedPath
-                  d={d}
+                  d={geometry.d}
                   stroke={t.calm}
                   strokeWidth={2.4}
                   strokeLinecap="round"
@@ -568,16 +643,25 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
                   animatedProps={routeProps}
                   fill="none"
                 />
-                {/* Payday end-cap + label. */}
-                <Circle cx={372} cy={50} r={5} fill={t.calm} />
-                <SvgText x={350} y={40} fontFamily={serif.displayItalic} fontSize={10} fill={t.ink}>
-                  payday
-                </SvgText>
-                {/* Lowest-point dot + label — both bound to `amount` via dipY. */}
-                <Circle cx={300} cy={dipY} r={3.5} fill={t.ink} />
+                {/* Payday end-cap + label. The marker shifts with the preview-only payday lever. */}
+                <Circle cx={geometry.payday.x} cy={geometry.payday.y} r={5} fill={t.calm} />
                 <SvgText
-                  x={245}
-                  y={dipY + 18}
+                  x={geometry.payday.x - 22}
+                  y={geometry.payday.y - 10}
+                  fontFamily={serif.displayItalic}
+                  fontSize={10}
+                  fill={t.ink}
+                >
+                  payday
+                  {paydayShift === 0
+                    ? ''
+                    : ` · ${Math.abs(paydayShift)}d ${paydayShift < 0 ? 'early' : 'late'}`}
+                </SvgText>
+                {/* Lowest-point dot + label — bound to the native route minimum. */}
+                <Circle cx={geometry.lowest.x} cy={geometry.lowest.y} r={3.5} fill={t.ink} />
+                <SvgText
+                  x={Math.max(18, geometry.lowest.x - 55)}
+                  y={Math.min(VB_H - 4, geometry.lowest.y + 18)}
                   fontFamily={serif.displayItalic}
                   fontSize={10}
                   fill={t.muted}
@@ -655,6 +739,62 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
                 </Pressable>
               );
             })}
+          </View>
+
+          {/* Payday shift — another preview, never a silent write. The result already flows through
+              the same burn-rate and lowest-point numbers above, so the choice is legible before save. */}
+          <View style={styles.paydayShiftSection}>
+            <View style={styles.paydayShiftHeader}>
+              <View>
+                <Text style={styles.paydayShiftLabel}>If payday moves</Text>
+                <Text style={styles.paydayShiftCaption}>
+                  Preview the extra days this path would carry.
+                </Text>
+              </View>
+              <Text style={styles.paydayShiftValue}>
+                {paydayShift === 0
+                  ? 'on time'
+                  : `${Math.abs(paydayShift)}d ${paydayShift < 0 ? 'early' : 'late'}`}
+              </Text>
+            </View>
+            <View style={styles.paydayShiftControls}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Payday one day earlier"
+                accessibilityState={{ disabled: paydayShift <= PAYDAY_SHIFT_MIN }}
+                disabled={paydayShift <= PAYDAY_SHIFT_MIN}
+                onPress={() => setPaydayShift((value) => Math.max(PAYDAY_SHIFT_MIN, value - 1))}
+                style={({ pressed: isPressed }) => [
+                  styles.shiftButton,
+                  paydayShift <= PAYDAY_SHIFT_MIN ? styles.shiftButtonDisabled : undefined,
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={styles.stepperGlyph}>{MINUS}</Text>
+              </Pressable>
+              <Text style={styles.paydayShiftMid}>payday shift</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Payday one day later"
+                accessibilityState={{ disabled: paydayShift >= PAYDAY_SHIFT_MAX }}
+                disabled={paydayShift >= PAYDAY_SHIFT_MAX}
+                onPress={() => setPaydayShift((value) => Math.min(PAYDAY_SHIFT_MAX, value + 1))}
+                style={({ pressed: isPressed }) => [
+                  styles.shiftButton,
+                  paydayShift >= PAYDAY_SHIFT_MAX ? styles.shiftButtonDisabled : undefined,
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={styles.stepperGlyph}>+</Text>
+              </Pressable>
+            </View>
+            {paydayShift !== 0 ? (
+              <Text style={styles.paydayShiftExplain}>
+                {paydayShift < 0
+                  ? `Paid early — the lowest point lifts by about £${Math.abs(shiftCost)}.`
+                  : `Paid late — the lowest point drops by about £${Math.abs(shiftCost)}.`}
+              </Text>
+            ) : null}
           </View>
 
           {whatIfHolds.length > 0 ? (
@@ -937,6 +1077,70 @@ function makeStyles(t: Palette) {
       flexDirection: 'row',
       gap: 6,
       marginTop: gap.lg,
+    },
+    paydayShiftSection: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      marginTop: gap.lg,
+      padding: gap.lg,
+    },
+    paydayShiftHeader: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: gap.md,
+    },
+    paydayShiftLabel: {
+      color: t.ink,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    paydayShiftCaption: {
+      color: t.muted,
+      fontSize: 11.5,
+      lineHeight: 16,
+      marginTop: gap.xxs,
+      maxWidth: 210,
+    },
+    paydayShiftValue: {
+      color: t.calm,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      textAlign: 'right',
+    },
+    paydayShiftControls: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: gap.md,
+    },
+    shiftButton: {
+      alignItems: 'center',
+      backgroundColor: t.inset,
+      borderColor: t.hairline,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      height: 40,
+      justifyContent: 'center',
+      width: 40,
+    },
+    shiftButtonDisabled: {
+      opacity: 0.45,
+    },
+    paydayShiftMid: {
+      color: t.muted,
+      fontSize: 11,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    paydayShiftExplain: {
+      color: t.muted,
+      fontFamily: serif.displayItalic,
+      fontSize: 12,
+      lineHeight: 17,
+      marginTop: gap.sm,
     },
     recurrenceButton: {
       alignItems: 'center',

@@ -550,6 +550,17 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // `tightestDate`, only the pill switches to `anchorInfo`).
   const lowDate = route ? route.tightPoint.date : tightestDate;
   const lowSpare = route ? route.tightPoint.amount : tightestSpare;
+  const nextPaydayEvent = events.find(
+    (event) => event.source === 'payday' && event.date >= isoDay(today),
+  );
+  const committedBeforePayday = events
+    .filter(
+      (event) =>
+        event.kind === 'out' &&
+        typeof event.amount === 'number' &&
+        (!nextPaydayEvent || event.date <= nextPaydayEvent.date),
+    )
+    .reduce((sum, event) => sum + Math.abs(event.amount ?? 0), 0);
 
   return (
     <Animated.View style={[layout.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -570,6 +581,21 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
           eyebrowTracking={1.68}
         />
         <TitleBlock s={s} withSubhead onCurve={() => nav.go('today')} />
+
+        <View style={[layout.story, { borderBottomColor: t.hairline, borderTopColor: t.hairline }]}>
+          <View style={layout.storyBlock}>
+            <Text style={s.storyLabel}>Next payday</Text>
+            <Text style={s.storyValue}>
+              {nextPaydayEvent ? formatDayProse(nextPaydayEvent.date) : 'Not set yet'}
+            </Text>
+          </View>
+          <View style={layout.storyBlock}>
+            <Text style={s.storyLabel}>Still to leave</Text>
+            <Text style={s.storyValue}>
+              £{Math.round(committedBeforePayday).toLocaleString('en-GB')}
+            </Text>
+          </View>
+        </View>
 
         {/* View switcher — a tablist over the inset well. The selected tab lifts to the paper surface
             with a soft shadow; the rest are muted text. */}
@@ -1741,6 +1767,15 @@ const layout = StyleSheet.create({
 
   body: { gap: gap.xl },
   emptyWrap: { marginTop: 8 },
+  story: {
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: gap.lg,
+    marginTop: -gap.md,
+    paddingVertical: gap.md,
+  },
+  storyBlock: { flex: 1 },
 
   // Legend — a two-column grid of dot + label.
   legend: { flexDirection: 'row', flexWrap: 'wrap' },
@@ -1881,6 +1916,20 @@ export function makeStyles(t: Palette) {
     },
     headlineAccent: { color: t.calm },
     subhead: { color: t.muted, fontSize: 12.5, lineHeight: 17, marginTop: 4 },
+    storyLabel: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '600',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    storyValue: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 15,
+      lineHeight: 20,
+      marginTop: 3,
+    },
 
     // "Curve →" — jumps to Today's route-curve view (web `text-[10.5px] tracking-[0.12em] uppercase
     // text-accent rounded-full bg-inset hairline px-2 py-1`).

@@ -74,6 +74,11 @@ import { useUndo } from '@/folio/ui/useUndo';
 import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
 import { triggerFeedback } from '@/folio/lib/feedback';
+import {
+  subscriptionAnnualCost,
+  subscriptionConfidence,
+  subscriptionStatusLine,
+} from '@/folio/screens/commitmentHelpers';
 
 // "Tuesday 8" inline prose for the tight-day date — byte-faithful to the web's
 // formatDayProse (lib/calendar-events). Parses at local midnight so the weekday agrees with the ISO
@@ -117,13 +122,6 @@ const COUNT_UP_MS = 600;
 // else is a neutral calm dot.
 function dotColor(t: Palette, sub: StoreSub): string {
   return typeof sub.trialEndsInDays === 'number' ? t.caution : t.calm;
-}
-
-// The row's subtitle — a payment fact only. No usage / value / per-use claim: just that the charge
-// recurs ("Repeats monthly" — the safe recurrence claim, SUBSCRIPTION_SIGNAL_RESEARCH §4), or that
-// the user has paused it.
-function metaLine(paused: boolean): string {
-  return paused ? 'Paused' : 'Repeats monthly';
 }
 
 // next "today"/"tomorrow"/"in {n}d"/date — verbatim web formatNext.
@@ -558,6 +556,8 @@ function SubscriptionRow({
   onCancel: () => void;
 }) {
   const hasTrial = typeof sub.trialEndsInDays === 'number';
+  const annualCost = subscriptionAnnualCost(sub);
+  const confidence = subscriptionConfidence(sub);
 
   return (
     <View
@@ -582,7 +582,7 @@ function SubscriptionRow({
             ) : null}
           </View>
           <Text style={s.rowMeta} numberOfLines={1}>
-            {metaLine(paused)}
+            {subscriptionStatusLine(sub, paused)} · confidence {confidence}
           </Text>
           {paused && (sub.pauseReason || sub.pausedUntil) ? (
             <Text style={s.pauseDetail} numberOfLines={2}>
@@ -593,6 +593,7 @@ function SubscriptionRow({
         </View>
         <View style={layout.rowAmountCol}>
           <Text style={s.rowCost}>{pounds(sub.cost)}</Text>
+          <Text style={s.rowAnnual}>{pounds(annualCost)}/yr</Text>
           <Text style={s.rowNext}>next {formatNext(sub.nextRenewalDaysAway)}</Text>
         </View>
       </View>
@@ -876,6 +877,12 @@ function makeStyles(t: Palette) {
       color: t.ink,
       fontFamily: serif.display,
       fontSize: 15,
+      fontVariant: ['tabular-nums'],
+    },
+    rowAnnual: {
+      color: t.muted,
+      fontSize: 10,
+      marginTop: 1,
       fontVariant: ['tabular-nums'],
     },
     rowNext: {

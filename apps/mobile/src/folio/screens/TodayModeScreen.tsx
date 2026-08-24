@@ -26,7 +26,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
-import { useAppStore } from '@/folio/store';
+import { useAppStore, type Debt } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
@@ -43,7 +43,6 @@ import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
 import { headerLineFor } from '@/folio/lib/modes/headerFraming';
 import { computeLeaks, type OptimizerLeak } from '@/folio/lib/modes/strategies/optimizer';
 import { resetEssentialsPerDay } from '@/folio/lib/modes/strategies/reset';
-import * as debtEngine from '@/folio/lib/modes/debtEngine';
 import {
   computeBillSplits,
   summariseHousehold,
@@ -56,6 +55,7 @@ import { formatGBP } from './today/format';
 import { derivePressure } from './today/pressure';
 import { TodayNudges } from './today/TodayNudges';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
+import { DebtCommitmentSurface } from './DebtCommitmentSurface';
 
 type LensMode = Exclude<MoneyMode, 'survival' | 'stability'>;
 
@@ -90,7 +90,8 @@ type HeroCtx = {
   openAddDebt: () => void;
   openLogPayment: () => void;
   openHouseholdSetup: () => void;
-  debtSummary?: debtEngine.DebtSummary | undefined;
+  debts: readonly Debt[];
+  today: Date;
   householdSplits?: BillSplit[] | undefined;
   householdPartner?: string | undefined;
   growthPots?:
@@ -211,80 +212,16 @@ const HERO: Record<
     label: 'Debt Mode',
     toneKey: 'calm',
     headline: 'Payoff',
-    render: (c, t) => {
-      const s = c.debtSummary;
-      if (!s || s.total <= 0) {
-        return (
-          <View style={heroStyles.block}>
-            <View style={[heroStyles.noticeBox, { backgroundColor: t.inset }]}>
-              <Text style={[heroStyles.noticeText, { color: t.muted }]}>
-                No debts declared yet. Add one and Melo holds the payoff, the minimums, and the next
-                due date.
-              </Text>
-              <View style={heroStyles.noticeCta}>
-                <HeroCta
-                  label="+ Add a debt"
-                  tone={t.surface}
-                  textColor={t.ink}
-                  bordered
-                  onPress={c.openAddDebt}
-                />
-              </View>
-            </View>
-          </View>
-        );
-      }
-      const monthsAtMin = isFinite(s.monthsAtMin) ? `${s.monthsAtMin} mo` : '—';
-      const nextDueLabel =
-        s.daysToNextDue === null
-          ? '—'
-          : s.daysToNextDue === 0
-            ? 'today'
-            : s.daysToNextDue === 1
-              ? 'in 1 d'
-              : `in ${s.daysToNextDue} d`;
-      return (
-        <View style={heroStyles.block}>
-          <RowLabel
-            left="Outstanding"
-            right={`${formatGBP(s.total)} · ${s.weightedApr.toFixed(1)}% wtd APR`}
-            t={t}
-          />
-          <View style={heroStyles.tripleRow}>
-            <StatTile label="Min / mo" value={formatGBP(s.minSum)} t={t} />
-            <StatTile label="Payoff" value={monthsAtMin} t={t} />
-            <StatTile label="Next due" value={nextDueLabel} t={t} />
-          </View>
-          {s.nextDue ? (
-            <Text style={[heroStyles.italicLine, { color: t.muted }]}>
-              {s.nextDue.name} · {formatGBP(s.nextDue.minPayment)} on the {s.nextDue.dueDom}
-              {s.nextDue.dueDom === 1
-                ? 'st'
-                : s.nextDue.dueDom === 2
-                  ? 'nd'
-                  : s.nextDue.dueDom === 3
-                    ? 'rd'
-                    : 'th'}
-            </Text>
-          ) : null}
-          <View style={heroStyles.ctaRow}>
-            <HeroCta
-              label="+ Log a payment"
-              tone={t.calm}
-              onTone={t.inverse}
-              onPress={c.openLogPayment}
-            />
-            <HeroCta
-              label="+ Add a debt"
-              tone={t.surface}
-              textColor={t.ink}
-              bordered
-              onPress={c.openAddDebt}
-            />
-          </View>
-        </View>
-      );
-    },
+    render: (c, t) => (
+      <DebtCommitmentSurface
+        debts={c.debts}
+        today={c.today}
+        tightestSpare={c.tightestSpare}
+        t={t}
+        onAddDebt={c.openAddDebt}
+        onLogPayment={c.openLogPayment}
+      />
+    ),
   },
 
   irregular: {
@@ -838,10 +775,6 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     return now.getTime() - closedAt < 24 * 3600 * 1000;
   });
 
-  const debtSummary = useMemo(
-    () => debtEngine.summarise(debts, 0, now ?? new Date()),
-    [debts, now],
-  );
   const householdSafe = household ?? { partnerName: '', defaultShare: 0.5, subShareOverrides: {} };
   const householdSplits = useMemo(
     () =>
@@ -975,9 +908,10 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     openAddPlan: () => nav.openSheet('add-plan'),
     openSubs: () => nav.go('subs'),
     openRecovery: () => nav.go('recovery'),
+    debts,
+    today: now ?? EPOCH,
     growthPots,
     planProgresses: moneyMode === 'planning' ? plansSummary?.progresses : undefined,
-    debtSummary: moneyMode === 'debt' ? debtSummary : undefined,
     householdSplits: moneyMode === 'household' ? householdSplits : undefined,
     householdPartner: moneyMode === 'household' ? householdSafe.partnerName : undefined,
   };

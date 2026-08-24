@@ -102,6 +102,10 @@ import { routeFromStore } from '@/folio/lib/storeRoute';
 import { pressureLow } from '@/folio/screens/today/pressure';
 import type { Nav, Pressure } from '@/folio/types';
 import { triggerFeedback } from '@/folio/lib/feedback';
+import {
+  formatAvailableAfterSetAside,
+  summarisePotLedger,
+} from '@/folio/screens/commitmentHelpers';
 
 // The render states this screen can occupy (spec stateBranches). Pots are local + synchronous, so
 // loading/error are defensive: loading shows Melo curious + a line (never a spinner), error shows an
@@ -255,6 +259,13 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
 
   const total = pots.reduce((sum, p) => sum + p.saved, 0);
   const totalGoal = pots.reduce((sum, p) => sum + p.goal, 0);
+  // Pots are earmarked money, not a second balance. Surface the real effect of that allocation in
+  // the same aggregate block so the user can read both the purpose and the available remainder.
+  const availableAfterSetAside = currentBalance.amount - total;
+  const ledgerSummary = useMemo(
+    () => summarisePotLedger(potLedger, new Set(pots.map((pot) => pot.id))),
+    [potLedger, pots],
+  );
 
   const resolvedState: PotsState = state ?? (pots.length === 0 ? 'empty' : 'populated');
 
@@ -505,6 +516,42 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
             durationMs={AGG_TWEEN_MS}
             reduceMotion={reduceMotion}
           />
+          <View style={[styles.availableRow, { borderTopColor: t.hairline }]}>
+            <View style={styles.availableCopy}>
+              <Text style={[styles.availableLabel, { color: t.muted }]}>
+                Available after set-aside
+              </Text>
+              <Text style={[styles.availableHint, { color: t.muted }]}>
+                from your current balance
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.availableValue,
+                { color: availableAfterSetAside < 0 ? t.repair : t.ink },
+              ]}
+            >
+              {formatAvailableAfterSetAside(availableAfterSetAside)}
+            </Text>
+          </View>
+          <View style={[styles.ledgerRow, { borderTopColor: t.hairline }]}>
+            <View style={styles.availableCopy}>
+              <Text style={[styles.availableLabel, { color: t.muted }]}>Pot ledger</Text>
+              <Text style={[styles.availableHint, { color: t.muted }]}>
+                contribution · borrow · repay
+              </Text>
+            </View>
+            <Text style={[styles.ledgerValue, { color: t.ink }]}>
+              {ledgerSummary.contributed > 0
+                ? `+${formatAvailableAfterSetAside(ledgerSummary.contributed)}`
+                : 'No deposits yet'}
+            </Text>
+          </View>
+          {ledgerSummary.contributed > 0 || ledgerSummary.borrowed > 0 || ledgerSummary.repaid > 0 ? (
+            <Text style={[styles.ledgerDetail, { color: t.muted }]}>
+              {`Contributed ${formatAvailableAfterSetAside(ledgerSummary.contributed)} · borrowed ${formatAvailableAfterSetAside(ledgerSummary.borrowed)} · repaid ${formatAvailableAfterSetAside(ledgerSummary.repaid)} · available effect ${formatAvailableAfterSetAside(ledgerSummary.availableEffect)}`}
+            </Text>
+          ) : null}
         </View>
 
         {/* The pot list — each card: name + saved/goal, a bar, a pace/ETA line, the quick-add row, and
@@ -1210,6 +1257,49 @@ const styles = StyleSheet.create({
     fontFamily: serif.display,
     fontSize: 14,
     fontVariant: ['tabular-nums'],
+  },
+  availableRow: {
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: gap.md,
+    paddingTop: gap.sm,
+  },
+  availableCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  availableLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+  },
+  availableHint: {
+    fontSize: 11,
+  },
+  availableValue: {
+    fontFamily: serif.display,
+    fontSize: 17,
+    fontVariant: ['tabular-nums'],
+  },
+  ledgerRow: {
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: gap.sm,
+    paddingTop: gap.sm,
+  },
+  ledgerValue: {
+    fontFamily: serif.display,
+    fontSize: 15,
+    fontVariant: ['tabular-nums'],
+  },
+  ledgerDetail: {
+    fontSize: 10.5,
+    lineHeight: 15,
+    marginTop: gap.xs,
   },
 
   // The pot list — space-y-3 (gap.md), mt-4.

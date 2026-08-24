@@ -12,15 +12,14 @@
 //   the derivation engine carries no debt source yet, so no debt row is invented — bills/subs/pots
 //   are bills, and the `kind === 'debt'` branch lights up honestly once a debt model exists.
 //
-// PlansScreen — the faithful 1:1 React Native port of the web "What's coming before payday" screen
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPlans.tsx).
+// PlansScreen — the native Plan narrative calibrated to the pinned Lovable Plan Hub
+// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPlanHub.tsx), with
+// the same real timeline data spine retained from the earlier Plans surface.
 //
 // @rn-screen    PlansScreen
 // @rn-stack     More > Plans
-// @purpose      What's already spoken for before next payday — a read-only forward look at money
-//               between now and payday: upcoming renewals (and, once the engine lands, bills + a debt
-//               installment) shown as a dated list, with a "Set aside" total, a next-payday marker,
-//               two add CTAs (a bill / a debt), and a closing Melo line.
+// @purpose      What is committed next — one dominant answer, a short future-money timeline, the
+//               tight point, set-aside context, and one progressive-disclosure place to add a move.
 // @reads        subs · subPaused · subOverrides · onboarding · pots · calendarEvents (via the shared
 //               `useRoute` bridge + `deriveCalendarEvents`) — the doc-block @reads contract.
 // @writes       — (navigation only: nav.back / nav.go('add-bill') / nav.openSheet('declare-debt');
@@ -34,10 +33,8 @@
 // @tokens       surface · hairline · calm (accent) · muted · caution · repair (negative) · ink ·
 //               canvas (paper) — all from the kit via '@/folio/theme'. No new token.
 // @motion       slide-in-r (whole screen, 28px→0 + fade, 360ms ease-out-expo) · press 0.97 on the back
-//               glyph, both CTAs, and each upcoming row · Melo breathe/blink via the closing MeloLine
-//               (mood calm — the web's 'soft' alias normalises to calm on the canonical Melo
-//               vocabulary). No count-up (Money renders static strings here). Every motion collapses
-//               to its FINAL STATE under reduce-motion.
+//               glyph, both dominant actions, disclosure and each timeline row · Melo breathe/blink
+//               via the closing MeloLine. Every motion collapses to its FINAL STATE under reduce-motion.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit / store / sibling screens):
 //   • DATA IS REAL, NOT THE DEMO LITERALS. The web prototype hardcoded six upcoming items, a £959
@@ -87,7 +84,11 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
-import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
+import {
+  deriveCalendarEvents,
+  formatDayProse,
+  type DerivedEvent,
+} from '@/folio/lib/calendarEvents';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -254,6 +255,9 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   const onboarding = useAppStore((st) => st.onboarding);
   const pots = useAppStore((st) => st.pots);
   const calendarEvents = useAppStore((st) => st.calendarEvents);
+  const incomeSources = useAppStore((st) => st.incomeSources ?? []);
+  const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
+  const debts = useAppStore((st) => st.debts ?? []);
   // Demo example bills only while the seed is untouched; a cleared/real user sees only their own.
   const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
@@ -284,11 +288,24 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
             onboarding,
             manualEvents: calendarEvents,
             pots,
+            incomeSources,
+            whatIfHolds,
             now,
             includeSampleBills,
           })
         : [],
-    [now, subs, subPaused, subOverrides, onboarding, calendarEvents, pots, includeSampleBills],
+    [
+      now,
+      subs,
+      subPaused,
+      subOverrides,
+      onboarding,
+      calendarEvents,
+      pots,
+      incomeSources,
+      whatIfHolds,
+      includeSampleBills,
+    ],
   );
 
   // The engine-resolved next payday — the first derived `payday` event's ISO date. `deriveCalendarEvents`
@@ -305,9 +322,14 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   const upcoming = useMemo(() => buildUpcoming(events, paydayIso), [events, paydayIso]);
   const total = useMemo(() => upcoming.reduce((sum, u) => sum + u.amount, 0), [upcoming]);
   const payday = useMemo(() => paydayLabel(paydayIso), [paydayIso]);
+  const tightDate = route?.tightPoint.date ?? null;
+  const tightSpare = route?.tightPoint.amount ?? null;
+  const daysToPayday = route?.daysToPayday ?? null;
+  const potsSaved = useMemo(() => pots.reduce((sum, pot) => sum + pot.saved, 0), [pots]);
+  const liveSubs = useMemo(() => subs.filter((sub) => !subPaused[sub.name]), [subs, subPaused]);
+  const [showAdd, setShowAdd] = useState(false);
 
-  const resolvedState: PlansState =
-    state ?? (now === null ? 'loading' : upcoming.length === 0 ? 'empty' : 'populated');
+  const resolvedState: PlansState = state ?? (now === null ? 'loading' : 'populated');
 
   // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -342,13 +364,14 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.sm }]}>
-          <ScreenHeader onBack={nav.back} eyebrow="PLANS" eyebrowWeight="600" backHitWidth={24} />
+          <ScreenHeader onBack={nav.back} eyebrow="PLAN" eyebrowWeight="600" backHitWidth={24} />
           <View style={styles.intro}>
-            <Text style={[styles.eyebrowItalic, { color: t.muted }]}>Before next payday</Text>
+            <Text style={[styles.eyebrowItalic, { color: t.muted }]}>
+              Your money between now and
+            </Text>
             <Text accessibilityRole="header" style={[styles.heading, { color: t.ink }]}>
-              {"What's "}
-              <Text style={[styles.headingAccent, { color: t.calm }]}>already</Text>
-              {' spoken for.'}
+              {'the '}
+              <Text style={[styles.headingAccent, { color: t.calm }]}>next payday.</Text>
             </Text>
           </View>
           <View style={styles.emptyWrap}>
@@ -371,7 +394,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.sm }]}>
-          <ScreenHeader onBack={nav.back} eyebrow="PLANS" eyebrowWeight="600" backHitWidth={24} />
+          <ScreenHeader onBack={nav.back} eyebrow="PLAN" eyebrowWeight="600" backHitWidth={24} />
           <View style={styles.errorWrap}>
             <MeloLine mood="concern" text="Couldn't bring up what's coming just now." />
             <Pressable
@@ -393,7 +416,20 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   }
 
   // ── POPULATED / OFFLINE ─────────────────────────────────────────────────────────────────────────
-  // offline ≡ populated (local-first; renders identically, no network language).
+  // offline ≡ populated (local-first; renders identically, no network language). The composition
+  // follows the pinned Plan Hub: one dominant answer, then a timeline, then quieter destinations.
+  const tightTone = tightSpare !== null && tightSpare < 0 ? 'concern' : 'calm';
+  const tightMessage =
+    tightDate && tightSpare !== null
+      ? `Around ${formatDayProse(tightDate)} you're down to ${formatGBP(tightSpare)}. Everything after that depends on this stretch.`
+      : 'The path is still quiet. Add a commitment when there is something real to protect.';
+  const meloText =
+    tightSpare !== null && tightSpare < 0
+      ? "The path runs short before payday. Let's move one thing together."
+      : tightSpare !== null && tightSpare < 200
+        ? 'There is a pinch ahead. One small change could soften it.'
+        : "Move one if the timing doesn't suit you.";
+
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView
@@ -403,35 +439,88 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <ScreenHeader onBack={nav.back} eyebrow="PLANS" eyebrowWeight="600" backHitWidth={24} />
+        <ScreenHeader onBack={nav.back} eyebrow="PLAN" eyebrowWeight="600" backHitWidth={24} />
 
-        {/* Title frame — italic "Before next payday" eyebrow + the display line with the ONE upright
-            terracotta accent word ("already"). */}
         <View style={styles.intro}>
-          <Text style={[styles.eyebrowItalic, { color: t.muted }]}>Before next payday</Text>
+          <Text style={[styles.eyebrowItalic, { color: t.muted }]}>Your money between now and</Text>
           <Text accessibilityRole="header" style={[styles.heading, { color: t.ink }]}>
-            {"What's "}
-            <Text style={[styles.headingAccent, { color: t.calm }]}>already</Text>
-            {' spoken for.'}
+            {'the '}
+            <Text style={[styles.headingAccent, { color: t.calm }]}>next payday.</Text>
+          </Text>
+          <Text style={[styles.narrative, { color: t.muted }]}>
+            What is still to leave, where it gets tight, and what you can change before it does.
           </Text>
         </View>
 
-        {/* Set aside / Next payday card — the total (lg, negative tone) + the dated payday marker. */}
-        <View style={[styles.summaryCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <View>
-            <Text style={[styles.smallLabel, { color: t.muted }]}>Set aside</Text>
-            <Money value={formatGBP(total)} size="lg" tone="negative" t={t} />
-          </View>
-          <View style={styles.summaryRight}>
-            <Text style={[styles.smallLabel, { color: t.muted }]}>Next payday</Text>
-            <Text style={[styles.paydayValue, { color: t.ink }]}>{payday}</Text>
+        <View style={[styles.dominant, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text style={[styles.smallLabel, { color: t.muted }]}>Still to leave</Text>
+          <Money value={formatGBP(total)} size="lg" tone="negative" t={t} />
+          <Text style={[styles.dominantCaption, { color: t.muted }]}>
+            {upcoming.length === 0
+              ? 'Nothing scheduled before payday.'
+              : `${upcoming.length} thing${upcoming.length === 1 ? '' : 's'} over the ${daysToPayday ?? 'next'} day${daysToPayday === 1 ? '' : 's'} to payday.`}
+          </Text>
+          <View style={styles.dominantActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="See what's coming"
+              onPress={() => nav.go('calendar')}
+              style={({ pressed: isPressed }) => [
+                styles.primaryCta,
+                { backgroundColor: t.calm },
+                elevation.cta,
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.primaryCtaLabel, { color: t.inverse }]}>See what's coming</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Try a change"
+              onPress={() => nav.go('whatif')}
+              style={({ pressed: isPressed }) => [
+                styles.quietAction,
+                { borderColor: t.hairline },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.secondaryCtaLabel, { color: t.muted }]}>Try a change</Text>
+            </Pressable>
           </View>
         </View>
 
-        {/* The upcoming list — a hairline card of dated rows (per-row top divider, skip first). Each row
-            is tappable → route-detail (honours @opens-sheet). */}
-        <View style={[styles.listCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          {upcoming.map((u, i) => (
+        <View
+          style={[
+            styles.pressureNote,
+            { borderTopColor: t.hairline, borderBottomColor: t.hairline },
+          ]}
+        >
+          <View
+            style={[
+              styles.pressureDot,
+              { backgroundColor: tightTone === 'concern' ? t.repair : t.calm },
+            ]}
+          />
+          <Text style={[styles.pressureText, { color: t.muted }]}>{tightMessage}</Text>
+        </View>
+
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={[styles.sectionEyebrow, { color: t.muted }]}>What's coming</Text>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>The next few dates</Text>
+          </View>
+          <Text style={[styles.sectionMeta, { color: t.muted }]}>{payday}</Text>
+        </View>
+
+        <View
+          style={[styles.timeline, { borderTopColor: t.hairline, borderBottomColor: t.hairline }]}
+        >
+          {upcoming.length === 0 ? (
+            <Text style={[styles.timelineEmpty, { color: t.muted }]}>
+              Nothing is scheduled to leave before payday.
+            </Text>
+          ) : null}
+          {upcoming.slice(0, 4).map((u, i) => (
             <Pressable
               key={u.id}
               accessibilityRole="button"
@@ -439,74 +528,202 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
               accessibilityHint="Opens the detail for this."
               onPress={() => nav.openSheet('route-detail')}
               style={({ pressed: isPressed }) => [
-                styles.row,
+                styles.timelineRow,
                 i > 0 ? { borderTopWidth: 1, borderTopColor: t.hairline } : undefined,
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              {/* Date column — month eyebrow over a tabular Fraunces day. 44px wide, centred. */}
               <View style={styles.dateCol}>
                 <Text style={[styles.dateMonth, { color: t.muted }]}>{u.month}</Text>
                 <Text style={[styles.dateDay, { color: t.ink }]}>{u.day}</Text>
               </View>
-
-              {/* Kind bar — debt = caution gold; bill/renewal = negative @ 60%. */}
               <View
                 style={[
                   styles.kindBar,
-                  u.kind === 'debt'
-                    ? { backgroundColor: t.caution }
-                    : { backgroundColor: t.repair, opacity: 0.6 },
+                  {
+                    backgroundColor: u.kind === 'debt' ? t.caution : t.repair,
+                    opacity: u.kind === 'debt' ? 1 : 0.6,
+                  },
                 ]}
               />
-
-              {/* Name + note — both truncate to one line. */}
               <View style={styles.rowBody}>
                 <Text style={[styles.rowName, { color: t.ink }]} numberOfLines={1}>
                   {u.name}
                 </Text>
                 <Text style={[styles.rowNote, { color: t.muted }]} numberOfLines={1}>
-                  {u.note}
+                  {u.note || 'spoken for'}
                 </Text>
               </View>
-
-              {/* Amount — small tabular Fraunces, en-dash minus. */}
               <Money value={`${MINUS}£${u.amount}`} size="sm" t={t} />
             </Pressable>
           ))}
+          {upcoming.length > 4 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="See all upcoming dates"
+              onPress={() => nav.go('calendar')}
+              style={({ pressed: isPressed }) => [
+                styles.moreTimeline,
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.moreTimelineLabel, { color: t.calm }]}>
+                See all {upcoming.length} dates →
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
-        {/* CTAs — the lifted terracotta "+ Add a bill" primary + a quiet "or add a debt" link. */}
-        <View style={styles.ctaBlock}>
+        <View style={styles.statsSection}>
+          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Set aside</Text>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>Held back on purpose</Text>
+          <View style={[styles.statLine, { borderBottomColor: t.hairline }]}>
+            <View>
+              <Text style={[styles.statLabel, { color: t.ink }]}>In pots</Text>
+              <Text style={[styles.statCaption, { color: t.muted }]}>
+                {pots.length ? `${pots.length} pot${pots.length === 1 ? '' : 's'}` : 'no pots yet'}
+              </Text>
+            </View>
+            <Text style={[styles.statValue, { color: t.ink }]}>{formatGBP(potsSaved)}</Text>
+          </View>
+          <View style={[styles.statLine, { borderBottomColor: t.hairline }]}>
+            <View>
+              <Text style={[styles.statLabel, { color: t.ink }]}>Subscriptions running</Text>
+              <Text style={[styles.statCaption, { color: t.muted }]}>
+                {liveSubs.length ? 'renewing on their own' : 'none active'}
+              </Text>
+            </View>
+            <Text style={[styles.statValue, { color: t.ink }]}>{liveSubs.length}</Text>
+          </View>
+          <View style={[styles.statLine, { borderBottomColor: t.hairline }]}>
+            <View>
+              <Text style={[styles.statLabel, { color: t.ink }]}>Debts tracked</Text>
+              <Text style={[styles.statCaption, { color: t.muted }]}>
+                {debts.length ? 'repayments in the path' : 'nothing tracked yet'}
+              </Text>
+            </View>
+            <Text style={[styles.statValue, { color: t.ink }]}>{debts.length}</Text>
+          </View>
+        </View>
+
+        <View style={styles.destinations}>
+          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Go deeper</Text>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>Places that shape the path</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Add a bill"
-            onPress={() => nav.go('add-bill')}
+            onPress={() => nav.go('calendar')}
             style={({ pressed: isPressed }) => [
-              styles.primaryCta,
-              { backgroundColor: t.calm },
-              elevation.cta,
+              styles.destinationRow,
+              { borderBottomColor: t.hairline },
               isPressed ? styles.pressed : undefined,
             ]}
           >
-            <Text style={[styles.primaryCtaLabel, { color: t.inverse }]}>+ Add a bill</Text>
+            <View>
+              <Text style={[styles.destinationLabel, { color: t.ink }]}>Calendar</Text>
+              <Text style={[styles.destinationMeta, { color: t.muted }]}>
+                the dates that matter
+              </Text>
+            </View>
+            <Text style={[styles.destinationArrow, { color: t.muted }]}>→</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="or add a debt"
-            onPress={() => nav.openSheet('declare-debt')}
+            onPress={() => nav.go('subs')}
             style={({ pressed: isPressed }) => [
-              styles.secondaryCta,
+              styles.destinationRow,
+              { borderBottomColor: t.hairline },
               isPressed ? styles.pressed : undefined,
             ]}
           >
-            <Text style={[styles.secondaryCtaLabel, { color: t.muted }]}>or add a debt</Text>
+            <View>
+              <Text style={[styles.destinationLabel, { color: t.ink }]}>Subscriptions</Text>
+              <Text style={[styles.destinationMeta, { color: t.muted }]}>
+                {liveSubs.length} active
+              </Text>
+            </View>
+            <Text style={[styles.destinationArrow, { color: t.muted }]}>→</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.go('pots')}
+            style={({ pressed: isPressed }) => [
+              styles.destinationRow,
+              { borderBottomColor: t.hairline },
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <View>
+              <Text style={[styles.destinationLabel, { color: t.ink }]}>Pots</Text>
+              <Text style={[styles.destinationMeta, { color: t.muted }]}>
+                {pots.length ? `${pots.length} earmarked` : 'no pots yet'}
+              </Text>
+            </View>
+            <Text style={[styles.destinationArrow, { color: t.muted }]}>→</Text>
           </Pressable>
         </View>
 
-        {/* The closing Melo line — web mood 'soft' → calm on the canonical vocabulary. */}
+        <View style={[styles.addSection, { borderTopColor: t.hairline }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showAdd }}
+            onPress={() => setShowAdd((visible) => !visible)}
+            style={({ pressed: isPressed }) => [
+              styles.addDisclosure,
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <View>
+              <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Add</Text>
+              <Text style={[styles.destinationLabel, { color: t.ink }]}>
+                Put something in the plan
+              </Text>
+            </View>
+            <Text style={[styles.destinationArrow, { color: t.muted }]}>{showAdd ? '−' : '+'}</Text>
+          </Pressable>
+          {showAdd ? (
+            <View style={styles.addChoices}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.go('add-bill')}
+                style={({ pressed: isPressed }) => [
+                  styles.choiceRow,
+                  { borderBottomColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.choiceLabel, { color: t.ink }]}>Add a bill</Text>
+                <Text style={[styles.destinationArrow, { color: t.muted }]}>→</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.openSheet('declare-debt')}
+                style={({ pressed: isPressed }) => [
+                  styles.choiceRow,
+                  { borderBottomColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.choiceLabel, { color: t.ink }]}>Add a debt</Text>
+                <Text style={[styles.destinationArrow, { color: t.muted }]}>→</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.openSheet('add-event')}
+                style={({ pressed: isPressed }) => [
+                  styles.choiceRow,
+                  { borderBottomColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.choiceLabel, { color: t.ink }]}>Add a date</Text>
+                <Text style={[styles.destinationArrow, { color: t.muted }]}>→</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+
         <View style={styles.meloBlock}>
-          <MeloLine mood="calm" text="Move one if the timing doesn't suit you." />
+          <MeloLine mood={tightTone} text={meloText} />
         </View>
       </ScrollView>
     </Animated.View>
@@ -551,6 +768,181 @@ const styles = StyleSheet.create({
   headingAccent: {
     fontFamily: serif.display,
     fontStyle: 'normal',
+  },
+  narrative: {
+    fontSize: 13.5,
+    lineHeight: 19,
+    marginTop: gap.sm,
+    maxWidth: 340,
+  },
+
+  dominant: {
+    borderRadius: radius.xxl,
+    borderWidth: 1,
+    marginTop: gap.lg,
+    padding: gap.lg,
+    ...elevation.card,
+  },
+  dominantCaption: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    marginTop: gap.xs,
+  },
+  dominantActions: {
+    flexDirection: 'row',
+    gap: gap.sm,
+    marginTop: gap.lg,
+  },
+  quietAction: {
+    alignItems: 'center',
+    borderRadius: radius.xxl,
+    borderWidth: 1,
+    flex: 1,
+    height: 52,
+    justifyContent: 'center',
+  },
+  pressureNote: {
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: gap.sm,
+    marginTop: gap.xl,
+    paddingVertical: gap.md,
+  },
+  pressureDot: {
+    borderRadius: radius.pill,
+    height: 7,
+    width: 7,
+  },
+  pressureText: {
+    flex: 1,
+    fontFamily: serif.displayItalic,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  sectionHeaderRow: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: gap.xl,
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+  },
+  sectionTitle: {
+    fontFamily: serif.display,
+    fontSize: 20,
+    lineHeight: 25,
+    marginTop: 2,
+  },
+  sectionMeta: {
+    fontFamily: serif.displayItalic,
+    fontSize: 12,
+    marginBottom: 3,
+    maxWidth: 125,
+    textAlign: 'right',
+  },
+  timeline: {
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+    marginTop: gap.md,
+  },
+  timelineRow: {
+    alignItems: 'center',
+    columnGap: gap.md,
+    flexDirection: 'row',
+    minHeight: 72,
+    paddingVertical: gap.md,
+  },
+  moreTimeline: {
+    alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  moreTimelineLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  timelineEmpty: {
+    fontFamily: serif.displayItalic,
+    fontSize: 13,
+    lineHeight: 18,
+    paddingVertical: gap.lg,
+  },
+  statsSection: {
+    marginTop: gap.xl,
+  },
+  statLine: {
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 58,
+  },
+  statLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  statCaption: {
+    fontSize: 11.5,
+    marginTop: 1,
+  },
+  statValue: {
+    fontFamily: serif.display,
+    fontSize: 17,
+    fontVariant: ['tabular-nums'],
+  },
+  destinations: {
+    marginTop: gap.xl,
+  },
+  destinationRow: {
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 60,
+    paddingVertical: gap.sm,
+  },
+  destinationLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  destinationMeta: {
+    fontSize: 11.5,
+    marginTop: 2,
+  },
+  destinationArrow: {
+    fontSize: 18,
+    fontWeight: '400',
+  },
+  addSection: {
+    borderTopWidth: 1,
+    marginTop: gap.xl,
+    paddingTop: gap.md,
+  },
+  addDisclosure: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 58,
+  },
+  addChoices: {
+    marginTop: gap.xs,
+  },
+  choiceRow: {
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 48,
+  },
+  choiceLabel: {
+    fontSize: 13.5,
   },
 
   emptyWrap: {
