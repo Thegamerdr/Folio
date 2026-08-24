@@ -98,7 +98,7 @@ import { MeloScreen } from '@/folio/screens/MeloScreen';
 import { PaywallScreen } from '@/folio/screens/PaywallScreen';
 import { AccountScreen } from '@/folio/screens/AccountScreen';
 import { OnboardingSheet } from '@/folio/sheets/OnboardingSheet';
-import { EditItemSheet } from '@/folio/sheets/EditItemSheet';
+import { AppearanceSheet } from '@/folio/sheets/AppearanceSheet';
 import { EditTxnSheet } from '@/folio/sheets/EditTxnSheet';
 import { LogSpendSheet } from '@/folio/sheets/LogSpendSheet';
 import { SubCaughtSheet } from '@/folio/sheets/SubCaughtSheet';
@@ -643,7 +643,7 @@ export function FolioShell() {
             />
           </View>
           {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
-          sheets (onboarding, edit-item, edit-txn, log-spend, sub-caught, add-event, calendar-export,
+          sheets (onboarding, appearance, edit-txn, log-spend, sub-caught, add-event, calendar-export,
           calendar-connect, route-detail, melo-chat, share, day-detail) each wrap the kit Sheet
           internally and are mounted as sibling hosts below, so they are excluded here (via
           SELF_HOSTING_SHEETS) to avoid double-nesting. With these wired, every SheetId now resolves
@@ -656,7 +656,7 @@ export function FolioShell() {
           {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
           (never nested inside the generic one) and is visible only while it is the active sheet. */}
           {sheet === 'onboarding' && <OnboardingSheet visible onClose={closeSheet} />}
-          {sheet === 'edit-item' && <EditItemSheet visible onClose={closeSheet} />}
+          {sheet === 'appearance' && <AppearanceSheet visible onClose={closeSheet} />}
           {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
           (the row the opener chose) so Save corrects THAT transaction via the store; with no target
           (cold open) the sheet keeps its safe inert fallback and edits nothing. */}
@@ -882,7 +882,7 @@ function todayIsoForDayDetail(): string {
 // sibling hosts and so must be kept OUT of the generic single-sheet host above.
 const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'onboarding',
-  'edit-item',
+  'appearance',
   'edit-txn',
   'log-spend',
   'sub-caught',
@@ -1123,7 +1123,7 @@ const errorStyles = StyleSheet.create({
 const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {
   'route-detail': 'This day',
   'edit-txn': 'Edit',
-  'edit-item': 'Edit',
+  appearance: 'Appearance',
   'melo-chat': 'Melo',
   share: 'Share',
   onboarding: 'Welcome',

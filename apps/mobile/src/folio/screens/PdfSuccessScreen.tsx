@@ -12,8 +12,7 @@
 //               moves into the PERSISTED review queue, then routes to Review; web ScreenPdfSuccess
 //               parity. Still no money-path mutation: an Accept in the downstream Review step is
 //               what calls store.addTransaction — never here.)
-// @opens-sheet  edit-item (INTENDED downstream from Review, NOT fired on this screen. We keep
-//               edit-item documented but do not open it.)
+// @opens-sheet  none (candidate correction is owned by Review detail; this screen stages the source.)
 // @copy         FROZEN
 // @tokens       surface · hairline · positive · calm (accent) · calmSoft (accent-soft) · muted ·
 //               ink · inverse — all from the kit via '@/folio/theme'. No new token.

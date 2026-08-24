@@ -21,9 +21,9 @@
 // @reads        pots · subs · subPaused (via useAppStore) · the route (gap · daysLeft · spendable) via
 //               the shared useRoute bridge, which reads balance/subs/income/pots/onboarding itself.
 // @writes       borrowFromPot (source "shortfall-borrow") — only on an explicit preview→commit, never
-//               silently. The Pause move opens edit-item (the sheet writes). The borrow draw lifts the
+//               silently. The Pause move opens Subscriptions (the canonical owner). The borrow draw lifts the
 //               route, which narrows the gap on the next render.
-// @opens-sheet  edit-item (the web's "Pause one sub" → nav.openSheet("edit-item"))
+// @opens-sheet  none (Pause one sub routes to the canonical Subscriptions screen)
 // @copy         FROZEN — never alarmist, never blaming. short.* keys come VERBATIM from
 //               '@/folio/copy/copy'; the eyebrows / kicker / captions / Melo line the deck does not
 //               yet carry are frozen inline literals (byte-faithful to the prototype, no banned words).
@@ -47,15 +47,15 @@
 //     (Borrow from a pot) only when the highest-saved pot can cover the gap; card 3 (Spend a little
 //     less) ALWAYS renders. The stack spaces with `gap`, so one / two / three cards each read
 //     intentionally (never a hole).
-//   • PREVIEW → COMMIT, NEVER SILENT. The web "Pause one sub" opened edit-item (the sheet does the
-//     write) and "Borrow" did nav.go('pots'). Per the port brief, borrow is a screen-owned PREVIEW +
+//   • PREVIEW → COMMIT, NEVER SILENT. The web "Pause one sub" opened an edit sheet and "Borrow" did
+//     nav.go('pots'). Native routes pause to the Subscriptions owner; borrow is a screen-owned PREVIEW +
 //     a single "Rebuild the plan"-style commit: tapping the card reveals the move's effect, and only
 //     "Move £n in" commits (borrowFromPot of gapNow from the pot, source "shortfall-borrow" — the
 //     dedicated borrow write; NOT addToPot with a negative amount, which addToPot's `amount > 0` guard
 //     silently no-ops). That draw lowers the pot's earmarked cash, which LIFTS the route — so on the
 //     next render the recomputed tight point has risen and the live gap (max(0, −tightPoint)) has
-//     narrowed. The borrow card AUTO-CLOSES the moment that recomputed gap reaches 0. Pause still opens
-//     edit-item (faithful to the web); the daily-cap move routes to WhatIf (nav.go('whatif')).
+//     narrowed. The borrow card AUTO-CLOSES the moment that recomputed gap reaches 0. The daily-cap
+//     move routes to WhatIf (nav.go('whatif')).
 //   • MELO MOOD = concern, on both the size-36 header accent and the closing MeloLine — never alarming
 //     (eyes close gently, a small worry-bead, breathe-slow 6s; no red, no shake; copy carries meaning).
 //   • formatGBP is the web kit's exact formatter (U+2212 minus, en-GB grouping, maximumFractionDigits
@@ -474,12 +474,13 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
 
         {/* The moves stack — space-y-3 (gap.md). Card visibility is the real state branch. */}
         <View style={styles.moves}>
-          {/* Pause one sub — only when a pausable sub exists. Opens edit-item (the sheet writes). */}
+          {/* Pause one sub — candidate correction belongs to Review; open the canonical subscriptions
+              owner instead of a blank, unconnected edit sheet. */}
           {pausableSub ? (
             <MoveCard
               t={t}
               accessibilityLabel={copy.short.move.pause(pausableSub.name)}
-              onPress={() => nav.openSheet('edit-item')}
+              onPress={() => nav.go('subs')}
               eyebrow={modeCopy.pauseLabel}
               value={`+${formatGBP(pausableSub.cost)}`}
             >

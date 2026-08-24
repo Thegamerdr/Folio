@@ -9,7 +9,8 @@
 // @reads        active workspace + encrypted evidence metadata for the retained image
 // @writes       — (no store mutation; the web @writes is an em-dash. Nothing is added here — the
 //               manual path routes to Review, where an Accept is the only write.)
-// @opens-sheet  edit-item (INTENDED downstream from Review; NOT fired here. Kept documented.)
+// @opens-sheet  none (candidate correction is owned by Review detail; this fallback only saves the
+//               source and returns to the review journey.)
 // @copy         FROZEN
 // @tokens       surface · hairline · inset · calm (accent) · muted · ink · inverse — all from the
 //               kit via '@/folio/theme'. No new token.

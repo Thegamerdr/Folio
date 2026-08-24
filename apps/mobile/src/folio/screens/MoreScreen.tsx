@@ -5,10 +5,10 @@
 // @rn-stack     MainTabs > More
 // @purpose      The quiet hub — ONE flat scannable list of links to every secondary surface, in the
 //               web's exact order, plus two dev/demo actions kept last and visually quiet.
-// @reads        appearance (light|dark) via useIsDark() — drives the Appearance row hint. chartStyle
+// @reads        appearance (system|light|dark) via useThemeMode() — drives the Appearance row hint. chartStyle
 //               via useChartStyle() — drives the "Chart style" row hint. ignoredReviewSigs.length via
 //               the store — drives the "Hidden from Review" row hint.
-// @writes       fastForwardMonth() (demo) · setMode (appearance toggle). Start fresh ROUTES to Data &
+// @writes       fastForwardMonth() (demo) · setMode (appearance picker). Start fresh ROUTES to Data &
 //               privacy (the gated D3 reset); it no longer wipes from here (one-confirm bypass removed).
 // @opens-sheet  share (from "Share a cycle") · onboarding (from "Payday & income") · chart-style
 //               (from "Chart style") · hidden-review (from "Hidden from Review")
@@ -35,13 +35,9 @@
 //     `hidden-review` sheet — both sheets existed and were fully wired; only the hub row was missing.
 //   • Theme mechanism: the web useTheme() is web-coupled (document.documentElement.classList,
 //     localStorage('folio-theme'), meta[name=theme-color]). NONE exist in RN. Per the spec's
-//     fidelityRisks, this is re-implemented as the kit's theme store: useIsDark() reads the live
-//     resolved appearance; useThemeMode().setMode flips it. The web toggle is binary light↔dark, so
-//     the RN tap resolves the live value and calls setMode('light'|'dark') — never 'system' — to
-//     mirror the binary flip. The Appearance hint stays driven by the live theme.
-//   • Appearance is an onPress row that toggles IN PLACE — it must NOT push a screen. The "→" chevron
-//     still renders on it (faithful to the web, where every row carries the glyph); tapping only
-//     toggles the theme.
+//     fidelityRisks, this is re-implemented as the kit's theme store. The Appearance row opens the
+//     native System / Light / Dark picker; kitTheme persists the preference and System follows OS
+//     changes through useColorScheme.
 //   • Press-handler precedence is onPress > sheet > to (exactly the web's onClick > sheet > to). This
 //     keeps "Payday & income" opening the onboarding SHEET (not a screen) and "Share a cycle" opening
 //     the share sheet.
@@ -91,16 +87,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  Surface,
-  Hairline,
-  gap,
-  radius,
-  serif,
-  useTheme,
-  useIsDark,
-  useThemeMode,
-} from '@/folio/theme';
+import { Surface, Hairline, gap, radius, serif, useTheme, useThemeMode } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
@@ -290,12 +277,9 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
 
-  // Appearance — the RN replacement for the web document.documentElement.classList mechanism. The
-  // hint reads the live resolved appearance; the tap flips it binary light↔dark (never 'system'),
-  // mirroring the web toggle. Hooks are unconditional (called before any early return).
-  const isDark = useIsDark();
-  const { setMode } = useThemeMode();
-  const toggleAppearance = () => setMode(isDark ? 'light' : 'dark');
+  // Appearance is a preference picker backed by the single theme authority. The selected mode is
+  // persisted by kitTheme; System continues to resolve from the live OS colour scheme.
+  const { mode } = useThemeMode();
 
   // Chart style + hidden-review count — real, live reads backing the two rows the prior build
   // dropped (see FIDELITY DECISIONS).
@@ -352,8 +336,8 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
       rows: [
         {
           label: 'Appearance',
-          hint: isDark ? 'dark · tap for light' : 'light · tap for dark',
-          onPress: toggleAppearance,
+          hint: mode === 'system' ? 'system · follows your phone' : `${mode} · tap to change`,
+          sheet: 'appearance',
         },
         {
           label: 'Notifications',
@@ -521,7 +505,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
 }
 
 // A single hub row. Press precedence is onPress > sheet > to (the web's onClick > sheet > to). The
-// "→" chevron is a muted Text glyph on every row (including Appearance, which only toggles). Carries
+// "→" chevron is a muted Text glyph on every row (including Appearance, which opens its picker). Carries
 // the kit `pressed` feel (scale 0.97 / lowered opacity — the web `press` util) and selection haptics
 // via the kit primitives' convention; the row itself is a >=44px tap target (px-5 py-4).
 function MoreRowView({ nav, row }: { nav: Nav; row: MoreRow }) {

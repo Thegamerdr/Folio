@@ -7,7 +7,9 @@
 // EditItemSheet — the faithful 1:1 React Native port of the web found-item correction sheet
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetEditItem.tsx).
 //
-// @rn-sheet     EditItemSheet
+// @deprecated   Not registered or shipping after Batch 4. ReviewScreen's inline draft fields are the
+//               sole candidate correction owner; this file remains only as a migration reference.
+// @rn-sheet     EditItemSheet (deprecated)
 // @purpose      Correct a found item (name, amount, date, category, optional note) BEFORE it's added.
 //               This is the pre-truth correction form: it edits the candidate in hand, never the money
 //               path. Nothing is committed from here — the user's later Accept (in Review/Visualizer)

@@ -81,7 +81,7 @@ export type SheetId =
   | null
   | 'route-detail'
   | 'edit-txn'
-  | 'edit-item'
+  | 'appearance'
   | 'melo-chat'
   | 'share'
   | 'onboarding'
