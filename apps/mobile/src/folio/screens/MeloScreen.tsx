@@ -91,13 +91,21 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { useAppStore, setMelo } from '@/folio/store';
+import { useAppStore, setMelo, setMeloPrimerSeen } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { canShowUpsell } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
 import { deriveMeloMemory } from '@/folio/lib/melo/memory';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
+import { MeloCompanionHost } from '@/folio/ui/MeloCompanionHost';
+import {
+  deriveMeloPresence,
+  derivePersonalContextAction,
+  type MeloPosition,
+} from '@/folio/lib/melo/companion';
+import { MeloContextSheet } from '@/folio/sheets/MeloContextSheet';
+import { MeloIntroSheet } from '@/folio/sheets/MeloIntroSheet';
 import type { Nav, Pressure } from '@/folio/types';
 
 export type MeloScreenState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
@@ -173,6 +181,10 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const currentBalance = useAppStore((s) => s.currentBalance);
   const cycles = useAppStore((s) => s.cycles);
   const tinyWins = useAppStore((s) => s.tinyWins ?? []);
+  const preferredPosition = useAppStore((s) => s.melo?.preferredPosition ?? 'auto') as MeloPosition;
+  const meloPrimerSeen = useAppStore((s) => s.meloPrimerSeen === true);
+  const [contextOpen, setContextOpen] = useState(false);
+  const [introOpen, setIntroOpen] = useState(!meloPrimerSeen);
 
   const { canAccess, fullUnlocked } = useLens();
 
@@ -220,6 +232,11 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const fundedPots = pots.filter((pot) => pot.saved > 0).length;
   const lensLabel =
     moneyMode === 'survival' ? 'Make it to payday' : MODE_LABEL[moneyMode].toLowerCase();
+  const contextAction = useMemo(
+    () => derivePersonalContextAction(modeState.mood),
+    [modeState.mood],
+  );
+  const presence = deriveMeloPresence({ quietMode: melo.quietMode, action: contextAction });
 
   // slide-in-r — drives the whole screen.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -328,12 +345,14 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
             </View>
           ) : (
-            <Melo
+            <MeloCompanionHost
               size={140}
               mood={modeState.mood}
               pose={modeState.pose}
-              grounded
-              onTap={() => nav.openMelo()}
+              position={preferredPosition}
+              presence={presence}
+              accessibilityLabel={`Melo, ${modeState.mood}`}
+              onPress={() => setContextOpen(true)}
             />
           )}
 
@@ -640,6 +659,35 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           </View>
         </View>
       </ScrollView>
+      <MeloContextSheet
+        visible={contextOpen}
+        onClose={() => setContextOpen(false)}
+        mood={modeState.mood}
+        presence={presence}
+        action={contextAction}
+        quietMode={melo.quietMode}
+        position={preferredPosition}
+        onAction={() => {
+          if (contextAction.id === 'personal-tight-point') nav.go('today');
+          else if (contextAction.id === 'personal-ritual') nav.go('insights');
+          else nav.go('today');
+        }}
+        onQuietModeChange={toggleQuietMode}
+        onPositionChange={(next) => setMelo({ preferredPosition: next })}
+        onTalk={() => nav.openMelo()}
+      />
+      <MeloIntroSheet
+        visible={introOpen}
+        onClose={() => {
+          setMeloPrimerSeen(true);
+          setIntroOpen(false);
+        }}
+        onContinue={() => {
+          setMeloPrimerSeen(true);
+          setIntroOpen(false);
+          nav.openSheet('onboarding');
+        }}
+      />
     </Animated.View>
   );
 }

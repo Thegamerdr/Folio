@@ -928,6 +928,11 @@ function projectCompanionRuntimeState(
     melo: {
       quietMode: requireBoolean(melo.quietMode, 'Melo quiet mode'),
       wardrobe: checkedStringList(melo.wardrobe, 'Melo wardrobe item'),
+      ...(melo.preferredPosition === undefined
+        ? {}
+        : {
+            preferredPosition: requireMeloPosition(melo.preferredPosition),
+          }),
       tone: melo.tone ?? 'calm',
       ...(melo.soundEnabled === undefined
         ? {}
@@ -1283,6 +1288,11 @@ function requireCorrectionValue(value: string | number, label: string): string |
 function requireBoolean(value: boolean, label: string): boolean {
   if (typeof value !== 'boolean') throw new Error(`${label} must be a boolean.`);
   return value;
+}
+
+function requireMeloPosition(value: string): 'auto' | 'left' | 'right' {
+  if (value === 'auto' || value === 'left' || value === 'right') return value;
+  throw new Error(`Melo preferred position must be auto, left, or right.`);
 }
 
 function requireSafeInteger(value: number, label: string): number {

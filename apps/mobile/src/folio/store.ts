@@ -944,6 +944,9 @@ export type MeloTone = 'calm' | 'honest' | 'dry' | 'coachy';
 export type MeloState = {
   quietMode: boolean;
   wardrobe: string[];
+  /** Preferred semantic side for the native companion host. `auto` lets the
+   * host choose the first safe side; it never bypasses layout safety. */
+  preferredPosition?: 'auto' | 'left' | 'right';
   tone?: MeloTone;
   /** Optional milestone sound preference. Missing means off for every pre-feature install. */
   soundEnabled?: boolean;

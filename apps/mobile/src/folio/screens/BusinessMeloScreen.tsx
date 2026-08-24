@@ -1,21 +1,31 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { selectBusinessOneMove } from '@folio/business-workspace';
 
-import { Melo, type MeloMood } from '@/folio/melo/Melo';
+import { type MeloMood } from '@/folio/melo/Melo';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
-import { useAppStore } from '@/folio/store';
+import { setMelo, useAppStore } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
 import { useBusinessOperations } from './business/useBusinessOperations';
+import { MeloCompanionHost } from '@/folio/ui/MeloCompanionHost';
+import { MeloContextSheet } from '@/folio/sheets/MeloContextSheet';
+import {
+  deriveBusinessContextAction,
+  deriveMeloPresence,
+  type MeloPosition,
+} from '@/folio/lib/melo/companion';
 
 export function BusinessMeloScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const [contextOpen, setContextOpen] = useState(false);
   const workspace = useAppStore(
     (state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId)!,
   );
   const accounts = useAppStore((state) => state.accounts ?? []);
+  const melo = useAppStore((state) => state.melo ?? { quietMode: false, wardrobe: [] });
+  const preferredPosition = (melo.preferredPosition ?? 'auto') as MeloPosition;
   const business = useBusinessOperations();
   const move = useMemo(
     () =>
@@ -35,6 +45,16 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
       : move.kind === 'invoice' || move.kind === 'obligation'
         ? 'curious'
         : 'calm';
+  const contextAction = useMemo(
+    () =>
+      deriveBusinessContextAction(
+        move.action
+          ? { id: `business-${move.action.target}`, label: move.action.label, prompt: move.body }
+          : undefined,
+      ),
+    [move.action, move.body],
+  );
+  const presence = deriveMeloPresence({ quietMode: melo.quietMode, action: contextAction });
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
@@ -51,7 +71,18 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
         </View>
 
         <View style={styles.hero}>
-          <Melo mood={mood} size={74} />
+          {melo.quietMode ? (
+            <Text style={[styles.quietCompanion, { color: t.muted }]}>Melo is resting.</Text>
+          ) : (
+            <MeloCompanionHost
+              mood={mood}
+              size={74}
+              position={preferredPosition}
+              presence={presence}
+              accessibilityLabel={`Melo, ${mood}, business context`}
+              onPress={() => setContextOpen(true)}
+            />
+          )}
           <Text style={[styles.eyebrow, { color: t.muted }]}>{workspace.name}</Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
             {move.headline}
@@ -133,11 +164,30 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
           <Text style={[styles.primaryLabel, { color: t.inverse }]}>Ask Melo</Text>
         </Pressable>
       </ScrollView>
+      <MeloContextSheet
+        visible={contextOpen}
+        onClose={() => setContextOpen(false)}
+        mood={mood}
+        presence={presence}
+        action={contextAction}
+        quietMode={melo.quietMode}
+        position={preferredPosition}
+        onAction={() => nav.go(actionRoute(move.action?.target ?? 'account'))}
+        onQuietModeChange={() => setMelo({ quietMode: !melo.quietMode })}
+        onPositionChange={(next) => setMelo({ preferredPosition: next })}
+        onTalk={() =>
+          nav.openMelo({
+            seed: `I'm looking only at ${workspace.name}. ${move.headline}`,
+          })
+        }
+      />
     </View>
   );
 }
 
-function actionRoute(target: NonNullable<ReturnType<typeof selectBusinessOneMove>['action']>['target']): ScreenId {
+function actionRoute(
+  target: NonNullable<ReturnType<typeof selectBusinessOneMove>['action']>['target'],
+): ScreenId {
   if (target === 'account') return 'account';
   if (target === 'runway') return 'business-runway';
   if (target === 'vat') return 'business-vat';
@@ -159,6 +209,7 @@ const styles = StyleSheet.create({
   wordmark: { fontFamily: serif.displayItalic, fontSize: 14 },
   workspaceKind: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.7 },
   hero: { alignItems: 'flex-start', marginTop: gap.xl },
+  quietCompanion: { fontFamily: serif.displayItalic, fontSize: 15, marginBottom: gap.md },
   eyebrow: { fontFamily: serif.displayItalic, fontSize: 13, marginTop: gap.md },
   headline: {
     fontFamily: serif.display,

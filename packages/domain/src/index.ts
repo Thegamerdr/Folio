@@ -1032,6 +1032,7 @@ export type CompanionRuntimeState = Readonly<{
   melo: Readonly<{
     quietMode: boolean;
     wardrobe: readonly string[];
+    preferredPosition?: 'auto' | 'left' | 'right';
     tone: 'calm' | 'honest' | 'dry' | 'coachy';
     soundEnabled?: boolean;
   }>;

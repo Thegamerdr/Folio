@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Nav } from '../../types';
 import type { CycleRecord } from '../../store';
@@ -29,8 +29,13 @@ function cycle(closedAt: string, tightPoint: number, spare: number): CycleRecord
   };
 }
 
+afterEach(() => vi.useRealTimers());
+
 describe('Melo rework engines', () => {
   it('ranks review ahead of recovery and stays quiet after a matching dismissal', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-20T10:00:00.000Z'));
+
     const movement = deriveOneMove({
       reviewCount: 2,
       tightPoint: -10,
