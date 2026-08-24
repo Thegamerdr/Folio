@@ -428,7 +428,11 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           }
         : null,
     ];
-    return built.filter((m): m is Move => m !== null);
+    // Recovery is a ranked decision surface: the first option is the one that creates the most
+    // room at the route's actual low. Stable sort keeps the source order for honest ties.
+    return built
+      .filter((m): m is Move => m !== null)
+      .sort((left, right) => right.deltaValue - left.deltaValue);
   }, [recoveryPreview]);
 
   const pickedMove = moves.find((m) => m.id === picked);
@@ -596,13 +600,30 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           </View>
         </View>
 
+        {/* The move preview is the same projected route the native engine uses for Today. A selected
+            bill/sub move gets a second real candidate curve; a spending hold stays labelled as an
+            estimate because its lift comes from the user's trailing discretionary average rather
+            than a dated commitment the route can redraw. */}
+        <RecoveryPathPreview
+          basePoints={recoveryPreview.basePoints}
+          candidatePoints={recoveryPreview.candidatePoints}
+          paydayIndex={recoveryPreview.paydayIndex}
+          selectedMove={pickedMove?.id ?? null}
+          selectedLift={pickedMove?.deltaValue ?? 0}
+          shortfall={shortfall}
+          t={t}
+        />
+
         {/* "Pick one thing" — the single-select move group. */}
-        <Text style={[styles.sectionLabel, { color: t.muted }]}>Pick one thing</Text>
+        <Text style={[styles.sectionLabel, { color: t.muted }]}>
+          Pick one thing · most lift first
+        </Text>
         <View accessibilityRole="radiogroup" style={styles.moveList}>
-          {moves.map((m) => (
+          {moves.map((m, index) => (
             <MoveCard
               key={m.id}
               move={m}
+              rank={index + 1}
               active={picked === m.id}
               reduceMotion={reduceMotion}
               t={t}
@@ -672,12 +693,118 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
 }
 
 // ---------------------------------------------------------------------------
+const RECOVERY_PATH_WIDTH = 320;
+const RECOVERY_PATH_HEIGHT = 76;
+
+function routePath(points: readonly { y: number }[], domain: readonly number[]): string {
+  if (points.length === 0) return '';
+  const min = Math.min(...domain, 0);
+  const max = Math.max(...domain, 1);
+  const range = Math.max(1, max - min);
+  const inset = 5;
+  return points
+    .map((point, index) => {
+      const x =
+        inset + (index / Math.max(1, points.length - 1)) * (RECOVERY_PATH_WIDTH - inset * 2);
+      const y = inset + (RECOVERY_PATH_HEIGHT - inset * 2) * (1 - (point.y - min) / range);
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+}
+
+function RecoveryPathPreview({
+  basePoints,
+  candidatePoints,
+  paydayIndex,
+  selectedMove,
+  selectedLift,
+  shortfall,
+  t,
+}: {
+  basePoints: readonly { date: string; y: number }[];
+  candidatePoints: Readonly<Record<string, readonly { date: string; y: number }[]>>;
+  paydayIndex: number;
+  selectedMove: string | null;
+  selectedLift: number;
+  shortfall: number;
+  t: Palette;
+}) {
+  const visibleCount = Math.min(basePoints.length, Math.max(2, paydayIndex + 1));
+  const base = basePoints.slice(0, visibleCount);
+  const candidate = selectedMove
+    ? candidatePoints[selectedMove]?.slice(0, visibleCount)
+    : undefined;
+  const domain = [...base.map((point) => point.y), ...(candidate?.map((point) => point.y) ?? [])];
+  const baseD = routePath(base, domain);
+  const candidateD = candidate ? routePath(candidate, domain) : '';
+  const estimateOnly = selectedMove !== null && !candidate;
+  const caption = selectedMove
+    ? estimateOnly
+      ? `+£${selectedLift} estimated from recent spending`
+      : `+£${selectedLift} at the route's low`
+    : shortfall > 0
+      ? 'Projected path to payday'
+      : 'Projected path to payday · no gap';
+
+  return (
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`Recovery path preview. ${caption}. Dashed line is the current route; solid line is the selected move when a dated commitment can be redrawn.`}
+      style={[styles.pathPreview, { backgroundColor: t.surface, borderColor: t.hairline }]}
+    >
+      <View style={styles.pathHeader}>
+        <Text style={[styles.pathLabel, { color: t.muted }]}>Path preview</Text>
+        <Text numberOfLines={1} style={[styles.pathCaption, { color: t.muted }]}>
+          {caption}
+        </Text>
+      </View>
+      {baseD ? (
+        <Svg
+          width="100%"
+          height={RECOVERY_PATH_HEIGHT}
+          viewBox={`0 0 ${RECOVERY_PATH_WIDTH} ${RECOVERY_PATH_HEIGHT}`}
+        >
+          <Path
+            d={baseD}
+            fill="none"
+            stroke={t.muted}
+            strokeDasharray="3 4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.4}
+          />
+          {candidateD ? (
+            <Path
+              d={candidateD}
+              fill="none"
+              stroke={t.calmStrong}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+            />
+          ) : null}
+        </Svg>
+      ) : null}
+      <View style={styles.pathLegend}>
+        <Text style={[styles.pathLegendText, { color: t.muted }]}>dashed current</Text>
+        {candidateD ? (
+          <Text style={[styles.pathLegendText, { color: t.calmStrong }]}>solid after move</Text>
+        ) : estimateOnly ? (
+          <Text style={[styles.pathLegendText, { color: t.muted }]}>hold is an estimate</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 // Move card — one corrective move. Active = accent-soft fill + a terracotta ring (border, not a drop
 // shadow, so the flat paper look holds), revealing the body + cost with a fade-in.
 // ---------------------------------------------------------------------------
 
 function MoveCard({
   move,
+  rank,
   active,
   reduceMotion,
   t,
@@ -685,6 +812,7 @@ function MoveCard({
   onPress,
 }: {
   move: Move;
+  rank: number;
   active: boolean;
   reduceMotion: boolean;
   t: Palette;
@@ -710,7 +838,8 @@ function MoveCard({
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityLabel={`${move.kind}: ${move.title}`}
+      accessibilityLabel={`Recovery move ${rank}: ${move.kind}: ${move.title}`}
+      accessibilityHint="Moves are ranked by the projected room they create at the route's low. Select to preview the consequence."
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={({ pressed: isPressed }) => [
@@ -906,6 +1035,40 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.8,
     marginTop: 2,
+  },
+  // The route comparison is a meaningful object in Recovery: a single contained before/after shape,
+  // not a dashboard chart. It uses the native route points and stops at the payday horizon.
+  pathPreview: {
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.lg,
+    paddingHorizontal: gap.lg,
+    paddingTop: gap.md,
+  },
+  pathHeader: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  pathLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  pathCaption: {
+    flex: 1,
+    fontSize: 11,
+    marginLeft: gap.sm,
+    textAlign: 'right',
+  },
+  pathLegend: {
+    columnGap: gap.md,
+    flexDirection: 'row',
+    paddingBottom: gap.md,
+  },
+  pathLegendText: {
+    fontSize: 10,
   },
   // Fraunces italic caption, 11.5px muted, mt-1.
   cardCaption: {

@@ -1,5 +1,6 @@
 import type { AppState, Sub } from '../store';
 import { routeFromStore } from './storeRoute';
+import type { RoutePoint } from './moneyPath';
 
 export const RECOVERY_BILL_NUDGE_DAYS = 5;
 export const RECOVERY_HOLD_DAYS = 3;
@@ -25,6 +26,12 @@ export type RecoveryRoutePreview = Readonly<{
   subscriptionLift: number;
   holdDailyCap: number;
   holdLift: number;
+  /** The real projected route, to payday and beyond, before any move is selected. */
+  basePoints: readonly RoutePoint[];
+  /** Real candidate routes for moves that change dated commitments. Holds stay estimated. */
+  candidatePoints: Readonly<Record<string, readonly RoutePoint[]>>;
+  /** Index of payday in basePoints, so visual previews can stop at the same horizon as Today. */
+  paydayIndex: number;
 }>;
 
 function nearestActiveSubscription(
@@ -58,7 +65,8 @@ function liftFromRoute(base: number, candidateState: AppState, now: Date): numbe
 
 /** Pure preview shared by RecoveryScreen and Melo. It never mutates the supplied state. */
 export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryRoutePreview {
-  const baseTight = routeFromStore(state, now).tightPoint.amount;
+  const baseRoute = routeFromStore(state, now);
+  const baseTight = baseRoute.tightPoint.amount;
   const hasMoneyPicture =
     state.onboarding.done ||
     state.transactions.length > 0 ||
@@ -92,12 +100,32 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
         now,
       )
     : 0;
+  const candidatePoints: Record<string, readonly RoutePoint[]> = {};
+  if (flexibleBill) {
+    candidatePoints['move-bill'] = routeFromStore(
+      {
+        ...state,
+        subOverrides: {
+          ...state.subOverrides,
+          [flexibleBill.name]:
+            (state.subOverrides[flexibleBill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS,
+        },
+      },
+      now,
+    ).points;
+  }
+  if (pausableSubscription) {
+    candidatePoints['pause-sub'] = routeFromStore(
+      {
+        ...state,
+        subPaused: { ...state.subPaused, [pausableSubscription.name]: true },
+      },
+      now,
+    ).points;
+  }
   const averageDaily = averageDailyDiscretionary(state, now.getTime());
   const holdDailyCap = averageDaily > 0 ? Math.max(1, Math.round(averageDaily * 0.5)) : 0;
-  const holdLift = Math.max(
-    0,
-    Math.round((averageDaily - holdDailyCap) * RECOVERY_HOLD_DAYS),
-  );
+  const holdLift = Math.max(0, Math.round((averageDaily - holdDailyCap) * RECOVERY_HOLD_DAYS));
   return {
     baseTight,
     hasMoneyPicture,
@@ -109,5 +137,8 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
     subscriptionLift,
     holdDailyCap,
     holdLift,
+    basePoints: baseRoute.points,
+    candidatePoints,
+    paydayIndex: baseRoute.daysToPayday,
   };
 }

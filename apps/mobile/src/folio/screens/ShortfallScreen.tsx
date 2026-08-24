@@ -89,6 +89,7 @@ import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import { getShortfallCopy } from '@/folio/lib/modes/action';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import type { Nav } from '@/folio/types';
@@ -133,6 +134,16 @@ function formatGBP(n: number): string {
   return `${sign}£${Math.abs(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
 }
 
+function formatShortfallDate(iso: string): string {
+  const date = new Date(`${iso}T12:00:00.000Z`);
+  if (!Number.isFinite(date.getTime())) return iso;
+  return date.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
 // Local reduce-motion read, mirroring PotsScreen / Melo / ReviewScreen: read once, then subscribe.
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
@@ -160,6 +171,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   const pots = useAppStore((s) => s.pots);
   const subs = useAppStore((s) => s.subs);
   const subPaused = useAppStore((s) => s.subPaused);
+  const appState = useAppStore((s) => s);
   const soundEnabled = useAppStore((s) => s.melo?.soundEnabled === true);
   const quietMode = useAppStore((s) => s.melo?.quietMode === true);
   // Mode-aware copy (web getShortfallCopy(mode)) — every string on this screen tints by the user's
@@ -206,6 +218,55 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   // The daily spend cap = the spendable anchor minus the gap, spread across the days left. Floored at
   // 0; days-left floored at 1 so we never divide by zero (web Math.max(1, daysLeft)). Whole pounds.
   const dailyCap = Math.max(0, Math.floor((spendable - gapNow) / Math.max(1, daysLeft)));
+
+  // The route gives us the low date; the shared Calendar derivation gives us the honest event that
+  // created that dip. Keeping this read on the same event authority prevents Shortfall from inventing
+  // a cause or silently disagreeing with Calendar/Today.
+  const tightEvent = useMemo<DerivedEvent | null>(() => {
+    if (!route || !now) return null;
+    // routeFromStore normalises its local day to UTC midnight before asking Calendar for events. Use
+    // that same anchor here so the cause lookup cannot drift around a local/UTC midnight boundary.
+    const calendarNow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const events = deriveCalendarEvents({
+      subs: appState.subs,
+      subPaused: appState.subPaused,
+      subOverrides: appState.subOverrides,
+      onboarding: appState.onboarding,
+      manualEvents: appState.calendarEvents,
+      pots: appState.pots,
+      incomeSources: appState.incomeSources ?? [],
+      spendHold: appState.spendHold ?? null,
+      whatIfHolds: appState.whatIfHolds ?? [],
+      windowDays: 35,
+      now: calendarNow,
+      includeSampleBills: appState.currentBalance.source === 'sample',
+    });
+    return (
+      events
+        .filter(
+          (event) =>
+            event.date === route.tightPoint.date &&
+            typeof event.amount === 'number' &&
+            event.amount < 0,
+        )
+        .sort((left, right) => Math.abs(right.amount ?? 0) - Math.abs(left.amount ?? 0))[0] ?? null
+    );
+  }, [appState, now, route]);
+
+  const tightDateLabel = route
+    ? formatShortfallDate(route.tightPoint.date)
+    : 'the next payday horizon';
+  const causeLine = tightEvent
+    ? tightEvent.source === 'sub' && tightEvent.subName
+      ? `A recurring payment from ${tightEvent.subName} lands in that stretch.`
+      : `${tightEvent.title} is one of the outgoings in that stretch.`
+    : 'Your current balance runs out before the next payday.';
+  const recoverabilityLine =
+    lendingPot && lendingPot.saved >= gapNow && gapNow > 0
+      ? `${lendingPot.name} could cover the whole gap.`
+      : pausableSub
+        ? `Pausing ${pausableSub.name} is the first named move in hand.`
+        : `A daily cap is the clearest move in hand for ${daysLeft} days.`;
 
   const resolvedState: ShortfallState = state ?? 'populated';
 
@@ -401,6 +462,15 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
           {" days until payday. Here's what would close the gap — pick one, or none."}
         </Text>
 
+        {/* A calm severity read: when the low lands, the native event that contributes to it, and the
+            strongest recoverability already present in the user's data. This is deliberately an
+            editorial hairline group, not a red warning card. */}
+        <View style={[styles.shortfallRead, { borderColor: t.hairline }]}>
+          <ShortfallReadRow label="When" value={tightDateLabel} t={t} />
+          <ShortfallReadRow label="In the path" value={causeLine} t={t} />
+          <ShortfallReadRow label="Room to move" value={recoverabilityLine} t={t} last />
+        </View>
+
         {/* The moves stack — space-y-3 (gap.md). Card visibility is the real state branch. */}
         <View style={styles.moves}>
           {/* Pause one sub — only when a pausable sub exists. Opens edit-item (the sheet writes). */}
@@ -520,6 +590,25 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   );
 }
 
+function ShortfallReadRow({
+  label,
+  value,
+  t,
+  last = false,
+}: {
+  label: string;
+  value: string;
+  t: Palette;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.shortfallReadRow, last ? undefined : { borderBottomColor: t.hairline }]}>
+      <Text style={[styles.shortfallReadLabel, { color: t.muted }]}>{label}</Text>
+      <Text style={[styles.shortfallReadValue, { color: t.ink }]}>{value}</Text>
+    </View>
+  );
+}
+
 // ── Move card ──────────────────────────────────────────────────────────────────────────────────
 // The shared shape for the Pause / Spend-less cards: a full-width, left-aligned inset card with a
 // hairline border, an eyebrow + a tabular value on a baseline row, and a body line below. Press 0.97.
@@ -619,6 +708,31 @@ const styles = StyleSheet.create({
   },
   tabular: {
     fontVariant: ['tabular-nums'],
+  },
+
+  // A calm, editorial read between the gap and the possible moves. It deliberately uses rules and
+  // whitespace rather than another rounded warning card, while keeping each fact legible on small
+  // widths and at larger text scales.
+  shortfallRead: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.lg,
+    paddingVertical: gap.xs,
+  },
+  shortfallReadRow: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: gap.xs,
+    paddingVertical: gap.sm,
+  },
+  shortfallReadLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  shortfallReadValue: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   // The moves stack — mt-7 (gap.xl + a touch), space-y-3 (gap.md).

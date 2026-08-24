@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import type { CycleRecord } from '../store';
 import { synthesizeHistoryCycles, type ReconstructedCycleRecord } from '../lib/historyCycles';
 import { getRetrospect } from '../lib/modes/retrospect';
+import { buildInsightsRead } from './insightsRead';
 
 // 1:1 restatement of the screen's local helper (InsightsScreen.tsx `isReconstructed`).
 function isReconstructed(c: CycleRecord): boolean {
@@ -148,5 +149,30 @@ describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.
       synthesizeHistoryCycles(fiveRowsIn('2026-06'), [], [lived], TODAY),
     );
     expect(withReconstructed.some(isReconstructed)).toBe(true);
+  });
+
+  it('keeps one lived cycle as a fact, not a fabricated pattern', () => {
+    const read = buildInsightsRead({
+      latest: { label: 'July', spare: 120, tightPoint: 40 },
+      prior: undefined,
+      weeklySpent: 80,
+      quietDays: 4,
+    });
+    expect(read.fact).toContain('July closed with £120');
+    expect(read.pattern).toContain('not a pattern yet');
+    expect(read.canOpenToday).toBe(false);
+  });
+
+  it('separates a real negative movement into pattern, interpretation and action', () => {
+    const read = buildInsightsRead({
+      latest: { label: 'July', spare: 80, tightPoint: -20 },
+      prior: { label: 'June', spare: 140, tightPoint: 30 },
+      weeklySpent: 95,
+      quietDays: 2,
+    });
+    expect(read.pattern).toContain('changed by −£60');
+    expect(read.interpretation).toContain('left less room');
+    expect(read.action).toContain('Open Today');
+    expect(read.canOpenToday).toBe(true);
   });
 });

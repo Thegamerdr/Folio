@@ -82,6 +82,7 @@ import { useAppStore, type CycleRecord } from '@/folio/store';
 import { getRetrospect, formatDelta } from '@/folio/lib/modes/retrospect';
 import { expectedMonthLabel, useCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import { computeGreenStreak } from '@/folio/lib/streaks';
+import { buildInsightsRead, type InsightsRead } from './insightsRead';
 import type { Nav } from '@/folio/types';
 
 // DATA_INTELLIGENCE.md phase ④ — true only for a cycle synthesized from bulk-imported statement
@@ -228,6 +229,17 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
     return { spent: Math.round(spent), quietDays };
   }, [transactions]);
 
+  const authoredRead = useMemo<InsightsRead>(
+    () =>
+      buildInsightsRead({
+        latest: latestLived,
+        prior: priorLived,
+        weeklySpent: weekly.spent,
+        quietDays: weekly.quietDays,
+      }),
+    [latestLived, priorLived, weekly.quietDays, weekly.spent],
+  );
+
   // Tight-point trend: one point per closed cycle, oldest → newest (web: slice(0,6).reverse()).
   const trend = useMemo(() => cycles.slice(0, 6).reverse(), [cycles]);
 
@@ -324,6 +336,10 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             {retro.title.tail}
           </Text>
         </View>
+
+        {/* The authored read is the primary interpretation; the figures below remain supporting
+            evidence. Each line names its epistemic level so a fact is not dressed up as certainty. */}
+        <InsightReadBlock read={authoredRead} styles={s} onOpenToday={() => nav.go('today')} />
 
         {/* 2×2 stat tiles. The primary/secondary cards are mode-tinted (web `retro.primary` /
             `retro.secondary`) — label, value, and tone all vary by moneyMode. The other two
@@ -562,6 +578,56 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
         </View>
       </ScrollView>
     </Animated.View>
+  );
+}
+
+function InsightReadBlock({
+  read,
+  styles,
+  onOpenToday,
+}: {
+  read: InsightsRead;
+  styles: ReturnType<typeof makeStyles>;
+  onOpenToday: () => void;
+}) {
+  return (
+    <View style={styles.readBlock}>
+      <Text style={styles.readEyebrow}>A closer read</Text>
+      <ReadLine label="Fact" value={read.fact} styles={styles} />
+      <ReadLine label="Pattern" value={read.pattern} styles={styles} />
+      <ReadLine label="Interpretation" value={read.interpretation} styles={styles} />
+      {read.canOpenToday ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={read.action}
+          onPress={onOpenToday}
+          style={({ pressed }) => [styles.readAction, pressed ? styles.pressed : undefined]}
+        >
+          <Text style={styles.readActionLabel}>{read.action} →</Text>
+        </Pressable>
+      ) : (
+        <ReadLine label="Next move" value={read.action} styles={styles} last />
+      )}
+    </View>
+  );
+}
+
+function ReadLine({
+  label,
+  value,
+  styles,
+  last = false,
+}: {
+  label: string;
+  value: string;
+  styles: ReturnType<typeof makeStyles>;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.readLine, last ? undefined : styles.readLineRule]}>
+      <Text style={styles.readLabel}>{label}</Text>
+      <Text style={styles.readText}>{value}</Text>
+    </View>
   );
 }
 
@@ -809,6 +875,57 @@ function makeStyles(t: Palette) {
       color: t.calm,
       fontFamily: serif.display,
       fontStyle: 'normal',
+    },
+
+    // The authored read is a ruled editorial group rather than another statistic card. Labels keep
+    // fact, pattern, interpretation and action visibly distinct while the body remains warm and
+    // readable in both themes.
+    readBlock: {
+      borderBottomColor: t.hairline,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.hairline,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      marginTop: gap.lg,
+      paddingVertical: gap.xs,
+    },
+    readEyebrow: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '600',
+      letterSpacing: 1.5,
+      marginBottom: gap.xxs,
+      paddingVertical: gap.xs,
+      textTransform: 'uppercase',
+    },
+    readLine: {
+      gap: gap.xxs,
+      paddingVertical: gap.sm,
+    },
+    readLineRule: {
+      borderBottomColor: t.hairline,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    readLabel: {
+      color: t.muted,
+      fontSize: 10.5,
+      fontWeight: '600',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    readText: {
+      color: t.ink,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    readAction: {
+      paddingVertical: gap.sm,
+    },
+    readActionLabel: {
+      color: t.calmStrong,
+      fontFamily: serif.displayItalic,
+      fontSize: 13,
+      lineHeight: 18,
     },
 
     // Empty-state block — mt-6.

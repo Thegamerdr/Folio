@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getState, resetAll, setPartial } from '../store';
 import { buildRecoveryRoutePreview } from './recoveryPreview';
+import { routeFromStore } from './storeRoute';
 
 const NOW = new Date('2026-07-15T12:00:00.000Z');
 
@@ -63,6 +64,23 @@ describe('buildRecoveryRoutePreview', () => {
     expect(preview.holdLift).toBe(15);
     expect(preview.flexibleBill?.name).toBe('Private recurring name');
     expect(preview.pausableSubscription?.name).toBe('Private recurring name');
+    expect(preview.basePoints.length).toBeGreaterThan(1);
+    expect(preview.candidatePoints['move-bill']?.length).toBe(preview.basePoints.length);
+    expect(preview.candidatePoints['pause-sub']?.length).toBe(preview.basePoints.length);
+    expect(preview.paydayIndex).toBeGreaterThanOrEqual(0);
+    const candidate = routeFromStore(
+      {
+        ...getState(),
+        subOverrides: {
+          ...getState().subOverrides,
+          'Private recurring name': 5,
+        },
+      },
+      NOW,
+    );
+    expect(preview.billLift).toBe(
+      Math.max(0, Math.round(candidate.tightPoint.amount - preview.baseTight)),
+    );
     expect(JSON.stringify(getState())).toBe(before);
   });
 });
