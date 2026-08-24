@@ -1,29 +1,26 @@
-# Apple App Privacy Checklist
+# Apple App Privacy — Melo engineering draft (2026-08-24)
 
-## Status
+Status: **prepared; BLOCKED EXTERNAL until an iOS candidate exists and App Store Connect review is
+performed.** No iOS install, submission or independent privacy approval is claimed.
 
-Blocked. This file is a declaration checklist, not App Store Connect evidence.
+## Binary truth to review
 
-## Required Before Release
+- Product: Melo; bundle identifier `com.folio.v2.greenfield`; version `0.0.1`.
+- Local core: encrypted money state and retained statement sources remain on-device by default.
+- Optional processors: Clerk (sign-in), Melo Cloud Vault (client-encrypted backup), Google/Apple
+  store billing where listed, Sentry (redacted crash diagnostics), and TrueLayer via the optional
+  Open Banking adapter after explicit bank consent.
+- AI: raw documents, images, transaction rows and chat prompts are not sent to a model provider;
+  the enum-only future route is not used by the current mobile core.
+- Tracking: no ad, attribution, behavioural-analytics or session-replay SDK.
 
-- App Privacy answers are reviewed in App Store Connect for the submitted binary.
-- Privacy policy URL is current and reachable.
-- User privacy choices URL is provided if applicable.
-- Third-party SDK data collection and tracking are reflected in the answers.
-- Optional cloud, AI, Open Banking, business workspace and support diagnostic routes are declared
-  according to their real enabled state.
-- Apple privacy manifests and required-reason API use are reviewed against the generated native
-  project and release binary.
-- App Review notes explain local-first/no-account mode and synthetic reviewer data.
+## Review actions
 
-## Current Folio Position
+Match collection/sharing/purpose answers against the exact iOS archive and privacy manifests. Confirm
+the account-deletion answer only after production provider purge and a disposable test-account proof.
+Confirm the owner-provided privacy URL and support route before submission.
 
-- Local-core synthetic shell is reviewable without account creation.
-- Optional cloud, AI, Open Banking and business routes are contract-only or blocked for public
-  release.
-- There is no submitted production binary or App Store Connect declaration evidence in this repo.
+Official references:
 
-## Official References
-
-- `https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/`
-- `https://developer.apple.com/app-store/user-privacy-and-data-use/`
+- <https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/>
+- <https://developer.apple.com/app-store/user-privacy-and-data-use/>

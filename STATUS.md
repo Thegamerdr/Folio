@@ -1,4 +1,37 @@
-# Folio V2 Greenfield Status
+# Melo Status (historical filename: Folio V2 Greenfield)
+
+## Current release-control authority — 24 August 2026
+
+This addendum supersedes older phase banners for release decisions. The product is Melo, with
+Android package/iOS bundle `com.folio.v2.greenfield`, version `0.0.1`, Android versionCode `1`.
+The package identity is intentionally retained; historical Folio naming text is evidence history,
+not an unresolved owner decision.
+
+- Billing truth: `folio.full` one-time Full; `folio.live.monthly` and `folio.live.yearly` Live
+  subscriptions; `folio.plus.*`/`folio.pro.*` are restore-only legacy IDs.
+- Local core works signed out. Cloud Vault/Clerk and store billing are optional; Open Banking is
+  disabled in the current candidate behind an explicit approved-build flag. Raw document/chat AI
+  transport is retired and the current mobile core is deterministic/local.
+- Current DPIA/privacy/store package: `docs/source-package/release/DPIA_CURRENT_MELO_2026-08-24.md`,
+  `PRIVACY_POLICY.md`, `docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md`.
+- Internal operations tabletop and safe rotation drills are complete in `docs/release-operations/`.
+  Vulnerability disclosure process is prepared but awaits the owner-confirmed public contact route.
+- Cloudflare runtime evidence: billing Worker is deployed with signer/token store configured and
+  `providerConfigured=false`; its catalog is the current Full/Live matrix. Open Banking Worker is
+  deployed disabled (`featureEnabled=false`; `/v1` returns `feature_disabled`).
+- EAS is authenticated, but iOS production credentials/provisioning need interactive Apple setup.
+  No AAB/SHA-256 or physical Android release PASS is claimed; Apple export compliance for standard
+  AES-GCM remains an owner/legal determination.
+- No AAB/hash, Play Console submission, public policy/support/deletion URL or independent review is
+  claimed by this addendum. The exact remaining actions are in `OWNER_ACTION_PACK.md`.
+
+Run the current tools from the repository root:
+
+```text
+pnpm release:status
+pnpm store:status
+pnpm operations:status
+```
 
 > **Superseding current state, 2026-07-16:** the coded React Native/Android product in `apps/mobile`
 > is the authoritative Melo implementation; Lovable is design history, not the runtime to extend.

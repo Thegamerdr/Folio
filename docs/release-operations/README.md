@@ -1,8 +1,8 @@
-# Release Operations
+# Melo Release Operations
 
-This directory carries the local operations pack for the public-release gate. It does not prove
-production readiness by itself. It defines the runbooks, tabletop evidence shape, rotation drill
-shape and vulnerability disclosure checklist that must be exercised before `RB-T185` can close.
+This directory carries the current operations evidence pack for the Melo release gate. It records
+internal readiness truth; it does not self-approve independent security, privacy, legal or
+accessibility review and it does not invent a support or disclosure address.
 
 Current commands:
 
@@ -11,10 +11,14 @@ Current commands:
 - `pnpm operations:guard`: fail until tabletop, rotation drills and vulnerability disclosure
   readiness are complete.
 
-Current state:
+Current state (2026-08-24):
 
 - Incident runbook templates exist for calculation, sync, provider, AI, tax, security and store
   removal incidents.
 - Secure support diagnostics and recovery-secret boundaries are defined.
 - Breach notification ownership is assigned in the pack.
-- Tabletop exercise, rotation drills and vulnerability disclosure readiness remain blocked.
+- The internal tabletop is executed and closed in `tabletop-exercise-record.md`.
+- Safe rotation dry-runs are recorded in `rotation-drill-record.md`; production rotations remain
+  an owner/provider action.
+- The vulnerability-disclosure process is prepared, but the public contact route is an explicit
+  `OWNER INPUT REQUIRED` decision in `vulnerability-disclosure-readiness.md`.

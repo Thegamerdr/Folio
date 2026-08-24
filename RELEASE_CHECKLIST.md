@@ -1,33 +1,68 @@
-# Release checklist — Folio/Melo Android
+# Melo release checklist — current authority (2026-08-24)
 
-Hard gates before the FIRST Play Console upload (each irreversible or blocking after upload):
+This file supersedes stale Folio/Plus/Pro naming and package-ID guidance. The product is Melo and
+the owner-approved native identity is deliberately retained:
 
-1. **Package id / app name — PERMANENT once uploaded.** Current `com.folio.v2.greenfield` is an
-   engineering codename (owner deferred the naming decision on 2026-07-05). Before first upload:
-   run the naming session, pick the real reverse-DNS id under an owned domain, change
-   `app.config.ts` (`android.package`, `ios.bundleIdentifier`, `name`), `expo prebuild --clean`,
-   full rebuild. One commit — but only valid BEFORE upload #1.
-2. **Signing.** Release builds sign with the real upload keystore only on machines that have
-   `FOLIO_UPLOAD_*` in `~/.gradle/gradle.properties` (this MSI has them; keystore + password at
-   `C:\Users\User\.folio-signing\` — **owner: back this folder up somewhere durable — losing it
-   before enrolling in Play App Signing = losing the app identity forever**). Machines without
-   the properties fall back to debug signing (plugin `apps/mobile/plugins/withUploadSigning.js`);
-   never upload those.
-3. **Upload format: AAB, not APK.** `gradlew bundleRelease` / EAS production profile. The 68MB
-   arm64-only APK is for sideloading testers only.
-4. **versionCode** must strictly increase every upload (currently 1). Bump in
-   `android/app/build.gradle` via `app.config.ts` version — automate before regular releases.
-5. **Privacy policy URL** — mandatory Play field. Draft lives at `PRIVACY_POLICY.md` (once
-   written); needs real hosting (domain page or GitHub Pages) before submission.
-6. **Data-safety form** — declare: Financial info (transactions/balances; statement images/PDFs
-   leave the device to the owner-run Cloudflare gateway for reading); Photos (same gateway);
-   Personal identifiers (Clerk email auth — third-party SaaS); Purchase history (Play Billing);
-   No ads, no analytics SDK (truthfully "no collection" for app-activity if still true at
-   submission).
-7. **Account deletion path** — Play requires one when account signup (Clerk) exists. Verify the
-   in-app wipe + Clerk account deletion story before submission.
-8. **Crash reporting live** (Sentry DSN in place) before any external tester build.
-9. **R8/resource shrinking on + release smoke-tested on device** (keep-rules iterated until the
-   release build boots clean).
-10. **Play Billing products** (`folio.plus.monthly` etc.) created in Play Console; billing E2E
-    tested with a license-tester account before flipping any price live.
+- Android package: `com.folio.v2.greenfield`
+- iOS bundle: `com.folio.v2.greenfield`
+- App version: `0.0.1`
+- Android versionCode: `1`
+
+Do not rename the package merely because historical checklists called it undecided. A package change
+would orphan installed devices and the billing audience. `apps/mobile/app.config.ts` and
+`apps/mobile/android/app/build.gradle` are the identity sources.
+
+## Current product and billing truth
+
+- App name: Melo.
+- Local core: usable without account, cloud, AI, Open Banking or billing.
+- Billing: `folio.full` is a one-time non-consumable Full entitlement;
+  `folio.live.monthly` and `folio.live.yearly` are Live subscriptions. `folio.plus.*` and
+  `folio.pro.*` are legacy restore-only IDs and are not current products.
+- Cloud: optional Clerk-authenticated client-encrypted Cloud Vault; production binding and restore /
+  deletion proof remain external.
+- Open Banking: disabled in the current release candidate; an explicit approved-build flag is
+  required before any regulated provider route is exposed.
+- AI: current mobile core is deterministic/local; raw document/chat transport is retired. The
+  enum-only gateway is future/optional and not a raw-data release dependency.
+- Sentry: redacted crash diagnostics only; no user fields, screenshots, traces or replay.
+
+## Hard gates before first Play upload
+
+1. Produce the actual upload-signed `app-release.aab`, verify package, version/versionCode and
+   signature, and record SHA-256. Never upload a debug-signed artifact or print keystore secrets.
+2. Keep `tooling/config/store-declarations.json.submittedBinarySha256` null until the exact candidate
+   has been hashed; then set it and `binaryMatched` only after the package/hash match is performed.
+3. Publish an owner-confirmed privacy policy URL, support contact and (because accounts exist) public
+   deletion URL. Do not invent any address or domain.
+4. Create the current Play products (`folio.full`, `folio.live.monthly`, `folio.live.yearly`) and
+   run license-test purchase, pending/invalid rejection, restore, expiry/cancellation/grace and
+   account/device-boundary proof. Do not sell legacy Plus/Pro IDs.
+5. Match Google Data Safety, Financial Features, account deletion, SDK/permission and reviewer
+   answers against the exact AAB. Do not set `consoleSubmitted` without real console evidence.
+6. Run signed-candidate Android runtime/accessibility/resilience smoke on a disposable or owner-
+   approved device. This machine has two authorized emulators, but the attached physical Android
+   device is `adb unauthorized`; no physical-device PASS is claimed until the owner accepts the USB
+   debugging authorization prompt.
+7. Obtain independent security, accessibility and privacy/legal sign-off; internal evidence cannot
+   close those blockers.
+
+## iOS gate
+
+EAS is authenticated, but the current production attempt needs interactive Apple credential /
+provisioning setup. Produce an iOS archive if credentials permit; runtime/install evidence still
+requires macOS/Xcode or an iOS device. Resolve the App Store export-compliance answer for standard
+AES-GCM implemented outside the OS (`ITSAppUsesNonExemptEncryption`) with the owner/legal reviewer;
+do not infer an exemption. No iOS PASS is claimed without the artifact and runtime evidence.
+
+## Authoritative status commands
+
+```text
+pnpm release:status
+pnpm store:status
+pnpm operations:status
+```
+
+Every blocker in `tooling/config/release-blockers.json` carries the exact classification
+`CLOSED`, `BLOCKED EXTERNAL` or `BLOCKED OWNER DECISION`. Historical phase documents remain evidence
+only; use the current register, store package and operations records for release decisions.

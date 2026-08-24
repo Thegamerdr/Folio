@@ -1,18 +1,131 @@
 {
   "schemaVersion": "1.0",
-  "releaseName": "Folio V2 public release gate",
-  "updatedOn": "2026-07-16",
+  "releaseName": "Melo release gate",
+  "updatedOn": "2026-08-24",
   "policy": {
     "publicReleaseAllowed": false,
     "allowSyntheticEvidenceForPublicRelease": false,
     "requireExternalSignoffForStoreRelease": true,
     "requireNoOpenHighCriticalFindings": true
   },
+  "currentTruth": {
+    "productName": "Melo",
+    "androidPackage": "com.folio.v2.greenfield",
+    "iosBundleIdentifier": "com.folio.v2.greenfield",
+    "version": "0.0.1",
+    "androidVersionCode": 1,
+    "billingProducts": ["folio.full", "folio.live.monthly", "folio.live.yearly"],
+    "legacyRestoreOnlyProducts": [
+      "folio.plus.monthly",
+      "folio.plus.yearly",
+      "folio.pro.monthly",
+      "folio.pro.yearly"
+    ],
+    "cloudScope": "optional Clerk-authenticated client-encrypted Cloud Vault",
+    "openBankingScope": "disabled in current release candidate; explicit approved-build flag required for future provider route",
+    "aiScope": "local deterministic core; raw document/chat transport retired; enum-only future route",
+    "evidenceAuthority": "OWNER_ACTION_PACK.md and current release/store/operations packages"
+  },
+  "classificationVocabulary": ["CLOSED", "BLOCKED EXTERNAL", "BLOCKED OWNER DECISION"],
+  "blockerDispositions": {
+    "RB-P0-IOS-NATIVE-SMOKE": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Produce and install an authenticated iOS build on macOS/Xcode or EAS."
+    },
+    "RB-NATIVE-SECURE-KEYS": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Run physical Android/iOS key-wrapping, app-lock and clean-restore proof and obtain independent review."
+    },
+    "RB-NATIVE-DOCUMENTS-OCR": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Complete supported iOS/device/format OCR and retained-source matrix on release candidates."
+    },
+    "RB-NATIVE-NOTIFICATIONS-CALENDAR-VOICE": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Run native notification, calendar and voice permission/privacy proof on supported devices."
+    },
+    "RB-VAULT-REAL-DATA-E2E": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Run release-candidate physical import-kill, corruption/low-storage/endurance and cross-device restore drills."
+    },
+    "RB-RESEARCH-USABILITY": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Run the approved debt-focused and financially avoidant participant protocol with privacy-safe evidence."
+    },
+    "RB-SECURITY-INDEPENDENT-REVIEW": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Send the completed security package and final binary/hash to an independent reviewer."
+    },
+    "RB-PRIVACY-LEGAL-DPIA": {
+      "classification": "BLOCKED OWNER DECISION",
+      "action": "Owner supplies legal entity/contact/URL and privacy counsel signs the current DPIA and policy package."
+    },
+    "RB-ACCESSIBILITY-INDEPENDENT-AUDIT": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Send release-candidate Android/iOS accessibility evidence to an independent reviewer."
+    },
+    "RB-CLOUD-ACCOUNT-DELETION": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Configure production Clerk/Workers/provider credentials and run disposable-account deletion E2E."
+    },
+    "RB-CLOUD-SYNC-RECOVERY": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Run production multi-device encrypted backup/restore, revoke and offline recovery proof."
+    },
+    "RB-AI-GATEWAY-EVALUATION": {
+      "classification": "BLOCKED OWNER DECISION",
+      "action": "Owner decides whether the optional enum-only provider route enters this release; current raw-data route remains disabled."
+    },
+    "RB-OPEN-BANKING-PROVIDER": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Obtain regulated provider contract/credentials and complete sandbox-to-production consent, deletion and incident proof."
+    },
+    "RB-BUSINESS-TAX-BETA": {
+      "classification": "BLOCKED OWNER DECISION",
+      "action": "Owner obtains tax/legal approval before enabling business/tax beta claims."
+    },
+    "RB-T183-STORE-DECLARATIONS": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Match the exact AAB/iOS binary and hash, then submit and review store declarations in the consoles."
+    },
+    "RB-T184-NATIVE-BILLING": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Create current Play products and run license-test purchase/restore/expiry proof with billing credentials."
+    },
+    "RB-T185-INCIDENT-RUNBOOKS": {
+      "classification": "BLOCKED OWNER DECISION",
+      "action": "Owner confirms a public security/support contact; internal tabletop and safe rotation evidence are complete."
+    },
+    "RB-T186-FINAL-REVIEW": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Obtain independent security, privacy/legal and accessibility decisions against the final candidate."
+    },
+    "RB-T187-FULL-REGRESSION-STORE-BUILDS": {
+      "classification": "BLOCKED EXTERNAL",
+      "action": "Attach the final AAB/hash, run device/runtime gates and complete signed account-deletion/store-build proof."
+    },
+    "RB-T188-LIMITED-UK-LAUNCH": {
+      "classification": "BLOCKED OWNER DECISION",
+      "action": "Owner approves the UK cohort, support route, rollback threshold and production launch decision."
+    },
+    "RB-T190-HOUSEHOLD-COLLABORATION": {
+      "classification": "BLOCKED OWNER DECISION",
+      "action": "Owner decides whether to start the separate household privacy/threat/permissions programme."
+    },
+    "RB-T191-DIRECT-HMRC-MTD": {
+      "classification": "BLOCKED OWNER DECISION",
+      "action": "Owner decides whether to start the separate HMRC conformance/legal programme."
+    },
+    "RB-T192-ADDITIONAL-JURISDICTIONS": {
+      "classification": "BLOCKED OWNER DECISION",
+      "action": "Owner chooses any additional country launch and funds its provider/tax/legal package."
+    }
+  },
   "currentEvidence": [
     {
       "blockerId": "RB-P0-IOS-NATIVE-SMOKE",
       "paths": ["docs/release-evidence/C0-native-smoke.md", "STATUS.md"],
-      "note": "Android native smoke is recorded; iOS remains blocked on macOS/Xcode or EAS signing evidence."
+      "note": "EAS is authenticated, but the iOS production build failed at interactive Apple credential/provisioning setup; no iOS install/launch evidence is claimed."
     },
     {
       "blockerId": "RB-NATIVE-SECURE-KEYS",
@@ -85,10 +198,11 @@
         "docs/source-package/release/DPIA_TEMPLATE.md",
         "docs/source-package/release/LEGAL_AND_REGULATORY_REVIEW_CHECKLIST.md",
         "docs/privacy-security/telemetry-and-samples.md",
+        "docs/source-package/release/DPIA_CURRENT_MELO_2026-08-24.md",
         "PRIVACY_POLICY.md",
         "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md"
       ],
-      "note": "DPIA, legal and telemetry policy surfaces exist; approval evidence remains external."
+      "note": "Current Melo DPIA/privacy/data-flow package is engineering-complete; legal/privacy owner signature and public policy/contact URL remain external."
     },
     {
       "blockerId": "RB-ACCESSIBILITY-INDEPENDENT-AUDIT",
@@ -135,7 +249,7 @@
         "docs/source-package/16_OPEN_BANKING_AND_PERMISSIONS.md",
         "docs/privacy-security/telemetry-and-samples.md"
       ],
-      "note": "Open Banking contracts and consent evidence exist; regulated provider proof remains blocked."
+      "note": "Open Banking is disabled in the current release candidate by an explicit build flag; any future regulated-provider build requires provider, consent, deletion, DPIA and store proof."
     },
     {
       "blockerId": "RB-BUSINESS-TAX-BETA",
@@ -158,9 +272,10 @@
         "docs/release-store/account-deletion-checklist.md",
         "docs/release-store/sdk-permission-financial-declarations.md",
         "docs/release-store/reviewer-notes.md",
-        "tooling/config/store-declarations.json"
+        "tooling/config/store-declarations.json",
+        "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md"
       ],
-      "note": "Store declaration requirements are indexed; submitted-binary review remains blocked."
+      "note": "Current Melo declaration package and SDK/processor inventory are prepared; candidate hash, owner URL/contact and console submission remain external."
     },
     {
       "blockerId": "RB-T184-NATIVE-BILLING",
@@ -169,9 +284,12 @@
         "apps/mobile/src/folio/lib/billing",
         "services/billing-entitlements",
         "packages/store-release/test/store-release.test.ts",
-        "packages/release-gate/test/release-gate.test.ts"
+        "packages/release-gate/test/release-gate.test.ts",
+        "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
+        "services/billing-entitlements/PRODUCT_CONFIGURATION.md",
+        "services/billing-entitlements/RUNTIME_EVIDENCE.md"
       ],
-      "note": "Android purchase/restore code and signed server entitlement verification exist; Play listing, provider credentials and live native purchase proof remain blocked."
+      "note": "Billing Worker is deployed with signer and token store configured and serves the three current sellable SKUs; Google Play provider credential is missing, so live purchase/restore proof remains external."
     },
     {
       "blockerId": "RB-T185-INCIDENT-RUNBOOKS",
@@ -182,18 +300,21 @@
         "docs/release-operations/tabletop-exercise-record.md",
         "docs/release-operations/rotation-drill-record.md",
         "docs/release-operations/vulnerability-disclosure-readiness.md",
-        "tooling/config/operations-readiness.json"
+        "tooling/config/operations-readiness.json",
+        "OWNER_ACTION_PACK.md"
       ],
-      "note": "Incident classes and blocker gate exist; tabletop and drill evidence remains missing."
+      "note": "Internal tabletop and safe rotation dry-runs are executed and recorded; only the owner-confirmed public disclosure/support contact remains."
     },
     {
       "blockerId": "RB-T186-FINAL-REVIEW",
       "paths": [
         "docs/release-evidence/C14-store-billing-operations-release.md",
         "docs/source-package/release/SECURITY_REVIEW_CHECKLIST.md",
-        "docs/source-package/release/DPIA_TEMPLATE.md"
+        "docs/source-package/release/DPIA_TEMPLATE.md",
+        "docs/source-package/release/DPIA_CURRENT_MELO_2026-08-24.md",
+        "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md"
       ],
-      "note": "Final review inputs are indexed; independent final signoff remains blocked."
+      "note": "Final review package is current and ready to send; independent security/privacy/accessibility/legal signoff remains external."
     },
     {
       "blockerId": "RB-T187-FULL-REGRESSION-STORE-BUILDS",
@@ -211,7 +332,7 @@
         "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md",
         "STATUS.md"
       ],
-      "note": "Final CI, upload-signed dual-ABI Android APK/AAB validation, final emulator smoke, generation-bound/inverse-parity reads for all 44 durable AppState fields, mapped typed-command audit persistence and earlier data-preserving physical-device boot are proven. This exact candidate deliberately targeted only the emulator. Full offline/destructive resilience, production account-deletion E2E and iOS release/store builds remain blocked."
+      "note": "Historical CI/emulator and persistence evidence is retained. Two emulators are authorized, but the attached physical Android device is adb-unauthorized; no current AAB/hash or physical release-device proof is claimed yet. Final account-deletion E2E, store match and iOS proof remain external."
     },
     {
       "blockerId": "RB-T188-LIMITED-UK-LAUNCH",

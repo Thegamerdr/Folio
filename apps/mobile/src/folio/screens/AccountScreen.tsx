@@ -93,6 +93,7 @@ import { useLens } from '@/folio/lib/lens';
 import { hasStatementSourceData } from '@/folio/lib/accountSources';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
+import { isOpenBankingEnabled } from '@/folio/lib/openBankingConfig';
 import {
   deleteRemoteMeloAccount,
   RemoteAccountDeletionError,
@@ -323,6 +324,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   // ever run inside ClerkSignInRow, which only mounts when this is true (and therefore only when
   // the root layout actually wrapped the tree in ClerkProvider).
   const clerkConfigured = isClerkConfigured();
+  const openBankingEnabled = isOpenBankingEnabled();
   const [signInVisible, setSignInVisible] = useState(false);
   const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
   const [bankConnectionVisible, setBankConnectionVisible] = useState(false);
@@ -438,21 +440,28 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
       },
       {
         label: 'Bank connection',
-        hint: !clerkConfigured
-          ? 'account service not configured'
-          : bankSummary?.active
-            ? 'connected · read-only'
-            : bankSummary?.providerConfigured === false
-              ? 'provider setup pending'
-              : 'optional · read-only',
+        hint: !openBankingEnabled
+          ? 'not available in this release'
+          : !clerkConfigured
+            ? 'account service not configured'
+            : bankSummary?.active
+              ? 'connected · read-only'
+              : bankSummary?.providerConfigured === false
+                ? 'provider setup pending'
+                : 'optional · read-only',
         state: bankSummary?.active ? ('connected' as const) : ('optional' as const),
         action: () =>
-          clerkConfigured
-            ? setBankConnectionVisible(true)
-            : Alert.alert(
-                'Bank connection is not configured',
-                'Statements, photos, CSV and manual entries still work on this device.',
-              ),
+          !openBankingEnabled
+            ? Alert.alert(
+                'Bank connection is not available',
+                'Melo’s current release is manual and statement-led. Your local data stays on this device.',
+              )
+            : clerkConfigured
+              ? setBankConnectionVisible(true)
+              : Alert.alert(
+                  'Bank connection is not configured',
+                  'Statements, photos, CSV and manual entries still work on this device.',
+                ),
       },
       {
         label: 'Payday & income',
@@ -474,6 +483,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
     incomeCadenceLabel,
     bankSummary,
     clerkConfigured,
+    openBankingEnabled,
     nav,
   ]);
 
@@ -1130,13 +1140,15 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             visible={cloudBackupVisible}
             onClose={() => setCloudBackupVisible(false)}
           />
-          <BankConnectionSheet
-            visible={bankConnectionVisible}
-            onClose={() => setBankConnectionVisible(false)}
-            onRequestSignIn={() => setSignInVisible(true)}
-            onReview={() => nav.go('review')}
-            onStatusChange={setBankSummary}
-          />
+          {openBankingEnabled ? (
+            <BankConnectionSheet
+              visible={bankConnectionVisible}
+              onClose={() => setBankConnectionVisible(false)}
+              onRequestSignIn={() => setSignInVisible(true)}
+              onReview={() => nav.go('review')}
+              onStatusChange={setBankSummary}
+            />
+          ) : null}
         </>
       ) : null}
     </Animated.View>

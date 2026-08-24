@@ -1,4 +1,3 @@
-import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 
 import {
@@ -11,6 +10,7 @@ import {
 import type { WorkspaceId } from '@folio/domain';
 
 import { workspaceBackupRef } from './cloudBackup';
+import { getOpenBankingUrl, isOpenBankingEnabled } from './openBankingConfig';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -136,6 +136,17 @@ export async function disconnectOpenBankingConnection(
 export async function deleteOpenBankingAccountData(
   token: string,
 ): Promise<OpenBankingAccountDeletionResponse> {
+  // The release candidate does not expose Open Banking. Account deletion remains complete and
+  // deterministic without making a request to an undeclared provider endpoint.
+  if (!isOpenBankingEnabled()) {
+    return {
+      deletedConnections: 0,
+      futureAccessStopped: true,
+      providerSecretsDeleted: true,
+      providerRevocationSupported: false,
+      pendingCallbackMetadataExpiresWithinSeconds: 0,
+    };
+  }
   const payload = await requestJson('/v1/account', token, null, { method: 'DELETE' });
   if (!record(payload)) throw invalidResponse();
   const deletedConnections = payload['deletedConnections'];
@@ -161,17 +172,15 @@ export async function deleteOpenBankingAccountData(
 }
 
 function baseUrl(): string {
-  const value =
-    process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_URL ??
-    Constants.expoConfig?.extra?.['EXPO_PUBLIC_MELO_OPEN_BANKING_URL'];
-  if (typeof value !== 'string' || value.trim().length === 0) {
+  const value = getOpenBankingUrl();
+  if (value === undefined) {
     throw new OpenBankingClientError(
-      'Bank connection is not configured for this Melo build yet.',
-      'service_not_configured',
-      503,
+      'Bank connection is not available in this Melo release.',
+      'feature_disabled',
+      404,
     );
   }
-  return value.replace(/\/+$/u, '');
+  return value;
 }
 
 async function requestJson(

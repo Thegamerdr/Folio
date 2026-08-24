@@ -10,6 +10,8 @@ plaintext money record or an unwrapped recovery key.
 - `PUT /v1/backup` — upload one bounded encrypted snapshot and rotate the previous generation.
 - `GET /v1/backup/content` — download the latest encrypted snapshot.
 - `DELETE /v1/backup` — delete both retained generations for the signed-in user.
+- `DELETE /v1/account` — purge every retained generation across every workspace for the signed-in
+  account; this is the route used before Clerk identity deletion.
 
 All `/v1/*` routes require a valid Clerk session JWT in `Authorization: Bearer …`. KV keys use a
 SHA-256 digest of the Clerk user ID, so the provider object key does not expose the raw account ID.
@@ -23,3 +25,8 @@ SHA-256 digest of the Clerk user ID, so the provider object key does not expose 
 
 The checked-in Clerk host is the current development instance. A production Clerk environment must
 replace it before a public build.
+
+Account deletion is idempotent: a missing backup still returns `{ "deleted": true }`, while any KV
+failure returns a service error and the client keeps the identity so deletion can be retried. Local
+encrypted state and recovery secrets are intentionally separate; the mobile flow clears those only
+after the remote purge is confirmed.

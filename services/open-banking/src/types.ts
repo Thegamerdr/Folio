@@ -144,6 +144,8 @@ export type OpenBankingStore = Readonly<{
 }>;
 
 export type RuntimeEnv = Readonly<{
+  /** Explicit release switch. Provider credentials alone must never expose the route. */
+  OPEN_BANKING_ENABLED?: string;
   CLERK_ISSUER: string;
   CLERK_JWKS_URL: string;
   ALLOWED_ORIGINS?: string;

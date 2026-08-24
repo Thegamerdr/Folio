@@ -1,26 +1,37 @@
-# Google Data Safety Checklist
+# Google Play Data Safety — Melo engineering draft (2026-08-24)
 
-## Status
+Status: **prepared; BLOCKED EXTERNAL until the exact `app-release.aab` is hashed/matched and the
+owner submits/reviews the Play Console form.**
 
-Blocked. This file is a declaration checklist, not Play Console evidence.
+## Current answers to reconcile in Play Console
 
-## Required Before Release
+- Product: Melo; package `com.folio.v2.greenfield`; version `0.0.1`, versionCode `1`.
+- Financial information: collected locally for the core; sent only when the user opts into Cloud
+  Vault backup, billing verification or the Open Banking provider boundary. Melo does not sell or
+  use it for advertising.
+- Photos/files: selected statement images/PDFs are read locally. An Open Banking connection sends
+  provider-required data only after explicit consent. Retained originals stay encrypted locally.
+- Personal identifiers: Clerk receives sign-in identifier/session data only when the user signs in.
+- Purchase history: Google Play and Melo billing verification receive product ID/purchase proof;
+  Melo does not receive card details.
+- App activity/analytics/advertising: no behavioural analytics, ad SDK or tracking SDK.
+- Crash diagnostics: Sentry receives redacted technical exception/device context; user fields,
+  screenshots, view hierarchy, traces and replay are disabled.
+- Data sharing: Cloud Vault receives client-encrypted ciphertext/metadata; Open Banking provider
+  access is optional and consented; AI raw document/chat transport is retired.
+- Deletion: local wipe exists; Cloud Vault and provider-index purge routes exist; identity deletion
+  is fail-closed until remote purge confirms. Public web deletion URL and production E2E proof remain
+  external.
+- Security: encryption in transit and encrypted local storage; no provider secret is embedded in
+  the APK.
+- Financial features: record organisation, budgeting, deterministic forecasts and reviewed imports;
+  no payments, money custody, investment/product recommendation or direct tax filing.
 
-- Data Safety form is completed on the App content page in Play Console.
-- Privacy policy is added and reachable.
-- App permissions, APIs and SDK behavior are reviewed against the submitted Android release
-  artifact.
-- Data collection and sharing caused by third-party SDKs are reflected in the form.
-- Optional cloud, AI, Open Banking, business workspace and diagnostics routes are represented by
-  the real release configuration.
-- Internal-only test behavior is not used to claim public release readiness.
+## Required external evidence
 
-## Current Folio Position
+1. Owner confirms an owned public privacy/support/deletion URL.
+2. Release engineer attaches the exact candidate AAB and SHA-256.
+3. Play Console owner creates/reviews the declaration and billing products.
+4. Production Clerk/Worker/provider test account proves deletion and consent revocation boundaries.
 
-- Android development-client evidence exists, but public release artifact and Play Console forms do
-  not.
-- Store declarations must be reviewed against the actual submitted package, not synthetic evidence.
-
-## Official Reference
-
-- `https://support.google.com/googleplay/android-developer/answer/10787469`
+Official reference: <https://support.google.com/googleplay/android-developer/answer/10787469>

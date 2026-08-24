@@ -1,5 +1,6 @@
 import { BillingProviderError, googlePlayProvider } from './google';
 import { entitlementSigner } from './signing';
+import { BILLING_CATALOG, BILLING_PRODUCT_TIERS, SELLABLE_BILLING_PRODUCTS } from './catalog';
 import type {
   EntitlementGrantClaims,
   EntitlementStore,
@@ -8,15 +9,6 @@ import type {
   RuntimeEnv,
 } from './types';
 
-const PRODUCT_TIERS = new Map<string, 'full' | 'live'>([
-  ['folio.full', 'full'],
-  ['folio.live.monthly', 'live'],
-  ['folio.live.yearly', 'live'],
-  ['folio.plus.monthly', 'full'],
-  ['folio.plus.yearly', 'full'],
-  ['folio.pro.monthly', 'full'],
-  ['folio.pro.yearly', 'full'],
-]);
 const LIVE_OFFLINE_GRACE_MS = 72 * 60 * 60 * 1000;
 const LIVE_REFRESH_MS = 24 * 60 * 60 * 1000;
 const FULL_REFRESH_MS = 90 * 24 * 60 * 60 * 1000;
@@ -72,7 +64,20 @@ export async function handleRequest(
         tokenStoreConfigured: store !== null,
         clientGrantsAccepted: false,
         purchaseTokensStored: false,
-        products: [...PRODUCT_TIERS.keys()],
+        products: BILLING_CATALOG.map((product) => product.productId),
+      },
+      200,
+      request,
+      env,
+    );
+  }
+  if (request.method === 'GET' && url.pathname === '/v1/catalog') {
+    return json(
+      {
+        currency: 'GBP',
+        priceAuthority: 'Google Play Console',
+        pricesArePrototype: true,
+        products: SELLABLE_BILLING_PRODUCTS,
       },
       200,
       request,
@@ -119,8 +124,15 @@ export async function handleRequest(
   const body = await safeJsonBody(request);
   const productId = typeof body['productId'] === 'string' ? body['productId'] : '';
   const purchaseToken = typeof body['purchaseToken'] === 'string' ? body['purchaseToken'] : '';
-  const expectedTier = PRODUCT_TIERS.get(productId);
-  if (expectedTier === undefined || purchaseToken.length < 8 || purchaseToken.length > 4096) {
+  const expectedTier = BILLING_PRODUCT_TIERS.get(productId);
+  const catalogProduct = BILLING_CATALOG.find((product) => product.productId === productId);
+  if (
+    expectedTier === undefined ||
+    catalogProduct === undefined ||
+    (!catalogProduct.sellable && catalogProduct.tier !== 'full') ||
+    purchaseToken.length < 8 ||
+    purchaseToken.length > 4096
+  ) {
     return json(
       { error: 'The purchase proof is invalid.', code: 'invalid_request' },
       400,

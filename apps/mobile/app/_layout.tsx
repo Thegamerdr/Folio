@@ -41,8 +41,10 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
+    // Keep local logs free of exception messages, component stacks and props. Sentry receives the
+    // same boundary through beforeSend redaction, while the on-device fallback remains useful.
     // eslint-disable-next-line no-console
-    console.error('Root crashed:', error, info);
+    console.error('Root error boundary captured an application failure.');
     try {
       Sentry.captureException(error);
     } catch {
@@ -168,7 +170,7 @@ function RootLayout() {
   useEffect(() => {
     if (fontError === null) return;
     // eslint-disable-next-line no-console
-    console.error('Bundled fonts failed to load; continuing with platform fallbacks.', fontError);
+    console.error('Bundled fonts failed to load; continuing with platform fallbacks.');
     try {
       Sentry.captureException(fontError);
     } catch {

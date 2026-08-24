@@ -1,17 +1,11 @@
 import { importPKCS8, SignJWT } from 'jose';
 
 import type { EntitlementTier, ProviderProof, PurchaseProvider, RuntimeEnv } from './types';
+import { BILLING_PRODUCT_TIERS } from './catalog';
 
 const ANDROID_PUBLISHER_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
 const PLAY_API = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
 const FULL_PRODUCT = 'folio.full';
-const LIVE_PRODUCTS = new Set(['folio.live.monthly', 'folio.live.yearly']);
-const LEGACY_FULL_PRODUCTS = new Set([
-  'folio.plus.monthly',
-  'folio.plus.yearly',
-  'folio.pro.monthly',
-  'folio.pro.yearly',
-]);
 const VALID_SUBSCRIPTION_STATES = new Set([
   'SUBSCRIPTION_STATE_ACTIVE',
   'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
@@ -132,8 +126,8 @@ async function verifySubscription(
   if (!Number.isFinite(expiryMs) || expiryMs <= Date.now()) {
     invalidProof('purchase_expired', 'The Play subscription has expired.');
   }
-  const tier: EntitlementTier = LEGACY_FULL_PRODUCTS.has(productId) ? 'full' : 'live';
-  if (tier === 'live' && !LIVE_PRODUCTS.has(productId)) {
+  const tier = BILLING_PRODUCT_TIERS.get(productId) as EntitlementTier | undefined;
+  if (tier === undefined || (tier === 'live' && !productId.startsWith('folio.live.'))) {
     invalidProof('product_not_allowed', 'The Play product is not allowed for Melo Live.');
   }
   return {

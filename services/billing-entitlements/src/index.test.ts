@@ -77,6 +77,42 @@ describe('billing entitlement worker', () => {
     });
   });
 
+  it('exposes the non-secret sellable catalog for console reconciliation', async () => {
+    const response = await handleRequest(
+      new Request('https://billing.example.test/v1/catalog'),
+      null,
+      provider(),
+      signer([]),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      currency: 'GBP',
+      priceAuthority: 'Google Play Console',
+      pricesArePrototype: true,
+      products: [
+        {
+          productId: 'folio.full',
+          billingType: 'one_time',
+          cadence: 'one_time',
+          sellable: true,
+        },
+        {
+          productId: 'folio.live.monthly',
+          billingType: 'subscription',
+          cadence: 'monthly',
+          sellable: true,
+        },
+        {
+          productId: 'folio.live.yearly',
+          billingType: 'subscription',
+          cadence: 'annual',
+          sellable: true,
+        },
+      ],
+    });
+  });
+
   it('issues a signed Full grant only after provider verification', async () => {
     const claims: EntitlementGrantClaims[] = [];
     const writes: string[] = [];

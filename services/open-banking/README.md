@@ -4,9 +4,10 @@ This Worker is Melo's provider isolation boundary for optional UK Open Banking. 
 TrueLayer Data v3's hosted authorisation flow and never exposes TrueLayer client credentials,
 access tokens, connection IDs, or provider account IDs to the mobile app.
 
-The checked-in deployment is deliberately unconfigured. A healthy Worker may report
-`providerConfigured: false`; that means the server and honest unavailable state are working, not
-that a bank connection exists.
+The checked-in deployment is deliberately disabled and unconfigured. `OPEN_BANKING_ENABLED=false`
+keeps every non-health route dark even if provider credentials are accidentally present. A healthy
+Worker reports both `featureEnabled: false` and (normally) `providerConfigured: false`; that means
+the server and honest unavailable state are working, not that a bank connection exists.
 
 The current service requests account details and transactions only. It does not fetch account
 balances. Do not describe the current build as live-balance refresh; the required contract and
@@ -19,6 +20,8 @@ Production or sandbox connection work requires owner-controlled TrueLayer setup:
 3. Set `TRUELAYER_CLIENT_ID` and `TRUELAYER_CLIENT_SECRET` with `wrangler secret put`.
 4. Generate a random 32-byte key and set its base64 value as `CONNECTION_ENCRYPTION_KEY`.
 5. Re-deploy and run the provider sandbox contract and consent-journey evidence pass.
+6. Set `OPEN_BANKING_ENABLED=true` only after provider, privacy, legal and store approval; setting
+   the provider secrets alone must not activate the route.
 
 Data v3 uses an application client-credentials token. The Worker keeps that token only in memory
 until it expires. Provider connection and account IDs are encrypted with AES-256-GCM before KV

@@ -184,12 +184,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     EXPO_PUBLIC_MELO_CLOUD_VAULT_URL:
       process.env.EXPO_PUBLIC_MELO_CLOUD_VAULT_URL ??
       'https://melo-cloud-vault.tgdroppin.workers.dev',
-    // Optional UK Open Banking adapter. Provider credentials and per-user provider connection
-    // identifiers stay in the Worker; the app receives only provider-neutral consent/account state
-    // and staged transaction candidates.
+    // Open Banking is not active in the current release candidate. Both values must be supplied
+    // explicitly for an approved provider build; an embedded URL alone cannot expose a connect
+    // flow or send provider data.
+    EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED:
+      process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED === 'true' ? 'true' : undefined,
     EXPO_PUBLIC_MELO_OPEN_BANKING_URL:
-      process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_URL ??
-      'https://melo-open-banking.tgdroppin.workers.dev',
+      process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED === 'true'
+        ? process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_URL
+        : undefined,
     // Google Play purchase verification. The private Play/service and Ed25519 signing keys stay
     // in the Worker; the APK contains only this endpoint and the public verification key.
     EXPO_PUBLIC_MELO_BILLING_URL:

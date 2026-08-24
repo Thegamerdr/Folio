@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { openJson, sealJson } from './crypto';
 import { handleAuthenticatedRequest, handleCallback, handleRequest } from './index';
@@ -10,6 +10,7 @@ const WORKSPACE_B_REF = '2'.repeat(64);
 const KEY = btoa(String.fromCharCode(...Array.from({ length: 32 }, (_, index) => index + 1)));
 
 const env: RuntimeEnv = {
+  OPEN_BANKING_ENABLED: 'true',
   CLERK_ISSUER: 'https://clerk.test',
   CLERK_JWKS_URL: 'https://clerk.test/jwks.json',
   ALLOWED_ORIGINS: '',
@@ -108,10 +109,29 @@ describe('Melo Open Banking service', () => {
     );
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
+      featureEnabled: true,
       providerConfigured: false,
       providerCredentialsInApp: false,
       directLedgerWrites: false,
     });
+  });
+
+  it('keeps every non-health route dark when the release switch is off', async () => {
+    const { store } = memoryStore();
+    const authenticate = vi.fn(async () => USER_HASH);
+    const response = await handleRequest(
+      jsonRequest('GET', '/v1/connections'),
+      store,
+      fakeProvider(true),
+      { ...env, OPEN_BANKING_ENABLED: 'false' },
+      authenticate,
+    );
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Bank connection is not available in this release.',
+      code: 'feature_disabled',
+    });
+    expect(authenticate).not.toHaveBeenCalled();
   });
 
   it('round-trips provider identifiers only through AES-256-GCM envelopes', async () => {

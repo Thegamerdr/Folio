@@ -1,27 +1,40 @@
 {
   "schemaVersion": "1.0",
-  "releaseName": "Folio V2 operations readiness",
-  "updatedOn": "2026-06-21",
+  "releaseName": "Melo release operations readiness",
+  "updatedOn": "2026-08-24",
+  "releaseIdentity": {
+    "productName": "Melo",
+    "androidPackage": "com.folio.v2.greenfield",
+    "version": "0.0.1",
+    "versionCode": 1,
+    "source": "apps/mobile/app.config.ts and apps/mobile/android/app/build.gradle"
+  },
   "tabletopExercise": {
-    "complete": false,
+    "complete": true,
+    "executedOn": "2026-08-24",
     "evidencePath": "docs/release-operations/tabletop-exercise-record.md",
-    "blocker": "tabletop exercise is not complete"
+    "blocker": ""
   },
   "support": {
     "secureDiagnosticsReady": true,
     "supportCannotRequestRecoverySecret": true,
     "breachNotificationOwnerAssigned": true,
+    "contactRoute": null,
+    "contactRouteStatus": "OWNER INPUT REQUIRED: choose/confirm support contact",
     "boundaryPath": "docs/release-operations/incident-support-runbook.md"
   },
   "rotationDrills": {
-    "complete": false,
+    "complete": true,
+    "executedOn": "2026-08-24",
     "evidencePath": "docs/release-operations/rotation-drill-record.md",
-    "blocker": "key/provider/model rotation drills are missing"
+    "blocker": "",
+    "productionRotationTruth": "Safe dry-runs executed; production credential rotations deliberately not performed without owner/provider authorization."
   },
   "vulnerabilityDisclosure": {
     "ready": false,
     "evidencePath": "docs/release-operations/vulnerability-disclosure-readiness.md",
-    "blocker": "vulnerability disclosure channel is not ready"
+    "blocker": "OWNER INPUT REQUIRED: choose/confirm security contact route",
+    "classification": "BLOCKED OWNER DECISION"
   },
   "runbooks": [
     {

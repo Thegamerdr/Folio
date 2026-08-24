@@ -1,8 +1,8 @@
-# Store Declaration Readiness
+# Melo Store Declaration Readiness
 
-This directory carries the local declaration pack for `RB-T183`. It is not proof of App Store or
-Google Play approval. It defines the evidence that must be checked against a submitted binary,
-store-console forms, SDK inventory and data flows before public release.
+This directory carries the current Melo declaration pack for `RB-T183`. It is not proof of App Store
+or Google Play approval. `CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md` is the authority for the
+current product/data-flow draft; the individual checklists are reviewer-facing extracts.
 
 Current commands:
 
@@ -11,12 +11,15 @@ Current commands:
 - `pnpm store:guard`: fail until submitted-binary review and store-console declarations are
   complete.
 
-Current state:
+Current state (2026-08-24):
 
 - Apple App Privacy, account deletion, Google Data Safety, Google account deletion, financial
   features, SDK/permission inventory and reviewer-note checklists exist.
-- Store-console submission, submitted-binary comparison, privacy policy URL, processor-list
-  approval and SDK inventory approval remain blocked.
+- Processor and SDK inventories are engineering-current.
+- Store-console submission, submitted-binary comparison, privacy-policy URL, support route,
+  candidate SHA-256, billing listing and public deletion URL remain external/owner actions.
+- The package identity is settled: Melo with `com.folio.v2.greenfield`; stale Folio/Plus/Pro naming
+  decisions must not be reopened. `folio.plus.*` and `folio.pro.*` are restore-only legacy IDs.
 
 Official references checked on 2026-06-21:
 

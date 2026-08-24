@@ -23,12 +23,17 @@ export class ProviderError extends Error {
 }
 
 export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
+  // Provider traffic must never be downgraded to plaintext. Keep this check at the
+  // configuration boundary so a typo cannot silently turn into an HTTP Authorization
+  // request; tests and local mocks can still provide a fake HTTPS origin.
+  const authBase = secureBaseUrl(env.TRUELAYER_AUTH_BASE_URL);
+  const apiBase = secureBaseUrl(env.TRUELAYER_API_BASE_URL);
   const configured =
     nonEmpty(env.TRUELAYER_CLIENT_ID) &&
     nonEmpty(env.TRUELAYER_CLIENT_SECRET) &&
-    nonEmpty(env.CONNECTION_ENCRYPTION_KEY);
-  const authBase = trimSlash(env.TRUELAYER_AUTH_BASE_URL);
-  const apiBase = trimSlash(env.TRUELAYER_API_BASE_URL);
+    nonEmpty(env.CONNECTION_ENCRYPTION_KEY) &&
+    authBase !== null &&
+    apiBase !== null;
 
   const token = async (): Promise<string> => {
     if (!configured) throw new ProviderError('provider_not_configured', 503);
@@ -46,7 +51,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
       client_secret: env.TRUELAYER_CLIENT_SECRET as string,
       scope: 'data',
     });
-    const response = await fetch(`${authBase}/connect/token`, {
+    const response = await fetch(`${authBase!}/connect/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
@@ -73,7 +78,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
     headers.set('Accept', 'application/json');
     headers.set('Authorization', `Bearer ${await token()}`);
     if (providerConnectionId !== undefined) headers.set('Connection-Id', providerConnectionId);
-    const response = await fetch(`${apiBase}${path}`, { ...init, headers });
+    const response = await fetch(`${apiBase!}${path}`, { ...init, headers });
     const payload = await readJson(response);
     if (!response.ok) throw providerError(response, payload);
     return { response, payload };
@@ -252,6 +257,17 @@ function nonEmpty(value: string | undefined): value is string {
 
 function trimSlash(value: string): string {
   return value.replace(/\/+$/u, '');
+}
+
+function secureBaseUrl(value: string | undefined): string | null {
+  if (!nonEmpty(value)) return null;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+    return trimSlash(parsed.toString());
+  } catch {
+    return null;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

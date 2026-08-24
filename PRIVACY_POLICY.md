@@ -1,107 +1,97 @@
-# Privacy Policy — Melo (working product name)
+# Privacy Policy — Melo (engineering-current draft)
 
-_Last updated: 16 July 2026 · Draft pending final legal review, company identity, contact address
-and hosted policy URL._
+_Last reconciled 24 August 2026 · Product: Melo · Android package/iOS bundle:
+`com.folio.v2.greenfield` · version `0.0.1`._
+
+This document is the engineering-current privacy source for the store package. It is not legal
+approval or a published policy. The owner must provide the legal entity, contact route, public URL
+and legal/privacy sign-off before store submission.
 
 ## The short version
 
-Your money data lives on your device, encrypted, under your control. Statement PDFs, images, OCR
-text, transaction rows, exact values and Melo conversations are not sent to an AI provider. Melo's
-current companion and statement-reading paths run on the device.
+Melo is local-first. Your money records, calculations, review state and retained statement sources
+stay on your device in encrypted storage unless you explicitly choose an external feature. Melo's
+current mobile core does not send raw statements, images, OCR text, transaction rows, exact values,
+typed chat or conversation history to an AI provider. There is no advertising, ad identifier,
+behavioural analytics or session replay.
 
-The release build contains no advertising or behavioural-analytics SDK. Limited data can leave the
-device only for a feature that needs an external service: optional sign-in/encrypted backup, a store
-purchase, an Open Banking connection if that service is activated, or a scrubbed crash report. The
-sections below describe those boundaries.
-
-## Data stored on your device
+## What is stored locally
 
 Balances, accounts, transactions, bills, subscriptions, pots, plans, debts, settings, review state
-and companion memory are stored in an encrypted SQLCipher database. A separate authenticated,
-encrypted recovery generation protects migration and recovery. Statement originals you choose to
-retain are encrypted separately with workspace-bound AES-256-GCM before the app records their
-metadata. Picker/cache paths and source bytes are not written into AppState.
+and local companion memory are stored in the encrypted local database. Retained statement originals
+are encrypted separately with workspace-bound AES-256-GCM. Device secure storage protects the local
+data key; the app fails closed rather than writing money state to an unencrypted fallback.
 
-The device data key is held through the operating system's secure storage. The current Android
-release fails closed rather than writing money state to an unencrypted fallback. Using Melo's full
-local-data deletion removes the encrypted database family, recovery generations, retained source
-files, local exports and temporary viewer files.
+The local Start fresh flow removes the encrypted database family, recovery generations, retained
+sources, local exports and temporary viewer files. Export is user-controlled and preserves exact
+stored values; CSV output neutralises spreadsheet formulas.
 
-## Statement reading and Melo
+## Optional external features
 
-**Statement reading stays local.** PDF text extraction and image recognition use bundled on-device
-components. CSV, TSV, TXT and pasted rows are parsed locally. The retired cloud statement-reader
-functions do not read the selected URI and do not call the network. Every extracted row remains a
-candidate until you review it.
+### Sign-in and encrypted Cloud Vault backup
 
-**Melo currently stays local.** The shipping companion uses deterministic local reasoning. Remote
-chat transport is disabled, so typed questions, conversation history and financial snapshots are
-not uploaded.
+If you sign in, Clerk processes the identifier and session data required for authentication. If you
+choose backup, Melo encrypts the state on-device before sending an opaque envelope and operational
+metadata to the Cloud Vault Worker. The Worker must not receive plaintext money data or an unwrapped
+recovery key. Cloud backup is optional; local use continues when sign-in, the service or network is
+unavailable.
 
-The separate AI gateway is restricted to an optional future wording task. It accepts only approved
-intent/tone/outcome enums and placeholder names such as `<AMOUNT>`; it rejects prompts, messages,
-documents, images, names, transaction rows and exact values before contacting a model provider. The
-current mobile app does not call this route.
+Signed-in account deletion purges Cloud Vault generations and the Open Banking adapter's indexed
+records before requesting Clerk identity deletion. Identity deletion is fail-closed when a remote
+purge fails so it can be retried. Production provider configuration, public web deletion route and
+signed end-to-end evidence remain release gates.
 
-## Other data that can leave the device
+### Store purchases
 
-**Crash diagnostics.** The release build can send a crash event to Sentry so failures can be fixed.
-Events retain exception type, source stack, severity and technical app/device context. Before
-transmission, Melo removes user, request, extra and breadcrumb fields and replaces free-text
-messages. Default PII, screenshots, view hierarchy, performance traces and session replay are
-disabled. Crash-free session counting can be enabled; it is not tied to a Melo user identity.
+Google Play (and Apple if an iOS listing is later created) processes payment details. Melo receives
+only product IDs and purchase proof needed to verify an entitlement. The current product model is
+`folio.full` (one-time Full) plus `folio.live.monthly` and `folio.live.yearly` (Live subscriptions).
+Legacy `folio.plus.*`/`folio.pro.*` IDs are restore-only compatibility IDs and are not sold by Melo.
+Melo does not receive card details. The listing, sandbox purchase, restore, expiry/cancellation and
+production verification still require store-console evidence.
 
-**Sign-in and encrypted backup (optional, when configured).** If you choose to sign in, the
-authentication provider processes the sign-in identifier and session data needed for that request.
-If encrypted backup is enabled, financial state is encrypted on the device before upload; the
-backup service receives ciphertext and operational metadata, not the plaintext financial state.
-Production identity, deletion and clean-device restore remain release-gated until their end-to-end
-evidence is complete.
+### Open Banking
 
-**Purchases (when a listed product is available).** Google Play processes the purchase and payment
-details. Melo receives the product identifier and purchase proof needed for server verification and
-stores the resulting signed entitlement. Melo does not receive card details. Store products and
-production verification remain disabled unless the exact release binary is matched to a live
-listing.
+Open Banking is **disabled in the current release candidate**. The mobile build does not expose the
+bank-connection surface or send provider data. A future approved build may enable a provider-isolated
+adapter behind an explicit build flag; that build would require provider contract, consent, DPIA,
+deletion and store re-review. Provider credentials remain server-side, and returned rows would be
+staged as review candidates rather than becoming financial truth automatically.
 
-**Open Banking (not active in the current release candidate).** If activated later and you
-explicitly connect a bank, the selected regulated provider must process the account/transaction
-data required for the consented Account Information service. Provider credentials stay out of the
-mobile app, imported rows remain review-only, and disconnect/account deletion must revoke access
-and remove Melo's encrypted provider identifiers. Provider contracts, DPIA, production consent and
-deletion evidence are release gates.
+### Crash diagnostics
 
-## What we do not do
+Sentry may receive exception type, source stack, severity and technical app/device context. Melo
+removes user, request, extra and breadcrumb fields and disables PII, screenshots, view hierarchy,
+performance traces and session replay. Diagnostic failures do not block local use.
+
+### AI/provider boundary
+
+Raw document, image, OCR, transaction, exact-value and chat transport is retired. The optional
+gateway accepts only approved intent/tone/outcome enums and placeholder tokens if a future feature is
+explicitly enabled; the current mobile core does not call it. Raw routes return `410`, and local
+deterministic reasoning remains available if any provider route is unavailable.
+
+## What Melo does not do
 
 - No advertising, ad identifiers, data sale or behavioural profiling.
 - No background upload of financial records.
-- No raw statement, image, OCR text, chat history, merchant name or exact financial value sent to
-  an AI/model provider.
-- No provider key or bank credential embedded in the mobile app.
-- No transaction becomes financial truth merely because a parser, OCR component or provider found
-  it; you review it first.
+- No raw financial/document/chat data sent to an AI/model provider by the current mobile core.
+- No provider key, bank credential or recovery secret embedded in the app.
+- No payment initiation, money custody, investment/product recommendation or direct HMRC filing.
+- No transaction becomes financial truth merely because a parser, OCR component or provider found it;
+  you review it first.
 
-## Your controls
+## Children and retention
 
-- **Export:** create a complete JSON copy and per-surface CSV files. CSV string cells are neutralised
-  against spreadsheet-formula execution; JSON preserves the exact stored value.
-- **Retained sources:** open or remove an encrypted statement original without deleting confirmed
-  transactions. Removing a source clears its references atomically.
-- **Local deletion:** use the deliberate multi-step Start fresh flow to remove local financial
-  data and app-owned artifacts.
-- **Bank connection, cloud backup and account deletion:** these controls appear only when the
-  corresponding external service is configured and must complete their server-side revoke/purge
-  path before public release.
+Melo is intended for users aged 18 and over. Local records and retained sources remain until the user
+exports, deletes or wipes them. Cloud and provider retention is limited to the encrypted backup /
+connection lifecycle and provider terms; exact legal retention exceptions require owner/legal review.
 
-## Children
+## Contact and publication fields
 
-Melo is a personal-finance product intended for users aged 18 and over.
+- Legal entity: `OWNER INPUT REQUIRED: confirm legal entity`
+- Privacy/security contact: `OWNER INPUT REQUIRED: choose/confirm contact route`
+- Public policy URL: `OWNER INPUT REQUIRED: choose/confirm owned URL`
+- Postal address: `OWNER INPUT REQUIRED: confirm if legally required`
 
-## Changes
-
-This policy will be updated when a data flow changes. Store declarations, processor inventory and
-the hosted policy must match the exact submitted binary before public release.
-
-## Contact
-
-_[Owner: add legal entity, contact email, postal address and hosted URL before store submission.]_
+Store declarations, processor inventory and the hosted policy must match the exact submitted binary.

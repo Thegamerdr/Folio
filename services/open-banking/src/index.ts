@@ -73,10 +73,12 @@ export async function handleRequest(
   const url = new URL(request.url);
   if (request.method === 'OPTIONS') return preflight(request, env);
   if (request.method === 'GET' && url.pathname === '/health') {
+    const enabled = openBankingEnabled(env);
     return json(
       {
         ok: true,
         service: 'melo-open-banking',
+        featureEnabled: enabled,
         provider: 'truelayer-data-v3',
         providerConfigured: provider.configured,
         environment: provider.environment,
@@ -84,6 +86,17 @@ export async function handleRequest(
         directLedgerWrites: false,
       },
       200,
+      request,
+      env,
+    );
+  }
+  // Provider credentials and a public Worker URL are not sufficient to ship this feature. The
+  // current release candidate keeps the whole route dark until regulated-provider approval and
+  // store/privacy declarations are complete.
+  if (!openBankingEnabled(env)) {
+    return json(
+      { error: 'Bank connection is not available in this release.', code: 'feature_disabled' },
+      404,
       request,
       env,
     );
@@ -105,6 +118,10 @@ export async function handleRequest(
   }
   const userHash = await storageUserId(userId);
   return handleAuthenticatedRequest(request, store, provider, env, userHash);
+}
+
+function openBankingEnabled(env: Pick<RuntimeEnv, 'OPEN_BANKING_ENABLED'>): boolean {
+  return env.OPEN_BANKING_ENABLED === 'true';
 }
 
 export async function handleAuthenticatedRequest(

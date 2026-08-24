@@ -219,7 +219,10 @@ export default {
       return json({ error: 'Configured model is not permitted.' }, 503);
     }
     const providerBody = buildProviderRequest(parsed.value, model);
-    const baseUrl = stripTrailingSlash(env.OPENROUTER_BASE_URL?.trim() || DEFAULT_BASE_URL);
+    const baseUrl = secureBaseUrl(env.OPENROUTER_BASE_URL?.trim() || DEFAULT_BASE_URL);
+    if (baseUrl === null) {
+      return json({ error: 'Phrasing provider is not securely configured.' }, 503);
+    }
 
     let upstream: Response;
     try {
@@ -344,6 +347,16 @@ function json(payload: unknown, status: number): Response {
 
 function stripTrailingSlash(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
+function secureBaseUrl(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+    return stripTrailingSlash(parsed.toString());
+  } catch {
+    return null;
+  }
 }
 
 async function bumpWithinCap(

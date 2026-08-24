@@ -9,6 +9,7 @@ const requireReady = args.has('--require-ready');
 const jsonOutput = args.has('--json');
 
 const register = JSON.parse(fs.readFileSync(registerPath, 'utf8'));
+const allowedClassifications = new Set(['CLOSED', 'BLOCKED EXTERNAL', 'BLOCKED OWNER DECISION']);
 const validation = validate(register);
 const currentEvidenceRows = Array.isArray(register.currentEvidence)
   ? register.currentEvidence.length
@@ -47,6 +48,7 @@ const summary = {
   firstReleaseBlockers: releaseBlockers.slice(0, 10).map((blocker) => ({
     id: blocker.id,
     title: blocker.title,
+    classification: register.blockerDispositions?.[blocker.id]?.classification ?? 'UNCLASSIFIED',
     unblockCondition: blocker.unblockCondition,
   })),
 };
@@ -113,6 +115,16 @@ function validate(candidate) {
     }
     if (!Array.isArray(blocker.evidenceRequired) || blocker.evidenceRequired.length === 0) {
       issues.push({ id: blocker.id, message: 'evidenceRequired must be non-empty' });
+    }
+    const disposition = candidate.blockerDispositions?.[blocker.id];
+    if (!allowedClassifications.has(disposition?.classification)) {
+      issues.push({
+        id: blocker.id,
+        message: `disposition classification must be one of: ${[...allowedClassifications].join(', ')}`,
+      });
+    }
+    if (!hasText(disposition?.action)) {
+      issues.push({ id: blocker.id, message: 'disposition action is required' });
     }
     if (typeof blocker.machineCheckable !== 'boolean') {
       issues.push({ id: blocker.id, message: 'machineCheckable must be boolean' });
@@ -241,6 +253,7 @@ function printSummary(summary) {
     console.log('First release blockers:');
     for (const blocker of summary.firstReleaseBlockers) {
       console.log(`- ${blocker.id}: ${blocker.title}`);
+      console.log(`  classification: ${blocker.classification}`);
       console.log(`  unblock: ${blocker.unblockCondition}`);
     }
   }

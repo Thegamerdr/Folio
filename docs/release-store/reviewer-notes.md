@@ -1,24 +1,16 @@
-# Store Reviewer Notes
+# Melo reviewer notes — prepared 2026-08-24
 
-## Status
+Status: **prepared; BLOCKED OWNER DECISION / EXTERNAL until the owner confirms support/privacy
+routes and the exact store submission is made.**
 
-Draft only. These notes are not submitted store-review text.
-
-## Required Reviewer Notes
-
-- Folio works locally without an account for the personal core.
-- Reviewer data is synthetic and clearly labelled.
-- Folio organizes and explains user-provided financial records; it does not execute transactions,
-  recommend regulated products or file taxes directly.
-- Optional cloud, AI, Open Banking, business and billing features must be described only if enabled
-  in the submitted binary.
-- Account deletion, export and support/privacy URLs must be provided when account or cloud features
-  are enabled.
-- Any demo account credentials or review access must be current and must not expose real financial
-  records.
-
-## Current Folio Position
-
-- Synthetic mobile shell and Figma evidence exist.
-- No public store reviewer account, deletion URL, privacy policy URL or submitted binary is present
-  in this repo.
+- Melo works locally without an account for its personal core.
+- Use synthetic, clearly labelled reviewer data only; do not request real financial records.
+- Melo organises user-provided records, calculates deterministic forecasts and stages imports for
+  review. It does not initiate payments, hold client money, recommend regulated products or file
+  taxes directly.
+- Optional sign-in, encrypted backup, billing and Open Banking routes require explicit user action.
+- Raw document/image/chat content is not sent to an AI provider by the current mobile core.
+- Account deletion is available to signed-in users, but public deletion URL, production provider
+  configuration and signed E2E evidence must be supplied before submission.
+- Supply the reviewer with the exact candidate version/hash, owner-confirmed privacy URL and
+  support contact; do not use fabricated credentials or a production account.

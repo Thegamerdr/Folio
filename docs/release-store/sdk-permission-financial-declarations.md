@@ -1,35 +1,36 @@
-# SDK Permission And Financial Declarations
+# Melo SDK, permission and financial-feature inventory — 2026-08-24
 
-## Status
+Status: **engineering inventory current; BLOCKED EXTERNAL for candidate-binary and console match.**
 
-Blocked. This file is the inventory shape, not a completed store-console declaration.
+## SDK inventory
 
-## SDK And Permission Inventory
+- Expo/React Native and Expo Router
+- SQLCipher-backed local storage and Expo Secure Store/local authentication
+- Clerk Expo (optional authentication)
+- Sentry React Native (redacted crash diagnostics)
+- Expo IAP (Full/Live billing seam)
+- Expo document picker, image picker, sharing and WebBrowser
+- Expo notifications/calendar surfaces and optional TrueLayer Open Banking adapter
+- No advertising, attribution, tracking, behavioural analytics or raw AI chat SDK
 
-Before public release, the submitted binary must be reviewed for:
+## Permission/required-reason inventory
 
-- analytics, crash, attribution, advertising or tracking SDKs;
-- AI, Open Banking, cloud, storage, billing and auth SDKs;
-- native permissions and required-reason API use;
-- lock-screen notification behavior;
-- calendar access shape;
-- document, file, camera, microphone and speech routes;
-- store billing and account-provider routes.
+- Explicitly blocked in `apps/mobile/app.config.ts`: `READ_EXTERNAL_STORAGE`,
+  `WRITE_EXTERNAL_STORAGE`, `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`.
+- User-mediated: document/photo picker, optional camera capture, notifications, calendar export,
+  share/export, biometric/PIN lock and WebBrowser bank consent.
+- Audio recording/background recording are disabled.
 
-## Financial Features
+## Google financial-features draft
 
-Folio has financial organization, forecasting, import, Open Banking and business/tax preparation
-surfaces. Before Play release, the Financial features declaration must match the enabled binary and
-regional scope. Folio must not claim product recommendations, investment advice, direct HMRC filing
-or regulated financial execution unless a separately approved programme exists.
+Melo organises user-provided financial records, budgets and forecasts, and stages imported rows for
+user review. It does not initiate payments, hold money, recommend financial products or investments,
+provide regulated advice, or file taxes directly. Open Banking is an optional adapter and remains
+provider/legal gated; direct HMRC MTD is not shipped.
 
-## Current Folio Position
+## Required external match
 
-- Android billing and Open Banking adapters now exist, but their real external providers remain
-  blocked on Play/provider configuration, declarations and end-to-end proof.
-- Direct HMRC MTD is a blocked roadmap programme.
-- Public financial-feature declarations cannot be completed from synthetic shell evidence alone.
+Review this inventory against the exact `app-release.aab`/iOS archive, privacy manifests and Play /
+App Store Connect forms. Do not mark `binaryMatched` or `consoleSubmitted` from this draft alone.
 
-## Official Reference
-
-- `https://support.google.com/googleplay/android-developer/answer/17105854`
+Official reference: <https://support.google.com/googleplay/android-developer/answer/17105854>

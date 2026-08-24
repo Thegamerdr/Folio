@@ -1070,9 +1070,11 @@ class ScreenErrorBoundary extends Component<ScreenErrorBoundaryProps, ScreenErro
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Quiet by design — the shell is not wired to a logger. Surface enough to debug in dev.
+    // Do not print exception text, component props or component stacks: screen state can include
+    // merchant names and exact money values. The Sentry beforeSend hook receives the exception and
+    // removes free-text/contextual payloads before any optional upload.
     // eslint-disable-next-line no-console
-    console.error('Screen crashed:', this.props.screenLabel, error, info);
+    console.error('Screen error boundary captured an application failure.');
     try {
       Sentry.captureException(error);
     } catch {

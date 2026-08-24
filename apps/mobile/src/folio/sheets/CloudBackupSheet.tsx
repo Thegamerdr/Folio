@@ -186,7 +186,11 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
               decrypt this backup.
             </Text>
             <Text
-              accessibilityLabel={`Recovery code ${newRecoveryCode}`}
+              // Never expose the recovery secret to TalkBack/VoiceOver speech or diagnostic
+              // snapshots. The code remains selectable for a deliberate long-press copy, while
+              // the surrounding instructions tell a screen-reader user to keep it private.
+              accessibilityLabel="Recovery code. Keep this code private. Long-press to select and copy."
+              accessibilityRole="text"
               selectable
               style={[styles.recoveryCode, { color: t.ink, backgroundColor: t.surface }]}
             >

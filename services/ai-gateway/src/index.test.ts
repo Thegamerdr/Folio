@@ -110,4 +110,26 @@ describe('AI gateway privacy envelope', () => {
       error: 'Phrasing provider response was too large.',
     });
   });
+
+  it('fails closed when provider configuration attempts plaintext HTTP', async () => {
+    const providerFetch = vi.spyOn(globalThis, 'fetch');
+    const env = {
+      ...runtimeEnv(),
+      OPENROUTER_BASE_URL: 'http://provider.test/api/v1',
+    } as unknown as RuntimeEnv;
+    const response = await worker.fetch(
+      new Request('https://gateway.test/v1/phrase', {
+        method: 'POST',
+        headers: { 'x-folio-gateway-token': 'gateway-test-token' },
+        body: JSON.stringify(safeEnvelope),
+      }),
+      env,
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Phrasing provider is not securely configured.',
+    });
+    expect(providerFetch).not.toHaveBeenCalled();
+  });
 });

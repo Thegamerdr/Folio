@@ -5,6 +5,7 @@
   "compatibility_date": "2026-07-14",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
+    "OPEN_BANKING_ENABLED": "false",
     "CLERK_ISSUER": "https://united-giraffe-33.clerk.accounts.dev",
     "CLERK_JWKS_URL": "https://united-giraffe-33.clerk.accounts.dev/.well-known/jwks.json",
     "ALLOWED_ORIGINS": "",

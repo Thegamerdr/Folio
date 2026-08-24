@@ -1,5 +1,34 @@
 # Release Blocker Register
 
+## Current authority — Melo release completion (2026-08-24)
+
+The machine-readable register at `tooling/config/release-blockers.json` is the live authority. The
+historical Folio/V2 tables below are retained as evidence history and must not override this section.
+
+Current product truth:
+
+- Product name is **Melo**; owner brand decision is settled.
+- Android package and iOS bundle are deliberately `com.folio.v2.greenfield`; do not reopen the
+  package-ID decision from stale checklists.
+- Current version is `0.0.1`; Android versionCode is `1`.
+- Billing is `folio.full` (one-time Full) plus `folio.live.monthly`/`folio.live.yearly` (Live
+  subscriptions). `folio.plus.*`/`folio.pro.*` are restore-only legacy IDs, not products to sell.
+- The local core is usable without an account. Cloud Vault/Clerk and billing are optional; Open
+  Banking is disabled in the current candidate and requires an explicit approved-build flag. Raw-
+  data AI transport is retired and the enum-only route is future/optional.
+- Current DPIA/privacy/store drafts are in `docs/source-package/release/DPIA_CURRENT_MELO_2026-08-24.md`,
+  `PRIVACY_POLICY.md` and `docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md`.
+- The internal tabletop and safe rotation dry-runs are executed in `docs/release-operations/`.
+  Vulnerability disclosure is process-ready but requires the owner to confirm a real contact route.
+
+Every live blocker has an exact disposition in `blockerDispositions`: `CLOSED`, `BLOCKED EXTERNAL`
+or `BLOCKED OWNER DECISION`, with a concrete action. Independent security, accessibility,
+privacy/legal and store-console sign-offs remain external and are not self-closed.
+
+The single owner handoff is [OWNER_ACTION_PACK.md](OWNER_ACTION_PACK.md). It covers the public
+contact/URL choice, exact AAB/hash integration, Play billing/listing proof, production deletion/
+provider E2E, independent review signatures and physical/iOS evidence.
+
 Date: 2026-06-23
 
 Updated 2026-06-30 (evening) — commits eb6e0a0/3783c9c/a3f81c9 (+ 7147884 AUDIT.md). Reviewed

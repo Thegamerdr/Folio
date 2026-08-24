@@ -1,14 +1,46 @@
 {
   "schemaVersion": "1.0",
-  "releaseName": "Folio V2 store declarations",
-  "updatedOn": "2026-06-21",
+  "releaseName": "Melo store declarations",
+  "updatedOn": "2026-08-24",
   "reviewAgainstSubmittedBinaryComplete": false,
   "storeConsoleReviewComplete": false,
   "privacyPolicyUrl": null,
   "privacyPolicyCurrent": false,
-  "processorListCurrent": false,
-  "sdkInventoryCurrent": false,
+  "processorListCurrent": true,
+  "sdkInventoryCurrent": true,
   "submittedBinarySha256": null,
+  "binaryIdentity": {
+    "productName": "Melo",
+    "androidPackage": "com.folio.v2.greenfield",
+    "iosBundleIdentifier": "com.folio.v2.greenfield",
+    "version": "0.0.1",
+    "androidVersionCode": 1,
+    "expectedArtifactName": "app-release.aab",
+    "artifactSha256Status": "OWNER/RELEASE INTEGRATION REQUIRED: actual candidate hash is not known"
+  },
+  "runtimeEvidence": {
+    "billingWorker": "services/billing-entitlements/RUNTIME_EVIDENCE.md",
+    "billingWorkerHealth": "deployed; signerConfigured=true; tokenStoreConfigured=true; providerConfigured=false",
+    "billingCatalog": ["folio.full", "folio.live.monthly", "folio.live.yearly"],
+    "openBankingWorkerHealth": "deployed; featureEnabled=false; providerConfigured=false; /v1 routes return feature_disabled",
+    "eas": "authenticated; iOS production build requires interactive Apple credential/provisioning setup",
+    "androidArtifact": "pending; no AAB or SHA-256 recorded",
+    "physicalAndroid": "adb unauthorized/unavailable for release evidence"
+  },
+  "appleExportCompliance": {
+    "status": "OWNER INPUT REQUIRED",
+    "question": "Determine the correct export-compliance declaration for standard AES-GCM implemented outside the OS and record the legal/owner decision before App Store submission.",
+    "evidencePath": "OWNER_ACTION_PACK.md"
+  },
+  "scopeTruth": {
+    "localCore": "shipping and usable without account",
+    "clerk": "optional sign-in; production provider/deletion proof external",
+    "cloudVault": "optional client-encrypted backup; production binding/restore proof external",
+    "openBanking": "disabled in current release candidate; explicit approved-build flag required for future regulated-provider route",
+    "ai": "raw document/chat transport retired; enum-only future route not used by current mobile core",
+    "sentry": "redacted crash diagnostics configured; no PII/screenshots/traces/replay",
+    "billing": "Full one-time + Live monthly/yearly; Play listing and sandbox proof external"
+  },
   "officialReferences": [
     "https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/",
     "https://developer.apple.com/app-store/user-privacy-and-data-use/",
@@ -25,8 +57,8 @@
       "prepared": true,
       "consoleSubmitted": false,
       "binaryMatched": false,
-      "evidencePath": "docs/release-store/apple-app-privacy-checklist.md",
-      "blocker": "Apple App Privacy answers are not checked against the submitted binary"
+      "evidencePath": "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
+      "blocker": "BLOCKED EXTERNAL: iOS candidate and App Store Connect review are not available"
     },
     {
       "id": "apple-account-deletion",
@@ -36,7 +68,7 @@
       "consoleSubmitted": false,
       "binaryMatched": false,
       "evidencePath": "docs/release-store/account-deletion-checklist.md",
-      "blocker": "in-app account deletion is not proven in the submitted binary"
+      "blocker": "BLOCKED EXTERNAL: iOS binary and independent deletion/provider proof are not available"
     },
     {
       "id": "google-data-safety",
@@ -45,8 +77,8 @@
       "prepared": true,
       "consoleSubmitted": false,
       "binaryMatched": false,
-      "evidencePath": "docs/release-store/google-data-safety-checklist.md",
-      "blocker": "Google Data safety form is not checked against the submitted package"
+      "evidencePath": "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
+      "blocker": "BLOCKED EXTERNAL: exact AAB hash and Play Console review are not available"
     },
     {
       "id": "google-account-deletion",
@@ -56,7 +88,7 @@
       "consoleSubmitted": false,
       "binaryMatched": false,
       "evidencePath": "docs/release-store/account-deletion-checklist.md",
-      "blocker": "Google web deletion route and Data safety deletion answers are not approved"
+      "blocker": "BLOCKED EXTERNAL: owner-confirmed public deletion URL and production provider E2E proof are required"
     },
     {
       "id": "google-financial-features",
@@ -65,8 +97,8 @@
       "prepared": true,
       "consoleSubmitted": false,
       "binaryMatched": false,
-      "evidencePath": "docs/release-store/sdk-permission-financial-declarations.md",
-      "blocker": "Financial features declaration is not completed for the submitted package"
+      "evidencePath": "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
+      "blocker": "BLOCKED EXTERNAL: Play Console declaration has not been submitted or reviewed"
     },
     {
       "id": "sdk-permission-inventory",
@@ -75,8 +107,8 @@
       "prepared": true,
       "consoleSubmitted": false,
       "binaryMatched": false,
-      "evidencePath": "docs/release-store/sdk-permission-financial-declarations.md",
-      "blocker": "SDK and permission inventory is not approved against the submitted binary"
+      "evidencePath": "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
+      "blocker": "BLOCKED EXTERNAL: inventory still needs exact candidate-binary and console match"
     },
     {
       "id": "reviewer-notes",
@@ -85,8 +117,8 @@
       "prepared": true,
       "consoleSubmitted": false,
       "binaryMatched": false,
-      "evidencePath": "docs/release-store/reviewer-notes.md",
-      "blocker": "reviewer notes are not submitted with production store metadata"
+      "evidencePath": "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
+      "blocker": "BLOCKED OWNER DECISION: owner must confirm support/privacy contact route before submission"
     }
   ]
 }
