@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { selectBusinessOneMove } from '@folio/business-workspace';
 
@@ -20,6 +20,17 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const [contextOpen, setContextOpen] = useState(false);
+
+  // Business Melo's context sheet is screen-owned. Android renders the shared Sheet through the
+  // in-tree portal, so FolioShell's global back handler cannot observe this local state.
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !contextOpen) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setContextOpen(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [contextOpen]);
   const workspace = useAppStore(
     (state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId)!,
   );

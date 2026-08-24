@@ -77,7 +77,16 @@
 // appears in any visible string. Tap targets are >=44px (full-width rows) or carry hitSlop.
 
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  BackHandler,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -185,6 +194,27 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const meloPrimerSeen = useAppStore((s) => s.meloPrimerSeen === true);
   const [contextOpen, setContextOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(!meloPrimerSeen);
+
+  // Melo's context and first-run sheets are screen-owned. On Android the shared Sheet uses the
+  // in-tree portal (rather than a native Modal), so the shell's global back listener cannot see
+  // these local open states. Register the local dismissal ahead of shell navigation: context
+  // closes first, then intro, and only an already-closed screen falls through to shell/OS back.
+  useEffect(() => {
+    if (Platform.OS !== 'android' || (!contextOpen && !introOpen)) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (contextOpen) {
+        setContextOpen(false);
+        return true;
+      }
+      if (introOpen) {
+        setMeloPrimerSeen(true);
+        setIntroOpen(false);
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [contextOpen, introOpen]);
 
   const { canAccess, fullUnlocked } = useLens();
 

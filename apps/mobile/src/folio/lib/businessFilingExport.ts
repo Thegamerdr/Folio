@@ -1,5 +1,3 @@
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import {
   annualAccountsDueDate,
   calculateVatBoxes,
@@ -189,7 +187,12 @@ export function buildBusinessFilingWorkingCopy(
 export async function shareBusinessFilingPdf(
   copy: BusinessFilingWorkingCopy,
 ): Promise<'shared' | 'unavailable'> {
+  // Keep the deterministic working-copy builder importable in node/vitest QA without loading
+  // React Native's native print/share modules. The native modules are needed only at the share
+  // boundary on a device.
+  const Sharing = await import('expo-sharing');
   if (!(await Sharing.isAvailableAsync())) return 'unavailable';
+  const Print = await import('expo-print');
   const { uri } = await Print.printToFileAsync({ html: filingHtml(copy) });
   await Sharing.shareAsync(uri, {
     mimeType: 'application/pdf',
@@ -201,10 +204,7 @@ export async function shareBusinessFilingPdf(
 
 export function filingHtml(copy: BusinessFilingWorkingCopy): string {
   const rows = copy.rows
-    .map(
-      (row) =>
-        `<tr><th>${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`,
-    )
+    .map((row) => `<tr><th>${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`)
     .join('');
   return `<!doctype html>
 <html lang="en">
@@ -247,7 +247,7 @@ export function filingHtml(copy: BusinessFilingWorkingCopy): string {
 function entityName(entity: SoleTraderEntity | LtdEntity): string {
   return entity.kind === 'ltd'
     ? entity.companyName
-    : entity.tradingName ?? 'Sole Trader business';
+    : (entity.tradingName ?? 'Sole Trader business');
 }
 
 function currentTaxYear(now = new Date()): string {
