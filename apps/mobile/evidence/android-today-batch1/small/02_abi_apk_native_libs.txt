@@ -1,0 +1,33 @@
+
+1981-01-01 01:01:02 .....        10096        10096  lib\arm64-v8a\libandroidx.graphics.path.so
+1981-01-01 01:01:02 .....      1835544      1835544  lib\arm64-v8a\libappmodules.so
+1981-01-01 01:01:02 .....      1292904      1292904  lib\arm64-v8a\libc++_shared.so
+1981-01-01 01:01:02 .....      4978952      4978952  lib\arm64-v8a\libcrypto.so
+1981-01-01 01:01:02 .....         7112         7112  lib\arm64-v8a\libdatastore_shared_counter.so
+1981-01-01 01:01:02 .....      1467080      1467080  lib\arm64-v8a\libexpo-modules-core.so
+1981-01-01 01:01:02 .....       102064       102064  lib\arm64-v8a\libexpo-updates.so
+1981-01-01 01:01:02 .....       177000       177000  lib\arm64-v8a\libfbjni.so
+1981-01-01 01:01:02 .....        38616        38616  lib\arm64-v8a\libgesturehandler.so
+1981-01-01 01:01:02 .....       318992       318992  lib\arm64-v8a\libgifimage.so
+1981-01-01 01:01:02 .....       138504       138504  lib\arm64-v8a\libhermestooling.so
+1981-01-01 01:01:02 .....      2460728      2460728  lib\arm64-v8a\libhermesvm.so
+1981-01-01 01:01:02 .....         8760         8760  lib\arm64-v8a\libimagepipeline.so
+1981-01-01 01:01:02 .....       395912       395912  lib\arm64-v8a\libjsi.so
+1981-01-01 01:01:02 .....     20728880     20728880  lib\arm64-v8a\liblitertlm_jni.so
+1981-01-01 01:01:02 .....     11064544     11064544  lib\arm64-v8a\libmlkit_google_ocr_pipeline.so
+1981-01-01 01:01:02 .....        23712        23712  lib\arm64-v8a\libnative-filters.so
+1981-01-01 01:01:02 .....       585376       585376  lib\arm64-v8a\libnative-imagetranscoder.so
+1981-01-01 01:01:02 .....      1881712      1881712  lib\arm64-v8a\libop-sqlite.so
+1981-01-01 01:01:02 .....       237208       237208  lib\arm64-v8a\libreact_codegen_RNCSlider.so
+1981-01-01 01:01:02 .....      1069896      1069896  lib\arm64-v8a\libreact_codegen_rnscreens.so
+1981-01-01 01:01:02 .....       788104       788104  lib\arm64-v8a\libreact_codegen_rnsvg.so
+1981-01-01 01:01:02 .....       157920       157920  lib\arm64-v8a\libreact_codegen_safeareacontext.so
+1981-01-01 01:01:02 .....      6763936      6763936  lib\arm64-v8a\libreactnative.so
+1981-01-01 01:01:02 .....      1377200      1377200  lib\arm64-v8a\libreanimated.so
+1981-01-01 01:01:02 .....       101064       101064  lib\arm64-v8a\librnscreens.so
+1981-01-01 01:01:02 .....        16832        16832  lib\arm64-v8a\libsentry-android.so
+1981-01-01 01:01:02 .....       723712       723712  lib\arm64-v8a\libsentry.so
+1981-01-01 01:01:02 .....       501856       501856  lib\arm64-v8a\libstatic-webp.so
+1981-01-01 01:01:02 .....      1047504      1047504  lib\arm64-v8a\libworklets.so
+1981-01-01 01:01:02 .....       731872       731872  lib\arm64-v8a\libzstd-kmp.so
+

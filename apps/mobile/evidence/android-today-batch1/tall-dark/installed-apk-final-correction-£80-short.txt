@@ -1,0 +1,3 @@
+PM_PATH=package:/data/app/~~6xqL09Z56DH5PLYLpwxo4A==/com.folio.v2.greenfield-l5VuxnJUQrjPQqUWaFBoIQ==/base.apk
+INSTALLED_SIZE=95034768
+INSTALLED_SHA256=79c5213aeea705bdb5ca2570f313c8f3db2b855c27d9782194bbe23974629bf7  /data/app/~~6xqL09Z56DH5PLYLpwxo4A==/com.folio.v2.greenfield-l5VuxnJUQrjPQqUWaFBoIQ==/base.apk

@@ -35,6 +35,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, {
   Circle,
   Defs,
@@ -95,11 +96,12 @@ import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
 import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
 
-import { pressureLine, pressureLow, pressureMood } from './today/pressure';
+import { derivePressure, pressureLine, pressureLow, pressureMood } from './today/pressure';
 import { formatDayProse, formatGBP, groupedPounds } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
 import { useTodayTheme } from './today/todayTheme';
+import { buildTodayPathGeometry, TODAY_PATH_PLOT } from './today/todayPathGeometry';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedG = Animated.createAnimatedComponent(G);
@@ -164,6 +166,8 @@ export function TodayScreen({
   state?: ScreenState;
 }) {
   const t = useTodayTheme();
+  const insets = useSafeAreaInsets();
+  const screenTopInset = Math.max(gap.md, insets.top + gap.xs);
   const reduceMotion = useReduceMotion();
 
   const mood = pressureMood[pressure];
@@ -341,50 +345,33 @@ export function TodayScreen({
     }
   }, [currentBalance.source]);
 
-  const tightestSpare = Math.max(0, Math.round(tight.tightestSpare));
+  // Keep the route engine's signed tight point available for honest shortfall copy. The mode
+  // strategy intentionally floors its spendable Safe Zone at £0, but the Today answer must still
+  // say how far below zero the projected route goes.
+  const routeTightestAmount = Math.round(tight.tightestSpare);
+  const tightestSpare = Math.max(0, routeTightestAmount);
 
   // ---- The money-path curve, from the REAL route (no hardcoded geometry) ------------------------
   // The chart plots the route engine's projected day-by-day balance (`route.points`) into the SVG's
   // 400×240 user space. An empty/cleared store yields a flat, honest line (no fabricated dips); a real
   // one yields the user's actual curve. Only the meaningful nodes are labelled (today / lowest /
   // payday) — the prototype's fake "salary rise / bill drop / debt drop" annotations are gone.
-  const PLOT = { x0: 30, x1: 370, yTop: 72, yBottom: 196, baseline: 240 } as const;
+  const PLOT = TODAY_PATH_PLOT;
   const PLOT_MID = (PLOT.yTop + PLOT.yBottom) / 2;
-  const { points, lowIndex } = useMemo(() => {
-    const rp = route?.points ?? [];
-    if (rp.length < 2) {
-      // No real series yet (pre-mount, or a single-day window) — a calm flat line, never a fake dip.
-      return {
-        points: [
-          { x: PLOT.x0, y: PLOT_MID, label: 'today' },
-          { x: PLOT.x1, y: PLOT_MID, label: 'payday' },
-        ],
-        lowIndex: 0,
-      };
-    }
-    const bals = rp.map((p) => p.y);
-    const maxB = Math.max(...bals);
-    const minB = Math.min(...bals);
-    const span = maxB - minB;
-    const n = rp.length;
-    const xAt = (i: number) => PLOT.x0 + (i / (n - 1)) * (PLOT.x1 - PLOT.x0);
-    // Higher balance sits nearer the top; a flat series rests at mid-height (no fabricated shape).
-    const yAt = (b: number) =>
-      span < 1 ? PLOT_MID : PLOT.yBottom - ((b - minB) / span) * (PLOT.yBottom - PLOT.yTop);
-    let lowIdx = 0;
-    for (let i = 1; i < bals.length; i += 1) {
-      if ((bals[i] ?? 0) < (bals[lowIdx] ?? 0)) lowIdx = i;
-    }
-    const paydayIdx = Math.max(0, Math.min(n - 1, daysToPayday));
-    const pts = rp.map((p, i) => {
-      const label = i === 0 ? 'today' : i === lowIdx ? 'lowest' : i === paydayIdx ? 'payday' : '';
-      return { x: xAt(i), y: yAt(p.y), label };
-    });
-    return { points: pts, lowIndex: lowIdx };
+  const { points, lowIndex, lowPoint } = useMemo(() => {
+    return buildTodayPathGeometry(route?.points ?? [], daysToPayday, PLOT_MID);
   }, [route, daysToPayday, PLOT_MID]);
   // The lowest node's coordinates — used by the callout + scrub thumb. Derived from the real curve.
   const lowY = points[lowIndex]?.y ?? PLOT_MID;
   const lowX = points[lowIndex]?.x ?? 305;
+  // Unlike the headline tight point, the path's low point is intentionally payday-clipped. This
+  // keeps the idle callout and the scrub preview anchored to the same plotted horizon.
+  const pathLowAmount = Math.round(lowPoint?.y ?? route?.spare ?? 0);
+  const pathLowDate = lowPoint?.date ?? null;
+  const pathLowCopy =
+    pathLowAmount < 0
+      ? `£${groupedPounds(Math.abs(pathLowAmount))} short`
+      : `£${groupedPounds(pathLowAmount)} spare`;
   const d = smoothPath(points);
   const areaD = `${d} L ${PLOT.x1} ${PLOT.baseline} L ${PLOT.x0} ${PLOT.baseline} Z`;
 
@@ -427,18 +414,24 @@ export function TodayScreen({
           ? 'signal'
           : 'currency';
   const heroUnitLabel =
-    heroUnit === 'days'
-      ? 'days of essentials covered'
-      : heroUnit === 'weeks'
-        ? 'weeks of bills covered'
-        : heroUnit === 'signal'
-          ? modeState.safeZone.formula
-          : modeState.spareLabel;
+    heroUnit === 'currency' && routeTightestAmount < 0
+      ? `spare · £${groupedPounds(Math.abs(routeTightestAmount) + Math.round(scrub * 120))} short`
+      : heroUnit === 'days'
+        ? 'days of essentials covered'
+        : heroUnit === 'weeks'
+          ? 'weeks of bills covered'
+          : heroUnit === 'signal'
+            ? modeState.safeZone.formula
+            : modeState.spareLabel;
   const heroProvisional =
     modeState.safeZone.confidence !== 'high' || currentBalance.source === 'sample';
   const heroBase =
     heroUnit === 'currency'
-      ? Math.max(0, Math.round(modeState.safeZone.amount) - Math.round(scrub * 120))
+      ? Math.max(
+          0,
+          (routeTightestAmount < 0 ? 0 : Math.round(modeState.safeZone.amount)) -
+            Math.round(scrub * 120),
+        )
       : Math.max(0, Math.round(modeState.safeZone.amount));
   const lowDisplay = useCountUp(heroBase, 400, reduceMotion);
   const heroFigure =
@@ -565,6 +558,25 @@ export function TodayScreen({
 
   const thumbX = 30 + scrub * 340;
   const strokeEndColor = pressure === 'overspent' ? t.repair : t.positive;
+  const pathCurrentAmount = Math.round(route?.points[0]?.y ?? currentBalance.amount);
+  const pathPaydayAmount = Math.round(route?.spare ?? currentBalance.amount);
+  const pathPressure = derivePressure(pathLowAmount);
+  const pathAccessibilityLabel = [
+    'Money path from today to payday',
+    `today ${formatGBP(pathCurrentAmount)}`,
+    `lowest in the payday horizon ${formatGBP(pathLowAmount)}${
+      pathLowDate ? ` on ${formatDayProse(pathLowDate)}` : ''
+    }`,
+    `payday ${formatGBP(pathPaydayAmount)}`,
+    `Verdict: ${pressureLine[pathPressure]}`,
+    'Drag to preview a spend',
+  ].join('. ');
+  const scrubSpend = Math.round(scrub * 120);
+  const scrubLowAmount = pathLowAmount - scrubSpend;
+  const scrubLowCopy =
+    scrubLowAmount < 0
+      ? `£${groupedPounds(Math.abs(scrubLowAmount))} short`
+      : `£${groupedPounds(scrubLowAmount)} spare`;
 
   // Loading branch (STATES.md / spec): never a spinner. When the shell explicitly hands a loading
   // state, Folio holds the screen on Melo (curious) + one quoted line — the same calm "working it
@@ -590,7 +602,7 @@ export function TodayScreen({
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Header: one compact horizon row, then a resilient state/weather row so
             long dates and mode names never collide with the Melo doorway. */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: screenTopInset }]}>
           <View style={styles.headerTop}>
             <View style={styles.headerDateBlock}>
               <Text style={[styles.headerDate, { color: t.muted }]} numberOfLines={1}>
@@ -621,7 +633,7 @@ export function TodayScreen({
                 p ? pressed : undefined,
               ]}
             >
-              <Melo size={22} mood={isLoading ? 'curious' : mood} />
+              <Melo size={32} mood={mood} />
             </Pressable>
           </View>
           <View style={styles.headerBottom}>
@@ -877,7 +889,7 @@ export function TodayScreen({
             style={styles.svgWrap}
             onLayout={onCardLayout}
             accessibilityRole="image"
-            accessibilityLabel="Money path from today to payday — drag to preview a spend"
+            accessibilityLabel={pathAccessibilityLabel}
             {...panResponder.panHandlers}
           >
             <Svg width="100%" height={SVG_RENDER_H} viewBox={`0 0 ${VB_W} ${VB_H}`}>
@@ -964,10 +976,10 @@ export function TodayScreen({
                   );
                 })}
 
-              {/* idle lowest-point callout — only at rest (no active scrub), and only once the route has
-                  resolved a real tight-point date. Anchored to the real lowest node; the date is the
-                  route's tight-point day and the figure the live spare — no hardcoded "7 Jul". */}
-              {scrub < 0.04 && tight.tightestDate ? (
+              {/* Idle payday-horizon low-point callout — only at rest, and only once the clipped
+                  plotted route has a real sample. It is anchored to that plotted low node so its
+                  date and amount cannot drift to a post-payday route tight point. */}
+              {scrub < 0.04 && pathLowDate ? (
                 <AnimatedG animatedProps={calloutStyle}>
                   <Line
                     x1={lowX}
@@ -995,7 +1007,7 @@ export function TodayScreen({
                     fontWeight="600"
                     fill={t.ink}
                   >
-                    {`${formatDayProse(tight.tightestDate)} · £${tightestSpare} spare`}
+                    {`${formatDayProse(pathLowDate)} · ${pathLowCopy}`}
                   </SvgText>
                 </AnimatedG>
               ) : null}
@@ -1065,7 +1077,7 @@ export function TodayScreen({
           {/* scrub hint */}
           <Text style={[styles.scrubHint, { color: t.muted }]}>
             {scrub > 0.02
-              ? `spend £${Math.round(scrub * 120)} today · lowest £${Math.max(0, tightestSpare - Math.round(scrub * 120))}`
+              ? `spend £${scrubSpend} today · lowest ${scrubLowCopy}`
               : 'drag the line to try a spend'}
           </Text>
           {scrub > 0.04 ? (
@@ -1294,10 +1306,12 @@ function OneMoveCard({ oneMove }: { oneMove: NonNullable<ReturnType<typeof deriv
 
 function TodayFirstRun({ nav }: { nav: Nav }) {
   const t = useTodayTheme();
+  const insets = useSafeAreaInsets();
+  const screenTopInset = Math.max(gap.md, insets.top + gap.xs);
   return (
     <Animated.View style={[styles.root, { backgroundColor: t.canvas }]}>
       <ScrollView
-        contentContainerStyle={styles.firstRunScroll}
+        contentContainerStyle={[styles.firstRunScroll, { paddingTop: screenTopInset }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.firstRunHeader}>

@@ -1,0 +1,2 @@
+  mCurrentFocus=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+  mFocusedApp=ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}

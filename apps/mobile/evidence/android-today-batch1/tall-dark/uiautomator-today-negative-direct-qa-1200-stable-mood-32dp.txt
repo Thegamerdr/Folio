@@ -1,0 +1,1 @@
+UI hierchary dumped to: /sdcard/today-negative-direct-qa-1200-stable-mood-32dp.xml

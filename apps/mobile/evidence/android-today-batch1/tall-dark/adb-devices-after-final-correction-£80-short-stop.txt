@@ -1,0 +1,5 @@
+List of devices attached
+2af26a2c19017ece       unauthorized transport_id:30
+emulator-5554          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:23
+emulator-5570          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:26
+

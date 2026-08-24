@@ -1,0 +1,11 @@
+InstalledAPKSizeBytes=95034476
+InstalledAPKSHA256=021AEFC462F18555EEDF18FE608AB7CF302EBB24E5720D9A75B6DB08CB39C8AE
+Serial=emulator-5572
+Package=com.folio.v2.greenfield
+Activity=com.folio.v2.greenfield/.MainActivity
+NightMode=2
+Window=Physical size: 1080x2400
+Density=Physical density: 420
+Route=normal onboarding; QA; Survival; Monthly; payday 25; income £3,020/month; current balance £1,120; no pots
+State=real user-entered values; no ADB persistence injection; reinstall used -r to preserve populated state
+Acceptance=settled populated Today Dark top/header recapture after final header-size APK

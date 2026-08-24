@@ -1,0 +1,34 @@
+  * Task{ae1ed1b #18 type=standard A=10209:com.folio.v2.greenfield U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
+    topResumedActivity=ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}
+    * Hist  #0: ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}
+      packageName=com.folio.v2.greenfield processName=com.folio.v2.greenfield
+      app=ProcessRecord{edd88aa 4763:com.folio.v2.greenfield/u0a209}
+      Intent { flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity }
+      rootOfTask=true task=Task{ae1ed1b #18 type=standard A=10209:com.folio.v2.greenfield}
+      taskAffinity=10209:com.folio.v2.greenfield
+      mActivityComponent=com.folio.v2.greenfield/.MainActivity
+      baseDir=/data/app/~~Yut9-vQ7-usyUAhj6PDNdA==/com.folio.v2.greenfield-6Jnu38VlG_Achib9qe_d4g==/base.apk
+      dataDir=/data/user/0/com.folio.v2.greenfield
+      windows=[Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}]
+    Resumed: ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}
+  ResumedActivity: ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}
+  topDisplayFocusedRootTask=Task{ae1ed1b #18 type=standard A=10209:com.folio.v2.greenfield}
+  deepestLastOrientationSource=ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}
+  mCurrentFocus=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+  mFocusedApp=ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}
+  mObscuringWindow=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+      mPreferredTopFocusableRootTask=Task{ae1ed1b #18 type=standard A=10209:com.folio.v2.greenfield}
+      mLastFocusedRootTask=Task{ae1ed1b #18 type=standard A=10209:com.folio.v2.greenfield}
+      * Task{ae1ed1b #18 type=standard A=10209:com.folio.v2.greenfield U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
+        * ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}
+    mFocusedWindow=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+    mTopFullscreenOpaqueWindowState=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+    mSystemBarColorApps={ActivityRecord{432ad7d u0 com.folio.v2.greenfield/.MainActivity t18}}
+    mNavBarColorWindowCandidate=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+    mNavBarBackgroundWindowCandidate=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+      Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+      Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}:
+        mControlTarget=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+        mControlTarget=Window{a59daac u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+        (fullscreen) Task{ae1ed1b #18 type=standard A=10209:com.folio.v2.greenfield}
+  VisibleActivityProcess:[ ProcessRecord{edd88aa 4763:com.folio.v2.greenfield/u0a209}]

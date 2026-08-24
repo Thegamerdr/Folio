@@ -1,0 +1,14 @@
+
+  * Task{2b7f130 #19 type=standard A=10209:com.folio.v2.greenfield U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
+    topResumedActivity=ActivityRecord{520de73 u0 com.folio.v2.greenfield/.MainActivity t19}
+    * Hist  #0: ActivityRecord{520de73 u0 com.folio.v2.greenfield/.MainActivity t19}
+      packageName=com.folio.v2.greenfield processName=com.folio.v2.greenfield
+      app=ProcessRecord{ca0eecf 5775:com.folio.v2.greenfield/u0a209}
+      Intent { flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity }
+      rootOfTask=true task=Task{2b7f130 #19 type=standard A=10209:com.folio.v2.greenfield}
+      taskAffinity=10209:com.folio.v2.greenfield
+      mActivityComponent=com.folio.v2.greenfield/.MainActivity
+      baseDir=/data/app/~~_IsYpSdJPxATKixgrHDY2Q==/com.folio.v2.greenfield-m_vKGNE4mI0tFoyx3596Cg==/base.apk
+      dataDir=/data/user/0/com.folio.v2.greenfield
+      windows=[Window{1c84fa2 u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}]
+

@@ -1,0 +1,2 @@
+  mCurrentFocus=Window{b393fa2 u0 Application Error: com.folio.v2.greenfield}
+  mFocusedApp=ActivityRecord{253208c u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t15}

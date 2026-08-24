@@ -1,0 +1,37 @@
+[
+  {
+    "text": "24 August",
+    "content_desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[74,78][902,127]",
+    "clickable": "false"
+  },
+  {
+    "text": "1 day to payday",
+    "content_desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[74,132][902,175]",
+    "clickable": "false"
+  },
+  {
+    "text": "",
+    "content_desc": "Open Melo",
+    "class": "android.widget.Button",
+    "bounds": "[902,74][1007,179]",
+    "clickable": "true"
+  },
+  {
+    "text": "",
+    "content_desc": "Meet Melo, step 1 of 3",
+    "class": "android.view.View",
+    "bounds": "[74,909][1007,1185]",
+    "clickable": "false"
+  },
+  {
+    "text": "",
+    "content_desc": "Melo tab",
+    "class": "android.view.View",
+    "bounds": "[540,2207][810,2322]",
+    "clickable": "true"
+  }
+]

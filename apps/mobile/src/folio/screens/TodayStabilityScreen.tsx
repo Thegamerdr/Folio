@@ -42,6 +42,7 @@ import { useLens } from '@/folio/lib/lens';
 import type { Nav } from '@/folio/types';
 
 import { formatGBP } from './today/format';
+import { derivePressure } from './today/pressure';
 import { TodayNudges } from './today/TodayNudges';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
 
@@ -319,7 +320,11 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
         </View>
       </View>
 
-      <TodayNudges nav={nav} tightestSpare={tight.tightestSpare} />
+      <TodayNudges
+        nav={nav}
+        pressure={route ? derivePressure(Math.round(tight.tightestSpare)) : 'calm'}
+        tightestSpare={route ? tight.tightestSpare : null}
+      />
       <TodayRecentTxns nav={nav} />
 
       <Pressable

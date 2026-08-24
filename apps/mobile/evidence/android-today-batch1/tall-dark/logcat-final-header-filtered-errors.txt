@@ -1,0 +1,7 @@
+
+08-24 18:15:24.761  3403  3434 I ReactNativeJS: Running "main"
+08-24 18:15:25.754   600  1010 D BiometricService/PreAuthInfo: Package: com.folio.v2.greenfield Sensor ID: 0 Modality: 2 Status: 7
+08-24 18:15:25.754   600  1010 D BiometricService/PreAuthInfo: Package: com.folio.v2.greenfield Sensor ID: 4 Modality: 8 Status: 7
+08-24 18:15:25.756   600  1010 D BiometricService/PreAuthInfo: Package: com.folio.v2.greenfield Sensor ID: 0 Modality: 2 Status: 7
+08-24 18:15:25.756   600  1010 D BiometricService/PreAuthInfo: Package: com.folio.v2.greenfield Sensor ID: 4 Modality: 8 Status: 7
+

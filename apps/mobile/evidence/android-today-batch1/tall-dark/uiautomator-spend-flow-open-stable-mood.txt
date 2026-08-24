@@ -1,0 +1,1 @@
+UI hierchary dumped to: /sdcard/spend-flow-open-stable-mood.xml

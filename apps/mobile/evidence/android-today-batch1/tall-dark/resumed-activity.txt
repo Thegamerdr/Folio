@@ -1,0 +1,34 @@
+  * Task{cd5b86b #17 type=standard A=10209:com.folio.v2.greenfield U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
+    topResumedActivity=ActivityRecord{6ea7df3 u0 com.folio.v2.greenfield/.MainActivity t17}
+    * Hist  #0: ActivityRecord{6ea7df3 u0 com.folio.v2.greenfield/.MainActivity t17}
+      packageName=com.folio.v2.greenfield processName=com.folio.v2.greenfield
+      app=ProcessRecord{a8dadd0 3393:com.folio.v2.greenfield/u0a209}
+      Intent { flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity }
+      rootOfTask=true task=Task{cd5b86b #17 type=standard A=10209:com.folio.v2.greenfield}
+      taskAffinity=10209:com.folio.v2.greenfield
+      mActivityComponent=com.folio.v2.greenfield/.MainActivity
+      baseDir=/data/app/~~B-os402NNxwJV17Z2e9XYA==/com.folio.v2.greenfield-QnZ3Acz9qSRLxU8UtCA_Ng==/base.apk
+      dataDir=/data/user/0/com.folio.v2.greenfield
+      windows=[Window{b3a4722 u0 Splash Screen com.folio.v2.greenfield}]
+      startingWindow=Window{b3a4722 u0 Splash Screen com.folio.v2.greenfield} startingSurface=com.android.server.wm.StartingSurfaceController$StartingSurface@ed482f4 startingDisplayed=true startingMoved=false mVisibleSetFromTransferredStartingWindow=false
+    Resumed: ActivityRecord{6ea7df3 u0 com.folio.v2.greenfield/.MainActivity t17}
+  ResumedActivity: ActivityRecord{6ea7df3 u0 com.folio.v2.greenfield/.MainActivity t17}
+  topDisplayFocusedRootTask=Task{cd5b86b #17 type=standard A=10209:com.folio.v2.greenfield}
+  deepestLastOrientationSource=ActivityRecord{6ea7df3 u0 com.folio.v2.greenfield/.MainActivity t17}
+  mCurrentFocus=Window{b393fa2 u0 Application Error: com.folio.v2.greenfield}
+  mFocusedApp=ActivityRecord{6ea7df3 u0 com.folio.v2.greenfield/.MainActivity t17}
+      mPreferredTopFocusableRootTask=Task{cd5b86b #17 type=standard A=10209:com.folio.v2.greenfield}
+      mLastFocusedRootTask=Task{cd5b86b #17 type=standard A=10209:com.folio.v2.greenfield}
+      * Task{cd5b86b #17 type=standard A=10209:com.folio.v2.greenfield U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
+        * ActivityRecord{6ea7df3 u0 com.folio.v2.greenfield/.MainActivity t17}
+    mFocusedWindow=Window{b393fa2 u0 Application Error: com.folio.v2.greenfield}
+    mTopFullscreenOpaqueWindowState=Window{b3a4722 u0 Splash Screen com.folio.v2.greenfield}
+    mNavBarColorWindowCandidate=Window{b393fa2 u0 Application Error: com.folio.v2.greenfield}
+    mNavBarBackgroundWindowCandidate=Window{b3a4722 u0 Splash Screen com.folio.v2.greenfield}
+      Window{b3a4722 u0 Splash Screen com.folio.v2.greenfield}
+      Window{b393fa2 u0 Application Error: com.folio.v2.greenfield}:
+        mControlTarget=Window{b393fa2 u0 Application Error: com.folio.v2.greenfield}
+        mControlTarget=Window{b393fa2 u0 Application Error: com.folio.v2.greenfield}
+        (fullscreen) Task{cd5b86b #17 type=standard A=10209:com.folio.v2.greenfield}
+  VisibleActivityProcess:[ ProcessRecord{a8dadd0 3393:com.folio.v2.greenfield/u0a209}]
+  mStartingProcessActivities=[ActivityRecord{6ea7df3 u0 com.folio.v2.greenfield/.MainActivity t17}]

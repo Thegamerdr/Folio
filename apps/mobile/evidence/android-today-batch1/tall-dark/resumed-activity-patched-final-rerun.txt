@@ -1,0 +1,3 @@
+
+    topResumedActivity=ActivityRecord{66b9a81 u0 com.folio.v2.greenfield/.MainActivity t20}
+

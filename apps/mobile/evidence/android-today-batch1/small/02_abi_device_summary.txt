@@ -1,0 +1,7 @@
+serial=emulator-5570
+abi=x86_64,arm64-v8a
+abi_primary=x86_64
+abi64=x86_64,arm64-v8a
+apk=C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile\android\app\build\outputs\apk\release\app-release.apk
+package=com.folio.v2.greenfield
+native_lib_listing=02_abi_apk_native_libs.txt

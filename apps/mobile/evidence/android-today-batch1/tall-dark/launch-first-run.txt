@@ -1,0 +1,15 @@
+  bash arg: -p
+  bash arg: com.folio.v2.greenfield
+  bash arg: -c
+  bash arg: android.intent.category.LAUNCHER
+  bash arg: 1
+args: [-p, com.folio.v2.greenfield, -c, android.intent.category.LAUNCHER, 1]
+ arg: "-p"
+ arg: "com.folio.v2.greenfield"
+ arg: "-c"
+ arg: "android.intent.category.LAUNCHER"
+ arg: "1"
+data="com.folio.v2.greenfield"
+data="android.intent.category.LAUNCHER"
+Events injected: 1
+## Network stats: elapsed time=331ms (0ms mobile, 0ms wifi, 331ms not connected)

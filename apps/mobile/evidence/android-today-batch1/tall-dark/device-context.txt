@@ -1,0 +1,7 @@
+serial=emulator-5572
+package=com.folio.v2.greenfield
+activity=com.folio.v2.greenfield/.MainActivity
+ui_night_mode=2
+wm_size=Physical size: 1080x2400
+wm_density=Physical density: 420
+focus=  mCurrentFocus=Window{b393fa2 u0 Application Error: com.folio.v2.greenfield}

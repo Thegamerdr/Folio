@@ -1,0 +1,1 @@
+UI hierchary dumped to: /sdcard/log-spend-ready-1200-stable-mood.xml

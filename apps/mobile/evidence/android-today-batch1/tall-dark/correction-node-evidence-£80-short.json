@@ -1,0 +1,65 @@
+[
+  {
+    "text": "",
+    "desc": "Open Melo",
+    "class": "android.widget.Button",
+    "bounds": "[902,74][1007,179]",
+    "clickable": "true"
+  },
+  {
+    "text": "Something has to move. Let's look together.",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[73,357][1006,413]",
+    "clickable": "false"
+  },
+  {
+    "text": "£0",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[197,435][398,573]",
+    "clickable": "false"
+  },
+  {
+    "text": "spare · £80 short",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[419,520][694,570]",
+    "clickable": "false"
+  },
+  {
+    "text": "at its lowest point · Monday 24 · from £-80 · you corrected this",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[74,583][1007,627]",
+    "clickable": "false"
+  },
+  {
+    "text": "This doesn’t reach payday on its own.",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[74,698][605,741]",
+    "clickable": "false"
+  },
+  {
+    "text": "Can I spend something?",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[121,805][521,856]",
+    "clickable": "false"
+  },
+  {
+    "text": "",
+    "desc": "Money path from today to payday. today −£80. lowest in the payday horizon −£80 on Monday 24. payday £2,940. Verdict: Something has to move. Let's look together.. Drag to preview a spend",
+    "class": "android.widget.ImageView",
+    "bounds": "[42,1342][1038,1867]",
+    "clickable": "false"
+  },
+  {
+    "text": "£3,020 coming in before payday, £0 going out.",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[42,2005][1038,2084]",
+    "clickable": "false"
+  }
+]

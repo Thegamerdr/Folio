@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.folio.v2.greenfield/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.folio.v2.greenfield/.MainActivity
+TotalTime: 2630
+WaitTime: 2633
+Complete

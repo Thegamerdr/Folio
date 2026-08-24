@@ -1,0 +1,6 @@
+Installed package: com.folio.v2.greenfield
+Serial: emulator-5572
+PM path: /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk
+Installed base.apk size: 95034476
+Installed base.apk SHA256: 021AEFC462F18555EEDF18FE608AB7CF302EBB24E5720D9A75B6DB08CB39C8AE
+Source APK expected at install: C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile\android\app\build\outputs\apk\release\app-release.apk

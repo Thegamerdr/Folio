@@ -1,0 +1,1 @@
+adb: error: failed to stat remote object '/sdcard/melo-today-tall-dark-first-run-replacement.xml': No such file or directory

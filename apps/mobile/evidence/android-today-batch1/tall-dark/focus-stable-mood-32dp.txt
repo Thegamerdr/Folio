@@ -1,0 +1,4 @@
+
+    topResumedActivity=ActivityRecord{8086c u0 com.folio.v2.greenfield/.MainActivity t24}
+  mCurrentFocus=Window{16c5ead u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+

@@ -1,0 +1,1 @@
+UI hierchary dumped to: /sdcard/today-negative-qa-1200-bottom-stable-mood.xml

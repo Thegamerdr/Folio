@@ -1,0 +1,1 @@
+UI hierchary dumped to: /sdcard/account-balance-negative-80-hidden-keyboard.xml

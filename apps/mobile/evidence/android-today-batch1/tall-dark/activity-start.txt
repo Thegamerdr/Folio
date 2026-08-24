@@ -1,0 +1,6 @@
+Starting: Intent { cmp=com.folio.v2.greenfield/.MainActivity }
+Status: timeout
+LaunchState: UNKNOWN (-1)
+Activity: com.folio.v2.greenfield/.MainActivity
+WaitTime: 238927
+Complete

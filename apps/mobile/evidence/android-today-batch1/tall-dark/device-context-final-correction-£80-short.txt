@@ -1,0 +1,11 @@
+APK=C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile\android\app\build\outputs\apk\release\app-release.apk
+APKSizeBytes=95034768
+APKSHA256=79C5213AEEA705BDB5CA2570F313C8F3DB2B855C27D9782194BBE23974629BF7
+Serial=emulator-5572
+Package=com.folio.v2.greenfield
+Activity=com.folio.v2.greenfield/.MainActivity
+NightMode=2
+Window=Physical size: 1080x2400
+Density=Physical density: 420
+State=preserved native -£80 balance; real UI account edit; prior QA spend entries preserved
+Acceptance=final targeted correction recapture; visible £80 short hero/path semantics; top/path Dark evidence

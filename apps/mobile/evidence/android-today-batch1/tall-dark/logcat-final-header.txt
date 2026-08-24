@@ -1,0 +1,871 @@
+--------- beginning of system
+08-24 18:15:23.276   600  1973 I ActivityManager: Force stopping com.folio.v2.greenfield appid=10209 user=0: from pid 3382
+--------- beginning of main
+08-24 18:15:23.278   470   531 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:23.278   600  1973 I ActivityManager: Killing 3030:com.folio.v2.greenfield/u0a209 (adj 0): stop com.folio.v2.greenfield due to from pid 3382
+08-24 18:15:23.280   600   750 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:23.281   600   750 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-24 18:15:23.281   600   621 D DisplayManagerService: Drop pending events for gone uid 10209
+08-24 18:15:23.282   600  1973 W ActivityTaskManager: Force removing ActivityRecord{ebbda30 u0 com.folio.v2.greenfield/.MainActivity t22 f}}: app died, no saved state
+08-24 18:15:23.284   600   750 D InetDiagMessage: Destroyed 1 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-24 18:15:23.284   600   750 D InetDiagMessage: Destroyed live tcp sockets for uids={10209} in 5ms
+08-24 18:15:23.285   600   750 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-24 18:15:23.285   600   750 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-24 18:15:23.285   600   750 D InetDiagMessage: Destroyed live tcp sockets for uids={20209} in 0ms
+08-24 18:15:23.286   832   903 V WindowManagerShell: Transition requested (#7): android.os.BinderProxy@7c50425 TransitionRequestInfo { type = CLOSE, triggerTask = TaskInfo{userId=0 taskId=22 displayId=0 isRunning=false baseIntent=Intent { flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity } baseActivity=null topActivity=null origActivity=null realActivity=ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity} numActivities=0 lastActiveTime=41198 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@fc439fa} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=null launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= false isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 7 }
+08-24 18:15:23.292   600   614 I AppWidgetServiceImpl: startListening() 0
+08-24 18:15:23.293   600  1973 D OomAdjuster: Not killing cached processes
+08-24 18:15:23.294  1273  1273 D StatsLog: LAUNCHER_ONRESUME
+08-24 18:15:23.294   470   531 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:23.294   832   903 D WindowManagerShell: setLauncherKeepClearAreaHeight: visible=true, height=527
+08-24 18:15:23.298   399   465 I netd    : tetherGetStats() -> {[]} <0.58ms>
+08-24 18:15:23.301  1273  1291 D QuickstepModelDelegate: notifyAppTargetEvent action=1 launchLocation=workspace/0/[-1,-1]/[1,1]
+08-24 18:15:23.308   470   470 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+08-24 18:15:23.311  1598  1757 W Bugle   : TextClassifierLibManagerImpl: Reclaiming memory at level: 40
+08-24 18:15:23.312  1273  1273 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=6}
+08-24 18:15:23.313   600  1973 I AppsFilter: interaction: PackageSetting{37d8410 com.android.microdroid.empty_payload/10208} -> PackageSetting{533877e com.folio.v2.greenfield/10209} BLOCKED
+08-24 18:15:23.325  1273  1273 D BaseDepthController: setSurface:
+08-24 18:15:23.325  1273  1273 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
+08-24 18:15:23.325  1273  1273 D BaseDepthController: 	mSurface: Surface(name=com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity)/@0x3579728
+08-24 18:15:23.330   600   624 W ActivityTaskManager: Unable to send transaction to client proc com.folio.v2.greenfield: no app thread
+08-24 18:15:23.338   400   400 I Zygote  : Process 3030 exited due to signal 9 (Killed)
+08-24 18:15:23.338   600  1845 I WindowManager: WIN DEATH: Window{c9c5e53 u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+08-24 18:15:23.341   600   634 I libprocessgroup: Removed cgroup /sys/fs/cgroup/uid_10209/pid_3030
+08-24 18:15:23.341   600  1845 W InputManager-JNI: Input channel object 'c9c5e53 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity (client)' was disposed without first being removed with the input manager!
+08-24 18:15:23.345   600  1694 I ImeTracker: com.folio.v2.greenfield:73849f64: onRequestHide at ORIGIN_SERVER reason HIDE_REMOVE_CLIENT fromUser false
+08-24 18:15:23.345   600  1694 I ImeTracker: com.folio.v2.greenfield:73849f64: onCancelled at PHASE_SERVER_SHOULD_HIDE
+--------- beginning of kernel
+08-24 18:15:23.319     0     0 I binder  : undelivered transaction 176780, process died.
+08-24 18:15:23.320     0     0 I binder  : undelivered transaction 176726, process died.
+08-24 18:15:23.320     0     0 I binder  : undelivered transaction 176732, process died.
+08-24 18:15:23.353  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/DisplayCutoutEmulationWaterfall/DisplayCutoutEmulationWaterfallOverlay.apk' with 1 weak references
+08-24 18:15:23.356  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/IntentResolver/IntentResolver.apk' with 1 weak references
+08-24 18:15:23.356  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/TransparentNavigationBar/TransparentNavigationBarOverlay.apk' with 1 weak references
+08-24 18:15:23.356  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/E2eeContactKeysProvider/E2eeContactKeysProvider.apk' with 1 weak references
+08-24 18:15:23.357  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.tethering/priv-app/ServiceConnectivityResourcesGoogle@350820300/ServiceConnectivityResourcesGoogle.apk' with 1 weak references
+08-24 18:15:23.357  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/vendor/overlay/goldfish_overlay_connectivity_google.apk' with 1 weak references
+08-24 18:15:23.357  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/GoogleFeedback/GoogleFeedback.apk' with 1 weak references
+08-24 18:15:23.364   600  1432 W AppSearchIcing: icing-search-engine.cc:321: Error: 5, Message: Document (com.google.android.googlequicksearchbox$OneSearchZeroStateGoogleSuggestions/default, zp) not found.
+08-24 18:15:23.367   600   750 D ConnectivityService: releasing NetworkRequest [ REQUEST id=117, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10209 RequestorUid: 10209 RequestorPkg: com.folio.v2.greenfield UnderlyingNetworks: Null] ] (release request)
+08-24 18:15:23.373  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/GooglePrintRecommendationService/GooglePrintRecommendationService.apk' with 1 weak references
+08-24 18:15:23.373  1273  1273 I TopTaskTracker: onTaskMovedToFront: (moved taskInfo to front) taskId=21, baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.HOME] flg=0x10000100 cmp=com.google.android.apps.nexuslauncher/.NexusLauncherActivity }
+08-24 18:15:23.373  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/Photos/Photos.apk' with 1 weak references
+08-24 18:15:23.378  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/CalendarGooglePrebuilt/CalendarGooglePrebuilt.apk' with 1 weak references
+08-24 18:15:23.382  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/ManagedProvisioning/ManagedProvisioning.apk' with 1 weak references
+08-24 18:15:23.382  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/SoundPicker/SoundPicker.apk' with 1 weak references
+08-24 18:15:23.382  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/DocumentsUIGoogle/DocumentsUIGoogle.apk' with 1 weak references
+08-24 18:15:23.382  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/PrebuiltGoogleTelemetryTvp/PrebuiltGoogleTelemetryTvp.apk' with 1 weak references
+08-24 18:15:23.383  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/MultiDisplayProvider/MultiDisplayProvider.apk' with 1 weak references
+08-24 18:15:23.383  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/DeviceDiagnostics/DeviceDiagnostics.apk' with 1 weak references
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: AppSearch 0-state cache not available, fallback to AGA
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: java.util.concurrent.CompletionException: java.util.NoSuchElementException: No value present
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:308)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:323)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at java.util.concurrent.CompletableFuture$UniAccept.tryFire(CompletableFuture.java:684)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:486)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:2138)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at com.google.android.apps.nexuslauncher.allapps.E0.onResult(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:67)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at android.app.appsearch.SearchSessionUtil$1.lambda$onResult$0(go/retraceme 64eee9e9f568ff45978879ad2ff83146f2618ee8a88278736fbdf5fae931976e:144)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at android.app.appsearch.SearchSessionUtil$1.$r8$lambda$CEk3q8sDAQVhU3rQwVueB8FAj_M(go/retraceme 64eee9e9f568ff45978879ad2ff83146f2618ee8a88278736fbdf5fae931976e:1)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at android.app.appsearch.SearchSessionUtil$1$$ExternalSyntheticLambda0.run(go/retraceme 64eee9e9f568ff45978879ad2ff83146f2618ee8a88278736fbdf5fae931976e:22)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at android.os.Handler.handleCallback(Handler.java:959)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at android.os.Handler.dispatchMessage(Handler.java:100)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at android.os.Looper.loopOnce(Looper.java:232)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at android.os.Looper.loop(Looper.java:317)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at android.os.HandlerThread.run(HandlerThread.java:85)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: Caused by: java.util.NoSuchElementException: No value present
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at java.util.Optional.get(Optional.java:143)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	at com.google.android.apps.nexuslauncher.allapps.E0.onResult(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:28)
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: 	... 8 more
+08-24 18:15:23.383  1273  1578 D OneSearchSuggestProvider: Created the binder channel successfully for end point service =com.google.android.apps.search.googleapp.search.suggest.plugins.onesearch.server.OneSearchSuggestService , mChannel=i1{delegate=f{logId=5, target=directaddress:///AndroidComponentAddress%5BIntent%20%7B%20act=grpc.io.action.BIND%20cmp=com.google.android.googlequicksearchbox/com.google.android.apps.search.googleapp.search.suggest.plugins.onesearch.server.OneSearchSuggestService%20%7D%5D}} , mOneSearchConnection=l2.Z@30c288
+08-24 18:15:23.384  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/DeviceDiagnostics__sdk_gphone64_x86_64__auto_generated_rro_product.apk' with 1 weak references
+08-24 18:15:23.385  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/NotesRoleEnabled/NotesRoleEnabledOverlay.apk' with 1 weak references
+08-24 18:15:23.385  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/LiveWallpapersPicker/LiveWallpapersPicker.apk' with 1 weak references
+08-24 18:15:23.385  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/PrebuiltGoogleAdservicesTvp/PrebuiltGoogleAdservicesTvp.apk' with 1 weak references
+08-24 18:15:23.385  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.healthfitness/priv-app/HealthConnectControllerGoogle@350820300/HealthConnectControllerGoogle.apk' with 1 weak references
+08-24 18:15:23.385  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/KidsSupervisionStub/KidsSupervisionStub.apk' with 1 weak references
+08-24 18:15:23.385  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/StorageManager/StorageManager.apk' with 1 weak references
+08-24 18:15:23.386  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/StorageManager__sdk_gphone64_x86_64__auto_generated_rro_product.apk' with 1 weak references
+08-24 18:15:23.386  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/BookmarkProvider/BookmarkProvider.apk' with 1 weak references
+08-24 18:15:23.386  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/SettingsGoogle/SettingsGoogle.apk' with 1 weak references
+08-24 18:15:23.386   832   862 V WindowManagerShell: onTransitionReady(transaction=2576980377996)
+08-24 18:15:23.386   832   903 V WindowManagerShell: onTransitionReady (#7) android.os.BinderProxy@7c50425: {id=7 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@3f4b787} m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x1930bab sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@88776b4} m=CLOSE f=NONE leash=Surface(name=Task=22)/@0xa6c4208 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{null m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{8356395 token=android.os.Binder@89eb74c})/@0x666bda1 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-24 18:15:23.386   832   903 V WindowManagerShell: Playing animation for (#7) android.os.BinderProxy@7c50425@0
+08-24 18:15:23.386   832   903 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@602dda8
+08-24 18:15:23.386   832   903 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@6b1c0c1
+08-24 18:15:23.386   832   903 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@8b01066
+08-24 18:15:23.386   832   903 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@cda3fa7
+08-24 18:15:23.386   832   903 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@a7c2c54
+08-24 18:15:23.386   832   903 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-24 18:15:23.386   832   903 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@958a7fd
+08-24 18:15:23.386   832   903 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@89cccf2
+08-24 18:15:23.386   832   903 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=7 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@3f4b787} m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x1930bab sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@88776b4} m=CLOSE f=NONE leash=Surface(name=Task=22)/@0xa6c4208 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{null m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{8356395 token=android.os.Binder@89eb74c})/@0x666bda1 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-24 18:15:23.386   832   903 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[OPEN,TO_FRONT] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@6612f43, appThread = android.app.IApplicationThread$Stub$Proxy@499b9c0, debugName = OverlaySwipeBack }}
+08-24 18:15:23.386   832   903 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@68cc6f9, appThread = android.app.IApplicationThread$Stub$Proxy@c26c63e, debugName = LauncherToDream }}
+08-24 18:15:23.386   832   903 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@edd7c9f, appThread = android.app.IApplicationThread$Stub$Proxy@240b1ec, debugName = QuickstepLaunchHome }}
+08-24 18:15:23.387  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/SettingsGoogle__sdk_gphone64_x86_64__auto_generated_rro_product.apk' with 1 weak references
+08-24 18:15:23.387   470  1012 D PermissionCache: checking android.permission.READ_FRAME_BUFFER for uid=1000 => granted (1053 us)
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/SettingsIntelligenceGooglePrebuilt/SettingsIntelligenceGooglePrebuilt.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.uwb/priv-app/ServiceUwbResourcesGoogle@350820300/ServiceUwbResourcesGoogle.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.wifi/priv-app/ServiceWifiResourcesGoogle@350820300/ServiceWifiResourcesGoogle.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/ThemePicker/ThemePicker.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/WallpaperPickerGoogleRelease/WallpaperPickerGoogleRelease.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/OdadPrebuilt/OdadPrebuilt.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/TeleService/TeleService.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/vendor/overlay/TeleService__sdk_gphone64_x86_64__auto_generated_rro_vendor.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/TeleService__sdk_gphone64_x86_64__auto_generated_rro_product.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/Shell/Shell.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/BlockedNumberProvider/BlockedNumberProvider.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/UserDictionaryProvider/UserDictionaryProvider.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/app/EmergencyInfoGoogleNoUi/EmergencyInfoGoogleNoUi.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk' with 1 weak references
+08-24 18:15:23.389  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/FusedLocation/FusedLocation.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/vendor/overlay/SystemUIGoogle__sdk_gphone64_x86_64__auto_generated_rro_vendor.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/SystemUIGoogle__sdk_gphone64_x86_64__auto_generated_rro_product.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/YouTubeMusicPrebuilt/YouTubeMusicPrebuilt.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/BluetoothMidiService/BluetoothMidiService.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/Traceur/Traceur.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.cellbroadcast/priv-app/GoogleCellBroadcastApp@350820300/GoogleCellBroadcastApp.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/ContactsProvider/ContactsProvider.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/ContactsProvider__sdk_gphone64_x86_64__auto_generated_rro_product.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/LatinIMEGooglePrebuilt/LatinIMEGooglePrebuilt.apk' with 1 weak references
+08-24 18:15:23.390  1349  1359 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/GoogleRestorePrebuilt-v526684/GoogleRestorePrebuilt-v526684.apk' with 1 weak references
+08-24 18:15:23.391   832   903 D RemoteTransitionHandler: Found filterPair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@edd7c9f, appThread = android.app.IApplicationThread$Stub$Proxy@240b1ec, debugName = QuickstepLaunchHome }}
+08-24 18:15:23.391   832   903 V WindowManagerShell:  Delegate animation for (#7) to RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@edd7c9f, appThread = android.app.IApplicationThread$Stub$Proxy@240b1ec, debugName = QuickstepLaunchHome }
+08-24 18:15:23.403   600   686 D ActivityManager: sync unfroze 2592 com.google.android.apps.photos for 6
+08-24 18:15:23.407   937   937 D CarrierSvcBindHelper: onHandleForceStop: [com.folio.v2.greenfield]
+08-24 18:15:23.414  1273  1273 D StateManager: createAtomicAnimation - fromState: Background, toState: Normal, partial trace:
+08-24 18:15:23.414  1273  1273 D StateManager: 	at com.android.quickstep.util.StaggeredWorkspaceAnim.prepareToAnimate(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:22)
+08-24 18:15:23.414  1273  1273 D StateManager: 	at com.android.quickstep.util.StaggeredWorkspaceAnim.<init>(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:4)
+08-24 18:15:23.414  1273  1273 D StateManager: 	at com.android.quickstep.util.StaggeredWorkspaceAnim.<init>(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:1)
+08-24 18:15:23.420   600   666 D ActivityManager: sync unfroze 1529 com.google.android.googlequicksearchbox:search for 6
+08-24 18:15:23.431  1392  1699 I AiAiEcho: Predicting[0]:  [CONTEXT sampling_count=5 ]
+08-24 18:15:23.431  1392  1699 I AiAiEcho: EchoTargets: 
+08-24 18:15:23.431  1392  1699 I AiAiEcho: Filtered by AiAi flag check: 
+08-24 18:15:23.431  1392  1699 I AiAiEcho: [CONTEXT ratelimit_period="10 SECONDS" ]
+08-24 18:15:23.431  1392  1699 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata:  [CONTEXT ratelimit_period="10 SECONDS" ]
+08-24 18:15:23.431  1392  1699 I AiAiEcho: #remoteViewsTwiddler: feature disabled.
+08-24 18:15:23.431  1392  1699 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+08-24 18:15:23.435   600   623 W ActivityManager: setHasOverlayUi called on unknown pid: 3030
+08-24 18:15:23.435   600  1973 V ActivityManager: Got obituary of 3030:com.folio.v2.greenfield
+08-24 18:15:23.441   937   937 D CarrierSvcBindHelper: No carrier app for: 0
+08-24 18:15:23.443  1529  1529 I A       : (REDACTED) Created gRPC endpoint for service %s
+08-24 18:15:23.443  1529  1534 W earchbox:search: Missing inline cache for java.util.Set com.google.bq.d.a.a.f.d.g.a(java.lang.Object, n.h.a.l)
+08-24 18:15:23.444   600   776 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_RESTARTED on user 0
+08-24 18:15:23.444   600   776 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10209 package com.folio.v2.greenfield isStopped true
+08-24 18:15:23.444   600   776 I AppWidgetServiceImpl: cancelBroadcastsLocked() for Provider{ProviderId{user:0, app:10209, cmp:ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.widget.SafeZoneWidget}}}
+08-24 18:15:23.445   600   620 V WindowManager: Sent Transition (#7) createdAt=08-24 18:15:23.282 via request=TransitionRequestInfo { type = CLOSE, triggerTask = TaskInfo{userId=0 taskId=22 displayId=0 isRunning=false baseIntent=Intent { flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity } baseActivity=null topActivity=null origActivity=null realActivity=ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity} numActivities=0 lastActiveTime=41198 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{7cda4fe Task{5bb11b6 #22 type=standard A=10209:com.folio.v2.greenfield}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=null launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= false isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 7 }
+08-24 18:15:23.445   600   620 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-24 18:15:23.446   600   620 V WindowManager:     info={id=7 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+08-24 18:15:23.446   600   620 V WindowManager:         {WCT{RemoteToken{dd0577b Task{e5ddcd9 #1 type=home}}} m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x4b28b03 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+08-24 18:15:23.446   600   620 V WindowManager:         {WCT{RemoteToken{7cda4fe Task{5bb11b6 #22 type=standard A=10209:com.folio.v2.greenfield}}} m=CLOSE f=NONE leash=Surface(name=Task=22)/@0xdb24a80 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+08-24 18:15:23.446   600   620 V WindowManager:         {null m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{8356395 token=android.os.Binder@89eb74c})/@0x122d162 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}
+08-24 18:15:23.446   600   620 V WindowManager:     ]}
+08-24 18:15:23.449  1529  1819 I A       : NGA enabled in interactor.
+08-24 18:15:23.451   600  1004 W ProcessStats: Tracking association SourceState{981f561 com.google.android.apps.nexuslauncher/10179 BTop #1757} whose proc state 2 is better than process ProcessState{6b66c1e com.google.android.googlequicksearchbox:search/10144 pkg=com.google.android.googlequicksearchbox} proc state 14 (5 skipped)
+08-24 18:15:23.452   600   750 D ConnectivityService: releasing NetworkRequest [ REQUEST id=121, [ Transports: CELLULAR Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Forbidden: LOCAL_NETWORK Uid: 10144 RequestorUid: 10144 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ] (release request)
+08-24 18:15:23.452   600   750 I ConnectivityService: Update capabilities for net 100 : -FOREGROUND
+08-24 18:15:23.453   832   903 V WindowManagerShell:  animated by com.android.wm.shell.transition.RemoteTransitionHandler@89cccf2
+08-24 18:15:23.453   832   903 W Looper  : Slow dispatch took 68ms wmshell.main h=android.os.Handler c=com.android.wm.shell.transition.Transitions$TransitionPlayerImpl$$ExternalSyntheticLambda0@6bc0e52 m=0
+08-24 18:15:23.455   399   465 I netd    : networkSetPermissionForNetwork(100, 1) <2.89ms>
+08-24 18:15:23.459   600  1695 W UserManagerService: Requested status bar icon for non-badged user 0
+08-24 18:15:23.460  1529  1819 I A       : NGA enabled in interactor.
+08-24 18:15:23.468   600   750 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:23.471   600   750 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:23.474  1529  1529 I BgTaskExecutorImpl: (REDACTED) Starting %s background task %s.
+08-24 18:15:23.503  1273  1507 D EGL_emulation: app_time_stats: avg=5612.96ms min=1.31ms max=134539.42ms count=24
+08-24 18:15:23.513  1421  1421 I A       : (REDACTED) Created gRPC endpoint for service %s
+08-24 18:15:23.521  1529  3392 I NetworkRecognitionRnr: Using pair HTTP connection
+08-24 18:15:23.529  1529  2309 I A       : [Upload] Connected
+08-24 18:15:23.534   600   715 I ImeTracker: com.google.android.apps.nexuslauncher:a8d49db9: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+08-24 18:15:23.540   600   666 W ActivityTaskManager: callingPackage for (uid=2000, pid=3396) has no WPC
+08-24 18:15:23.540   600   715 I ImeTracker: com.google.android.apps.nexuslauncher:a8d49db9: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-24 18:15:23.542   600   666 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_OVERRIDE
+08-24 18:15:23.543   600   666 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_FULLSCREEN_OVERRIDE
+08-24 18:15:23.543   600   666 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+08-24 18:15:23.543   600   666 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10209, packageName = null, attributionTag = null, token = android.os.Binder@d91b444, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+08-24 18:15:23.543   600   666 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+08-24 18:15:23.543   600   666 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+08-24 18:15:23.552   600   666 I ActivityTaskManager: Add Task{5bb11b6 #22 type=standard A=10209:com.folio.v2.greenfield} to hidden list because adding Task{83ade37 #23 type=standard A=10209:com.folio.v2.greenfield}
+08-24 18:15:23.554   832   987 D SplashScreenView: Build android.window.SplashScreenView{2887fd9 V.E...... ......ID 0,0-0,0}
+08-24 18:15:23.554   832   987 D SplashScreenView: Icon: view: android.widget.ImageView{5e8bd9e V.ED..... ......I. 0,0-0,0 #1020504 android:id/splashscreen_icon_view} drawable: com.android.wm.shell.startingsurface.SplashscreenIconDrawableFactory$ImmobileIconDrawable@413107f size: 504
+08-24 18:15:23.554   832   987 D SplashScreenView: Branding: view: android.view.View{c5ee84c G.ED..... ......I. 0,0-0,0 #1020503 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+08-24 18:15:23.554   600   666 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+08-24 18:15:23.556   600   623 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10209, packageName = null, attributionTag = null, token = android.os.Binder@d91b444, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+08-24 18:15:23.556   832   903 V WindowManagerShell: Transition requested (#8): android.os.BinderProxy@69f15aa TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=23 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity } baseActivity=ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity} topActivity=ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity} origActivity=null realActivity=ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity} numActivities=1 lastActiveTime=175977 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@5d2359b} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{7b83d38 com.folio.v2.greenfield.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 8 }
+08-24 18:15:23.557   523   523 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:23.557  1335  1335 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3157 
+08-24 18:15:23.565  1335  1335 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 0, locked = false
+08-24 18:15:23.565  1335  1335 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1986 onStartInput(EditorInfo{EditorInfo{packageName=com.google.android.apps.nexuslauncher, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+08-24 18:15:23.566  1335  1335 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 1, locked = false
+08-24 18:15:23.566  1335  1335 I AndroidIME: InputBundleManager.loadActiveInputBundleId():450 loadActiveInputBundleId: und-Latn-x-password, password
+08-24 18:15:23.568   600  1846 D CoreBackPreview: Window{2c15d2f u0 Splash Screen com.folio.v2.greenfield}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@a1c8e1a, mPriority=0, mIsAnimationCallback=false}
+08-24 18:15:23.568   600  1004 W PackageConfigPersister: App-specific configuration not found for packageName: com.google.android.apps.nexuslauncher and userId: 0
+08-24 18:15:23.569   400   400 D Zygote  : Forked child process 3403
+08-24 18:15:23.570   600   633 I ActivityManager: Start proc 3403:com.folio.v2.greenfield/u0a209 for next-top-activity {com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}
+08-24 18:15:23.575   600   624 W ActivityTaskManager: Unable to send transaction to client proc com.folio.v2.greenfield: no app thread
+08-24 18:15:23.581  1529  1819 W CronetNetworkRqstWrppr: Upload request without a content type.
+08-24 18:15:23.582  1529  2309 I NetworkRecognitionRnr: Using pair HTTP connection
+08-24 18:15:23.584  1529  1529 E A       : onError
+08-24 18:15:23.584  1529  1529 E A       : com.google.android.apps.gsa.shared.speech.b.l: errorCode: 65561, engine: 2
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.staticplugins.bp.a.f.a(PG:23)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.s3.o.hi(PG:13)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.ci.g.a.f.e(PG:9)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.speech.k.a.g.d(PG:162)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.speech.k.a.g.iO(PG:26)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.s3.p.c(PG:102)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.s3.q.run(PG:1)
+08-24 18:15:23.584  1529  1529 E A       : 	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:487)
+08-24 18:15:23.584  1529  1529 E A       : 	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.shared.util.c.a.e.run(PG:12)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.shared.util.c.a.bg.run(PG:3)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.shared.util.c.a.bg.run(PG:3)
+08-24 18:15:23.584  1529  1529 E A       : 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+08-24 18:15:23.584  1529  1529 E A       : 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+08-24 18:15:23.584  1529  1529 E A       : 	at java.lang.Thread.run(Thread.java:1012)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.shared.util.c.a.l.run(PG:42)
+08-24 18:15:23.584  1529  1529 E A       : Caused by: com.google.android.apps.gsa.shared.speech.b.n: errorCode: 65586, engine: 2
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.s3.o.hi(PG:6)
+08-24 18:15:23.584  1529  1529 E A       : 	... 14 more
+08-24 18:15:23.584  1529  1529 E A       : Caused by: com.google.android.apps.gsa.shared.speech.b.j: errorCode: 401, engine: 2
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.assistant.shared.n.i.b(PG:30)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.s3.producers.j.hs(PG:11)
+08-24 18:15:23.584  1529  1529 E A       : 	at com.google.android.apps.gsa.speech.k.a.g.d(PG:135)
+08-24 18:15:23.584  1529  1529 E A       : 	... 12 more
+08-24 18:15:23.587  3403  3403 I o.v2.greenfield: Using CollectorTypeCMC GC.
+08-24 18:15:23.588  3403  3403 W o.v2.greenfield: Unexpected CPU variant for x86: x86_64.
+08-24 18:15:23.588  3403  3403 W o.v2.greenfield: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, default
+08-24 18:15:23.590  1529  3172 I A       : [Upload] Connected
+08-24 18:15:23.593  3403  3403 E o.v2.greenfield: Not starting debugger since process cannot load the jdwp agent.
+08-24 18:15:23.596  3403  3403 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+08-24 18:15:23.605  1529  1529 W A       : Failed to sync device settings.
+08-24 18:15:23.605  1529  1529 I A       : Retrying to sync device settings.
+08-24 18:15:23.606  1529  1529 W JobInfo : Job 'com.google.android.googlequicksearchbox/com.google.android.apps.gsa.tasks.BackgroundTasksJobService#-353' has a deadline with functional constraints and an extremely short time window of 0 ms (delay=120000, deadline=120000). The functional constraints are not likely to be satisfied when the job runs.
+08-24 18:15:23.606   600   632 I AppsFilter: interaction: PackageSetting{37d8410 com.android.microdroid.empty_payload/10208} -> PackageSetting{ac9c327 com.folio.v2.greenfield/10209} BLOCKED
+08-24 18:15:23.607   600  1846 W JobInfo : Job 'com.google.android.googlequicksearchbox/com.google.android.apps.gsa.tasks.BackgroundTasksJobService#-353' has a deadline with functional constraints and an extremely short time window of 0 ms (delay=120000, deadline=120000). The functional constraints are not likely to be satisfied when the job runs.
+08-24 18:15:23.609   600   776 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_UNSTOPPED on user 0
+08-24 18:15:23.610   600   776 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10209 package com.folio.v2.greenfield isStopped false
+08-24 18:15:23.611   600  1846 W JobInfo : Job 'com.google.android.googlequicksearchbox/com.google.android.apps.gsa.tasks.BackgroundTasksJobService#-353' has a deadline with functional constraints and an extremely short time window of 0 ms (delay=120000, deadline=120000). The functional constraints are not likely to be satisfied when the job runs.
+08-24 18:15:23.621  3403  3403 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar
+08-24 18:15:23.621  3403  3403 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.sidecar.jar
+08-24 18:15:23.622   600  1846 W JobScheduler: Job didn't exist in JobStore: 2c0becb #u0a144/-353 com.google.android.googlequicksearchbox/com.google.android.apps.gsa.tasks.BackgroundTasksJobService
+08-24 18:15:23.635   600  1004 D FileUtils: Rounded bytes from 2592718848 to 4000000000
+08-24 18:15:23.644  3403  3403 D nativeloader: Configuring clns-7 for other apk /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/lib/x86_64:/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.folio.v2.greenfield
+08-24 18:15:23.650  3403  3403 V GraphicsEnvironment: Currently set values for:
+08-24 18:15:23.650  3403  3403 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+08-24 18:15:23.650  3403  3403 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+08-24 18:15:23.650  3403  3403 V GraphicsEnvironment: Global.Settings values are invalid: number of packages: 0, number of values: 0
+08-24 18:15:23.650  3403  3403 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+08-24 18:15:23.654  1529  2283 V ClearcutMetricXmitter: Transmission is done.
+08-24 18:15:23.656  3403  3403 W FirebaseApp: Default FirebaseApp failed to initialize because no default options were found. This usually means that com.google.gms:google-services was not applied to your gradle project.
+08-24 18:15:23.656  3403  3403 I FirebaseInitProvider: FirebaseApp initialization unsuccessful
+08-24 18:15:23.657  3403  3403 D Sentry  : io.sentry.auto-init read: false
+08-24 18:15:23.660  3403  3403 D WM-WrkMgrInitializer: Initializing WorkManager with default configuration.
+08-24 18:15:23.665  3403  3403 W SoLoader: Initializing SoLoader: 0
+08-24 18:15:23.665  3403  3403 W SoLoader: Recording new base apk path: /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk
+08-24 18:15:23.665  3403  3403 W SoLoader: Previously recorded 0 base apk paths.
+08-24 18:15:23.666  3403  3403 I SoLoader: Preparing SO source: DirectorySoSource[root = /vendor/lib64 flags = 2]
+08-24 18:15:23.666  3403  3403 I SoLoader: Preparing SO source: DirectorySoSource[root = /system/lib64 flags = 2]
+08-24 18:15:23.666  3403  3403 I SoLoader: Preparing SO source: DirectApkSoSource[root = [/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64]]
+08-24 18:15:23.668  3403  3403 I SoLoader: Preparing SO source: ApplicationSoSource[DirectorySoSource[root = /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/lib/x86_64 flags = 0]]
+08-24 18:15:23.668  3403  3403 I SoLoader: init finish: 4 SO sources prepared
+08-24 18:15:23.668  3403  3403 W SoLoader: SoLoader initialized: 8
+08-24 18:15:23.679  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libc++_shared.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.686  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libjsi.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.690  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libfbjni.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.696   423   440 I RanchuHwc: logCompositionFallbackIfChanged: layer 4 CompositionType fallback from 2 to 1
+08-24 18:15:23.697   423   440 I RanchuHwc: logCompositionFallbackIfChanged: layer 3 CompositionType fallback from 2 to 1
+08-24 18:15:23.698   426   426 I android.hardware.power-service.example: Power isModeSupported: 6
+08-24 18:15:23.704  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libreactnative.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Entering merged library JNI_OnLoad.
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing 12 pre-merged libs (including stub)
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libfabricjni_so.  onload_func: 0x7edc02538a20
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libreact_devsupportjni_so.  onload_func: 0x7edc0261d550
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libreact_featureflagsjni_so.  onload_func: 0x7edc0262fa90
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libreact_newarchdefaults_so.  onload_func: 0x7edc0266a5a0
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libreactnativeblob_so.  onload_func: 0x7edc02760870
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libreactnativejni_so.  onload_func: 0x7edc0276cdb0
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libreactnativejni_common_so.  onload_func: 0x7edc0276fc20
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register librninstance_so.  onload_func: 0x7edc02797af0
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libturbomodulejsijni_so.  onload_func: 0x7edc0283ed70
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libuimanagerjni_so.  onload_func: 0x7edc02845cd0
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: Preparing to register libyoga_so.  onload_func: 0x7edc0284d350
+08-24 18:15:23.704  3403  3403 D jni_lib_merge: About to register 11 actual methods.
+08-24 18:15:23.720  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libreact_codegen_rnscreens.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.720  3403  3403 D jni_lib_merge: Entering merged library JNI_OnLoad.
+08-24 18:15:23.720  3403  3403 D jni_lib_merge: Preparing 12 pre-merged libs (including stub)
+08-24 18:15:23.720  3403  3403 D jni_lib_merge: Preparing to register libfabricjni_so.  onload_func: 0x7edc02538a20
+08-24 18:15:23.720  3403  3403 D jni_lib_merge: Preparing to register libreact_devsupportjni_so.  onload_func: 0x7edc0261d550
+08-24 18:15:23.720  3403  3403 D jni_lib_merge: Preparing to register libreact_featureflagsjni_so.  onload_func: 0x7edc0262fa90
+08-24 18:15:23.720  3403  3403 D jni_lib_merge: Preparing to register libreact_newarchdefaults_so.  onload_func: 0x7edc0266a5a0
+08-24 18:15:23.720  3403  3403 D jni_lib_merge: Preparing to register libreactnativeblob_so.  onload_func: 0x7edc02760870
+08-24 18:15:23.721  3403  3403 D jni_lib_merge: Preparing to register libreactnativejni_so.  onload_func: 0x7edc0276cdb0
+08-24 18:15:23.721  3403  3403 D jni_lib_merge: Preparing to register libreactnativejni_common_so.  onload_func: 0x7edc0276fc20
+08-24 18:15:23.721  3403  3403 D jni_lib_merge: Preparing to register librninstance_so.  onload_func: 0x7edc02797af0
+08-24 18:15:23.721  3403  3403 D jni_lib_merge: Preparing to register libturbomodulejsijni_so.  onload_func: 0x7edc0283ed70
+08-24 18:15:23.721  3403  3403 D jni_lib_merge: Preparing to register libuimanagerjni_so.  onload_func: 0x7edc02845cd0
+08-24 18:15:23.721  3403  3403 D jni_lib_merge: Preparing to register libyoga_so.  onload_func: 0x7edc0284d350
+08-24 18:15:23.721  3403  3403 D jni_lib_merge: About to register 11 actual methods.
+08-24 18:15:23.726  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libreact_codegen_RNCSlider.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.745  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libreact_codegen_rnsvg.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.745  3403  3403 D jni_lib_merge: Entering merged library JNI_OnLoad.
+08-24 18:15:23.745  3403  3403 D jni_lib_merge: Preparing 12 pre-merged libs (including stub)
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libfabricjni_so.  onload_func: 0x7edc02538a20
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libreact_devsupportjni_so.  onload_func: 0x7edc0261d550
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libreact_featureflagsjni_so.  onload_func: 0x7edc0262fa90
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libreact_newarchdefaults_so.  onload_func: 0x7edc0266a5a0
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libreactnativeblob_so.  onload_func: 0x7edc02760870
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libreactnativejni_so.  onload_func: 0x7edc0276cdb0
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libreactnativejni_common_so.  onload_func: 0x7edc0276fc20
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register librninstance_so.  onload_func: 0x7edc02797af0
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libturbomodulejsijni_so.  onload_func: 0x7edc0283ed70
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libuimanagerjni_so.  onload_func: 0x7edc02845cd0
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: Preparing to register libyoga_so.  onload_func: 0x7edc0284d350
+08-24 18:15:23.752  3403  3403 D jni_lib_merge: About to register 11 actual methods.
+08-24 18:15:23.756  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libreact_codegen_safeareacontext.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.759  3403  3403 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libappmodules.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:23.786   600  1695 I BroadcastQueue: BOOT_COMPLETED_BROADCAST_COMPLETION_LATENCY_REPORTED action:android.intent.action.BOOT_COMPLETED dispatchLatency:1 completeLatency:182 dispatchRealLatency:1 completeRealLatency:182 receiversSize:1 userId:0 userType:android.os.usertype.full.SYSTEM
+08-24 18:15:24.051   600   623 W ActivityTaskManager: Activity top resumed state loss timeout for ActivityRecord{333d568 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t21}
+08-24 18:15:24.052   600   623 W ActivityTaskManager: Activity pause timeout for ActivityRecord{333d568 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t21}
+08-24 18:15:24.059   600   623 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ENABLE_FAKE_FOCUS
+08-24 18:15:24.076  3403  3403 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+08-24 18:15:24.110  1273  1273 W SplitSelectStateCtor: Missing session instanceIds
+08-24 18:15:24.110  1273  1273 D StatsLog: LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED
+08-24 18:15:24.117   470  1215 D PermissionCache: checking android.permission.WAKEUP_SURFACE_FLINGER for uid=10179 => granted (429 us)
+08-24 18:15:24.118  1273  1273 I TopTaskTracker: onTaskMovedToFront: (moved taskInfo to front) taskId=23, baseIntent=Intent { flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity }
+08-24 18:15:24.119  1273  1273 D SearchTargetUtil: query= size=15
+08-24 18:15:24.119  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=a level results day 2026 grades,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=a level results day 2026 grades searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 8fbcbdf4-4e39-428f-8d2f-8ddc9e8301a1
+08-24 18:15:24.119  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=dolby vision,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=dolby vision searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 6c136e25-3910-4a40-8418-00288c5b27fb
+08-24 18:15:24.119  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=phoebe bridgers album review,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=phoebe bridgers album review searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 9ad6888c-aa81-41e7-8bbc-c82f9b30c992
+08-24 18:15:24.119  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=nationwide communication cards rollout,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=nationwide communication cards rollout searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 0ff0c02b-0559-4eec-9ca2-b3e5619fb64e
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=extra_tall_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{bitmap_url=data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys/RD84QzQ5OjcBCgoKDQwNGg8PGjclHyU3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3N//AABEIAHwAfAMBIgACEQEDEQH/xAAbAAACAgMBAAAAAAAAAAAAAAAEBQIGAQMHAP/EADoQAAIBAwMCBAMGBAYCAwAAAAECAwAEEQUSIQYxE0FRYRQicQcjMoGRoRVCweFSYrHR8PEkkheisv/EABoBAAMBAQEBAAAAAAAAAAAAAAECAwQABQb/xAAlEQACAgEDBAIDAQAAAAAAAAAAAQIRAxIhMQQTIlEyQXGBwRT/2gAMAwEAAhEDEQA/AMS3zvYp92xO3uTil18l3Jb2zQt2kOdshB86xboZ4JkVZSQM/O2PWtFw0tutn93HtMpOFbtwaooo7uNEIrjV7Qxr8RcqGlPCzZwOfWioOodYidBJeXGNzfiUHj9Kw6B5LZ2jbBdj8rfX3pa7KLlBm4QZbkjIrppLgOKWqW42TrjV1dAbmBlOeJIsZ/ejtO63vrojMNnIvhl3KjnGQOB5nmqpE4xEBcL/ADcOnejemrV7+7FiksX3sLN8vBJXnH+v6Ur2jZ1XkoeX3V7SxfcLaIecbkznB9ew8/Ks2nV+nmMpdWaTSKpb5AAWxVdvOnLmAy7pfCKn7sM4G8ZPH+n60ot9KuEuJJZPlCcABgM5HlmpqW48oNLgvsfVehSusb6bcRuwyBtpm11oR5khli+XOOe1UbpJIpNatfFeZR4ZOJBwe3tTjqjWbSK8eCK5jEirjkZFWdIgrY0Gp9Ju5HxbIQMkH0r3j9Kyk7dVQcbjkjtVCmI+IUPPbtvjPzAZB/f3rQGVjGqzwNuiIPy/3oAtnRkTp2ZsR6pC3mOR2qb2GjyFgmpQcjPcdqoelBJJ4dz27DwTnip3IRm+X4YgoR2oMpDcvQ0TTGHGowHPqRyKi+h6YT82oQHj2qg28bt4JWOBh4ZBwO37VO3iSWFGK2ucY5/6o0ga2MGuHZyyrOwPpwPL6UPdhjHZEwKAGOAH57UVaIrl0DTNuXAyMY/5iiNQ0x41slW3LAAkkNz5UXsBJsCgnZpLVGhlT8RyrZ/rQ7nZPFmWYcseVz/StiR4uIPu7hdqk8c+n1qMxCzW+JpFypJ3r/alk29yuOk6NUUrbIQLhCpZvxLW3TJ0g1C1knETwZdJQjFTsYYbBHsf2pj01oWp9QvFFpyxzomTJK4wiZ7ZP9Bk10D/AOPLOy0O5jjjhu9X+Hk8GeVQEjlK8bV8uccnJ8+KKEntKyna7penwXlsFtJH224MckkgKPkk8HPPceXlSO8uTLE4ZNxDiPKjlMgnj9MVvaaK90aBoYVF/YxLbXKyKEkjdRtwxIz3GeD5kVjQ7a8h1DRo47VrlZ9QUXTSQb4jHghwxIx2Y/pUIp6jTOfhsKdOlKm3Mck6sAQGZfp7V0z4dLbRLayk06O5URPK8hC4J7nk880wuvs/0m9dHszLYEHkQjcjA/5T2/LA9jVe6rsdQ0nSvhJVkuQMhSzgM4DYVuD2IwceVVyJojha3KXrdvHZ3sLwoloJ1LGHGcH25xS61cf+MPiIvMfh79vernYdH6h1Dp8eoafqELTwMY5bWRTlWGOA+cHjFKx0trkV/Day25hmXLHenGPY5wfypoxdE5tOQsWKWz+Gdp4MYIIx5VhZAY4sPA2cjtVtu+mdVlEMLGFWUcsF4P70BFoUtrLFb3fgmQZYYXvQ0yq2OtKexr6daOOyYMIg4B7CgYYWKkrHCBk+X9qtVnZrpdn9/BGTLna3kKEgtlMfzGInJ7DihFJtsEr0pC3wxEJHZ5iRxhV+vtVk04r8CHnjbft4DHmgbqANdRC4Z/CLbmVO7Djj96M1efSdRtxFYQz2t3HFuRu24e/euzZEoxjROMu3kdi+3UPdkRq/Cny4oPWrcwIkxk8NQpzuX6UP03qK2+pCKSST7yPtIvY1br62W9vNPtpSnhySKGVmC7xnJUE+Zxge5oteikZLVZduk7RdE6asLPZsn2Bpz/ikI+Y/T09gK3kvM2+ZY8biF2A5/X1oHXbxxa/ELuhxkneu0rjvkUBDOL7R4xcuw8WMF1U4xnnH/P8AbF4x2Iynchtd2ySoUdIyrcsMcn6+tBpDFaxsQWhRVyTG5UAflWLSUW0CQwAsijALAZP6VseR3Hz8D0qiVCNg0d83hCSC6mdWGV3yEgj2zQb3trqMnhalD40SnKk/yk+f0r1ykbP8PCAJJMhVJO0HHoOw7n9eKSaLMlpKw1ElXXKyLz5HsKDrg5N8lriWLTQUso0gViWIC4BPvjzoK71aWZJpJSv3OEDL5Zoe51WKeGeRQwgi3hm7j5SQQD2zkUgtoL3x/hxKvw0gEi7TknPbP60mWahRXHByY8bUeF+8B4pJc3kl3qKOkSlEQhm9DRL6DJCgEl2xcZ5qLYsdMEFntkkIO5m8zSy1vkZaPo1Xci3Wko0TKxQlWB7ClVlK62yjwF8/WienbbUVt3juoYvClyxZfI0at5axoqMYVZRgj0qcYpDzbkT09LWXU4ybs3GAfuwtJuoNKuk1CeWyadEZcIu38P0pj0j40Wsb5niAIwMj6VdbqWN3GXgyKw5szxz2rgGaE1Lg5zayaRCoW6uokuEUKxZRkGrDZ9OydTRXUdvqrxGKNXilCZCvuyufbg9vb6VS+pbG6OtXrwNGyvKu3A4HauqfZ0hGi3mWHiZRWIHsa1wkmkw6cijclt+BZrN/c3VrHZ6rJFHdlDHN4DExyP2yuecH0I4zjnuTbUL/AA+IA7QqjBbsPrj/AEGSfYCq11PBc2+uW/yCWEGOQhvP7w7v2Aq6RoIVZV2ER5HiOOF/PsPTP6VpjK7RLLhcIxk/sV5lByssgGM58MgkewOBj3J+tYlmnxsRZ3buQJMnH17f+oP1o2R41UtFCZpM5LsSqg+vPP5nB+tBXl8lnGPijDCCwUA/KAx7BU7kn1P5GqWRoB3yW9wkzQsXjHinA7L2475zn1PFKbu1OuamJJTPbE/K08eFbHkORx9Rz70Pqup51H4cTxxPaXUN3PKZD84Gcxd/TbnOSd4JxjBC17qeyu2UM620ZYxTh34Rh+IbRy2Dxnt9alpUpXZTU4xpF6s9EMfT0ulpGIyiHwVxnafz7k+efPmq/HqMjrMJUEKRKCs6r2HvVt6K1qLqHRLTUYCxIBjkzwd6cHIHbPDfRhVb1FoohqNqZVBVmQA+xIqWWnTZfDr3jFWKjrlnJsdtb3DHfA5qVre2G+M/xDxd4JAwOR+lVMWF4LWVAIWYLxx3pk1hLbrasiQsUiww9KVzTXJpw4c3cSkqX4H7anYxhUF8UVgTgf8AVCQxaTcJ4i3Jkz3bA/2pJNY3TSn/AMeBlEeMk/2qL2NzDtSOCEDaOzf2pItGjqcWVu42/wBF70CzivNQ8OUqVAzgedZ6jsYtP1BY4G2ow3YPNGdNRBdamQYwmQMfWrJe2+nyzbrtYjJjA3VygnEbJ1LxdRfKrg5wP5fnU5JNW37Ppwr3tqWXMqCVQPY4P/6FF32iWLSQSRxKo3YIHYitE8FvpHUGmT20axq0nhsB6Nx/WgoOLsfL1ePqMbxpbv8AgH1kn39t8gyC/f8AKna+H8PG0kfjORlVcnag/IVPqbTYbo4kUFgPlPpk80JrE8OmxoZmmMgUCNUVmLccKuAQOAe/oScCtEfk2eZmyKWCEVyrBNcu5LXS7i6RJnECFxBZwMrP7bmyf0xxmuWalfT2niXE100+uNGxMcLFoNHj
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=heatwave unveils longleat lost gardens,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=heatwave unveils longleat lost gardens searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: a7168db3-6602-4679-b2ec-1cac49e095c5
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=heatwave weather forecast,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=heatwave weather forecast searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 03df21f0-4b32-44b8-a210-82f6a3ce0b26
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=gilderoy lockhart nicholas hoult,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=gilderoy lockhart nicholas hoult searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 7a75bef9-fa59-4673-a7a7-6b30332db593
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=dr congo ebola outbreak,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=dr congo ebola outbreak searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: df08fe1d-cba8-4c49-816f-ddf0974587e3
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=warner bros hogwarts legacy 2,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=warner bros hogwarts legacy 2 searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: e43382a6-7a49-46ba-b7c1-f3a0bf6472d1
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=lottery powerball jackpot winner,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=lottery powerball jackpot winner searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: aa783c0c-38db-4975-b75c-c41bd47562da
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=dolphins shelling behavior,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=dolphins shelling behavior searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: eb4f3c84-6bb1-414f-97b1-d0c4ed198164
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=new zealand darts masters 2026,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=new zealand darts masters 2026 searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: d3d9c54d-de6d-45b7-9707-278189f6c6b5
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=bloodstock 2027 headliners,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=bloodstock 2027 headliners searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 335b58ec-2f7d-4f76-acaf-45561912ddfa
+08-24 18:15:24.120  1273  1273 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=uk university sector financial turmoil,input_query=android.app.search.Query@a45cd51,group_id=web175721,response_id=cc8a12cb-ba57-4089-bddb-5d704291c853,support_query_builder=false,} searchAction=uk university sector financial turmoil searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 9a495edf-6c67-4065-9e91-6c3399f8941e
+08-24 18:15:24.121   832   903 D WindowManagerShell: setLauncherKeepClearAreaHeight: visible=false, height=527
+08-24 18:15:24.123  1273  1273 D SsBaseTemplateCard: No text view can be set up
+08-24 18:15:24.123  1273  1273 D SsBaseTemplateCard: Passed-in item info is null
+08-24 18:15:24.123  1273  1273 D SsBaseTemplateCard: Passed-in item info is null
+08-24 18:15:24.123  1273  1273 D SsBaseTemplateCard: Passed-in item info is null
+08-24 18:15:24.123  1273  1273 I SsBaseTemplateCard: Secondary card pane is null
+08-24 18:15:24.124   832   903 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#7) android.os.BinderProxy@7c50425@0
+08-24 18:15:24.107     0     0 I binder  : 1695:600 cannot find target node
+08-24 18:15:24.108     0     0 I binder  : 600:1695 transaction async to 0:0 failed 178158/29189/-22, size 64-0 line 3344
+08-24 18:15:24.126   600   620 V WindowManager: Finish Transition (#7): created at 08-24 18:15:23.282 collect-started=0.049ms request-sent=0.143ms started=10.473ms ready=101.026ms sent=103.321ms finished=843.368ms
+08-24 18:15:24.128   600  1695 E IPCThreadState: Binder transaction failure. id: 178158, BR_*: 29189, error: -22 (Invalid argument)
+08-24 18:15:24.128   600  1695 W ActivityManager: pid 600 system sent binder code 7 with flags 1 to frozen apps and got error -32
+08-24 18:15:24.140   600  1695 W WindowManager: Exception thrown during dispatchAppVisibility Window{c9c5e53 u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity EXITING}
+08-24 18:15:24.140   600  1695 W WindowManager: android.os.DeadObjectException
+08-24 18:15:24.140   600  1695 W WindowManager: 	at android.os.BinderProxy.transactNative(Native Method)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at android.os.BinderProxy.transact(BinderProxy.java:586)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at android.view.IWindow$Stub$Proxy.dispatchAppVisibility(IWindow.java:553)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.WindowState.sendAppVisibilityToClients(WindowState.java:3253)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.WindowContainer.sendAppVisibilityToClients(WindowContainer.java:1289)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.WindowToken.setClientVisible(WindowToken.java:403)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.ActivityRecord.setClientVisible(ActivityRecord.java:7166)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.ActivityRecord.postApplyAnimation(ActivityRecord.java:5881)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.ActivityRecord.commitVisibility(ActivityRecord.java:5823)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.Transition.finishTransition(Transition.java:1286)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.TransitionController.finishTransition(TransitionController.java:937)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishTransition(WindowOrganizerController.java:494)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at android.window.IWindowOrganizerController$Stub.onTransact(IWindowOrganizerController.java:289)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.onTransact(WindowOrganizerController.java:204)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at android.os.Binder.execTransactInternal(Binder.java:1500)
+08-24 18:15:24.140   600  1695 W WindowManager: 	at android.os.Binder.execTransact(Binder.java:1444)
+08-24 18:15:24.140   600  1695 W Process : Unable to open /proc/3030/status
+08-24 18:15:24.146   832   903 V WindowManagerShell: Track 0 became idle
+08-24 18:15:24.156  3403  3426 I dev.expo.updates: {"timestamp":1787591724156,"message":"Updates state change: StartStartup, context = {isStartupProcedureRunning=true, isUpdateAvailable=false, isUpdatePending=false, isChecking=false, isDownloading=false, isRestarting=false, restartCount=0, downloadProgress=0.0, sequenceNumber=1}","code":"None","level":"info"}
+08-24 18:15:24.162   832   997 V WindowManagerShell: onTransitionReady(transaction=2576980378023)
+08-24 18:15:24.163   600   620 V WindowManager: Sent Transition (#8) createdAt=08-24 18:15:23.544 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=23 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.folio.v2.greenfield/.MainActivity } baseActivity=ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity} topActivity=ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity} origActivity=null realActivity=ComponentInfo{com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity} numActivities=1 lastActiveTime=175977 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{e1e3588 Task{83ade37 #23 type=standard A=10209:com.folio.v2.greenfield}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{65c6b21 com.folio.v2.greenfield.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 8 }
+08-24 18:15:24.163   600   620 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-24 18:15:24.163   600   620 V WindowManager:     info={id=8 t=OPEN f=0x0 trk=1 r=[0@Point(0, 0)] c=[
+08-24 18:15:24.163   600   620 V WindowManager:         {WCT{RemoteToken{e1e3588 Task{83ade37 #23 type=standard A=10209:com.folio.v2.greenfield}}} m=OPEN f=NONE leash=Surface(name=Task=23)/@0xe55217a sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+08-24 18:15:24.163   600   620 V WindowManager:         {WCT{RemoteToken{dd0577b Task{e5ddcd9 #1 type=home}}} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x4b28b03 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}
+08-24 18:15:24.163   600   620 V WindowManager:     ]}
+08-24 18:15:24.170   600  1695 W UserManagerService: Requested status bar icon for non-badged user 0
+08-24 18:15:24.170   832   903 V WindowManagerShell: onTransitionReady (#8) android.os.BinderProxy@69f15aa: {id=8 t=OPEN f=0x0 trk=1 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@6d7176f} m=OPEN f=NONE leash=Surface(name=Task=23)/@0xa897b50 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@192fc7c} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xffc1149 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+08-24 18:15:24.171   832   903 V WindowManagerShell: Playing animation for (#8) android.os.BinderProxy@69f15aa@1
+08-24 18:15:24.171   832   903 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@602dda8
+08-24 18:15:24.171   832   903 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@6b1c0c1
+08-24 18:15:24.171   832   903 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@8b01066
+08-24 18:15:24.171   832   903 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@cda3fa7
+08-24 18:15:24.171   832   903 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@a7c2c54
+08-24 18:15:24.171   832   903 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-24 18:15:24.171   832   903 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@958a7fd
+08-24 18:15:24.171   832   903 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@89cccf2
+08-24 18:15:24.171   832   903 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=8 t=OPEN f=0x0 trk=1 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@6d7176f} m=OPEN f=NONE leash=Surface(name=Task=23)/@0xa897b50 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@192fc7c} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xffc1149 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+08-24 18:15:24.171   832   903 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[OPEN,TO_FRONT] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@6612f43, appThread = android.app.IApplicationThread$Stub$Proxy@499b9c0, debugName = OverlaySwipeBack }}
+08-24 18:15:24.171   832   903 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@68cc6f9, appThread = android.app.IApplicationThread$Stub$Proxy@c26c63e, debugName = LauncherToDream }}
+08-24 18:15:24.171   832   903 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@edd7c9f, appThread = android.app.IApplicationThread$Stub$Proxy@240b1ec, debugName = QuickstepLaunchHome }}
+08-24 18:15:24.171   832   903 V WindowManagerShell:  Delegate animation for (#8) to null
+08-24 18:15:24.171   832   903 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@449d9b5
+08-24 18:15:24.171   832   903 V WindowManagerShell: start default transition animation, info = {id=8 t=OPEN f=0x0 trk=1 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@6d7176f} m=OPEN f=NONE leash=Surface(name=Task=23)/@0xa897b50 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@192fc7c} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xffc1149 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+08-24 18:15:24.171   832   903 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@86b7905 animAttr=0x13 type=OPEN isEntrance=false
+08-24 18:15:24.172   832   903 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@3803d5a animAttr=0x12 type=OPEN isEntrance=true
+08-24 18:15:24.173  1273  1273 I TopTaskTracker: onTaskRemoved: taskId=22
+08-24 18:15:24.173  1273  1273 I TopTaskTracker: onTaskRemoved: taskId=22
+08-24 18:15:24.176   832   903 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@449d9b5
+08-24 18:15:24.186   600  1846 W UserManagerService: Requested status bar icon for non-badged user 0
+08-24 18:15:24.189  3403  3426 I dev.expo.updates: {"timestamp":1787591724189,"message":"embeddedAssetFileMap: embeddedAssets count = 59","code":"None","level":"info"}
+08-24 18:15:24.190  3403  3426 I dev.expo.updates: {"timestamp":1787591724190,"message":"embeddedAssetFileMap: 2cbb9a3b3bbda5192ffe28bf04d6b29d,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_100thin_fraunces_100thin.ttf","code":"None","level":"info"}
+08-24 18:15:24.190  3403  3426 I dev.expo.updates: {"timestamp":1787591724190,"message":"embeddedAssetFileMap: 073905a75e6d90aaee9f7fe82157a0b6,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_200extralight_fraunces_200extralight.ttf","code":"None","level":"info"}
+08-24 18:15:24.190  3403  3426 I dev.expo.updates: {"timestamp":1787591724190,"message":"embeddedAssetFileMap: 5e37aa8e672db18ba0f7c4d6789cf5ef,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_300light_fraunces_300light.ttf","code":"None","level":"info"}
+08-24 18:15:24.190  3403  3426 I dev.expo.updates: {"timestamp":1787591724190,"message":"embeddedAssetFileMap: d484e2f727663ddd31e7fcebc7cc25ea,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_400regular_fraunces_400regular.ttf","code":"None","level":"info"}
+08-24 18:15:24.190  3403  3426 I dev.expo.updates: {"timestamp":1787591724190,"message":"embeddedAssetFileMap: d1acf82088f232372c997dbadbc3f405,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_500medium_fraunces_500medium.ttf","code":"None","level":"info"}
+08-24 18:15:24.190  3403  3403 W HWUI    : Unknown dataspace 0
+08-24 18:15:24.191  3403  3426 I dev.expo.updates: {"timestamp":1787591724190,"message":"embeddedAssetFileMap: e995588822b0867215ce518a9a79175b,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_600semibold_fraunces_600semibold.ttf","code":"None","level":"info"}
+08-24 18:15:24.191  3403  3426 I dev.expo.updates: {"timestamp":1787591724191,"message":"embeddedAssetFileMap: 0c859ce19af0584bccfc6941addedf34,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_700bold_fraunces_700bold.ttf","code":"None","level":"info"}
+08-24 18:15:24.191  3403  3426 I dev.expo.updates: {"timestamp":1787591724191,"message":"embeddedAssetFileMap: 1fca6eacc1fd7d8bb65c1b3c881d057a,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_800extrabold_fraunces_800extrabold.ttf","code":"None","level":"info"}
+08-24 18:15:24.191  3403  3426 I dev.expo.updates: {"timestamp":1787591724191,"message":"embeddedAssetFileMap: 64dd2eb4f9509117d7047543a3b7c46a,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_900black_fraunces_900black.ttf","code":"None","level":"info"}
+08-24 18:15:24.191  3403  3426 I dev.expo.updates: {"timestamp":1787591724191,"message":"embeddedAssetFileMap: 6b4cab9b1863ed1cbb96c2cdd8276a26,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_100thin_italic_fraunces_100thin_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.191  3403  3426 I dev.expo.updates: {"timestamp":1787591724191,"message":"embeddedAssetFileMap: 5b31322f6198efae6d40650ab8a3623b,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_200extralight_italic_fraunces_200extralight_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.193  3403  3426 I dev.expo.updates: {"timestamp":1787591724193,"message":"embeddedAssetFileMap: f2bb3f7e850840f830024567570d5c3e,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_300light_italic_fraunces_300light_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.194  3403  3426 I dev.expo.updates: {"timestamp":1787591724194,"message":"embeddedAssetFileMap: 65805d7e2c7f9bad1bf1fa5ccbc7df26,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_400regular_italic_fraunces_400regular_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.194  3403  3426 I dev.expo.updates: {"timestamp":1787591724194,"message":"embeddedAssetFileMap: 0f15c5ff3dbf7b54423fe98d18069ab2,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_500medium_italic_fraunces_500medium_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.194  3403  3426 I dev.expo.updates: {"timestamp":1787591724194,"message":"embeddedAssetFileMap: d3386675410283c88aedd87637eb5741,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_600semibold_italic_fraunces_600semibold_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.194  3403  3426 I dev.expo.updates: {"timestamp":1787591724194,"message":"embeddedAssetFileMap: c051d8ea6e94f62ad79ed57304d75165,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_700bold_italic_fraunces_700bold_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.194  3403  3426 I dev.expo.updates: {"timestamp":1787591724194,"message":"embeddedAssetFileMap: 5d3601dd56349d0087980d9f2cc7d14c,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_800extrabold_italic_fraunces_800extrabold_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.194  3403  3426 I dev.expo.updates: {"timestamp":1787591724194,"message":"embeddedAssetFileMap: 6677d45b62b851f1fd8c6061ff492d9d,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_900black_italic_fraunces_900black_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.194  3403  3426 I dev.expo.updates: {"timestamp":1787591724194,"message":"embeddedAssetFileMap: 209e47c0a53beec43565c37e47082989,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_materialsymbols_400regular_materialsymbols_400regular.ttf","code":"None","level":"info"}
+08-24 18:15:24.195  3403  3426 I dev.expo.updates: {"timestamp":1787591724194,"message":"embeddedAssetFileMap: 0a328cd9c1afd0afe8e3b1ec5165b1b4,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_reactnavigation_elements_backiconmask.png","code":"None","level":"info"}
+08-24 18:15:24.196   600  1689 W UserManagerService: Requested status bar icon for non-badged user 0
+08-24 18:15:24.202  3403  3426 I dev.expo.updates: {"timestamp":1787591724195,"message":"embeddedAssetFileMap: 778ffc9fe8773a878e9c30a6304784de,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_backicon.png","code":"None","level":"info"}
+08-24 18:15:24.203  3403  3426 I dev.expo.updates: {"timestamp":1787591724203,"message":"embeddedAssetFileMap: c79c3606a1cf168006ad3979763c7e0c,png => file:\/\/\/android_res\/drawable-xhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_backicon.png","code":"None","level":"info"}
+08-24 18:15:24.203  3403  3426 I dev.expo.updates: {"timestamp":1787591724203,"message":"embeddedAssetFileMap: 02bc1fa7c0313217bde2d65ccbff40c9,png => file:\/\/\/android_res\/drawable-xxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_backicon.png","code":"None","level":"info"}
+08-24 18:15:24.204  3403  3426 I dev.expo.updates: {"timestamp":1787591724204,"message":"embeddedAssetFileMap: 35ba0eaec5a4f5ed12ca16fabeae451d,png => file:\/\/\/android_res\/drawable-xxxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_backicon.png","code":"None","level":"info"}
+08-24 18:15:24.204  3403  3426 I dev.expo.updates: {"timestamp":1787591724204,"message":"embeddedAssetFileMap: 3cd68ccdb8938e3711da2e8831b85493,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.204  3403  3426 I dev.expo.updates: {"timestamp":1787591724204,"message":"embeddedAssetFileMap: 61ca7e64b7d605716c57706cef640b9a,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: aff2c65b39a296d4f7e96d0f58169170,png => file:\/\/\/android_res\/drawable-xhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: d8e7601e3df962f83c62371ac14964d8,png => file:\/\/\/android_res\/drawable-xxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 3cd68ccdb8938e3711da2e8831b85493,png => file:\/\/\/android_res\/drawable-xxxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 0747a1317bbe9c6fc340b889ef8ab3ae,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: d84e297c3b3e49a614248143d53e40ca,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 1190ab078c57159f4245a328118fcd9a,png => file:\/\/\/android_res\/drawable-xhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 78c625386b4d0690b421eb0fc78f7b9c,png => file:\/\/\/android_res\/drawable-xxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 0747a1317bbe9c6fc340b889ef8ab3ae,png => file:\/\/\/android_res\/drawable-xxxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 4403c6117ec30c859bc95d70ce4a71d3,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_searchicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 069d99eb1fa6712c0b9034a58c6b57dd,png => file:\/\/\/android_res\/drawable-xhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_searchicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: c3273c9e5321f20d1e42c2efae2578c4,png => file:\/\/\/android_res\/drawable-xxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_searchicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 286d67d3f74808a60a78d3ebf1a5fb57,png => file:\/\/\/android_res\/drawable-xxxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_searchicon.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: d1ea1496f9057eb392d5bbf3732a61b7,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_error.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 19eeb73b9593a38f8e9f418337fc7d10,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_file.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: ab19f4cbc543357183a20571f68380a3,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_pkg.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: d8b800c443b8972542883e0b9de2bdc6,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_forward.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 412dd9275b6b48ad28f5e3d81bb1f626,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_sitemap.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 017bc6ba3fc25503e5eb5e53826d48a8,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_arrow_down.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 20e71bdf79e3a97bf55fd9e164041578,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_unmatched.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 98a4e3d00dbf5d65da99a69b38a7def2,xml => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_arrow_right.xml","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 9b5cb09b4e669ed0f28f3b3f2871a0a5,xml => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_checkmark.xml","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 0b3467932128908293cec63731c30ba3,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightvariable.ttf","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 3d01571290087e70ce56e8510d256dd7,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightregular.ttf","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 7363457283d53a758b6527665fc4b195,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightmedium.ttf","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: a2f116254fd3c31dfe25edf1052a13f8,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightsemibold.ttf","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 862a7735f63475764638653eaaeb58cc,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightbold.ttf","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 751383e892854fc3a4cd7f183348f5df,png => file:\/\/\/android_res\/drawable\/assets_melohero.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 0eefae96aa309a951bbcb607795dd83c,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixhero.png","code":"None","level":"info"}
+08-24 18:15:24.205  3403  3426 I dev.expo.updates: {"timestamp":1787591724205,"message":"embeddedAssetFileMap: 44f81e125ca5fccc6ae9480fa20a6cb2,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixprotect.png","code":"None","level":"info"}
+08-24 18:15:24.206  3403  3426 I dev.expo.updates: {"timestamp":1787591724206,"message":"embeddedAssetFileMap: 118db78dc9d6ad505b9edf249af43ab2,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixcelebrate.png","code":"None","level":"info"}
+08-24 18:15:24.206  3403  3426 I dev.expo.updates: {"timestamp":1787591724206,"message":"embeddedAssetFileMap: 6f2e374f942b807ec2fadaf58a21ff68,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixthink.png","code":"None","level":"info"}
+08-24 18:15:24.206  3403  3426 I dev.expo.updates: {"timestamp":1787591724206,"message":"embeddedAssetFileMap: 3f181dcd105952a22ccb76635a27fba4,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixconcern.png","code":"None","level":"info"}
+08-24 18:15:24.206  3403  3426 I dev.expo.updates: {"timestamp":1787591724206,"message":"Updates state change: Check, context = {isStartupProcedureRunning=true, isUpdateAvailable=false, isUpdatePending=false, isChecking=true, isDownloading=false, isRestarting=false, restartCount=0, downloadProgress=0.0, sequenceNumber=2}","code":"None","level":"info"}
+08-24 18:15:24.220  3403  3403 W unknown:BridgelessReact: ReactHost{0}.startSurface(surfaceId = 0): Schedule
+08-24 18:15:24.220  3403  3403 W unknown:BridgelessReact: ReactHost{0}.attachSurface(surfaceId = 0)
+08-24 18:15:24.221  3403  3433 W unknown:BridgelessReact: ReactHost{0}.getOrCreateReactInstanceTask()
+08-24 18:15:24.221  3403  3433 W unknown:BridgelessReact: ReactHost{0}.getOrCreateReactInstanceTask(): Start
+08-24 18:15:24.221  3403  3433 W unknown:BridgelessReact: ReactHost{0}.getJSBundleLoader()
+08-24 18:15:24.221  3403  3403 W unknown:BridgelessReact: ReactHost{0}.onHostResume(activity)
+08-24 18:15:24.221  3403  3433 W unknown:BridgelessReact: ReactHost{0}.getOrCreateReactInstanceTask(): Creating BridgelessReactContext
+08-24 18:15:24.221  3403  3433 W unknown:BridgelessReact: ReactHost{0}.getOrCreateReactInstanceTask(): Creating ReactInstance
+08-24 18:15:24.223   600  1846 D CoreBackPreview: Window{ad65d59 u0 com.folio.v2.greenfield/com.folio.v2.greenfield.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@e41e9ff, mPriority=0, mIsAnimationCallback=false}
+08-24 18:15:24.242   399  3436 I resolv  : GetAddrInfoHandler::run: {101 101 101 983141 10209 0}
+08-24 18:15:24.243   399  3438 I resolv  : res_nmkquery: (QUERY, IN, A)
+08-24 18:15:24.243   399  3437 I resolv  : res_nmkquery: (QUERY, IN, AAAA)
+08-24 18:15:24.243   399  3438 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120975ea850
+08-24 18:15:24.243   399  3438 I resolv  : doQuery: rcode=0, ancount=2, return value=60
+08-24 18:15:24.243   399  3437 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120875ecb30
+08-24 18:15:24.243   399  3437 I resolv  : doQuery: rcode=0, ancount=2, return value=84
+08-24 18:15:24.245  3403  3426 D TrafficStats: tagSocket(109) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:24.247  3403  3433 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libhermesvm.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:24.248  3403  3421 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+08-24 18:15:24.249  3403  3421 I EGL_emulation: Opening libGLESv2_emulation.so
+08-24 18:15:24.266  3403  3433 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libhermestooling.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:24.267  3403  3433 D jni_lib_merge: Entering merged library JNI_OnLoad.
+08-24 18:15:24.267  3403  3433 D jni_lib_merge: Preparing 4 pre-merged libs (including stub)
+08-24 18:15:24.267  3403  3433 D jni_lib_merge: Preparing to register libhermes_executor_so.  onload_func: 0x7edc063e4990
+08-24 18:15:24.267  3403  3433 D jni_lib_merge: Preparing to register libhermesinstancejni_so.  onload_func: 0x7edc063ec0f0
+08-24 18:15:24.267  3403  3433 D jni_lib_merge: Preparing to register libjsijniprofiler_so.  onload_func: 0x7edc063ec880
+08-24 18:15:24.267  3403  3433 D jni_lib_merge: About to register 3 actual methods.
+08-24 18:15:24.268  3403  3421 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+08-24 18:15:24.289  3403  3433 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libop-sqlite.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes3.dex): ok
+08-24 18:15:24.296   180   180 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+08-24 18:15:24.266     0     0 I servicemanager: Caller(pid=3403,uid=10209,sid=u:r:untrusted_app:s0:c209,c256,c512,c768) Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest. No alternative instances declared in VINTF.
+08-24 18:15:24.296  3403  3421 I Gralloc4: mapper 4.x is not supported
+08-24 18:15:24.313  3403  3433 W ExpoModulesCore: Props class class expo.modules.ui.textfield.InnerTextFieldProps is not introspectable. Falling back to reflection-based props parsing, which may have performance implications. To fix this, annotate the props class with @OptimizedComposeProps.
+08-24 18:15:24.411  3403  3433 W ExpoModulesCore: Props class class expo.modules.ui.textfield.PlaceholderProps is not introspectable. Falling back to reflection-based props parsing, which may have performance implications. To fix this, annotate the props class with @OptimizedComposeProps.
+08-24 18:15:24.490   832   903 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#8) android.os.BinderProxy@69f15aa@1
+08-24 18:15:24.492   600   620 V WindowManager: Finish Transition (#8): created at 08-24 18:15:23.544 collect-started=0.027ms request-sent=9.123ms started=19.525ms ready=608.229ms sent=615.792ms finished=947.274ms
+08-24 18:15:24.492   470   470 E BpTransactionCompletedListener: Failed to transact (-32)
+08-24 18:15:24.496  3403  3433 I ExpoModulesCore: ✅ AppContext was initialized
+08-24 18:15:24.498   470   547 W VsyncModulator: setTransactionSchedule: Unexpected EarlyEnd
+08-24 18:15:24.499   600  1846 W UserManagerService: Requested status bar icon for non-badged user 0
+08-24 18:15:24.500   600  1846 W UserManagerService: Requested status bar icon for non-badged user 0
+08-24 18:15:24.501   832   903 V WindowManagerShell: Track 1 became idle
+08-24 18:15:24.501   832   903 V WindowManagerShell: All active transition animations finished
+08-24 18:15:24.504   600  1010 W UserManagerService: Requested status bar icon for non-badged user 0
+08-24 18:15:24.505  1273  1507 D EGL_emulation: app_time_stats: avg=59.35ms min=1.05ms max=393.34ms count=16
+08-24 18:15:24.506   600  3443 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+08-24 18:15:24.507   600  3443 I EGL_emulation: Opening libGLESv2_emulation.so
+08-24 18:15:24.513   600  3443 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+08-24 18:15:24.521  1273  1273 D VRI[NexusLauncherActivity]: visibilityChanged oldVisibility=true newVisibility=false
+08-24 18:15:24.521  1273  1273 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=7}
+08-24 18:15:24.536  3403  3433 W unknown:BridgelessReact: ReactHost{0}.getOrCreateReactInstanceTask(): Loading JS Bundle
+08-24 18:15:24.536  3403  3433 W unknown:BridgelessReact: ReactHost{0}.getOrCreateReactInstanceTask(): DevSupportManager.onNewReactContextCreated()
+08-24 18:15:24.537  3403  3433 W unknown:BridgelessReact: ReactHost{0}.startSurface(surfaceId = 0): Execute
+08-24 18:15:24.546  3403  3403 W unknown:BridgelessReact: ReactHost{0}.ReactContext.onHostResume()
+08-24 18:15:24.549  3403  3403 W unknown:BridgelessReact: ReactHost{0}.getOrCreateReactInstanceTask(): Executing ReactInstanceEventListeners
+08-24 18:15:24.556  3403  3434 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libworklets.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:24.558  3403  3434 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libexpo-modules-core.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:24.559  3403  3434 W b       : [WARNING] Bridgeless doesn't support CatalystInstance. Accessing an API that's not part of the new architecture is not encouraged usage.
+08-24 18:15:24.563  3403  3434 I ExpoModulesCore: ✅ JSI interop was installed
+08-24 18:15:24.570  3403  3434 I ExpoModulesCore: ✅ Constants were exported
+08-24 18:15:24.608  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class expo.modules.kotlin.views.GroupViewManagerWrapper
+08-24 18:15:24.609  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.uimanager.t
+08-24 18:15:24.610  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenContainerViewManager
+08-24 18:15:24.611  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.gamma.tabs.host.TabsHostViewManager
+08-24 18:15:24.612  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenStackHeaderConfigViewManager
+08-24 18:15:24.613  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenStackHeaderSubviewManager
+08-24 18:15:24.614  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.gamma.scrollviewmarker.ScrollViewMarkerViewManager
+08-24 18:15:24.615  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenContentWrapperManager
+08-24 18:15:24.616  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.gamma.stack.screen.StackScreenViewManager
+08-24 18:15:24.617  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.th3rdwave.safeareacontext.SafeAreaViewManager
+08-24 18:15:24.617  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.th3rdwave.safeareacontext.p
+08-24 18:15:24.617  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenViewManager
+08-24 18:15:24.618  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderConfigViewManager
+08-24 18:15:24.618  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class io.sentry.react.RNSentryOnDrawReporterManager
+08-24 18:15:24.618  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.th3rdwave.safeareacontext.SafeAreaProviderManager
+08-24 18:15:24.618  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.SearchBarManager
+08-24 18:15:24.619  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.gamma.stack.host.StackHostViewManager
+08-24 18:15:24.620  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class io.sentry.react.replay.RNSentryReplayMaskManager
+08-24 18:15:24.620  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenFooterManager
+08-24 18:15:24.620  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.reactnativecommunity.slider.ReactSliderManager
+08-24 18:15:24.622  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class io.sentry.react.replay.RNSentryReplayUnmaskManager
+08-24 18:15:24.622  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ModalScreenViewManager
+08-24 18:15:24.623  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.safearea.SafeAreaViewManager
+08-24 18:15:24.623  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.ScreenStackViewManager
+08-24 18:15:24.623  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.gamma.stack.header.subview.StackHeaderSubviewViewManager
+08-24 18:15:24.624  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class org.reactnative.maskedview.RNCMaskedViewManager
+08-24 18:15:24.624  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.rnscreens.gamma.tabs.screen.TabsScreenViewManager
+08-24 18:15:24.661  1059  2034 I FontLog : Received query Noto Color Emoji Compat, URI content://com.google.android.gms.fonts [CONTEXT service_id=132 ]
+08-24 18:15:24.661  1059  2034 I FontLog : Query [emojicompat-emoji-font] resolved to {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
+08-24 18:15:24.663  1059  2034 I FontLog : Fetch {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false} end status Status{statusCode=SUCCESS, resolution=null} [CONTEXT service_id=132 ]
+08-24 18:15:24.666  1059  2034 I FontLog : Pulling font file for id = 11, cache size = 9 [CONTEXT service_id=132 ]
+08-24 18:15:24.670  1059  2034 I FontLog : Pulling font file for id = 11, cache size = 9 [CONTEXT service_id=132 ]
+08-24 18:15:24.674  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$DefsViewManager
+08-24 18:15:24.675  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.VirtualViewManager$b
+08-24 18:15:24.676  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$FeMergeManager
+08-24 18:15:24.677  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.safeareaview.ReactSafeAreaViewManager
+08-24 18:15:24.682  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$LinearGradientManager
+08-24 18:15:24.684  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$FeGaussianBlurManager
+08-24 18:15:24.685  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.progressbar.ReactProgressBarViewManager
+08-24 18:15:24.687  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.scroll.ReactHorizontalScrollViewManager
+08-24 18:15:24.689  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.ReactTextViewManager
+08-24 18:15:24.690  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$FeColorMatrixManager
+08-24 18:15:24.691  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.scroll.ReactHorizontalScrollContainerViewManager
+08-24 18:15:24.693  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$ClipPathViewManager
+08-24 18:15:24.695  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$SymbolManager
+08-24 18:15:24.696  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$PatternManager
+08-24 18:15:24.697  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$FeBlendManager
+08-24 18:15:24.698  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.view.ReactViewManager
+08-24 18:15:24.698  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.SvgViewManager
+08-24 18:15:24.699  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.switchview.ReactSwitchManager
+08-24 18:15:24.700  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$UseViewManager
+08-24 18:15:24.701  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$CircleViewManager
+08-24 18:15:24.702  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$TSpanViewManager
+08-24 18:15:24.703  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$FilterManager
+08-24 18:15:24.703  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$MarkerManager
+08-24 18:15:24.705  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.gesturehandler.react.RNGestureHandlerButtonViewManager
+08-24 18:15:24.706  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.modal.ReactModalHostManager
+08-24 18:15:24.707  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$ForeignObjectManager
+08-24 18:15:24.709  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$EllipseViewManager
+08-24 18:15:24.710  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$LineViewManager
+08-24 18:15:24.711  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$FeFloodManager
+08-24 18:15:24.711  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$GroupViewManager
+08-24 18:15:24.713  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$TextViewManager
+08-24 18:15:24.713  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$ImageViewManager
+08-24 18:15:24.714  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$FeCompositeManager
+08-24 18:15:24.715  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.image.ReactImageManager
+08-24 18:15:24.717  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$RadialGradientManager
+08-24 18:15:24.718  3403  3426 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libzstd-kmp.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes3.dex): ok
+08-24 18:15:24.719  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$MaskManager
+08-24 18:15:24.721  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.unimplementedview.ReactUnimplementedViewManager
+08-24 18:15:24.721  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$RectViewManager
+08-24 18:15:24.723  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$TextPathViewManager
+08-24 18:15:24.725  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.scroll.ReactScrollViewManager
+08-24 18:15:24.728  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$FeOffsetManager
+08-24 18:15:24.728  3403  3426 I dev.expo.updates: {"timestamp":1787591724727,"message":"Updates state change: CheckCompleteUnavailable, context = {isStartupProcedureRunning=true, isUpdateAvailable=false, isUpdatePending=false, isChecking=false, isDownloading=false, isRestarting=false, restartCount=0, downloadProgress=0.0, sequenceNumber=3, lastCheckForUpdateTime=Mon Aug 24 18:15:24 GMT+01:00 2026}","code":"None","level":"info"}
+08-24 18:15:24.728  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.horcrux.svg.RenderableViewManager$PathViewManager
+08-24 18:15:24.729  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.drawer.ReactDrawerLayoutManager
+08-24 18:15:24.731  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.swiperefresh.SwipeRefreshLayoutManager
+08-24 18:15:24.732  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.textinput.ReactTextInputManager
+08-24 18:15:24.734  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.facebook.react.views.text.SelectableTextViewManager
+08-24 18:15:24.735  3403  3434 W unknown:ViewManagerPropertyUpdater: Could not find generated setter for class com.swmansion.gesturehandler.react.RNGestureHandlerRootViewManager
+08-24 18:15:24.738  3403  3434 I dev.expo.updates: {"timestamp":1787591724738,"message":"UpdatesModule: getConstants called","code":"None","level":"info"}
+08-24 18:15:24.739  3403  3426 I dev.expo.updates: {"timestamp":1787591724739,"message":"embeddedAssetFileMap: embeddedAssets count = 59","code":"None","level":"info"}
+08-24 18:15:24.739  3403  3426 I dev.expo.updates: {"timestamp":1787591724739,"message":"embeddedAssetFileMap: 2cbb9a3b3bbda5192ffe28bf04d6b29d,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_100thin_fraunces_100thin.ttf","code":"None","level":"info"}
+08-24 18:15:24.739  3403  3426 I dev.expo.updates: {"timestamp":1787591724739,"message":"embeddedAssetFileMap: 073905a75e6d90aaee9f7fe82157a0b6,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_200extralight_fraunces_200extralight.ttf","code":"None","level":"info"}
+08-24 18:15:24.739  3403  3426 I dev.expo.updates: {"timestamp":1787591724739,"message":"embeddedAssetFileMap: 5e37aa8e672db18ba0f7c4d6789cf5ef,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_300light_fraunces_300light.ttf","code":"None","level":"info"}
+08-24 18:15:24.739  3403  3426 I dev.expo.updates: {"timestamp":1787591724739,"message":"embeddedAssetFileMap: d484e2f727663ddd31e7fcebc7cc25ea,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_400regular_fraunces_400regular.ttf","code":"None","level":"info"}
+08-24 18:15:24.740  3403  3426 I dev.expo.updates: {"timestamp":1787591724740,"message":"embeddedAssetFileMap: d1acf82088f232372c997dbadbc3f405,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_500medium_fraunces_500medium.ttf","code":"None","level":"info"}
+08-24 18:15:24.740  3403  3426 I dev.expo.updates: {"timestamp":1787591724740,"message":"embeddedAssetFileMap: e995588822b0867215ce518a9a79175b,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_600semibold_fraunces_600semibold.ttf","code":"None","level":"info"}
+08-24 18:15:24.740  3403  3426 I dev.expo.updates: {"timestamp":1787591724740,"message":"embeddedAssetFileMap: 0c859ce19af0584bccfc6941addedf34,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_700bold_fraunces_700bold.ttf","code":"None","level":"info"}
+08-24 18:15:24.740  3403  3426 I dev.expo.updates: {"timestamp":1787591724740,"message":"embeddedAssetFileMap: 1fca6eacc1fd7d8bb65c1b3c881d057a,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_800extrabold_fraunces_800extrabold.ttf","code":"None","level":"info"}
+08-24 18:15:24.740  3403  3426 I dev.expo.updates: {"timestamp":1787591724740,"message":"embeddedAssetFileMap: 64dd2eb4f9509117d7047543a3b7c46a,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_900black_fraunces_900black.ttf","code":"None","level":"info"}
+08-24 18:15:24.740  3403  3426 I dev.expo.updates: {"timestamp":1787591724740,"message":"embeddedAssetFileMap: 6b4cab9b1863ed1cbb96c2cdd8276a26,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_100thin_italic_fraunces_100thin_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 5b31322f6198efae6d40650ab8a3623b,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_200extralight_italic_fraunces_200extralight_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: f2bb3f7e850840f830024567570d5c3e,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_300light_italic_fraunces_300light_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 65805d7e2c7f9bad1bf1fa5ccbc7df26,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_400regular_italic_fraunces_400regular_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 0f15c5ff3dbf7b54423fe98d18069ab2,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_500medium_italic_fraunces_500medium_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: d3386675410283c88aedd87637eb5741,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_600semibold_italic_fraunces_600semibold_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: c051d8ea6e94f62ad79ed57304d75165,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_700bold_italic_fraunces_700bold_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 5d3601dd56349d0087980d9f2cc7d14c,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_800extrabold_italic_fraunces_800extrabold_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 6677d45b62b851f1fd8c6061ff492d9d,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_fraunces_900black_italic_fraunces_900black_italic.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 209e47c0a53beec43565c37e47082989,ttf => file:\/\/\/android_res\/raw\/__node_modules_expogooglefonts_materialsymbols_400regular_materialsymbols_400regular.ttf","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 0a328cd9c1afd0afe8e3b1ec5165b1b4,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_reactnavigation_elements_backiconmask.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 778ffc9fe8773a878e9c30a6304784de,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_backicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: c79c3606a1cf168006ad3979763c7e0c,png => file:\/\/\/android_res\/drawable-xhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_backicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 02bc1fa7c0313217bde2d65ccbff40c9,png => file:\/\/\/android_res\/drawable-xxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_backicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 35ba0eaec5a4f5ed12ca16fabeae451d,png => file:\/\/\/android_res\/drawable-xxxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_backicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 3cd68ccdb8938e3711da2e8831b85493,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 61ca7e64b7d605716c57706cef640b9a,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: aff2c65b39a296d4f7e96d0f58169170,png => file:\/\/\/android_res\/drawable-xhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: d8e7601e3df962f83c62371ac14964d8,png => file:\/\/\/android_res\/drawable-xxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 3cd68ccdb8938e3711da2e8831b85493,png => file:\/\/\/android_res\/drawable-xxxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_clearicon.png","code":"None","level":"info"}
+08-24 18:15:24.741  3403  3426 I dev.expo.updates: {"timestamp":1787591724741,"message":"embeddedAssetFileMap: 0747a1317bbe9c6fc340b889ef8ab3ae,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: d84e297c3b3e49a614248143d53e40ca,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 1190ab078c57159f4245a328118fcd9a,png => file:\/\/\/android_res\/drawable-xhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 78c625386b4d0690b421eb0fc78f7b9c,png => file:\/\/\/android_res\/drawable-xxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 0747a1317bbe9c6fc340b889ef8ab3ae,png => file:\/\/\/android_res\/drawable-xxxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_closeicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 4403c6117ec30c859bc95d70ce4a71d3,png => file:\/\/\/android_res\/drawable-mdpi\/__node_modules_exporouter_assets_reactnavigation_elements_searchicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 069d99eb1fa6712c0b9034a58c6b57dd,png => file:\/\/\/android_res\/drawable-xhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_searchicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: c3273c9e5321f20d1e42c2efae2578c4,png => file:\/\/\/android_res\/drawable-xxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_searchicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 286d67d3f74808a60a78d3ebf1a5fb57,png => file:\/\/\/android_res\/drawable-xxxhdpi\/__node_modules_exporouter_assets_reactnavigation_elements_searchicon.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: d1ea1496f9057eb392d5bbf3732a61b7,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_error.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 19eeb73b9593a38f8e9f418337fc7d10,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_file.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: ab19f4cbc543357183a20571f68380a3,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_pkg.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: d8b800c443b8972542883e0b9de2bdc6,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_forward.png","code":"None","level":"info"}
+08-24 18:15:24.742  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 412dd9275b6b48ad28f5e3d81bb1f626,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_sitemap.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724742,"message":"embeddedAssetFileMap: 017bc6ba3fc25503e5eb5e53826d48a8,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_arrow_down.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 20e71bdf79e3a97bf55fd9e164041578,png => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_unmatched.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 98a4e3d00dbf5d65da99a69b38a7def2,xml => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_arrow_right.xml","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 9b5cb09b4e669ed0f28f3b3f2871a0a5,xml => file:\/\/\/android_res\/drawable\/__node_modules_exporouter_assets_checkmark.xml","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 0b3467932128908293cec63731c30ba3,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightvariable.ttf","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 3d01571290087e70ce56e8510d256dd7,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightregular.ttf","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 7363457283d53a758b6527665fc4b195,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightmedium.ttf","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: a2f116254fd3c31dfe25edf1052a13f8,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightsemibold.ttf","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 862a7735f63475764638653eaaeb58cc,ttf => file:\/\/\/android_res\/raw\/assets_fonts_intertightbold.ttf","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 751383e892854fc3a4cd7f183348f5df,png => file:\/\/\/android_res\/drawable\/assets_melohero.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 0eefae96aa309a951bbcb607795dd83c,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixhero.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 44f81e125ca5fccc6ae9480fa20a6cb2,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixprotect.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 118db78dc9d6ad505b9edf249af43ab2,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixcelebrate.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 6f2e374f942b807ec2fadaf58a21ff68,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixthink.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"embeddedAssetFileMap: 3f181dcd105952a22ccb76635a27fba4,png => file:\/\/\/android_res\/drawable\/src_folio_melo_assets_phoenixconcern.png","code":"None","level":"info"}
+08-24 18:15:24.743  3403  3426 I dev.expo.updates: {"timestamp":1787591724743,"message":"UpdatesController onBackgroundUpdateFinished: No update available","code":"NoUpdatesAvailable","level":"info"}
+08-24 18:15:24.744  3403  3426 I dev.expo.updates: {"timestamp":1787591724744,"message":"ErrorRecovery: remote load status changed: IDLE","code":"None","level":"info"}
+08-24 18:15:24.747  3403  3426 I dev.expo.updates: {"timestamp":1787591724747,"message":"Updates state change: EndStartup, context = {isStartupProcedureRunning=false, isUpdateAvailable=false, isUpdatePending=false, isChecking=false, isDownloading=false, isRestarting=false, restartCount=0, downloadProgress=0.0, sequenceNumber=4, lastCheckForUpdateTime=Mon Aug 24 18:15:24 GMT+01:00 2026}","code":"None","level":"info"}
+08-24 18:15:24.757  3403  3434 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/librnscreens.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes3.dex): ok
+08-24 18:15:24.761  3403  3434 I ReactNativeJS: Running "main"
+08-24 18:15:24.798  3403  3403 I ExpoModulesCore: ✅ JSI interop was installed
+08-24 18:15:24.829  3403  3435 I RNSentry: FrameMetricsAggregator installed.
+08-24 18:15:24.834  3403  3435 I RNSentry: Starting with DSN: 'https://4593a25966a06219730d6509c801febf@o4511684285497344.ingest.de.sentry.io/4511684377641040'
+08-24 18:15:24.835  3403  3456 D nativeloader: Load /system/lib64/liblog.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes3.dex): ok
+08-24 18:15:24.835  3403  3435 I RNSentry: Native Integrations '[io.sentry.UncaughtExceptionHandlerIntegration@65919e9, io.sentry.ShutdownHookIntegration@d0b366e, io.sentry.SpotlightIntegration@f6fe10f, io.sentry.android.core.SendCachedEnvelopeIntegration@9cf959c, io.sentry.android.core.NdkIntegration@fa06ba5, io.sentry.android.core.TombstoneIntegration@eb84b7a, io.sentry.android.core.EnvelopeFileObserverIntegration$OutboxEnvelopeFileObserverIntegration@5d37f2b, io.sentry.android.core.SendCachedEnvelopeIntegration@20e6f88, io.sentry.android.core.AppLifecycleIntegration@1511d21, io.sentry.android.core.AnrV2Integration@eefa546, io.sentry.android.core.ActivityLifecycleIntegration@a88e307, io.sentry.android.core.ActivityBreadcrumbsIntegration@fdefc34, io.sentry.android.core.UserInteractionIntegration@7016a5d, io.sentry.android.core.AppComponentsBreadcrumbsIntegration@af0cfd2, io.sentry.android.core.SystemEventsBreadcrumbsIntegration@646a8a3, io.sentry.android.core.NetworkBreadcrumbsIntegration@489a7a0, io.sentry.android.replay.ReplayIntegration@56f4f59]'
+08-24 18:15:24.838  3403  3456 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libsentry.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes3.dex): ok
+08-24 18:15:24.840   600  1010 D ConnectivityService: requestNetwork for uid/pid:10209/3403 activeRequest: null callbackRequest: 122 [NetworkRequest [ REQUEST id=123, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10209 RequestorUid: 10209 RequestorPkg: com.folio.v2.greenfield UnderlyingNetworks: Null] ]] callback flags: 0 order: 2147483647 isUidTracked: false
+08-24 18:15:24.834  3403  3403 W pool-5-thread-1: type=1400 audit(0.0:41): avc:  denied  { read } for  name="version" dev="proc" ino=4026532032 scontext=u:r:untrusted_app:s0:c209,c256,c512,c768 tcontext=u:object_r:proc_version:s0 tclass=file permissive=0 app=com.folio.v2.greenfield
+08-24 18:15:24.846  3403  3456 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libsentry-android.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes3.dex): ok
+08-24 18:15:24.846   600   743 D WifiNetworkFactory: got request NetworkRequest [ REQUEST id=123, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10209 RequestorUid: 10209 RequestorPkg: com.folio.v2.greenfield UnderlyingNetworks: Null] ]
+08-24 18:15:24.847   600  1010 D FileUtils: Rounded bytes from 2592718848 to 4000000000
+08-24 18:15:24.848   600   743 D UntrustedWifiNetworkFactory: got request NetworkRequest [ REQUEST id=123, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10209 RequestorUid: 10209 RequestorPkg: com.folio.v2.greenfield UnderlyingNetworks: Null] ]
+08-24 18:15:24.849   600   743 D OemPaidWifiNetworkFactory: got request NetworkRequest [ REQUEST id=123, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10209 RequestorUid: 10209 RequestorPkg: com.folio.v2.greenfield UnderlyingNetworks: Null] ]
+08-24 18:15:24.849   600   743 D MultiInternetWifiNetworkFactory: got request NetworkRequest [ REQUEST id=123, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10209 RequestorUid: 10209 RequestorPkg: com.folio.v2.greenfield UnderlyingNetworks: Null] ]
+08-24 18:15:24.849   600   750 D ConnectivityService: NetReassign [123 : null → 101] [c 0] [a 1] [i 4]
+08-24 18:15:24.857   399  3464 I resolv  : GetAddrInfoHandler::run: {101 101 101 983141 10209 0}
+08-24 18:15:24.858   399  3466 I resolv  : res_nmkquery: (QUERY, IN, A)
+08-24 18:15:24.858   399  3465 I resolv  : res_nmkquery: (QUERY, IN, AAAA)
+08-24 18:15:24.858   399  3466 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120875eb470
+08-24 18:15:24.858   399  3466 I resolv  : doQuery: rcode=0, ancount=1, return value=71
+08-24 18:15:24.858   399  3465 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120f75ed690
+08-24 18:15:24.858   399  3465 I resolv  : doQuery: rcode=0, ancount=1, return value=83
+08-24 18:15:24.859  3403  3462 D TrafficStats: tagSocket(142) with statsTag=0xf001, statsUid=-1
+08-24 18:15:24.911  3403  3434 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libreanimated.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:25.011  3403  3434 W b       : [WARNING] Bridgeless doesn't support CatalystInstance. Accessing an API that's not part of the new architecture is not encouraged usage.
+08-24 18:15:25.038  3403  3435 W unknown:ReactNative: StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+08-24 18:15:25.038  3403  3435 W unknown:ReactNative: StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+08-24 18:15:25.197  3403  3462 D TrafficStats: tagSocket(142) with statsTag=0xf001, statsUid=-1
+08-24 18:15:25.618   600  1689 D ConnectivityService: requestNetwork for uid/pid:10144/1529 activeRequest: null callbackRequest: 124 [NetworkRequest [ REQUEST id=124, [ Transports: CELLULAR Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Forbidden: LOCAL_NETWORK Uid: 10144 RequestorUid: 10144 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]] callback flags: 0 order: 2147483647 isUidTracked: false
+08-24 18:15:25.622   399   465 I netd    : networkSetPermissionForNetwork(100, 0) <2.73ms>
+08-24 18:15:25.626   600   750 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:25.626   600   750 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:25.629   600   750 D ConnectivityService: NetReassign [124 : null → 100] [c 0] [a 9] [i 2]
+08-24 18:15:25.629   600   750 D ConnectivityService: reportNetworkConnectivity(101, false) by 10144
+08-24 18:15:25.631   873  1785 D NetworkMonitor/101: Forcing reevaluation for UID 10144. Dns signal count: 0
+08-24 18:15:25.633   873  3474 D TrafficStats: tagSocket(6) with statsTag=0xffffff81, statsUid=-1
+08-24 18:15:25.633   873  3475 D TrafficStats: tagSocket(131) with statsTag=0xffffff81, statsUid=-1
+08-24 18:15:25.634   873  3475 D TrafficStats: tagSocket(131) with statsTag=0xffffff81, statsUid=-1
+08-24 18:15:25.634   399  3476 I resolv  : ResNSendHandler::run: 0 / {101 983141 101 983141 1073 1}
+08-24 18:15:25.634   873  3474 D TrafficStats: tagSocket(6) with statsTag=0xffffff81, statsUid=-1
+08-24 18:15:25.634   399  3476 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120875ec190
+08-24 18:15:25.635   399  3477 I resolv  : ResNSendHandler::run: 0 / {101 983141 101 983141 1073 1}
+08-24 18:15:25.635   399  3477 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120175eb510
+08-24 18:15:25.637   399  3478 I resolv  : ResNSendHandler::run: 0 / {101 983141 101 983141 1073 1}
+08-24 18:15:25.637   399  3479 I resolv  : ResNSendHandler::run: 0 / {101 983141 101 983141 1073 1}
+08-24 18:15:25.637   399  3479 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120f75ede70
+08-24 18:15:25.638   399  3478 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120875ebe10
+08-24 18:15:25.638   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.638   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.639   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.639   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.639   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.639   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.640   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.640   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.640   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.640   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.641   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.641   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.641   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.641   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.642   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.642   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.643   873  3474 D NetworkMonitor/101: PROBE_DNS www.google.com 10ms OK 142.251.157.119,142.251.156.119,142.251.153.119,142.251.152.119,142.251.155.119,142.251.151.119,142.251.150.119,142.251.154.119,2001:4860:482b:7700::,2001:4860:482d:7700::,2001:4860:4829:7700::,2001:4860:4827:7700::,2001:4860:482c:7700::,2001:4860:4828:7700::,2001:4860:4826:7700::,2001:4860:482a:7700::
+08-24 18:15:25.644   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.647   399  3480 I resolv  : GetAddrInfoHandler::run: {101 983141 101 983141 1073 1}
+08-24 18:15:25.647   873   873 D TrafficStats: tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+08-24 18:15:25.647   399  3481 I resolv  : res_nmkquery: (QUERY, IN, AAAA)
+08-24 18:15:25.647   399  3481 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120175eb510
+08-24 18:15:25.647   399  3481 I resolv  : doQuery: rcode=0, ancount=8, return value=256
+08-24 18:15:25.648   399  3482 I resolv  : res_nmkquery: (QUERY, IN, A)
+08-24 18:15:25.648   399  3482 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120f75ede70
+08-24 18:15:25.648   399  3482 I resolv  : doQuery: rcode=0, ancount=8, return value=160
+08-24 18:15:25.649   873  3474 D TrafficStats: tagSocket(6) with statsTag=0xffffff81, statsUid=-1
+08-24 18:15:25.650   873  3475 D NetworkMonitor/101: PROBE_DNS connectivitycheck.gstatic.com 16ms OK 142.250.129.94,2a00:1450:4009:c08::5e
+08-24 18:15:25.652   399  3483 I resolv  : GetAddrInfoHandler::run: {101 983141 101 983141 1073 1}
+08-24 18:15:25.653   399  3484 I resolv  : res_nmkquery: (QUERY, IN, AAAA)
+08-24 18:15:25.653   399  3485 I resolv  : res_nmkquery: (QUERY, IN, A)
+08-24 18:15:25.653   399  3484 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120875ec190
+08-24 18:15:25.653   399  3485 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7120875ebe10
+08-24 18:15:25.653   399  3484 I resolv  : doQuery: rcode=0, ancount=1, return value=75
+08-24 18:15:25.653   399  3485 I resolv  : doQuery: rcode=0, ancount=1, return value=63
+08-24 18:15:25.654   873  3475 D TrafficStats: tagSocket(86) with statsTag=0xffffff81, statsUid=-1
+08-24 18:15:25.753   600  1010 D BiometricService: canAuthenticate: User=0, Caller=0, Authenticators=255
+08-24 18:15:25.754   600  1010 D BiometricService/PreAuthInfo: Package: com.folio.v2.greenfield Sensor ID: 0 Modality: 2 Status: 7
+08-24 18:15:25.754   600  1010 D BiometricService/PreAuthInfo: Package: com.folio.v2.greenfield Sensor ID: 4 Modality: 8 Status: 7
+08-24 18:15:25.754   600  1010 D BiometricService/PreAuthInfo: getCanAuthenticateInternal Modality: 8 AuthenticatorStatus: 7
+08-24 18:15:25.754   600  1010 D AuthService: canAuthenticate, userId: 0, callingUserId: 0, authenticators: 255, result: 11
+08-24 18:15:25.755   600  1010 D BiometricService: canAuthenticate: User=0, Caller=0, Authenticators=15
+08-24 18:15:25.756   600  1010 D BiometricService/PreAuthInfo: Package: com.folio.v2.greenfield Sensor ID: 0 Modality: 2 Status: 7
+08-24 18:15:25.756   600  1010 D BiometricService/PreAuthInfo: Package: com.folio.v2.greenfield Sensor ID: 4 Modality: 8 Status: 7
+08-24 18:15:25.756   600  1010 D BiometricService/PreAuthInfo: getCanAuthenticateInternal Modality: 8 AuthenticatorStatus: 7
+08-24 18:15:25.756   600  1010 D AuthService: canAuthenticate, userId: 0, callingUserId: 0, authenticators: 15, result: 11
+08-24 18:15:25.876   600  1846 I AppWidgetServiceImpl: getInstalledProvidersForProfiles() 0
+08-24 18:15:25.876   600  1010 I AppWidgetServiceImpl: getInstalledProvidersForProfiles() 0
+08-24 18:15:25.877   600  1846 I AppWidgetServiceImpl: notifyProviderInheritance() 0
+08-24 18:15:25.877   600  1010 W ParceledListSlice: Element #14 is 19828 bytes.
+08-24 18:15:25.877   600  1010 W ParceledListSlice: Element #15 is 19864 bytes.
+08-24 18:15:25.878   600  1846 W ParceledListSlice: Element #16 is 19708 bytes.
+08-24 18:15:25.878   600  1846 W ParceledListSlice: Element #17 is 19616 bytes.
+08-24 18:15:25.878   600  1846 W ParceledListSlice: Element #18 is 19728 bytes.
+08-24 18:15:25.878   600  1846 I AppWidgetServiceImpl: getAppWidgetIds() 0
+08-24 18:15:25.887  3403  3403 I ReactNative: [GESTURE HANDLER] Initialize gesture handler for root view s7.h0{d59cac3 V.E...... ......ID 0,0-1080,2400 #1}
+08-24 18:15:25.892   873  3475 D NetworkMonitor/101: PROBE_HTTP http://connectivitycheck.gstatic.com/generate_204 time=240ms ret=204 request={Connection=[close], User-Agent=[Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36]} headers={null=[HTTP/1.1 204 No Content], Connection=[close], Content-Length=[0], Cross-Origin-Resource-Policy=[cross-origin], Date=[Mon, 24 Aug 2026 17:15:26 GMT], X-Android-Received-Millis=[1787591725891], X-Android-Response-Source=[NETWORK 204], X-Android-Selected-Protocol=[http/1.1], X-Android-Sent-Millis=[1787591725674]}
+08-24 18:15:25.901  3403  3490 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libimagepipeline.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:25.913   873  3474 D NetworkMonitor/101: PROBE_HTTPS https://www.google.com/generate_204 time=267ms ret=204 request={Connection=[close], User-Agent=[Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36]} headers={null=[HTTP/1.1 204 No Content], Alt-Svc=[h3=":443"; ma=2592000,h3-29=":443"; ma=2592000], Connection=[close], Content-Length=[0], Cross-Origin-Resource-Policy=[cross-origin], Date=[Mon, 24 Aug 2026 17:15:26 GMT], X-Android-Received-Millis=[1787591725913], X-Android-Response-Source=[NETWORK 204], X-Android-Selected-Protocol=[http/1.1], X-Android-Sent-Millis=[1787591725895]}
+08-24 18:15:25.915   873  3473 D NetworkMonitor/101: isCaptivePortal: isSuccessful()=true isPortal()=false RedirectUrl=null isPartialConnectivity()=false Time=283ms
+08-24 18:15:25.916   600   750 D ConnectivityService: [101 WIFI] validation passed
+08-24 18:15:25.994  3403  3434 D nativeloader: Load /data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!/lib/x86_64/libgesturehandler.so using ns clns-7 from class loader (caller=/data/app/~~so20jgFVh0rCsTxNLVwkTw==/com.folio.v2.greenfield-7KBzs3NgQ9jKO9l3g-y6SQ==/base.apk!classes2.dex): ok
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Entering merged library JNI_OnLoad.
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing 12 pre-merged libs (including stub)
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libfabricjni_so.  onload_func: 0x7edc02538a20
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libreact_devsupportjni_so.  onload_func: 0x7edc0261d550
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libreact_featureflagsjni_so.  onload_func: 0x7edc0262fa90
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libreact_newarchdefaults_so.  onload_func: 0x7edc0266a5a0
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libreactnativeblob_so.  onload_func: 0x7edc02760870
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libreactnativejni_so.  onload_func: 0x7edc0276cdb0
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libreactnativejni_common_so.  onload_func: 0x7edc0276fc20
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register librninstance_so.  onload_func: 0x7edc02797af0
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libturbomodulejsijni_so.  onload_func: 0x7edc0283ed70
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libuimanagerjni_so.  onload_func: 0x7edc02845cd0
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: Preparing to register libyoga_so.  onload_func: 0x7edc0284d350
+08-24 18:15:25.994  3403  3434 D jni_lib_merge: About to register 11 actual methods.
+08-24 18:15:26.264  1273  1273 D BaseDepthController: setSurface:
+08-24 18:15:26.264  1273  1273 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
+08-24 18:15:26.264  1273  1273 D BaseDepthController: 	mSurface: null
+08-24 18:15:26.265  1273  1273 D BaseDepthController: mSurface is null and mCurrentBlur is: 0
+08-24 18:15:26.265   600   620 I ActivityTaskManager: Displayed com.folio.v2.greenfield/.MainActivity for user 0: +2s756ms
+08-24 18:15:26.265  1273  1273 D StateManager: goToState - fromState: Normal, toState: Normal, partial trace:
+08-24 18:15:26.265  1273  1273 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:4)
+08-24 18:15:26.265  1273  1273 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:1)
+08-24 18:15:26.265  1273  1273 D StateManager: 	at com.android.launcher3.statemanager.StatefulActivity.onStop(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:34)
+08-24 18:15:26.267  1273  1273 D StatsLog: LAUNCHER_ONSTOP
+08-24 18:15:26.268   600  1010 I AppWidgetServiceImpl: setAppWidgetHidden() 0
+08-24 18:15:26.270  1273  1578 D OneSearchSuggestProvider: Shut down the binder channel
+08-24 18:15:26.270  1273  1273 D StatsLog: LAUNCHER_GOOGLE_SEARCH_RESTORE_LIST_SIZE_AFTER_ACTIVITY_RESTART
+08-24 18:15:26.273  1273  1515 I IPCThreadState: oneway function results for code 2 on binder at 0x7edce773f080 will be dropped but finished with status UNKNOWN_TRANSACTION
+08-24 18:15:26.295   399   465 I netd    : tetherGetStats() -> {[]} <0.32ms>
+08-24 18:15:26.371  3403  3408 I o.v2.greenfield: NativeAlloc concurrent mark compact GC freed 6547KB AllocSpace bytes, 10(400KB) LOS objects, 49% free, 8905KB/17MB, paused 819us,5.339ms total 47.849ms
+08-24 18:15:26.375  3403  3410 W System  : A resource failed to call close. 
+08-24 18:15:26.410  3403  3403 D SplashScreenView: Building from parcel drawable: android.graphics.drawable.BitmapDrawable@3e9adfb
+08-24 18:15:26.412  3403  3403 D SplashScreenView: Build android.window.SplashScreenView{337071 V.E...... ......ID 0,0-0,0}
+08-24 18:15:26.412  3403  3403 D SplashScreenView: Icon: view: androidx.appcompat.widget.r{a8f7e56 V.ED..... ......I. 0,0-0,0 #1020504 android:id/splashscreen_icon_view} drawable: android.graphics.drawable.BitmapDrawable@3e9adfb size: 504
+08-24 18:15:26.412  3403  3403 D SplashScreenView: Branding: view: android.view.View{41b2ed7 G.ED..... ......I. 0,0-0,0 #1020503 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+08-24 18:15:26.417   600   715 I ImeTracker: com.folio.v2.greenfield:d3cca7de: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+08-24 18:15:26.417   600   715 I ImeTracker: com.folio.v2.greenfield:d3cca7de: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-24 18:15:26.420  1335  1335 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3157 
+08-24 18:15:26.421  1335  1335 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 0, locked = false
+08-24 18:15:26.422  1335  1335 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1986 onStartInput(EditorInfo{EditorInfo{packageName=com.folio.v2.greenfield, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+08-24 18:15:26.422  1335  1335 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 1, locked = false
+08-24 18:15:26.422  1335  1335 I AndroidIME: InputBundleManager.loadActiveInputBundleId():450 loadActiveInputBundleId: und-Latn-x-password, password
+08-24 18:15:26.423   600   666 W PackageConfigPersister: App-specific configuration not found for packageName: com.folio.v2.greenfield and userId: 0
+08-24 18:15:26.485   523   578 W IPCThreadState: Sending oneway calls to frozen process.
+08-24 18:15:26.495   832   986 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda11@d949077
+08-24 18:15:26.495   600   666 D CoreBackPreview: Window{2c15d2f u0 Splash Screen com.folio.v2.greenfield}: Setting back callback null
+08-24 18:15:26.496   600   666 W InputManager-JNI: Input channel object '2c15d2f Splash Screen com.folio.v2.greenfield (client)' was disposed without first being removed with the input manager!
+08-24 18:15:26.506   600   666 I AppWidgetServiceImpl: getInstalledProvidersForProfiles() 0
+08-24 18:15:26.513   600   666 W ParceledListSlice: Element #14 is 19828 bytes.
+08-24 18:15:26.513   600   666 W ParceledListSlice: Element #15 is 19864 bytes.
+08-24 18:15:26.514   600   666 W ParceledListSlice: Element #16 is 19708 bytes.
+08-24 18:15:26.514   600   666 W ParceledListSlice: Element #17 is 19616 bytes.
+08-24 18:15:26.514   600   666 W ParceledListSlice: Element #18 is 19728 bytes.
+08-24 18:15:26.517   600  1010 I AppWidgetServiceImpl: getAppWidgetIds() 0
+08-24 18:15:26.892  3403  3410 W System  : A resource failed to call release. 
+08-24 18:15:26.984  3403  3403 D SplashScreenView: remove starting view
+08-24 18:15:27.290  1529  2114 W A       : (REDACTED) [%s] response code: %d
+08-24 18:15:27.430  3403  3421 D EGL_emulation: app_time_stats: avg=68.91ms min=22.38ms max=318.55ms count=17
+08-24 18:15:27.516   825   825 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+08-24 18:15:27.561   600  1462 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+08-24 18:15:27.629  3403  3408 I o.v2.greenfield: NativeAlloc concurrent mark compact GC freed 6470KB AllocSpace bytes, 4(144KB) LOS objects, 49% free, 9936KB/19MB, paused 1.129ms,5.778ms total 70.425ms
+08-24 18:15:27.638  3403  3410 W System  : A resource failed to call close. 
+08-24 18:15:28.068   600  1010 D WifiNl80211Manager: Scan result ready event
+08-24 18:15:28.068   600  1010 D WifiNative: Scan result ready event
+08-24 18:15:28.077   600   743 I HalDevMgr: bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+08-24 18:15:28.439  3403  3421 D EGL_emulation: app_time_stats: avg=17.68ms min=10.50ms max=52.50ms count=54
+08-24 18:15:28.454   600  1010 D OomAdjuster: Not killing cached processes
+08-24 18:15:28.489   600   750 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-24 18:15:28.489   600   750 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-24 18:15:28.489   600   750 D InetDiagMessage: Destroyed live tcp sockets for uids={10168} in 1ms
+08-24 18:15:28.489   600   750 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-24 18:15:28.490   600   750 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-24 18:15:28.490   600   750 D InetDiagMessage: Destroyed live tcp sockets for uids={20168} in 0ms
+08-24 18:15:28.830  3403  3505 D ProfileInstaller: Skipping profile installation for com.folio.v2.greenfield
+08-24 18:15:29.452  3403  3421 D EGL_emulation: app_time_stats: avg=8.15ms min=6.53ms max=10.95ms count=61
+08-24 18:15:30.453  3403  3421 D EGL_emulation: app_time_stats: avg=7.93ms min=5.89ms max=16.88ms count=60
+08-24 18:15:30.747   399   465 I netd    : tetherGetStats() -> {[]} <0.42ms>

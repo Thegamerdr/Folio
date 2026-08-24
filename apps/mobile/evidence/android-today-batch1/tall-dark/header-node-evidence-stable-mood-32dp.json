@@ -1,0 +1,23 @@
+[
+  {
+    "text": "24 August",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[74,78][902,127]",
+    "clickable": "false"
+  },
+  {
+    "text": "1 day to payday",
+    "desc": "",
+    "class": "android.widget.TextView",
+    "bounds": "[74,132][902,175]",
+    "clickable": "false"
+  },
+  {
+    "text": "",
+    "desc": "Open Melo",
+    "class": "android.widget.Button",
+    "bounds": "[902,74][1007,179]",
+    "clickable": "true"
+  }
+]
