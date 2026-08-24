@@ -28,7 +28,7 @@
 import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { gap, pressed, radius, useTheme, type Palette } from '@/folio/theme';
+import { gap, pressed, radius, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { sweepReviewQueue, useAppStore, type IncomeSource, type ReviewItem } from '@/folio/store';
 import { useShelf } from '@/folio/lib/shelf';
@@ -37,7 +37,8 @@ import { resolvePayday } from '@/folio/lib/payday';
 import { latestLivedCycle } from '@/folio/lib/historyCycles';
 import { suggestMode } from '@/folio/lib/modes/suggest';
 import { selectMeloTodayMoneyNudge } from '@/folio/lib/meloToneGuidance';
-import type { Nav } from '@/folio/types';
+import type { Nav, Pressure } from '@/folio/types';
+import { useTodayTheme } from './todayTheme';
 
 // Stable empty fallback for the optional store slot — DEFAULTS/load always populate `reviewQueue`,
 // but the selector must never mint a fresh [] per call (useSyncExternalStore snapshot stability).
@@ -48,6 +49,11 @@ const EMPTY_INCOME_SOURCES: IncomeSource[] = [];
 const MIN_TAP = 44;
 
 const RECENT_CLOSE_WINDOW_MS = 3 * 86_400_000;
+
+/** Shortfall is a route-pressure decision, not a formatting side effect. */
+export function shouldShowShortfall(pressure: Pressure): boolean {
+  return pressure === 'overspent';
+}
 
 /**
  * Pure predicate for the "offer the payday ritual" nudge. Extracted from the
@@ -103,14 +109,16 @@ type Nudge = {
 
 export function TodayNudges({
   nav,
+  pressure,
   tightestSpare,
 }: {
   nav: Nav;
+  pressure: Pressure;
   /** The Today headline's computed tight point. `null` until the screen has mounted (the gate).
    *  Threaded down so the gap nudge and the hero number never disagree. */
   tightestSpare: number | null;
 }) {
-  const t = useTheme();
+  const t = useTodayTheme();
   const s = useMemo(() => makeStyles(t), [t]);
 
   const subs = useAppStore((st) => st.subs);
@@ -153,9 +161,7 @@ export function TodayNudges({
   const nudges: Nudge[] = [];
 
   // If Today is showing the "overspent" pressure band, Shortfall is the single most important
-  // door. Web gates on nav.pressure === 'overspent'; RN derives the identical band from the
-  // threaded tightestSpare (pressure.ts: tightSpare < 0 → 'overspent') so the nudge and the
-  // hero number can never disagree.
+  // door. Gate on the threaded route pressure, never on a clamped/rounded display number.
   //
   // The diagnosis sentence is mode-aware (Plan 108, D2 reframe) — survival/debt/reset anchor
   // on payday (their VOICE contracts allow it), stability.ts's voice explicitly bans "make it"
@@ -163,7 +169,7 @@ export function TodayNudges({
   // entirely (irregular: runway not days; growth/optimizer/planning/household: cadence not
   // payday). The "three calm moves" CTA sentence is unaffected by any voice ban, so it stays
   // common across every mode.
-  if (tightestSpare !== null && tightestSpare < 0) {
+  if (shouldShowShortfall(pressure)) {
     const shortfallDiagnosis =
       moneyMode === 'stability'
         ? 'The plan does not hold to payday as things stand.'

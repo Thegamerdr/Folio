@@ -20,11 +20,13 @@
 import { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { gap, pressed, radius, serif, useTheme, type Palette } from '@/folio/theme';
+import { gap, pressed, radius, serif, type Palette } from '@/folio/theme';
 import { addTransaction, removeTransaction, useAppStore, type Transaction } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import type { Nav } from '@/folio/types';
+import { formatGBP } from './format';
+import { useTodayTheme } from './todayTheme';
 
 const MIN_TAP = 44;
 
@@ -46,7 +48,7 @@ function palette(t: Palette, category: Transaction['category']): string {
 }
 
 export function TodayRecentTxns({ nav }: { nav: Nav }) {
-  const t = useTheme();
+  const t = useTodayTheme();
   const { showUndo } = useUndo();
   const transactions = useAppStore((st) => st.transactions);
   const recent = useMemo(
@@ -95,7 +97,7 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
           >
             <View style={styles.weeklyHeadRow}>
               <Text style={[styles.weeklyTotal, { color: t.muted }]}>
-                This week · £{weekly.total.toFixed(0)}
+                This week · {formatGBP(weekly.total)}
               </Text>
               <Text style={[styles.weeklyLink, { color: t.muted }]}>ask Melo →</Text>
             </View>
@@ -120,7 +122,7 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                     ]}
                   />
                   <Text style={[styles.weeklyLegendText, { color: t.muted }]}>
-                    {cat} £{v.toFixed(0)}
+                    {cat} {formatGBP(v)}
                   </Text>
                 </View>
               ))}
@@ -139,7 +141,7 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
             const d = new Date(tx.when);
             const days = Math.round((Date.now() - d.getTime()) / 86_400_000);
             const when = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
-            const abs = Math.abs(tx.amount).toFixed(2);
+            const abs = Math.abs(tx.amount);
             return (
               <View
                 key={tx.id}
@@ -158,7 +160,7 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                     {tx.category} · {when}
                   </Text>
                 </View>
-                <Text style={[styles.amount, { color: t.ink }]}>£{abs}</Text>
+                <Text style={[styles.amount, { color: t.ink }]}>{formatGBP(abs)}</Text>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Edit ${tx.merchant}`}
@@ -173,7 +175,7 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                   accessibilityLabel={`Remove ${tx.merchant}`}
                   hitSlop={12}
                   onPress={() =>
-                    Alert.alert(`Remove ${tx.merchant} £${abs}?`, undefined, [
+                    Alert.alert(`Remove ${tx.merchant} ${formatGBP(abs)}?`, undefined, [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Remove',

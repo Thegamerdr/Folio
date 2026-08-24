@@ -21,6 +21,8 @@ import { describe, expect, it } from 'vitest';
 
 type NudgeTone = 'accent' | 'ink' | 'melo';
 
+type Pressure = 'safe' | 'calm' | 'soft' | 'pressured' | 'overspent';
+
 type Nudge = {
   key: string;
   tone: NudgeTone;
@@ -29,14 +31,10 @@ type Nudge = {
   onPress: () => void;
 };
 
-// The component's exact shortfall-nudge push (faithful restatement of the `tightestSpare < 0`
-// branch, frozen copy included verbatim).
-function pushShortfallNudge(
-  nudges: Nudge[],
-  tightestSpare: number | null,
-  onOpen: () => void,
-): void {
-  if (tightestSpare !== null && tightestSpare < 0) {
+// The component's exact shortfall-nudge push (faithful restatement of the
+// `pressure === 'overspent'` branch, frozen copy included verbatim).
+function pushShortfallNudge(nudges: Nudge[], pressure: Pressure, onOpen: () => void): void {
+  if (pressure === 'overspent') {
     nudges.push({
       key: 'shortfall',
       tone: 'accent',
@@ -80,23 +78,23 @@ function collapse(nudges: Nudge[]): {
 }
 
 describe('TodayNudges — shortfall nudge', () => {
-  it('does not fire when tightestSpare is null (headline not yet mounted)', () => {
+  it('does not fire for a non-overspent pressure band', () => {
     const nudges: Nudge[] = [];
-    pushShortfallNudge(nudges, null, () => {});
+    pushShortfallNudge(nudges, 'calm', () => {});
     expect(nudges).toEqual([]);
   });
 
-  it('does not fire when tightestSpare is zero or positive', () => {
-    for (const spare of [0, 1, 250]) {
+  it('does not fire for any other pressure band', () => {
+    for (const pressure of ['safe', 'calm', 'soft', 'pressured'] as const) {
       const nudges: Nudge[] = [];
-      pushShortfallNudge(nudges, spare, () => {});
+      pushShortfallNudge(nudges, pressure, () => {});
       expect(nudges).toEqual([]);
     }
   });
 
-  it('fires with the exact frozen copy and action when tightestSpare is negative', () => {
+  it('fires with the exact frozen copy and action only for overspent pressure', () => {
     const nudges: Nudge[] = [];
-    pushShortfallNudge(nudges, -12, () => {});
+    pushShortfallNudge(nudges, 'overspent', () => {});
     expect(nudges).toHaveLength(1);
     expect(nudges[0]).toMatchObject({
       key: 'shortfall',
@@ -109,7 +107,7 @@ describe('TodayNudges — shortfall nudge', () => {
   it("routes to 'shortfall' when tapped", () => {
     let opened = false;
     const nudges: Nudge[] = [];
-    pushShortfallNudge(nudges, -1, () => {
+    pushShortfallNudge(nudges, 'overspent', () => {
       opened = true;
     });
     nudges[0]!.onPress();
@@ -124,7 +122,7 @@ describe('TodayNudges — collapsed single-chip contract', () => {
 
   it('shows the single nudge, no badge, and its own label as the accessibility label', () => {
     const nudges: Nudge[] = [];
-    pushShortfallNudge(nudges, -5, () => {});
+    pushShortfallNudge(nudges, 'overspent', () => {});
 
     const result = collapse(nudges);
 
@@ -138,7 +136,7 @@ describe('TodayNudges — collapsed single-chip contract', () => {
 
   it('shows a "+1" badge and the "N things to check" accessibility label for exactly two nudges', () => {
     const nudges: Nudge[] = [];
-    pushShortfallNudge(nudges, -5, () => {}); // top
+    pushShortfallNudge(nudges, 'overspent', () => {}); // top
     pushReviewQueueNudge(nudges, 1, () => {}); // +1
 
     const result = collapse(nudges);
@@ -151,7 +149,7 @@ describe('TodayNudges — collapsed single-chip contract', () => {
 
   it('the badge count scales with 3+ active nudges (extra = total - 1)', () => {
     const nudges: Nudge[] = [];
-    pushShortfallNudge(nudges, -5, () => {});
+    pushShortfallNudge(nudges, 'overspent', () => {});
     pushReviewQueueNudge(nudges, 3, () => {});
     nudges.push({
       key: 'shelf',
@@ -172,7 +170,7 @@ describe('TodayNudges — collapsed single-chip contract', () => {
     let topFired = false;
     let secondFired = false;
     const nudges: Nudge[] = [];
-    pushShortfallNudge(nudges, -5, () => {
+    pushShortfallNudge(nudges, 'overspent', () => {
       topFired = true;
     });
     pushReviewQueueNudge(nudges, 2, () => {

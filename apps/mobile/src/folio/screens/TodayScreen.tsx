@@ -59,14 +59,12 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import {
-  elevation,
   gap,
   PressureScreen,
   pressed,
   radius,
   serif,
   useCountUp,
-  useTheme,
   type Palette,
 } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
@@ -91,7 +89,6 @@ import { deriveOneMove } from '@/folio/lib/melo/oneMove';
 import { DISMISS_CHOICES, type DismissReason } from '@/folio/lib/melo/dismissReasons';
 import { computeGreenStreak } from '@/folio/lib/streaks';
 import { useLens } from '@/folio/lib/lens';
-import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
 import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
@@ -101,9 +98,8 @@ import type { Nav, Pressure } from '@/folio/types';
 import { pressureLine, pressureLow, pressureMood } from './today/pressure';
 import { formatDayProse, formatGBP, groupedPounds } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
-import { TodaySpendStrip } from './today/TodaySpendStrip';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
-import { TodayWeekTiles } from './today/TodayWeekTiles';
+import { useTodayTheme } from './today/todayTheme';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedG = Animated.createAnimatedComponent(G);
@@ -116,10 +112,40 @@ const SVG_RENDER_H = 200; // the web rendered the 400×240 viewBox into a 200px-
 const ROUTE_DASH = 1200; // >= the actual path length so route-draw never clips
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 
+function smoothPath(points: readonly { x: number; y: number }[]): string {
+  if (points.length < 2) return '';
+  let d = `M ${points[0]!.x} ${points[0]!.y}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i - 1] ?? points[i]!;
+    const p1 = points[i]!;
+    const p2 = points[i + 1]!;
+    const p3 = points[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
 // A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be
 // called conditionally, so it runs against this until `now` is set; the result is discarded
 // (`route = null`) that frame. Module-level so its identity never churns the hook's memo.
 const EPOCH = new Date(0);
+
+const STATE_WORD: Record<MoneyMode, string> = {
+  survival: 'getting through',
+  stability: 'steady',
+  growth: 'building',
+  debt: 'clearing debt',
+  irregular: 'uneven income',
+  household: 'shared money',
+  planning: 'planning ahead',
+  reset: 'starting again',
+  lowVis: 'still learning',
+  optimizer: 'fine tuning',
+};
 
 type ScreenState = 'populated' | 'loading' | 'error' | 'offline';
 
@@ -137,7 +163,7 @@ export function TodayScreen({
    *  (same as populated — Folio is local-first). Defaults to 'populated'. */
   state?: ScreenState;
 }) {
-  const t = useTheme();
+  const t = useTodayTheme();
   const reduceMotion = useReduceMotion();
 
   const mood = pressureMood[pressure];
@@ -238,9 +264,7 @@ export function TodayScreen({
       if (transaction.amount < 0) spend += -transaction.amount;
       else income += transaction.amount;
     }
-    return count > 0
-      ? { gapDays, spend: Math.round(spend), income: Math.round(income) }
-      : null;
+    return count > 0 ? { gapDays, spend: Math.round(spend), income: Math.round(income) } : null;
   }, [now, prevOpenIso, transactions]);
 
   const greenStreak = useMemo(() => computeGreenStreak(cycles), [cycles]);
@@ -280,9 +304,10 @@ export function TodayScreen({
 
   // Weather for the lens+weather chip — the survival strategy's own derivation, mirroring
   // TodayModeScreen / TodayStabilityScreen (both already call deriveModeState for their pill).
+  const effectiveMode = lens.canAccess(moneyMode) ? moneyMode : 'survival';
   const modeState = useMemo(
     () =>
-      deriveModeState('survival', {
+      deriveModeState(effectiveMode, {
         currentBalance,
         onboarding,
         pots,
@@ -292,7 +317,7 @@ export function TodayScreen({
         tightestDate: tight.tightestDate,
         bufferAmount,
       }),
-    [currentBalance, onboarding, pots, subs, subPaused, tight, bufferAmount],
+    [currentBalance, onboarding, pots, subs, subPaused, tight, bufferAmount, effectiveMode],
   );
   const lensLocked = !lens.canAccess(moneyMode);
   const lockedAfterTrial = Boolean(lens.trialEndedCycleId) && !lens.fullUnlocked;
@@ -360,7 +385,7 @@ export function TodayScreen({
   // The lowest node's coordinates — used by the callout + scrub thumb. Derived from the real curve.
   const lowY = points[lowIndex]?.y ?? PLOT_MID;
   const lowX = points[lowIndex]?.x ?? 305;
-  const d = `M ${points.map((p) => `${p.x} ${p.y}`).join(' L ')}`;
+  const d = smoothPath(points);
   const areaD = `${d} L ${PLOT.x1} ${PLOT.baseline} L ${PLOT.x0} ${PLOT.baseline} Z`;
 
   // Scrub — a 0..1 fraction across the plotted range, dragged with a PanResponder (the web used a
@@ -390,28 +415,35 @@ export function TodayScreen({
     [],
   );
 
-  // The hero number counts up to the tightest spare minus the previewed scrub spend (£0..£120).
-  const lowDisplay = useCountUp(tightestSpare - Math.round(scrub * 120), 400, reduceMotion);
-
-  type Band = 'week' | 'next' | 'payday';
-  const [band, setBand] = useState<Band>('payday');
-  // Band date ranges, computed live from `now` (the mount-gated clock) — never hardcoded dates. The
-  // "to payday" span runs to the route-resolved payday.
-  const bandRange = (fromDays: number, toDays: number): string => {
-    const base = now ?? EPOCH;
-    const fmt = (d: number) =>
-      new Date(base.getTime() + d * 86_400_000).toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-      });
-    return `${fmt(fromDays)} → ${fmt(toDays)}`;
-  };
-  const bands: { id: Band; label: string; range: string }[] = [
-    { id: 'week', label: 'This week', range: bandRange(0, 6) },
-    { id: 'next', label: 'Next week', range: bandRange(7, 13) },
-    { id: 'payday', label: 'To payday', range: bandRange(0, route ? route.daysToPayday : 28) },
-  ];
-  const activeBand = bands.find((b) => b.id === band)!;
+  // The hero number belongs to the active mode's Safe Zone, not to a
+  // survival-only hardcoded amount. Currency previews retain the source's
+  // £120 scrub semantics; non-currency modes keep their declared unit.
+  const heroUnit =
+    effectiveMode === 'reset'
+      ? 'days'
+      : effectiveMode === 'irregular'
+        ? 'weeks'
+        : effectiveMode === 'lowVis'
+          ? 'signal'
+          : 'currency';
+  const heroUnitLabel =
+    heroUnit === 'days'
+      ? 'days of essentials covered'
+      : heroUnit === 'weeks'
+        ? 'weeks of bills covered'
+        : heroUnit === 'signal'
+          ? modeState.safeZone.formula
+          : modeState.spareLabel;
+  const heroProvisional =
+    modeState.safeZone.confidence !== 'high' || currentBalance.source === 'sample';
+  const heroBase =
+    heroUnit === 'currency'
+      ? Math.max(0, Math.round(modeState.safeZone.amount) - Math.round(scrub * 120))
+      : Math.max(0, Math.round(modeState.safeZone.amount));
+  const lowDisplay = useCountUp(heroBase, 400, reduceMotion);
+  const heroFigure =
+    heroUnit === 'currency' ? `£${groupedPounds(lowDisplay)}` : groupedPounds(lowDisplay);
+  const heroFigureSize = heroFigure.length >= 8 ? 44 : heroFigure.length >= 7 ? 50 : 58;
 
   // Calendar → Route bridge. Map the focused ISO date to an x on the path (30..370), pulse it, and
   // clear the focus so it never re-fires. One-shot with a 6s timeout cleaned up on unmount.
@@ -556,55 +588,29 @@ export function TodayScreen({
   return (
     <Animated.View style={[styles.root, enterStyle]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
+        {/* Header: one compact horizon row, then a resilient state/weather row so
+            long dates and mode names never collide with the Melo doorway. */}
         <View style={styles.header}>
-          <View>
-            {/* DELIBERATE PARITY BREAK: the web design hardcodes "Saturday, 27 June" (a demo
-                string, ScreenToday.tsx:230). A live app showing a frozen date is dishonest —
-                caught on-device 2026-07-05 with real user data next to a wrong date. */}
-            <Text style={[styles.headerDate, { color: t.muted }]}>
-              {new Date().toLocaleDateString('en-GB', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-              })}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => nav.go('ritual')}
-              hitSlop={8}
-              style={({ pressed: p }) => (p ? pressed : undefined)}
-            >
-              <Text style={[styles.headerDays, { color: t.muted }]}>
-                {daysToPayday} days to payday →
+          <View style={styles.headerTop}>
+            <View style={styles.headerDateBlock}>
+              <Text style={[styles.headerDate, { color: t.muted }]} numberOfLines={1}>
+                {(now ?? new Date()).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'long',
+                })}
               </Text>
-            </Pressable>
-          </View>
-          <View style={styles.headerRight}>
-            <TrialCountdownChip
-              lens={{
-                trialCycleId: lens.trialCycleId,
-                fullUnlocked: lens.fullUnlocked,
-                trialDaysLeft: lens.trialDaysLeft,
-              }}
-              onPress={() => nav.go('paywall')}
-            />
-            {/* Combined lens+weather pill — mirrors TodayModeScreen / TodayStabilityScreen (both
-                already render this). PARITY_GAPS.md Group 1: Survival Today was the one Today
-                surface missing it. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Lens ${moneyMode} — tap to switch lens`}
-              onPress={() => nav.openSheet('lens-picker')}
-              style={({ pressed: p }) => [
-                styles.lensPill,
-                { backgroundColor: t.surface, borderColor: t.hairline },
-                p ? pressed : undefined,
-              ]}
-            >
-              <MoneyModeChip mode={moneyMode} />
-              <MeloWeatherGlyph weather={modeState.weather} size={12} />
-            </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to payday`}
+                onPress={() => nav.go('ritual')}
+                hitSlop={8}
+                style={({ pressed: p }) => (p ? pressed : undefined)}
+              >
+                <Text style={[styles.headerDays, { color: t.muted }]}>
+                  {daysToPayday} day{daysToPayday === 1 ? '' : 's'} to payday
+                </Text>
+              </Pressable>
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Open Melo"
@@ -618,6 +624,40 @@ export function TodayScreen({
               <Melo size={22} mood={isLoading ? 'curious' : mood} />
             </Pressable>
           </View>
+          <View style={styles.headerBottom}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Current state: ${STATE_WORD[effectiveMode]}. Tap to change.`}
+              onPress={() => nav.openSheet('lens-picker')}
+              style={({ pressed: p }) => (p ? pressed : undefined)}
+            >
+              <Text style={[styles.headerState, { color: t.muted }]} numberOfLines={1}>
+                {STATE_WORD[effectiveMode]}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Weather ${modeState.weather} — tap to switch lens`}
+              onPress={() => nav.openSheet('lens-picker')}
+              style={({ pressed: p }) => [styles.weatherButton, p ? pressed : undefined]}
+            >
+              <View style={[styles.weatherDisc, { backgroundColor: t.inset }]}>
+                <MeloWeatherGlyph weather={modeState.weather} size={16} />
+              </View>
+            </Pressable>
+          </View>
+          {lens.trialCycleId && !lens.fullUnlocked && lens.trialDaysLeft !== null ? (
+            <View style={styles.trialRow}>
+              <TrialCountdownChip
+                lens={{
+                  trialCycleId: lens.trialCycleId,
+                  fullUnlocked: lens.fullUnlocked,
+                  trialDaysLeft: lens.trialDaysLeft,
+                }}
+                onPress={() => nav.go('paywall')}
+              />
+            </View>
+          ) : null}
         </View>
 
         {/* Error branch — a dismissible, non-blocking banner OVER otherwise-populated content. */}
@@ -637,25 +677,12 @@ export function TodayScreen({
             accessibilityRole="button"
             accessibilityLabel="The numbers on this screen are sample data — tap to make them yours"
             onPress={() => nav.openSheet('onboarding')}
-            style={({ pressed: p }) => [
-              styles.chip,
-              { backgroundColor: t.inset, borderColor: t.hairline },
-              p ? pressed : undefined,
-            ]}
+            style={({ pressed: p }) => [styles.sampleTruth, p ? pressed : undefined]}
           >
-            <View style={[styles.chipDot, { backgroundColor: t.caution }]} />
-            <Text style={[styles.chipText, { color: t.muted }]}>Sample numbers</Text>
-            <Text style={[styles.chipText, { color: t.calm }]}>make them yours →</Text>
+            <Text style={[styles.sampleTruthText, { color: t.muted }]}>Sample numbers</Text>
+            <Text style={[styles.sampleTruthText, { color: t.muted }]}> · make them yours →</Text>
           </Pressable>
         ) : null}
-
-        {/* Standing What-Changed row — renders only when something changed since the last look
-            (lib/whatChanged.ts); tap opens the Timeline and stamps the baseline. */}
-        <WhatChangedRow nav={nav} />
-        <TrialEndedRow nav={nav} />
-
-        {!meloPrimerSeen ? <MeloPrimerCard onDone={() => setMeloPrimerSeen(true)} /> : null}
-        {meloPrimerSeen && oneMove ? <OneMoveCard oneMove={oneMove} /> : null}
 
         {/* Hero */}
         <View style={styles.hero}>
@@ -677,26 +704,54 @@ export function TodayScreen({
               },
             ]}
           >
-            {line}
+            {modeState.verdict}
           </Text>
           <View style={styles.heroRow}>
-            <Text style={[styles.heroNumber, { color: t.ink }]}>£{groupedPounds(lowDisplay)}</Text>
-            <Text style={[styles.heroSpare, { color: t.muted }]}>spare</Text>
+            {heroProvisional ? (
+              <Text style={[styles.heroQualifier, { color: t.muted }]}>about</Text>
+            ) : null}
+            <Text
+              style={[
+                styles.heroNumber,
+                { color: t.ink, fontSize: heroFigureSize, lineHeight: heroFigureSize * 0.9 },
+              ]}
+            >
+              {heroFigure}
+            </Text>
+            <Text
+              style={[
+                styles.heroSpare,
+                { color: t.muted, fontSize: Math.max(12, heroFigureSize * 0.235) },
+              ]}
+            >
+              {heroUnitLabel}
+            </Text>
           </View>
-          <Text style={[styles.heroCaption, { color: t.muted }]}>
-            {tight.tightestDate
-              ? `at its lowest point · ${formatDayProse(tight.tightestDate)}`
-              : 'at its lowest point'}
-          </Text>
+          {heroUnit !== 'currency' ? (
+            <Text style={[styles.heroCaption, { color: t.muted }]}>
+              {heroProvisional ? 'Roughly ' : ''}£{groupedPounds(tightestSpare)} at your lowest
+              point before payday.
+            </Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Explain the tight point"
+            onPress={() => nav.openSheet('safe-zone')}
+            style={({ pressed: p }) => (p ? pressed : undefined)}
+          >
+            <Text style={[styles.heroCaption, { color: t.muted }]}>
+              {tight.tightestDate
+                ? `at its lowest point · ${formatDayProse(tight.tightestDate)}`
+                : 'at its lowest point'}
+              {' · '}from £{groupedPounds(currentBalance.amount)} · {balanceSourceLabel}
+            </Text>
+          </Pressable>
           <Text style={[styles.heroSource, { color: t.muted }]}>
-            starting from £{groupedPounds(currentBalance.amount)} · {balanceSourceLabel}
+            Includes what you’ve logged today.
           </Text>
           {sinceLastOpen ? (
             <View
-              style={[
-                styles.sinceStrip,
-                { backgroundColor: t.inset, borderColor: t.hairline },
-              ]}
+              style={[styles.sinceStrip, { backgroundColor: t.inset, borderColor: t.hairline }]}
             >
               <Text style={[styles.sinceLabel, { color: t.muted }]}>
                 since last open · {sinceLastOpen.gapDays}d
@@ -750,19 +805,72 @@ export function TodayScreen({
               ) : null}
             </View>
           ) : null}
+          <View style={styles.heroOffer}>
+            <Text style={[styles.heroOfferReason, { color: t.muted }]}>
+              {pressure === 'pressured' || pressure === 'overspent'
+                ? 'This doesn’t reach payday on its own.'
+                : 'Thinking of spending?'}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                nav.go(pressure === 'pressured' || pressure === 'overspent' ? 'recovery' : 'whatif')
+              }
+              style={({ pressed: p }) => (p ? pressed : undefined)}
+            >
+              <Text style={[styles.heroOfferAction, { color: t.calm }]}>
+                {pressure === 'pressured' || pressure === 'overspent'
+                  ? 'See what could move →'
+                  : 'Try it against this figure first. →'}
+              </Text>
+            </Pressable>
+          </View>
+          <View style={styles.heroActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Can I spend something?"
+              onPress={() => nav.openSheet('afford-check')}
+              style={({ pressed: p }) => [
+                styles.primaryDecision,
+                { backgroundColor: t.calmSoft },
+                p ? pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.primaryDecisionText, { color: t.calmStrong }]}>
+                Can I spend something?
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="See the working"
+              onPress={() => nav.openSheet('safe-zone')}
+              style={({ pressed: p }) => [styles.secondaryDecision, p ? pressed : undefined]}
+            >
+              <Text style={[styles.secondaryDecisionText, { color: t.muted }]}>
+                See the working →
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
-        {/* Path card — the hero object */}
-        <View
-          style={[
-            styles.pathCard,
-            { backgroundColor: t.surface, borderColor: t.hairline },
-            elevation.card,
-          ]}
-        >
+        {/* Melo enters the money story after the answer, never between chrome and
+            the decision. First-run primer and one-move are mutually exclusive. */}
+        {!meloPrimerSeen ? <MeloPrimerCard onDone={() => setMeloPrimerSeen(true)} /> : null}
+        {meloPrimerSeen && oneMove ? <OneMoveCard oneMove={oneMove} /> : null}
+
+        {/* The path is the signature object: plain ground, one hairline chapter
+            break, no card shell or decorative analytics grid. */}
+        <View style={[styles.pathCard, { borderTopColor: t.hairline }]}>
           <View style={styles.pathHead}>
-            <Text style={[styles.pathEyebrow, { color: t.muted }]}>Your money path</Text>
-            <Text style={[styles.pathRange, { color: t.muted }]}>{activeBand.range}</Text>
+            <Text style={[styles.pathEyebrow, { color: t.muted }]}>Today → payday</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open the day-by-day calendar"
+              onPress={() => nav.go('calendar')}
+              style={({ pressed: p }) => (p ? pressed : undefined)}
+            >
+              <Text style={[styles.pathRange, { color: t.calm }]}>Calendar →</Text>
+            </Pressable>
           </View>
 
           <View
@@ -785,29 +893,21 @@ export function TodayScreen({
                 </LinearGradient>
               </Defs>
 
-              {/* gridlines */}
-              {[60, 120, 180].map((y) => (
-                <Line
-                  key={y}
-                  x1={20}
-                  x2={380}
-                  y1={y}
-                  y2={y}
-                  stroke={t.hairline}
-                  strokeDasharray="2 4"
-                />
-              ))}
-
-              {/* breathing-room band — a generic "keep a buffer" zone near the bottom of the plot. The
-                  old "· £100" label was a fixed claim that no longer maps to any real level on the
-                  data-driven curve, so it's dropped; the band stays as a calm visual cue. */}
-              <Rect x={20} y={200} width={360} height={20} fill={t.inset} />
-              <SvgText x={24} y={216} fontSize={9} fill={t.muted}>
-                breathing room
-              </SvgText>
-
               {/* area under the path */}
               <Path d={areaD} fill="url(#todayRouteFill)" />
+
+              {scrub > 0.02 ? (
+                <Path
+                  d={smoothPath(
+                    points.map((p, index) => ({ x: p.x, y: index === 0 ? p.y : p.y + scrub * 26 })),
+                  )}
+                  fill="none"
+                  stroke={t.calm}
+                  strokeWidth={1.4}
+                  strokeDasharray="3 4"
+                  opacity={0.45}
+                />
+              ) : null}
 
               {/* the route line — drawn on with an animated dashoffset, keyed on `d` */}
               <AnimatedPath
@@ -828,7 +928,7 @@ export function TodayScreen({
                 .map((p) => {
                   const isLow = p.label === 'lowest';
                   return (
-                    <G key={p.label}>
+                    <G key={p.label} onPress={isLow ? () => nav.go('calendar') : undefined}>
                       <Circle
                         cx={p.x}
                         cy={p.y}
@@ -962,35 +1062,11 @@ export function TodayScreen({
             </Svg>
           </View>
 
-          {/* One time-range control, rather than three unrelated floating pills. */}
-          <View style={[styles.bandRow, { backgroundColor: t.inset }]}>
-            {bands.map((b) => {
-              const on = b.id === band;
-              return (
-                <Pressable
-                  key={b.id}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => setBand(b.id)}
-                  style={({ pressed: p }) => [
-                    styles.bandPill,
-                    { backgroundColor: on ? t.ink : 'transparent' },
-                    p ? pressed : undefined,
-                  ]}
-                >
-                  <Text style={[styles.bandLabel, { color: on ? t.canvas : t.muted }]}>
-                    {b.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
           {/* scrub hint */}
           <Text style={[styles.scrubHint, { color: t.muted }]}>
             {scrub > 0.02
-              ? `if you spend £${Math.round(scrub * 120)} today`
-              : 'drag the line to preview a spend'}
+              ? `spend £${Math.round(scrub * 120)} today · lowest £${Math.max(0, tightestSpare - Math.round(scrub * 120))}`
+              : 'drag the line to try a spend'}
           </Text>
           {scrub > 0.04 ? (
             <Pressable
@@ -1027,31 +1103,21 @@ export function TodayScreen({
             </View>
           ) : null}
 
-          {/* summary trio */}
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCell}>
-              <Text style={[styles.summaryLabel, { color: t.muted }]}>Coming in</Text>
-              <Text style={[styles.summaryValue, { color: t.positiveInk }]}>
-                {formatGBP(Math.round(route?.incomingTotal ?? 0))}
-              </Text>
-            </View>
-            <View style={styles.summaryCell}>
-              <Text style={[styles.summaryLabel, { color: t.muted }]}>Going out</Text>
-              <Text style={[styles.summaryValue, { color: t.repairInk }]}>
-                {formatGBP(Math.round(route?.outgoingTotal ?? 0))}
-              </Text>
-            </View>
-            <View style={styles.summaryCell}>
-              <Text style={[styles.summaryLabel, { color: t.muted }]}>Lowest</Text>
-              <Text style={[styles.summaryValue, { color: t.ink }]}>
-                {formatGBP(tightestSpare)}
-              </Text>
-            </View>
-          </View>
+          <Text style={[styles.pathDisclaimer, { color: t.muted }]}>
+            Worked out from what you’ve added — treat it as a close guess.
+          </Text>
+          <Text style={[styles.pathSummary, { color: t.muted }]}>
+            <Text style={{ color: t.ink }}>{formatGBP(Math.round(route?.incomingTotal ?? 0))}</Text>{' '}
+            coming in before payday,{' '}
+            <Text style={{ color: t.ink }}>{formatGBP(Math.round(route?.outgoingTotal ?? 0))}</Text>{' '}
+            going out.
+          </Text>
         </View>
 
         {/* The route is the proof for the headline. Actions and recent activity follow it instead
             of interrupting the answer before the user has seen why the number is true. */}
+        <WhatChangedRow nav={nav} />
+        <TrialEndedRow nav={nav} />
         <View style={styles.checksRow}>
           <Pressable
             accessibilityRole="button"
@@ -1078,49 +1144,19 @@ export function TodayScreen({
             <Text style={[styles.checkPillLabel, { color: t.calm }]}>Your Safe Zone →</Text>
           </Pressable>
         </View>
-        <TodayNudges nav={nav} tightestSpare={isLoading ? null : tightestSpare} />
+        <TodayNudges
+          nav={nav}
+          pressure={pressure}
+          tightestSpare={isLoading ? null : tightestSpare}
+        />
         <TodayRecentTxns nav={nav} />
-        <TodaySpendStrip nav={nav} />
-
-        {/* Melo prompt card */}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() =>
-            nav.openMelo({
-              prefill: tight.tightestDate
-                ? `Why is my low point £${tightestSpare} on ${formatDayProse(tight.tightestDate)}?`
-                : `Why is my low point £${tightestSpare}?`,
-            })
-          }
-          style={({ pressed: p }) => [
-            styles.meloPrompt,
-            { backgroundColor: t.inset },
-            p ? pressed : undefined,
-          ]}
-        >
-          <Melo size={28} mood={isLoading ? 'curious' : mood} />
-          <View style={styles.meloPromptBody}>
-            <Text style={[styles.meloPromptLine, { color: t.ink }]}>&ldquo;{line}&rdquo;</Text>
-            <View style={styles.meloPromptMeta}>
-              {totalPendingReview > 0 ? (
-                <Text style={[styles.meloPromptMetaText, { color: t.muted }]}>
-                  {totalPendingReview} {totalPendingReview === 1 ? 'thing' : 'things'} still waiting
-                  to be checked.
-                </Text>
-              ) : null}
-              <Text style={[styles.meloPromptCta, { color: t.calm }]}>Ask Melo →</Text>
-            </View>
-          </View>
-        </Pressable>
-
-        <TodayWeekTiles nav={nav} tightSpare={tightestSpare} tightDate={tight.tightestDate} />
       </ScrollView>
     </Animated.View>
   );
 }
 
 function MeloPrimerCard({ onDone }: { onDone: () => void }) {
-  const t = useTheme();
+  const t = useTodayTheme();
   const [beat, setBeat] = useState(0);
   const beats = [
     {
@@ -1148,10 +1184,7 @@ function MeloPrimerCard({ onDone }: { onDone: () => void }) {
     <View
       accessibilityRole="summary"
       accessibilityLabel={`Meet Melo, step ${beat + 1} of ${beats.length}`}
-      style={[
-        styles.companionCard,
-        { backgroundColor: t.surface, borderColor: t.hairline },
-      ]}
+      style={[styles.companionCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
     >
       <Melo size={36} mood="calm" />
       <View style={styles.companionCardBody}>
@@ -1196,12 +1229,8 @@ function MeloPrimerCard({ onDone }: { onDone: () => void }) {
   );
 }
 
-function OneMoveCard({
-  oneMove,
-}: {
-  oneMove: NonNullable<ReturnType<typeof deriveOneMove>>;
-}) {
-  const t = useTheme();
+function OneMoveCard({ oneMove }: { oneMove: NonNullable<ReturnType<typeof deriveOneMove>> }) {
+  const t = useTodayTheme();
   const [pickerOpen, setPickerOpen] = useState(false);
   const dismiss = (reason: DismissReason | null) => {
     recordOneMoveDismissed(oneMove.key, reason);
@@ -1211,10 +1240,7 @@ function OneMoveCard({
     <View
       accessibilityRole="summary"
       accessibilityLabel={`Melo suggests: ${oneMove.line}`}
-      style={[
-        styles.companionCard,
-        { backgroundColor: t.surface, borderColor: t.hairline },
-      ]}
+      style={[styles.companionCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
     >
       <Melo size={36} mood="curious" />
       <View style={styles.companionCardBody}>
@@ -1228,9 +1254,7 @@ function OneMoveCard({
             }}
             hitSlop={10}
           >
-            <Text style={[styles.companionPrimaryAction, { color: t.calm }]}>
-              {oneMove.cta} →
-            </Text>
+            <Text style={[styles.companionPrimaryAction, { color: t.calm }]}>{oneMove.cta} →</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -1255,9 +1279,7 @@ function OneMoveCard({
                   isPressed ? pressed : undefined,
                 ]}
               >
-                <Text style={[styles.dismissChoiceLabel, { color: t.muted }]}>
-                  {choice.label}
-                </Text>
+                <Text style={[styles.dismissChoiceLabel, { color: t.muted }]}>{choice.label}</Text>
               </Pressable>
             ))}
             <Pressable accessibilityRole="button" onPress={() => dismiss(null)} hitSlop={8}>
@@ -1271,7 +1293,7 @@ function OneMoveCard({
 }
 
 function TodayFirstRun({ nav }: { nav: Nav }) {
-  const t = useTheme();
+  const t = useTodayTheme();
   return (
     <Animated.View style={[styles.root, { backgroundColor: t.canvas }]}>
       <ScrollView
@@ -1530,9 +1552,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingTop: gap.md,
     paddingBottom: gap.sm,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerDateBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  headerBottom: {
+    marginTop: gap.xs,
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: gap.sm,
+  },
+  trialRow: {
+    minHeight: 28,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  headerState: {
+    fontSize: 12.5,
+    flexShrink: 1,
   },
   headerDate: {
     fontFamily: serif.displayItalic,
@@ -1542,20 +1586,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  headerRight: {
-    flexDirection: 'row',
+  weatherButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  weatherDisc: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
-    gap: gap.xs,
-  },
-  lensPill: {
-    height: 32,
-    paddingLeft: gap.sm,
-    paddingRight: gap.sm + 2,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
   },
   meloButton: {
     width: 40,
@@ -1581,6 +1618,15 @@ const styles = StyleSheet.create({
   },
   chipDot: { width: 6, height: 6, borderRadius: 3 },
   chipText: { fontSize: 11 },
+  sampleTruth: {
+    marginHorizontal: 28,
+    marginTop: gap.xs,
+    marginBottom: gap.xs,
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sampleTruthText: { fontSize: 11 },
 
   companionCard: {
     marginHorizontal: 28,
@@ -1656,6 +1702,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: gap.sm,
+    flexWrap: 'wrap',
+    maxWidth: '100%',
   },
   heroNumber: {
     fontFamily: serif.display,
@@ -1663,14 +1711,44 @@ const styles = StyleSheet.create({
     lineHeight: 64,
     fontVariant: ['tabular-nums'],
   },
+  heroQualifier: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
   heroSpare: {
     fontFamily: serif.displayItalic,
     fontSize: 18,
+    flexShrink: 1,
   },
   heroCaption: {
     fontSize: 12.5,
     marginTop: 4,
   },
+  heroOffer: {
+    marginTop: gap.sm,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: gap.sm,
+  },
+  heroOfferReason: { fontSize: 12 },
+  heroOfferAction: { fontSize: 12, fontWeight: '500' },
+  heroActions: {
+    marginTop: gap.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: gap.md,
+  },
+  primaryDecision: {
+    minHeight: 44,
+    borderRadius: radius.md,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+  },
+  primaryDecisionText: { fontSize: 14, fontWeight: '600' },
+  secondaryDecision: { minHeight: 44, justifyContent: 'center' },
+  secondaryDecisionText: { fontSize: 12.5 },
   checksRow: {
     paddingHorizontal: 28,
     marginTop: gap.md,
@@ -1737,11 +1815,10 @@ const styles = StyleSheet.create({
   },
 
   pathCard: {
-    marginTop: gap.xl - 4,
-    marginHorizontal: gap.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.xl,
-    padding: gap.xl - 4,
+    marginTop: gap.xl,
+    paddingHorizontal: gap.lg,
+    paddingTop: gap.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   pathHead: {
     flexDirection: 'row',
@@ -1763,26 +1840,6 @@ const styles = StyleSheet.create({
     height: SVG_RENDER_H,
   },
 
-  bandRow: {
-    marginTop: gap.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 999,
-    gap: 2,
-    padding: 3,
-  },
-  bandPill: {
-    flex: 1,
-    height: 30,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bandLabel: {
-    fontSize: 10.5,
-    letterSpacing: 0.4,
-  },
-
   scrubHint: {
     marginTop: gap.sm,
     fontSize: 10.5,
@@ -1800,6 +1857,14 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '600',
     letterSpacing: 0.4,
+  },
+  pathDisclaimer: { marginTop: gap.xs, fontSize: 10.5, opacity: 0.75 },
+  pathSummary: {
+    marginTop: gap.md,
+    paddingTop: gap.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    fontSize: 12.5,
+    lineHeight: 18,
   },
 
   potDip: {
