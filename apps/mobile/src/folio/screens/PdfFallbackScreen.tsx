@@ -309,7 +309,7 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
           <Text style={[styles.primaryLabel, { color: t.inverse }]}>Try another file</Text>
         </Pressable>
 
-        {/* Secondary row — encrypted original + the manual last-resort path to Review. */}
+        {/* Secondary row — encrypted original + the manual last-resort workbench. */}
         <View style={styles.secondaryRow}>
           <Pressable
             accessibilityRole="button"
@@ -328,7 +328,8 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Add one thing myself"
-            onPress={() => nav.go('review')}
+            accessibilityHint="Opens the manual entry form"
+            onPress={() => nav.openSheet('log-spend')}
             style={({ pressed: isPressed }) => [
               styles.secondaryCell,
               { backgroundColor: t.surface, borderColor: t.hairline },

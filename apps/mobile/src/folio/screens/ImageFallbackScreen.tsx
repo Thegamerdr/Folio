@@ -312,7 +312,7 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
           <Text style={[styles.primaryLabel, { color: t.inverse }]}>Try another image</Text>
         </Pressable>
 
-        {/* Secondary row — encrypted original + the manual last-resort path to Review. */}
+        {/* Secondary row — encrypted original + the manual last-resort workbench. */}
         <View style={styles.secondaryRow}>
           <Pressable
             accessibilityRole="button"
@@ -331,7 +331,8 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Add one thing myself"
-            onPress={() => nav.go('review')}
+            accessibilityHint="Opens the manual entry form"
+            onPress={() => nav.openSheet('log-spend')}
             style={({ pressed: isPressed }) => [
               styles.secondaryCell,
               { backgroundColor: t.surface, borderColor: t.hairline },

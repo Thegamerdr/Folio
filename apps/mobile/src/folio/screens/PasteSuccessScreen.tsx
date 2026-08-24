@@ -74,7 +74,13 @@ import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
 import { applyMemoryToCandidates } from '@/folio/lib/merchantMemory';
 import { isBulkStatement } from '@/folio/lib/bulkLanding';
-import { enqueueReviewItems, getState, queueInputFromCandidates } from '@/folio/store';
+import {
+  clearReaderCandidates,
+  enqueueReviewItems,
+  getState,
+  queueInputFromCandidates,
+  useReaderCandidates,
+} from '@/folio/store';
 import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import type { Nav } from '@/folio/types';
 
@@ -186,6 +192,11 @@ export function PasteSuccessScreen({
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
+  // Intake stages clipboard and CSV reads in the transient reader slot before navigating here.
+  // Read that slot when no prop/fixture is supplied; otherwise the native paste path appeared to
+  // succeed and then rendered a misleading empty doorway. The slot is still review-only and is
+  // cleared only after the candidates move into the persisted review queue.
+  const staged = useReaderCandidates();
 
   // The real engine derivation. Live pasted text (when threaded in) is read by `parseSheet`;
   // otherwise we fall back to the faithful sample (the same module-level parse, no re-run). An
@@ -213,6 +224,13 @@ export function PasteSuccessScreen({
         candidates: withMemory,
       };
     }
+    if (staged.length > 0) {
+      return {
+        items: toPastedItems(staged),
+        issues: [] as readonly ColumnIssue[],
+        candidates: staged,
+      };
+    }
     // Nothing pasted (a cold open from the nav): show the empty doorway below, never a fabricated
     // sample list. The SAMPLE_* consts are gone — a real paste is the only source of rows here.
     return {
@@ -220,7 +238,7 @@ export function PasteSuccessScreen({
       issues: [] as readonly ColumnIssue[],
       candidates: [] as readonly CandidateMoneyItem[],
     };
-  }, [itemsOverride, pasteText]);
+  }, [itemsOverride, pasteText, staged]);
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -256,6 +274,18 @@ export function PasteSuccessScreen({
       issue.code === 'empty-input',
   );
 
+  // loading — the native reader is still settling. This must precede the empty guard: a waiting
+  // screen has no candidates yet by definition, but should never read as "nothing found".
+  if (state === 'loading') {
+    return (
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
+        <MeloLine mood="curious" text="Melo is reading…" />
+      </View>
+    );
+  }
+
   // error — the read failed; the calm EmptyState doorway, routing back to intake to paste again.
   if (state === 'error' || (hasHardIssue && items.length === 0)) {
     return (
@@ -280,20 +310,10 @@ export function PasteSuccessScreen({
     );
   }
 
-  // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
-  if (state === 'loading') {
-    return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="Melo is reading…" />
-      </View>
-    );
-  }
-
   // populated / offline — the real preview. offline ≡ populated (the read already happened upstream).
   const count = items.length;
   const eyebrow = `${count} thing${count === 1 ? '' : 's'} to check`;
+  const reviewSource = candidates[0]?.source === 'paste' ? 'paste' : 'csv';
 
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -364,6 +384,13 @@ export function PasteSuccessScreen({
             );
           })}
         </View>
+        {issues.length > 0 ? (
+          <Text accessibilityLiveRegion="polite" style={[styles.issueLine, { color: t.muted }]}>
+            {issues.length === 1
+              ? 'One line needs a quick check before it counts.'
+              : `${issues.length} lines need a quick check before they count.`}
+          </Text>
+        ) : null}
 
         {/* BULK ADD-AS-HISTORY (task): a multi-candidate paste/CSV read (a real statement) swaps
             the ordinary single-item CTA pair for the bulk landing surface — summary + "Add all as
@@ -373,10 +400,10 @@ export function PasteSuccessScreen({
           <BulkStatementLanding
             nav={nav}
             candidates={candidates}
-            onAdded={() => {}}
+            onAdded={() => clearReaderCandidates()}
             onReviewOneByOne={(accountId) => {
               const { dropped } = enqueueReviewItems(
-                queueInputFromCandidates(candidates, 'csv', accountId),
+                queueInputFromCandidates(candidates, reviewSource, accountId),
               );
               if (dropped > 0) {
                 showToast(
@@ -384,6 +411,7 @@ export function PasteSuccessScreen({
                   `${dropped} more will follow as you clear them.`,
                 );
               }
+              clearReaderCandidates();
               nav.go('review');
             }}
           />
@@ -406,13 +434,16 @@ export function PasteSuccessScreen({
               accessibilityLabel="Check these"
               accessibilityHint="Opens the review of what was found"
               onPress={() => {
-                const { dropped } = enqueueReviewItems(queueInputFromCandidates(candidates, 'csv'));
+                const { dropped } = enqueueReviewItems(
+                  queueInputFromCandidates(candidates, reviewSource),
+                );
                 if (dropped > 0) {
                   showToast(
                     'Showing the newest 60 to check first',
                     `${dropped} more will follow as you clear them.`,
                   );
                 }
+                clearReaderCandidates();
                 nav.go('review');
               }}
               style={({ pressed: isPressed }) => [
@@ -556,6 +587,11 @@ const styles = StyleSheet.create({
   rowSub: {
     fontSize: 11.5,
     marginTop: gap.xxs,
+  },
+  issueLine: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: gap.sm,
   },
   // Money — the web <Money size="sm"> is Fraunces display, tabular, medium, 15px.
   amount: {

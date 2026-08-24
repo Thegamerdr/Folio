@@ -170,8 +170,14 @@ function hintForKind(kind: CandidateKind): string {
       return 'looks like a subscription';
     case 'spend':
       return 'likely spending';
+    case 'debt-payment':
+      return 'looks like a debt payment';
+    case 'transfer':
+      return 'looks like a transfer';
+    case 'unknown':
+      return 'needs a closer look';
     default:
-      return 'a money item';
+      return 'needs a closer look';
   }
 }
 
@@ -322,6 +328,18 @@ export function PdfSuccessScreen({
     );
   }
 
+  // A waiting read has no candidates yet by definition. Keep this before the empty guard so the
+  // user sees a calm processing state rather than a misleading completed-empty result.
+  if (state === 'loading') {
+    return (
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
+        <MeloLine mood="curious" text="Melo is reading…" />
+      </View>
+    );
+  }
+
   // empty — n/a in practice (you only land here when a statement was read). A zero-candidate read is a
   // fallback/empty-found case the upstream flow defines; rendered here as the calm EmptyState so the
   // screen never shows a hollow "0 things found" card.
@@ -333,18 +351,6 @@ export function PdfSuccessScreen({
         body="Melo didn't find money items in this one. Try a different file."
         cta={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
       />
-    );
-  }
-
-  // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md). A calm holding moment
-  // while the read settles; in practice the read happens upstream and this success screen mounts after.
-  if (state === 'loading') {
-    return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="Melo is reading…" />
-      </View>
     );
   }
 

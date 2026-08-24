@@ -425,7 +425,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           // prior reader read rather than letting it leak into this landing.
           setReaderClosingBalance(null);
           setReaderFallbackEvidenceId(undefined);
-          nav.go('pdf-success');
+          // CSV/TXT is the text doorway. Keep the PDF statement preview reserved for a PDF read so
+          // the next screen can explain the right kind of evidence and preserve the source label.
+          nav.go(option.to);
         } else {
           finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
         }
@@ -543,7 +545,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         mood="calm"
         headline={headline}
         body={body}
-        cta={{ label: 'Add a statement', onPress: () => nav.go('pdf-success') }}
+        cta={{ label: 'Add a statement', onPress: () => void runPick(OPTIONS[0]!) }}
       />
     );
   }

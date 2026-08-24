@@ -130,8 +130,14 @@ function hintForKind(kind: CandidateKind): string {
       return 'looks like a subscription';
     case 'spend':
       return 'likely spending';
+    case 'debt-payment':
+      return 'looks like a debt payment';
+    case 'transfer':
+      return 'looks like a transfer';
+    case 'unknown':
+      return 'needs a closer look';
     default:
-      return 'a money item';
+      return 'needs a closer look';
   }
 }
 
@@ -273,6 +279,18 @@ export function ImageSuccessScreen({
     );
   }
 
+  // A waiting read has no candidates yet by definition. Keep this before the empty guard so the
+  // user sees a calm processing state rather than a misleading completed-empty result.
+  if (state === 'loading') {
+    return (
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
+      >
+        <MeloLine mood="curious" text="Melo is reading…" />
+      </View>
+    );
+  }
+
   // empty — n/a in practice (you only land here when something was read). Rendered as the calm
   // EmptyState so the screen never shows a hollow "0 things found" card.
   if (state === 'empty' || image.items.length === 0) {
@@ -283,17 +301,6 @@ export function ImageSuccessScreen({
         body="Melo didn't find money items in this one. Try a different image."
         cta={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
       />
-    );
-  }
-
-  // loading — Melo curious + a line, NEVER a spinner (hard rule + STATES.md).
-  if (state === 'loading') {
-    return (
-      <View
-        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
-      >
-        <MeloLine mood="curious" text="Melo is reading…" />
-      </View>
     );
   }
 
