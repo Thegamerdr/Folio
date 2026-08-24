@@ -55,7 +55,16 @@
 // do. No banned product vocabulary appears in any visible string. Every row is a >=44px tap target.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccessibilityInfo } from 'react-native';
 import Animated, {
@@ -471,6 +480,19 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   // Export — routes to Privacy, which owns the real export engine (runExport). Avoids a second,
   // weaker export entry point (see FIDELITY DECISIONS).
   const handleExport = () => nav.go('privacy');
+
+  // Share is deliberately a one-off native handoff, separate from the complete export authority
+  // above. It gives a partner or adviser a useful plain-language snapshot without creating a
+  // second export format or persisting a copy in Melo.
+  const handleShareSnapshot = () => {
+    const balance = `£${Math.round(currentBalance.amount).toLocaleString('en-GB')}`;
+    const message = `${workspace.name}: ${balance} current balance · ${transactionsCount} ${transactionsCount === 1 ? 'transaction' : 'transactions'} recorded.`;
+    void Share.share({ message, title: 'Melo money snapshot' }).catch(() => {
+      Alert.alert('Could not share this snapshot', 'Nothing was changed in Melo.', [
+        { text: 'OK', style: 'cancel' },
+      ]);
+    });
+  };
 
   // Wipe — routes to Privacy's gated D3 reset instead of wiping directly from here (see FIDELITY
   // DECISIONS; mirrors MoreScreen's own "Start fresh" -> Privacy routing).
@@ -1056,6 +1078,12 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             label="Export your data"
             hint="a complete copy of everything on this device"
             onPress={handleExport}
+          />
+          <Hairline />
+          <AccountRow
+            label="Share a snapshot"
+            hint="a one-off summary · nothing is saved here"
+            onPress={handleShareSnapshot}
           />
           <Hairline />
           {!isBusiness && clerkConfigured ? (

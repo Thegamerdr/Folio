@@ -80,7 +80,15 @@
 // literals exactly as the web keeps them; only app.name is keyed in COPY_DECK).
 
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -200,6 +208,49 @@ function useAppLockHint(): string {
   return 'off · tap to configure';
 }
 
+/**
+ * Accessibility is owned by the device. More only reports the live OS preference and explains
+ * what Melo follows; it does not create a second in-app accessibility authority.
+ */
+function useAccessibilityHint(): { hint: string; describe: () => void } {
+  const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReducedMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      setReducedMotion,
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  const hint =
+    reducedMotion === null
+      ? 'follows your device settings'
+      : reducedMotion
+        ? 'text size · reduced motion on'
+        : 'text size · standard motion';
+
+  const describe = () => {
+    const motion =
+      reducedMotion === null ? 'still checking reduced motion' : reducedMotion ? 'on' : 'off';
+    Alert.alert(
+      'Accessibility',
+      `Melo follows your device text size and reduced-motion preference. Reduced motion is ${motion}.`,
+      [{ text: 'Done', style: 'cancel' }],
+      { cancelable: true },
+    );
+  };
+
+  return { hint, describe };
+}
+
 // Routing: the web "Data & privacy" row navigates to the Privacy screen (web `to: "privacy"`), where
 // the export action lives (the Privacy "Export my data" CTA). This RN row is faithful to that — it
 // carries `to: 'privacy'` and navigates via nav.go('privacy'), so export is reached FROM Privacy, not
@@ -252,6 +303,21 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const hiddenCount = useAppStore((s) => s.ignoredReviewSigs?.length ?? 0);
   const reminders = useReminders();
   const appLockHint = useAppLockHint();
+  const accessibility = useAccessibilityHint();
+  const aiReads = useAppStore((s) => s.aiReads);
+  const aiReadHint =
+    aiReads?.used && aiReads.used > 0
+      ? `${aiReads.used} read${aiReads.used === 1 ? '' : 's'} this month · asks before changes`
+      : 'asks before anything reaches your records';
+
+  const describeAiAutomation = () => {
+    Alert.alert(
+      'AI & automation',
+      'Melo only reads a statement after you choose that path. Suggestions wait in Review, and nothing reaches your records until you confirm it.',
+      [{ text: 'Done', style: 'cancel' }],
+      { cancelable: true },
+    );
+  };
 
   // Group by user intent. Twenty unrelated rows in one card made the hub feel like an implementation
   // index; these sections keep the same working destinations while making the next choice legible.
@@ -261,6 +327,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
       title: 'Your money',
       rows: [
         { label: 'Account & plan', hint: 'tier, accounts, sign in', to: 'account' },
+        { label: 'Money sources', hint: 'accounts, statements and connections', to: 'account' },
         { label: 'Timeline', hint: 'everything you added or changed', to: 'timeline' },
         { label: 'Calendar', hint: 'the dates that matter', to: 'calendar' },
         { label: 'Plans', hint: "what's coming before payday", to: 'plans' },
@@ -289,6 +356,16 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           onPress: toggleAppearance,
         },
         {
+          label: 'Notifications',
+          hint: remindersHint(reminders.settings.remindersEnabled, reminders.permission),
+          onPress: reminders.toggleEnabled,
+        },
+        {
+          label: 'Accessibility',
+          hint: accessibility.hint,
+          onPress: accessibility.describe,
+        },
+        {
           label: 'Chart style',
           hint: `${CHART_STYLE_LABEL[chartStyle]} · ${CHART_STYLE_HINT[chartStyle]}`,
           sheet: 'chart-style',
@@ -302,24 +379,33 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           sheet: 'hidden-review',
         },
         {
-          label: 'Reminders',
-          hint: remindersHint(reminders.settings.remindersEnabled, reminders.permission),
-          onPress: reminders.toggleEnabled,
-        },
-        {
           label: 'Lock-screen details',
           hint: reminders.settings.sensitivePreviews
             ? 'show titles and details'
             : 'hidden · recommended',
           onPress: reminders.toggleSensitivePreviews,
         },
-        { label: 'App lock', hint: appLockHint, to: 'privacy' },
       ],
     },
     {
-      title: 'Your data',
+      title: 'Trust & control',
       rows: [
-        { label: 'Data & privacy', hint: "what's saved, what to export", to: 'privacy' },
+        {
+          label: 'Data & privacy',
+          hint: "what's saved, what to export",
+          to: 'privacy',
+        },
+        { label: 'Security', hint: appLockHint, to: 'privacy' },
+        {
+          label: 'AI & automation',
+          hint: aiReadHint,
+          onPress: describeAiAutomation,
+        },
+        {
+          label: 'Melo memory',
+          hint: 'what Melo has learned from your choices',
+          to: 'melo',
+        },
         {
           label: 'Start fresh',
           hint: 'clear local money, not your account',

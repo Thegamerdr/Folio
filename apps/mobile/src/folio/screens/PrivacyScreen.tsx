@@ -134,6 +134,10 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       current.workspaces.find((workspace) => workspace.id === current.activeWorkspaceId)!,
   );
   const isBusiness = activeWorkspace.kind === 'business';
+  const savedRecordCount = useAppStore((current) => current.transactions.length);
+  const savedSourceCount = useAppStore((current) => current.evidenceDocuments?.length ?? 0);
+  const savedAccountCount = useAppStore((current) => current.accounts?.length ?? 0);
+  const savedCycleCount = useAppStore((current) => current.cycles.length);
   const [appLockSettings, setAppLockSettings] = useState(getCachedAppLockSettings());
   const [appLockCapability, setAppLockCapability] = useState<AppLockCapability | null>(null);
   const [changingAppLock, setChangingAppLock] = useState(false);
@@ -471,6 +475,39 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           ))}
         </View>
 
+        {/* A live, deliberately small footprint keeps the trust promise concrete. These counts read
+            the active workspace directly; they are not an estimate and do not leave this screen. */}
+        <View style={[styles.footprint, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text style={[styles.footprintTitle, { color: t.muted }]}>Saved here now</Text>
+          <Text style={[styles.footprintHint, { color: t.muted }]}>this workspace only</Text>
+          <View style={styles.footprintGrid}>
+            <FootprintValue
+              label="money records"
+              value={savedRecordCount}
+              color={t.ink}
+              muted={t.muted}
+            />
+            <FootprintValue
+              label="original files"
+              value={savedSourceCount}
+              color={t.ink}
+              muted={t.muted}
+            />
+            <FootprintValue
+              label="accounts"
+              value={savedAccountCount}
+              color={t.ink}
+              muted={t.muted}
+            />
+            <FootprintValue
+              label="closed cycles"
+              value={savedCycleCount}
+              color={t.ink}
+              muted={t.muted}
+            />
+          </View>
+        </View>
+
         {/* Primary CTA — terracotta fill + the warm raised glow; opens the share (export) sheet. Plain
           centred label, no arrow, faithful to the web button. */}
         <Pressable
@@ -616,6 +653,25 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   );
 }
 
+function FootprintValue({
+  label,
+  value,
+  color,
+  muted,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  muted: string;
+}) {
+  return (
+    <View style={styles.footprintValue}>
+      <Text style={[styles.footprintValueNumber, { color }]}>{value}</Text>
+      <Text style={[styles.footprintValueLabel, { color: muted }]}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   // px-7 ≈ screen inset (gap.xl = 24); pt-4 ≈ safe-area top + gap.md (12).
   screen: {
@@ -704,6 +760,40 @@ const styles = StyleSheet.create({
     // (seen live on the second claim during the 2026-07-11 dark-mode sweep).
     flex: 1,
     fontSize: 13.5,
+  },
+  footprint: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.xl,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.md,
+  },
+  footprintTitle: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  footprintHint: {
+    fontSize: 12,
+    marginTop: gap.xs,
+  },
+  footprintGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: gap.md,
+    marginTop: gap.md,
+  },
+  footprintValue: {
+    minWidth: '50%',
+  },
+  footprintValueNumber: {
+    fontSize: 17,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '600',
+  },
+  footprintValueLabel: {
+    fontSize: 12,
+    marginTop: gap.xxs,
   },
   // mt-8 (32px) = gap.xxl; full-width terracotta CTA, rounded-2xl (radius.xl = 24), with the warm glow.
   primary: {
