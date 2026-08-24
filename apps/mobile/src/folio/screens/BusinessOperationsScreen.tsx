@@ -1,4 +1,7 @@
+import { Text } from 'react-native';
 import type { Nav, ScreenId } from '@/folio/types';
+import { useTheme } from '@/folio/theme';
+import { BusinessCard, BusinessPrimaryAction, BusinessScreenFrame } from './business/BusinessUi';
 import {
   BusinessFilingWorkingCopyScreen,
   BusinessFilingsScreen,
@@ -19,14 +22,9 @@ import {
   BusinessRunwayScreen,
   BusinessVatScreen,
 } from './business/BusinessMoneyScreens';
+import { businessSurface } from './business/businessSurfaceRegistry';
 
-export function BusinessOperationsScreen({
-  nav,
-  screen,
-}: {
-  nav: Nav;
-  screen: ScreenId;
-}) {
+export function BusinessOperationsScreen({ nav, screen }: { nav: Nav; screen: ScreenId }) {
   if (screen === 'business-runway') return <BusinessRunwayScreen nav={nav} />;
   if (screen === 'business-clients') return <BusinessClientsScreen nav={nav} />;
   if (screen === 'business-invoices') return <BusinessInvoicesScreen nav={nav} />;
@@ -51,5 +49,30 @@ export function BusinessOperationsScreen({
     return <BusinessFilingWorkingCopyScreen nav={nav} route={screen} />;
   }
   if (screen === 'business-insights') return <BusinessInsightsScreen nav={nav} />;
-  return <BusinessDeductionsScreen nav={nav} />;
+  if (screen === 'business-deductions') return <BusinessDeductionsScreen nav={nav} />;
+  // Keep an explicit recoverable state for a stale/deep-linked route. A silent Deductions
+  // fallback makes route coverage look complete while sending the user to the wrong authority.
+  return <BusinessSurfaceNotFoundScreen nav={nav} screen={screen} />;
+}
+
+function BusinessSurfaceNotFoundScreen({ nav, screen }: { nav: Nav; screen: ScreenId }) {
+  const t = useTheme();
+  const surface = businessSurface(screen);
+  return (
+    <BusinessScreenFrame
+      eyebrow="Business"
+      headline="That business view is unavailable."
+      intro="This link is stale, so Melo has kept your saved business data untouched."
+      onBack={nav.back}
+    >
+      <BusinessCard tone="inset">
+        <Text style={{ color: t.muted }}>
+          {surface
+            ? `${surface.label} could not be opened right now.`
+            : 'The requested view could not be found.'}
+        </Text>
+      </BusinessCard>
+      <BusinessPrimaryAction label="Back to Business today" onPress={() => nav.go('today')} />
+    </BusinessScreenFrame>
+  );
 }

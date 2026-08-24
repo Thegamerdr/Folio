@@ -14,6 +14,7 @@ import { gap, pressed, radius, serif, useTheme } from '@/folio/theme';
 import { updateBusinessOperations, useAppStore } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
 import { formatMinor } from './business/BusinessUi';
+import { invoicedInYearMinor } from './business/businessTodayMetrics';
 import { useBusinessOperations } from './business/useBusinessOperations';
 
 export function BusinessTodayScreen({ nav }: { nav: Nav }) {
@@ -51,6 +52,8 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
     [business.vatReturns],
   );
   const vatLiabilityMinor = openVatReturn ? calculateVatBoxes(openVatReturn).box5Minor : 0;
+  const currentYear = new Date().getUTCFullYear().toString();
+  const invoicedThisYearMinor = invoicedInYearMinor(business.invoices, Number(currentYear));
   const accountCount = accounts.filter((account) => account.closed !== true).length;
   const hasCash = accountCount > 0;
   const entity = business.entity;
@@ -94,20 +97,22 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
             {entity ? `${entityName(entity)} · ${entityKind(entity)}` : workspace.name}
           </Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            Build your working cash picture.
+            {entity === null
+              ? 'Build your working cash picture.'
+              : hasCash
+                ? 'Where the business stands today.'
+                : 'Start with the cash picture.'}
           </Text>
           <Text style={[styles.intro, { color: t.muted }]}>
-            Add the accounts and regular costs you rely on. Melo will map what is available now and
-            what the next 35 days need.
+            {entity === null
+              ? 'Pick Sole Trader or Limited Company first. Melo will then ask only for the records that belong here.'
+              : 'Cash, money due in, and the next obligations stay together. Nothing is counted until it is saved in this workspace.'}
           </Text>
         </View>
 
         {entity === null ? (
           <View
-            style={[
-              styles.entityNudge,
-              { backgroundColor: t.repairSoft, borderColor: t.hairline },
-            ]}
+            style={[styles.entityNudge, { backgroundColor: t.repairSoft, borderColor: t.hairline }]}
           >
             <Text style={[styles.nudgeEyebrow, { color: t.repair }]}>First — the shape</Text>
             <Text style={[styles.nudgeTitle, { color: t.ink }]}>
@@ -137,8 +142,15 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
               </Text>
               <LinkAction label="Open runway" onPress={() => nav.go('business-runway')} />
             </View>
-            {owedMinor > 0 || vatLiabilityMinor !== 0 ? (
+            {invoicedThisYearMinor > 0 || owedMinor > 0 || vatLiabilityMinor !== 0 ? (
               <View style={styles.metricGrid}>
+                {invoicedThisYearMinor > 0 ? (
+                  <MetricCard
+                    label={`Invoiced · ${currentYear}`}
+                    onPress={() => nav.go('business-insights')}
+                    value={formatMinor(invoicedThisYearMinor)}
+                  />
+                ) : null}
                 {owedMinor > 0 ? (
                   <MetricCard
                     label="Owed to you"
@@ -158,9 +170,7 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
           </>
         ) : (
           <View style={[styles.emptyWell, { backgroundColor: t.inset }]}>
-            <Text style={[styles.nudgeEyebrow, { color: t.muted }]}>
-              Your first business view
-            </Text>
+            <Text style={[styles.nudgeEyebrow, { color: t.muted }]}>Your first business view</Text>
             <Text style={[styles.nudgeTitle, { color: t.ink }]}>
               See the next 35 days together.
             </Text>
@@ -208,10 +218,7 @@ function LinkAction({ label, onPress }: { label: string; onPress: () => void }) 
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed: isPressed }) => [
-        styles.linkAction,
-        { opacity: isPressed ? 0.62 : 1 },
-      ]}
+      style={({ pressed: isPressed }) => [styles.linkAction, { opacity: isPressed ? 0.62 : 1 }]}
     >
       <Text style={[styles.linkLabel, { color: t.calmStrong }]}>{label} →</Text>
     </Pressable>

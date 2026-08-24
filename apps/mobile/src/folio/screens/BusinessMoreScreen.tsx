@@ -21,6 +21,11 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
       title: 'Money',
       rows: [
         { label: 'Cash runway', hint: 'days of runway on current burn', to: 'business-runway' },
+        {
+          label: 'Clients',
+          hint: 'people and businesses behind your invoices',
+          to: 'business-clients',
+        },
         { label: 'Invoices', hint: 'who owes you, and how late', to: 'business-invoices' },
         { label: 'VAT return', hint: 'pot, boxes 1–9, next due', to: 'business-vat' },
         {
@@ -48,7 +53,11 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
     {
       title: 'Business tools',
       rows: [
-        { label: 'Accounts', hint: 'business balances and account details', to: 'account' },
+        {
+          label: 'Accounts & sources',
+          hint: 'business balances and where records come from',
+          to: 'account',
+        },
         { label: 'Activity', hint: 'everything confirmed or corrected', to: 'timeline' },
         { label: 'Read a document', hint: 'statements and receipts, reviewed first', to: 'intake' },
         { label: 'Calendar', hint: 'business dates and reminders', to: 'calendar' },
