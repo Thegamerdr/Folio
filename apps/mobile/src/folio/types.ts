@@ -30,6 +30,7 @@ export type ScreenId =
   | 'paste-success'
   | 'visualizer'
   | 'review'
+  | 'review-item'
   | 'today'
   | 'today-mode'
   | 'today-stability'

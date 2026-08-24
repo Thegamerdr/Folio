@@ -74,6 +74,7 @@ import { IntakeScreen } from '@/folio/screens/IntakeScreen';
 import { AddEntryScreen } from '@/folio/screens/AddEntryScreen';
 import { VisualizerScreen } from '@/folio/screens/VisualizerScreen';
 import { ReviewScreen } from '@/folio/screens/ReviewScreen';
+import { ReviewHubScreen } from '@/folio/screens/ReviewHubScreen';
 import { PdfSuccessScreen } from '@/folio/screens/PdfSuccessScreen';
 import { PdfFallbackScreen } from '@/folio/screens/PdfFallbackScreen';
 import { ImageSuccessScreen } from '@/folio/screens/ImageSuccessScreen';
@@ -174,6 +175,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'paste-success': 'Pasted',
   visualizer: 'Check',
   review: 'Review',
+  'review-item': 'Check this',
   today: 'Today',
   'today-mode': 'Today',
   'today-stability': 'Today',
@@ -273,33 +275,34 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
 
 // Which bottom-tab lights up for a given screen. Faithful to the web TabBar's active-state map, with
 // one deliberate RN deviation: Today lights for `today` + `today-after`; the Review tab (kit id
-// `import`) lights for `timeline` (the persistent ledger the tab now opens) as well as `visualizer` +
-// `review` (the transient post-import preview / single-candidate flows, still reachable via Intake so
-// the tab reads lit while the user is mid-review); Melo for `melo`; the whole More subtree lights the
-// More tab. Anything else falls back to Today (the home anchor).
+// `import`) lights for its stable hub, Timeline, the transient import preview and the one-candidate
+// detail; Melo lights for `melo`; the whole More subtree lights the More tab. Anything else falls
+// back to Today (the home anchor).
 //
 // Why the deviation: `visualizer` reads the store's transient `readerCandidates` staging slot, which
 // is emptied the moment a batch is accepted (see VisualizerScreen's @writes). A bottom tab must show
-// something real on every press, not "add a statement first" the instant there is nothing staged — so
-// the persistent Review tab destination is `timeline` (reads `state.transactions` directly, faithful
-// ledger of what was actually added). `visualizer`/`review` remain reachable screens (Intake's
-// PdfSuccess flow still routes to `visualizer` for its one-shot preview) — this only changes what the
-// TAB itself opens.
+// something real on every press, not "add a statement first" the instant there is nothing staged.
+// `ReviewHubScreen` is therefore the persistent destination: it composes pending proposals,
+// confirmed activity and durable decisions without merging those authorities. `visualizer` and
+// `review-item` remain focused descendants.
 function activeTabForScreen(screen: ScreenId): ProductScreen {
   if (screen === 'today' || screen === 'today-after') return 'today';
-  if (screen === 'timeline' || screen === 'visualizer' || screen === 'review') return 'import';
+  if (
+    screen === 'timeline' ||
+    screen === 'visualizer' ||
+    screen === 'review' ||
+    screen === 'review-item'
+  )
+    return 'import';
   if (screen === 'melo') return 'melo';
   if (MORE_SUBTREE.has(screen)) return 'more';
   return 'today';
 }
 
-// The screen a bottom-tab press navigates to. The kit's Review tab (id `import`) now opens `timeline`
-// — the persistent, real ledger of every transaction the user has added or left, newest first (see
-// the activeTabForScreen comment above for why `visualizer`'s transient staged-candidates screen is
-// not a fit for a permanent tab destination). `visualizer` stays reachable from the Intake / PdfSuccess
-// one-shot import-preview flow; it is simply no longer what the bottom tab opens.
+// The screen a bottom-tab press navigates to. The kit's Review tab (id `import`) opens the stable
+// Review hub; Timeline and the one-candidate review remain descendants of the same tab.
 function screenForTab(tab: ProductScreen): ScreenId {
-  if (tab === 'import') return 'timeline';
+  if (tab === 'import') return 'review';
   if (tab === 'melo') return 'melo';
   if (tab === 'more') return 'more';
   return 'today';
@@ -587,16 +590,7 @@ export function FolioShell() {
   }, [screen, onboardingDone]);
 
   // The bottom-tab press maps the kit's ProductScreen id back to a web ScreenId, then navigates.
-  const onTabChange = useCallback(
-    (tab: ProductScreen) => {
-      if (tab === 'import' && pendingReviewCount > 0) {
-        go('review');
-        return;
-      }
-      go(screenForTab(tab));
-    },
-    [go, pendingReviewCount],
-  );
+  const onTabChange = useCallback((tab: ProductScreen) => go(screenForTab(tab)), [go]);
 
   const activeTab = useMemo(() => activeTabForScreen(screen), [screen]);
 
@@ -982,7 +976,8 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   if (screen === 'image-fallback') return <ImageFallbackScreen nav={nav} />;
   if (screen === 'paste-success') return <PasteSuccessScreen nav={nav} />;
   if (screen === 'visualizer') return <VisualizerScreen nav={nav} />;
-  if (screen === 'review') return <ReviewScreen nav={nav} />;
+  if (screen === 'review') return <ReviewHubScreen nav={nav} />;
+  if (screen === 'review-item') return <ReviewScreen nav={nav} />;
   // AddEntryScreen is reused for both kinds via the `kind` prop (bill | debt).
   if (screen === 'add-bill') return <AddEntryScreen nav={nav} kind="bill" />;
   if (screen === 'add-debt') return <AddEntryScreen nav={nav} kind="debt" />;
