@@ -21,7 +21,7 @@ Current product truth:
 - The internal tabletop and safe rotation dry-runs are executed in `docs/release-operations/`.
   Vulnerability disclosure is process-ready but requires the owner to confirm a real contact route.
 - The upload-signed arm64 Android AAB is bundletool/manifest/signature verified at SHA-256
-  `5120F437F7C004F323576DEBEF32CD9C17203A4E7E376E6ACED1248D074ED14F`; a matching signed
+  `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`; a matching signed
   x86_64 tester passed current emulator runtime, 200% text, reduced-motion and real TalkBack smoke.
 
 Every live blocker has an exact disposition in `blockerDispositions`: `CLOSED`, `BLOCKED EXTERNAL`

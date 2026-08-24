@@ -51,7 +51,7 @@ safe rotation drills, declaration drafts and DPIA evidence are already delivered
 
 - Exact action: send the completed security, accessibility and DPIA/privacy/legal packages to named
   independent reviewers and record decisions against Android candidate SHA-256
-  `5120F437F7C004F323576DEBEF32CD9C17203A4E7E376E6ACED1248D074ED14F`.
+  `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`.
 - Where: owner-selected independent security, accessibility and legal/privacy reviewers.
 - Required value: reviewer names/organisations, scope, date, findings and sign-off.
 - Expected result: no unaccepted high/critical findings and explicit approval of store/privacy/

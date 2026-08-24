@@ -31,7 +31,7 @@ would orphan installed devices and the billing audience. `apps/mobile/app.config
 
 1. **Complete:** the upload-signed `melo-0.0.1-1-production.aab` matches package
    `com.folio.v2.greenfield`, version `0.0.1`, versionCode `1`, arm64 ABI and the upload signature.
-   SHA-256 is `5120F437F7C004F323576DEBEF32CD9C17203A4E7E376E6ACED1248D074ED14F`.
+   SHA-256 is `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`.
 2. **Complete:** `tooling/config/store-declarations.json.submittedBinarySha256` is populated only
    after bundletool/manifest/signature/hash review. Android declaration rows are marked
    `binaryMatched` only where this exact AAB was reviewed; console submission remains false.

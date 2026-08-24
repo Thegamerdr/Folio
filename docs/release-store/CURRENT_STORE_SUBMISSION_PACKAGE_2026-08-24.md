@@ -10,7 +10,7 @@
 | App version            | `0.0.1`                                                              | `apps/mobile/app.config.ts`                                              |
 | Android versionCode    | `1`                                                                  | Candidate manifest and native config                                     |
 | Candidate artifact     | `melo-0.0.1-1-production.aab`                                        | Upload-signed arm64 candidate; bundletool/signature/manifest checks pass |
-| Candidate SHA-256      | `5120F437F7C004F323576DEBEF32CD9C17203A4E7E376E6ACED1248D074ED14F`   | Exact 63,833,828-byte AAB; not yet uploaded                              |
+| Candidate SHA-256      | `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`   | Exact 63,997,776-byte AAB; not yet uploaded                              |
 | Candidate evidence     | `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md` | Matching signed x86_64 runtime/accessibility evidence                    |
 | Play submission        | Not submitted                                                        | Console submission must not be claimed from repository evidence          |
 | Privacy policy URL     | `OWNER INPUT REQUIRED: choose/confirm an owned public URL`           | No owned public URL is present in repo/config                            |
@@ -84,7 +84,7 @@ review must be checked against the actual iOS binary; no iOS submission is claim
 
 Use synthetic reviewer data only. Melo works locally without an account; account/cloud/bank flows
 are optional. Do not ask a reviewer to provide real financial data. The reviewer must be given the
-candidate SHA-256 `5120F437F7C004F323576DEBEF32CD9C17203A4E7E376E6ACED1248D074ED14F`
+candidate SHA-256 `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`
 and an owner-confirmed privacy/support URL before console submission.
 
 ## Submission gate
