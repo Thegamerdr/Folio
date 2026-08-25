@@ -79,6 +79,10 @@ describe('native shell registry — exact shipping coverage', () => {
     );
   });
 
+  it('keeps the Business Money tab on the business-owned money hub', () => {
+    expect(screenView).toContain("if (screen === 'plan') return <BusinessMoneyScreen nav={nav} />");
+  });
+
   it('gives every non-null SheetId a title, self-host registration and render branch', () => {
     const titled = objectKeys('const SHEET_TITLE:');
     const selfHosted = setMembers('const SELF_HOSTING_SHEETS:');

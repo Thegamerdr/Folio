@@ -64,6 +64,7 @@ import { TodayStabilityScreen } from '@/folio/screens/TodayStabilityScreen';
 import { BusinessTodayScreen } from '@/folio/screens/BusinessTodayScreen';
 import { BusinessMoreScreen } from '@/folio/screens/BusinessMoreScreen';
 import { BusinessMeloScreen } from '@/folio/screens/BusinessMeloScreen';
+import { BusinessMoneyScreen } from '@/folio/screens/BusinessMoneyScreen';
 import { BusinessReviewScreen } from '@/folio/screens/BusinessReviewScreen';
 import { BusinessEntitySetupScreen } from '@/folio/screens/BusinessEntitySetupScreen';
 import { BusinessOperationsScreen } from '@/folio/screens/BusinessOperationsScreen';
@@ -1026,7 +1027,7 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
     if (screen === 'review') return <BusinessReviewScreen nav={nav} />;
     if (screen === 'timeline') return <BusinessReviewScreen initialSegment="activity" nav={nav} />;
     if (screen === 'calendar') return <BusinessCalendarScreen nav={nav} />;
-    if (screen === 'plan') return <BusinessPlansScreen nav={nav} />;
+    if (screen === 'plan') return <BusinessMoneyScreen nav={nav} />;
     if (screen === 'plans') return <BusinessPlansScreen nav={nav} />;
     if (screen === 'business-entity-setup') return <BusinessEntitySetupScreen nav={nav} />;
     if (screen.startsWith('business-')) {
