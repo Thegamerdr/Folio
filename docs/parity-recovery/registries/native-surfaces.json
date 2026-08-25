@@ -2,7 +2,7 @@
   "$schema": "melo-native-shipping-surface-registry/v1",
   "generatedFrom": {
     "nativeRepository": "Thegamerdr/Folio",
-    "nativeCommit": "b8bee0890b1460125e49f4305ce2bd31ebf41c5d",
+    "nativeCommit": "d94c05c5e2961d80c4c882be75941981fa6419a1",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRepository": "Thegamerdr/private-money-pilot",
     "designCommit": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
@@ -589,33 +589,47 @@
       "stableId": "screen.calendar",
       "routeKey": "calendar",
       "componentSource": "apps/mobile/src/folio/screens/CalendarScreen.tsx#CalendarScreen",
-      "workspace": "personal|business",
+      "workspace": "personal",
       "themeHandling": "theme-provider",
-      "workspaceComponents": {
-        "personal": ["apps/mobile/src/folio/screens/CalendarScreen.tsx#CalendarScreen"],
-        "business": [
-          "apps/mobile/src/folio/screens/business/BusinessPlanningScreens.tsx#BusinessCalendarScreen"
-        ]
-      },
       "dataStateDependencies": [
         "calendar events",
         "route projection",
         "income sources",
         "focus date",
-        "view preference",
-        "business deadlines"
+        "view preference"
       ],
       "states": [
         "personal-month",
         "personal-week",
         "personal-agenda",
         "personal-empty",
-        "personal-pre-mount",
+        "personal-pre-mount"
+      ],
+      "designOwnerHints": ["src/components/folio/screens/ScreenCalendar.tsx"]
+    },
+    {
+      "stableId": "screen.business-calendar",
+      "routeKey": "business-calendar",
+      "componentSource": "apps/mobile/src/folio/screens/business/BusinessPlanningScreens.tsx#BusinessCalendarScreen",
+      "workspace": "business",
+      "themeHandling": "theme-provider",
+      "dataStateDependencies": [
+        "business entity",
+        "business accounts",
+        "business invoices",
+        "business obligations",
+        "business filings",
+        "business deadlines",
+        "Melo quiet mode"
+      ],
+      "states": [
+        "business-empty",
+        "business-deadlines-clear",
         "business-deadlines-populated",
-        "business-deadlines-empty"
+        "business-next-due",
+        "business-quiet-mode"
       ],
       "designOwnerHints": [
-        "src/components/folio/screens/ScreenCalendar.tsx",
         "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessCalendar"
       ]
     },
@@ -2822,6 +2836,6 @@
     "appOwnedDialogs": 61,
     "platformOwnedSurfaces": 6,
     "globalStates": 8,
-    "totalRegisteredSurfaces": 191
+    "totalRegisteredSurfaces": 192
   }
 }

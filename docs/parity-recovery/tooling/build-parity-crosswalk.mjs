@@ -67,6 +67,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-today' ||
     entry.routeKey === 'business-review' ||
     entry.routeKey === 'business-money' ||
+    entry.routeKey === 'business-calendar' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
   ) {
@@ -100,6 +101,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-calendar': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-calendar/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-calendar/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-d94c05c/business-empty/light/business-calendar/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-d94c05c/business-empty/dark/business-calendar/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/d94c05c/business-empty/light/business-calendar/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/d94c05c/business-empty/dark/business-calendar/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/d94c05c/business-empty/light/business-calendar/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/d94c05c/business-empty/dark/business-calendar/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Calendar answer, action and companion-perch restoration.',
+      consequence:
+        'The pinned source capture includes an introductory companion speech bubble and background treatment that the acknowledged native companion does not repeat; fine type, sprite and material rasterisation still require physical-S9 owner review.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 29.7407,
+        darkMeanAbsoluteRgbDelta: 28.1077,
+      },
+    },
+  },
   'business-melo': {
     evidence: {
       lightSource:

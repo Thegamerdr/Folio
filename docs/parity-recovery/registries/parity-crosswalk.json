@@ -15,15 +15,15 @@
     "missingEvidenceIsNotAPass": true
   },
   "counts": {
-    "nativeShippingSurfaces": 191,
-    "exactDesignOwnersResolved": 169,
+    "nativeShippingSurfaces": 192,
+    "exactDesignOwnersResolved": 170,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 14,
+    "surfacesWithDirectComparison": 15,
     "surfacesMissingDirectComparison": 177,
-    "comparisonCount": 20,
-    "lightComparisonCount": 10,
-    "darkComparisonCount": 10,
-    "designSurfacesNotMappedToNativeShippingSurface": 38
+    "comparisonCount": 22,
+    "lightComparisonCount": 11,
+    "darkComparisonCount": 11,
+    "designSurfacesNotMappedToNativeShippingSurface": 37
   },
   "entries": [
     {
@@ -3564,6 +3564,67 @@
       "finalStatus": "missing-direct-visual-comparison"
     },
     {
+      "stableId": "screen.business-calendar",
+      "kind": "screen",
+      "native": {
+        "routeKey": "business-calendar",
+        "componentSource": "apps/mobile/src/folio/screens/business/BusinessPlanningScreens.tsx#BusinessCalendarScreen",
+        "workspace": "business",
+        "states": [
+          "business-empty",
+          "business-deadlines-clear",
+          "business-deadlines-populated",
+          "business-next-due",
+          "business-quiet-mode"
+        ]
+      },
+      "design": {
+        "owners": [
+          {
+            "stableId": "screen:business-calendar",
+            "kind": "screen",
+            "routeKey": "business-calendar",
+            "sourceReference": "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessCalendar",
+            "keyStates": [
+              "nothing-dated"
+            ],
+            "resolution": "exact-route-key"
+          }
+        ],
+        "ownerStatus": "resolved"
+      },
+      "matchedFixtures": [
+        "business-empty",
+        "business-sole-trader",
+        "business-ltd"
+      ],
+      "evidence": {
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-calendar/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-calendar/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-d94c05c/business-empty/light/business-calendar/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-d94c05c/business-empty/dark/business-calendar/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/d94c05c/business-empty/light/business-calendar/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/d94c05c/business-empty/dark/business-calendar/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/d94c05c/business-empty/light/business-calendar/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/d94c05c/business-empty/dark/business-calendar/absolute-difference.png"
+        ],
+        "comparisonCount": 2
+      },
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business Calendar answer, action and companion-perch restoration.",
+          "consequence": "The pinned source capture includes an introductory companion speech bubble and background treatment that the acknowledged native companion does not repeat; fine type, sprite and material rasterisation still require physical-S9 owner review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 29.7407,
+            "darkMeanAbsoluteRgbDelta": 28.1077
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
+    },
+    {
       "stableId": "screen.business-clients",
       "kind": "screen",
       "native": {
@@ -4805,15 +4866,13 @@
       "native": {
         "routeKey": "calendar",
         "componentSource": "apps/mobile/src/folio/screens/CalendarScreen.tsx#CalendarScreen",
-        "workspace": "personal|business",
+        "workspace": "personal",
         "states": [
           "personal-month",
           "personal-week",
           "personal-agenda",
           "personal-empty",
-          "personal-pre-mount",
-          "business-deadlines-populated",
-          "business-deadlines-empty"
+          "personal-pre-mount"
         ]
       },
       "design": {
@@ -9517,12 +9576,6 @@
       "kind": "screen",
       "routeKey": "business-intake",
       "sourceReference": "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessIntake"
-    },
-    {
-      "stableId": "screen:business-calendar",
-      "kind": "screen",
-      "routeKey": "business-calendar",
-      "sourceReference": "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessCalendar"
     },
     {
       "stableId": "screen:business-plans",
