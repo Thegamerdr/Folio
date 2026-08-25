@@ -328,6 +328,8 @@ export type Onboarding = {
   name: string;
   payday: number; // day of month
   monthlyIncome: number;
+  /** First completed-onboarding instant. Optional for installs created before Melo surfaced it. */
+  createdAt?: string;
 };
 
 /** Income-cadence model — Phase ① of the data-intelligence program (see
@@ -2668,7 +2670,13 @@ export function addCycle(c: CycleRecord) {
 }
 
 export function setOnboarding(o: Partial<Onboarding>) {
-  const onboarding = { ...state.onboarding, ...o };
+  const onboarding = {
+    ...state.onboarding,
+    ...o,
+    ...(o.done === true && state.onboarding.createdAt === undefined
+      ? { createdAt: new Date().toISOString() }
+      : {}),
+  };
   setPartialWithTypedCommand(
     { onboarding },
     {

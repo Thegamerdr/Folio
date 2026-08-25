@@ -155,6 +155,20 @@ describe('addCycle', () => {
   });
 });
 
+describe('onboarding creation instant', () => {
+  it('records the first completed onboarding instant once and preserves it on later edits', () => {
+    setPartial({ onboarding: { done: false, name: '', payday: 25, monthlyIncome: 0 } });
+
+    setOnboarding({ done: true, name: 'Ada' });
+    const createdAt = getState().onboarding.createdAt;
+    expect(createdAt).toBeDefined();
+    expect(new Date(createdAt!).toISOString()).toBe(createdAt);
+
+    setOnboarding({ monthlyIncome: 2400 });
+    expect(getState().onboarding.createdAt).toBe(createdAt);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // pauseMany / togglePaused
 // ---------------------------------------------------------------------------

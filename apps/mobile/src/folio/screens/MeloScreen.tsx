@@ -76,7 +76,7 @@
 // HONEST CLAIMS: this screen asserts no privacy/security property. No banned product vocabulary
 // appears in any visible string. Tap targets are >=44px (full-width rows) or carry hitSlop.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   BackHandler,
@@ -103,7 +103,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { useAppStore, setMelo, setMeloPrimerSeen } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { canShowUpsell } from '@/folio/lib/lensPaywall';
-import { deriveModeState, MODE_LABEL, type MoneyMode } from '@/folio/lib/modes';
+import { deriveModeState, MODE_LABEL, type MeloWeather, type MoneyMode } from '@/folio/lib/modes';
 import { deriveMeloMemory } from '@/folio/lib/melo/memory';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
@@ -133,10 +133,31 @@ export type MeloScreenProps = {
 type Plumage = 'dim' | 'warm' | 'bright' | 'radiant';
 
 function vitalityLabel(v: number): Plumage {
-  if (v < 0.15) return 'dim';
-  if (v < 0.4) return 'warm';
-  if (v < 0.7) return 'bright';
+  if (v < 0.28) return 'dim';
+  if (v < 0.55) return 'warm';
+  if (v < 0.82) return 'bright';
   return 'radiant';
+}
+
+function weatherLabel(weather: MeloWeather): string {
+  switch (weather) {
+    case 'sunny':
+      return 'clear';
+    case 'cloudy':
+      return 'steady';
+    case 'rainy':
+      return 'bill week';
+    case 'storm':
+      return 'tight';
+    case 'rainbow':
+      return 'back on';
+    case 'night':
+      return 'quiet';
+    case 'alarm':
+      return 'soon';
+    case 'fog':
+      return 'still learning';
+  }
 }
 
 const PLUMAGE_COPY: Record<Plumage, { line: string; caption: string }> = {
@@ -194,6 +215,16 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const meloPrimerSeen = useAppStore((s) => s.meloPrimerSeen === true);
   const [contextOpen, setContextOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(!meloPrimerSeen);
+  const [holding, setHolding] = useState(false);
+  const holdStartedAt = useRef(0);
+
+  const joinLabel = useMemo(() => {
+    const iso = onboarding.createdAt;
+    if (!iso) return null;
+    const joined = new Date(iso);
+    if (Number.isNaN(joined.getTime())) return null;
+    return joined.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }, [onboarding.createdAt]);
 
   // Melo's context and first-run sheets are screen-owned. On Android the shared Sheet uses the
   // in-tree portal (rather than a native Modal), so the shell's global back listener cannot see
@@ -352,7 +383,12 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
         {/* Presence — editorial masthead. */}
         <View style={styles.titleBlock}>
-          <Text style={[styles.kicker, { color: t.muted }]}>Companion</Text>
+          <Text style={[styles.kicker, { color: t.muted }]}>
+            Companion
+            {joinLabel ? (
+              <Text style={styles.kickerJoin}>{` · with you since ${joinLabel}`}</Text>
+            ) : null}
+          </Text>
           {melo.quietMode ? (
             <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
               {'A '}
@@ -370,26 +406,65 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
         {/* Presence — hero Melo or the quiet-mode resting line. */}
         <View style={styles.heroWrap}>
-          {melo.quietMode ? (
-            <View style={styles.restingWrap}>
-              <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
-            </View>
-          ) : (
-            <MeloCompanionHost
-              size={140}
-              mood={modeState.mood}
-              pose={modeState.pose}
-              position={preferredPosition}
-              presence={presence}
-              accessibilityLabel={`Melo, ${modeState.mood}`}
-              onPress={() => setContextOpen(true)}
-            />
-          )}
+          <MeloCompanionHost
+            size={156}
+            mood={melo.quietMode ? 'calm' : modeState.mood}
+            pose={modeState.pose}
+            position={preferredPosition}
+            presence={presence}
+            accessibilityLabel={`Melo, ${modeState.mood}`}
+          />
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Talk to Melo, ${melo.quietMode ? 'quiet' : modeState.mood}`}
+            onPress={() => nav.openMelo()}
+            style={({ pressed: isPressed }) => [
+              styles.tapToTalk,
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>TAP TO TALK · </Text>
+            <Text style={[styles.tapToTalkMood, { color: t.muted }]}>
+              {melo.quietMode ? 'Quiet' : modeState.mood}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Hold to talk to Melo"
+            onPressIn={() => {
+              holdStartedAt.current = Date.now();
+              setHolding(true);
+            }}
+            onPressOut={() => {
+              const heldFor = Date.now() - holdStartedAt.current;
+              setHolding(false);
+              if (heldFor >= 400) nav.openMelo();
+            }}
+            style={({ pressed: isPressed }) => [
+              styles.holdButton,
+              {
+                backgroundColor: holding ? t.calmSoft : t.surface,
+                borderColor: holding ? 'transparent' : t.hairline,
+              },
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <View style={[styles.holdDot, { backgroundColor: holding ? t.calm : t.muted }]} />
+            <Text style={[styles.holdLabel, { color: holding ? t.calm : t.muted }]}>
+              {holding ? 'LISTENING…' : 'HOLD TO TALK'}
+            </Text>
+          </Pressable>
 
           {/* Live state line — weather + lens, no chip container. Locked Full lens shows a small
               lock so the paywall state is legible without opening the picker. */}
           <View style={styles.lensLine}>
             <MeloWeatherGlyph weather={modeState.weather} size={12} />
+            <Text style={[styles.lensLineText, { color: t.muted }]}>
+              {weatherLabel(modeState.weather)}
+            </Text>
+            <Text style={[styles.lensSeparator, { color: t.muted }]}>·</Text>
             <Text style={[styles.lensLineText, { color: t.muted }]}>{lensLabel} lens</Text>
             {modeLocked ? (
               <Pressable
@@ -406,60 +481,36 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               </Pressable>
             ) : null}
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Talk to Melo"
-            accessibilityHint="Opens the companion conversation"
-            onPress={() => nav.openMelo()}
-            style={({ pressed: isPressed }) => [
-              styles.talkButton,
-              { backgroundColor: t.ink },
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.talkButtonLabel, { color: t.canvas }]}>Talk to Melo</Text>
-            <Text style={[styles.talkButtonArrow, { color: t.canvas }]}>→</Text>
-          </Pressable>
         </View>
 
-        {/* A current reflection, explicitly not progress, a score, or a hidden tier. */}
+        {/* Plumage — word + segmented meter + one honest whisper. */}
         {!melo.quietMode ? (
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: t.ink }]}>Right now</Text>
-              <Text style={[styles.sectionHint, { color: t.muted }]}>
-                current money · not a score
-              </Text>
+              <Text style={[styles.sectionTitle, { color: t.ink }]}>Plumage</Text>
+              <Text style={[styles.sectionHint, { color: t.muted }]}>live · money health</Text>
             </View>
             <View style={styles.plumageRow}>
               <Text style={[styles.plumageWord, { color: t.ink }]}>{plumage}</Text>
-              <View style={styles.plumageDots} accessibilityLabel={`plumage ${plumage}`}>
-                {[0, 1, 2, 3].map((i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.plumageDot,
-                      { backgroundColor: i < dotCount ? t.calm : t.inset },
-                    ]}
-                  />
-                ))}
+              <View
+                style={styles.plumageMeter}
+                accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
+              >
+                <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
+                <View style={styles.plumageTrack}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.plumageSegment,
+                        { backgroundColor: i < dotCount ? t.calm : t.inset },
+                      ]}
+                    />
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
-        ) : null}
-
-        {/* Melo line — kept as a whisper, no giant card. */}
-        {!melo.quietMode ? (
-          <View style={styles.meloLineWrap}>
-            <MeloLine
-              text={
-                plumage === 'dim'
-                  ? "I'm here. Small moves count more than big ones this week."
-                  : plumage === 'radiant'
-                    ? "You've built a soft floor. I'll keep it warm."
-                    : plumageCopy.caption
-              }
-            />
+            <Text style={[styles.plumageCaption, { color: t.muted }]}>{plumageCopy.caption}</Text>
           </View>
         ) : null}
 
@@ -795,13 +846,17 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontFamily: serif.displayItalic,
-    fontSize: 13,
+    fontSize: 14,
+  },
+  kickerJoin: {
+    fontFamily: serif.display,
+    fontStyle: 'normal',
   },
   headline: {
     fontFamily: serif.display,
-    fontSize: 26,
-    letterSpacing: -0.2,
-    lineHeight: 30,
+    fontSize: 28,
+    letterSpacing: -0.3,
+    lineHeight: 35,
     marginTop: gap.xs,
   },
   headlineAccent: {
@@ -826,29 +881,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     columnGap: gap.xs + gap.xxs,
     flexDirection: 'row',
-    marginTop: gap.lg,
+    marginTop: gap.xl,
   },
   lensLineText: {
     fontSize: 11,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
-  talkButton: {
+  lensSeparator: {
+    fontSize: 11,
+    opacity: 0.4,
+  },
+  tapToTalk: {
     alignItems: 'center',
-    borderRadius: radius.pill,
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: gap.lg,
-    minHeight: 48,
-    paddingHorizontal: gap.xl,
+    marginTop: gap.md,
   },
-  talkButtonLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+  tapToTalkLabel: {
+    fontSize: 11,
+    letterSpacing: 1.4,
   },
-  talkButtonArrow: {
-    fontSize: 18,
-    marginLeft: gap.sm,
+  tapToTalkMood: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'capitalize',
+  },
+  holdButton: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    columnGap: gap.sm,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: gap.md,
+    minHeight: 44,
+    paddingHorizontal: gap.md,
+  },
+  holdDot: {
+    borderRadius: 3,
+    height: 6,
+    width: 6,
+  },
+  holdLabel: {
+    fontSize: 11,
+    letterSpacing: 1.4,
   },
   lockChip: {
     alignItems: 'center',
@@ -864,7 +941,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   section: {
-    marginTop: gap.xl,
+    marginTop: gap.xxl,
   },
   ritualsSection: {
     marginBottom: gap.xxl,
@@ -876,10 +953,10 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontFamily: serif.displayItalic,
-    fontSize: 15,
+    fontSize: 16,
   },
   sectionHint: {
-    fontSize: 10.5,
+    fontSize: 11,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
@@ -891,22 +968,36 @@ const styles = StyleSheet.create({
   },
   plumageWord: {
     fontFamily: serif.display,
-    fontSize: 19,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 20,
     textTransform: 'capitalize',
   },
-  plumageDots: {
-    columnGap: gap.xs + gap.xxs,
+  plumageMeter: {
+    alignItems: 'center',
+    columnGap: gap.sm,
     flexDirection: 'row',
+    maxWidth: 168,
   },
-  plumageDot: {
-    borderRadius: 4,
-    height: 8,
-    width: 8,
+  plumageCount: {
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
   },
-  meloLineWrap: {
-    marginTop: gap.lg,
-    paddingHorizontal: gap.xs + gap.xxs,
+  plumageTrack: {
+    columnGap: 3,
+    flexDirection: 'row',
+    maxWidth: 132,
+  },
+  plumageSegment: {
+    borderRadius: 2,
+    flex: 1,
+    height: 4,
+    minWidth: 28,
+  },
+  plumageCaption: {
+    fontFamily: serif.displayItalic,
+    fontSize: 12.5,
+    fontStyle: 'italic',
+    marginTop: gap.sm,
   },
   readingGrid: {
     flexDirection: 'row',
