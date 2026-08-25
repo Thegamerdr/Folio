@@ -68,6 +68,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-review' ||
     entry.routeKey === 'business-money' ||
     entry.routeKey === 'business-calendar' ||
+    entry.routeKey === 'business-clients' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
@@ -102,6 +103,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-clients': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-clients/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-clients/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-3e83f5e/business-empty/light/business-clients/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-3e83f5e/business-empty/dark/business-clients/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/3e83f5e/business-empty/light/business-clients/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/3e83f5e/business-empty/dark/business-clients/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/3e83f5e/business-empty/light/business-clients/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/3e83f5e/business-empty/dark/business-clients/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Clients answer, action, empty panel and statutory-note restoration.',
+      consequence:
+        'The compared empty state now follows the pinned invoice-derived client flow and opens the real native Log invoice sheet; the pinned source introductory companion bubble/bird and fine browser/Android rasterisation still require physical-S9 owner review, while populated client detail remains a separate state capture.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 15.4903,
+        darkMeanAbsoluteRgbDelta: 16.0311,
+      },
+    },
+  },
   'business-entity-setup': {
     evidence: {
       lightSource:
