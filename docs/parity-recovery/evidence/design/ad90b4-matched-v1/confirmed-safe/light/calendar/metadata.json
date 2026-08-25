@@ -1,0 +1,182 @@
+{
+  "evidenceKind": "matched-source-fixture",
+  "acceptanceEligible": true,
+  "fixtureSchemaVersion": 1,
+  "fixtureId": "confirmed-safe",
+  "theme": "light",
+  "surface": "calendar",
+  "screen": "calendar",
+  "sheet": null,
+  "sourceSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "route": "http://127.0.0.1:4179/?s=calendar&p=safe&device=370x756",
+  "clock": "2026-08-18T08:00:00.000Z",
+  "locale": "en-GB",
+  "timeZone": "UTC",
+  "deviceScaleFactor": 3,
+  "sourceOuterFrameCssPx": {
+    "width": 368,
+    "height": 720
+  },
+  "sourceInnerGlassCssPx": {
+    "inset": 4,
+    "width": 360,
+    "height": 712
+  },
+  "productViewportCssPx": {
+    "top": 44,
+    "width": 360,
+    "height": 668
+  },
+  "sourceOuterFramePhysicalPx": {
+    "width": 1104,
+    "height": 2160
+  },
+  "productViewportPhysicalPx": {
+    "width": 1080,
+    "height": 2004
+  },
+  "fixtureAdapter": "The pinned web prototype unconditionally derives four demo bills, one Klarna review marker, legacy Friday pot top-ups, and a synthetic Sound+ Studio recurring-charge candidate. Native adds equivalent calendar rows and real recurring ledger facts only in capture mode, letting its detector derive the candidate while leaving the production pot-cadence engine unchanged. Evidence runs in UTC because the pinned source serializes monthly local-midnight dates through UTC ISO slices; UTC prevents DST drift while preserving en-GB copy and the same visible 08:00 capture day.",
+  "engine": {
+    "state": {
+      "balance": {
+        "amount": 1480,
+        "source": "corrected",
+        "confidence": "corrected",
+        "setAt": "2026-08-18T08:00:00.000Z"
+      },
+      "onboarding": {
+        "done": true,
+        "name": "Alex",
+        "payday": 28,
+        "monthlyIncome": 2600,
+        "weekendRule": "previous",
+        "paydayCadence": "monthly",
+        "primerSeen": true,
+        "incomeStreams": [],
+        "persona": "personal",
+        "createdAt": "2026-08-18T08:00:00.000Z"
+      },
+      "subscriptions": [
+        {
+          "name": "Council tax",
+          "cost": 120,
+          "nextRenewalDaysAway": 2,
+          "lastUsedDaysAgo": 0,
+          "usesPerMonth": 1
+        },
+        {
+          "name": "Energy",
+          "cost": 68,
+          "nextRenewalDaysAway": 4,
+          "lastUsedDaysAgo": 0,
+          "usesPerMonth": 1
+        }
+      ],
+      "pots": [],
+      "debts": [],
+      "plans": [],
+      "reviewQueue": [],
+      "transactionCount": 4,
+      "manualEventCount": 0
+    },
+    "events": [
+      {
+        "date": "2026-08-20",
+        "title": "Council tax",
+        "amount": -120,
+        "source": "sub"
+      },
+      {
+        "date": "2026-08-22",
+        "title": "Energy",
+        "amount": -68,
+        "source": "sub"
+      },
+      {
+        "date": "2026-08-28",
+        "title": "Payday",
+        "amount": 2600,
+        "source": "payday"
+      },
+      {
+        "date": "2026-09-01",
+        "title": "Octopus Energy",
+        "amount": -118.4,
+        "source": "bill"
+      },
+      {
+        "date": "2026-09-01",
+        "title": "Council Tax",
+        "amount": -162,
+        "source": "bill"
+      },
+      {
+        "date": "2026-09-01",
+        "title": "Check Klarna · 2 of 3",
+        "source": "review"
+      },
+      {
+        "date": "2026-09-03",
+        "title": "BT Broadband",
+        "amount": -38,
+        "source": "bill"
+      },
+      {
+        "date": "2026-09-11",
+        "title": "Rent",
+        "amount": -540,
+        "source": "bill"
+      }
+    ],
+    "route": {
+      "spareByDay": {
+        "2026-08-20": 1360,
+        "2026-08-22": 1292,
+        "2026-08-28": 3892,
+        "2026-09-01": 3611.6,
+        "2026-09-03": 3573.6,
+        "2026-09-11": 3033.6
+      },
+      "tightestDate": "2026-08-22",
+      "tightestSpare": 1292
+    }
+  },
+  "semanticGeometry": {
+    "header": null,
+    "editorialTitle": null,
+    "editorialNarrative": null,
+    "dominantCard": null,
+    "dominantMoney": null,
+    "hero": null,
+    "heroHeadline": null,
+    "heroMoney": null,
+    "heroMeta": null,
+    "primaryDecision": null,
+    "secondaryDecision": null,
+    "chart": null,
+    "chartHeader": null,
+    "chartPlot": null,
+    "chartScrub": null,
+    "chartSummary": null
+  },
+  "pageErrors": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "resourceFailures": [
+    {
+      "status": 404,
+      "url": "http://127.0.0.1:4179/__l5e/assets-v1/5f6edf2d-186d-4b59-b9ad-58ca732cbfd6/wax-seal.png"
+    },
+    {
+      "status": 404,
+      "url": "http://127.0.0.1:4179/__l5e/assets-v1/17ef295b-2e9e-4305-9760-3cbbb4ca8a30/favicon.png"
+    },
+    {
+      "status": 404,
+      "url": "http://127.0.0.1:4179/__l5e/assets-v1/0edb83ab-1188-468b-8f43-ff6d88beb282/favicon-maskable.png"
+    }
+  ]
+}

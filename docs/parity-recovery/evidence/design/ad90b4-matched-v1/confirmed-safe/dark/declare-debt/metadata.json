@@ -1,0 +1,490 @@
+{
+  "evidenceKind": "matched-source-fixture",
+  "acceptanceEligible": true,
+  "fixtureSchemaVersion": 1,
+  "fixtureId": "confirmed-safe",
+  "theme": "dark",
+  "surface": "declare-debt",
+  "screen": "today",
+  "sheet": "add-debt",
+  "sourceSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "route": "http://127.0.0.1:4179/?s=today&sheet=add-debt&p=safe&device=370x756",
+  "clock": "2026-08-18T08:00:00.000Z",
+  "locale": "en-GB",
+  "timeZone": "UTC",
+  "deviceScaleFactor": 3,
+  "sourceOuterFrameCssPx": {
+    "width": 368,
+    "height": 720
+  },
+  "sourceInnerGlassCssPx": {
+    "inset": 4,
+    "width": 360,
+    "height": 712
+  },
+  "productViewportCssPx": {
+    "top": 44,
+    "width": 360,
+    "height": 668
+  },
+  "sourceOuterFramePhysicalPx": {
+    "width": 1104,
+    "height": 2160
+  },
+  "productViewportPhysicalPx": {
+    "width": 1080,
+    "height": 2004
+  },
+  "fixtureAdapter": "The pinned web prototype unconditionally derives four demo bills, one Klarna review marker, legacy Friday pot top-ups, and a synthetic Sound+ Studio recurring-charge candidate. Native adds equivalent calendar rows and real recurring ledger facts only in capture mode, letting its detector derive the candidate while leaving the production pot-cadence engine unchanged. Evidence runs in UTC because the pinned source serializes monthly local-midnight dates through UTC ISO slices; UTC prevents DST drift while preserving en-GB copy and the same visible 08:00 capture day.",
+  "engine": {
+    "state": {
+      "balance": {
+        "amount": 1480,
+        "source": "corrected",
+        "confidence": "corrected",
+        "setAt": "2026-08-18T08:00:00.000Z"
+      },
+      "onboarding": {
+        "done": true,
+        "name": "Alex",
+        "payday": 28,
+        "monthlyIncome": 2600,
+        "weekendRule": "previous",
+        "paydayCadence": "monthly",
+        "primerSeen": true,
+        "incomeStreams": [],
+        "persona": "personal",
+        "createdAt": "2026-08-18T08:00:00.000Z"
+      },
+      "subscriptions": [
+        {
+          "name": "Council tax",
+          "cost": 120,
+          "nextRenewalDaysAway": 2,
+          "lastUsedDaysAgo": 0,
+          "usesPerMonth": 1
+        },
+        {
+          "name": "Energy",
+          "cost": 68,
+          "nextRenewalDaysAway": 4,
+          "lastUsedDaysAgo": 0,
+          "usesPerMonth": 1
+        }
+      ],
+      "pots": [],
+      "debts": [],
+      "plans": [],
+      "reviewQueue": [],
+      "transactionCount": 4,
+      "manualEventCount": 0
+    },
+    "events": [
+      {
+        "date": "2026-08-20",
+        "title": "Council tax",
+        "amount": -120,
+        "source": "sub"
+      },
+      {
+        "date": "2026-08-22",
+        "title": "Energy",
+        "amount": -68,
+        "source": "sub"
+      },
+      {
+        "date": "2026-08-28",
+        "title": "Payday",
+        "amount": 2600,
+        "source": "payday"
+      },
+      {
+        "date": "2026-09-01",
+        "title": "Octopus Energy",
+        "amount": -118.4,
+        "source": "bill"
+      },
+      {
+        "date": "2026-09-01",
+        "title": "Council Tax",
+        "amount": -162,
+        "source": "bill"
+      },
+      {
+        "date": "2026-09-01",
+        "title": "Check Klarna · 2 of 3",
+        "source": "review"
+      },
+      {
+        "date": "2026-09-03",
+        "title": "BT Broadband",
+        "amount": -38,
+        "source": "bill"
+      },
+      {
+        "date": "2026-09-11",
+        "title": "Rent",
+        "amount": -540,
+        "source": "bill"
+      }
+    ],
+    "route": {
+      "spareByDay": {
+        "2026-08-20": 1360,
+        "2026-08-22": 1292,
+        "2026-08-28": 3892,
+        "2026-09-01": 3611.6,
+        "2026-09-03": 3573.6,
+        "2026-09-11": 3033.6
+      },
+      "tightestDate": "2026-08-22",
+      "tightestSpare": 1292
+    }
+  },
+  "semanticGeometry": {
+    "header": {
+      "rectCssPx": {
+        "left": 0,
+        "top": 0,
+        "width": 360,
+        "height": 66
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "16px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(244, 237, 223)"
+      }
+    },
+    "editorialTitle": {
+      "rectCssPx": {
+        "left": 24,
+        "top": 131.672,
+        "width": 312,
+        "height": 25
+      },
+      "typography": {
+        "fontFamily": "Fraunces, \"Cormorant Garamond\", ui-serif, Georgia, serif",
+        "fontSize": "20px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "25px",
+        "letterSpacing": "-0.4px"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(244, 237, 223)"
+      }
+    },
+    "editorialNarrative": {
+      "rectCssPx": {
+        "left": 24,
+        "top": 164.672,
+        "width": 312,
+        "height": 21.688
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "14px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "21.7px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(166, 155, 138)"
+      }
+    },
+    "dominantCard": null,
+    "dominantMoney": null,
+    "hero": {
+      "rectCssPx": {
+        "left": 0,
+        "top": 66,
+        "width": 360,
+        "height": 275.313
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "16px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(244, 237, 223)"
+      }
+    },
+    "heroHeadline": {
+      "rectCssPx": {
+        "left": 24,
+        "top": 74,
+        "width": 312,
+        "height": 22
+      },
+      "typography": {
+        "fontFamily": "Fraunces, \"Cormorant Garamond\", ui-serif, Georgia, serif",
+        "fontSize": "16px",
+        "fontStyle": "italic",
+        "fontWeight": "400",
+        "lineHeight": "22px",
+        "letterSpacing": "-0.32px"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(122, 187, 147)"
+      }
+    },
+    "heroMoney": {
+      "rectCssPx": {
+        "left": 24,
+        "top": 104,
+        "width": 312,
+        "height": 64.813
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "58px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "87px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(244, 237, 223)"
+      }
+    },
+    "heroMeta": {
+      "rectCssPx": {
+        "left": 24,
+        "top": 172.813,
+        "width": 312,
+        "height": 44
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "12.5px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "18.75px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(166, 155, 138)"
+      }
+    },
+    "primaryDecision": {
+      "rectCssPx": {
+        "left": 24,
+        "top": 297.313,
+        "width": 187.938,
+        "height": 44
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "14px",
+        "fontStyle": "normal",
+        "fontWeight": "600",
+        "lineHeight": "21px",
+        "letterSpacing": "-0.07px"
+      },
+      "decoration": {
+        "backgroundColor": "rgb(62, 36, 24)",
+        "borderColor": "oklab(0.696333 0.124027 0.100694 / 0.22)",
+        "borderRadius": "12px",
+        "borderWidth": "1px",
+        "color": "rgb(247, 154, 120)"
+      }
+    },
+    "secondaryDecision": {
+      "rectCssPx": {
+        "left": 227.938,
+        "top": 297.313,
+        "width": 100.531,
+        "height": 44
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "12.5px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "18.75px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(166, 155, 138)"
+      }
+    },
+    "chart": {
+      "rectCssPx": {
+        "left": 0,
+        "top": 357.313,
+        "width": 360,
+        "height": 345.25
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "16px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "1px 0px 0px",
+        "color": "rgb(244, 237, 223)"
+      }
+    },
+    "chartHeader": {
+      "rectCssPx": {
+        "left": 16,
+        "top": 370.313,
+        "width": 328,
+        "height": 44
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "16px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(244, 237, 223)"
+      }
+    },
+    "chartPlot": {
+      "rectCssPx": {
+        "left": 16,
+        "top": 422.313,
+        "width": 328,
+        "height": 184
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "16px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(244, 237, 223)"
+      }
+    },
+    "chartScrub": {
+      "rectCssPx": {
+        "left": 16,
+        "top": 634.813,
+        "width": 328,
+        "height": 24
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "16px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "0px",
+        "color": "rgb(244, 237, 223)"
+      }
+    },
+    "chartSummary": {
+      "rectCssPx": {
+        "left": 16,
+        "top": 670.813,
+        "width": 328,
+        "height": 31.75
+      },
+      "typography": {
+        "fontFamily": "\"Inter Tight\", Inter, ui-sans-serif, system-ui, sans-serif",
+        "fontSize": "12.5px",
+        "fontStyle": "normal",
+        "fontWeight": "400",
+        "lineHeight": "18.75px",
+        "letterSpacing": "normal"
+      },
+      "decoration": {
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "borderColor": "rgb(58, 49, 40)",
+        "borderRadius": "0px",
+        "borderWidth": "1px 0px 0px",
+        "color": "rgb(166, 155, 138)"
+      }
+    }
+  },
+  "pageErrors": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "resourceFailures": [
+    {
+      "status": 404,
+      "url": "http://127.0.0.1:4179/__l5e/assets-v1/5f6edf2d-186d-4b59-b9ad-58ca732cbfd6/wax-seal.png"
+    },
+    {
+      "status": 404,
+      "url": "http://127.0.0.1:4179/__l5e/assets-v1/bf73fecc-78f6-4073-9676-ba417b84ad16/favicon-dark.png"
+    },
+    {
+      "status": 404,
+      "url": "http://127.0.0.1:4179/__l5e/assets-v1/0edb83ab-1188-468b-8f43-ff6d88beb282/favicon-maskable.png"
+    }
+  ]
+}
