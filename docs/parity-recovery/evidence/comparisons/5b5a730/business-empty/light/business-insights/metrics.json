@@ -1,0 +1,46 @@
+{
+  "comparisonKind": "matched-data-calibration",
+  "status": "visual-parity-differences-remain",
+  "acceptanceEvidenceEligible": true,
+  "fixtureId": "business-empty",
+  "theme": "light",
+  "screen": "business-insights",
+  "fixtureSchemaVersion": 1,
+  "sourceSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "nativeSha": "5b5a73061fd2b917c26d771751cf25976fa21a86",
+  "captureApkSha256": "4452C8A633C0FDC494BD1971E17BD2DE3C5B1277F51E03D3EDD46A19B2E1F06C",
+  "captureDeviceId": "emulator-5570",
+  "fixedNow": "2026-08-18T08:00:00.000Z",
+  "locale": "en-GB",
+  "timeZone": "UTC",
+  "productViewportPhysicalPx": {
+    "width": 1080,
+    "height": 2004
+  },
+  "productViewportLogicalDp": {
+    "width": 360,
+    "height": 668
+  },
+  "sourceWasResized": false,
+  "nativeWasResized": false,
+  "nativeProductCropInFullPx": {
+    "left": 0,
+    "top": 72,
+    "right": 1080,
+    "bottom": 2076
+  },
+  "meanAbsoluteRgbDelta": 17.3635,
+  "rmsRgbDelta": 54.3852,
+  "changedPixelFraction": 0.581113,
+  "nonZeroDiffBoundingBoxPx": [
+    0,
+    0,
+    1080,
+    2004
+  ],
+  "engineInvariants": {
+    "businessState": "empty",
+    "persistedBusinessState": null
+  },
+  "interpretation": "This is valid unscaled matched-state evidence. The metrics quantify the current native-versus-source output; the pair is not an automatic parity pass, and unresolved visual differences remain subject to calibration and owner review."
+}

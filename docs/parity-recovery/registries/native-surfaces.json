@@ -2,7 +2,7 @@
   "$schema": "melo-native-shipping-surface-registry/v1",
   "generatedFrom": {
     "nativeRepository": "Thegamerdr/Folio",
-    "nativeCommit": "06197fd67b23575ed418cdef3bdc873359e24b9f",
+    "nativeCommit": "5b5a73061fd2b917c26d771751cf25976fa21a86",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRepository": "Thegamerdr/private-money-pilot",
     "designCommit": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",

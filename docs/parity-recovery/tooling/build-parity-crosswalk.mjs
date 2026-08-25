@@ -72,6 +72,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-invoices' ||
     entry.routeKey === 'business-obligations' ||
     entry.routeKey === 'business-vat' ||
+    entry.routeKey === 'business-insights' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
@@ -106,6 +107,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-insights': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-insights/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-insights/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-5b5a730/business-empty/light/business-insights/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-5b5a730/business-empty/dark/business-insights/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/5b5a730/business-empty/light/business-insights/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/5b5a730/business-empty/dark/business-insights/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/5b5a730/business-empty/light/business-insights/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/5b5a730/business-empty/dark/business-insights/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Insights answer, invoice action and empty-story hierarchy restoration.',
+      consequence:
+        'The compared empty state now matches the pinned paid-invoice explanation and both actions route to the real native invoices surface; the pinned source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated revenue, client and period states remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 17.3635,
+        darkMeanAbsoluteRgbDelta: 17.4121,
+      },
+    },
+  },
   'business-vat': {
     evidence: {
       lightSource:
