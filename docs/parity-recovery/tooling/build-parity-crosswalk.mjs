@@ -75,6 +75,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-insights' ||
     entry.routeKey === 'business-runway' ||
     entry.routeKey === 'business-filings' ||
+    entry.routeKey === 'business-companies-house' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
@@ -109,6 +110,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-companies-house': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-companies-house/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-companies-house/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/light/business-companies-house/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/dark/business-companies-house/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-companies-house/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-companies-house/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-companies-house/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-companies-house/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after the Limited Company setup guard, explanation and Business type action restoration.',
+      consequence:
+        'The compared unconfigured state now matches the pinned Limited Company-only guard and routes its primary action to the real native Business Type flow; the pinned synthetic demo-company control remains capture-only and writes no production state. Browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated Companies House deadlines and their filing working copies remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 8.205,
+        darkMeanAbsoluteRgbDelta: 8.2375,
+      },
+    },
+  },
   'business-filings': {
     evidence: {
       lightSource:

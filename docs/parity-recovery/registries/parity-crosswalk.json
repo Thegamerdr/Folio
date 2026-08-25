@@ -18,11 +18,11 @@
     "nativeShippingSurfaces": 192,
     "exactDesignOwnersResolved": 170,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 23,
-    "surfacesMissingDirectComparison": 169,
-    "comparisonCount": 38,
-    "lightComparisonCount": 19,
-    "darkComparisonCount": 19,
+    "surfacesWithDirectComparison": 24,
+    "surfacesMissingDirectComparison": 168,
+    "comparisonCount": 40,
+    "lightComparisonCount": 20,
+    "darkComparisonCount": 20,
     "designSurfacesNotMappedToNativeShippingSurface": 37
   },
   "entries": [
@@ -3710,21 +3710,35 @@
         "ownerStatus": "resolved"
       },
       "matchedFixtures": [
+        "business-empty",
         "business-sole-trader",
         "business-ltd"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-companies-house/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-companies-house/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/light/business-companies-house/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/dark/business-companies-house/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-companies-house/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-companies-house/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-companies-house/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-companies-house/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after the Limited Company setup guard, explanation and Business type action restoration.",
+          "consequence": "The compared unconfigured state now matches the pinned Limited Company-only guard and routes its primary action to the real native Business Type flow; the pinned synthetic demo-company control remains capture-only and writes no production state. Browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated Companies House deadlines and their filing working copies remain separate captures.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 8.205,
+            "darkMeanAbsoluteRgbDelta": 8.2375
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "screen.business-corp-tax",
