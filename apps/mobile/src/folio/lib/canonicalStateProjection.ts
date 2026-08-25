@@ -928,6 +928,14 @@ function projectCompanionRuntimeState(
     melo: {
       quietMode: requireBoolean(melo.quietMode, 'Melo quiet mode'),
       wardrobe: checkedStringList(melo.wardrobe, 'Melo wardrobe item'),
+      ...(melo.companionIntroSeen === undefined
+        ? {}
+        : {
+            companionIntroSeen: requireBoolean(
+              melo.companionIntroSeen,
+              'Melo companion introduction',
+            ),
+          }),
       ...(melo.preferredPosition === undefined
         ? {}
         : {

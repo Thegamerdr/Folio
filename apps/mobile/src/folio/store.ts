@@ -944,6 +944,9 @@ export type MeloTone = 'calm' | 'honest' | 'dry' | 'coachy';
 export type MeloState = {
   quietMode: boolean;
   wardrobe: string[];
+  /** The shell-level semantic companion introduction has completed. Optional for installs created
+   * before the native companion layer shipped; missing means the one-time introduction is due. */
+  companionIntroSeen?: boolean;
   /** Preferred semantic side for the native companion host. `auto` lets the
    * host choose the first safe side; it never bypasses layout safety. */
   preferredPosition?: 'auto' | 'left' | 'right';

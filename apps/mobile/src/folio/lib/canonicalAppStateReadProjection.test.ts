@@ -555,7 +555,12 @@ describe('canonical AppState read projection', () => {
         trialEndedCycleId: '2026-06-25',
         trialEndAcknowledged: false,
       },
-      melo: { quietMode: true, wardrobe: ['touch:scarf', 'touch:mug'], tone: 'dry' },
+      melo: {
+        quietMode: true,
+        wardrobe: ['touch:scarf', 'touch:mug'],
+        companionIntroSeen: true,
+        tone: 'dry',
+      },
       tinyWins: [
         {
           id: 'win:private/alpha',
@@ -643,7 +648,10 @@ describe('canonical AppState read projection', () => {
         }),
       ],
       companionRuntimeStates: [
-        expect.objectContaining({ aiReads: { monthKey: '2026-07', used: 4 } }),
+        expect.objectContaining({
+          aiReads: { monthKey: '2026-07', used: 4 },
+          melo: expect.objectContaining({ companionIntroSeen: true }),
+        }),
       ],
     });
     expect(read.pots).toEqual(state.pots.map((pot) => ({ ...pot, workspaceId: workspace.id })));

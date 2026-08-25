@@ -128,6 +128,7 @@ import { DriftCaughtSheet } from '@/folio/sheets/DriftCaughtSheet';
 import { AnnualCaughtSheet } from '@/folio/sheets/AnnualCaughtSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
+import { ShellMeloCompanion } from '@/folio/ui/ShellMeloCompanion';
 import { reanchorSubRenewals, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { endLensTrialIfExpired, useLens } from '@/folio/lib/lens';
@@ -640,6 +641,7 @@ export function FolioShell() {
                 <ScreenView screen={screen} nav={nav} pressure={activePressure} />
               </ScreenErrorBoundary>
             </View>
+            <ShellMeloCompanion screen={screen} nav={nav} />
             <BottomNav
               key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
               active={activeTab}

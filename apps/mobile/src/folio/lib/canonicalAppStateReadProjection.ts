@@ -574,6 +574,9 @@ export function readCanonicalAppStateMoneyProjection(
     melo: {
       quietMode: companionRuntime.melo.quietMode,
       wardrobe: [...companionRuntime.melo.wardrobe],
+      ...(companionRuntime.melo.companionIntroSeen === undefined
+        ? {}
+        : { companionIntroSeen: companionRuntime.melo.companionIntroSeen }),
       ...(companionRuntime.melo.preferredPosition === undefined
         ? {}
         : { preferredPosition: companionRuntime.melo.preferredPosition }),
@@ -1192,6 +1195,9 @@ function normalizedSourceMoneyProjection(
     melo: {
       quietMode: state.melo?.quietMode ?? false,
       wardrobe: [...(state.melo?.wardrobe ?? [])],
+      ...(state.melo?.companionIntroSeen === undefined
+        ? {}
+        : { companionIntroSeen: state.melo.companionIntroSeen }),
       ...(state.melo?.preferredPosition === undefined
         ? {}
         : { preferredPosition: state.melo.preferredPosition }),
