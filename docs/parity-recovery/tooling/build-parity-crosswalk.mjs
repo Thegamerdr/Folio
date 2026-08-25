@@ -63,6 +63,9 @@ function resolveDesignOwners(kind, entry) {
 }
 
 function fixturesFor(entry) {
+  if (entry.routeKey === 'business-today') {
+    return ['business-empty', 'business-sole-trader', 'business-ltd'];
+  }
   if (entry.workspace === 'business' || entry.routeKey?.startsWith('business-')) {
     return ['business-sole-trader', 'business-ltd'];
   }
@@ -91,6 +94,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-today': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-today/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-today/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-93862fc/business-empty/light/business-today/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-93862fc/business-empty/dark/business-today/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/93862fc/business-empty/light/business-today/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/93862fc/business-empty/dark/business-today/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/93862fc/business-empty/light/business-today/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/93862fc/business-empty/dark/business-today/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after answer-spine and business-chrome calibration.',
+      consequence:
+        'The source synthetic example-data action and companion perch intentionally remain absent pending a non-synthetic native equivalent and owner review; fine raster and palette still require physical-S9 review.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 40.7596,
+        darkMeanAbsoluteRgbDelta: 36.5989,
+      },
+    },
+  },
   today: {
     evidence: {
       lightSource:

@@ -2,7 +2,7 @@
   "$schema": "melo-native-shipping-surface-registry/v1",
   "generatedFrom": {
     "nativeRepository": "Thegamerdr/Folio",
-    "nativeCommit": "e4329766bce44cd7ea95f0e053c2e27031f61339",
+    "nativeCommit": "93862fc0b7c80e92691dd2aecd6d8253184f7db1",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRepository": "Thegamerdr/private-money-pilot",
     "designCommit": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
@@ -41,6 +41,7 @@
       "negative-shortfall",
       "populated-commitments",
       "pending-review",
+      "business-empty",
       "business-sole-trader",
       "business-ltd",
       "empty",
@@ -311,18 +312,14 @@
       "stableId": "screen.today",
       "routeKey": "today",
       "componentSource": "apps/mobile/src/folio/shell/FolioShell.tsx#TodayByMode",
-      "workspace": "personal|business",
+      "workspace": "personal",
       "themeHandling": "theme-provider",
-      "workspaceComponents": {
-        "personal": [
-          "apps/mobile/src/folio/screens/TodayScreen.tsx#TodayScreen",
-          "apps/mobile/src/folio/screens/TodayStabilityScreen.tsx#TodayStabilityScreen",
-          "apps/mobile/src/folio/screens/TodayModeScreen.tsx#TodayModeScreen"
-        ],
-        "business": ["apps/mobile/src/folio/screens/BusinessTodayScreen.tsx#BusinessTodayScreen"]
-      },
+      "workspaceComponents": [
+        "apps/mobile/src/folio/screens/TodayScreen.tsx#TodayScreen",
+        "apps/mobile/src/folio/screens/TodayStabilityScreen.tsx#TodayStabilityScreen",
+        "apps/mobile/src/folio/screens/TodayModeScreen.tsx#TodayModeScreen"
+      ],
       "dataStateDependencies": [
-        "active workspace kind",
         "moneyMode/lens access",
         "current balance",
         "transactions",
@@ -339,15 +336,30 @@
         "personal-first-run-empty",
         "personal-stability",
         "personal-paid-lens",
-        "personal-locked-lens-fallback",
+        "personal-locked-lens-fallback"
+      ],
+      "designOwnerHints": ["src/components/folio/screens/ScreenToday.tsx"]
+    },
+    {
+      "stableId": "screen.business-today",
+      "routeKey": "business-today",
+      "componentSource": "apps/mobile/src/folio/screens/BusinessTodayScreen.tsx#BusinessTodayScreen",
+      "workspace": "business",
+      "themeHandling": "theme-provider",
+      "dataStateDependencies": [
+        "active business workspace",
+        "business accounts and balances",
+        "dated inflows and outflows",
+        "VAT position",
+        "invoice ledger",
+        "business operations"
+      ],
+      "states": [
         "business-unconfigured",
         "business-populated",
         "business-review-pending"
       ],
-      "designOwnerHints": [
-        "src/components/folio/screens/ScreenToday.tsx",
-        "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessToday"
-      ]
+      "designOwnerHints": ["src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessToday"]
     },
     {
       "stableId": "screen.today-mode",
@@ -2755,11 +2767,11 @@
   "counts": {
     "stackRoutes": 2,
     "tabs": 4,
-    "screens": 53,
+    "screens": 54,
     "sheetsAndEmbeddedModals": 52,
     "appOwnedDialogs": 61,
     "platformOwnedSurfaces": 6,
     "globalStates": 8,
-    "totalRegisteredSurfaces": 186
+    "totalRegisteredSurfaces": 187
   }
 }
