@@ -10,7 +10,7 @@ describe('pinned shell companion perches', () => {
       birdLeft: 260,
     });
     expect(shellCompanionPlacement('review', 'right')).toEqual({
-      top: 212,
+      top: 243,
       bubbleLeft: 30,
       birdLeft: 260,
     });
