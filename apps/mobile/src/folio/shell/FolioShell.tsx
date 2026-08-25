@@ -755,7 +755,7 @@ export function FolioShell() {
 const shellStyles = StyleSheet.create({
   root: { flex: 1 },
   routeFrame: { flex: 1 },
-  paperGrain: { position: 'absolute', inset: 0 },
+  paperGrain: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   screenHost: { flex: 1 },
 });
 
