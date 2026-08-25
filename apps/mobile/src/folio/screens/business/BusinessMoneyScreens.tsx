@@ -2081,6 +2081,14 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
   );
   const [ir35Note, setIr35Note] = useState('');
   const mileage = mileageAllowanceMinor(business.mileageTrips);
+  const mileageMiles = business.mileageTrips.reduce(
+    (sum, trip) => sum + trip.distanceMilliMiles / 1000,
+    0,
+  );
+  const thresholdMiles = business.mileageTrips
+    .filter((trip) => trip.vehicle === 'car' || trip.vehicle === 'van')
+    .reduce((sum, trip) => sum + trip.distanceMilliMiles / 1000, 0);
+  const milesBeforeLowerBand = Math.max(0, 10_000 - thresholdMiles);
   const adjustments = business.taxAdjustments.reduce((sum, item) => sum + item.amountMinor, 0);
   const homeOfficeRecorded =
     business.taxAdjustments.find(
@@ -2208,18 +2216,23 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
   return (
     <>
       <BusinessScreenFrame
-        eyebrow="Business deductions"
-        headline={`${formatMinor(mileage + adjustments)} recorded.`}
-        intro="Mileage and tax adjustments stay itemised, dated and exportable. No location tracking runs in the background."
+        eyebrow="Mileage"
+        headline="HMRC approved mileage."
+        intro="55p per mile for the first 10,000 car or goods-vehicle miles this tax year, 25p above. Log trips as a quick tally — no location tracking runs in the background."
         onBack={nav.back}
       >
-        <BusinessCard tone="inset">
-          <View style={styles.metrics}>
-            <BusinessMetric label="Mileage allowance" value={formatMinor(mileage)} />
-            <BusinessMetric label="Home office" value={formatMinor(homeOfficeRecorded)} />
-            <BusinessMetric label="Other adjustments" value={formatMinor(otherAdjustments)} />
-          </View>
-        </BusinessCard>
+        <View style={styles.deductionFigure}>
+          <Text style={[styles.deductionFigureLabel, { color: t.muted }]}>
+            Worth claiming this tax year
+          </Text>
+          <Text style={[styles.deductionFigureValue, { color: t.calmStrong }]}>
+            {formatMinor(mileage)}
+          </Text>
+          <Text style={[styles.deductionFigureCaption, { color: t.muted }]}>
+            {mileageMiles.toLocaleString('en-GB')} mi logged ·{' '}
+            {milesBeforeLowerBand.toLocaleString('en-GB')} mi left before the 25p band (car)
+          </Text>
+        </View>
 
         <View style={styles.section}>
           <BusinessSectionTitle
@@ -3213,6 +3226,28 @@ const styles = StyleSheet.create({
   routes: { marginTop: gap.xl },
   stack: { gap: gap.sm },
   metrics: { flexDirection: 'row', gap: gap.md },
+  deductionFigure: { marginBottom: gap.xl },
+  deductionFigureLabel: {
+    fontFamily: weightFamily(600),
+    fontSize: 11,
+    letterSpacing: 1.32,
+    lineHeight: 16,
+    textTransform: 'uppercase',
+  },
+  deductionFigureValue: {
+    fontFamily: serif.display,
+    fontSize: 40,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.8,
+    lineHeight: 46,
+    marginTop: gap.xs,
+  },
+  deductionFigureCaption: {
+    fontFamily: weightFamily(400),
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: gap.xs,
+  },
   movement: {
     alignItems: 'center',
     flexDirection: 'row',

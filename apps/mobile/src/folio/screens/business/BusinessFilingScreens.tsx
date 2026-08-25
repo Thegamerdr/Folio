@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { BusinessFilingKind } from '@folio/business-workspace';
+import {
+  confirmationStatementDueDate,
+  type BusinessFilingKind,
+  type BusinessOperationsState,
+} from '@folio/business-workspace';
 
 import {
   buildBusinessFilingWorkingCopy,
@@ -251,43 +255,42 @@ function BusinessFilingsEmpty({ nav }: { nav: Nav }) {
   );
 }
 
-function AnnualAccountsWorkingCopy({
-  accountsDue,
+type FilingPresentation = Readonly<{
+  screenTitle: string;
+  period: string;
+  headlineBefore: string;
+  headlineAccent: string;
+  headlineAfter: string;
+  intro: string;
+  figures: readonly Readonly<{ label: string; value: string }>[];
+  amount?: Readonly<{ label: string; valueMinor: number; caption: string }> | undefined;
+}>;
+
+function SourceAlignedFilingWorkingCopy({
   confirmed,
   copy,
   nav,
   onConfirmedChange,
+  onEditSelfAssessment,
   onExternal,
   onShare,
+  presentation,
   shareError,
   sharing,
-  tradingProfitMinor,
-  yearEnd,
 }: {
-  accountsDue: string;
   confirmed: boolean;
   copy: BusinessFilingWorkingCopy;
   nav: Nav;
   onConfirmedChange: (confirmed: boolean) => void;
+  onEditSelfAssessment?: () => void;
   onExternal: () => void;
   onShare: () => void;
+  presentation: FilingPresentation;
   shareError: string | null;
   sharing: boolean;
-  tradingProfitMinor: number;
-  yearEnd: string;
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const period = `YE ${formatLongBusinessDate(yearEnd)}`;
-  const figures = [
-    { label: 'Company', value: copy.entityName },
-    {
-      label: 'Number',
-      value: copy.rows.find((row) => row.label === 'Company number')?.value ?? 'Not recorded',
-    },
-    { label: 'Year end', value: formatLongBusinessDate(yearEnd) },
-    { label: 'Trading profit', value: formatMinor(tradingProfitMinor) },
-  ];
 
   return (
     <View style={[styles.annualRoot, { backgroundColor: t.canvas }]}>
@@ -310,7 +313,7 @@ function AnnualAccountsWorkingCopy({
           <Text style={[styles.annualBackLabel, { color: t.muted }]}>←</Text>
         </Pressable>
         <Text accessibilityRole="header" style={[styles.annualScreenTitle, { color: t.ink }]}>
-          Annual accounts
+          {presentation.screenTitle}
         </Text>
       </View>
 
@@ -318,13 +321,29 @@ function AnnualAccountsWorkingCopy({
         contentContainerStyle={[styles.annualContent, { paddingBottom: insets.bottom + gap.xxxl }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.annualEyebrow, { color: t.muted }]}>Annual accounts · {period}</Text>
+        <Text style={[styles.annualEyebrow, { color: t.muted }]}>
+          {presentation.screenTitle} · {presentation.period}
+        </Text>
         <Text accessibilityRole="header" style={[styles.annualHeadline, { color: t.ink }]}>
-          Get annual accounts ready for <Text style={{ color: t.calm }}>{period}</Text>.
+          {presentation.headlineBefore}
+          <Text style={{ color: t.calm }}>{presentation.headlineAccent}</Text>
+          {presentation.headlineAfter}
         </Text>
-        <Text style={[styles.annualIntro, { color: t.muted }]}>
-          Due {formatLongBusinessDate(accountsDue)}. Micro-entity accounts to Companies House.
-        </Text>
+        <Text style={[styles.annualIntro, { color: t.muted }]}>{presentation.intro}</Text>
+
+        {presentation.amount ? (
+          <View style={styles.filingAmount}>
+            <Text style={[styles.annualEyebrow, { color: t.muted }]}>
+              {presentation.amount.label}
+            </Text>
+            <Text style={[styles.filingAmountValue, { color: t.ink }]}>
+              {formatMinor(presentation.amount.valueMinor)}
+            </Text>
+            <Text style={[styles.filingAmountCaption, { color: t.muted }]}>
+              {presentation.amount.caption}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.annualSection}>
           <Text style={[styles.annualEyebrow, { color: t.muted }]}>The figures</Text>
@@ -335,7 +354,7 @@ function AnnualAccountsWorkingCopy({
             accessibilityLabel="Figures for this filing"
             style={[styles.annualFigures, { backgroundColor: t.surface, borderColor: t.hairline }]}
           >
-            {figures.map((row, index) => (
+            {presentation.figures.map((row, index) => (
               <View
                 key={row.label}
                 style={[
@@ -374,8 +393,8 @@ function AnnualAccountsWorkingCopy({
               {confirmed ? <Text style={[styles.annualCheck, { color: t.surface }]}>✓</Text> : null}
             </View>
             <Text style={[styles.annualConfirmationLabel, { color: t.ink }]}>
-              I've checked the numbers and they look right. Melo will pack them for Companies House
-              — I'll send them myself.
+              I've checked the numbers and they look right. Melo will pack them for {copy.authority}
+              {' — '}I'll send them myself.
             </Text>
           </Pressable>
           <Pressable
@@ -391,12 +410,12 @@ function AnnualAccountsWorkingCopy({
             ]}
           >
             <Text style={[styles.annualPrimaryLabel, { color: t.surface }]}>
-              {sharing ? 'Creating PDF…' : 'Prepare the Companies House pack'}
+              {sharing ? 'Creating PDF…' : `Prepare the ${copy.authority} pack`}
             </Text>
           </Pressable>
           <Text style={[styles.annualDisclaimer, { color: t.muted }]}>
-            Melo has no connection to Companies House. This prepares and keeps the figures so you
-            can send them in recognised software, on the Companies House service, or through your
+            Melo has no connection to {copy.authority}. This prepares and keeps the figures so you
+            can send them in recognised software, on the {copy.authority} service, or through your
             accountant.
           </Text>
           {shareError ? (
@@ -405,6 +424,12 @@ function AnnualAccountsWorkingCopy({
             </View>
           ) : null}
           <BusinessSecondaryAction label="Record a real external submission" onPress={onExternal} />
+          {onEditSelfAssessment ? (
+            <BusinessSecondaryAction
+              label="Edit profit and transition basis"
+              onPress={onEditSelfAssessment}
+            />
+          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -422,7 +447,7 @@ export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; rout
   const [reference, setReference] = useState('');
   const [submittedOn, setSubmittedOn] = useState(new Date().toISOString().slice(0, 10));
   const [selfAssessmentOpen, setSelfAssessmentOpen] = useState(false);
-  const [annualConfirmed, setAnnualConfirmed] = useState(false);
+  const [filingConfirmed, setFilingConfirmed] = useState(false);
   const [profit, setProfit] = useState((business.ytdProfitMinor / 100).toString());
   const [transitionRemaining, setTransitionRemaining] = useState(
     business.basisPeriodTransition
@@ -551,111 +576,24 @@ export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; rout
     setSelfAssessmentOpen(false);
   };
 
-  if (copy.kind === 'annual-accounts' && business.entity?.kind === 'ltd') {
-    const accountsDue =
-      copy.rows.find((row) => row.label === 'Accounts due')?.value ?? business.entity.yearEnd;
-    return (
-      <>
-        <AnnualAccountsWorkingCopy
-          accountsDue={accountsDue}
-          confirmed={annualConfirmed}
-          copy={copy}
-          nav={nav}
-          onConfirmedChange={setAnnualConfirmed}
-          onExternal={() => setExternalOpen(true)}
-          onShare={() => void share()}
-          shareError={shareError}
-          sharing={sharing}
-          tradingProfitMinor={business.ytdProfitMinor}
-          yearEnd={business.entity.yearEnd}
-        />
-        <BusinessFormSheet
-          onClose={() => setExternalOpen(false)}
-          onPrimary={recordExternalSubmission}
-          primaryDisabled={!reference.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(submittedOn)}
-          primaryLabel="Record submission"
-          title={`Submitted to ${copy.authority}`}
-          visible={externalOpen}
-        >
-          <BusinessField
-            label="Official reference"
-            onChangeText={setReference}
-            placeholder="Reference from the authority"
-            value={reference}
-          />
-          <BusinessField
-            label="Submitted · YYYY-MM-DD"
-            onChangeText={setSubmittedOn}
-            placeholder="2026-07-18"
-            value={submittedOn}
-          />
-        </BusinessFormSheet>
-      </>
-    );
-  }
+  const presentation = buildFilingPresentation(copy, business);
 
   return (
     <>
-      <BusinessScreenFrame
-        eyebrow={`${copy.title} · ${copy.period}`}
-        headline={`Ready to check for ${copy.authority}.`}
-        intro="This is a local working copy. Review the source figures, share the PDF, then record an external reference only after a real submission."
-        onBack={nav.back}
-      >
-        <BusinessCard>
-          <Text style={[styles.copyFlag, { color: t.repair }]}>Working copy · not lodged</Text>
-          <Text style={[styles.copyEntity, { color: t.ink }]}>{copy.entityName}</Text>
-          <View style={styles.copyRows}>
-            {copy.rows.map((row, index) => (
-              <View
-                key={row.label}
-                style={[
-                  styles.copyRow,
-                  index > 0
-                    ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
-                    : undefined,
-                ]}
-              >
-                <Text style={[styles.copyLabel, { color: t.muted }]}>{row.label}</Text>
-                <Text style={[styles.copyValue, { color: t.ink }]}>{row.value}</Text>
-              </View>
-            ))}
-          </View>
-          {copy.amountMinor !== undefined ? (
-            <View style={[styles.copyAmount, { backgroundColor: t.inset }]}>
-              <Text style={[styles.copyAmountLabel, { color: t.muted }]}>Calculated amount</Text>
-              <Text style={[styles.copyAmountValue, { color: t.ink }]}>
-                {formatMinor(copy.amountMinor, { pence: true })}
-              </Text>
-            </View>
-          ) : null}
-          <Text style={[styles.policy, { color: t.muted }]}>
-            Policy {copy.policyPackVersion} · verified {copy.policyVerifiedOn}
-          </Text>
-        </BusinessCard>
-
-        {shareError ? (
-          <View style={[styles.error, { backgroundColor: t.repairSoft }]}>
-            <Text style={[styles.errorText, { color: t.repairInk }]}>{shareError}</Text>
-          </View>
-        ) : null}
-
-        <BusinessPrimaryAction
-          disabled={sharing}
-          label={sharing ? 'Creating PDF…' : 'Save and share PDF'}
-          onPress={() => void share()}
-        />
-        {copy.kind === 'self-assessment' ? (
-          <BusinessSecondaryAction
-            label="Edit profit and transition basis"
-            onPress={() => setSelfAssessmentOpen(true)}
-          />
-        ) : null}
-        <BusinessSecondaryAction
-          label="Record a real external submission"
-          onPress={() => setExternalOpen(true)}
-        />
-      </BusinessScreenFrame>
+      <SourceAlignedFilingWorkingCopy
+        confirmed={filingConfirmed}
+        copy={copy}
+        nav={nav}
+        onConfirmedChange={setFilingConfirmed}
+        {...(copy.kind === 'self-assessment'
+          ? { onEditSelfAssessment: () => setSelfAssessmentOpen(true) }
+          : {})}
+        onExternal={() => setExternalOpen(true)}
+        onShare={() => void share()}
+        presentation={presentation}
+        shareError={shareError}
+        sharing={sharing}
+      />
 
       <BusinessFormSheet
         onClose={() => setExternalOpen(false)}
@@ -714,6 +652,157 @@ export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; rout
       </BusinessFormSheet>
     </>
   );
+}
+
+function buildFilingPresentation(
+  copy: BusinessFilingWorkingCopy,
+  business: BusinessOperationsState,
+): FilingPresentation {
+  const row = (label: string, fallback = 'Not recorded') =>
+    copy.rows.find((item) => item.label === label)?.value ?? fallback;
+  const estimatedAmount = (label: string, period: string) =>
+    copy.amountMinor === undefined
+      ? undefined
+      : {
+          label,
+          valueMinor: copy.amountMinor,
+          caption: `Worked out from the figures Melo has for ${period}, so treat it as a close guess.`,
+        };
+
+  if (copy.kind === 'vat') {
+    const [periodStart = copy.period, periodEnd = copy.period] = copy.period.split(' to ');
+    const period = humanBusinessPeriod(periodStart, periodEnd);
+    const activeReturn = business.vatReturns.find(
+      (item) => item.periodStart === periodStart && item.periodEnd === periodEnd,
+    );
+    return {
+      screenTitle: 'VAT return',
+      period,
+      headlineBefore: 'Get the ',
+      headlineAccent: period,
+      headlineAfter: ' VAT return ready.',
+      intro: `Melo has the four boxes ready.${activeReturn ? ` Due ${formatLongBusinessDate(activeReturn.dueOn)}.` : ''}`,
+      figures: [
+        { label: 'Box 1 — Output VAT', value: row('Box 1 · Output VAT') },
+        { label: 'Box 4 — Input VAT', value: row('Box 4 · Input VAT') },
+        { label: 'Box 6 — Sales ex VAT', value: row('Box 6 · Sales excluding VAT') },
+        { label: 'Box 7 — Purchases ex VAT', value: row('Box 7 · Purchases excluding VAT') },
+      ],
+      amount: estimatedAmount('Net VAT owed', period),
+    };
+  }
+
+  if (copy.kind === 'self-assessment') {
+    const period = copy.period;
+    return {
+      screenTitle: 'Self-Assessment',
+      period,
+      headlineBefore: 'Get your ',
+      headlineAccent: period,
+      headlineAfter: ' Self-Assessment ready.',
+      intro: 'Based on the trading profit Melo has for you this tax year.',
+      figures: [
+        { label: 'Trading profit', value: row('Recorded trading profit') },
+        { label: 'Income Tax', value: row('Income Tax') },
+        { label: 'Class 4 NI', value: row('Class 4 National Insurance') },
+        { label: 'Tax reference (UTR)', value: row('UTR') },
+      ],
+      amount: estimatedAmount('Total tax owed', period),
+    };
+  }
+
+  if (copy.kind === 'corporation-tax') {
+    const yearEnd = copy.period.replace(/^Year ending /, '');
+    const period = `YE ${formatLongBusinessDate(yearEnd)}`;
+    const paymentDue = row('Payment due', '');
+    return {
+      screenTitle: 'Corporation Tax',
+      period,
+      headlineBefore: 'Get ',
+      headlineAccent: 'Corporation Tax',
+      headlineAfter: ` ready for ${period}.`,
+      intro: `${paymentDue ? `Payment due ${formatLongBusinessDate(paymentDue)}. ` : ''}The return itself (the CT600) is due within 12 months of year end.`,
+      figures: [
+        { label: 'Trading profit', value: row('Trading profit') },
+        { label: 'Effective CT rate', value: row('Effective Corporation Tax rate') },
+        { label: 'Company', value: copy.entityName },
+        { label: 'Number', value: row('Company number') },
+      ],
+      amount: estimatedAmount('Corporation Tax owed', period),
+    };
+  }
+
+  if (copy.kind === 'confirmation-statement') {
+    const period = copy.period;
+    const due =
+      business.entity?.kind === 'ltd'
+        ? confirmationStatementDueDate(business.entity, new Date(copy.generatedAt))
+        : '';
+    return {
+      screenTitle: 'Confirmation Statement',
+      period,
+      headlineBefore: 'Get the ',
+      headlineAccent: period,
+      headlineAfter: ' Confirmation Statement ready.',
+      intro: `${due ? `Due ${formatLongBusinessDate(due)}. ` : ''}£50 fee to Companies House when you file online.`,
+      figures: [
+        { label: 'Company', value: row('Company', copy.entityName) },
+        { label: 'Number', value: row('Company number') },
+        { label: 'Directors', value: row('Directors') },
+        { label: 'Shareholders', value: row('Shareholders') },
+      ],
+      amount: {
+        label: 'Filing fee',
+        valueMinor: 5_000,
+        caption: `From the figures Melo has for ${period}.`,
+      },
+    };
+  }
+
+  if (copy.kind === 'annual-accounts') {
+    const yearEnd = copy.period.replace(/^Year ending /, '');
+    const period = `YE ${formatLongBusinessDate(yearEnd)}`;
+    const due = row('Accounts due', yearEnd);
+    return {
+      screenTitle: 'Annual accounts',
+      period,
+      headlineBefore: 'Get annual accounts ready for ',
+      headlineAccent: period,
+      headlineAfter: '.',
+      intro: `Due ${formatLongBusinessDate(due)}. Micro-entity accounts to Companies House.`,
+      figures: [
+        { label: 'Company', value: copy.entityName },
+        { label: 'Number', value: row('Company number') },
+        { label: 'Year end', value: formatLongBusinessDate(yearEnd) },
+        { label: 'Trading profit', value: formatMinor(business.ytdProfitMinor) },
+      ],
+    };
+  }
+
+  const periodEnd = copy.period.replace(/^Period ending /, '');
+  const period = `Period ending ${formatLongBusinessDate(periodEnd)}`;
+  return {
+    screenTitle: 'Payroll',
+    period,
+    headlineBefore: 'Get ',
+    headlineAccent: 'payroll',
+    headlineAfter: ` ready for ${formatLongBusinessDate(periodEnd)}.`,
+    intro: 'Based on the latest saved payroll run.',
+    figures: copy.rows,
+    amount: estimatedAmount('PAYE, NI and student loans', period),
+  };
+}
+
+function humanBusinessPeriod(startIso: string, endIso: string): string {
+  const start = new Date(`${startIso}T00:00:00.000Z`);
+  const end = new Date(`${endIso}T00:00:00.000Z`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()))
+    return `${startIso}—${endIso}`;
+  const month = (date: Date) =>
+    date.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+  return start.getUTCFullYear() === end.getUTCFullYear()
+    ? `${month(start)}—${month(end)} ${end.getUTCFullYear()}`
+    : `${month(start)} ${start.getUTCFullYear()}—${month(end)} ${end.getUTCFullYear()}`;
 }
 
 function kindForRoute(route: FilingRoute): BusinessFilingKind {
@@ -798,6 +887,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     marginTop: 22,
+  },
+  filingAmount: { marginTop: 30 },
+  filingAmountValue: {
+    fontFamily: serif.display,
+    fontSize: 40,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.8,
+    lineHeight: 46,
+    marginTop: 4,
+  },
+  filingAmountCaption: {
+    fontFamily: weightFamily(400),
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
   },
   annualSection: { marginTop: 22 },
   annualSectionTitle: {
@@ -951,37 +1055,6 @@ const styles = StyleSheet.create({
   recordTitle: { fontSize: 13.5, fontWeight: '600' },
   recordMeta: { fontSize: 11, lineHeight: 16, marginTop: 2 },
   recordMoney: { fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '600' },
-  copyFlag: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  copyEntity: { fontSize: 17, fontWeight: '700', marginTop: gap.sm },
-  copyRows: { marginTop: gap.lg },
-  copyRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    minHeight: 48,
-    paddingVertical: gap.xs,
-  },
-  copyLabel: { flex: 1, fontSize: 12, lineHeight: 17, paddingRight: gap.md },
-  copyValue: {
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-    fontWeight: '600',
-    maxWidth: '45%',
-    textAlign: 'right',
-  },
-  copyAmount: { borderRadius: 12, marginTop: gap.lg, padding: gap.md },
-  copyAmountLabel: { fontSize: 10.5, fontWeight: '600', textTransform: 'uppercase' },
-  copyAmountValue: {
-    fontSize: 23,
-    fontVariant: ['tabular-nums'],
-    fontWeight: '600',
-    marginTop: gap.xs,
-  },
-  policy: { fontSize: 10.5, lineHeight: 16, marginTop: gap.lg },
   error: { borderRadius: 12, marginTop: gap.md, padding: gap.md },
   errorText: { fontSize: 12, lineHeight: 17 },
 });
