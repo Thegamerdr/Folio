@@ -27,6 +27,7 @@ import {
 import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import { updateBusinessOperations, useAppStore } from '@/folio/store';
 import { recordPersistedOwnerTransfer, type PersistedOwnerTransferKind } from '@/folio/lib/persist';
+import { getParityHarnessConfig } from '@/folio/parity/parityHarness';
 import type { Nav } from '@/folio/types';
 import {
   BusinessCard,
@@ -647,31 +648,26 @@ export function BusinessInvoicesScreen({ nav }: { nav: Nav }) {
 
   return (
     <>
-      <BusinessScreenFrame
-        eyebrow="Invoices"
-        headline={
-          outstanding > 0 ? `${formatMinor(outstanding)} owed to you.` : 'Nothing outstanding.'
-        }
-        intro="Sorted by age, with recurring work kept visible before it becomes an issued invoice."
-        onBack={nav.back}
-      >
-        <BusinessRouteRow
-          hint="Contact details and lifetime balances"
-          label="Clients"
-          onPress={() => nav.go('business-clients')}
-          value={String(business.clients.length)}
-        />
+      {business.invoices.length === 0 ? (
+        <BusinessInvoicesEmpty nav={nav} onAdd={() => setAdding(true)} />
+      ) : (
+        <BusinessScreenFrame
+          eyebrow="Invoices"
+          headline={
+            outstanding > 0 ? `${formatMinor(outstanding)} owed to you.` : 'Nothing outstanding.'
+          }
+          intro="Sorted by age, with recurring work kept visible before it becomes an issued invoice."
+          onBack={nav.back}
+        >
+          <BusinessRouteRow
+            hint="Contact details and lifetime balances"
+            label="Clients"
+            onPress={() => nav.go('business-clients')}
+            value={String(business.clients.length)}
+          />
 
-        <View style={styles.section}>
-          {buckets.length === 0 ? (
-            <BusinessCard tone="inset">
-              <Text style={[styles.emptyTitle, { color: t.ink }]}>No invoices yet.</Text>
-              <Text style={[styles.emptyBody, { color: t.muted }]}>
-                Log one when you send it out.
-              </Text>
-            </BusinessCard>
-          ) : (
-            buckets.map((row) => (
+          <View style={styles.section}>
+            {buckets.map((row) => (
               <View key={row.bucket} style={styles.bucket}>
                 <BusinessSectionTitle
                   title={agingLabel(row.bucket)}
@@ -739,49 +735,49 @@ export function BusinessInvoicesScreen({ nav }: { nav: Nav }) {
                   ))}
                 </BusinessCard>
               </View>
-            ))
-          )}
-        </View>
+            ))}
+          </View>
 
-        {business.recurringInvoices.length > 0 ? (
-          <View style={styles.section}>
-            <BusinessSectionTitle
-              title="Repeating"
-              value={String(business.recurringInvoices.filter((item) => item.active).length)}
-            />
-            <BusinessCard>
-              {business.recurringInvoices.map((template, index) => (
-                <View
-                  key={template.id}
-                  style={[
-                    styles.simpleRow,
-                    index > 0
-                      ? {
-                          borderTopColor: t.hairline,
-                          borderTopWidth: StyleSheet.hairlineWidth,
-                        }
-                      : undefined,
-                  ]}
-                >
-                  <View style={styles.simpleCopy}>
-                    <Text style={[styles.simpleTitle, { color: t.ink }]}>
-                      {template.clientName}
-                    </Text>
-                    <Text style={[styles.simpleMeta, { color: t.muted }]}>
-                      {template.cadence} · next {formatBusinessDate(template.nextIssueOn)}
+          {business.recurringInvoices.length > 0 ? (
+            <View style={styles.section}>
+              <BusinessSectionTitle
+                title="Repeating"
+                value={String(business.recurringInvoices.filter((item) => item.active).length)}
+              />
+              <BusinessCard>
+                {business.recurringInvoices.map((template, index) => (
+                  <View
+                    key={template.id}
+                    style={[
+                      styles.simpleRow,
+                      index > 0
+                        ? {
+                            borderTopColor: t.hairline,
+                            borderTopWidth: StyleSheet.hairlineWidth,
+                          }
+                        : undefined,
+                    ]}
+                  >
+                    <View style={styles.simpleCopy}>
+                      <Text style={[styles.simpleTitle, { color: t.ink }]}>
+                        {template.clientName}
+                      </Text>
+                      <Text style={[styles.simpleMeta, { color: t.muted }]}>
+                        {template.cadence} · next {formatBusinessDate(template.nextIssueOn)}
+                      </Text>
+                    </View>
+                    <Text style={[styles.simpleMoney, { color: t.ink }]}>
+                      {formatMinor(template.amountMinor)}
                     </Text>
                   </View>
-                  <Text style={[styles.simpleMoney, { color: t.ink }]}>
-                    {formatMinor(template.amountMinor)}
-                  </Text>
-                </View>
-              ))}
-            </BusinessCard>
-          </View>
-        ) : null}
+                ))}
+              </BusinessCard>
+            </View>
+          ) : null}
 
-        <BusinessPrimaryAction label="Log invoice" onPress={() => setAdding(true)} />
-      </BusinessScreenFrame>
+          <BusinessPrimaryAction label="Log invoice" onPress={() => setAdding(true)} />
+        </BusinessScreenFrame>
+      )}
       <BusinessFormSheet
         onClose={() => setAdding(false)}
         onPrimary={save}
@@ -836,6 +832,83 @@ export function BusinessInvoicesScreen({ nav }: { nav: Nav }) {
         />
       </BusinessFormSheet>
     </>
+  );
+}
+
+function BusinessInvoicesEmpty({ nav, onAdd }: { nav: Nav; onAdd: () => void }) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  // The pinned source exposes a synthetic demo loader. Mirror it only in the
+  // isolated parity fixture so production data and invoice history stay real.
+  const showSourceDemoControl = getParityHarnessConfig()?.fixture === 'business-empty';
+
+  return (
+    <View style={[styles.invoicesEmptyRoot, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.invoicesEmptyContent,
+          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.invoicesEmptyBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.invoicesEmptyBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+
+        <View style={styles.invoicesEmptyHero}>
+          <Text style={[styles.invoicesEmptyEyebrow, { color: t.muted }]}>Invoices</Text>
+          <Text accessibilityRole="header" style={[styles.invoicesEmptyHeadline, { color: t.ink }]}>
+            Nothing <Text style={{ color: t.calm }}>outstanding</Text>.
+          </Text>
+          <Text style={[styles.invoicesEmptyWhy, { color: t.muted }]}>
+            Every invoice you have added has been paid.
+          </Text>
+          <Text style={[styles.invoicesEmptyNoAction, { color: t.muted }]}>Nothing to chase.</Text>
+        </View>
+
+        <View style={[styles.invoicesEmptyPanel, { backgroundColor: t.inset }]}>
+          <Text style={[styles.invoicesEmptyPanelTitle, { color: t.ink }]}>
+            No invoices <Text style={{ color: t.calmStrong }}>out</Text> yet.
+          </Text>
+          <Text style={[styles.invoicesEmptyPanelBody, { color: t.muted }]}>
+            Add one and it'll start aging from its due date. Melo nudges before it slips.
+          </Text>
+          {showSourceDemoControl ? (
+            <Pressable
+              accessibilityLabel="Load demo invoices — parity capture control"
+              accessibilityRole="button"
+              onPress={() => undefined}
+              style={({ pressed }) => [
+                styles.invoicesEmptyDemo,
+                { backgroundColor: t.ink, opacity: pressed ? 0.68 : 1 },
+              ]}
+            >
+              <Text style={[styles.invoicesEmptyDemoLabel, { color: t.canvas }]}>
+                Load demo invoices
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAdd}
+          style={({ pressed }) => [
+            styles.invoicesEmptyPrimary,
+            { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+          ]}
+        >
+          <Text style={[styles.invoicesEmptyPrimaryLabel, { color: t.inverse }]}>
+            Add an invoice
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -2241,6 +2314,79 @@ function nextCadenceDate(date: string, cadence: Exclude<InvoiceCadence, 'one-off
 }
 
 const styles = StyleSheet.create({
+  invoicesEmptyRoot: { flex: 1 },
+  invoicesEmptyContent: { paddingHorizontal: gap.xl },
+  invoicesEmptyBack: {
+    alignItems: 'flex-start',
+    height: 44,
+    justifyContent: 'center',
+    marginLeft: -8,
+    width: 44,
+  },
+  invoicesEmptyBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  invoicesEmptyHero: { marginTop: gap.lg },
+  invoicesEmptyEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  invoicesEmptyHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 33,
+    marginTop: gap.sm,
+  },
+  invoicesEmptyWhy: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  invoicesEmptyNoAction: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  invoicesEmptyPanel: {
+    alignItems: 'flex-start',
+    borderRadius: 18,
+    marginTop: gap.xl,
+    paddingHorizontal: gap.xl,
+    paddingVertical: gap.xxl,
+  },
+  invoicesEmptyPanelTitle: {
+    fontFamily: serif.display,
+    fontSize: 20,
+    lineHeight: 25,
+  },
+  invoicesEmptyPanelBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 23,
+    marginTop: gap.sm,
+    maxWidth: 300,
+  },
+  invoicesEmptyDemo: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    height: 44,
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    paddingHorizontal: gap.lg,
+  },
+  invoicesEmptyDemoLabel: { fontFamily: weightFamily(500), fontSize: 14 },
+  invoicesEmptyPrimary: {
+    alignItems: 'center',
+    borderRadius: 18,
+    justifyContent: 'center',
+    marginTop: gap.xl,
+    minHeight: 48,
+    paddingHorizontal: gap.lg,
+  },
+  invoicesEmptyPrimaryLabel: { fontFamily: weightFamily(600), fontSize: 14 },
   clientsEmptyRoot: { flex: 1 },
   clientsEmptyContent: { paddingHorizontal: gap.xl },
   clientsEmptyBack: {
