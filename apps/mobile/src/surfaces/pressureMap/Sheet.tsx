@@ -45,9 +45,12 @@ import { announceSurfaceRepaint } from './sheetRepaint';
 // touch too round for the sheet lip, so the sheet keeps its own constant to match the web.
 const SHEET_RADIUS = 28;
 
-// The grab handle — ~40x4 rounded pill, matching the web's w-10 h-1 rounded-full.
-const HANDLE_WIDTH = 40;
-const HANDLE_HEIGHT = 4;
+// The pinned sheet grip is w-9 h-[3px]. Together with the panel's 12px top inset and the 12px
+// post-grip rhythm below, this leaves the same 27px before sheet content as the source shell
+// (pt-3 + 3px grip + pb-1 + content pt-2). Keeping that geometry here fixes every sheet family at
+// once instead of compensating inside individual forms and settings surfaces.
+const HANDLE_WIDTH = 36;
+const HANDLE_HEIGHT = 3;
 
 // The sheet rises through no more than ~85% of the window so the children never push the
 // scrim entirely off the top; anything beyond that scrolls inside the panel.
@@ -405,7 +408,7 @@ function makeStyles(t: Palette) {
       height: HANDLE_HEIGHT,
       borderRadius: HANDLE_HEIGHT / 2,
       backgroundColor: t.hairlineStrong,
-      marginBottom: gap.lg,
+      marginBottom: gap.md,
     },
   });
 }
