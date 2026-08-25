@@ -389,7 +389,6 @@ function makeStyles(t: Palette) {
     },
     body: {
       paddingBottom: gap.sm, // pb-2
-      paddingHorizontal: gap.xs, // px-1
     },
     chip: {
       alignItems: 'center',

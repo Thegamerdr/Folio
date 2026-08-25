@@ -75,7 +75,7 @@ export function AppearanceSheet({ visible, onClose }: AppearanceSheetProps) {
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-    body: { paddingHorizontal: gap.xs, paddingTop: gap.sm, paddingBottom: gap.lg },
+    body: { paddingTop: gap.sm, paddingBottom: gap.lg },
     headline: { color: t.ink, fontFamily: serif.display, fontSize: 22, lineHeight: 27 },
     accent: { color: t.calm },
     subline: { color: t.muted, fontSize: 12, marginTop: 4 },

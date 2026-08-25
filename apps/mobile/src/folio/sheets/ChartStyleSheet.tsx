@@ -102,7 +102,6 @@ export function ChartStyleSheet({ visible, onClose }: ChartStyleSheetProps) {
 function makeStyles(t: Palette) {
   return StyleSheet.create({
     body: {
-      paddingHorizontal: gap.xs,
       paddingTop: gap.sm,
       paddingBottom: gap.lg,
     },

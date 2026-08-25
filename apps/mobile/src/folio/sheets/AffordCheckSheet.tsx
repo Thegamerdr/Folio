@@ -363,7 +363,7 @@ function makeStyles(t: Palette) {
       textTransform: 'uppercase',
     },
     amountValueRow: { alignItems: 'baseline', flexDirection: 'row' },
-    body: { paddingBottom: gap.sm, paddingHorizontal: gap.xs },
+    body: { paddingBottom: gap.sm },
     ctaRow: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg + gap.xs },
     currency: {
       color: t.calm,

@@ -219,7 +219,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-    body: { paddingHorizontal: gap.xs, paddingBottom: gap.md },
+    body: { paddingBottom: gap.md },
     headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
     headline: {
       fontFamily: serif.display,

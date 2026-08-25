@@ -154,7 +154,7 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-    body: { paddingHorizontal: gap.xs, paddingBottom: gap.xs },
+    body: { paddingBottom: gap.xs },
     eyebrow: { fontFamily: serif.displayItalic, fontSize: 13, color: t.muted },
     numberRow: { marginTop: 2, flexDirection: 'row', alignItems: 'baseline', gap: gap.xs },
     number: { fontFamily: serif.display, fontSize: 44, fontVariant: ['tabular-nums'] },

@@ -183,7 +183,7 @@ export function AddPlanSheet({ visible, onClose }: AddPlanSheetProps) {
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-    body: { paddingHorizontal: gap.xs, paddingBottom: gap.xs },
+    body: { paddingBottom: gap.xs },
     eyebrow: { fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase', color: t.muted },
     headline: {
       marginTop: gap.xs,

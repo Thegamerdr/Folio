@@ -322,7 +322,7 @@ function makeStyles(t: Palette) {
       paddingVertical: 10,
       width: 80,
     },
-    body: { paddingBottom: gap.sm, paddingHorizontal: gap.xs },
+    body: { paddingBottom: gap.sm },
     emptyLine: { marginTop: gap.lg + gap.xs },
     eyebrow: {
       color: t.muted,
