@@ -222,6 +222,7 @@
         }
       ]
     },
+    "business-empty": { "kind": "business-empty" },
     "business-sole-trader": { "kind": "business-sole-trader" },
     "business-ltd": { "kind": "business-ltd" },
     "empty": { "kind": "empty" },

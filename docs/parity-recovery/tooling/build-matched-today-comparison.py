@@ -126,15 +126,33 @@ def main() -> None:
     source_engine = source_metadata["engine"]
     source_state = source_engine["state"]
     source_route = source_engine["route"]
-    payday_event = next(
-        (event for event in source_engine["events"] if event["source"] == "payday"), None
-    )
-    payday_date = payday_event["date"] if payday_event is not None else None
-    days_to_payday = (
-        (date.fromisoformat(payday_date) - date.fromisoformat("2026-08-18")).days
-        if payday_date is not None
-        else None
-    )
+    personal_engine = isinstance(source_route, dict) and "balance" in source_state
+    if personal_engine:
+        payday_event = next(
+            (event for event in source_engine["events"] if event["source"] == "payday"), None
+        )
+        payday_date = payday_event["date"] if payday_event is not None else None
+        days_to_payday = (
+            (date.fromisoformat(payday_date) - date.fromisoformat("2026-08-18")).days
+            if payday_date is not None
+            else None
+        )
+        engine_invariants = {
+            "todayBalance": source_state["balance"]["amount"],
+            "tightestAmount": source_route["tightestSpare"],
+            "tightestDate": source_route["tightestDate"],
+            "daysToPayday": days_to_payday,
+            "paydayAmount": (
+                source_route["spareByDay"].get(payday_date)
+                if payday_date is not None
+                else None
+            ),
+        }
+    else:
+        engine_invariants = {
+            "businessState": source_state.get("businessState"),
+            "persistedBusinessState": source_state.get("persistedBusinessState"),
+        }
     metadata = {
         "comparisonKind": "matched-data-calibration",
         "status": "visual-parity-differences-remain",
@@ -164,15 +182,7 @@ def main() -> None:
         "rmsRgbDelta": round(rms, 4),
         "changedPixelFraction": round(changed_pixels / total_pixels, 6),
         "nonZeroDiffBoundingBoxPx": difference.getbbox(),
-        "engineInvariants": {
-            "todayBalance": source_state["balance"]["amount"],
-            "tightestAmount": source_route["tightestSpare"],
-            "tightestDate": source_route["tightestDate"],
-            "daysToPayday": days_to_payday,
-            "paydayAmount": (
-                source_route["spareByDay"].get(payday_date) if payday_date is not None else None
-            ),
-        },
+        "engineInvariants": engine_invariants,
         "interpretation": (
             "This is valid unscaled matched-state evidence. The metrics quantify the current "
             "native-versus-source output; the pair is not an automatic parity pass, and unresolved "

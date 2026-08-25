@@ -176,4 +176,13 @@ describe('visual parity fixture harness', () => {
     expect(ltd.business?.payrollRuns).toHaveLength(1);
     expect(ltd.accounts?.[0]?.balanceMinor).toBe(1_400_000);
   });
+
+  it('builds an active empty Business partition for first-cash-picture capture', () => {
+    const state = activate('business-empty');
+    const workspace = state.workspaces.find((item) => item.id === state.activeWorkspaceId);
+
+    expect(workspace).toMatchObject({ kind: 'business', name: 'Business' });
+    expect(state.business?.entity).toBeNull();
+    expect(state.accounts).toEqual([]);
+  });
 });

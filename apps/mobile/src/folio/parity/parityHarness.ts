@@ -440,6 +440,27 @@ function configureBusiness(kind: 'sole-trader' | 'ltd'): void {
   setMeloPrimerSeen(true);
 }
 
+function configureEmptyBusiness(): void {
+  const personal = createPersonalWorkspaceRoot().workspaces[0]!;
+  const business = createBusinessWorkspace({
+    id: 'workspace_business_parity_empty',
+    name: 'Business',
+    encryptedSubkeyId: 'workspace-subkey-business-parity-empty-v1',
+  });
+  const root = {
+    workspaces: [personal, business],
+    activeWorkspaceId: business.id,
+    dataWorkspaceId: business.id,
+  } as const;
+  const empty = createEmptyWorkspacePartition(
+    root,
+    business.id,
+    BUSINESS_ACCEPTANCE_NOW.toISOString(),
+  );
+  hydrateFromBlob(JSON.stringify(empty), business.id);
+  setMeloPrimerSeen(true);
+}
+
 /** Applies one deterministic state through real store authorities. Must run before persistence is
  *  started; app/index.tsx deliberately skips persistence entirely in capture mode. */
 export function activateParityHarness(config: ParityHarnessConfig): void {
@@ -447,6 +468,10 @@ export function activateParityHarness(config: ParityHarnessConfig): void {
 
   const fixture = fixtureManifest.fixtures[config.fixture];
 
+  if (config.fixture === 'business-empty') {
+    configureEmptyBusiness();
+    return;
+  }
   if (config.fixture === 'business-sole-trader') {
     configureBusiness('sole-trader');
     return;
