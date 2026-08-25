@@ -176,7 +176,10 @@ for (const batch of selectedBatches) {
       run(adb, ['-s', deviceId, 'logcat', '-c']);
       run(adb, [
         '-s', deviceId, 'shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW',
-        '-d', deepLink, '-p', PACKAGE,
+        // adb joins `shell` arguments for Android's remote shell. Quote the URI there so its `&`
+        // query separators cannot become shell operators; the quotes are consumed remotely and do
+        // not become part of the Intent data URI.
+        '-d', `'${deepLink}'`, '-p', PACKAGE,
       ]);
       await wait(manifest.settleMs ?? 900);
       const runtimeLog = run(adb, ['-s', deviceId, 'logcat', '-d', '-s', 'ReactNativeJS:I', '*:S']);
