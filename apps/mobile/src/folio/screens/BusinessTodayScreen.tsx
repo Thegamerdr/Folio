@@ -14,7 +14,6 @@ import { gap, pressed, radius, serif, useTheme } from '@/folio/theme';
 import { updateBusinessOperations, useAppStore } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
 import { formatMinor } from './business/BusinessUi';
-import { invoicedInYearMinor } from './business/businessTodayMetrics';
 import { useBusinessOperations } from './business/useBusinessOperations';
 
 export function BusinessTodayScreen({ nav }: { nav: Nav }) {
@@ -52,8 +51,6 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
     [business.vatReturns],
   );
   const vatLiabilityMinor = openVatReturn ? calculateVatBoxes(openVatReturn).box5Minor : 0;
-  const currentYear = new Date().getUTCFullYear().toString();
-  const invoicedThisYearMinor = invoicedInYearMinor(business.invoices, Number(currentYear));
   const accountCount = accounts.filter((account) => account.closed !== true).length;
   const hasCash = accountCount > 0;
   const entity = business.entity;
@@ -92,65 +89,79 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
           </View>
         </View>
 
-        <View style={styles.hero}>
+        <View style={styles.answer}>
           <Text style={[styles.eyebrow, { color: t.muted }]}>
             {entity ? `${entityName(entity)} · ${entityKind(entity)}` : workspace.name}
           </Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {entity === null
-              ? 'Build your working cash picture.'
-              : hasCash
-                ? 'Where the business stands today.'
-                : 'Start with the cash picture.'}
+            {hasCash ? (
+              runway.daysLeft === null ? (
+                <>
+                  The business is <Text style={{ color: t.calm }}>covered</Text> on what&apos;s due.
+                </>
+              ) : (
+                <>
+                  The business can pay what&apos;s due for{' '}
+                  <Text style={{ color: t.calm }}>
+                    {runway.daysLeft === 1 ? '1 day' : `${runway.daysLeft} days`}
+                  </Text>
+                  .
+                </>
+              )
+            ) : (
+              <>
+                Add what the business holds to see if it&apos;s{' '}
+                <Text style={{ color: t.calm }}>covered</Text>.
+              </>
+            )}
           </Text>
-          <Text style={[styles.intro, { color: t.muted }]}>
-            {entity === null
-              ? 'Pick Sole Trader or Limited Company first. Melo will then ask only for the records that belong here.'
-              : 'Cash, money due in, and the next obligations stay together. Nothing is counted until it is saved in this workspace.'}
+          <Text style={[styles.why, { color: t.muted }]}>
+            {hasCash
+              ? `${formatMinor(runway.cashMinor)} in hand, ${formatMinor(runway.incoming30Minor)} due in and ${formatMinor(runway.outgoing30Minor)} due out over the next 30 days.`
+              : "Nothing added yet, so there's no cash picture to work from."}
           </Text>
+          {hasCash ? (
+            <Text style={[styles.estimate, { color: t.muted }]}>
+              This is worked out from what you&apos;ve added, so treat it as a close guess.
+            </Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              nav.go(
+                hasCash && owedMinor > 0
+                  ? 'business-invoices'
+                  : hasCash
+                    ? 'business-runway'
+                    : 'account',
+              )
+            }
+            style={({ pressed: isPressed }) => [
+              styles.answerMove,
+              { backgroundColor: t.calm, opacity: isPressed ? 0.62 : 1 },
+            ]}
+          >
+            <Text style={[styles.answerMoveLabel, { color: t.inverse }]}>
+              {hasCash && owedMinor > 0
+                ? "Chase what's owed"
+                : hasCash
+                  ? 'Open cash runway'
+                  : 'Add what the business holds'}
+            </Text>
+          </Pressable>
         </View>
 
         {entity === null ? (
-          <View
-            style={[styles.entityNudge, { backgroundColor: t.repairSoft, borderColor: t.hairline }]}
-          >
-            <Text style={[styles.nudgeEyebrow, { color: t.repair }]}>First — the shape</Text>
-            <Text style={[styles.nudgeTitle, { color: t.ink }]}>
-              Sole Trader or Limited Company?
+          <View style={[styles.emptyExplanation, { borderTopColor: t.hairline }]}>
+            <Text style={[styles.emptyExplanationBody, { color: t.muted }]}>
+              Current cash, dated money in and committed money out — built only from amounts you
+              have checked.
             </Text>
-            <Text style={[styles.nudgeBody, { color: t.muted }]}>
-              The two work differently — tax, filings, how you pay yourself. Pick once and
-              everything else fits around it.
-            </Text>
-            <LinkAction
-              label="Pick a business type"
-              onPress={() => nav.go('business-entity-setup')}
-            />
           </View>
         ) : hasCash ? (
           <>
-            <View style={[styles.runway, { backgroundColor: t.inset }]}>
-              <Text style={[styles.nudgeEyebrow, { color: t.muted }]}>Cash runway</Text>
-              <Text style={[styles.runwayTitle, { color: t.ink }]}>
-                {runway.daysLeft === null
-                  ? 'Cash is steady.'
-                  : `Lasts ${runway.daysLeft === 1 ? '1 day' : `${runway.daysLeft} days`}.`}
-              </Text>
-              <Text style={[styles.runwayBody, { color: t.muted }]}>
-                {formatMinor(runway.cashMinor)} in hand · {formatMinor(runway.incoming30Minor)} due
-                in · {formatMinor(runway.outgoing30Minor)} due out in the next 30 days.
-              </Text>
-              <LinkAction label="Open runway" onPress={() => nav.go('business-runway')} />
-            </View>
-            {invoicedThisYearMinor > 0 || owedMinor > 0 || vatLiabilityMinor !== 0 ? (
-              <View style={styles.metricGrid}>
-                {invoicedThisYearMinor > 0 ? (
-                  <MetricCard
-                    label={`Invoiced · ${currentYear}`}
-                    onPress={() => nav.go('business-insights')}
-                    value={formatMinor(invoicedThisYearMinor)}
-                  />
-                ) : null}
+            {owedMinor > 0 || vatLiabilityMinor !== 0 ? (
+              <View style={[styles.metricStrip, { borderColor: t.hairline }]}>
                 {owedMinor > 0 ? (
                   <MetricCard
                     label="Owed to you"
@@ -169,14 +180,10 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
             ) : null}
           </>
         ) : (
-          <View style={[styles.emptyWell, { backgroundColor: t.inset }]}>
-            <Text style={[styles.nudgeEyebrow, { color: t.muted }]}>Your first business view</Text>
-            <Text style={[styles.nudgeTitle, { color: t.ink }]}>
-              See the next 35 days together.
-            </Text>
-            <Text style={[styles.nudgeBody, { color: t.muted }]}>
-              Current cash, dated money in and committed money out—built only from amounts you have
-              reviewed.
+          <View style={[styles.emptyExplanation, { borderTopColor: t.hairline }]}>
+            <Text style={[styles.emptyExplanationBody, { color: t.muted }]}>
+              Current cash, dated money in and committed money out — built only from amounts you
+              have checked.
             </Text>
           </View>
         )}
@@ -198,6 +205,13 @@ export function BusinessTodayScreen({ nav }: { nav: Nav }) {
             label="Ask Melo"
             onPress={() => nav.go('melo')}
           />
+          {entity === null ? (
+            <Action
+              hint="Sole trader or limited company — changes tax and filing dates"
+              label="Set the business type"
+              onPress={() => nav.go('business-entity-setup')}
+            />
+          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -210,19 +224,6 @@ function entityName(entity: BusinessEntity): string {
 
 function entityKind(entity: BusinessEntity): string {
   return entity.kind === 'ltd' ? 'Limited Company' : 'Sole Trader';
-}
-
-function LinkAction({ label, onPress }: { label: string; onPress: () => void }) {
-  const t = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed: isPressed }) => [styles.linkAction, { opacity: isPressed ? 0.62 : 1 }]}
-    >
-      <Text style={[styles.linkLabel, { color: t.calmStrong }]}>{label} →</Text>
-    </Pressable>
-  );
 }
 
 function MetricCard({
@@ -239,14 +240,7 @@ function MetricCard({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed: isPressed }) => [
-        styles.metricCard,
-        {
-          backgroundColor: t.surface,
-          borderColor: t.hairline,
-          opacity: isPressed ? 0.62 : 1,
-        },
-      ]}
+      style={({ pressed: isPressed }) => [styles.metricCard, { opacity: isPressed ? 0.62 : 1 }]}
     >
       <Text style={[styles.metricLabel, { color: t.muted }]}>{label}</Text>
       <Text style={[styles.metricValue, { color: t.ink }]}>{value}</Text>
@@ -297,9 +291,9 @@ function Action({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { paddingHorizontal: 28 },
+  content: { paddingHorizontal: 24 },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  headerDate: { fontFamily: serif.displayItalic, fontSize: 13 },
+  headerDate: { fontFamily: serif.displayItalic, fontSize: 14 },
   headerRight: { alignItems: 'center', flexDirection: 'row', gap: gap.sm },
   workspaceKind: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.7 },
   meloButton: {
@@ -310,43 +304,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 40,
   },
-  hero: { marginTop: gap.lg },
-  eyebrow: { fontFamily: serif.displayItalic, fontSize: 13 },
-  headline: {
-    fontFamily: serif.display,
-    fontSize: 32,
-    letterSpacing: -0.35,
-    lineHeight: 37,
-    marginTop: gap.xs,
-  },
-  intro: { fontSize: 13.5, lineHeight: 20, marginTop: gap.sm, maxWidth: 520 },
-  entityNudge: {
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginTop: gap.xl,
-    padding: gap.xl,
-  },
-  emptyWell: { borderRadius: radius.xl, marginTop: gap.xl, padding: gap.xl },
-  nudgeEyebrow: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    letterSpacing: 1,
+  answer: { marginTop: gap.lg },
+  eyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.54,
     textTransform: 'uppercase',
   },
-  nudgeTitle: { fontFamily: serif.medium, fontSize: 20, lineHeight: 25, marginTop: gap.sm },
-  nudgeBody: { fontSize: 13, lineHeight: 20, marginTop: gap.sm },
-  linkAction: { justifyContent: 'center', marginTop: gap.sm, minHeight: 44 },
-  linkLabel: { fontSize: 13, fontWeight: '600' },
-  runway: { borderRadius: radius.xl, marginTop: gap.xl, padding: gap.xl },
-  runwayTitle: { fontFamily: serif.medium, fontSize: 26, lineHeight: 30, marginTop: gap.sm },
-  runwayBody: { fontSize: 12.5, lineHeight: 19, marginTop: gap.sm },
-  metricGrid: { flexDirection: 'row', gap: gap.md, marginTop: gap.md },
+  headline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    letterSpacing: -0.56,
+    lineHeight: 32,
+    marginTop: gap.sm,
+  },
+  why: { fontSize: 14, lineHeight: 20, marginTop: gap.md },
+  estimate: { fontSize: 12.5, lineHeight: 20, marginTop: 6 },
+  answerMove: {
+    alignItems: 'center',
+    borderRadius: 12,
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  answerMoveLabel: { fontSize: 14, fontWeight: '600' },
+  emptyExplanation: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.xl,
+    paddingTop: gap.lg,
+  },
+  emptyExplanationBody: { fontSize: 14, lineHeight: 20 },
+  metricStrip: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    marginTop: gap.xl,
+  },
   metricCard: {
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     flex: 1,
-    minHeight: 86,
-    padding: gap.lg,
+    minHeight: 64,
+    paddingVertical: gap.md,
   },
   metricLabel: {
     fontSize: 10.5,

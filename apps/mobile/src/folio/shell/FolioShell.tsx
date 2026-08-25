@@ -47,6 +47,7 @@ import {
   Muted,
   PressureScreen,
   PrimaryAction,
+  serif,
   useTheme,
 } from '@/surfaces/pressureMap/kit';
 import {
@@ -293,8 +294,9 @@ const PLAN_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
 // `ReviewHubScreen` is therefore the persistent destination: it composes pending proposals,
 // confirmed activity and durable decisions without merging those authorities. `visualizer` and
 // `review-item` remain focused descendants.
-function activeTabForScreen(screen: ScreenId): ProductScreen {
+function activeTabForScreen(screen: ScreenId, business: boolean): ProductScreen {
   if (screen === 'today' || screen === 'today-after') return 'today';
+  if (business && PLAN_SUBTREE.has(screen)) return 'money';
   if (PLAN_SUBTREE.has(screen)) return 'plans';
   if (
     screen === 'timeline' ||
@@ -309,7 +311,9 @@ function activeTabForScreen(screen: ScreenId): ProductScreen {
 
 // The screen a bottom-tab press navigates to. The kit's Review tab (id `import`) opens the stable
 // Review hub; Timeline and the one-candidate review remain descendants of the same tab.
-function screenForTab(tab: ProductScreen): ScreenId {
+function screenForTab(tab: ProductScreen, business: boolean): ScreenId {
+  if (business && tab === 'money') return 'plan';
+  if (business && tab === 'import') return 'timeline';
   if (tab === 'plans') return 'plan';
   if (tab === 'import') return 'review';
   if (tab === 'more') return 'more';
@@ -407,6 +411,10 @@ export function FolioShell() {
   const onboardingDone = useAppStore((st) => st.onboarding.done);
   const pendingReviewCount = useAppStore((st) => st.reviewQueue?.length ?? 0);
   const activeWorkspaceId = useAppStore((st) => st.activeWorkspaceId);
+  const activeWorkspace = useAppStore((st) =>
+    st.workspaces.find((workspace) => workspace.id === st.activeWorkspaceId),
+  );
+  const businessWorkspaceActive = activeWorkspace?.kind === 'business';
   const tinyWins = useAppStore((st) => st.tinyWins);
   const milestoneSoundsEnabled = useAppStore((st) => st.melo?.soundEnabled === true);
   const feedbackQuietMode = useAppStore((st) => st.melo?.quietMode === true);
@@ -601,9 +609,15 @@ export function FolioShell() {
   }, [screen, onboardingDone, parity]);
 
   // The bottom-tab press maps the kit's ProductScreen id back to a web ScreenId, then navigates.
-  const onTabChange = useCallback((tab: ProductScreen) => go(screenForTab(tab)), [go]);
+  const onTabChange = useCallback(
+    (tab: ProductScreen) => go(screenForTab(tab, businessWorkspaceActive)),
+    [businessWorkspaceActive, go],
+  );
 
-  const activeTab = useMemo(() => activeTabForScreen(screen), [screen]);
+  const activeTab = useMemo(
+    () => activeTabForScreen(screen, businessWorkspaceActive),
+    [businessWorkspaceActive, screen],
+  );
 
   return (
     // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
@@ -642,11 +656,15 @@ export function FolioShell() {
               </ScreenErrorBoundary>
             </View>
             <ShellMeloCompanion screen={screen} nav={nav} />
+            {businessWorkspaceActive ? (
+              <BusinessWorkspaceBar label="Business" onPress={nav.openWorkspace} />
+            ) : null}
             <BottomNav
               key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
               active={activeTab}
               onChange={onTabChange}
               reviewCount={pendingReviewCount}
+              variant={businessWorkspaceActive ? 'business' : 'personal'}
             />
           </View>
           {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
@@ -748,10 +766,59 @@ export function FolioShell() {
   );
 }
 
+function BusinessWorkspaceBar({ label, onPress }: { label: string; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <View style={[businessWorkspaceStyles.bar, { backgroundColor: t.surface }]}>
+      <Pressable
+        accessibilityHint="Opens workspace switching and business workspace controls."
+        accessibilityLabel={`Business workspace: ${label}`}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed: isPressed }) => [
+          businessWorkspaceStyles.control,
+          isPressed ? { opacity: 0.62 } : undefined,
+        ]}
+      >
+        <View style={[businessWorkspaceStyles.dot, { backgroundColor: t.calm }]} />
+        <Text numberOfLines={1} style={[businessWorkspaceStyles.label, { color: t.ink }]}>
+          {label}
+        </Text>
+        <Text
+          accessibilityElementsHidden
+          style={[businessWorkspaceStyles.arrow, { color: t.calmStrong }]}
+        >
+          ↓
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const shellStyles = StyleSheet.create({
   root: { flex: 1 },
   routeFrame: { flex: 1 },
   screenHost: { flex: 1 },
+});
+
+const businessWorkspaceStyles = StyleSheet.create({
+  bar: {
+    alignItems: 'center',
+    height: 34,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  control: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 44,
+    maxWidth: 220,
+    paddingHorizontal: 12,
+  },
+  dot: { borderRadius: 999, height: 5, marginRight: 8, width: 5 },
+  label: { fontFamily: serif.displayItalic, fontSize: 12.5 },
+  arrow: { fontSize: 11, fontWeight: '600', marginLeft: 8 },
 });
 
 // ---------------------------------------------------------------------------

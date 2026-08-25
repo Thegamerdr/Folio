@@ -723,6 +723,13 @@ const NAV_TABS: readonly NavTab[] = [
   { id: 'more', label: 'More' },
 ];
 
+const BUSINESS_NAV_TABS: readonly NavTab[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'money', label: 'Money' },
+  { id: 'import', label: 'Review' },
+  { id: 'more', label: 'More' },
+];
+
 function NavIcon({ id, active, t }: { id: ProductScreen; active: boolean; t: Palette }) {
   const stroke = active ? t.calm : t.muted;
   if (id === 'today') {
@@ -756,6 +763,25 @@ function NavIcon({ id, active, t }: { id: ProductScreen; active: boolean; t: Pal
           strokeLinejoin="round"
           fill="none"
         />
+      </Svg>
+    );
+  }
+  if (id === 'money') {
+    // Lucide Banknote — exact pinned-source Business Money geometry.
+    return (
+      <Svg width={20} height={20} viewBox="0 0 24 24">
+        <Rect
+          x="2"
+          y="6"
+          width="20"
+          height="12"
+          rx="2"
+          stroke={stroke}
+          strokeWidth={1.6}
+          fill="none"
+        />
+        <Circle cx="12" cy="12" r="2" stroke={stroke} strokeWidth={1.6} fill="none" />
+        <Path d="M6 12h.01M18 12h.01" stroke={stroke} strokeWidth={1.6} strokeLinecap="round" />
       </Svg>
     );
   }
@@ -796,10 +822,12 @@ export function BottomNav({
   active,
   onChange,
   reviewCount = 0,
+  variant = 'personal',
 }: {
   active: ProductScreen;
   onChange: (screen: ProductScreen) => void;
   reviewCount?: number;
+  variant?: 'personal' | 'business';
 }) {
   // Expo's edge-to-edge Android window includes the system navigation area. Preserve the pinned
   // 68dp product tab band above that area, then extend only its background through the reported
@@ -809,6 +837,7 @@ export function BottomNav({
   const s = useMemo(() => makeStyles(t), [t]);
   const systemBottomInset = Math.max(0, insets.bottom);
   const navPaddingBottom = systemBottomInset > 0 ? systemBottomInset : 6;
+  const tabs = variant === 'business' ? BUSINESS_NAV_TABS : NAV_TABS;
 
   return (
     // Fabric can retain only the two tab children whose `selected` prop changed when the screen
@@ -820,12 +849,9 @@ export function BottomNav({
     <View
       collapsable={false}
       key={`bottom-nav-${active}`}
-      style={[
-        s.nav,
-        { height: NAV_HEIGHT + systemBottomInset, paddingBottom: navPaddingBottom },
-      ]}
+      style={[s.nav, { height: NAV_HEIGHT + systemBottomInset, paddingBottom: navPaddingBottom }]}
     >
-      {NAV_TABS.map((tab) => {
+      {tabs.map((tab) => {
         const selected = active === tab.id;
         return (
           <Pressable
