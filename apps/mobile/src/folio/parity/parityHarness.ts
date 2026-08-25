@@ -300,6 +300,9 @@ export function applyParityRuntimeControl(input: Readonly<{
 
   parityRuntimeSequence += 1;
   parityRuntimeControl = { screen, sheet, theme, sequence: parityRuntimeSequence };
+  // Capture-only diagnostics: no product/user data, only the requested deterministic surface.
+  // eslint-disable-next-line no-console
+  console.info('[parity-control]', JSON.stringify(parityRuntimeControl));
   for (const listener of parityRuntimeListeners) listener();
 }
 

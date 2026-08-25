@@ -403,6 +403,9 @@ export function FolioShell() {
 
   useEffect(() => {
     if (parity === null || parityRuntime === null) return;
+    // Capture-only diagnostics used by the bulk driver to reject stale route/sheet frames.
+    // eslint-disable-next-line no-console
+    console.info('[parity-shell]', JSON.stringify(parityRuntime));
     historyRef.current = [parityRuntime.screen];
     setWorkspaceSheetVisible(false);
     setMeloIntent(undefined);
