@@ -146,7 +146,13 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
   // the same Android system preference synchronously, which prevents even one unwanted animated
   // frame when Remove animations is already on.
   const systemReduceMotion = useSystemReducedMotion();
-  const shouldReduceMotion = reduceMotion === true || systemReduceMotion;
+  // Capture APKs are deterministic evidence artifacts, so they must paint the requested sheet at
+  // rest on the first committed frame. Besides removing timing variance from a 124-frame batch,
+  // this avoids Android/Fabric retaining the portal layer's initial off-screen transform when a
+  // deep link replaces one capture surface with another in the same activity. Ordinary builds keep
+  // the product animation unless the user has requested reduced motion.
+  const captureMode = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
+  const shouldReduceMotion = captureMode || reduceMotion === true || systemReduceMotion;
 
   // translateY animates the panel up from below; scrimOpacity fades the ink ground in.
   // Both are refs so they survive re-renders and we can drive them imperatively.
