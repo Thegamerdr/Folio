@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +9,63 @@ import type { Nav, ScreenId } from '@/folio/types';
 import { useBusinessOperations } from './business/useBusinessOperations';
 
 type BusinessRow = Readonly<{ label: string; hint: string; to: ScreenId }>;
+type BusinessGroup = Readonly<{ title: string; rows: readonly BusinessRow[] }>;
+
+function BusinessMoreGroup({ group, nav }: { group: BusinessGroup; nav: Nav }) {
+  const t = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const canCollapse = group.rows.length > 3;
+  const rows = expanded || !canCollapse ? group.rows : group.rows.slice(0, 3);
+
+  return (
+    <View>
+      <Text style={[styles.groupTitle, { color: t.muted }]}>{group.title}</Text>
+      <View style={[styles.group, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+        {rows.map((row, index) => (
+          <Pressable
+            accessibilityHint={row.hint}
+            accessibilityRole="button"
+            key={row.label}
+            onPress={() => nav.go(row.to)}
+            style={({ pressed }) => [
+              styles.row,
+              index > 0
+                ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
+                : undefined,
+              { opacity: pressed ? 0.62 : 1 },
+            ]}
+          >
+            <View style={styles.rowCopy}>
+              <Text style={[styles.rowLabel, { color: t.ink }]}>{row.label}</Text>
+              <Text style={[styles.rowHint, { color: t.muted }]}>{row.hint}</Text>
+            </View>
+            <Text accessibilityElementsHidden style={[styles.arrow, { color: t.calmStrong }]}>
+              ›
+            </Text>
+          </Pressable>
+        ))}
+        {canCollapse ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            onPress={() => setExpanded((value) => !value)}
+            style={({ pressed }) => [
+              styles.collapse,
+              {
+                borderTopColor: t.hairline,
+                opacity: pressed ? 0.62 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.collapseText, { color: t.calmStrong }]}>
+              {expanded ? 'Show fewer' : `See all (${group.rows.length})`} {expanded ? '↑' : '↓'}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
 
 export function BusinessMoreScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
@@ -16,75 +74,37 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
     (state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId)!,
   );
   const business = useBusinessOperations();
-  const groups: readonly Readonly<{ title: string; rows: readonly BusinessRow[] }>[] = [
+  const groups: readonly BusinessGroup[] = [
     {
-      title: 'Money',
+      title: 'Filings',
       rows: [
-        { label: 'Cash runway', hint: 'days of runway on current burn', to: 'business-runway' },
-        {
-          label: 'Clients',
-          hint: 'people and businesses behind your invoices',
-          to: 'business-clients',
-        },
-        { label: 'Invoices', hint: 'who owes you, and how late', to: 'business-invoices' },
-        { label: 'VAT return', hint: 'pot, boxes 1–9, next due', to: 'business-vat' },
-        {
-          label: 'Recurring money out',
-          hint: 'rent, payroll, software and loans',
-          to: 'business-obligations',
-        },
-        {
-          label: 'Deductions',
-          hint: 'mileage, home office, pension, CIS and IR35',
-          to: 'business-deductions',
-        },
         {
           label: 'Filings',
-          hint: 'VAT, Self-Assessment, CT600 and Companies House',
+          hint: 'VAT, Self-Assessment, Corporation Tax, Companies House',
           to: 'business-filings',
         },
+        { label: 'VAT return', hint: 'pot, boxes 1–9, next due', to: 'business-vat' },
         {
-          label: 'Insights',
-          hint: 'revenue, top clients and tax-year story',
-          to: 'business-insights',
+          label: 'VAT scheme chooser',
+          hint: 'standard vs flat rate side-by-side',
+          to: 'business-vat',
         },
+        ...(business.entity?.kind === 'ltd'
+          ? [
+              {
+                label: 'Companies House',
+                hint: 'Confirmation Statement, accounts due',
+                to: 'business-companies-house' as ScreenId,
+              },
+            ]
+          : []),
       ],
     },
     {
-      title: 'Business tools',
+      title: 'Payroll & tax',
       rows: [
-        {
-          label: 'Accounts & sources',
-          hint: 'business balances and where records come from',
-          to: 'account',
-        },
-        { label: 'Activity', hint: 'everything confirmed or corrected', to: 'timeline' },
-        { label: 'Read a document', hint: 'statements and receipts, reviewed first', to: 'intake' },
-        { label: 'Calendar', hint: 'business dates and reminders', to: 'calendar' },
-      ],
-    },
-    {
-      title: 'Melo & decisions',
-      rows: [
-        { label: 'Melo', hint: 'the companion on this business side', to: 'melo' },
-        { label: 'Plans', hint: 'dated business commitments', to: 'plans' },
-      ],
-    },
-    {
-      title: 'Workspace data',
-      rows: [
-        {
-          label: 'Data, export & recovery',
-          hint: 'export this workspace; device-wide controls are labelled',
-          to: 'privacy',
-        },
-      ],
-    },
-    ...(business.entity?.kind === 'ltd'
-      ? [
-          {
-            title: 'Limited Company tools',
-            rows: [
+        ...(business.entity?.kind === 'ltd'
+          ? [
               {
                 label: 'Corporation Tax',
                 hint: 'pot balance and next payment',
@@ -92,7 +112,7 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
               },
               {
                 label: 'Payroll',
-                hint: 'PAYE runs and HMRC liability',
+                hint: "monthly pay runs and what's owed after",
                 to: 'business-payroll' as ScreenId,
               },
               {
@@ -105,15 +125,76 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
                 hint: 'running balance and warnings',
                 to: 'business-dla' as ScreenId,
               },
-              {
-                label: 'Companies House',
-                hint: 'Confirmation Statement and accounts due',
-                to: 'business-companies-house' as ScreenId,
-              },
-            ],
-          },
-        ]
-      : []),
+            ]
+          : []),
+        {
+          label: 'Salary vs dividend',
+          hint: "director's take-home optimiser",
+          to: 'business-deductions',
+        },
+        {
+          label: 'Pension planner',
+          hint: 'employer contributions + CT relief',
+          to: 'business-deductions',
+        },
+        {
+          label: 'IR35 indicator',
+          hint: 'gut check across the five factors',
+          to: 'business-deductions',
+        },
+      ],
+    },
+    {
+      title: 'Workspace',
+      rows: [
+        { label: 'Cash runway', hint: 'days of runway on current burn', to: 'business-runway' },
+        { label: 'Invoices', hint: 'who owes you, and how late', to: 'business-invoices' },
+        {
+          label: 'Recurring money out',
+          hint: 'rent, payroll, software, loans',
+          to: 'business-obligations',
+        },
+        { label: 'Accounts', hint: 'business balances and account details', to: 'account' },
+        { label: 'Activity', hint: 'everything confirmed or corrected', to: 'timeline' },
+        {
+          label: 'Read a document',
+          hint: 'statements and receipts, reviewed first',
+          to: 'intake',
+        },
+        { label: 'Calendar', hint: 'business dates and reminders', to: 'calendar' },
+        { label: 'Melo', hint: 'the companion on this business side', to: 'melo' },
+        {
+          label: 'Clients',
+          hint: 'outstanding, past due, avg days to pay',
+          to: 'business-clients',
+        },
+        {
+          label: 'Mileage',
+          hint: '55p / 25p tally at HMRC simplified rates',
+          to: 'business-deductions',
+        },
+        {
+          label: 'Home office',
+          hint: 'simplified, actual or director £6/wk',
+          to: 'business-deductions',
+        },
+        {
+          label: 'Late payment ladder',
+          hint: 'polite → firm → statutory interest',
+          to: 'business-invoices',
+        },
+        {
+          label: 'Quote → invoice',
+          hint: 'accept a quote, raise the invoice',
+          to: 'business-invoices',
+        },
+        {
+          label: 'Data, export & recovery',
+          hint: 'export this workspace; device-wide controls are labelled',
+          to: 'privacy',
+        },
+      ],
+    },
     {
       title: 'Business type',
       rows: [
@@ -149,42 +230,12 @@ export function BusinessMoreScreen({ nav }: { nav: Nav }) {
           </View>
         </View>
         <Text style={[styles.intro, { color: t.muted }]}>
-          Accounts, activity, documents, dates and exports for this workspace.
+          Everything here opens a tool, not a decision. Nothing on this page is due.
         </Text>
 
         <View style={styles.groups}>
           {groups.map((group) => (
-            <View key={group.title}>
-              <Text style={[styles.groupTitle, { color: t.muted }]}>{group.title}</Text>
-              <View style={[styles.group, { backgroundColor: t.surface }]}>
-                {group.rows.map((row, index) => (
-                  <Pressable
-                    accessibilityHint={row.hint}
-                    accessibilityRole="button"
-                    key={row.label}
-                    onPress={() => nav.go(row.to)}
-                    style={({ pressed }) => [
-                      styles.row,
-                      index > 0
-                        ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
-                        : undefined,
-                      { opacity: pressed ? 0.62 : 1 },
-                    ]}
-                  >
-                    <View style={styles.rowCopy}>
-                      <Text style={[styles.rowLabel, { color: t.ink }]}>{row.label}</Text>
-                      <Text style={[styles.rowHint, { color: t.muted }]}>{row.hint}</Text>
-                    </View>
-                    <Text
-                      accessibilityElementsHidden
-                      style={[styles.arrow, { color: t.calmStrong }]}
-                    >
-                      →
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
+            <BusinessMoreGroup group={group} key={group.title} nav={nav} />
           ))}
         </View>
       </ScrollView>
@@ -222,16 +273,28 @@ const styles = StyleSheet.create({
     marginBottom: gap.sm,
     textTransform: 'uppercase',
   },
-  group: { borderRadius: radius.lg, overflow: 'hidden' },
+  group: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
   row: {
     alignItems: 'center',
     flexDirection: 'row',
-    minHeight: 66,
+    minHeight: 62,
     paddingHorizontal: gap.lg,
     paddingVertical: gap.md,
   },
   rowCopy: { flex: 1, paddingRight: gap.lg },
   rowLabel: { fontSize: 14.5, fontWeight: '600', lineHeight: 19 },
   rowHint: { fontSize: 12.5, lineHeight: 17, marginTop: 2 },
-  arrow: { fontSize: 18 },
+  arrow: { fontSize: 22, lineHeight: 24 },
+  collapse: {
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: gap.lg,
+  },
+  collapseText: { fontSize: 12.5, fontWeight: '600' },
 });

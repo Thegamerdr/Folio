@@ -657,7 +657,7 @@ export function FolioShell() {
             </View>
             <ShellMeloCompanion screen={screen} nav={nav} />
             {businessWorkspaceActive ? (
-              <BusinessWorkspaceBar label="Business" onPress={nav.openWorkspace} />
+              <BusinessWorkspaceBar label="Business" onPress={() => nav.openWorkspace?.()} />
             ) : null}
             <BottomNav
               key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
