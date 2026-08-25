@@ -121,6 +121,37 @@ const CALIBRATIONS = {
       },
     },
   },
+  melo: {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-3a99592/confirmed-safe/light/melo/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-3a99592/confirmed-safe/dark/melo/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/3a99592/confirmed-safe/light/melo/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/3a99592/confirmed-safe/dark/melo/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/3a99592/confirmed-safe/light/melo/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/3a99592/confirmed-safe/dark/melo/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason: 'Measured Light/Dark pixel differences remain after dedicated Melo composition calibration.',
+      consequence:
+        'Fine typography, Fenice halo/scale and lower-route content still require physical-S9 review.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 8.799,
+        darkMeanAbsoluteRgbDelta: 8.8246,
+      },
+    },
+  },
   more: {
     evidence: {
       lightSource:

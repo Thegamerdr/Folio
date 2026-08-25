@@ -1,0 +1,49 @@
+{
+  "comparisonKind": "matched-data-calibration",
+  "status": "visual-parity-differences-remain",
+  "acceptanceEvidenceEligible": true,
+  "fixtureId": "confirmed-safe",
+  "theme": "dark",
+  "screen": "melo",
+  "fixtureSchemaVersion": 1,
+  "sourceSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "nativeSha": "3a9959274990b3fdc56a06b6e812cb4cd8f67c4b",
+  "captureApkSha256": "95298E8E93DAD2E5D55BA189DA2A05B64DDE745363357EAB31486D5609502A50",
+  "captureDeviceId": "emulator-5570",
+  "fixedNow": "2026-08-18T08:00:00.000Z",
+  "locale": "en-GB",
+  "timeZone": "UTC",
+  "productViewportPhysicalPx": {
+    "width": 1080,
+    "height": 2004
+  },
+  "productViewportLogicalDp": {
+    "width": 360,
+    "height": 668
+  },
+  "sourceWasResized": false,
+  "nativeWasResized": false,
+  "nativeProductCropInFullPx": {
+    "left": 0,
+    "top": 72,
+    "right": 1080,
+    "bottom": 2076
+  },
+  "meanAbsoluteRgbDelta": 8.8246,
+  "rmsRgbDelta": 33.9928,
+  "changedPixelFraction": 0.879385,
+  "nonZeroDiffBoundingBoxPx": [
+    0,
+    0,
+    1080,
+    2004
+  ],
+  "engineInvariants": {
+    "todayBalance": 1480,
+    "tightestAmount": 1292,
+    "tightestDate": "2026-08-22",
+    "daysToPayday": 10,
+    "paydayAmount": 3892
+  },
+  "interpretation": "This is valid unscaled matched-state evidence. The metrics quantify the current native-versus-source output; the pair is not an automatic parity pass, and unresolved visual differences remain subject to calibration and owner review."
+}
