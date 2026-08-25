@@ -2,7 +2,7 @@
   "$schema": "melo-native-shipping-surface-registry/v1",
   "generatedFrom": {
     "nativeRepository": "Thegamerdr/Folio",
-    "nativeCommit": "c5f2438960a29680c5458c573ac4d070f243e3d3",
+    "nativeCommit": "e4faa6012bbf033adcc3d676b7fbf9902c06d37c",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRepository": "Thegamerdr/private-money-pilot",
     "designCommit": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
@@ -266,7 +266,7 @@
       "stableId": "screen.review",
       "routeKey": "review",
       "componentSource": "apps/mobile/src/folio/screens/ReviewHubScreen.tsx#ReviewHubScreen",
-      "workspace": "shared",
+      "workspace": "personal",
       "themeHandling": "theme-provider",
       "dataStateDependencies": [
         "reviewQueue",
@@ -360,6 +360,27 @@
         "business-review-pending"
       ],
       "designOwnerHints": ["src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessToday"]
+    },
+    {
+      "stableId": "screen.business-review",
+      "routeKey": "business-review",
+      "componentSource": "apps/mobile/src/folio/screens/BusinessReviewScreen.tsx#BusinessReviewScreen",
+      "workspace": "business",
+      "themeHandling": "theme-provider",
+      "dataStateDependencies": [
+        "active business workspace",
+        "reader candidates and review queues",
+        "business transactions",
+        "native intake and privacy authorities"
+      ],
+      "states": [
+        "needs-empty",
+        "needs-populated",
+        "activity-empty",
+        "activity-populated",
+        "documents"
+      ],
+      "designOwnerHints": ["src/components/folio/screens/ScreenBusinessReviewHub.tsx#ScreenBusinessReviewHub"]
     },
     {
       "stableId": "screen.today-mode",
@@ -2779,6 +2800,6 @@
     "appOwnedDialogs": 61,
     "platformOwnedSurfaces": 6,
     "globalStates": 8,
-    "totalRegisteredSurfaces": 188
+    "totalRegisteredSurfaces": 189
   }
 }

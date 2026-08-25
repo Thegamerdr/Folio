@@ -15,15 +15,15 @@
     "missingEvidenceIsNotAPass": true
   },
   "counts": {
-    "nativeShippingSurfaces": 188,
-    "exactDesignOwnersResolved": 166,
+    "nativeShippingSurfaces": 189,
+    "exactDesignOwnersResolved": 167,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 11,
+    "surfacesWithDirectComparison": 12,
     "surfacesMissingDirectComparison": 177,
-    "comparisonCount": 14,
-    "lightComparisonCount": 7,
-    "darkComparisonCount": 7,
-    "designSurfacesNotMappedToNativeShippingSurface": 40
+    "comparisonCount": 16,
+    "lightComparisonCount": 8,
+    "darkComparisonCount": 8,
+    "designSurfacesNotMappedToNativeShippingSurface": 39
   },
   "entries": [
     {
@@ -4466,6 +4466,67 @@
       "finalStatus": "missing-direct-visual-comparison"
     },
     {
+      "stableId": "screen.business-review",
+      "kind": "screen",
+      "native": {
+        "routeKey": "business-review",
+        "componentSource": "apps/mobile/src/folio/screens/BusinessReviewScreen.tsx#BusinessReviewScreen",
+        "workspace": "business",
+        "states": [
+          "needs-empty",
+          "needs-populated",
+          "activity-empty",
+          "activity-populated",
+          "documents"
+        ]
+      },
+      "design": {
+        "owners": [
+          {
+            "stableId": "screen:business-review",
+            "kind": "screen",
+            "routeKey": "business-review",
+            "sourceReference": "src/components/folio/screens/ScreenBusinessReviewHub.tsx#ScreenBusinessReviewHub",
+            "keyStates": [
+              "nothing-needs-decision"
+            ],
+            "resolution": "exact-route-key"
+          }
+        ],
+        "ownerStatus": "resolved"
+      },
+      "matchedFixtures": [
+        "business-empty",
+        "business-sole-trader",
+        "business-ltd"
+      ],
+      "evidence": {
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-review/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-review/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-e4faa60/business-empty/light/business-review/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-e4faa60/business-empty/dark/business-review/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/e4faa60/business-empty/light/business-review/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/e4faa60/business-empty/dark/business-review/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/e4faa60/business-empty/light/business-review/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/e4faa60/business-empty/dark/business-review/absolute-difference.png"
+        ],
+        "comparisonCount": 2
+      },
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business Review root, type and geometry calibration.",
+          "consequence": "Companion choreography and fine text/material rasterisation still require physical-S9 owner review; child destinations resolve to real native intake, activity, insights and privacy authorities.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 14.4627,
+            "darkMeanAbsoluteRgbDelta": 14.2403
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
+    },
+    {
       "stableId": "screen.business-runway",
       "kind": "screen",
       "native": {
@@ -5487,7 +5548,7 @@
       "native": {
         "routeKey": "review",
         "componentSource": "apps/mobile/src/folio/screens/ReviewHubScreen.tsx#ReviewHubScreen",
-        "workspace": "shared",
+        "workspace": "personal",
         "states": [
           "pending-populated",
           "pending-empty",
@@ -9323,12 +9384,6 @@
       "kind": "screen",
       "routeKey": "correction-ledger",
       "sourceReference": "src/components/folio/screens/ScreenCorrectionLedger.tsx#ScreenCorrectionLedger"
-    },
-    {
-      "stableId": "screen:business-review",
-      "kind": "screen",
-      "routeKey": "business-review",
-      "sourceReference": "src/components/folio/screens/ScreenBusinessReviewHub.tsx#ScreenBusinessReviewHub"
     },
     {
       "stableId": "screen:business-melo",

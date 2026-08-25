@@ -63,7 +63,11 @@ function resolveDesignOwners(kind, entry) {
 }
 
 function fixturesFor(entry) {
-  if (entry.routeKey === 'business-today' || entry.routeKey === 'business-more') {
+  if (
+    entry.routeKey === 'business-today' ||
+    entry.routeKey === 'business-review' ||
+    entry.routeKey === 'business-more'
+  ) {
     return ['business-empty', 'business-sole-trader', 'business-ltd'];
   }
   if (entry.workspace === 'business' || entry.routeKey?.startsWith('business-')) {
@@ -94,6 +98,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-review': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-review/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-review/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-e4faa60/business-empty/light/business-review/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-e4faa60/business-empty/dark/business-review/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/e4faa60/business-empty/light/business-review/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/e4faa60/business-empty/dark/business-review/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/e4faa60/business-empty/light/business-review/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/e4faa60/business-empty/dark/business-review/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Review root, type and geometry calibration.',
+      consequence:
+        'Companion choreography and fine text/material rasterisation still require physical-S9 owner review; child destinations resolve to real native intake, activity, insights and privacy authorities.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 14.4627,
+        darkMeanAbsoluteRgbDelta: 14.2403,
+      },
+    },
+  },
   'business-more': {
     evidence: {
       lightSource:
