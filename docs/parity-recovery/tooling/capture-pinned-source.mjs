@@ -372,8 +372,13 @@ try {
       });
       glass.appendChild(mount);
 
-      const React = await import('/@id/react');
-      const { createRoot } = await import('/@id/react-dom/client');
+      const ReactModule = await import('/@id/react');
+      const React = ReactModule.default ?? ReactModule;
+      const ReactDomClient = await import('/@id/react-dom/client');
+      const createRoot = ReactDomClient.createRoot ?? ReactDomClient.default?.createRoot;
+      if (typeof createRoot !== 'function') {
+        throw new Error('Pinned source ReactDOM createRoot export is missing.');
+      }
       const root = createRoot(mount);
       const element = React.createElement;
 

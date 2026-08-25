@@ -76,6 +76,7 @@ test('resolved global, screen and stack outliers have deterministic capture defi
   assert.match(sourceBatchDriver, /--global=\$\{job\.globalSurface\}/u);
   assert.match(sourceBatchDriver, /readArg\('batch', ''\)/u);
   assert.match(sourceBatchDriver, /batchFilters\.has\(batch\.id\)/u);
+  assert.match(sourceDriver, /ReactDomClient\.createRoot \?\? ReactDomClient\.default\?\.createRoot/u);
   for (const sourceGlobal of [
     'boot-splash',
     'persistence-degraded',
