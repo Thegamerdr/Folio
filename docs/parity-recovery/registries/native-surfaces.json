@@ -2,7 +2,7 @@
   "$schema": "melo-native-shipping-surface-registry/v1",
   "generatedFrom": {
     "nativeRepository": "Thegamerdr/Folio",
-    "nativeCommit": "3419ef57c9f083546625c757528a677af70e9b0d",
+    "nativeCommit": "b8bee0890b1460125e49f4305ce2bd31ebf41c5d",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRepository": "Thegamerdr/private-money-pilot",
     "designCommit": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
@@ -471,20 +471,15 @@
       "stableId": "screen.melo",
       "routeKey": "melo",
       "componentSource": "apps/mobile/src/folio/screens/MeloScreen.tsx#MeloScreen",
-      "workspace": "personal|business",
+      "workspace": "personal",
       "themeHandling": "theme-provider",
-      "workspaceComponents": {
-        "personal": ["apps/mobile/src/folio/screens/MeloScreen.tsx#MeloScreen"],
-        "business": ["apps/mobile/src/folio/screens/BusinessMeloScreen.tsx#BusinessMeloScreen"]
-      },
       "dataStateDependencies": [
         "state prop",
         "active workspace",
         "companion memory/presence",
         "moneyMode",
         "route projection",
-        "quiet mode",
-        "business operations"
+        "quiet mode"
       ],
       "states": [
         "personal-populated",
@@ -493,13 +488,31 @@
         "personal-error",
         "personal-offline",
         "personal-context-open",
-        "personal-intro-open",
+        "personal-intro-open"
+      ],
+      "designOwnerHints": ["src/components/folio/screens/ScreenMelo.tsx"]
+    },
+    {
+      "stableId": "screen.business-melo",
+      "routeKey": "business-melo",
+      "componentSource": "apps/mobile/src/folio/screens/BusinessMeloScreen.tsx#BusinessMeloScreen",
+      "workspace": "business",
+      "themeHandling": "theme-provider",
+      "dataStateDependencies": [
+        "active business workspace",
+        "business accounts and cash runway",
+        "invoices, VAT returns and recurring obligations",
+        "business memory",
+        "companion presence and quiet mode"
+      ],
+      "states": [
+        "business-empty",
         "business-populated",
         "business-memory-empty",
-        "business-context-open"
+        "business-context-open",
+        "business-quiet-mode"
       ],
       "designOwnerHints": [
-        "src/components/folio/screens/ScreenMelo.tsx",
         "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMelo"
       ]
     },
@@ -2804,11 +2817,11 @@
   "counts": {
     "stackRoutes": 2,
     "tabs": 4,
-    "screens": 55,
+    "screens": 56,
     "sheetsAndEmbeddedModals": 52,
     "appOwnedDialogs": 61,
     "platformOwnedSurfaces": 6,
     "globalStates": 8,
-    "totalRegisteredSurfaces": 190
+    "totalRegisteredSurfaces": 191
   }
 }

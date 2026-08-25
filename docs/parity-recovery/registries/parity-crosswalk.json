@@ -15,15 +15,15 @@
     "missingEvidenceIsNotAPass": true
   },
   "counts": {
-    "nativeShippingSurfaces": 190,
-    "exactDesignOwnersResolved": 168,
+    "nativeShippingSurfaces": 191,
+    "exactDesignOwnersResolved": 169,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 13,
+    "surfacesWithDirectComparison": 14,
     "surfacesMissingDirectComparison": 177,
-    "comparisonCount": 18,
-    "lightComparisonCount": 9,
-    "darkComparisonCount": 9,
-    "designSurfacesNotMappedToNativeShippingSurface": 39
+    "comparisonCount": 20,
+    "lightComparisonCount": 10,
+    "darkComparisonCount": 10,
+    "designSurfacesNotMappedToNativeShippingSurface": 38
   },
   "entries": [
     {
@@ -4319,6 +4319,65 @@
       "finalStatus": "missing-direct-visual-comparison"
     },
     {
+      "stableId": "screen.business-melo",
+      "kind": "screen",
+      "native": {
+        "routeKey": "business-melo",
+        "componentSource": "apps/mobile/src/folio/screens/BusinessMeloScreen.tsx#BusinessMeloScreen",
+        "workspace": "business",
+        "states": [
+          "business-empty",
+          "business-populated",
+          "business-memory-empty",
+          "business-context-open",
+          "business-quiet-mode"
+        ]
+      },
+      "design": {
+        "owners": [
+          {
+            "stableId": "screen:business-melo",
+            "kind": "screen",
+            "routeKey": "business-melo",
+            "sourceReference": "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMelo",
+            "keyStates": [],
+            "resolution": "exact-route-key"
+          }
+        ],
+        "ownerStatus": "resolved"
+      },
+      "matchedFixtures": [
+        "business-empty",
+        "business-sole-trader",
+        "business-ltd"
+      ],
+      "evidence": {
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-melo/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-melo/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-b8bee08/business-empty/light/business-melo/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-b8bee08/business-empty/dark/business-melo/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/b8bee08/business-empty/light/business-melo/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/b8bee08/business-empty/dark/business-melo/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/b8bee08/business-empty/light/business-melo/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/b8bee08/business-empty/dark/business-melo/absolute-difference.png"
+        ],
+        "comparisonCount": 2
+      },
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business Melo type, rhythm and companion-perch calibration.",
+          "consequence": "The pinned source capture includes an introductory companion speech bubble that the acknowledged native companion does not repeat; fine text, material and sprite rasterisation still require physical-S9 owner review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 12.3622,
+            "darkMeanAbsoluteRgbDelta": 12.5449
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
+    },
+    {
       "stableId": "screen.business-money",
       "kind": "screen",
       "native": {
@@ -5031,7 +5090,7 @@
       "native": {
         "routeKey": "melo",
         "componentSource": "apps/mobile/src/folio/screens/MeloScreen.tsx#MeloScreen",
-        "workspace": "personal|business",
+        "workspace": "personal",
         "states": [
           "personal-populated",
           "personal-loading",
@@ -5039,10 +5098,7 @@
           "personal-error",
           "personal-offline",
           "personal-context-open",
-          "personal-intro-open",
-          "business-populated",
-          "business-memory-empty",
-          "business-context-open"
+          "personal-intro-open"
         ]
       },
       "design": {
@@ -9443,12 +9499,6 @@
       "kind": "screen",
       "routeKey": "correction-ledger",
       "sourceReference": "src/components/folio/screens/ScreenCorrectionLedger.tsx#ScreenCorrectionLedger"
-    },
-    {
-      "stableId": "screen:business-melo",
-      "kind": "screen",
-      "routeKey": "business-melo",
-      "sourceReference": "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMelo"
     },
     {
       "stableId": "screen:business-account",

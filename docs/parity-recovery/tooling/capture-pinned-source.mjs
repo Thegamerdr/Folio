@@ -106,7 +106,11 @@ vite.stderr.on('data', (chunk) => {
 let browser;
 try {
   await waitForServer(BASE_URL);
-  browser = await chromium.launch({ headless: true, executablePath: CHROMIUM_EXECUTABLE });
+  browser = await chromium.launch({
+    headless: true,
+    executablePath: CHROMIUM_EXECUTABLE,
+    args: ['--disable-gpu', '--disable-dev-shm-usage'],
+  });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 1800 },
     deviceScaleFactor: 3,
@@ -394,7 +398,10 @@ try {
     screen,
   );
   await mkdir(outDir, { recursive: true });
-  await locator.screenshot({ path: path.join(outDir, 'source-frame-1104x2160.png') });
+  await page.screenshot({
+    path: path.join(outDir, 'source-frame-1104x2160.png'),
+    clip: { x: box.x, y: box.y, width: OUTER_FRAME.width, height: OUTER_FRAME.height },
+  });
   await page.screenshot({
     path: path.join(outDir, 'source-product-1080x2004.png'),
     clip: {

@@ -67,6 +67,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-today' ||
     entry.routeKey === 'business-review' ||
     entry.routeKey === 'business-money' ||
+    entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
   ) {
     return ['business-empty', 'business-sole-trader', 'business-ltd'];
@@ -99,6 +100,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-melo': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-melo/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-melo/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-b8bee08/business-empty/light/business-melo/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-b8bee08/business-empty/dark/business-melo/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/b8bee08/business-empty/light/business-melo/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/b8bee08/business-empty/dark/business-melo/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/b8bee08/business-empty/light/business-melo/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/b8bee08/business-empty/dark/business-melo/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Melo type, rhythm and companion-perch calibration.',
+      consequence:
+        'The pinned source capture includes an introductory companion speech bubble that the acknowledged native companion does not repeat; fine text, material and sprite rasterisation still require physical-S9 owner review.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 12.3622,
+        darkMeanAbsoluteRgbDelta: 12.5449,
+      },
+    },
+  },
   'business-money': {
     evidence: {
       lightSource:
