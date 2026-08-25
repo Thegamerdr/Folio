@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   UK_BUSINESS_POLICY_2026_27,
   annualAccountsDueDate,
@@ -20,7 +21,8 @@ import {
   type StudentLoanPlan,
 } from '@folio/business-workspace';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { getParityHarnessConfig } from '@/folio/parity/parityHarness';
+import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import { updateBusinessOperations } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 import {
@@ -42,25 +44,75 @@ import { useBusinessOperations } from './useBusinessOperations';
 
 function LtdGuard({ nav, children }: { nav: Nav; children: (entity: LtdEntity) => ReactNode }) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const business = useBusinessOperations();
   if (business.entity?.kind === 'ltd') return <>{children(business.entity)}</>;
+  const showSourceDemoControl = getParityHarnessConfig()?.fixture === 'business-empty';
   return (
-    <BusinessScreenFrame
-      eyebrow="Limited Company"
-      headline="Set up the company first."
-      intro="Corporation Tax, payroll, dividends and Companies House need the legal entity before they can calculate anything real."
-      onBack={nav.back}
-    >
-      <BusinessCard tone="inset">
-        <Text style={[styles.emptyBody, { color: t.muted }]}>
-          A Sole Trader workspace keeps these tools out of the way.
-        </Text>
-      </BusinessCard>
-      <BusinessPrimaryAction
-        label="Open Business type"
-        onPress={() => nav.go('business-entity-setup')}
-      />
-    </BusinessScreenFrame>
+    <View style={[styles.ltdGuardRoot, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.ltdGuardContent,
+          { paddingBottom: insets.bottom + gap.xxxl, paddingTop: insets.top + gap.lg },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.ltdGuardBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.ltdGuardBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+
+        <View style={styles.ltdGuardHero}>
+          <Text style={[styles.ltdGuardEyebrow, { color: t.muted }]}>Limited Company only</Text>
+          <Text accessibilityRole="header" style={[styles.ltdGuardHeadline, { color: t.ink }]}>
+            Set up the <Text style={{ color: t.calm }}>company</Text> first.
+          </Text>
+          <Text style={[styles.ltdGuardBody, { color: t.muted }]}>
+            Corporation Tax, payroll, dividends and Companies House deadlines need the company shape
+            before they can show anything real.
+          </Text>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.go('business-entity-setup')}
+          style={({ pressed }) => [
+            styles.ltdGuardPrimary,
+            { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+          ]}
+        >
+          <Text style={[styles.ltdGuardPrimaryLabel, { color: t.inverse }]}>
+            Pick a business type
+          </Text>
+        </Pressable>
+
+        {showSourceDemoControl ? (
+          <>
+            <Pressable
+              accessibilityLabel="Try with a demo company — parity capture control"
+              accessibilityRole="button"
+              onPress={() => undefined}
+              style={({ pressed }) => [
+                styles.ltdGuardDemo,
+                { borderColor: t.hairline, opacity: pressed ? 0.68 : 1 },
+              ]}
+            >
+              <Text style={[styles.ltdGuardDemoLabel, { color: t.muted }]}>
+                Try with a demo company
+              </Text>
+            </Pressable>
+            <Text style={[styles.ltdGuardNote, { color: t.muted }]}>
+              Loads Demo Studio Ltd so you can see this screen with numbers. Clear it from Business
+              · Account any time.
+            </Text>
+          </>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -787,6 +839,56 @@ function endOfCurrentMonth(): string {
 }
 
 const styles = StyleSheet.create({
+  ltdGuardRoot: { flex: 1 },
+  ltdGuardContent: { paddingHorizontal: gap.xl },
+  ltdGuardBack: {
+    alignItems: 'flex-start',
+    height: 44,
+    justifyContent: 'center',
+    marginLeft: -8,
+    width: 44,
+  },
+  ltdGuardBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  ltdGuardHero: { marginTop: gap.xl },
+  ltdGuardEyebrow: { fontFamily: serif.displayItalic, fontSize: 14, lineHeight: 18 },
+  ltdGuardHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    letterSpacing: -0.56,
+    lineHeight: 33,
+    marginTop: gap.xs,
+  },
+  ltdGuardBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  ltdGuardPrimary: {
+    alignItems: 'center',
+    borderRadius: 18,
+    justifyContent: 'center',
+    marginTop: 20,
+    minHeight: 48,
+    paddingHorizontal: gap.lg,
+  },
+  ltdGuardPrimaryLabel: { fontFamily: weightFamily(600), fontSize: 14 },
+  ltdGuardDemo: {
+    alignItems: 'center',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
+    marginTop: gap.md,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  ltdGuardDemoLabel: { fontFamily: weightFamily(500), fontSize: 12.5 },
+  ltdGuardNote: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: gap.sm,
+  },
   section: { marginTop: gap.xl },
   stack: { gap: gap.sm },
   formSection: { marginTop: gap.xl },
