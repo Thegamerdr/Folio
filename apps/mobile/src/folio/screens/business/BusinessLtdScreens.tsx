@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
   ltdGuardHeadline: {
     fontFamily: serif.display,
     fontSize: 28,
-    letterSpacing: -0.56,
+    letterSpacing: -0.9,
     lineHeight: 33,
     marginTop: gap.xs,
   },
