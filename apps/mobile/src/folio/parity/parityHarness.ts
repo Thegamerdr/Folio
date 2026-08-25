@@ -278,7 +278,10 @@ function applyParityRuntimeUrl(url: string): void {
   } catch {
     return;
   }
-  if (parsed.protocol !== 'folio:' || parsed.hostname !== 'parity') return;
+  if (
+    parsed.protocol !== 'folio:' ||
+    (parsed.hostname !== 'parity' && parsed.searchParams.get('capture') !== '1')
+  ) return;
 
   const screenValue = parsed.searchParams.get('screen') ?? undefined;
   const sheetValue = parsed.searchParams.get('sheet') ?? undefined;

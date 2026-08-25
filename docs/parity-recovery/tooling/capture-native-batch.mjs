@@ -125,7 +125,7 @@ for (const batch of manifest.batches) {
       const screen = surface.nativeScreen ?? surface.screen;
       const sheet = surface.nativeSheet ?? surface.sheet ?? 'none';
       const surfaceId = surface.id ?? surface.screen;
-      const deepLink = `folio://parity?screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&theme=${theme}`;
+      const deepLink = `folio:///?capture=1&screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&theme=${theme}`;
       run(adb, [
         '-s', deviceId, 'shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW',
         '-d', `'${deepLink}'`, '-p', PACKAGE,
