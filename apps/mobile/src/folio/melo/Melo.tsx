@@ -27,7 +27,15 @@
 // --accent-soft → calmSoft · --positive → positive · --negative → repair.
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Image,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -371,9 +379,9 @@ function Ember({ index, size, speedMs }: { index: number; size: number; speedMs:
 }
 
 // ---------------------------------------------------------------------------
-// 3. Phoenix body — floats + tilts, cross-fades 420ms between the previous and current pose
-// sprite so a worried -> calm transition reads as relief, not an asset swap. Honours reduce-motion
-// (instant swap, no fade, no float).
+// 3. Phoenix body — one static approved master inside the animated gesture wrapper. Mood changes
+// only the wrapper's float, tilt and scale; there is no sprite swap to cross-fade. Honours
+// reduce-motion by disabling the float.
 // ---------------------------------------------------------------------------
 
 function PhoenixBody({
@@ -389,28 +397,7 @@ function PhoenixBody({
   showGlow: boolean;
   effGlow: number;
 }) {
-  const [prevSrc, setPrevSrc] = useState<number | null>(null);
-  const lastSrc = useRef(spec.src);
-  const crossFade = useRef(new Animated.Value(1)).current;
   const float = useRef(new Animated.Value(0)).current;
-
-  // Pose cross-fade.
-  useEffect(() => {
-    if (lastSrc.current === spec.src) return;
-    if (reduceMotion) {
-      lastSrc.current = spec.src;
-      return;
-    }
-    setPrevSrc(lastSrc.current);
-    lastSrc.current = spec.src;
-    crossFade.setValue(0);
-    Animated.timing(crossFade, {
-      toValue: 1,
-      duration: 420,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }).start(() => setPrevSrc(null));
-  }, [spec.src, reduceMotion, crossFade]);
 
   // Slow float loop (per-mood amplitude/speed).
   useEffect(() => {
@@ -448,40 +435,22 @@ function PhoenixBody({
   const shadowOpacity = showGlow ? 0.2 + effGlow * 0.35 : 0;
 
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size }}>
-      {prevSrc !== null ? (
-        <Animated.Image
-          source={prevSrc}
-          resizeMode="contain"
-          style={{
-            position: 'absolute',
-            width: size,
-            height: size,
-            opacity: crossFade.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-            transform: poseTransform,
-            shadowColor: 'rgb(224,99,58)',
-            shadowOpacity,
-            shadowRadius: size * 0.06,
-            shadowOffset: { width: 0, height: size * 0.03 },
-          }}
-        />
-      ) : null}
-      <Animated.Image
-        source={spec.src}
-        resizeMode="contain"
-        style={{
-          position: 'absolute',
-          width: size,
-          height: size,
-          opacity: reduceMotion ? 1 : crossFade,
-          transform: poseTransform,
-          shadowColor: 'rgb(224,99,58)',
-          shadowOpacity,
-          shadowRadius: size * 0.06,
-          shadowOffset: { width: 0, height: size * 0.03 },
-        }}
-      />
-    </View>
+    <Animated.View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: size,
+        height: size,
+        transform: poseTransform,
+        shadowColor: 'rgb(224,99,58)',
+        shadowOpacity,
+        shadowRadius: size * 0.06,
+        shadowOffset: { width: 0, height: size * 0.03 },
+      }}
+    >
+      <Image source={spec.src} resizeMode="contain" style={{ width: size, height: size }} />
+    </Animated.View>
   );
 }
 
