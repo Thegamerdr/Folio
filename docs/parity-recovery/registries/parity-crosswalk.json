@@ -18,11 +18,11 @@
     "nativeShippingSurfaces": 192,
     "exactDesignOwnersResolved": 170,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 15,
-    "surfacesMissingDirectComparison": 177,
-    "comparisonCount": 22,
-    "lightComparisonCount": 11,
-    "darkComparisonCount": 11,
+    "surfacesWithDirectComparison": 16,
+    "surfacesMissingDirectComparison": 176,
+    "comparisonCount": 24,
+    "lightComparisonCount": 12,
+    "darkComparisonCount": 12,
     "designSurfacesNotMappedToNativeShippingSurface": 37
   },
   "entries": [
@@ -3957,21 +3957,35 @@
         "ownerStatus": "resolved"
       },
       "matchedFixtures": [
+        "business-empty",
         "business-sole-trader",
         "business-ltd"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-entity-setup/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-entity-setup/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-e91b580/business-empty/light/business-entity-setup/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-e91b580/business-empty/dark/business-entity-setup/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/e91b580/business-empty/light/business-entity-setup/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/e91b580/business-empty/dark/business-entity-setup/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/e91b580/business-empty/light/business-entity-setup/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/e91b580/business-empty/dark/business-entity-setup/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business Setup answer, choice-row and type-rhythm restoration.",
+          "consequence": "The compared first step now follows the pinned two-question flow; Android/Web text rasterisation and the richer native step-two HMRC, region, student-loan and VAT controls still require owner review and additional state captures.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 11.2742,
+            "darkMeanAbsoluteRgbDelta": 11.6736
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "screen.business-filing-accounts",

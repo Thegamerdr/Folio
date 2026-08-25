@@ -68,6 +68,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-review' ||
     entry.routeKey === 'business-money' ||
     entry.routeKey === 'business-calendar' ||
+    entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
   ) {
@@ -101,6 +102,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-entity-setup': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-entity-setup/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-entity-setup/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-e91b580/business-empty/light/business-entity-setup/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-e91b580/business-empty/dark/business-entity-setup/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/e91b580/business-empty/light/business-entity-setup/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/e91b580/business-empty/dark/business-entity-setup/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/e91b580/business-empty/light/business-entity-setup/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/e91b580/business-empty/dark/business-entity-setup/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Setup answer, choice-row and type-rhythm restoration.',
+      consequence:
+        'The compared first step now follows the pinned two-question flow; Android/Web text rasterisation and the richer native step-two HMRC, region, student-loan and VAT controls still require owner review and additional state captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 11.2742,
+        darkMeanAbsoluteRgbDelta: 11.6736,
+      },
+    },
+  },
   'business-calendar': {
     evidence: {
       lightSource:
