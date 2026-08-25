@@ -1,0 +1,15 @@
+{
+  "comparison_kind": "structural-reference-not-matched-data",
+  "native_fixture": "confirmed-safe",
+  "native_sha": "07c2e31",
+  "source_pressure_fixture": "safe",
+  "source_sha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "viewport_logical_px": {
+    "width": 360,
+    "height": 668
+  },
+  "mean_absolute_rgb_delta": 23.4947,
+  "rms_rgb_delta": 48.9216,
+  "acceptance_eligible": false,
+  "reason": "Source and native data fixtures differ; this pair validates structure only."
+}

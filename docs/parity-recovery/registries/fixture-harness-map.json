@@ -1,0 +1,977 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
+  "registryId": "melo-true-parity-fixture-harness-map",
+  "generatedOn": "2026-08-25",
+  "purpose": "Current-state map of reusable fixture and capture hooks, exact gaps, and implementation injection points for the ten required matched parity fixtures. This file is an implementation registry, not evidence that any paired fixture already passes.",
+  "authorities": {
+    "design": {
+      "repository": "Thegamerdr/private-money-pilot",
+      "checkout": "C:/dev/melo-design-source-ad90b4",
+      "pinnedSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+      "mutationPolicy": "read-only during this audit"
+    },
+    "native": {
+      "repository": "Thegamerdr/Folio",
+      "checkout": "C:/dev/melo-native-today-batch1-2026-08-24",
+      "auditedSha": "3fa8af04da81799268d64d4135f1761e04caa798",
+      "recoveryBranch": "codex/melo-native-true-parity-2026-08-25"
+    }
+  },
+  "statusVocabulary": {
+    "ready": "A named deterministic fixture is selectable before first paint, runs through the real rendering/calculation path, is production-excluded, and can be captured in both themes.",
+    "reusable-partial": "Useful state, engine, route, theme, or capture hooks exist, but the required matched fixture contract is not yet complete.",
+    "missing": "No current named harness path satisfies the requirement.",
+    "blocked": "Implementation cannot proceed from known local seams. No required fixture is blocked at this audit."
+  },
+  "targetGeometry": {
+    "primaryDevice": {
+      "model": "Samsung Galaxy S9 SM-G960F",
+      "serial": "2af26a2c19017ece",
+      "androidVersion": "10",
+      "physicalScreenshotPx": {
+        "width": 1080,
+        "height": 2220
+      },
+      "logicalWindowDp": {
+        "width": 360,
+        "height": 740
+      },
+      "densityDpi": 480,
+      "densityScale": 3,
+      "fontScale": 1,
+      "systemChromeDp": {
+        "statusBarTop": 24,
+        "threeButtonNavigationBottom": 48
+      },
+      "appProductViewportDp": {
+        "width": 360,
+        "height": 668
+      },
+      "appProductCropPx": {
+        "left": 0,
+        "top": 72,
+        "width": 1080,
+        "height": 2004
+      }
+    },
+    "designCapture": {
+      "routeDeviceParam": "362x748",
+      "reason": "HeroPhone resolves device minus 2px width and minus 36px height, producing a 360x712 phone shell. Removing its 44px simulated iOS status region leaves the exact 360x668 S9 app-product viewport.",
+      "browserViewportCssPx": {
+        "width": 1280,
+        "height": 1800
+      },
+      "deviceScaleFactor": 3,
+      "phoneLocator": "[data-folio-screen]",
+      "locatorSizeBeforeCropCssPx": {
+        "width": 360,
+        "height": 712
+      },
+      "productCropWithinLocatorCssPx": {
+        "left": 0,
+        "top": 44,
+        "width": 360,
+        "height": 668
+      },
+      "outputPx": {
+        "width": 1080,
+        "height": 2004
+      }
+    },
+    "comparisonRule": "Compare only 1080x2004 product images for the same fixture, screen, scroll position, fixed clock, locale, font scale, and theme. Preserve full-device captures separately for platform-chrome evidence."
+  },
+  "summary": {
+    "requiredFixtureCount": 10,
+    "pairedFixtureCountReady": 0,
+    "pairedFixtureCountReusablePartial": 10,
+    "pairedFixtureCountMissing": 0,
+    "pairedFixtureCountBlocked": 0,
+    "fixturesWithExistingDesignStateReuse": 10,
+    "fixturesWithExistingNativeStateReuse": 10,
+    "fixturesWithExistingNativeNamedBuilder": 2,
+    "fixturesWithAutomatedLightAndDarkSourceCapture": 0,
+    "fixturesWithAutomatedLightAndDarkNativeCapture": 0,
+    "fixturesWithSideBySide": 0,
+    "fixturesWithFiftyPercentOverlay": 0,
+    "fixturesWithPerceptualDiff": 0,
+    "implementationReadyCount": 10,
+    "unknownImplementationBlockerCount": 0,
+    "importantInterpretation": "Reusable state or engine seams do not count as a matched fixture. Every fixture remains non-ready until one fixture id selects equivalent source/native inputs before first paint and produces the complete two-theme comparison artifact set."
+  },
+  "existingHooks": {
+    "designState": [
+      {
+        "id": "design-pressure-overlays",
+        "path": "C:/dev/melo-design-source-ad90b4/src/lib/pressureFixtures.ts",
+        "symbols": [
+          "PRESSURE_FIXTURES",
+          "applyPressureFixture",
+          "clearPressureFixture"
+        ],
+        "capability": "Five coherent sample pressure overlays: safe, calm, soft, pressured, overspent.",
+        "limitations": [
+          "Only currentBalance, pots, cycles, tightPointGoal, spendHold, and whatIfHolds are owned.",
+          "Balance confidence remains sample, so this is not a confirmed-versus-provisional fixture authority.",
+          "No matched fixture id shared with native.",
+          "The overlay is selected by showcase pressure, not by a parity-only bootstrap contract."
+        ]
+      },
+      {
+        "id": "design-preview-overlay",
+        "path": "C:/dev/melo-design-source-ad90b4/src/lib/store.ts",
+        "symbols": [
+          "applyPreviewOverlay",
+          "readUnderlyingState",
+          "setPartial",
+          "restoreFromBundle",
+          "resetAll"
+        ],
+        "capability": "Reversible non-persisting in-memory state overlay with baseline-aware writes.",
+        "limitations": [
+          "No public complete-state parity fixture API.",
+          "The full replacement helper is private.",
+          "Default transaction seeding uses Date.now and is not deterministic without clock control."
+        ]
+      },
+      {
+        "id": "design-preboot-local-storage-injection",
+        "path": "C:/dev/melo-design-source-ad90b4/scripts/evidence/_folio.py",
+        "symbols": [
+          "EMPTY_STATE",
+          "dense_state",
+          "pressured_state",
+          "Session.launch"
+        ],
+        "capability": "Playwright add_init_script installs folio.state.v1 before the document boots; existing empty, dense, review-populated, and pressured states can be reused as input patterns.",
+        "limitations": [
+          "Fixtures are script-local and are not the ten required canonical ids.",
+          "Schema values are raw persisted shapes rather than a shared typed fixture manifest.",
+          "Business state uses a second localStorage authority and is not installed by Session.launch.",
+          "No fixed clock, locale, reduced-motion, or animation-settle contract."
+        ]
+      },
+      {
+        "id": "design-business-state",
+        "path": "C:/dev/melo-design-source-ad90b4/src/lib/business/entity.ts",
+        "symbols": [
+          "useBusinessState",
+          "demoLtdState"
+        ],
+        "storageKey": "folio.business.entity.v1",
+        "capability": "Empty Business state and a populated demo Ltd state exist and feed the design's Business calculations.",
+        "limitations": [
+          "No populated Sole Trader fixture builder.",
+          "The demo Ltd values do not match the native Ltd acceptance fixture.",
+          "The demo is reachable from normal design-product controls, not a parity-only fixture id."
+        ]
+      }
+    ],
+    "designRoutingAndTheme": [
+      {
+        "id": "design-route-query",
+        "path": "C:/dev/melo-design-source-ad90b4/src/routes/index.tsx",
+        "queryParameters": {
+          "s": "ScreenId or accepted Today alias",
+          "p": "safe | calm | soft | pressured | overspent",
+          "sheet": "SheetId",
+          "device": "WxH outer device size"
+        },
+        "selectors": [
+          "[data-phone-capture]",
+          "[data-folio-screen]",
+          "[data-folio-sheet]"
+        ],
+        "capability": "Direct deterministic screen, pressure, sheet, and phone-size selection.",
+        "limitation": "No fixture, fixed-clock, theme, scroll-anchor, or interaction-step query parameter."
+      },
+      {
+        "id": "design-theme-authority",
+        "paths": [
+          "C:/dev/melo-design-source-ad90b4/src/lib/theme.ts",
+          "C:/dev/melo-design-source-ad90b4/src/routes/__root.tsx"
+        ],
+        "storageKey": "folio-theme",
+        "values": [
+          "system",
+          "light",
+          "dark"
+        ],
+        "capability": "Theme can be installed before first paint through localStorage and verified from documentElement.dark.",
+        "limitation": "The parity evidence runner does not currently pair theme with all ten canonical fixture ids."
+      }
+    ],
+    "designCapture": [
+      {
+        "id": "design-playwright-evidence-suite",
+        "directory": "C:/dev/melo-design-source-ad90b4/scripts/evidence",
+        "representativeRunners": [
+          "canvas-rendered.py",
+          "layout-integrity.py",
+          "personal-states.py",
+          "personal-routes.py",
+          "personal-sheets.py",
+          "business-acceptance.py"
+        ],
+        "capability": "Live Playwright DOM assertions and locator screenshots; canvas-rendered.py already captures representative Light and Dark runs.",
+        "limitations": [
+          "No runner emits source/native paired artifacts.",
+          "No runner emits side-by-side, 50% overlay, or perceptual diff images.",
+          "Existing viewport lists do not include the exact 360x668 S9 app-product viewport contract.",
+          "Existing theme sweep is family-based, not ten-fixture-based."
+        ]
+      }
+    ],
+    "nativeStateAndEngines": [
+      {
+        "id": "native-store-input-seams",
+        "path": "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/store.ts",
+        "symbols": [
+          "getState",
+          "setPartial",
+          "setPots",
+          "setSubs",
+          "setOnboarding",
+          "setCurrentBalance",
+          "addTransaction",
+          "addTransactionsBatch",
+          "addCalendarEvent",
+          "enqueueReviewItems",
+          "createEmptyWorkspacePartition",
+          "hydrateFromBlob",
+          "resetToEmpty",
+          "updateBusinessOperations"
+        ],
+        "capability": "All ten states can be expressed as deterministic domain inputs without hardcoding screen outputs; current screens subscribe to the same live store.",
+        "limitations": [
+          "No atomic parity fixture installer.",
+          "No reversible in-memory overlay equivalent to design applyPreviewOverlay.",
+          "Normal app boot hydrates encrypted device data before first paint and then starts persistence.",
+          "Calling resetToEmpty or setters on an installed app would mutate user/device state."
+        ]
+      },
+      {
+        "id": "native-personal-route-engine",
+        "paths": [
+          "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/lib/storeRoute.ts",
+          "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/lib/moneyPath.ts",
+          "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/screens/today/pressure.ts"
+        ],
+        "symbols": [
+          "routeFromStore",
+          "computeRoute",
+          "derivePressure",
+          "useRoute"
+        ],
+        "capability": "Personal safe, pressured, and shortfall outputs can be derived from real store inputs with an injected now at the pure engine boundary.",
+        "limitation": "The rendered shell does not currently receive a parity-fixed clock."
+      },
+      {
+        "id": "native-business-acceptance-builders",
+        "path": "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/lib/fixtures/businessAcceptanceFixture.ts",
+        "symbols": [
+          "BUSINESS_ACCEPTANCE_NOW",
+          "soleTraderAcceptanceFixture",
+          "ltdAcceptanceFixture"
+        ],
+        "capability": "Two deterministic Business fixture builders whose tax/payroll values are produced by @folio/business-workspace.",
+        "limitations": [
+          "Imported only by Node tests; no device bootstrap path.",
+          "Fixture state and cash-account inputs are not installed into a real device workspace.",
+          "No design fixture currently matches these exact inputs."
+        ]
+      },
+      {
+        "id": "native-business-real-engine-proof",
+        "path": "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/lib/businessAcceptanceJourney.test.ts",
+        "symbols": [
+          "calculateBusinessRunway",
+          "calculateVatBoxes",
+          "calculateSelfAssessmentSummary",
+          "corporationTaxMinor",
+          "payrollTotals",
+          "buildBusinessFilingWorkingCopy",
+          "selectBusinessOneMove"
+        ],
+        "capability": "Existing tests prove both builders run through native financial/tax authorities.",
+        "limitation": "Node engine proof is not rendered device capture proof."
+      }
+    ],
+    "nativeRoutingThemeAndCapture": [
+      {
+        "id": "native-shell-router",
+        "path": "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/shell/FolioShell.tsx",
+        "capability": "Complete ScreenId and SheetId in-memory router.",
+        "limitations": [
+          "Initial screen is hard-coded to today.",
+          "No deep-link or test bridge selects arbitrary screen/sheet before first paint.",
+          "Scroll position and interaction step are not externally addressable."
+        ]
+      },
+      {
+        "id": "native-theme-authority",
+        "path": "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/surfaces/pressureMap/kitTheme.tsx",
+        "storageKey": "folio.appearance.mode.v1",
+        "storage": "expo-secure-store",
+        "values": [
+          "system",
+          "light",
+          "dark"
+        ],
+        "symbols": [
+          "ThemeProvider",
+          "useThemeMode",
+          "useIsDark"
+        ],
+        "capability": "One real native Light/Dark/System authority with persistence.",
+        "limitations": [
+          "No parity-only pre-hydration theme override.",
+          "Automation must currently tap More -> Appearance or rely on System mode and adb uimode.",
+          "SecureStore state can survive reinstall and invalidate an assumed theme."
+        ]
+      },
+      {
+        "id": "native-adb-capture",
+        "evidenceDirectory": "C:/dev/melo-native-today-batch1-2026-08-24/docs/parity-recovery/evidence",
+        "capability": "Direct S9 and emulator screenshots have been captured with adb screencap and pulled as PNG.",
+        "limitations": [
+          "Manual commands only; no fixture/theme/screen capture matrix runner.",
+          "No automatic app-product crop, dimension assertion, settle gate, or UI-state assertion.",
+          "No side-by-side, overlay, or perceptual-difference compositor."
+        ]
+      }
+    ]
+  },
+  "productionExclusion": {
+    "existingGuards": [
+      {
+        "hook": "design scripts/evidence fixtures",
+        "guard": "They live outside src and are injected by Playwright before app boot; they are not imported by the Vite application graph.",
+        "strength": "strong"
+      },
+      {
+        "hook": "design pressure overlay",
+        "guard": "applyPreviewOverlay is in-memory, reversible, and explicitly serializes underlying baseline values instead of visible fixture values.",
+        "strength": "state-safety only",
+        "gap": "It is part of the showcase application and is not a parity-only build gate."
+      },
+      {
+        "hook": "native Business acceptance fixture",
+        "guard": "File header declares test-only use and the only current import is businessAcceptanceJourney.test.ts.",
+        "strength": "convention/import-graph",
+        "gap": "No automated production-bundle exclusion assertion exists."
+      },
+      {
+        "hook": "native More developer row",
+        "guard": "The only current Developer row is wrapped by __DEV__.",
+        "strength": "compile-time development gate",
+        "gap": "It only fast-forwards one month and is not a fixture harness."
+      }
+    ],
+    "requiredNativeHarnessGuards": [
+      "A parity bootstrap must require both __DEV__ and an explicit MELO_PARITY_HARNESS=1 build-time flag; default debug and every release build must resolve it false.",
+      "Fixture data must live in a parity-only module and must not be imported by normal screen modules, app defaults, persistence migrations, widgets, notifications, exports, Melo snapshots, or production entry points.",
+      "When active, bootstrap must bypass loadPersistedActiveWorkspace, importMeloBlobIfPresent, startPersisting, notification scheduling, widget sync, billing reconciliation writes, and all encrypted-disk writes.",
+      "Fixture state must be in-memory, process-lifetime only, visibly identified in debug logs, and discarded on process death.",
+      "A build gate must fail if any canonical fixture id or parity deep-link scheme is present in a release bundle/APK.",
+      "A test must prove release/default boot ignores parity URL parameters and loads real encrypted state normally.",
+      "The fixture must never be exported, backed up, sent to Melo, treated as user truth, or shown by the Android widget/notifications."
+    ],
+    "requiredDesignHarnessGuards": [
+      "Keep canonical fixture manifests and injection code under scripts/parity or another non-src evidence directory.",
+      "Install source state with Playwright browser-context init scripts before navigation; do not add fixture query handling to production screen code.",
+      "Use a fresh browser context per fixture/theme and clear folio.state.v1, folio.business.entity.v1, folio-theme, sessionStorage, and service-worker/cache state between runs.",
+      "Never write parity fixtures back into committed design defaults or demo controls."
+    ]
+  },
+  "requiredFixtures": [
+    {
+      "id": "confirmed-safe",
+      "label": "Confirmed safe state",
+      "matchedStateContract": "A completed Personal setup with statement-derived or corrected balance confidence, realistic incoming/outgoing movements and commitments, a positive tight point, and a safe/calm derived verdict. The result must be derived, not encoded as a screen label.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "PRESSURE_FIXTURES.safe",
+            "applyPressureFixture",
+            "_folio.dense_state"
+          ],
+          "gap": "safe uses sample confidence and does not own the complete state contract."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "setCurrentBalance",
+            "addTransactionsBatch",
+            "setSubs",
+            "addCalendarEvent",
+            "routeFromStore",
+            "derivePressure"
+          ],
+          "gap": "No atomic non-persisting device fixture selector or fixed-clock render path."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Install only domain inputs: current balance and confidence, accounts, dated transactions, income sources, subscriptions, calendar commitments, pots, and onboarding.",
+        "Let design selectors and native routeFromStore -> computeRoute -> derivePressure calculate spare, tight point, path stations, and verdict.",
+        "Assert the derived tight point is positive and the confidence qualifier is non-provisional before capture."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "provisional-low-confidence",
+      "label": "Provisional / low-confidence state",
+      "matchedStateContract": "The same coherent Personal money picture rendered with a rough/provisional balance authority so uncertainty copy and qualifiers appear without changing the underlying route inputs into a different scenario.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "setCurrentBalance",
+            "applyPreviewOverlay",
+            "ScreenGuided",
+            "SheetOnboarding"
+          ],
+          "gap": "No named low-confidence capture fixture; pressure overlays force sample confidence instead."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "setCurrentBalance",
+            "CurrentBalance.confidence",
+            "routeFromStore"
+          ],
+          "gap": "No parity bootstrap and no paired assertion that route values remain the same while only confidence semantics change."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Use the real CurrentBalance confidence/source fields; do not hardcode provisional copy into Today.",
+        "Run the same route engine as confirmed-safe and assert the uncertainty presentation follows confidence authority, not a screenshot-only flag.",
+        "Keep amount, events, clock, and commitments identical to the confirmed-safe control wherever the accepted source does."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "pressured",
+      "label": "Pressured state",
+      "matchedStateContract": "A completed Personal setup with dated commitments that compress the route before payday but do not produce a negative tight point; Today must derive the pressured band and repair-oriented supporting composition.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "PRESSURE_FIXTURES.pressured",
+            "_folio.pressured_state",
+            "?p=pressured"
+          ],
+          "gap": "Two unrelated pressure mechanisms exist and neither is the canonical matched fixture."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "routeFromStore",
+            "computeRoute",
+            "derivePressure"
+          ],
+          "gap": "No device-selectable state or fixed now."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Express pressure with dated incoming/outgoing domain rows and current balance.",
+        "Assert routeFromStore produces a low non-negative tight point and derivePressure returns pressured.",
+        "Render meaningful route movements and stations from the engine output; do not supply precomputed chart points in the fixture."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "negative-shortfall",
+      "label": "Negative / shortfall state",
+      "matchedStateContract": "A completed Personal setup whose real projected route crosses below zero before payday, producing the overspent/shortfall treatment and contextual Recovery path.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "PRESSURE_FIXTURES.overspent",
+            "?p=overspent",
+            "_folio.pressured_state"
+          ],
+          "gap": "No canonical assertion ties the selected fixture to a negative engine-derived tight point across both implementations."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "routeFromStore",
+            "derivePressure",
+            "isOverspentLanding",
+            "ShortfallScreen",
+            "RecoveryScreen"
+          ],
+          "gap": "No non-persisting device installer or direct screen route."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Use the same current-balance, account, commitment, and income authorities as production.",
+        "Assert routeFromStore tightPoint.amount is below zero and derivePressure is overspent.",
+        "Shortfall amount, copy, route curve, and Recovery offer must read engine results, never fixture-provided outputs."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "populated-commitments",
+      "label": "Populated commitments",
+      "matchedStateContract": "A Personal setup with multiple subscriptions, bills/calendar events, income sources, and pots/plans so Plan, Calendar, Subscriptions, money path, and related sheets render a dense but coherent shared state.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "store DEFAULTS",
+            "_folio.dense_state",
+            "_folio.pressured_state"
+          ],
+          "gap": "No named commitments fixture and current dense data uses raw script shapes plus Date-sensitive behavior."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "setSubs",
+            "addCalendarEvent",
+            "setPots",
+            "setPartial incomeSources/plans",
+            "routeFromStore"
+          ],
+          "gap": "No atomic fixture/bootstrap or capture traversal."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Install commitments through the same store/domain row shapes production uses.",
+        "Let Calendar occurrence expansion, renewal math, route construction, pot earmarking, and Plan selectors derive all summaries.",
+        "Capture at least Today, Plan, Calendar, Subscriptions, Pots, and one commitment detail sheet from the same untouched fixture instance."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "pending-review",
+      "label": "Pending Review",
+      "matchedStateContract": "A Personal setup with deterministic unreviewed intake candidates, including confidence/category variety, which appear in Review and the Today Review nudge without entering trusted transaction truth before confirmation.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "_folio.dense_state reviewQueue",
+            "enqueueReviewItems",
+            "ScreenReview",
+            "ScreenReviewHub"
+          ],
+          "gap": "The script writes queue rows directly; no canonical reader-to-queue fixture proves review-before-truth for the matched set."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "enqueueReviewItems",
+            "ReviewScreen",
+            "ReviewHubScreen",
+            "readerCandidates"
+          ],
+          "gap": "No parity bootstrap or canonical candidate manifest."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Create candidate inputs and pass them through enqueueReviewItems or the matching reader staging boundary.",
+        "Assert trusted transactions are unchanged before user confirmation and Review count equals accepted non-duplicate candidates.",
+        "Use the same canonical candidate ids, dates, sources, signs, and confidence semantics in design and native."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "business-sole-trader-populated",
+      "label": "Populated Business Sole Trader",
+      "matchedStateContract": "An active Business Sole Trader workspace with cash account, client, paid/current/overdue invoices, obligation, VAT return, year-to-date profit, filing state, and enough data for Today, runway, invoices, VAT, Self Assessment, calendar, and Business Melo.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "useBusinessState",
+            "BusinessEntitySetup",
+            "business localStorage authority"
+          ],
+          "gap": "No populated Sole Trader builder exists."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "soleTraderAcceptanceFixture",
+            "BUSINESS_ACCEPTANCE_NOW",
+            "createEmptyWorkspacePartition",
+            "calculateBusinessRunway",
+            "calculateVatBoxes",
+            "calculateSelfAssessmentSummary"
+          ],
+          "gap": "Excellent Node fixture exists but is not installable into a device workspace."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Make native soleTraderAcceptanceFixture the numerical authority for matched input values and port equivalent domain inputs into the design fixture without copying derived tax totals.",
+        "Install a real Business workspace partition and account rows, then let @folio/business-workspace calculate runway, VAT, Self Assessment, filings, and one-move guidance.",
+        "Capture all required Business families from one active workspace and fixed BUSINESS_ACCEPTANCE_NOW."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "business-ltd-populated",
+      "label": "Populated Business Ltd",
+      "matchedStateContract": "An active Business limited-company workspace with cash account, client/invoices/obligation, VAT, Corporation Tax, payroll, dividends, DLA, Companies House, prepared filings, and Business Melo state.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "demoLtdState",
+            "folio.business.entity.v1",
+            "Business Ltd surfaces"
+          ],
+          "gap": "The source demo values and entity do not match native ltdAcceptanceFixture."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "ltdAcceptanceFixture",
+            "BUSINESS_ACCEPTANCE_NOW",
+            "createEmptyWorkspacePartition",
+            "calculateBusinessRunway",
+            "calculateVatBoxes",
+            "corporationTaxMinor",
+            "payrollTotals"
+          ],
+          "gap": "Node fixture is not device-selectable and has no paired design manifest."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Make native ltdAcceptanceFixture the numerical input authority and align the design fixture's domain inputs to it.",
+        "Keep payroll preview, VAT boxes, Corporation Tax, filing working copies, DLA, dividends, runway, and one-move outputs engine-derived.",
+        "Install a true Business workspace partition; never place Business rows in Personal state."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "empty",
+      "label": "Empty state",
+      "matchedStateContract": "An already-entered, genuinely empty Personal workspace: onboarding completed, zero user-entered rough balance, no sample rows, no transactions, no commitments, no pots/plans/debts, and no pending Review. Empty language must come from real selectors.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "_folio.EMPTY_STATE",
+            "Session.launch"
+          ],
+          "gap": "Existing EMPTY_STATE sets onboarding.done false, so it conflates empty with first run for some surfaces."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "createEmptyWorkspacePartition",
+            "resetToEmpty"
+          ],
+          "gap": "Current functions publish/persist normal app state; no reversible parity-only device path."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Start from createEmptyWorkspacePartition-equivalent state with onboarding done true and no sample markers.",
+        "Do not use resetAll because it reseeds demo transactions and commitments.",
+        "Assert hasAnyUserData/sample-strip logic reports a genuine empty user state and does not introduce fallback numbers."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    },
+    {
+      "id": "first-run",
+      "label": "First-run state",
+      "matchedStateContract": "A brand-new Personal install/workspace before setup: no persisted money, onboarding not completed, no user truth, and the accepted first-run/Start/onboarding invitation composition. It must not be represented by an already-entered empty workspace.",
+      "existingCoverage": {
+        "design": {
+          "status": "reusable-partial",
+          "hooks": [
+            "store first-visit load",
+            "ScreenStart",
+            "SheetOnboarding",
+            "localStorage clear"
+          ],
+          "gap": "First visit seeds Date.now-based sample transactions; no fixed canonical first-run manifest."
+        },
+        "native": {
+          "status": "reusable-partial",
+          "hooks": [
+            "DEFAULTS",
+            "loadPersistedActiveWorkspace first-run outcome",
+            "StartScreen",
+            "OnboardingSheet"
+          ],
+          "gap": "Reproducing it currently requires app-data deletion or filesystem manipulation and can retain SecureStore preferences; no safe parity bootstrap."
+        }
+      },
+      "realEnginePathRequirements": [
+        "Model first run explicitly with onboarding.done false and no persisted partition rather than reusing empty.",
+        "Freeze all seed timestamps or, preferably, define parity first run with no Date.now-generated sample transactions when the accepted source state requires true absence.",
+        "Assert no fixture value is treated as user-entered truth and capture Start plus onboarding/check-in invitation state."
+      ],
+      "pairedCaptureReady": false,
+      "implementationReadiness": "ready-to-implement"
+    }
+  ],
+  "requiredInjectionPoints": {
+    "design": {
+      "recommendedLocation": "C:/dev/melo-design-source-ad90b4/scripts/parity",
+      "bootstrapPoint": "Playwright browser_context.add_init_script before page.goto",
+      "stateTargets": [
+        "localStorage[folio.state.v1]",
+        "localStorage[folio.business.entity.v1]",
+        "localStorage[folio-theme]",
+        "Date/time and matchMedia init-script overrides"
+      ],
+      "routeTarget": "http://127.0.0.1:8080/?s={screen}&sheet={optionalSheet}&device=362x748",
+      "verificationBeforeCapture": [
+        "requested data-folio-screen is mounted",
+        "requested data-folio-sheet is mounted when applicable",
+        "documentElement.dark matches requested theme",
+        "phone locator is exactly 360x712 CSS px",
+        "product clip is exactly 360x668 CSS px",
+        "fixture sentinel and fixed clock are observable from a test-only page probe",
+        "fonts.ready and animation-settle gate pass"
+      ]
+    },
+    "native": {
+      "recommendedLocations": [
+        "apps/mobile/app/index.tsx before loadPersistedActiveWorkspace",
+        "apps/mobile/src/folio/parity/bootstrap.ts in a parity-only module",
+        "apps/mobile/src/folio/shell/FolioShell.tsx initial route/sheet props",
+        "apps/mobile/src/surfaces/pressureMap/kitTheme.tsx parity-only initial mode override"
+      ],
+      "selectionTransport": "Debug-only melo-parity://capture?fixture={id}&theme={light|dark}&screen={ScreenId}&sheet={SheetId?}&step={step?}",
+      "atomicInstallContract": [
+        "Validate canonical fixture id and version.",
+        "Freeze now/locale and construct domain inputs.",
+        "Build a complete Personal or Business in-memory partition using current constructors.",
+        "For Business, create a real workspace root and matching owned account rows.",
+        "Publish once before FolioShell first paint.",
+        "Do not hydrate or persist device data while parity mode is active.",
+        "Pass initial screen, optional sheet, scroll anchor, and theme into their actual owners.",
+        "Expose a debug-only accessibility sentinel containing fixture id, theme, screen, readiness, and fixed clock for adb/uiautomator polling."
+      ],
+      "verificationBeforeCapture": [
+        "MainActivity focused and process alive",
+        "debug sentinel matches requested fixture/theme/screen/step",
+        "layout settled across two consecutive UI dumps or explicit render epoch",
+        "no FATAL EXCEPTION, ReactNativeJS Error/FATAL, or ANR",
+        "screenshot is 1080x2220 and product crop is 1080x2004"
+      ]
+    }
+  },
+  "capturePipeline": {
+    "artifactKey": "{fixtureId}/{theme}/{surfaceId}/{stepId}",
+    "requiredThemes": [
+      "light",
+      "dark"
+    ],
+    "requiredArtifactsPerKey": [
+      "source-full.png",
+      "source-product.png",
+      "native-full.png",
+      "native-product.png",
+      "side-by-side.png",
+      "overlay-50.png",
+      "difference.png",
+      "metrics.json"
+    ],
+    "existingCommands": [
+      {
+        "id": "start-design",
+        "available": true,
+        "cwd": "C:/dev/melo-design-source-ad90b4",
+        "command": "pnpm dev --host 127.0.0.1 --port 8080",
+        "produces": "live pinned design source"
+      },
+      {
+        "id": "source-representative-theme-sweep",
+        "available": true,
+        "cwd": "C:/dev/melo-design-source-ad90b4",
+        "command": "python scripts/evidence/canvas-rendered.py",
+        "produces": "representative source Light/Dark screenshots and canvas checks",
+        "doesNotProduce": "ten matched fixtures or paired native comparisons"
+      },
+      {
+        "id": "native-full-screenshot",
+        "available": true,
+        "cwd": "C:/dev/melo-native-today-batch1-2026-08-24",
+        "command": "adb -s 2af26a2c19017ece shell screencap -p /sdcard/melo-parity.png && adb -s 2af26a2c19017ece pull /sdcard/melo-parity.png docs/parity-recovery/evidence/melo-parity.png",
+        "produces": "1080x2220 full S9 screenshot",
+        "limitation": "PowerShell execution must use separate commands or a script because && is not portable to older Windows PowerShell."
+      },
+      {
+        "id": "native-launch",
+        "available": true,
+        "cwd": "C:/dev/melo-native-today-batch1-2026-08-24",
+        "command": "adb -s 2af26a2c19017ece shell am force-stop com.folio.v2.greenfield; adb -s 2af26a2c19017ece shell monkey -p com.folio.v2.greenfield -c android.intent.category.LAUNCHER 1",
+        "produces": "cold launch of currently installed build",
+        "doesNotProduce": "fixture/theme/screen selection"
+      }
+    ],
+    "requiredCommandContractsNotYetImplemented": [
+      {
+        "id": "capture-source-fixture",
+        "available": false,
+        "proposedCommand": "pnpm parity:capture:source --fixture {id} --theme {light|dark} --screen {screen} --device s9-product",
+        "requirements": [
+          "fresh Playwright context",
+          "preboot state/theme/clock injection",
+          "360x668 locator clip at deviceScaleFactor 3",
+          "dimension and mounted-state assertions"
+        ]
+      },
+      {
+        "id": "select-native-fixture",
+        "available": false,
+        "proposedCommand": "adb -s {serial} shell am start -a android.intent.action.VIEW -d 'melo-parity://capture?fixture={id}&theme={theme}&screen={screen}' com.folio.v2.greenfield",
+        "requirements": [
+          "debug/parity build only",
+          "pre-paint in-memory install",
+          "persistence and external-effect suppression",
+          "debug readiness sentinel"
+        ]
+      },
+      {
+        "id": "capture-native-fixture",
+        "available": false,
+        "proposedCommand": "pnpm parity:capture:native --serial 2af26a2c19017ece --fixture {id} --theme {theme} --screen {screen}",
+        "requirements": [
+          "select fixture",
+          "poll readiness sentinel",
+          "capture full device",
+          "crop exact product rect",
+          "scan fatal/ANR logs",
+          "write metrics.json"
+        ]
+      },
+      {
+        "id": "compose-comparison",
+        "available": false,
+        "proposedCommand": "pnpm parity:compose --fixture {id} --theme {theme} --screen {screen}",
+        "requirements": [
+          "reject unequal dimensions",
+          "side-by-side with labels outside image bounds",
+          "native-over-source 50% alpha overlay",
+          "perceptual or absolute difference image",
+          "geometry/colour metric summary"
+        ]
+      },
+      {
+        "id": "capture-fixture-matrix",
+        "available": false,
+        "proposedCommand": "pnpm parity:capture:matrix --fixtures all --themes light,dark --device s9",
+        "requirements": [
+          "resume-safe manifest",
+          "one artifact key per fixture/theme/surface/step",
+          "contact-sheet generation",
+          "machine-readable pass/deviation status"
+        ]
+      }
+    ],
+    "compositionRules": {
+      "sideBySide": "Place source-product and native-product unscaled on a neutral external canvas with explicit labels; never resize one side to hide geometry drift.",
+      "overlay50": "Composite native-product at exactly 0.5 opacity over source-product after dimension equality is proven.",
+      "difference": "Emit an absolute RGB difference and a perceptual metric image where useful; mask only separately recorded allowed system glyph rasterization, never product geometry.",
+      "metrics": [
+        "source/native dimensions",
+        "fixture/theme/screen/step ids",
+        "design and native commit SHAs",
+        "fixed now and locale",
+        "mean absolute pixel difference",
+        "perceptual score",
+        "non-zero diff bounding box",
+        "principal geometry deltas in dp",
+        "exception ids applied"
+      ]
+    }
+  },
+  "gapRegister": [
+    {
+      "id": "FH-001",
+      "priority": "P0",
+      "gap": "No canonical fixture manifest shared conceptually across design and native.",
+      "closesWhen": "All ten ids have versioned input manifests, a fixed clock, expected engine invariants, and source/native adapters."
+    },
+    {
+      "id": "FH-002",
+      "priority": "P0",
+      "gap": "No native debug-only pre-first-paint fixture bootstrap.",
+      "closesWhen": "A parity build selects any fixture/theme/screen without reading or writing installed user state."
+    },
+    {
+      "id": "FH-003",
+      "priority": "P0",
+      "gap": "No fixed clock/locale/animation contract across rendered source and native.",
+      "closesWhen": "Both implementations expose and verify the same now, timezone, locale, font scale, reduced-motion state, and settle sentinel."
+    },
+    {
+      "id": "FH-004",
+      "priority": "P0",
+      "gap": "No exact S9 product-viewport matrix runner.",
+      "closesWhen": "Source and native captures are automatically asserted and cropped to 1080x2004 without scaling."
+    },
+    {
+      "id": "FH-005",
+      "priority": "P0",
+      "gap": "No deterministic native route/sheet/scroll/step selection.",
+      "closesWhen": "Capture transport can address every ScreenId/SheetId and named interaction step before polling readiness."
+    },
+    {
+      "id": "FH-006",
+      "priority": "P0",
+      "gap": "No automated Light/Dark pairing for all ten fixtures on native.",
+      "closesWhen": "Each canonical artifact key proves requested resolved theme in the app, not merely OS state."
+    },
+    {
+      "id": "FH-007",
+      "priority": "P0",
+      "gap": "No side-by-side, 50% overlay, or perceptual-difference compositor.",
+      "closesWhen": "Every capture key emits all three comparison forms and metrics.json."
+    },
+    {
+      "id": "FH-008",
+      "priority": "P0",
+      "gap": "Native Business acceptance builders are not render-installable and design Business fixtures do not match them.",
+      "closesWhen": "Both Business ids render equivalent inputs through real workspace ownership and real calculation engines."
+    },
+    {
+      "id": "FH-009",
+      "priority": "P1",
+      "gap": "Empty and first-run are not cleanly separated in existing design evidence fixtures.",
+      "closesWhen": "empty has onboarding complete and no data; first-run has onboarding incomplete and no user truth, with distinct assertions and captures."
+    },
+    {
+      "id": "FH-010",
+      "priority": "P0",
+      "gap": "Production-exclusion is not mechanically proven for a future native harness.",
+      "closesWhen": "Release bundle/APK scans, import-boundary checks, and boot tests prove fixture ids/data/transport are absent or inert in every production build."
+    }
+  ],
+  "implementationOrder": [
+    "FH-001 canonical manifests and fixed-clock invariants",
+    "FH-002 plus FH-010 native bootstrap and production guards",
+    "FH-005 deterministic screen/sheet/step readiness transport",
+    "FH-003 theme/time/locale/settle control",
+    "FH-004 exact source/native S9 capture",
+    "FH-008 Business adapters",
+    "FH-006 complete two-theme fixture matrix",
+    "FH-007 compositor, metrics, contact sheets, and ledger integration"
+  ],
+  "auditConclusion": {
+    "status": "not-ready",
+    "reason": "The repositories contain enough reusable state, engine, routing, theme, and screenshot seams to implement the harness without inventing product calculations, but none of the ten required states currently has a complete matched Light/Dark source/native capture pipeline.",
+    "nextConcreteDeliverable": "Implement canonical fixture manifests plus a debug-only, non-persisting native bootstrap and a Playwright source adapter for confirmed-safe, provisional-low-confidence, pressured, and negative-shortfall first; then prove the exact S9 1080x2004 two-theme artifact set before expanding the same harness to the other six fixtures."
+  }
+}
