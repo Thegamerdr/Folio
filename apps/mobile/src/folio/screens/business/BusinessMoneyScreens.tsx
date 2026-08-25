@@ -1692,6 +1692,10 @@ export function BusinessInsightsScreen({ nav }: { nav: Nav }) {
     .slice(0, 5);
   const hasShape = revenue > 0 || transactionCosts > 0;
 
+  if (business.invoices.length === 0) {
+    return <BusinessInsightsEmpty nav={nav} />;
+  }
+
   return (
     <BusinessScreenFrame
       eyebrow="Insights"
@@ -1757,6 +1761,83 @@ export function BusinessInsightsScreen({ nav }: { nav: Nav }) {
         />
       </View>
     </BusinessScreenFrame>
+  );
+}
+
+function BusinessInsightsEmpty({ nav }: { nav: Nav }) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.insightsEmptyRoot, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.insightsEmptyContent,
+          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.insightsEmptyBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.insightsEmptyBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+
+        <View style={styles.insightsEmptyHero}>
+          <Text style={[styles.insightsEmptyEyebrow, { color: t.muted }]}>Insights</Text>
+          <Text accessibilityRole="header" style={[styles.insightsEmptyHeadline, { color: t.ink }]}>
+            Nothing to <Text style={{ color: t.calm }}>read</Text> yet.
+          </Text>
+          <Text style={[styles.insightsEmptyWhy, { color: t.muted }]}>
+            A calm look at what you earned, who you earned it from, and how the year is shaping up —
+            once there is something paid to read.
+          </Text>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.go('business-invoices')}
+          style={({ pressed }) => [
+            styles.insightsEmptyPrimary,
+            { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+          ]}
+        >
+          <Text style={[styles.insightsEmptyPrimaryLabel, { color: t.inverse }]}>
+            Add an invoice
+          </Text>
+        </Pressable>
+
+        <View style={[styles.insightsEmptyPanel, { backgroundColor: t.inset }]}>
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={styles.insightsEmptyPerch}
+          />
+          <Text style={[styles.insightsEmptyPanelTitle, { color: t.ink }]}>
+            Add an invoice to see the <Text style={{ color: t.calmStrong }}>story</Text>.
+          </Text>
+          <Text style={[styles.insightsEmptyPanelBody, { color: t.muted }]}>
+            Melo needs a paid invoice or two before the year-shape becomes honest. Log one and this
+            page fills in.
+          </Text>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.go('business-invoices')}
+          style={({ pressed }) => [
+            styles.insightsEmptySecondary,
+            { backgroundColor: t.inset, opacity: pressed ? 0.68 : 1 },
+          ]}
+        >
+          <Text style={[styles.insightsEmptySecondaryLabel, { color: t.ink }]}>Add an invoice</Text>
+          <Text style={[styles.insightsEmptySecondaryArrow, { color: t.muted }]}>→</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -2481,6 +2562,75 @@ function nextCadenceDate(date: string, cadence: Exclude<InvoiceCadence, 'one-off
 }
 
 const styles = StyleSheet.create({
+  insightsEmptyRoot: { flex: 1 },
+  insightsEmptyContent: { paddingHorizontal: gap.xl },
+  insightsEmptyBack: {
+    alignItems: 'flex-start',
+    height: 44,
+    justifyContent: 'center',
+    marginLeft: -8,
+    width: 44,
+  },
+  insightsEmptyBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  insightsEmptyHero: { marginTop: gap.sm },
+  insightsEmptyEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  insightsEmptyHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 33,
+    marginTop: gap.sm,
+  },
+  insightsEmptyWhy: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  insightsEmptyPrimary: {
+    alignItems: 'center',
+    borderRadius: 12,
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  insightsEmptyPrimaryLabel: { fontFamily: weightFamily(600), fontSize: 14 },
+  insightsEmptyPanel: {
+    borderRadius: 18,
+    marginTop: gap.xl,
+    paddingHorizontal: gap.xl,
+    paddingVertical: gap.xl,
+  },
+  insightsEmptyPerch: { height: 112, marginBottom: gap.xs, width: 112 },
+  insightsEmptyPanelTitle: {
+    fontFamily: serif.display,
+    fontSize: 20,
+    lineHeight: 25,
+    maxWidth: 280,
+  },
+  insightsEmptyPanelBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 23,
+    marginTop: gap.sm,
+    maxWidth: 300,
+  },
+  insightsEmptySecondary: {
+    alignItems: 'center',
+    borderRadius: 18,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: gap.lg,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  insightsEmptySecondaryLabel: { fontFamily: weightFamily(400), fontSize: 14 },
+  insightsEmptySecondaryArrow: { fontFamily: weightFamily(400), fontSize: 14 },
   vatNotRoot: { flex: 1 },
   vatNotContent: { paddingHorizontal: gap.xl },
   vatNotBack: {
