@@ -8,16 +8,47 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const DESIGN_PATH = path.join(ROOT, 'docs/parity-recovery/registries/design-surfaces.json');
 const NATIVE_PATH = path.join(ROOT, 'docs/parity-recovery/registries/native-surfaces.json');
+const OWNER_RESOLUTIONS_PATH = path.join(
+  ROOT,
+  'docs/parity-recovery/registries/owner-resolutions.json',
+);
 const OUTPUT_PATH = path.join(ROOT, 'docs/parity-recovery/registries/parity-crosswalk.json');
 const DEVICE_RELATIVE_PATH = 'docs/parity-recovery/evidence/s9/device-configuration.json';
 const DEVICE_PATH = path.join(ROOT, DEVICE_RELATIVE_PATH);
 const DESIGN_SHA = 'ad90b4fee36c58be156e145e8663d8c6be1bf0eb';
 
-const [design, native] = await Promise.all([
+const [design, native, ownerResolutions] = await Promise.all([
   readFile(DESIGN_PATH, 'utf8').then(JSON.parse),
   readFile(NATIVE_PATH, 'utf8').then(JSON.parse),
+  readFile(OWNER_RESOLUTIONS_PATH, 'utf8').then(JSON.parse),
 ]);
 await access(DEVICE_PATH);
+
+if (ownerResolutions.designSha !== DESIGN_SHA) {
+  throw new Error(
+    `Owner-resolution design SHA mismatch: ${ownerResolutions.designSha} != ${DESIGN_SHA}.`,
+  );
+}
+const ownerResolutionByNativeId = new Map(
+  ownerResolutions.entries.map((entry) => [entry.nativeStableId, entry]),
+);
+if (ownerResolutionByNativeId.size !== ownerResolutions.entries.length) {
+  throw new Error('Owner-resolution registry contains duplicate nativeStableId values.');
+}
+const registeredExactOwnerCount = ownerResolutions.entries.filter(
+  (entry) => entry.disposition === 'exact-owner',
+).length;
+const registeredTrueExceptionCount = ownerResolutions.entries.filter(
+  (entry) => entry.disposition === 'true-exception',
+).length;
+if (
+  registeredExactOwnerCount !== ownerResolutions.counts.exactOwners ||
+  registeredTrueExceptionCount !== ownerResolutions.counts.trueExceptions
+) {
+  throw new Error(
+    `Owner-resolution disposition counts do not match the registry declaration: exact=${registeredExactOwnerCount}, exceptions=${registeredTrueExceptionCount}.`,
+  );
+}
 
 const designScreens = new Map(design.phone_screens.map((entry) => [entry.screen_id, entry]));
 const designSheets = new Map(design.sheets.map((entry) => [entry.sheet_id, entry]));
@@ -887,15 +918,98 @@ const collections = [
   ['global-state', native.globalStates],
 ];
 
+const nativeRows = collections.flatMap(([kind, rows]) => rows.map((entry) => ({ kind, entry })));
+const nativeStableIds = new Set(nativeRows.map(({ entry }) => entry.stableId));
+for (const resolution of ownerResolutions.entries) {
+  if (!nativeStableIds.has(resolution.nativeStableId)) {
+    throw new Error(
+      `Owner-resolution registry references unknown native surface ${resolution.nativeStableId}.`,
+    );
+  }
+  if (!['exact-owner', 'true-exception'].includes(resolution.disposition)) {
+    throw new Error(
+      `Unsupported owner disposition ${resolution.disposition} for ${resolution.nativeStableId}.`,
+    );
+  }
+  if (resolution.disposition === 'exact-owner') {
+    if (!resolution.designOwner?.stableId || !resolution.designOwner?.sourceReference) {
+      throw new Error(`Exact owner ${resolution.nativeStableId} is missing its design owner.`);
+    }
+    await access(
+      path.join(
+        ownerResolutions.designCheckout,
+        sourcePath(resolution.designOwner.sourceReference),
+      ),
+    );
+  } else if (
+    !resolution.reasonCode ||
+    !resolution.evidence ||
+    !Array.isArray(resolution.searchedAuthorities) ||
+    resolution.searchedAuthorities.length === 0
+  ) {
+    throw new Error(`True exception ${resolution.nativeStableId} lacks auditable evidence.`);
+  }
+}
+
+const initiallyUnresolved = nativeRows.filter(({ kind, entry }) => {
+  const owners = resolveDesignOwners(kind, entry);
+  return !owners.some((owner) =>
+    ['exact-route-key', 'exact-source-hint'].includes(owner.resolution),
+  );
+});
+const initiallyUnresolvedIds = new Set(initiallyUnresolved.map(({ entry }) => entry.stableId));
+for (const nativeStableId of initiallyUnresolvedIds) {
+  if (!ownerResolutionByNativeId.has(nativeStableId)) {
+    throw new Error(`Unresolved native design owner lacks disposition: ${nativeStableId}.`);
+  }
+}
+for (const nativeStableId of ownerResolutionByNativeId.keys()) {
+  if (!initiallyUnresolvedIds.has(nativeStableId)) {
+    throw new Error(
+      `Owner override is not needed because the surface already resolves: ${nativeStableId}.`,
+    );
+  }
+}
+if (
+  initiallyUnresolvedIds.size !== ownerResolutions.counts.previouslyUnresolved ||
+  ownerResolutionByNativeId.size !== ownerResolutions.counts.previouslyUnresolved
+) {
+  throw new Error(
+    `Owner-resolution coverage mismatch: registry=${ownerResolutionByNativeId.size}, initially unresolved=${initiallyUnresolvedIds.size}, declared=${ownerResolutions.counts.previouslyUnresolved}.`,
+  );
+}
+
 const entries = collections
   .flatMap(([kind, rows]) =>
     rows.map((entry) => {
-      const designOwners = resolveDesignOwners(kind, entry);
+      const ownerResolution = ownerResolutionByNativeId.get(entry.stableId);
+      const designOwners =
+        ownerResolution?.disposition === 'exact-owner'
+          ? [
+              {
+                stable_id: ownerResolution.designOwner.stableId,
+                kind: ownerResolution.designOwner.kind,
+                screen_id: ownerResolution.designOwner.routeKey,
+                source_ref: ownerResolution.designOwner.sourceReference,
+                key_states: ownerResolution.designOwner.keyStates ?? [],
+                resolution: 'exact-owner-registry',
+                evidence: ownerResolution.evidence,
+              },
+            ]
+          : resolveDesignOwners(kind, entry);
       const calibration = CALIBRATIONS[entry.routeKey];
       const evidence = calibration?.evidence ?? emptyEvidence();
       const hasExactOwner = designOwners.some((owner) =>
-        ['exact-route-key', 'exact-source-hint'].includes(owner.resolution),
+        ['exact-route-key', 'exact-source-hint', 'exact-owner-registry'].includes(owner.resolution),
       );
+      const trueException =
+        ownerResolution?.disposition === 'true-exception'
+          ? {
+              reasonCode: ownerResolution.reasonCode,
+              evidence: ownerResolution.evidence,
+              searchedAuthorities: ownerResolution.searchedAuthorities,
+            }
+          : null;
       return {
         stableId: entry.stableId,
         kind,
@@ -913,8 +1027,10 @@ const entries = collections
             sourceReference: owner.source_ref,
             keyStates: owner.key_states ?? [],
             resolution: owner.resolution,
+            ...(owner.evidence ? { evidence: owner.evidence } : {}),
           })),
-          ownerStatus: hasExactOwner ? 'resolved' : 'unresolved',
+          ownerStatus: trueException ? 'true-exception' : hasExactOwner ? 'resolved' : 'unresolved',
+          ...(trueException ? { trueException } : {}),
         },
         matchedFixtures: fixturesFor(entry),
         evidence,
@@ -964,6 +1080,21 @@ const unmappedDesign = designEntries
 const ownerResolvedCount = entries.filter(
   (entry) => entry.design.ownerStatus === 'resolved',
 ).length;
+const trueExceptionCount = entries.filter(
+  (entry) => entry.design.ownerStatus === 'true-exception',
+).length;
+const unresolvedOwnerCount = entries.filter(
+  (entry) => entry.design.ownerStatus === 'unresolved',
+).length;
+if (
+  trueExceptionCount !== ownerResolutions.counts.trueExceptions ||
+  ownerResolvedCount !== entries.length - trueExceptionCount ||
+  unresolvedOwnerCount !== ownerResolutions.counts.remainingUnresolved
+) {
+  throw new Error(
+    `Resolved-owner count mismatch: exact=${ownerResolvedCount}, exceptions=${trueExceptionCount}, unresolved=${unresolvedOwnerCount}.`,
+  );
+}
 const comparedSurfaceCount = entries.filter((entry) => entry.evidence.comparisonCount > 0).length;
 const lightComparisons = new Set(
   entries.map((entry) => entry.evidence.lightNative).filter(Boolean),
@@ -980,6 +1111,7 @@ const output = {
     nativeBranch: 'codex/melo-native-true-parity-2026-08-25',
     designRegistry: path.relative(ROOT, DESIGN_PATH).replaceAll('\\', '/'),
     nativeRegistry: path.relative(ROOT, NATIVE_PATH).replaceAll('\\', '/'),
+    ownerResolutionRegistry: path.relative(ROOT, OWNER_RESOLUTIONS_PATH).replaceAll('\\', '/'),
     primaryAcceptanceDevice: DEVICE_RELATIVE_PATH,
   },
   statusPolicy: {
@@ -990,7 +1122,9 @@ const output = {
   counts: {
     nativeShippingSurfaces: entries.length,
     exactDesignOwnersResolved: ownerResolvedCount,
-    unresolvedDesignOwners: entries.length - ownerResolvedCount,
+    explicitTrueExceptions: trueExceptionCount,
+    resolvedOrExplicitException: ownerResolvedCount + trueExceptionCount,
+    unresolvedDesignOwners: unresolvedOwnerCount,
     surfacesWithDirectComparison: comparedSurfaceCount,
     surfacesMissingDirectComparison: entries.length - comparedSurfaceCount,
     comparisonCount,

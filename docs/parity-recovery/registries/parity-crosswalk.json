@@ -7,6 +7,7 @@
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRegistry": "docs/parity-recovery/registries/design-surfaces.json",
     "nativeRegistry": "docs/parity-recovery/registries/native-surfaces.json",
+    "ownerResolutionRegistry": "docs/parity-recovery/registries/owner-resolutions.json",
     "primaryAcceptanceDevice": "docs/parity-recovery/evidence/s9/device-configuration.json"
   },
   "statusPolicy": {
@@ -16,8 +17,10 @@
   },
   "counts": {
     "nativeShippingSurfaces": 192,
-    "exactDesignOwnersResolved": 170,
-    "unresolvedDesignOwners": 22,
+    "exactDesignOwnersResolved": 179,
+    "explicitTrueExceptions": 13,
+    "resolvedOrExplicitException": 192,
+    "unresolvedDesignOwners": 0,
     "surfacesWithDirectComparison": 28,
     "surfacesMissingDirectComparison": 164,
     "comparisonCount": 48,
@@ -2554,7 +2557,16 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "native-evidence-action-extension",
+          "evidence": "Pinned ScreenReview has no evidence-source open action or source-open failure dialog; its candidate flow only accepts, ignores and edits the found transaction.",
+          "searchedAuthorities": [
+            "src/components/folio/screens/ScreenReview.tsx#ScreenReview",
+            "src/components/folio/shell/HeroPhone.tsx#HeroPhone",
+            "src/components/folio/types.ts#ScreenId"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -2594,7 +2606,15 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "native-confirmation-extension",
+          "evidence": "Pinned TodayRecentTxns removes immediately and offers undoToast; it contains no confirmation dialog for transaction removal.",
+          "searchedAuthorities": [
+            "src/components/folio/screens/today/TodayRecentTxns.tsx#TodayRecentTxns",
+            "src/lib/undo.ts#undoToast"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -2819,7 +2839,16 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "native-recovery-integrity-extension",
+          "evidence": "The pinned source has a generic hydrating StateStrip but no post-hydration unreadable-data, recovered-backup, recovered-legacy or recovered-file notice matching the native recovery-integrity surface.",
+          "searchedAuthorities": [
+            "src/components/folio/shell/StateStrip.tsx#StateStrip",
+            "src/components/folio/shell/AppStateStrip.tsx#AppStateStrip",
+            "src/components/folio/shell/HeroPhone.tsx#HeroPhone"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -2855,23 +2884,18 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/shell/AppStateStrip.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
-          },
-          {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/shell/StateStrip.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "state-strip:persistence-degraded",
+            "kind": "standardized-state",
+            "routeKey": "persistence-degraded",
+            "sourceReference": "src/components/folio/shell/StateStrip.tsx#StateStrip",
+            "keyStates": [
+              "persistence-degraded"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "The pinned StateStrip persistence-degraded contract is the direct Lovable visual authority for failed local writes."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -2996,15 +3020,20 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/kit.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "overlay:toast",
+            "kind": "global-overlay",
+            "routeKey": "toast",
+            "sourceReference": "src/routes/__root.tsx#Toaster",
+            "keyStates": [
+              "visible",
+              "queued",
+              "expired"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "The pinned application root mounts the global Sonner Toaster used by non-undo confirmations."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -3039,15 +3068,20 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/kit.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "interaction:undo-toast",
+            "kind": "global-interaction",
+            "routeKey": "undo-toast",
+            "sourceReference": "src/lib/undo.ts#undoToast",
+            "keyStates": [
+              "visible",
+              "undo-action",
+              "expiry"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "The pinned undoToast helper owns the global Sonner title, description, Undo action and timeout contract."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -3179,7 +3213,14 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "platform-owned-chrome",
+          "evidence": "Device credential UI is supplied by Android and has no Lovable-rendered visual owner; Lovable owns only the surrounding app-lock trigger and return state.",
+          "searchedAuthorities": [
+            "src/components/folio/screens/ScreenAppLock.tsx#ScreenAppLock"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -3223,7 +3264,15 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "platform-owned-chrome",
+          "evidence": "Document-provider UI is supplied by Android and has no Lovable-rendered visual owner; Lovable owns only the intake and restore trigger contexts.",
+          "searchedAuthorities": [
+            "src/components/folio/screens/ScreenIntake.tsx#ScreenIntake",
+            "src/components/folio/screens/ScreenBackup.tsx#ScreenBackup"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -3268,7 +3317,14 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "platform-owned-chrome",
+          "evidence": "Google Play purchase chrome is platform-owned and has no Lovable-rendered visual owner; the pinned paywall owns only the purchase trigger and entitlement return state.",
+          "searchedAuthorities": [
+            "src/components/folio/screens/ScreenPaywall.tsx#ScreenPaywall"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -3312,7 +3368,15 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "platform-owned-chrome",
+          "evidence": "Image-provider and camera UI are supplied by Android and have no Lovable-rendered visual owner; Lovable owns only the intake and edit trigger contexts.",
+          "searchedAuthorities": [
+            "src/components/folio/screens/ScreenIntake.tsx#ScreenIntake",
+            "src/components/folio/sheets/SheetEditTxn.tsx#SheetEditTxn"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -3356,7 +3420,14 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "platform-owned-chrome",
+          "evidence": "The Android Sharesheet is platform-owned and has no Lovable-rendered visual owner; the pinned SheetShare owns only the in-app preparation and trigger state.",
+          "searchedAuthorities": [
+            "src/components/folio/sheets/SheetShare.tsx#SheetShare"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -3399,7 +3470,14 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "platform-owned-chrome",
+          "evidence": "Notification permission UI is supplied by Android and has no Lovable-rendered visual owner; Lovable owns only the surrounding notification trigger and return state.",
+          "searchedAuthorities": [
+            "src/components/folio/screens/ScreenNotifications.tsx#ScreenNotifications"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -4214,7 +4292,16 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "native-business-extension",
+          "evidence": "The pinned ScreenId union and BusinessFilingSurfaces provide VAT, Self Assessment, Corporation Tax, Confirmation Statement and Annual Accounts flows, but no Payroll filing route or ScreenBusinessFilingPayroll component.",
+          "searchedAuthorities": [
+            "src/components/folio/types.ts#ScreenId",
+            "src/components/folio/shell/HeroPhone.tsx#HeroPhone",
+            "src/components/folio/screens/BusinessFilingSurfaces.tsx"
+          ]
+        }
       },
       "matchedFixtures": [
         "business-sole-trader",
@@ -5978,15 +6065,20 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/screens/ScreenReview.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "component:review-item",
+            "kind": "screen-component",
+            "routeKey": "review-item",
+            "sourceReference": "src/components/folio/screens/ScreenReview.tsx#ScreenReview",
+            "keyStates": [
+              "candidate",
+              "empty",
+              "stamped"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "The pinned ScreenReview component is annotated as the RN ReviewScreen authority and contains the candidate, empty and stamped compositions ported by the native review-item route."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "pending-review"
@@ -6842,7 +6934,16 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "native-detection-extension",
+          "evidence": "The pinned SheetId union and mounted sheet tree contain no annual-caught sheet or AnnualCaught component.",
+          "searchedAuthorities": [
+            "src/components/folio/types.ts#SheetId",
+            "src/routes/index.tsx#VALID_SHEET_IDS",
+            "src/components/folio/shell/HeroPhone.tsx#HeroPhone"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -7289,7 +7390,16 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "native-business-extension",
+          "evidence": "The pinned ScreenId and SheetId unions contain no business-deductions route or tax-adjustment sheet; the pinned business operations surfaces expose mileage, home-office, IR35 and VAT-scheme routes instead.",
+          "searchedAuthorities": [
+            "src/components/folio/types.ts#ScreenId",
+            "src/components/folio/types.ts#SheetId",
+            "src/components/folio/screens/BusinessOperationsSurfaces.tsx"
+          ]
+        }
       },
       "matchedFixtures": [
         "business-sole-trader",
@@ -8393,7 +8503,16 @@
             "resolution": "unverified-source-hint"
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "true-exception",
+        "trueException": {
+          "reasonCode": "native-detection-extension",
+          "evidence": "The pinned SheetId union and mounted sheet tree contain no drift-caught sheet or DriftCaught component.",
+          "searchedAuthorities": [
+            "src/components/folio/types.ts#SheetId",
+            "src/routes/index.tsx#VALID_SHEET_IDS",
+            "src/components/folio/shell/HeroPhone.tsx#HeroPhone"
+          ]
+        }
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -9459,15 +9578,20 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/shell/HeroPhone.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "shell:hero-phone",
+            "kind": "shell",
+            "routeKey": "root-layout",
+            "sourceReference": "src/components/folio/shell/HeroPhone.tsx#HeroPhone",
+            "keyStates": [
+              "screen-router",
+              "sheet-host",
+              "tab-host"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "HeroPhone is the pinned render authority and owns the product shell, screen router, sheet host and tab host mirrored by the native root layout."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -9500,15 +9624,19 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/shell/TabBar.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "shell:tab-bar",
+            "kind": "shell-navigation",
+            "routeKey": "more",
+            "sourceReference": "src/components/folio/shell/TabBar.tsx#TabBar",
+            "keyStates": [
+              "selected",
+              "unselected"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "The pinned TabBar directly owns the More tab label, icon, selected state and navigation target."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "confirmed-safe"
@@ -9554,15 +9682,19 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/shell/TabBar.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "shell:tab-bar",
+            "kind": "shell-navigation",
+            "routeKey": "plan",
+            "sourceReference": "src/components/folio/shell/TabBar.tsx#TabBar",
+            "keyStates": [
+              "selected",
+              "unselected"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "The pinned TabBar directly owns the Plan tab label, icon, selected state and navigation target."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "confirmed-safe",
@@ -9610,15 +9742,20 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/shell/TabBar.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "shell:tab-bar",
+            "kind": "shell-navigation",
+            "routeKey": "review",
+            "sourceReference": "src/components/folio/shell/TabBar.tsx#TabBar",
+            "keyStates": [
+              "selected",
+              "unselected",
+              "review-count"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "The pinned TabBar directly owns the Review tab label, icon, selected state, count treatment and navigation target."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "pending-review"
@@ -9664,15 +9801,19 @@
       "design": {
         "owners": [
           {
-            "stableId": null,
-            "kind": "hint",
-            "routeKey": null,
-            "sourceReference": "src/components/folio/shell/TabBar.tsx",
-            "keyStates": [],
-            "resolution": "unverified-source-hint"
+            "stableId": "shell:tab-bar",
+            "kind": "shell-navigation",
+            "routeKey": "today",
+            "sourceReference": "src/components/folio/shell/TabBar.tsx#TabBar",
+            "keyStates": [
+              "selected",
+              "unselected"
+            ],
+            "resolution": "exact-owner-registry",
+            "evidence": "The pinned TabBar directly owns the Today tab label, icon, selected state and navigation target."
           }
         ],
-        "ownerStatus": "unresolved"
+        "ownerStatus": "resolved"
       },
       "matchedFixtures": [
         "confirmed-safe"

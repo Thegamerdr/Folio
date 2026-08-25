@@ -1,0 +1,251 @@
+{
+  "$schema": "melo-pinned-owner-resolutions/v1",
+  "designSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "designCheckout": "C:/dev/melo-design-source-ad90b4",
+  "policy": {
+    "exactOwner": "A pinned Lovable source component or standardized state is the direct visual owner of the native surface.",
+    "trueException": "The pinned Lovable tree has no direct visual owner after route, render-tree, component and interaction searches. The exception does not waive native trigger/return-state evidence or owner review."
+  },
+  "counts": {
+    "previouslyUnresolved": 22,
+    "exactOwners": 9,
+    "trueExceptions": 13,
+    "remainingUnresolved": 0
+  },
+  "entries": [
+    {
+      "nativeStableId": "global.persistence-save-notice",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "state-strip:persistence-degraded",
+        "kind": "standardized-state",
+        "routeKey": "persistence-degraded",
+        "sourceReference": "src/components/folio/shell/StateStrip.tsx#StateStrip",
+        "keyStates": ["persistence-degraded"]
+      },
+      "evidence": "The pinned StateStrip persistence-degraded contract is the direct Lovable visual authority for failed local writes."
+    },
+    {
+      "nativeStableId": "global.undo-toast",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "interaction:undo-toast",
+        "kind": "global-interaction",
+        "routeKey": "undo-toast",
+        "sourceReference": "src/lib/undo.ts#undoToast",
+        "keyStates": ["visible", "undo-action", "expiry"]
+      },
+      "evidence": "The pinned undoToast helper owns the global Sonner title, description, Undo action and timeout contract."
+    },
+    {
+      "nativeStableId": "global.toast",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "overlay:toast",
+        "kind": "global-overlay",
+        "routeKey": "toast",
+        "sourceReference": "src/routes/__root.tsx#Toaster",
+        "keyStates": ["visible", "queued", "expired"]
+      },
+      "evidence": "The pinned application root mounts the global Sonner Toaster used by non-undo confirmations."
+    },
+    {
+      "nativeStableId": "screen.review-item",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "component:review-item",
+        "kind": "screen-component",
+        "routeKey": "review-item",
+        "sourceReference": "src/components/folio/screens/ScreenReview.tsx#ScreenReview",
+        "keyStates": ["candidate", "empty", "stamped"]
+      },
+      "evidence": "The pinned ScreenReview component is annotated as the RN ReviewScreen authority and contains the candidate, empty and stamped compositions ported by the native review-item route."
+    },
+    {
+      "nativeStableId": "stack.root-layout",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "shell:hero-phone",
+        "kind": "shell",
+        "routeKey": "root-layout",
+        "sourceReference": "src/components/folio/shell/HeroPhone.tsx#HeroPhone",
+        "keyStates": ["screen-router", "sheet-host", "tab-host"]
+      },
+      "evidence": "HeroPhone is the pinned render authority and owns the product shell, screen router, sheet host and tab host mirrored by the native root layout."
+    },
+    {
+      "nativeStableId": "tab.today",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "shell:tab-bar",
+        "kind": "shell-navigation",
+        "routeKey": "today",
+        "sourceReference": "src/components/folio/shell/TabBar.tsx#TabBar",
+        "keyStates": ["selected", "unselected"]
+      },
+      "evidence": "The pinned TabBar directly owns the Today tab label, icon, selected state and navigation target."
+    },
+    {
+      "nativeStableId": "tab.plan",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "shell:tab-bar",
+        "kind": "shell-navigation",
+        "routeKey": "plan",
+        "sourceReference": "src/components/folio/shell/TabBar.tsx#TabBar",
+        "keyStates": ["selected", "unselected"]
+      },
+      "evidence": "The pinned TabBar directly owns the Plan tab label, icon, selected state and navigation target."
+    },
+    {
+      "nativeStableId": "tab.review",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "shell:tab-bar",
+        "kind": "shell-navigation",
+        "routeKey": "review",
+        "sourceReference": "src/components/folio/shell/TabBar.tsx#TabBar",
+        "keyStates": ["selected", "unselected", "review-count"]
+      },
+      "evidence": "The pinned TabBar directly owns the Review tab label, icon, selected state, count treatment and navigation target."
+    },
+    {
+      "nativeStableId": "tab.more",
+      "disposition": "exact-owner",
+      "designOwner": {
+        "stableId": "shell:tab-bar",
+        "kind": "shell-navigation",
+        "routeKey": "more",
+        "sourceReference": "src/components/folio/shell/TabBar.tsx#TabBar",
+        "keyStates": ["selected", "unselected"]
+      },
+      "evidence": "The pinned TabBar directly owns the More tab label, icon, selected state and navigation target."
+    },
+    {
+      "nativeStableId": "dialog.review-source-open-failed",
+      "disposition": "true-exception",
+      "reasonCode": "native-evidence-action-extension",
+      "evidence": "Pinned ScreenReview has no evidence-source open action or source-open failure dialog; its candidate flow only accepts, ignores and edits the found transaction.",
+      "searchedAuthorities": [
+        "src/components/folio/screens/ScreenReview.tsx#ScreenReview",
+        "src/components/folio/shell/HeroPhone.tsx#HeroPhone",
+        "src/components/folio/types.ts#ScreenId"
+      ]
+    },
+    {
+      "nativeStableId": "dialog.today-remove-transaction-confirm",
+      "disposition": "true-exception",
+      "reasonCode": "native-confirmation-extension",
+      "evidence": "Pinned TodayRecentTxns removes immediately and offers undoToast; it contains no confirmation dialog for transaction removal.",
+      "searchedAuthorities": [
+        "src/components/folio/screens/today/TodayRecentTxns.tsx#TodayRecentTxns",
+        "src/lib/undo.ts#undoToast"
+      ]
+    },
+    {
+      "nativeStableId": "global.hydration-notice",
+      "disposition": "true-exception",
+      "reasonCode": "native-recovery-integrity-extension",
+      "evidence": "The pinned source has a generic hydrating StateStrip but no post-hydration unreadable-data, recovered-backup, recovered-legacy or recovered-file notice matching the native recovery-integrity surface.",
+      "searchedAuthorities": [
+        "src/components/folio/shell/StateStrip.tsx#StateStrip",
+        "src/components/folio/shell/AppStateStrip.tsx#AppStateStrip",
+        "src/components/folio/shell/HeroPhone.tsx#HeroPhone"
+      ]
+    },
+    {
+      "nativeStableId": "platform.device-authentication",
+      "disposition": "true-exception",
+      "reasonCode": "platform-owned-chrome",
+      "evidence": "Device credential UI is supplied by Android and has no Lovable-rendered visual owner; Lovable owns only the surrounding app-lock trigger and return state.",
+      "searchedAuthorities": ["src/components/folio/screens/ScreenAppLock.tsx#ScreenAppLock"]
+    },
+    {
+      "nativeStableId": "platform.notification-permission",
+      "disposition": "true-exception",
+      "reasonCode": "platform-owned-chrome",
+      "evidence": "Notification permission UI is supplied by Android and has no Lovable-rendered visual owner; Lovable owns only the surrounding notification trigger and return state.",
+      "searchedAuthorities": [
+        "src/components/folio/screens/ScreenNotifications.tsx#ScreenNotifications"
+      ]
+    },
+    {
+      "nativeStableId": "platform.document-picker",
+      "disposition": "true-exception",
+      "reasonCode": "platform-owned-chrome",
+      "evidence": "Document-provider UI is supplied by Android and has no Lovable-rendered visual owner; Lovable owns only the intake and restore trigger contexts.",
+      "searchedAuthorities": [
+        "src/components/folio/screens/ScreenIntake.tsx#ScreenIntake",
+        "src/components/folio/screens/ScreenBackup.tsx#ScreenBackup"
+      ]
+    },
+    {
+      "nativeStableId": "platform.image-picker-camera",
+      "disposition": "true-exception",
+      "reasonCode": "platform-owned-chrome",
+      "evidence": "Image-provider and camera UI are supplied by Android and have no Lovable-rendered visual owner; Lovable owns only the intake and edit trigger contexts.",
+      "searchedAuthorities": [
+        "src/components/folio/screens/ScreenIntake.tsx#ScreenIntake",
+        "src/components/folio/sheets/SheetEditTxn.tsx#SheetEditTxn"
+      ]
+    },
+    {
+      "nativeStableId": "platform.native-share",
+      "disposition": "true-exception",
+      "reasonCode": "platform-owned-chrome",
+      "evidence": "The Android Sharesheet is platform-owned and has no Lovable-rendered visual owner; the pinned SheetShare owns only the in-app preparation and trigger state.",
+      "searchedAuthorities": ["src/components/folio/sheets/SheetShare.tsx#SheetShare"]
+    },
+    {
+      "nativeStableId": "platform.google-play-billing",
+      "disposition": "true-exception",
+      "reasonCode": "platform-owned-chrome",
+      "evidence": "Google Play purchase chrome is platform-owned and has no Lovable-rendered visual owner; the pinned paywall owns only the purchase trigger and entitlement return state.",
+      "searchedAuthorities": ["src/components/folio/screens/ScreenPaywall.tsx#ScreenPaywall"]
+    },
+    {
+      "nativeStableId": "screen.business-filing-payroll",
+      "disposition": "true-exception",
+      "reasonCode": "native-business-extension",
+      "evidence": "The pinned ScreenId union and BusinessFilingSurfaces provide VAT, Self Assessment, Corporation Tax, Confirmation Statement and Annual Accounts flows, but no Payroll filing route or ScreenBusinessFilingPayroll component.",
+      "searchedAuthorities": [
+        "src/components/folio/types.ts#ScreenId",
+        "src/components/folio/shell/HeroPhone.tsx#HeroPhone",
+        "src/components/folio/screens/BusinessFilingSurfaces.tsx"
+      ]
+    },
+    {
+      "nativeStableId": "sheet.annual-caught",
+      "disposition": "true-exception",
+      "reasonCode": "native-detection-extension",
+      "evidence": "The pinned SheetId union and mounted sheet tree contain no annual-caught sheet or AnnualCaught component.",
+      "searchedAuthorities": [
+        "src/components/folio/types.ts#SheetId",
+        "src/routes/index.tsx#VALID_SHEET_IDS",
+        "src/components/folio/shell/HeroPhone.tsx#HeroPhone"
+      ]
+    },
+    {
+      "nativeStableId": "sheet.drift-caught",
+      "disposition": "true-exception",
+      "reasonCode": "native-detection-extension",
+      "evidence": "The pinned SheetId union and mounted sheet tree contain no drift-caught sheet or DriftCaught component.",
+      "searchedAuthorities": [
+        "src/components/folio/types.ts#SheetId",
+        "src/routes/index.tsx#VALID_SHEET_IDS",
+        "src/components/folio/shell/HeroPhone.tsx#HeroPhone"
+      ]
+    },
+    {
+      "nativeStableId": "sheet.business-deductions-tax-adjustment",
+      "disposition": "true-exception",
+      "reasonCode": "native-business-extension",
+      "evidence": "The pinned ScreenId and SheetId unions contain no business-deductions route or tax-adjustment sheet; the pinned business operations surfaces expose mileage, home-office, IR35 and VAT-scheme routes instead.",
+      "searchedAuthorities": [
+        "src/components/folio/types.ts#ScreenId",
+        "src/components/folio/types.ts#SheetId",
+        "src/components/folio/screens/BusinessOperationsSurfaces.tsx"
+      ]
+    }
+  ]
+}
