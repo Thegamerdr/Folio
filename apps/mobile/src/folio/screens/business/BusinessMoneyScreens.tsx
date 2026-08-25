@@ -2354,7 +2354,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginTop: gap.xl,
     paddingHorizontal: gap.xl,
-    paddingVertical: gap.xxl,
+    paddingVertical: gap.xl,
   },
   invoicesEmptyPanelTitle: {
     fontFamily: serif.display,
