@@ -21,38 +21,49 @@ const variants = [
   { name: 'dark', background: '#14100D', opacity: 0.28, blend: 'screen' },
 ];
 
+function materialMarkup(variant, width, height, backgroundPositionY) {
+  return `
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: transparent; }
+      #material { position: relative; width: ${width}px; height: ${height}px; background: ${variant.background}; overflow: hidden; }
+      #material::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: ${variant.opacity};
+        mix-blend-mode: ${variant.blend};
+        background-image: ${GRAIN};
+        background-position: 0 ${backgroundPositionY}px;
+        background-size: 240px 240px;
+      }
+    </style>
+    <div id="material"></div>
+  `;
+}
+
 await mkdir(OUT, { recursive: true });
 const { chromium } = await import(pathToFileURL(path.join(PLAYWRIGHT_ROOT, 'index.mjs')).href);
 const browser = await chromium.launch({ headless: true, executablePath: CHROMIUM_EXECUTABLE });
 try {
   for (const scale of [1, 3]) {
     const context = await browser.newContext({
-      viewport: { width: 260, height: 260 },
+      viewport: { width: 400, height: 780 },
       deviceScaleFactor: scale,
     });
     const page = await context.newPage();
     for (const variant of variants) {
-      await page.setContent(`
-        <style>
-          * { box-sizing: border-box; }
-          html, body { margin: 0; background: transparent; }
-          #tile { position: relative; width: 240px; height: 240px; background: ${variant.background}; overflow: hidden; }
-          #tile::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            opacity: ${variant.opacity};
-            mix-blend-mode: ${variant.blend};
-            background-image: ${GRAIN};
-            background-position: 0 -44px;
-            background-size: 240px 240px;
-          }
-        </style>
-        <div id="tile"></div>
-      `);
       const densitySuffix = scale === 1 ? '' : '@3x';
-      await page.locator('#tile').screenshot({
+      await page.setContent(materialMarkup(variant, 240, 240, -44));
+      await page.locator('#material').screenshot({
         path: path.join(OUT, `paper-grain-${variant.name}${densitySuffix}.png`),
+      });
+      // Native's edge-to-edge frame is 360x740dp on the S9 acceptance viewport. Its 24dp status
+      // inset must meet the pinned source product at the source glass's 44dp status boundary, so
+      // advance the deterministic texture by 20dp.
+      await page.setContent(materialMarkup(variant, 360, 740, -20));
+      await page.locator('#material').screenshot({
+        path: path.join(OUT, `paper-canvas-${variant.name}${densitySuffix}.png`),
       });
     }
     await context.close();
@@ -60,4 +71,3 @@ try {
 } finally {
   await browser.close();
 }
-

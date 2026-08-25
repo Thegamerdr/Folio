@@ -629,11 +629,11 @@ export function FolioShell() {
             style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
           >
             <Image
-              resizeMode="repeat"
+              resizeMode="stretch"
               source={
                 isDark
-                  ? require('../../../assets/material/paper-grain-dark.png')
-                  : require('../../../assets/material/paper-grain-light.png')
+                  ? require('../../../assets/material/paper-canvas-dark.png')
+                  : require('../../../assets/material/paper-canvas-light.png')
               }
               style={shellStyles.paperGrain}
             />
