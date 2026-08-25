@@ -2759,7 +2759,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginTop: gap.md,
   },
-  runwayEmptyHero: { marginTop: 20 },
+  runwayEmptyHero: { marginTop: gap.lg },
   runwayEmptyEyebrow: {
     fontFamily: weightFamily(400),
     fontSize: 11,
