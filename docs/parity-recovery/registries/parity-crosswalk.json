@@ -12,12 +12,14 @@
       "docs/parity-recovery/evidence/comparisons/2de19e5/batch-ledger.json",
       "docs/parity-recovery/evidence/comparisons/d90bb19/batch-ledger.json"
     ],
+    "contractLedger": "docs/parity-recovery/evidence/native/harness-072c8d5/dialog-contract-ledger.json",
     "primaryAcceptanceDevice": "docs/parity-recovery/evidence/s9/device-configuration.json"
   },
   "statusPolicy": {
     "passingTestsDoNotImplyVisualParity": true,
     "ownerApprovalRequired": true,
-    "missingEvidenceIsNotAPass": true
+    "missingEvidenceIsNotAPass": true,
+    "contractCaptureIsDirectEvidenceButNotAPixelPair": true
   },
   "counts": {
     "nativeShippingSurfaces": 192,
@@ -27,6 +29,9 @@
     "unresolvedDesignOwners": 0,
     "surfacesWithDirectComparison": 83,
     "surfacesMissingDirectComparison": 109,
+    "surfacesWithDirectContractCapture": 58,
+    "surfacesWithDirectEvidence": 141,
+    "surfacesMissingDirectEvidence": 51,
     "comparisonCount": 160,
     "lightComparisonCount": 80,
     "darkComparisonCount": 80,
@@ -37,7 +42,9 @@
     "batchLedgerStableSurfaces": 59,
     "batchLedgerPreservedOverlaps": 6,
     "batchLedgerComparisonsReplaced": 0,
-    "batchLedgerComparisonsAdded": 112
+    "batchLedgerComparisonsAdded": 112,
+    "contractLedgerSurfaces": 58,
+    "contractLedgerCaptures": 116
   },
   "entries": [
     {
@@ -75,10 +82,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-bank-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:connections"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-bank-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:connections"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-bank-unconfigured",
@@ -115,10 +145,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-bank-unconfigured/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:connections"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-bank-unconfigured/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:connections"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-delete-failed",
@@ -155,10 +208,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-delete-gate-1",
@@ -195,10 +271,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-gate-1/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-gate-1/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-delete-gate-2",
@@ -243,10 +342,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-gate-2/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:connections"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-gate-2/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:connections"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-delete-gate-3",
@@ -283,10 +405,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-gate-3/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-gate-3/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-delete-succeeded",
@@ -324,10 +469,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-succeeded/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-succeeded/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-delete-unavailable",
@@ -364,10 +532,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-share-failed",
@@ -404,10 +595,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-share-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-share-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-sign-out-confirm",
@@ -446,10 +660,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-sign-out-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:signin"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-sign-out-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:signin"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-source-open-failed",
@@ -486,10 +723,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-source-open-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-source-open-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-source-remove-confirm",
@@ -526,10 +786,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-source-remove-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-source-remove-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.account-source-remove-failed",
@@ -566,10 +849,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-source-remove-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-source-remove-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:account"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.app-lock-removed",
@@ -606,10 +912,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.app-lock-removed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:applock"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.app-lock-removed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:applock"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.bank-disconnect-confirm",
@@ -646,10 +975,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.bank-disconnect-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:bank-connection"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.bank-disconnect-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:bank-connection"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.bank-imported-history-choice",
@@ -687,10 +1039,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.bank-imported-history-choice/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:bank-connection"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.bank-imported-history-choice/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:bank-connection"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.cloud-backup-delete-confirm",
@@ -731,10 +1106,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.cloud-backup-delete-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.cloud-backup-delete-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.cloud-backup-local-replace-confirm",
@@ -775,10 +1173,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.cloud-backup-local-replace-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.cloud-backup-local-replace-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.cloud-backup-recovery-code-replace-confirm",
@@ -819,10 +1240,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.cloud-backup-recovery-code-replace-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.cloud-backup-recovery-code-replace-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.cloud-backup-restore-succeeded",
@@ -863,10 +1307,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.cloud-backup-restore-succeeded/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.cloud-backup-restore-succeeded/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.edit-txn-evidence-attach-failed",
@@ -908,10 +1375,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-evidence-attach-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-evidence-attach-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.edit-txn-permission-off",
@@ -951,10 +1441,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-permission-off/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-permission-off/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.edit-txn-receipt-source-choice",
@@ -994,10 +1507,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-receipt-source-choice/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-receipt-source-choice/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.edit-txn-source-open-failed",
@@ -1037,10 +1573,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-source-open-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-source-open-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.edit-txn-unlink-receipt-confirm",
@@ -1080,10 +1639,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-unlink-receipt-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-unlink-receipt-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:edit-txn"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.image-source-open-failed",
@@ -1122,10 +1704,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.image-source-open-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:image-fallback"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.image-source-open-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:image-fallback"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.image-source-unavailable",
@@ -1164,10 +1769,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.image-source-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:image-fallback"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.image-source-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:image-fallback"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.intake-image-source-choice",
@@ -1206,10 +1834,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.intake-image-source-choice/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:intake"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.intake-image-source-choice/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:intake"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.intake-reader-failed",
@@ -1251,10 +1902,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.intake-reader-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:intake"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.intake-reader-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:intake"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.melo-chat-clear-confirm",
@@ -1291,10 +1965,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.melo-chat-clear-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:melo-chat"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.melo-chat-clear-confirm/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "sheet:melo-chat"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.more-accessibility-info",
@@ -1384,10 +2081,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.more-accessibility-info/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:accessibility"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.more-accessibility-info/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:accessibility"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.more-ai-transparency-info",
@@ -1424,10 +2144,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.more-ai-transparency-info/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:ai-transparency"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.more-ai-transparency-info/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:ai-transparency"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-entitlement-save-failed",
@@ -1466,10 +2209,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-entitlement-save-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-entitlement-save-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-local-entitlement-active",
@@ -1510,10 +2276,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-local-entitlement-active/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-local-entitlement-active/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-purchase-failed",
@@ -1552,10 +2341,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-purchase-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-purchase-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-purchase-pending",
@@ -1594,10 +2406,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-purchase-pending/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-purchase-pending/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-purchase-succeeded",
@@ -1637,10 +2472,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-purchase-succeeded/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-purchase-succeeded/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-purchase-verification",
@@ -1681,10 +2539,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-purchase-verification/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-purchase-verification/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-restore-none",
@@ -1723,10 +2604,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-restore-none/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-restore-none/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-restore-not-granted",
@@ -1767,10 +2671,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-restore-not-granted/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-restore-not-granted/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-restore-succeeded",
@@ -1811,10 +2738,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-restore-succeeded/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-restore-succeeded/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.paywall-restore-unavailable-build",
@@ -1853,10 +2803,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-restore-unavailable-build/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-restore-unavailable-build/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:paywall"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.pdf-source-open-failed",
@@ -1895,10 +2868,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.pdf-source-open-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:pdf-fallback"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.pdf-source-open-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:pdf-fallback"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.pdf-source-unavailable",
@@ -1937,10 +2933,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.pdf-source-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:pdf-fallback"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.pdf-source-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:pdf-fallback"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-app-lock-auth-failed",
@@ -1977,10 +2996,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-app-lock-auth-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:applock"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-app-lock-auth-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:applock"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-app-lock-no-device-lock",
@@ -2017,10 +3059,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-app-lock-no-device-lock/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:applock"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-app-lock-no-device-lock/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:applock"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-app-lock-unavailable",
@@ -2057,10 +3122,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-app-lock-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:applock"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-app-lock-unavailable/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:applock"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-clear-failed",
@@ -2099,10 +3187,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-clear-gate-1",
@@ -2141,10 +3252,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-gate-1/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-gate-1/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-clear-gate-2",
@@ -2183,10 +3317,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-gate-2/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-gate-2/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-clear-gate-3",
@@ -2225,10 +3382,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-gate-3/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-gate-3/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-clear-result",
@@ -2268,10 +3448,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-result/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-result/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-export-failed",
@@ -2310,10 +3513,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-export-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-export-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:privacy"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-restore-failed",
@@ -2354,10 +3580,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-failed/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-restore-gate-1",
@@ -2398,10 +3647,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-gate-1/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-gate-1/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-restore-gate-2",
@@ -2442,10 +3714,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-gate-2/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-gate-2/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-restore-invalid-file",
@@ -2496,10 +3791,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-invalid-file/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "status-dialog",
+            "batchId": "non-business-status-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-invalid-file/native-full-1080x2220.png",
+            "nativeEvidenceMode": "centralized-production-status-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.privacy-restore-result",
@@ -2541,10 +3859,33 @@
         "lightOverlay": null,
         "darkOverlay": null,
         "differenceImages": [],
-        "comparisonCount": 0
+        "comparisonCount": 0,
+        "contractCaptures": [
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "light",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-result/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          },
+          {
+            "provenance": "production-contract-capture",
+            "familyId": "decision-dialog",
+            "batchId": "non-business-decision-dialog",
+            "fixture": "confirmed-safe",
+            "theme": "dark",
+            "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-result/native-full-1080x2220.png",
+            "nativeEvidenceMode": "capture-only-production-alert-contract",
+            "sourceOwnerStableId": "screen:backup"
+          }
+        ],
+        "contractCaptureCount": 2
       },
       "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "finalStatus": "direct-production-contract-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "dialog.review-source-open-failed",

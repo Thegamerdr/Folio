@@ -21,6 +21,11 @@ import {
   parseBatchLedgerOptions,
   readBatchLedger,
 } from './merge-batch-ledger.mjs';
+import {
+  mergeContractLedgerEvidence,
+  parseContractLedgerOptions,
+  readContractLedger,
+} from './merge-contract-ledger.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const DESIGN_PATH = path.join(ROOT, 'docs/parity-recovery/registries/design-surfaces.json');
@@ -34,6 +39,7 @@ const DEVICE_RELATIVE_PATH = 'docs/parity-recovery/evidence/s9/device-configurat
 const DEVICE_PATH = path.join(ROOT, DEVICE_RELATIVE_PATH);
 const DESIGN_SHA = 'ad90b4fee36c58be156e145e8663d8c6be1bf0eb';
 const batchLedgerOptions = parseBatchLedgerOptions(process.argv.slice(2), process.env, ROOT);
+const contractLedgerOptions = parseContractLedgerOptions(process.argv.slice(2), process.env, ROOT);
 
 const [design, native, ownerResolutions] = await Promise.all([
   readFile(DESIGN_PATH, 'utf8').then(JSON.parse),
@@ -1071,6 +1077,14 @@ if (batchLedgerOptions.ledgerPaths.length > 0) {
   batchLedgerStats = merged.stats;
 }
 
+let contractLedgerStats = null;
+if (contractLedgerOptions.ledgerPath) {
+  const contractLedger = await readContractLedger(contractLedgerOptions.ledgerPath);
+  const merged = await mergeContractLedgerEvidence(entries, contractLedger, { root: ROOT });
+  entries = merged.entries;
+  contractLedgerStats = merged.stats;
+}
+
 if (entries.length !== native.counts.totalRegisteredSurfaces) {
   throw new Error(
     `Native registry count mismatch: built ${entries.length}, declared ${native.counts.totalRegisteredSurfaces}.`,
@@ -1093,6 +1107,7 @@ const evidencePaths = new Set(
         comparison.overlay,
         comparison.difference,
       ]),
+      ...(entry.evidence.contractCaptures ?? []).map((capture) => capture.nativeFull),
     ])
     .filter(Boolean),
 );
@@ -1129,6 +1144,13 @@ if (
   );
 }
 const comparedSurfaceCount = entries.filter((entry) => entry.evidence.comparisonCount > 0).length;
+const contractSurfaceCount = entries.filter(
+  (entry) => (entry.evidence.contractCaptures?.length ?? 0) > 0,
+).length;
+const directEvidenceSurfaceCount = entries.filter(
+  (entry) =>
+    entry.evidence.comparisonCount > 0 || (entry.evidence.contractCaptures?.length ?? 0) > 0,
+).length;
 if (
   batchLedgerOptions.expectedDirectCount !== null &&
   comparedSurfaceCount !== batchLedgerOptions.expectedDirectCount
@@ -1140,6 +1162,22 @@ if (
 if (batchLedgerStats && batchLedgerStats.finalDirectSurfaceCount !== comparedSurfaceCount) {
   throw new Error(
     `Batch merge direct count mismatch: merge=${batchLedgerStats.finalDirectSurfaceCount}, crosswalk=${comparedSurfaceCount}.`,
+  );
+}
+if (
+  contractLedgerOptions.expectedDirectEvidenceCount !== null &&
+  directEvidenceSurfaceCount !== contractLedgerOptions.expectedDirectEvidenceCount
+) {
+  throw new Error(
+    `Direct evidence count mismatch: expected ${contractLedgerOptions.expectedDirectEvidenceCount}, found ${directEvidenceSurfaceCount}.`,
+  );
+}
+if (
+  contractLedgerStats &&
+  contractLedgerStats.finalDirectEvidenceSurfaceCount !== directEvidenceSurfaceCount
+) {
+  throw new Error(
+    `Contract merge direct count mismatch: merge=${contractLedgerStats.finalDirectEvidenceSurfaceCount}, crosswalk=${directEvidenceSurfaceCount}.`,
   );
 }
 const lightComparisons = new Set(comparisonPaths(entries, 'light').filter(Boolean));
@@ -1171,12 +1209,20 @@ const output = {
               }),
         }
       : {}),
+    ...(contractLedgerOptions.ledgerPath
+      ? {
+          contractLedger: path
+            .relative(ROOT, contractLedgerOptions.ledgerPath)
+            .replaceAll('\\', '/'),
+        }
+      : {}),
     primaryAcceptanceDevice: DEVICE_RELATIVE_PATH,
   },
   statusPolicy: {
     passingTestsDoNotImplyVisualParity: true,
     ownerApprovalRequired: true,
     missingEvidenceIsNotAPass: true,
+    contractCaptureIsDirectEvidenceButNotAPixelPair: true,
   },
   counts: {
     nativeShippingSurfaces: entries.length,
@@ -1186,6 +1232,9 @@ const output = {
     unresolvedDesignOwners: unresolvedOwnerCount,
     surfacesWithDirectComparison: comparedSurfaceCount,
     surfacesMissingDirectComparison: entries.length - comparedSurfaceCount,
+    surfacesWithDirectContractCapture: contractSurfaceCount,
+    surfacesWithDirectEvidence: directEvidenceSurfaceCount,
+    surfacesMissingDirectEvidence: entries.length - directEvidenceSurfaceCount,
     comparisonCount,
     lightComparisonCount: lightComparisons.size,
     darkComparisonCount: darkComparisons.size,
@@ -1199,6 +1248,12 @@ const output = {
           batchLedgerPreservedOverlaps: batchLedgerStats.preservedOverlapCount,
           batchLedgerComparisonsReplaced: batchLedgerStats.replacedComparisonCount,
           batchLedgerComparisonsAdded: batchLedgerStats.addedComparisonCount,
+        }
+      : {}),
+    ...(contractLedgerStats
+      ? {
+          contractLedgerSurfaces: contractLedgerStats.contractSurfaceCount,
+          contractLedgerCaptures: contractLedgerStats.contractCaptureCount,
         }
       : {}),
   },

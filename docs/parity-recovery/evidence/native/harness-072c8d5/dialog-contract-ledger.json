@@ -1,0 +1,1058 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "production-contract-capture",
+  "nativeSha": "072c8d5d3d7246849b6b379a1ed59ea9c1fc24f3",
+  "nativeRef": "072c8d5",
+  "batchIds": [
+    "non-business-decision-dialog",
+    "non-business-status-dialog"
+  ],
+  "surfaceCount": 58,
+  "captureCount": 116,
+  "surfaces": [
+    {
+      "nativeStableId": "dialog.account-delete-gate-1",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-gate-1/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-gate-1/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-delete-gate-2",
+      "sourceOwnerStableId": "screen:connections",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-gate-2/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-gate-2/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-delete-gate-3",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-gate-3/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-gate-3/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-sign-out-confirm",
+      "sourceOwnerStableId": "screen:signin",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-sign-out-confirm/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-sign-out-confirm/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-source-remove-confirm",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-source-remove-confirm/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-source-remove-confirm/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.bank-disconnect-confirm",
+      "sourceOwnerStableId": "sheet:bank-connection",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.bank-disconnect-confirm/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.bank-disconnect-confirm/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.bank-imported-history-choice",
+      "sourceOwnerStableId": "sheet:bank-connection",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.bank-imported-history-choice/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.bank-imported-history-choice/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.cloud-backup-delete-confirm",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.cloud-backup-delete-confirm/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.cloud-backup-delete-confirm/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.cloud-backup-local-replace-confirm",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.cloud-backup-local-replace-confirm/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.cloud-backup-local-replace-confirm/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.cloud-backup-recovery-code-replace-confirm",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.cloud-backup-recovery-code-replace-confirm/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.cloud-backup-recovery-code-replace-confirm/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.edit-txn-receipt-source-choice",
+      "sourceOwnerStableId": "sheet:edit-txn",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-receipt-source-choice/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-receipt-source-choice/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.edit-txn-unlink-receipt-confirm",
+      "sourceOwnerStableId": "sheet:edit-txn",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-unlink-receipt-confirm/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-unlink-receipt-confirm/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.intake-image-source-choice",
+      "sourceOwnerStableId": "screen:intake",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.intake-image-source-choice/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.intake-image-source-choice/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.melo-chat-clear-confirm",
+      "sourceOwnerStableId": "sheet:melo-chat",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.melo-chat-clear-confirm/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.melo-chat-clear-confirm/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-clear-gate-1",
+      "sourceOwnerStableId": "screen:privacy",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-gate-1/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-gate-1/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-clear-gate-2",
+      "sourceOwnerStableId": "screen:privacy",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-gate-2/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-gate-2/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-clear-gate-3",
+      "sourceOwnerStableId": "screen:privacy",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-gate-3/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-gate-3/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-clear-result",
+      "sourceOwnerStableId": "screen:privacy",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-result/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-result/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-restore-gate-1",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-gate-1/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-gate-1/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-restore-gate-2",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-gate-2/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-gate-2/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-restore-result",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "decision-dialog",
+      "batchId": "non-business-decision-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "capture-only-production-alert-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-result/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-result/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-bank-unavailable",
+      "sourceOwnerStableId": "screen:connections",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-bank-unavailable/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-bank-unavailable/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-bank-unconfigured",
+      "sourceOwnerStableId": "screen:connections",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-bank-unconfigured/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-bank-unconfigured/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-delete-failed",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-delete-succeeded",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-succeeded/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-succeeded/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-delete-unavailable",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-delete-unavailable/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-delete-unavailable/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-share-failed",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-share-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-share-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-source-open-failed",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-source-open-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-source-open-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.account-source-remove-failed",
+      "sourceOwnerStableId": "screen:account",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.account-source-remove-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.account-source-remove-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.app-lock-removed",
+      "sourceOwnerStableId": "screen:applock",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.app-lock-removed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.app-lock-removed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.cloud-backup-restore-succeeded",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.cloud-backup-restore-succeeded/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.cloud-backup-restore-succeeded/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.edit-txn-evidence-attach-failed",
+      "sourceOwnerStableId": "sheet:edit-txn",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-evidence-attach-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-evidence-attach-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.edit-txn-permission-off",
+      "sourceOwnerStableId": "sheet:edit-txn",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-permission-off/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-permission-off/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.edit-txn-source-open-failed",
+      "sourceOwnerStableId": "sheet:edit-txn",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.edit-txn-source-open-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.edit-txn-source-open-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.image-source-open-failed",
+      "sourceOwnerStableId": "screen:image-fallback",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.image-source-open-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.image-source-open-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.image-source-unavailable",
+      "sourceOwnerStableId": "screen:image-fallback",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.image-source-unavailable/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.image-source-unavailable/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.intake-reader-failed",
+      "sourceOwnerStableId": "screen:intake",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.intake-reader-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.intake-reader-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.more-accessibility-info",
+      "sourceOwnerStableId": "screen:accessibility",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.more-accessibility-info/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.more-accessibility-info/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.more-ai-transparency-info",
+      "sourceOwnerStableId": "screen:ai-transparency",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.more-ai-transparency-info/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.more-ai-transparency-info/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-entitlement-save-failed",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-entitlement-save-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-entitlement-save-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-local-entitlement-active",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-local-entitlement-active/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-local-entitlement-active/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-purchase-failed",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-purchase-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-purchase-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-purchase-pending",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-purchase-pending/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-purchase-pending/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-purchase-succeeded",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-purchase-succeeded/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-purchase-succeeded/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-purchase-verification",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-purchase-verification/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-purchase-verification/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-restore-none",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-restore-none/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-restore-none/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-restore-not-granted",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-restore-not-granted/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-restore-not-granted/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-restore-succeeded",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-restore-succeeded/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-restore-succeeded/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.paywall-restore-unavailable-build",
+      "sourceOwnerStableId": "screen:paywall",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.paywall-restore-unavailable-build/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.paywall-restore-unavailable-build/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.pdf-source-open-failed",
+      "sourceOwnerStableId": "screen:pdf-fallback",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.pdf-source-open-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.pdf-source-open-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.pdf-source-unavailable",
+      "sourceOwnerStableId": "screen:pdf-fallback",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.pdf-source-unavailable/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.pdf-source-unavailable/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-app-lock-auth-failed",
+      "sourceOwnerStableId": "screen:applock",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-app-lock-auth-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-app-lock-auth-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-app-lock-no-device-lock",
+      "sourceOwnerStableId": "screen:applock",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-app-lock-no-device-lock/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-app-lock-no-device-lock/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-app-lock-unavailable",
+      "sourceOwnerStableId": "screen:applock",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-app-lock-unavailable/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-app-lock-unavailable/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-clear-failed",
+      "sourceOwnerStableId": "screen:privacy",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-clear-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-clear-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-export-failed",
+      "sourceOwnerStableId": "screen:privacy",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-export-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-export-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-restore-failed",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-failed/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-failed/native-full-1080x2220.png"
+        }
+      ]
+    },
+    {
+      "nativeStableId": "dialog.privacy-restore-invalid-file",
+      "sourceOwnerStableId": "screen:backup",
+      "familyId": "status-dialog",
+      "batchId": "non-business-status-dialog",
+      "fixture": "confirmed-safe",
+      "nativeEvidenceMode": "centralized-production-status-contract",
+      "captures": [
+        {
+          "theme": "light",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/light/dialog.privacy-restore-invalid-file/native-full-1080x2220.png"
+        },
+        {
+          "theme": "dark",
+          "nativeFull": "docs/parity-recovery/evidence/native/harness-072c8d5/confirmed-safe/dark/dialog.privacy-restore-invalid-file/native-full-1080x2220.png"
+        }
+      ]
+    }
+  ]
+}
