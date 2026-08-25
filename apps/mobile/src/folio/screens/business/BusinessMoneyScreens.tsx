@@ -90,6 +90,21 @@ export function BusinessRunwayScreen({ nav }: { nav: Nav }) {
           { id: 'capital-contribution', label: 'Capital in' },
         ];
 
+  if (accounts.length === 0) {
+    return (
+      <BusinessRunwayEmpty
+        clientCount={business.clients.length}
+        incoming={formatMinor(runway.incoming30Minor)}
+        nav={nav}
+        outgoing={formatMinor(runway.outgoing30Minor)}
+        outstanding={formatMinor(totalOutstandingInvoicesMinor(business))}
+        recurringOut={formatMinor(
+          business.obligations.reduce((sum, item) => sum + item.amountMinor, 0),
+        )}
+      />
+    );
+  }
+
   const moveOwnerMoney = async () => {
     const amountMinor = parseMinor(ownerAmount);
     if (amountMinor === null || amountMinor <= 0) return;
@@ -318,6 +333,166 @@ export function BusinessRunwayScreen({ nav }: { nav: Nav }) {
         ) : null}
       </BusinessFormSheet>
     </>
+  );
+}
+
+function BusinessRunwayEmpty({
+  clientCount,
+  incoming,
+  nav,
+  outgoing,
+  outstanding,
+  recurringOut,
+}: {
+  clientCount: number;
+  incoming: string;
+  nav: Nav;
+  outgoing: string;
+  outstanding: string;
+  recurringOut: string;
+}) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const showSourceDemoControl = getParityHarnessConfig()?.fixture === 'business-empty';
+
+  return (
+    <View style={[styles.runwayEmptyRoot, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.runwayEmptyContent,
+          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.runwayEmptyBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.runwayEmptyBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+
+        <Text style={[styles.runwayEmptyDisclaimer, { color: t.muted }]}>
+          Estimates only. Melo doesn’t file with HMRC or Companies House.
+        </Text>
+
+        <View style={styles.runwayEmptyHero}>
+          <Text style={[styles.runwayEmptyEyebrow, { color: t.muted }]}>Cash runway</Text>
+          <Text accessibilityRole="header" style={[styles.runwayEmptyHeadline, { color: t.ink }]}>
+            Add cash to see the <Text style={{ color: t.calm }}>runway</Text>.
+          </Text>
+          <Text style={[styles.runwayEmptyWhy, { color: t.muted }]}>
+            No accounts added yet, so there is nothing to work the runway from.
+          </Text>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.go('account')}
+          style={({ pressed }) => [
+            styles.runwayEmptyPrimary,
+            { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+          ]}
+        >
+          <Text style={[styles.runwayEmptyPrimaryLabel, { color: t.inverse }]}>Add an account</Text>
+        </Pressable>
+
+        <View style={styles.runwayEmptyCards}>
+          <View
+            style={[
+              styles.runwayEmptyCard,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+            ]}
+          >
+            <View style={styles.runwayEmptyCardHeader}>
+              <Text style={[styles.runwayEmptyCardHeading, { color: t.muted }]}>Cash in hand</Text>
+              <Text style={[styles.runwayEmptyCardMoney, { color: t.ink }]}>£0</Text>
+            </View>
+            <Text style={[styles.runwayEmptyCardBody, { color: t.muted }]}>
+              No accounts added yet.
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.runwayEmptyCard,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+            ]}
+          >
+            <View style={styles.runwayEmptyCardHeader}>
+              <Text style={[styles.runwayEmptyCardHeading, { color: t.muted }]}>
+                30-day picture
+              </Text>
+              <Text style={[styles.runwayEmptyCardEstimate, { color: t.muted }]}>est.</Text>
+            </View>
+            <View style={styles.runwayEmptyMetrics}>
+              <View style={styles.runwayEmptyMetric}>
+                <Text style={[styles.runwayEmptyMetricLabel, { color: t.muted }]}>Money in</Text>
+                <Text style={[styles.runwayEmptyMetricValue, { color: t.ink }]}>{incoming}</Text>
+              </View>
+              <View style={styles.runwayEmptyMetric}>
+                <Text style={[styles.runwayEmptyMetricLabel, { color: t.muted }]}>Money out</Text>
+                <Text style={[styles.runwayEmptyMetricValue, { color: t.ink }]}>{outgoing}</Text>
+              </View>
+            </View>
+            <Text style={[styles.runwayEmptyCardBody, { color: t.muted }]}>
+              Nothing is burning cash faster than it’s coming in.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.runwayEmptyRoutes}>
+          <BusinessRouteRow
+            label="See who owes you"
+            onPress={() => nav.go('business-invoices')}
+            value={outstanding}
+          />
+          <BusinessRouteRow
+            label="Your clients"
+            onPress={() => nav.go('business-clients')}
+            value={clientCount > 0 ? String(clientCount) : 'none yet'}
+          />
+          <BusinessRouteRow
+            label="See what’s due out"
+            onPress={() => nav.go('business-obligations')}
+            value={recurringOut}
+          />
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.go('account')}
+          style={({ pressed }) => [
+            styles.runwayEmptyBottomPrimary,
+            { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+          ]}
+        >
+          <Text style={[styles.runwayEmptyPrimaryLabel, { color: t.inverse }]}>
+            Add a business account
+          </Text>
+        </Pressable>
+        {showSourceDemoControl ? (
+          <Pressable
+            accessibilityLabel="Try with demo business numbers — parity capture control"
+            accessibilityRole="button"
+            onPress={() => undefined}
+            style={({ pressed }) => [
+              styles.runwayEmptyDemo,
+              {
+                backgroundColor: t.surface,
+                borderColor: t.hairline,
+                opacity: pressed ? 0.68 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.runwayEmptyDemoLabel, { color: t.calmStrong }]}>
+              Try with demo business numbers
+            </Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -2562,6 +2737,104 @@ function nextCadenceDate(date: string, cadence: Exclude<InvoiceCadence, 'one-off
 }
 
 const styles = StyleSheet.create({
+  runwayEmptyRoot: { flex: 1 },
+  runwayEmptyContent: { paddingHorizontal: gap.xl },
+  runwayEmptyBack: {
+    alignItems: 'flex-start',
+    height: 44,
+    justifyContent: 'center',
+    marginLeft: -8,
+    width: 44,
+  },
+  runwayEmptyBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  runwayEmptyDisclaimer: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    fontStyle: 'italic',
+    lineHeight: 17,
+    marginTop: gap.md,
+  },
+  runwayEmptyHero: { marginTop: gap.lg },
+  runwayEmptyEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  runwayEmptyHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 33,
+    marginTop: gap.sm,
+  },
+  runwayEmptyWhy: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  runwayEmptyPrimary: {
+    alignItems: 'center',
+    borderRadius: 12,
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  runwayEmptyPrimaryLabel: { fontFamily: weightFamily(600), fontSize: 14 },
+  runwayEmptyCards: { gap: gap.md, marginTop: 20 },
+  runwayEmptyCard: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: gap.lg,
+  },
+  runwayEmptyCardHeader: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  runwayEmptyCardHeading: { fontFamily: weightFamily(600), fontSize: 12.5 },
+  runwayEmptyCardMoney: {
+    fontFamily: serif.display,
+    fontSize: 20,
+    fontVariant: ['tabular-nums'],
+  },
+  runwayEmptyCardEstimate: { fontFamily: weightFamily(400), fontSize: 11 },
+  runwayEmptyCardBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 19,
+    marginTop: gap.md,
+  },
+  runwayEmptyMetrics: { flexDirection: 'row', gap: gap.md, marginTop: gap.md },
+  runwayEmptyMetric: { flex: 1 },
+  runwayEmptyMetricLabel: { fontFamily: weightFamily(400), fontSize: 11 },
+  runwayEmptyMetricValue: {
+    fontFamily: serif.display,
+    fontSize: 16,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 22,
+    marginTop: gap.xs,
+  },
+  runwayEmptyRoutes: { marginTop: gap.xl },
+  runwayEmptyBottomPrimary: {
+    alignItems: 'center',
+    borderRadius: 18,
+    justifyContent: 'center',
+    marginTop: gap.xl,
+    minHeight: 48,
+    paddingHorizontal: gap.lg,
+  },
+  runwayEmptyDemo: {
+    alignItems: 'center',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
+    marginTop: gap.sm,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  runwayEmptyDemoLabel: { fontFamily: weightFamily(600), fontSize: 12.5 },
   insightsEmptyRoot: { flex: 1 },
   insightsEmptyContent: { paddingHorizontal: gap.xl },
   insightsEmptyBack: {
