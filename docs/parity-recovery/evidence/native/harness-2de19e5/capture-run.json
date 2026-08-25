@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "nativeSha": "2de19e519d7e4106bff51244691ee108cbdb29e0",
+  "nativeRef": "2de19e5",
+  "deviceId": "emulator-5570",
+  "viewport": {
+    "widthPx": 1080,
+    "heightPx": 2220,
+    "densityDpi": 480,
+    "fontScale": 1
+  },
+  "fixtureRuns": [
+    {
+      "batchId": "non-business-confirmed-safe",
+      "fixture": "confirmed-safe",
+      "apkPath": "release-artifacts/capture-2de19e5-confirmed-safe.apk",
+      "apkSha256": "48D3A5D6E1745E55BA72CD995FC82E64BA0BB414D36621521A1FE415420D6034",
+      "captureCount": 104,
+      "verifiedCaptureCount": 104
+    },
+    {
+      "batchId": "business-filing-family",
+      "fixture": "business-ltd",
+      "apkPath": "release-artifacts/capture-2de19e5-business-ltd.apk",
+      "apkSha256": "FC7644347D04DAC9BDDDFFC76C2DA70C83818FDB480D80FDC23A25BCD31714BA",
+      "captureCount": 14,
+      "verifiedCaptureCount": 14
+    }
+  ]
+}

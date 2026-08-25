@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "nativeSha": "d90bb19687753aae497f110790e505db9638b64e",
+  "nativeRef": "d90bb19",
+  "deviceId": "emulator-5570",
+  "viewport": {
+    "widthPx": 1080,
+    "heightPx": 2220,
+    "densityDpi": 480,
+    "fontScale": 1
+  },
+  "fixtureRuns": [
+    {
+      "batchId": "business-filing-family",
+      "fixture": "business-ltd",
+      "apkPath": "release-artifacts/capture-d90bb19-business-ltd.apk",
+      "apkSha256": "B53CD06B02EB284B44939085188433D689BE2DE0703D803431981105A527F3BE",
+      "captureCount": 14,
+      "verifiedCaptureCount": 14
+    }
+  ]
+}

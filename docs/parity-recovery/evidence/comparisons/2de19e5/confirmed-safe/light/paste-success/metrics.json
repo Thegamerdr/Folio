@@ -1,0 +1,51 @@
+{
+  "comparisonKind": "matched-data-calibration",
+  "status": "visual-parity-differences-remain",
+  "acceptanceEvidenceEligible": true,
+  "fixtureId": "confirmed-safe",
+  "theme": "light",
+  "screen": "paste-success",
+  "fixtureSchemaVersion": 1,
+  "sourceSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "nativeSha": "2de19e519d7e4106bff51244691ee108cbdb29e0",
+  "captureApkSha256": "48D3A5D6E1745E55BA72CD995FC82E64BA0BB414D36621521A1FE415420D6034",
+  "captureDeviceId": "emulator-5570",
+  "fixedNow": "2026-08-18T08:00:00.000Z",
+  "locale": "en-GB",
+  "timeZone": "UTC",
+  "productViewportPhysicalPx": {
+    "width": 1080,
+    "height": 2004
+  },
+  "productViewportLogicalDp": {
+    "width": 360,
+    "height": 668
+  },
+  "sourceWasResized": false,
+  "nativeWasResized": false,
+  "nativeProductCropInFullPx": {
+    "left": 0,
+    "top": 72,
+    "right": 1080,
+    "bottom": 2076
+  },
+  "meanAbsoluteRgbDelta": 17.0089,
+  "rmsRgbDelta": 38.5399,
+  "changedPixelFraction": 0.982593,
+  "materialChangedPixelFraction": 0.40733,
+  "materialPixelDeltaFloor": 2,
+  "nonZeroDiffBoundingBoxPx": [
+    0,
+    0,
+    1080,
+    2004
+  ],
+  "engineInvariants": {
+    "todayBalance": 1480,
+    "tightestAmount": 1292,
+    "tightestDate": "2026-08-22",
+    "daysToPayday": 10,
+    "paydayAmount": 3892
+  },
+  "interpretation": "This is valid unscaled matched-state evidence. changedPixelFraction reports every non-zero grayscale delta, while materialChangedPixelFraction reports only grayscale deltas greater than 2. Material coverage is used for the coverage outlier gate; MAE and RMS remain independent strict gates. These metrics do not make the pair an automatic parity pass."
+}
