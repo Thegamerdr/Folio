@@ -41,7 +41,6 @@ import { useReducedMotion as useSystemReducedMotion } from 'react-native-reanima
 
 import { elevation, gap, useTheme, type Palette } from './kit';
 import { announceSurfaceRepaint } from './sheetRepaint';
-import { resolveSheetBottomOffset } from './sheetGeometry';
 
 // The web sheet rounds its top to 28px (rounded-t-[28px]). The kit's radius.xxl (32) is a
 // touch too round for the sheet lip, so the sheet keeps its own constant to match the web.
@@ -151,11 +150,6 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
   const portal = useContext(SheetPortalContext);
   const portalId = useId();
   const usesAndroidPortal = Platform.OS === 'android' && portal !== null;
-  const panelBottomOffset = resolveSheetBottomOffset({
-    platform: Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : 'other',
-    usesAndroidPortal,
-    bottomInset: insets.bottom,
-  });
   // Self-hosting sheets discover AccessibilityInfo asynchronously after mounting. Reanimated keeps
   // the same Android system preference synchronously, which prevents even one unwanted animated
   // frame when Remove animations is already on.
@@ -277,7 +271,7 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
             // bar. iOS keeps its padding behaviour.
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             pointerEvents="box-none"
-            style={[layout.avoider, { bottom: panelBottomOffset, paddingTop: insets.top }]}
+            style={[layout.avoider, { paddingTop: insets.top }]}
           >
             <Animated.View
               accessibilityViewIsModal
@@ -320,7 +314,6 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
       insets.bottom,
       insets.top,
       maxHeight,
-      panelBottomOffset,
       panelBottomPadding,
       s,
       scrimOpacity,

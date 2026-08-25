@@ -157,6 +157,37 @@ await mkdir(evidenceRoot, { recursive: true });
 run(adb, ['-s', deviceId, 'shell', 'wm', 'size', '1080x2220']);
 run(adb, ['-s', deviceId, 'shell', 'wm', 'density', '480']);
 run(adb, ['-s', deviceId, 'shell', 'settings', 'put', 'system', 'font_scale', '1.0']);
+// The pinned browser comparison crop was calibrated against the emulator's gestural product
+// viewport. A cold AVD boot can retain three-button navigation from a physical-S9 drill, changing
+// safe-area insets and moving every portal sheet by ~48dp. Pin the comparison emulator before any
+// capture; the physical S9 is separately validated in its real three-button configuration.
+run(adb, [
+  '-s',
+  deviceId,
+  'shell',
+  'cmd',
+  'overlay',
+  'enable-exclusive',
+  '--category',
+  'com.android.internal.systemui.navbar.gestural',
+]);
+let navigationMode = '';
+for (let attempt = 0; attempt < 12; attempt += 1) {
+  navigationMode = run(adb, [
+    '-s',
+    deviceId,
+    'shell',
+    'settings',
+    'get',
+    'secure',
+    'navigation_mode',
+  ]).trim();
+  if (navigationMode === '2') break;
+  await wait(250);
+}
+if (navigationMode !== '2') {
+  throw new Error(`Parity capture requires gestural navigation; Android reported ${navigationMode}.`);
+}
 
 const fixtureRuns = [];
 const fixtureApkCache = new Map();
