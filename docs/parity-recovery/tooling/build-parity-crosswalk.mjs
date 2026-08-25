@@ -1,9 +1,25 @@
 #!/usr/bin/env node
 
-/** Build the whole-app visual-parity crosswalk from the checked design/native registries. */
+/**
+ * Build the whole-app visual-parity crosswalk from the checked design/native registries.
+ *
+ * A completed bulk comparison can be merged without changing the checked calibration table:
+ *   node docs/parity-recovery/tooling/build-parity-crosswalk.mjs \
+ *     --batch-ledger=docs/parity-recovery/evidence/comparisons/<ref>/batch-ledger.json \
+ *     --expected-direct-count=<unique-crosswalk-surface-count>
+ *
+ * PARITY_BATCH_LEDGER and PARITY_EXPECTED_DIRECT_COUNT are equivalent environment controls.
+ */
 import { access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import {
+  comparisonPaths,
+  mergeBatchLedgerEvidence,
+  parseBatchLedgerOptions,
+  readBatchLedger,
+} from './merge-batch-ledger.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const DESIGN_PATH = path.join(ROOT, 'docs/parity-recovery/registries/design-surfaces.json');
@@ -16,6 +32,7 @@ const OUTPUT_PATH = path.join(ROOT, 'docs/parity-recovery/registries/parity-cros
 const DEVICE_RELATIVE_PATH = 'docs/parity-recovery/evidence/s9/device-configuration.json';
 const DEVICE_PATH = path.join(ROOT, DEVICE_RELATIVE_PATH);
 const DESIGN_SHA = 'ad90b4fee36c58be156e145e8663d8c6be1bf0eb';
+const batchLedgerOptions = parseBatchLedgerOptions(process.argv.slice(2), process.env, ROOT);
 
 const [design, native, ownerResolutions] = await Promise.all([
   readFile(DESIGN_PATH, 'utf8').then(JSON.parse),
@@ -979,7 +996,7 @@ if (
   );
 }
 
-const entries = collections
+let entries = collections
   .flatMap(([kind, rows]) =>
     rows.map((entry) => {
       const ownerResolution = ownerResolutionByNativeId.get(entry.stableId);
@@ -1044,6 +1061,14 @@ const entries = collections
   )
   .sort((a, b) => a.stableId.localeCompare(b.stableId));
 
+let batchLedgerStats = null;
+if (batchLedgerOptions.ledgerPath) {
+  const batchLedger = await readBatchLedger(batchLedgerOptions.ledgerPath);
+  const merged = await mergeBatchLedgerEvidence(entries, batchLedger, { root: ROOT });
+  entries = merged.entries;
+  batchLedgerStats = merged.stats;
+}
+
 if (entries.length !== native.counts.totalRegisteredSurfaces) {
   throw new Error(
     `Native registry count mismatch: built ${entries.length}, declared ${native.counts.totalRegisteredSurfaces}.`,
@@ -1060,6 +1085,12 @@ const evidencePaths = new Set(
       entry.evidence.lightOverlay,
       entry.evidence.darkOverlay,
       ...entry.evidence.differenceImages,
+      ...(entry.evidence.comparisons ?? []).flatMap((comparison) => [
+        comparison.source,
+        comparison.native,
+        comparison.overlay,
+        comparison.difference,
+      ]),
     ])
     .filter(Boolean),
 );
@@ -1096,10 +1127,21 @@ if (
   );
 }
 const comparedSurfaceCount = entries.filter((entry) => entry.evidence.comparisonCount > 0).length;
-const lightComparisons = new Set(
-  entries.map((entry) => entry.evidence.lightNative).filter(Boolean),
-);
-const darkComparisons = new Set(entries.map((entry) => entry.evidence.darkNative).filter(Boolean));
+if (
+  batchLedgerOptions.expectedDirectCount !== null &&
+  comparedSurfaceCount !== batchLedgerOptions.expectedDirectCount
+) {
+  throw new Error(
+    `Directly evidenced unique count mismatch: expected ${batchLedgerOptions.expectedDirectCount}, found ${comparedSurfaceCount}.`,
+  );
+}
+if (batchLedgerStats && batchLedgerStats.finalDirectSurfaceCount !== comparedSurfaceCount) {
+  throw new Error(
+    `Batch merge direct count mismatch: merge=${batchLedgerStats.finalDirectSurfaceCount}, crosswalk=${comparedSurfaceCount}.`,
+  );
+}
+const lightComparisons = new Set(comparisonPaths(entries, 'light').filter(Boolean));
+const darkComparisons = new Set(comparisonPaths(entries, 'dark').filter(Boolean));
 const comparisonCount = lightComparisons.size + darkComparisons.size;
 
 const output = {
@@ -1112,6 +1154,11 @@ const output = {
     designRegistry: path.relative(ROOT, DESIGN_PATH).replaceAll('\\', '/'),
     nativeRegistry: path.relative(ROOT, NATIVE_PATH).replaceAll('\\', '/'),
     ownerResolutionRegistry: path.relative(ROOT, OWNER_RESOLUTIONS_PATH).replaceAll('\\', '/'),
+    ...(batchLedgerOptions.ledgerPath
+      ? {
+          batchLedger: path.relative(ROOT, batchLedgerOptions.ledgerPath).replaceAll('\\', '/'),
+        }
+      : {}),
     primaryAcceptanceDevice: DEVICE_RELATIVE_PATH,
   },
   statusPolicy: {
@@ -1131,6 +1178,16 @@ const output = {
     lightComparisonCount: lightComparisons.size,
     darkComparisonCount: darkComparisons.size,
     designSurfacesNotMappedToNativeShippingSurface: unmappedDesign.length,
+    ...(batchLedgerStats
+      ? {
+          batchLedgerPairs: batchLedgerStats.ledgerPairCount,
+          batchLedgerUniquePairs: batchLedgerStats.uniqueBatchPairCount,
+          batchLedgerDuplicatePairs: batchLedgerStats.duplicatePairCount,
+          batchLedgerStableSurfaces: batchLedgerStats.batchStableSurfaceCount,
+          batchLedgerPreservedOverlaps: batchLedgerStats.preservedOverlapCount,
+          batchLedgerComparisonsAdded: batchLedgerStats.addedComparisonCount,
+        }
+      : {}),
   },
   entries,
   unmappedDesignSurfaces: unmappedDesign,

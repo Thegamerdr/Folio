@@ -70,6 +70,29 @@ def main() -> None:
                 )
                 pair_dir = comparison_root / fixture / theme / screen
                 metrics = json.loads((pair_dir / "metrics.json").read_text(encoding="utf-8"))
+                source_path = (
+                    ROOT
+                    / "docs/parity-recovery/evidence/design/ad90b4-matched-v1"
+                    / fixture
+                    / theme
+                    / screen
+                    / "source-product-1080x2004.png"
+                )
+                native_path = (
+                    native_root / fixture / theme / screen / "native-product-1080x2004.png"
+                )
+                native_kind = (
+                    "sheet"
+                    if surface.get("nativeSheet", surface.get("sheet"))
+                    else "screen"
+                )
+                native_route = (
+                    surface.get("nativeSheet", surface.get("sheet"))
+                    or surface.get("nativeScreen", surface["screen"])
+                )
+                native_surface_key = surface.get("nativeStableId") or (
+                    f"{native_kind}:{native_route}"
+                )
                 reasons = []
                 if metrics["meanAbsoluteRgbDelta"] > mae_limit:
                     reasons.append("mae")
@@ -85,13 +108,24 @@ def main() -> None:
                     "sourceSheet": surface.get("sourceSheet", surface.get("sheet")),
                     "nativeScreen": surface.get("nativeScreen", surface["screen"]),
                     "nativeSheet": surface.get("nativeSheet", surface.get("sheet")),
+                    "nativeKind": native_kind,
+                    "nativeRoute": native_route,
+                    "nativeStableId": surface.get("nativeStableId"),
+                    "nativeSurfaceKey": native_surface_key,
                     "theme": theme,
                     "meanAbsoluteRgbDelta": metrics["meanAbsoluteRgbDelta"],
                     "rmsRgbDelta": metrics["rmsRgbDelta"],
                     "changedPixelFraction": metrics["changedPixelFraction"],
                     "outlier": bool(reasons),
                     "outlierReasons": reasons,
-                    "overlay": str((pair_dir / "overlay-50.png").relative_to(ROOT)).replace("\\", "/"),
+                    "source": str(source_path.relative_to(ROOT)).replace("\\", "/"),
+                    "native": str(native_path.relative_to(ROOT)).replace("\\", "/"),
+                    "overlay": str(
+                        (pair_dir / "overlay-50.png").relative_to(ROOT)
+                    ).replace("\\", "/"),
+                    "difference": str(
+                        (pair_dir / "absolute-difference.png").relative_to(ROOT)
+                    ).replace("\\", "/"),
                 }
                 batch_rows.append(row)
                 all_rows.append(row)
@@ -132,6 +166,8 @@ def main() -> None:
         "nativeRef": args.native_ref,
         "pairCount": len(all_rows),
         "surfaceCount": len({(row["fixture"], row["screen"]) for row in all_rows}),
+        "directSurfaceCount": len({row["nativeSurfaceKey"] for row in all_rows}),
+        "directSurfaceKeys": sorted({row["nativeSurfaceKey"] for row in all_rows}),
         "outlierCount": sum(1 for row in all_rows if row["outlier"]),
         "thresholds": {
             "meanAbsoluteRgbDelta": mae_limit,
