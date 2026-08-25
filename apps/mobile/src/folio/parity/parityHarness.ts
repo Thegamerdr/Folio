@@ -6,6 +6,8 @@
  * a user's vault, fixes the clock, and builds every financial state through the same public store
  * authorities the product uses. Production defaults remain untouched.
  */
+import { Linking } from 'react-native';
+
 import {
   addAccount,
   addCalendarEvent,
@@ -242,6 +244,86 @@ function captureScreen(value: string | undefined): ScreenId {
 
 function captureSheet(value: string | undefined): SheetId {
   return value !== undefined && SHEET_IDS.has(value) ? (value as NonNullable<SheetId>) : null;
+}
+
+export type ParityRuntimeControl = Readonly<{
+  screen: ScreenId;
+  sheet: SheetId;
+  theme: ParityTheme;
+  sequence: number;
+}>;
+
+let parityRuntimeControl: ParityRuntimeControl | null = null;
+let parityRuntimeSequence = 0;
+let parityRuntimeSubscription: { remove: () => void } | null = null;
+const parityRuntimeListeners = new Set<() => void>();
+
+/** Stable snapshot used by capture-only external stores. Ordinary builds always return null. */
+export function getParityRuntimeControl(): ParityRuntimeControl | null {
+  return parityRuntimeControl;
+}
+
+export function subscribeParityRuntimeControl(listener: () => void): () => void {
+  parityRuntimeListeners.add(listener);
+  return () => parityRuntimeListeners.delete(listener);
+}
+
+function applyParityRuntimeUrl(url: string): void {
+  const baked = getParityHarnessConfig();
+  if (baked === null) return;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return;
+  }
+  if (parsed.protocol !== 'folio:' || parsed.hostname !== 'parity') return;
+
+  const screenValue = parsed.searchParams.get('screen') ?? undefined;
+  const sheetValue = parsed.searchParams.get('sheet') ?? undefined;
+  const themeValue = parsed.searchParams.get('theme') ?? undefined;
+  const prior = parityRuntimeControl ?? {
+    screen: baked.screen,
+    sheet: baked.sheet,
+    theme: baked.theme,
+    sequence: parityRuntimeSequence,
+  };
+
+  const screen = screenValue !== undefined && SCREEN_IDS.has(screenValue)
+    ? (screenValue as ScreenId)
+    : prior.screen;
+  const sheet =
+    sheetValue === 'none'
+      ? null
+      : sheetValue !== undefined && SHEET_IDS.has(sheetValue)
+        ? (sheetValue as NonNullable<SheetId>)
+        : screenValue !== undefined
+          ? null
+          : prior.sheet;
+  const theme = themeValue === 'dark' || themeValue === 'light' ? themeValue : prior.theme;
+
+  parityRuntimeSequence += 1;
+  parityRuntimeControl = { screen, sheet, theme, sequence: parityRuntimeSequence };
+  for (const listener of parityRuntimeListeners) listener();
+}
+
+/**
+ * Enables capture-only runtime navigation through `folio://parity?...` deep links. A single
+ * fixture APK can therefore render an entire family in both themes without rebuilding for every
+ * surface. The listener is never installed in an ordinary build.
+ */
+export function startParityRuntimeControl(): () => void {
+  if (getParityHarnessConfig() === null) return () => undefined;
+  if (parityRuntimeSubscription === null) {
+    parityRuntimeSubscription = Linking.addEventListener('url', ({ url }) => {
+      applyParityRuntimeUrl(url);
+    });
+    void Linking.getInitialURL().then((url) => {
+      if (url !== null) applyParityRuntimeUrl(url);
+    });
+  }
+  return () => undefined;
 }
 
 /** Returns null in every ordinary production/debug build. Expo inlines these explicit public env

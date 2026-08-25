@@ -27,6 +27,7 @@ const CHROMIUM_EXECUTABLE =
 const FIXTURE_PATH = path.join(NATIVE_ROOT, 'apps/mobile/src/folio/parity/fixtures.json');
 const PORT = Number.parseInt(process.env.MELO_SOURCE_CAPTURE_PORT ?? '4179', 10);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+const REUSE_SERVER = process.env.MELO_SOURCE_CAPTURE_REUSE_SERVER === 'true';
 // HeroPhone treats the query as an outer device, then subtracts 2x36 and adds a 4px iOS bezel.
 // 370x756 therefore yields a 360x712 inner glass. Removing its 44px source status area leaves the
 // exact 360x668 logical S9 product viewport, without any resampling.
@@ -95,22 +96,24 @@ function waitForServer(url, timeoutMs = 30_000) {
   });
 }
 
-const vite = spawn(
-  process.execPath,
-  [
-    path.join(DESIGN_ROOT, 'node_modules/vite/bin/vite.js'),
-    '--host',
-    '127.0.0.1',
-    '--port',
-    String(PORT),
-  ],
-  { cwd: DESIGN_ROOT, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
-);
+const vite = REUSE_SERVER
+  ? null
+  : spawn(
+      process.execPath,
+      [
+        path.join(DESIGN_ROOT, 'node_modules/vite/bin/vite.js'),
+        '--host',
+        '127.0.0.1',
+        '--port',
+        String(PORT),
+      ],
+      { cwd: DESIGN_ROOT, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
+    );
 let viteOutput = '';
-vite.stdout.on('data', (chunk) => {
+vite?.stdout.on('data', (chunk) => {
   viteOutput += chunk.toString();
 });
-vite.stderr.on('data', (chunk) => {
+vite?.stderr.on('data', (chunk) => {
   viteOutput += chunk.toString();
 });
 
@@ -470,9 +473,9 @@ try {
   await context.close();
 } finally {
   if (browser !== undefined) await browser.close();
-  vite.kill();
-  if (!vite.killed) vite.kill('SIGTERM');
-  if (vite.exitCode !== null && vite.exitCode !== 0 && viteOutput.trim() !== '') {
+  vite?.kill();
+  if (vite !== null && !vite.killed) vite.kill('SIGTERM');
+  if (vite !== null && vite.exitCode !== null && vite.exitCode !== 0 && viteOutput.trim() !== '') {
     process.stderr.write(viteOutput);
   }
 }

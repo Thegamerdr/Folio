@@ -146,7 +146,12 @@ import {
 import { derivePressure } from '@/folio/screens/today/pressure';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from '@/folio/types';
-import { getParityHarnessConfig } from '@/folio/parity/parityHarness';
+import {
+  getParityHarnessConfig,
+  getParityRuntimeControl,
+  startParityRuntimeControl,
+  subscribeParityRuntimeControl,
+} from '@/folio/parity/parityHarness';
 
 // The shell's landing pressure. The web showcase let a design tool flip Melo through her five moods
 // (web-only chrome, not ported); the real web app derives pressure from state and defaults to `calm`
@@ -352,6 +357,11 @@ function useReducedMotion(): boolean {
 export function FolioShell() {
   const t = useTheme();
   const parity = useMemo(() => getParityHarnessConfig(), []);
+  const parityRuntime = useSyncExternalStore(
+    subscribeParityRuntimeControl,
+    getParityRuntimeControl,
+    getParityRuntimeControl,
+  );
   // In-memory nav state — the doorway is `start`, but the home tab is `today`. The web index lands
   // on `start`; here the shell opens on `today` so the bottom nav has a lit home from the first
   // frame (Start is reachable but is not a tab). One screen, one optional sheet.
@@ -385,6 +395,24 @@ export function FolioShell() {
     getSurfaceRepaintEpoch,
   );
   const reduceMotion = useReducedMotion();
+  // Capture-time navigation uses the same history authority as interactive navigation, but resets
+  // it to the requested surface so a batch deep link never inherits the previous capture's trail.
+  const historyRef = useRef<ScreenId[]>(['today']);
+
+  useEffect(() => startParityRuntimeControl(), []);
+
+  useEffect(() => {
+    if (parity === null || parityRuntime === null) return;
+    historyRef.current = [parityRuntime.screen];
+    setWorkspaceSheetVisible(false);
+    setMeloIntent(undefined);
+    setEditTxnTarget(undefined);
+    setDayDetailDate(undefined);
+    setAddEventIntent(undefined);
+    setLogSpendAmount(undefined);
+    setScreen(parityRuntime.screen);
+    setSheet(parityRuntime.sheet);
+  }, [parity, parityRuntime]);
 
   // More-subtree navigation keeps the same active tab. Android Fabric can therefore finish the
   // route commit while treating the visually unchanged tab strip as reusable, even when its first
@@ -405,8 +433,6 @@ export function FolioShell() {
   // `start`), so the stack is seeded with `today` and `back` falls back to `today` when it empties.
   // A ref (not state) so pushing/popping the trail never itself triggers a re-render — the screen
   // state drives rendering; this only records where the user came from.
-  const historyRef = useRef<ScreenId[]>(['today']);
-
   // The onboarding gate reads the live store flag (faithful to the web index, which reads
   // `useAppStore((s) => s.onboarding.done)`). A returning, set-up user is never offered onboarding.
   const onboardingDone = useAppStore((st) => st.onboarding.done);

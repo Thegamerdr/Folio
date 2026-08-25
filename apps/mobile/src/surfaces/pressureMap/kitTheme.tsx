@@ -33,12 +33,18 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import { useColorScheme } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-import { getParityHarnessConfig } from '@/folio/parity/parityHarness';
+import {
+  getParityHarnessConfig,
+  getParityRuntimeControl,
+  startParityRuntimeControl,
+  subscribeParityRuntimeControl,
+} from '@/folio/parity/parityHarness';
 
 // ---------------------------------------------------------------------------
 // Palette type
@@ -217,7 +223,19 @@ export function ThemeProvider({
   const systemScheme = useColorScheme();
   const systemIsDark = systemScheme === 'dark';
   const captureMode = getParityHarnessConfig()?.theme;
+  const runtimeControl = useSyncExternalStore(
+    subscribeParityRuntimeControl,
+    getParityRuntimeControl,
+    getParityRuntimeControl,
+  );
   const [mode, setModeState] = useState<ThemeMode>(captureMode ?? 'system');
+
+  useEffect(() => startParityRuntimeControl(), []);
+
+  useEffect(() => {
+    if (captureMode === undefined || runtimeControl === null) return;
+    setModeState(runtimeControl.theme);
+  }, [captureMode, runtimeControl]);
 
   // Hydrate the persisted choice once on mount. Until it resolves we render in the default ('system'),
   // which already tracks the OS — so there is no light/dark flash for a user who never changed it.
