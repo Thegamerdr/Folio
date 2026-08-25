@@ -52,9 +52,9 @@ function paletteKeys(source: string, declarationStart: string): readonly string[
 describe('dark-mode foundation — palette contract', () => {
   it('the light palette keeps its grepped literal hexes in kit.tsx', () => {
     // Pinned here AND in lovableImplementation.test.ts — the sweep must not move these out of kit.tsx.
-    expect(kit).toContain("calm: '#DC5E33'");
-    expect(kit).toContain("positive: '#3E8E5A'");
-    expect(kit).toContain("positiveInk: '#2F7048'");
+    expect(kit).toContain("calm: '#9E3C18'");
+    expect(kit).toContain("positive: '#2C7345'");
+    expect(kit).toContain("positiveInk: '#2C7345'");
     expect(kit).toContain('export const paper = {');
   });
 
@@ -67,17 +67,17 @@ describe('dark-mode foundation — palette contract', () => {
   });
 
   it('the dark palette uses the Lovable :root.dark web values for the specified keys', () => {
-    expect(theme).toContain("canvas: '#15130F'");
-    expect(theme).toContain("surface: '#1E1B17'");
-    expect(theme).toContain("inset: '#1A1814'");
-    expect(theme).toContain("ink: '#F4F0E6'");
-    expect(theme).toContain("muted: '#9A938A'");
-    expect(theme).toContain("hairline: '#2A2620'");
-    expect(theme).toContain("calm: '#EC7A52'");
-    expect(theme).toContain("calmSoft: '#3A241C'");
-    expect(theme).toContain("positive: '#6FB388'");
+    expect(theme).toContain("canvas: '#14100D'");
+    expect(theme).toContain("surface: '#211B17'");
+    expect(theme).toContain("inset: '#2A231D'");
+    expect(theme).toContain("ink: '#F4EDDF'");
+    expect(theme).toContain("muted: '#A69B8A'");
+    expect(theme).toContain("hairline: '#3A3128'");
+    expect(theme).toContain("calm: '#EE754C'");
+    expect(theme).toContain("calmSoft: '#3E2418'");
+    expect(theme).toContain("positive: '#7ABB93'");
     expect(theme).toContain("caution: '#E6BB6A'");
-    expect(theme).toContain("repair: '#E07560'");
+    expect(theme).toContain("repair: '#E9806C'");
   });
 });
 

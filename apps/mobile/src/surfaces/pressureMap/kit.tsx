@@ -79,34 +79,34 @@ import { formatMinorAmount } from './money';
 // not heavy cards). Numerals stay grotesque tabular; the editorial character comes from the
 // Fraunces serif display + a single accent word.
 export const paper = {
-  canvas: '#F6F4EE', // warm paper ground (web --paper)
-  surface: '#FBFAF5', // raised surface (cards, sheets) (web --surface)
-  surfaceRaised: '#FBFAF5',
-  sunken: '#EFEDE5', // deeper inset well (inputs, skeletons, keypad rest) (web --inset)
-  inset: '#EFEDE5', // near-white well (web --inset) — chips, icon tiles, Melo panels, day cells
-  ink: '#1A1815', // near-black warm ink
-  secondary: '#4A453E', // warm secondary
-  muted: '#6B6760', // warm muted ink — clears WCAG AA (>=4.5:1) on paper + surface
+  canvas: '#EFEBE1', // warm paper ground (web --paper)
+  surface: '#FBF9F2', // raised surface (cards, sheets) (web --surface)
+  surfaceRaised: '#FBF9F2',
+  sunken: '#E7E2D5', // deeper inset well (inputs, skeletons, keypad rest) (web --inset)
+  inset: '#E7E2D5', // near-white well (web --inset) — chips, icon tiles, Melo panels, day cells
+  ink: '#1A1714', // near-black warm ink
+  secondary: '#3D3933', // warm secondary
+  muted: '#5F5A50', // warm muted ink — clears WCAG AA (>=4.5:1) on paper + surface
   // The single terracotta accent (action / brand accent word / tight-point on the path).
-  calm: '#DC5E33', // accent (web --accent)
-  calmStrong: '#B84A24', // deeper terracotta — clears WCAG AA both as 13px eyebrow text on paper
+  calm: '#9E3C18', // accent (web --accent)
+  calmStrong: '#85320F', // deeper terracotta — clears WCAG AA both as 13px eyebrow text on paper
   //                        and as the primary-button fill under a white label (~5:1 each way) (web --accent-deep)
-  calmSoft: '#F4E2D6', // accent-soft (chips, melo-soft, success wells) (web --accent-soft)
+  calmSoft: '#F1DECF', // accent-soft (chips, melo-soft, success wells) (web --accent-soft)
   // "You make it to payday" — the calm green verdict + money-in.
-  positive: '#3E8E5A',
+  positive: '#2C7345',
   positiveSoft: '#DDEBE0',
-  positiveInk: '#2F7048', // AA-strength green for text on paper
+  positiveInk: '#2C7345', // AA-strength green for text on paper
   warm: '#C98A2E', // caution gold for TEXT (clears AA); pairs with warmInk
   caution: '#C99334', // web --caution gold — DATA fills/marks only (rings, dots, bars), not text
   warmSoft: '#F3E6CC',
   warmInk: '#7A5A18',
-  repair: '#C0503E', // shortfall / material change (coral, data only) (web --negative)
+  repair: '#A83C2C', // shortfall / material change (coral, data only) (web --negative)
   repairSoft: '#F4DDD7',
-  repairInk: '#8A4632',
-  hairline: '#E6E1D5', // warm hairline — the primary depth mechanism (web --hairline)
-  hairlineStrong: '#D8D2C6',
-  payday: '#2F7048', // route end-cap (calm green — you reach payday)
-  routeShadow: '#E7E2D8',
+  repairInk: '#A83C2C',
+  hairline: '#E1DBCB', // warm hairline — the primary depth mechanism (web --hairline)
+  hairlineStrong: '#D0C7B4',
+  payday: '#2C7345', // route end-cap (calm green — you reach payday)
+  routeShadow: '#D8D0BE',
   inverse: '#FFFFFF',
 } as const;
 
@@ -705,176 +705,89 @@ export function CheckGlyph({
 }
 
 // ---------------------------------------------------------------------------
-// Bottom nav — premium icons (Today / Review / Melo / More). No "?" glyphs.
+// Bottom nav — canonical personal tabs (Today / Plan / Review / More).
 //
-// Faithful to the web nav model: Today is home, Review is the checklist, Melo is the
-// companion, More is the quiet hub. Start is NOT a tab — it is the fresh-ledger doorway
+// Faithful to the pinned web nav model: Today is home, Plan holds the forward route,
+// Review is the inbox, and Melo lives under More. Start is NOT a tab — it is the fresh-ledger doorway
 // reached before onboarding, so the container shows it without the nav.
 // ---------------------------------------------------------------------------
 
 type NavTab = { id: ProductScreen; label: string };
 
-// One small breathing gap above the system bar — keeps the nav clear of the gesture
-// strip / 3-button bar without leaving a fat empty band on either kind of phone.
-const NAV_SAFE_GAP = 6;
+const NAV_HEIGHT = 68;
 
 const NAV_TABS: readonly NavTab[] = [
   { id: 'today', label: 'Today' },
+  { id: 'plans', label: 'Plan' },
   { id: 'import', label: 'Review' },
-  { id: 'melo', label: 'Melo' },
   { id: 'more', label: 'More' },
 ];
 
 function NavIcon({ id, active, t }: { id: ProductScreen; active: boolean; t: Palette }) {
   const stroke = active ? t.calmStrong : t.muted;
-  const fill = active ? t.calmSoft : 'none';
-  if (id === 'start') {
-    // A doorway — the product "begin" object.
+  if (id === 'today') {
+    // Lucide CircleDot — exact pinned-source geometry.
     return (
-      <Svg width={26} height={26} viewBox="0 0 24 24">
+      <Svg width={20} height={20} viewBox="0 0 24 24">
+        <Circle cx="12" cy="12" r="10" stroke={stroke} strokeWidth={1.6} fill="none" />
+        <Circle cx="12" cy="12" r="1" stroke={stroke} strokeWidth={1.6} fill="none" />
+      </Svg>
+    );
+  }
+  if (id === 'plans') {
+    // Lucide CalendarRange — exact pinned-source geometry.
+    return (
+      <Svg width={20} height={20} viewBox="0 0 24 24">
+        <Rect
+          x="3"
+          y="4"
+          width="18"
+          height="18"
+          rx="2"
+          stroke={stroke}
+          strokeWidth={1.6}
+          fill="none"
+        />
         <Path
-          d="M6 21V5a2 2 0 012-2h8a2 2 0 012 2v16"
+          d="M16 2v4M3 10h18M8 2v4M17 14h-6M13 18H7M7 14h.01M17 18h.01"
           stroke={stroke}
-          strokeWidth={1.8}
-          fill={fill}
-          strokeLinejoin="round"
-        />
-        <Line
-          x1="4"
-          y1="21"
-          x2="20"
-          y2="21"
-          stroke={stroke}
-          strokeWidth={1.8}
+          strokeWidth={1.6}
           strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
         />
-        <Circle cx="14.5" cy="12.5" r="1.1" fill={stroke} />
       </Svg>
     );
   }
   if (id === 'import') {
-    // A checklist — rows to check. Never a question mark.
+    // Lucide Inbox — exact pinned-source geometry.
     return (
-      <Svg width={26} height={26} viewBox="0 0 24 24">
-        <Rect
-          x="4"
-          y="3.5"
-          width="16"
-          height="17"
-          rx="2.4"
-          stroke={stroke}
-          strokeWidth={1.8}
-          fill={fill}
-        />
+      <Svg width={20} height={20} viewBox="0 0 24 24">
         <Path
-          d="M7.5 9l1.6 1.6L12 7.8"
+          d="M22 12h-6l-2 3h-4l-2-3H2"
           stroke={stroke}
-          strokeWidth={1.7}
+          strokeWidth={1.6}
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
         />
-        <Line
-          x1="13.5"
-          y1="9"
-          x2="16.5"
-          y2="9"
-          stroke={stroke}
-          strokeWidth={1.7}
-          strokeLinecap="round"
-        />
         <Path
-          d="M7.5 14.5l1.6 1.6L12 13.3"
+          d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
           stroke={stroke}
-          strokeWidth={1.7}
+          strokeWidth={1.6}
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
         />
-        <Line
-          x1="13.5"
-          y1="14.5"
-          x2="16.5"
-          y2="14.5"
-          stroke={stroke}
-          strokeWidth={1.7}
-          strokeLinecap="round"
-        />
       </Svg>
     );
   }
-  if (id === 'today') {
-    // The money path — Folio's brand object, in miniature.
-    return (
-      <Svg width={26} height={26} viewBox="0 0 24 24">
-        <Path
-          d="M3 8c3 0 3 5 6 5s4-7 7-7 5 8 5 8"
-          stroke={stroke}
-          strokeWidth={1.9}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Circle
-          cx="13"
-          cy="16.7"
-          r="2"
-          fill={active ? t.calmStrong : t.surface}
-          stroke={stroke}
-          strokeWidth={1.8}
-        />
-      </Svg>
-    );
-  }
-  if (id === 'melo') {
-    // Melo's pebble — the companion mark, a soft rounded figure with a quiet eye, matching
-    // the calm MeloFigure silhouette in miniature. Never a speech bubble or a "?".
-    return (
-      <Svg width={26} height={26} viewBox="0 0 24 24">
-        <Path
-          d="M12 3.5c4.4 0 7.5 3 7.5 7.4 0 5-3.8 9.6-7.5 9.6S4.5 15.9 4.5 10.9C4.5 6.5 7.6 3.5 12 3.5z"
-          stroke={stroke}
-          strokeWidth={1.8}
-          fill={fill}
-          strokeLinejoin="round"
-        />
-        <Circle cx="12" cy="10.5" r="1.5" fill={active ? t.calmStrong : stroke} />
-      </Svg>
-    );
-  }
-  // More — calm sliders (settings/options), not three random dots.
+  // Lucide MoreHorizontal — exact pinned-source geometry.
   return (
-    <Svg width={26} height={26} viewBox="0 0 24 24">
-      <Line
-        x1="4"
-        y1="7.5"
-        x2="20"
-        y2="7.5"
-        stroke={stroke}
-        strokeWidth={1.8}
-        strokeLinecap="round"
-      />
-      <Line
-        x1="4"
-        y1="12"
-        x2="20"
-        y2="12"
-        stroke={stroke}
-        strokeWidth={1.8}
-        strokeLinecap="round"
-      />
-      <Line
-        x1="4"
-        y1="16.5"
-        x2="20"
-        y2="16.5"
-        stroke={stroke}
-        strokeWidth={1.8}
-        strokeLinecap="round"
-      />
-      <Circle cx="9" cy="7.5" r="2.2" fill={t.surface} stroke={stroke} strokeWidth={1.8} />
-      <Circle cx="15" cy="12" r="2.2" fill={t.surface} stroke={stroke} strokeWidth={1.8} />
-      <Circle cx="8" cy="16.5" r="2.2" fill={t.surface} stroke={stroke} strokeWidth={1.8} />
+    <Svg width={20} height={20} viewBox="0 0 24 24">
+      <Circle cx="12" cy="12" r="1" stroke={stroke} strokeWidth={1.6} fill="none" />
+      <Circle cx="19" cy="12" r="1" stroke={stroke} strokeWidth={1.6} fill="none" />
+      <Circle cx="5" cy="12" r="1" stroke={stroke} strokeWidth={1.6} fill="none" />
     </Svg>
   );
 }
@@ -888,15 +801,12 @@ export function BottomNav({
   onChange: (screen: ProductScreen) => void;
   reviewCount?: number;
 }) {
-  // Sit the whole nav above the system gesture inset so the home-gesture strip never
-  // eats taps on the tabs (and the nav never crowds the gesture pill). Use the real
-  // inset where there is one (gesture-nav phones) and a calm fallback where there
-  // isn't (3-button-nav phones) — plus one small breathing constant, so the band
-  // clears the system bar without a fat dead zone on either kind of phone.
+  // Android's app window already excludes the S9 three-button system bar. Keep the product
+  // tab band at the pinned 68dp height, using only a small gesture inset when one is reported.
   const insets = useSafeAreaInsets();
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const navPaddingBottom = (insets.bottom > 0 ? insets.bottom : 12) + NAV_SAFE_GAP;
+  const navPaddingBottom = insets.bottom > 0 ? Math.min(insets.bottom, 12) : 6;
 
   return (
     // Fabric can retain only the two tab children whose `selected` prop changed when the screen
@@ -985,7 +895,7 @@ const layout = StyleSheet.create({
   },
   pad: { flexDirection: 'row', flexWrap: 'wrap' },
   padKey: { width: '33.333%', height: 62, alignItems: 'center', justifyContent: 'center' },
-  navItem: { flex: 1, alignItems: 'center', gap: 3 },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
   navIconWrap: { position: 'relative' },
 });
 
@@ -1150,11 +1060,12 @@ function makeStyles(t: Palette) {
     padKeyClear: { fontSize: 16, fontWeight: '600', color: t.muted },
 
     nav: {
+      height: NAV_HEIGHT,
       flexDirection: 'row',
       backgroundColor: t.surface,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: t.hairline,
-      paddingTop: 12,
+      paddingTop: 8,
     },
     navLabel: {
       color: t.muted,

@@ -8,7 +8,7 @@
  * Paper palette hex values, inlined (RemoteViews has no access to the app's
  * ThemeProvider/CSS-variable machinery — see kit.tsx's own note that the LIGHT palette
  * literal is the byte-stable source of truth):
- *   canvas #F6F4EE · ink (near-black warm) #211D17 · calm (terracotta accent) #DC5E33
+ *   canvas #EFEBE1 · ink (near-black warm) #211D17 · calm (terracotta accent) #9E3C18
  *
  * The Safe Zone figure must stand alone without Melo — home-screen real estate is
  * tiny and glanceable-first, so no mascot, no illustration, just the number, the
@@ -23,10 +23,10 @@ import { FlexWidget, TextWidget } from 'react-native-android-widget';
 import type { SafeZoneWidgetSnapshot } from '@/folio/lib/widgetSnapshot';
 import type { MeloWeather } from '@/folio/lib/modes';
 
-const CANVAS = '#F6F4EE';
+const CANVAS = '#EFEBE1';
 const INK = '#211D17';
 const MUTED = '#78716A';
-const CALM = '#DC5E33';
+const CALM = '#9E3C18';
 
 /** Same weather vocabulary MeloWeatherGlyph draws as a horizon-strip icon — the
  *  widget has no room for the SVG glyph, so it renders the honest word instead. */

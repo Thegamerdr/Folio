@@ -289,6 +289,10 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const appLockHint = useAppLockHint();
   const accessibility = useAccessibilityHint();
   const aiReads = useAppStore((s) => s.aiReads);
+  const activeWorkspaceKind = useAppStore(
+    (s) =>
+      s.workspaces.find((workspace) => workspace.id === s.activeWorkspaceId)?.kind ?? 'personal',
+  );
   const aiReadHint =
     aiReads?.used && aiReads.used > 0
       ? `${aiReads.used} read${aiReads.used === 1 ? '' : 's'} this month · asks before changes`
@@ -307,6 +311,16 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   // index; these sections keep the same working destinations while making the next choice legible.
   // Demo time travel is development-only and can never ship as a real account action.
   const groups: MoreGroup[] = [
+    {
+      title: 'Workspace',
+      rows: [
+        {
+          label: activeWorkspaceKind === 'personal' ? 'Switch to Business' : 'Switch to Personal',
+          hint: 'keep Personal and Business money separate',
+          onPress: () => nav.openWorkspace?.(),
+        },
+      ],
+    },
     {
       title: 'Your money',
       rows: [

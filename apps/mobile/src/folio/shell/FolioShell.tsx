@@ -127,7 +127,6 @@ import { DriftCaughtSheet } from '@/folio/sheets/DriftCaughtSheet';
 import { AnnualCaughtSheet } from '@/folio/sheets/AnnualCaughtSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
-import { WorkspaceControl } from '@/folio/ui/WorkspaceControl';
 import { reanchorSubRenewals, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { endLensTrialIfExpired, useLens } from '@/folio/lib/lens';
@@ -221,7 +220,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
 
 // ---------------------------------------------------------------------------
 // Tab <-> screen bridge. The kit's BottomNav speaks the pressure-map ProductScreen ids
-// (today / import / melo / more — the Review tab carries the id `import`). The shell navigates by
+// (today / plans / import / more — the Review tab carries the id `import`). The shell navigates by
 // web ScreenId (where the same screen is `review`). These two functions are the only place the two
 // vocabularies meet, so the kit stays untouched and the web nav semantics are preserved.
 // ---------------------------------------------------------------------------
@@ -237,19 +236,10 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
 // oversight.
 const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'more',
-  'calendar',
-  'plans',
+  'melo',
   'paywall',
-  'whatif',
-  'recovery',
   'privacy',
-  'add-bill',
-  'add-debt',
-  'subs',
-  'pots',
-  'ritual',
   'insights',
-  'shortfall',
   'account',
   'business-entity-setup',
   'business-runway',
@@ -273,6 +263,19 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'business-deductions',
 ]);
 
+const PLAN_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
+  'plans',
+  'calendar',
+  'subs',
+  'pots',
+  'add-bill',
+  'add-debt',
+  'whatif',
+  'recovery',
+  'ritual',
+  'shortfall',
+]);
+
 // Which bottom-tab lights up for a given screen. Faithful to the web TabBar's active-state map, with
 // one deliberate RN deviation: Today lights for `today` + `today-after`; the Review tab (kit id
 // `import`) lights for its stable hub, Timeline, the transient import preview and the one-candidate
@@ -287,6 +290,7 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
 // `review-item` remain focused descendants.
 function activeTabForScreen(screen: ScreenId): ProductScreen {
   if (screen === 'today' || screen === 'today-after') return 'today';
+  if (PLAN_SUBTREE.has(screen)) return 'plans';
   if (
     screen === 'timeline' ||
     screen === 'visualizer' ||
@@ -294,7 +298,6 @@ function activeTabForScreen(screen: ScreenId): ProductScreen {
     screen === 'review-item'
   )
     return 'import';
-  if (screen === 'melo') return 'melo';
   if (MORE_SUBTREE.has(screen)) return 'more';
   return 'today';
 }
@@ -302,8 +305,8 @@ function activeTabForScreen(screen: ScreenId): ProductScreen {
 // The screen a bottom-tab press navigates to. The kit's Review tab (id `import`) opens the stable
 // Review hub; Timeline and the one-candidate review remain descendants of the same tab.
 function screenForTab(tab: ProductScreen): ScreenId {
+  if (tab === 'plans') return 'plans';
   if (tab === 'import') return 'review';
-  if (tab === 'melo') return 'melo';
   if (tab === 'more') return 'more';
   return 'today';
 }
@@ -397,10 +400,7 @@ export function FolioShell() {
   // `useAppStore((s) => s.onboarding.done)`). A returning, set-up user is never offered onboarding.
   const onboardingDone = useAppStore((st) => st.onboarding.done);
   const pendingReviewCount = useAppStore((st) => st.reviewQueue?.length ?? 0);
-  const workspaces = useAppStore((st) => st.workspaces);
   const activeWorkspaceId = useAppStore((st) => st.activeWorkspaceId);
-  const activeWorkspace =
-    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0]!;
   const tinyWins = useAppStore((st) => st.tinyWins);
   const milestoneSoundsEnabled = useAppStore((st) => st.melo?.soundEnabled === true);
   const feedbackQuietMode = useAppStore((st) => st.melo?.quietMode === true);
@@ -508,14 +508,19 @@ export function FolioShell() {
   // The single Nav contract handed to every ported screen (RN mirror of the web Nav). Memoised so a
   // child holding it as a dep doesn't churn; its members are themselves stable callbacks.
   const nav = useMemo<Nav>(
-    () => ({ go, back, openSheet, openMelo, setPressure: setPressureOverride }),
-    [go, back, openSheet, openMelo],
+    () => ({
+      go,
+      back,
+      openSheet,
+      openWorkspace: () => {
+        closeSheet();
+        setWorkspaceSheetVisible(true);
+      },
+      openMelo,
+      setPressure: setPressureOverride,
+    }),
+    [go, back, openSheet, closeSheet, openMelo],
   );
-
-  const openWorkspaceSheet = useCallback(() => {
-    closeSheet();
-    setWorkspaceSheetVisible(true);
-  }, [closeSheet]);
 
   const workspaceActivated = useCallback((_workspaceId: typeof activeWorkspaceId) => {
     historyRef.current = ['today'];
@@ -630,11 +635,6 @@ export function FolioShell() {
                 <ScreenView screen={screen} nav={nav} pressure={activePressure} />
               </ScreenErrorBoundary>
             </View>
-            <WorkspaceControl
-              workspace={activeWorkspace}
-              expanded={workspaceSheetVisible}
-              onPress={openWorkspaceSheet}
-            />
             <BottomNav
               key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
               active={activeTab}

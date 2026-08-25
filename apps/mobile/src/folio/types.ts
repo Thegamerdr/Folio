@@ -141,6 +141,8 @@ export type Nav = {
   // it today (`{ id }` = the posted transaction to correct); every other caller passes the SheetId
   // alone, exactly as before. The slot is optional so existing callers are unchanged.
   openSheet: (sheet: SheetId, payload?: SheetPayload) => void;
+  /** Opens the workspace chooser from its canonical home in More. Optional for isolated fixtures. */
+  openWorkspace?: () => void;
   openMelo: (opts?: MeloIntent) => void;
   /** Override the app-wide money-pressure band — the mood that reshapes Today / What-if / Melo's tone.
    *  Pass a band to set it (the Melo mood picker calls this), or null to fall back to the band DERIVED

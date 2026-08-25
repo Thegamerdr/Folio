@@ -7,7 +7,7 @@
 //
 // THE CONTRACT (read before adding a colour):
 //   • `paper`     — the canonical LIGHT palette. Lives in kit.tsx as a literal. Tests grep its exact
-//                   hexes (e.g. `calm: '#DC5E33'`), so it MUST stay there, byte-stable. kit.tsx
+//                   hexes (e.g. `calm: '#9E3C18'`), so it MUST stay there, byte-stable. kit.tsx
 //                   passes it into <ThemeProvider light={paper} /> — this module never imports it,
 //                   which keeps the two files free of an import cycle.
 //   • `paperDark` — the matching DARK palette, defined here. EVERY key of `paper` has a dark value.
@@ -85,51 +85,50 @@ export type Palette = {
 //   • `sunken` is a slightly darker well than `surface` (insets sit IN the paper).
 //   • `inverse` becomes the dark canvas, since it is used as the on-accent label/glyph colour AND in
 //     a couple of places as a "knockout" fill — on dark, the knockout is the canvas itself.
-// Contrast notes below each derived key reference the surface it is read against (surface #1E1B17 or
-// canvas #15130F) and the approximate ratio.
+// Contrast notes below each derived key reference the active warm-dark surface and canvas.
 export const paperDark: Palette = {
-  canvas: '#15130F', // web --background.dark — the warm-black paper ground
-  surface: '#1E1B17', // web --surface.dark — raised surface (cards, sheets)
-  surfaceRaised: '#1E1B17', // same as surface (kept for the one place the light kit raised it)
+  canvas: '#14100D', // web --background.dark — the warm-black paper ground
+  surface: '#211B17', // web --surface.dark — raised surface (cards, sheets)
+  surfaceRaised: '#211B17', // same as surface (kept for the one place the light kit raised it)
   // A well DEEPER than the surface — insets sit IN the paper. Darker than canvas so a sunken field
   // (keypad rest, skeleton) reads as a recess, not a raised card.
-  sunken: '#100E0B',
-  inset: '#1A1814', // web --inset.dark — near-canvas well (chips, icon tiles, day cells, Melo panels)
-  ink: '#F4F0E6', // web --foreground.dark — warm near-white ink (~13.5:1 on surface)
+  sunken: '#18130F',
+  inset: '#2A231D', // web --inset.dark — near-canvas well (chips, icon tiles, day cells, Melo panels)
+  ink: '#F4EDDF', // web --foreground.dark — warm near-white ink (~13.5:1 on surface)
   // Warm secondary ink — one step down from `ink`, still AA for body text on surface (~9:1).
-  secondary: '#CFC8BC',
-  muted: '#9A938A', // web --muted-foreground.dark — clears AA (~4.8:1 on surface, ~5.4:1 on canvas)
+  secondary: '#D0C5B5',
+  muted: '#A69B8A', // web --muted-foreground.dark — clears AA (~4.8:1 on surface, ~5.4:1 on canvas)
   // The single terracotta accent (action / brand accent word / tight point).
-  calm: '#EC7A52', // web --accent.dark — brighter terracotta, reads as accent on dark (~5.6:1 on surface)
+  calm: '#EE754C', // web --accent.dark — brighter terracotta, reads as accent on dark (~5.6:1 on surface)
   // Deeper-on-light became LIGHTER-on-dark: the primary-button fill + eyebrow text need a terracotta
   // that carries a near-white label AND reads as 13px eyebrow text on the dark ground. A bright warm
   // terracotta does both (white label on calmStrong ~4.7:1; calmStrong text on surface ~6.2:1).
-  calmStrong: '#F08A5D',
-  calmSoft: '#3A241C', // web --accent-soft.dark — a deep terracotta wash for chips / success wells
+  calmStrong: '#EE754C',
+  calmSoft: '#3E2418', // web --accent-soft.dark — a deep terracotta wash for chips / success wells
   // "You make it to payday" — the calm green verdict + money-in.
-  positive: '#6FB388', // web --positive.dark — calm green that reads on dark (~6.4:1 on surface)
+  positive: '#7ABB93', // web --positive.dark — calm green that reads on dark (~6.4:1 on surface)
   positiveSoft: '#1E2C22', // deep green wash well (paired with positiveInk text)
-  positiveInk: '#8FCBA3', // AA-strength green for TEXT on the dark surfaces (~7.6:1 on surface)
+  positiveInk: '#7ABB93', // AA-strength green for TEXT on the dark surfaces (~7.6:1 on surface)
   // Caution gold. Web specifies `caution` (#E6BB6A) for DATA marks; `warm` is the TEXT-grade variant.
   warm: '#E6C27A', // gold TEXT that clears AA on dark (~9:1 on surface) — pairs with warmInk wells
   caution: '#E6BB6A', // web --caution.dark — DATA fills/marks only (rings, dots, bars), not text
   warmSoft: '#2E2515', // deep gold wash well
   warmInk: '#E6C27A', // gold text on the dark warm well — light tint so it reads (≈ warm)
   // Shortfall / material change (coral).
-  repair: '#E07560', // web --negative.dark — coral that reads on dark (~5.5:1 on surface)
+  repair: '#E9806C', // web --negative.dark — coral that reads on dark (~5.5:1 on surface)
   repairSoft: '#321C18', // deep coral wash well
-  repairInk: '#EC9685', // AA-strength coral for TEXT on the dark surfaces (~6.8:1 on surface)
+  repairInk: '#E9806C', // AA-strength coral for TEXT on the dark surfaces (~6.8:1 on surface)
   // The warm hairline — the primary depth mechanism. On dark it is a faint LIGHTENING of the ground.
-  hairline: '#2A2620', // web --border.dark
-  hairlineStrong: '#3A352D', // a stronger divider (ghost-button border, list rules)
-  payday: '#6FB388', // route end-cap — calm green (matches positive on dark)
+  hairline: '#3A3128', // web --border.dark
+  hairlineStrong: '#514438', // a stronger divider (ghost-button border, list rules)
+  payday: '#7ABB93', // route end-cap — calm green (matches positive on dark)
   // The route's soft drop on light was a warm cream; on dark a soft lift reads as a faint warm glow
   // just above the canvas.
-  routeShadow: '#221E18',
+  routeShadow: '#332920',
   // On light, `inverse` is white — used as the on-accent label/glyph colour and as a knockout fill.
   // On dark, the on-accent label still needs to be light (terracotta buttons stay dark-text-unsafe),
   // so inverse stays a near-white for legible labels on the accent fill (~4.7:1 on calmStrong).
-  inverse: '#FBF8F1',
+  inverse: '#14100D',
 };
 
 // ---------------------------------------------------------------------------
