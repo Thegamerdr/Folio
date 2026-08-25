@@ -27,15 +27,7 @@
 // --accent-soft → calmSoft · --positive → positive · --negative → repair.
 
 import { useEffect, useId, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Animated,
-  Easing,
-  Image,
-  Pressable,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -382,9 +374,9 @@ function Ember({ index, size, speedMs }: { index: number; size: number; speedMs:
 }
 
 // ---------------------------------------------------------------------------
-// 3. Phoenix body — one static approved master inside the animated gesture wrapper. Mood changes
-// only the wrapper's float, tilt and scale; there is no sprite swap to cross-fade. Honours
-// reduce-motion by disabling the float.
+// 3. Phoenix body — one static approved master on the direct native image renderer. Mood changes
+// only its float, tilt and scale; there is no sprite swap to cross-fade. Honours reduce-motion by
+// disabling the float.
 // ---------------------------------------------------------------------------
 
 function PhoenixBody({
@@ -438,22 +430,23 @@ function PhoenixBody({
   const shadowOpacity = showGlow ? 0.2 + effGlow * 0.35 : 0;
 
   return (
-    <Animated.View
+    <Animated.Image
+      source={spec.src}
+      resizeMode="contain"
       style={{
         position: 'absolute',
         top: 0,
         left: 0,
         width: size,
         height: size,
+        opacity: 1,
         transform: poseTransform,
         shadowColor: 'rgb(224,99,58)',
         shadowOpacity,
         shadowRadius: size * 0.06,
         shadowOffset: { width: 0, height: size * 0.03 },
       }}
-    >
-      <Image source={spec.src} resizeMode="contain" style={{ width: size, height: size }} />
-    </Animated.View>
+    />
   );
 }
 
