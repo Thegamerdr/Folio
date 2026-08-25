@@ -96,7 +96,7 @@ import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
 import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
 
-import { derivePressure, pressureLine, pressureLow, pressureMood } from './today/pressure';
+import { derivePressure, pressureLine, pressureLow } from './today/pressure';
 import { formatDayProse, formatGBP, groupedPounds } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
@@ -170,7 +170,6 @@ export function TodayScreen({
   const screenTopInset = Math.max(gap.md, insets.top + gap.xs);
   const reduceMotion = useReduceMotion();
 
-  const mood = pressureMood[pressure];
   const line = pressureLine[pressure];
 
   // Live store reads. Today's tightest mirrors the Route/Calendar exactly — but the route inputs
@@ -600,16 +599,20 @@ export function TodayScreen({
   return (
     <Animated.View style={[styles.root, enterStyle]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Header: one compact horizon row, then a resilient state/weather row so
-            long dates and mode names never collide with the Melo doorway. */}
+        {/* Source authority: one subordinate status row only. Date + payday horizon sit on the
+            left; the plain-language state + weather disc sit on the right. Melo has no standalone
+            header doorway in the accepted composition. */}
         <View style={[styles.header, { paddingTop: screenTopInset }]}>
-          <View style={styles.headerTop}>
-            <View style={styles.headerDateBlock}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerHorizon}>
               <Text style={[styles.headerDate, { color: t.muted }]} numberOfLines={1}>
                 {(now ?? new Date()).toLocaleDateString('en-GB', {
                   day: 'numeric',
                   month: 'long',
                 })}
+              </Text>
+              <Text style={[styles.headerSeparator, { color: t.muted }]} aria-hidden>
+                {' · '}
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -618,45 +621,33 @@ export function TodayScreen({
                 hitSlop={8}
                 style={({ pressed: p }) => (p ? pressed : undefined)}
               >
-                <Text style={[styles.headerDays, { color: t.muted }]}>
+                <Text style={[styles.headerDays, { color: t.muted }]} numberOfLines={1}>
                   {daysToPayday} day{daysToPayday === 1 ? '' : 's'} to payday
                 </Text>
               </Pressable>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open Melo"
-              onPress={() => nav.openMelo()}
-              style={({ pressed: p }) => [
-                styles.meloButton,
-                { backgroundColor: t.surface, borderColor: t.hairline },
-                p ? pressed : undefined,
-              ]}
-            >
-              <Melo size={32} mood={mood} />
-            </Pressable>
-          </View>
-          <View style={styles.headerBottom}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Current state: ${STATE_WORD[effectiveMode]}. Tap to change.`}
-              onPress={() => nav.openSheet('lens-picker')}
-              style={({ pressed: p }) => (p ? pressed : undefined)}
-            >
-              <Text style={[styles.headerState, { color: t.muted }]} numberOfLines={1}>
-                {STATE_WORD[effectiveMode]}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Weather ${modeState.weather} — tap to switch lens`}
-              onPress={() => nav.openSheet('lens-picker')}
-              style={({ pressed: p }) => [styles.weatherButton, p ? pressed : undefined]}
-            >
-              <View style={[styles.weatherDisc, { backgroundColor: t.inset }]}>
-                <MeloWeatherGlyph weather={modeState.weather} size={16} />
-              </View>
-            </Pressable>
+            <View style={styles.headerStateGroup}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Current state: ${STATE_WORD[effectiveMode]}. Tap to change.`}
+                onPress={() => nav.openSheet('lens-picker')}
+                style={({ pressed: p }) => (p ? pressed : undefined)}
+              >
+                <Text style={[styles.headerState, { color: t.muted }]} numberOfLines={1}>
+                  {STATE_WORD[effectiveMode]}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Weather ${modeState.weather} — tap to switch lens`}
+                onPress={() => nav.openSheet('lens-picker')}
+                style={({ pressed: p }) => [styles.weatherButton, p ? pressed : undefined]}
+              >
+                <View style={[styles.weatherDisc, { backgroundColor: t.inset }]}>
+                  <MeloWeatherGlyph weather={modeState.weather} size={12} />
+                </View>
+              </Pressable>
+            </View>
           </View>
           {lens.trialCycleId && !lens.fullUnlocked && lens.trialDaysLeft !== null ? (
             <View style={styles.trialRow}>
@@ -1563,25 +1554,28 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: gap.xxxl },
 
   header: {
-    paddingHorizontal: 28,
+    paddingHorizontal: 24,
     paddingTop: gap.md,
-    paddingBottom: gap.sm,
+    paddingBottom: 4,
   },
-  headerTop: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    columnGap: 12,
+    minHeight: 44,
   },
-  headerDateBlock: {
+  headerHorizon: {
     flex: 1,
     minWidth: 0,
-  },
-  headerBottom: {
-    marginTop: gap.xs,
-    minHeight: 30,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: gap.sm,
+  },
+  headerStateGroup: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 8,
   },
   trialRow: {
     minHeight: 28,
@@ -1593,26 +1587,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   headerDate: {
-    fontFamily: serif.displayItalic,
-    fontSize: 13,
+    fontSize: 12.5,
   },
+  headerSeparator: { fontSize: 12.5, opacity: 0.4 },
   headerDays: {
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 12.5,
   },
   weatherButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   weatherDisc: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  meloButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },

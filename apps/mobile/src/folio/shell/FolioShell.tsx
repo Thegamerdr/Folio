@@ -142,6 +142,7 @@ import {
 import { derivePressure } from '@/folio/screens/today/pressure';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from '@/folio/types';
+import { getParityHarnessConfig } from '@/folio/parity/parityHarness';
 
 // The shell's landing pressure. The web showcase let a design tool flip Melo through her five moods
 // (web-only chrome, not ported); the real web app derives pressure from state and defaults to `calm`
@@ -341,11 +342,12 @@ function useReducedMotion(): boolean {
 
 export function FolioShell() {
   const t = useTheme();
+  const parity = useMemo(() => getParityHarnessConfig(), []);
   // In-memory nav state — the doorway is `start`, but the home tab is `today`. The web index lands
   // on `start`; here the shell opens on `today` so the bottom nav has a lit home from the first
   // frame (Start is reachable but is not a tab). One screen, one optional sheet.
-  const [screen, setScreen] = useState<ScreenId>('today');
-  const [sheet, setSheet] = useState<SheetId>(null);
+  const [screen, setScreen] = useState<ScreenId>(parity?.screen ?? 'today');
+  const [sheet, setSheet] = useState<SheetId>(parity?.sheet ?? null);
   const [workspaceSheetVisible, setWorkspaceSheetVisible] = useState(false);
   // Carried into the melo-chat sheet when a flow opens Melo with a prefill/seed (web intent.*).
   const [meloIntent, setMeloIntent] = useState<MeloIntent | undefined>(undefined);
@@ -586,13 +588,13 @@ export function FolioShell() {
   // latches so it never re-fires; the timeout is cleaned up on unmount / dep change.
   const offeredOnboarding = useRef(false);
   useEffect(() => {
-    if (screen === 'today' && !onboardingDone && !offeredOnboarding.current) {
+    if (parity === null && screen === 'today' && !onboardingDone && !offeredOnboarding.current) {
       offeredOnboarding.current = true;
       const id = setTimeout(() => setSheet('onboarding'), ONBOARDING_OFFER_DELAY_MS);
       return () => clearTimeout(id);
     }
     return undefined;
-  }, [screen, onboardingDone]);
+  }, [screen, onboardingDone, parity]);
 
   // The bottom-tab press maps the kit's ProductScreen id back to a web ScreenId, then navigates.
   const onTabChange = useCallback((tab: ProductScreen) => go(screenForTab(tab)), [go]);

@@ -29,6 +29,10 @@ import { reconcileEntitlements } from '@/folio/lib/billing/entitlements';
 import { authenticateAppLock, prepareAppLock, subscribeAppLockSettings } from '@/folio/lib/appLock';
 import { AppLockGate } from '@/folio/ui/AppLockGate';
 import { PERSONAL_WORKSPACE_ID } from '@/folio/lib/workspaceRoot';
+import {
+  activateParityHarness,
+  getParityHarnessConfig,
+} from '@/folio/parity/parityHarness';
 
 export default function FolioRoute() {
   const t = useTheme();
@@ -119,6 +123,15 @@ export default function FolioRoute() {
     let stopWidgetSync: (() => void) | undefined;
     let cancelled = false;
     void (async () => {
+      const parity = getParityHarnessConfig();
+      if (parity !== null) {
+        // Dedicated visual-capture builds never touch the user's persisted partition, app-lock,
+        // notifications, billing or widgets. The deterministic state lives in memory for this
+        // process only and is rebuilt on every cold launch.
+        activateParityHarness(parity);
+        if (!cancelled) setReady(true);
+        return;
+      }
       const activeWorkspaceId = await loadPersistedActiveWorkspace();
       if (cancelled) return;
       // One-time data-continuity import from the archived Melo surface's own
