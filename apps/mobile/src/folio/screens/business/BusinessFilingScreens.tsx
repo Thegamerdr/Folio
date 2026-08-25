@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BusinessFilingKind } from '@folio/business-workspace';
 
 import {
   buildBusinessFilingWorkingCopy,
   shareBusinessFilingPdf,
 } from '@/folio/lib/businessFilingExport';
-import { gap, useTheme } from '@/folio/theme';
+import { gap, serif, useTheme, weightFamily } from '@/folio/theme';
 import { updateBusinessOperations } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
 import {
@@ -91,6 +92,10 @@ export function BusinessFilingsScreen({ nav }: { nav: Nav }) {
   ];
   const visible = rows.filter((row) => row.visible);
 
+  if (visible.length === 0) {
+    return <BusinessFilingsEmpty nav={nav} />;
+  }
+
   return (
     <BusinessScreenFrame
       eyebrow="Filings"
@@ -165,6 +170,83 @@ export function BusinessFilingsScreen({ nav }: { nav: Nav }) {
         </View>
       ) : null}
     </BusinessScreenFrame>
+  );
+}
+
+function BusinessFilingsEmpty({ nav }: { nav: Nav }) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.filingsEmptyRoot, { backgroundColor: t.canvas }]}>
+      <View
+        style={[
+          styles.filingsEmptyHeader,
+          {
+            backgroundColor: t.surface,
+            height: insets.top + 72,
+            paddingTop: insets.top,
+          },
+        ]}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.filingsEmptyBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.filingsEmptyBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+        <Text accessibilityRole="header" style={[styles.filingsEmptyScreenTitle, { color: t.ink }]}>
+          Filings
+        </Text>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.filingsEmptyContent,
+          { paddingBottom: insets.bottom + gap.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.filingsEmptyHero}>
+          <Text style={[styles.filingsEmptyEyebrow, { color: t.muted }]}>Filings</Text>
+          <Text accessibilityRole="header" style={[styles.filingsEmptyHeadline, { color: t.ink }]}>
+            Nothing to <Text style={{ color: t.calm }}>get ready</Text> yet.
+          </Text>
+          <Text style={[styles.filingsEmptyWhy, { color: t.muted }]}>
+            Nothing has been chosen on the business side yet, so no return applies.
+          </Text>
+        </View>
+
+        <View style={[styles.filingsEmptyPanel, { backgroundColor: t.inset }]}>
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={styles.filingsEmptyPerch}
+          />
+          <Text style={[styles.filingsEmptyPanelTitle, { color: t.ink }]}>
+            Nothing to get ready <Text style={{ color: t.calmStrong }}>yet</Text>.
+          </Text>
+          <Text style={[styles.filingsEmptyPanelBody, { color: t.muted }]}>
+            Pick the business type and this becomes the one place for VAT, Self-Assessment or
+            Corporation Tax, the Confirmation Statement, and annual accounts.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.go('business-entity-setup')}
+            style={({ pressed }) => [
+              styles.filingsEmptyAction,
+              { backgroundColor: t.ink, opacity: pressed ? 0.68 : 1 },
+            ]}
+          >
+            <Text style={[styles.filingsEmptyActionLabel, { color: t.canvas }]}>
+              Pick business type
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -466,6 +548,73 @@ function missingCopyReason(
 }
 
 const styles = StyleSheet.create({
+  filingsEmptyRoot: { flex: 1 },
+  filingsEmptyHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  filingsEmptyBack: {
+    alignItems: 'flex-start',
+    bottom: 14,
+    height: 44,
+    justifyContent: 'center',
+    left: 16,
+    position: 'absolute',
+    width: 44,
+  },
+  filingsEmptyBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  filingsEmptyScreenTitle: { fontFamily: weightFamily(600), fontSize: 16 },
+  filingsEmptyContent: { paddingHorizontal: gap.xl, paddingTop: gap.sm },
+  filingsEmptyHero: { marginTop: 0 },
+  filingsEmptyEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  filingsEmptyHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 33,
+    marginTop: gap.sm,
+  },
+  filingsEmptyWhy: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  filingsEmptyPanel: {
+    borderRadius: 18,
+    marginTop: gap.xl,
+    paddingHorizontal: gap.xl,
+    paddingVertical: gap.xl,
+  },
+  filingsEmptyPerch: { height: 112, marginBottom: gap.xs, width: 112 },
+  filingsEmptyPanelTitle: {
+    fontFamily: serif.display,
+    fontSize: 20,
+    lineHeight: 25,
+    maxWidth: 280,
+  },
+  filingsEmptyPanelBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 23,
+    marginTop: gap.sm,
+    maxWidth: 300,
+  },
+  filingsEmptyAction: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    height: 44,
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    paddingHorizontal: gap.lg,
+  },
+  filingsEmptyActionLabel: { fontFamily: weightFamily(500), fontSize: 14 },
   section: { marginTop: gap.xl },
   emptyTitle: { fontSize: 17, fontWeight: '700' },
   emptyBody: { fontSize: 12.5, lineHeight: 18, marginTop: gap.xs },
