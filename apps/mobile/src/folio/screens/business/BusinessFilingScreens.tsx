@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
   },
   filingsEmptyBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
   filingsEmptyScreenTitle: { fontFamily: weightFamily(600), fontSize: 16 },
-  filingsEmptyContent: { paddingHorizontal: gap.xl, paddingTop: gap.sm },
+  filingsEmptyContent: { paddingHorizontal: gap.xl, paddingTop: gap.xs },
   filingsEmptyHero: { marginTop: 0 },
   filingsEmptyEyebrow: {
     fontFamily: weightFamily(400),
@@ -576,7 +576,8 @@ const styles = StyleSheet.create({
   filingsEmptyHeadline: {
     fontFamily: serif.display,
     fontSize: 28,
-    lineHeight: 33,
+    letterSpacing: -0.56,
+    lineHeight: 32,
     marginTop: gap.sm,
   },
   filingsEmptyWhy: {
@@ -588,13 +589,14 @@ const styles = StyleSheet.create({
   filingsEmptyPanel: {
     borderRadius: 18,
     marginTop: gap.xl,
-    paddingHorizontal: gap.xl,
+    paddingHorizontal: 20,
     paddingVertical: gap.xl,
   },
   filingsEmptyPerch: { height: 112, marginBottom: gap.xs, width: 112 },
   filingsEmptyPanelTitle: {
     fontFamily: serif.display,
     fontSize: 20,
+    letterSpacing: -0.4,
     lineHeight: 25,
     maxWidth: 280,
   },
