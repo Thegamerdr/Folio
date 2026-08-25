@@ -39,6 +39,7 @@
     "modules/**/*.tsx",
     "src/**/*.ts",
     "src/**/*.tsx",
+    "src/**/*.json",
     ".expo/types/**/*.ts"
   ],
   "references": [

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { getState, hasConfiguredMoneyPicture } from '../store';
+import { deriveCalendarEvents } from '../lib/calendarEvents';
+import { routeFromStore } from '../lib/storeRoute';
 import { activateParityHarness, type ParityFixtureId } from './parityHarness';
 
 function activate(fixture: ParityFixtureId) {
@@ -22,6 +24,15 @@ describe('visual parity fixture harness', () => {
     });
     expect(getState().transactions).toHaveLength(1);
     expect(getState().subs).toHaveLength(2);
+    expect(getState().calendarEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Octopus Energy', date: '2026-09-01', amount: -118.4 }),
+        expect.objectContaining({ title: 'Rent', date: '2026-09-11', amount: -540 }),
+        expect.objectContaining({ title: 'Check Klarna · 2 of 3', date: '2026-09-01' }),
+      ]),
+    );
+    expect(getState().calendarEvents).toHaveLength(5);
+    expect(getState().incomeSources?.[0]?.dayOfMonth).toBe(28);
 
     expect(activate('provisional-low-confidence').currentBalance).toMatchObject({
       amount: 680,
@@ -44,6 +55,40 @@ describe('visual parity fixture harness', () => {
       'Railcard',
       'Freelance payment',
     ]);
+  });
+
+  it('feeds the confirmed fixture through the native calendar and route authorities', () => {
+    const state = activate('confirmed-safe');
+    const events = deriveCalendarEvents({
+      subs: state.subs,
+      subPaused: state.subPaused,
+      subOverrides: state.subOverrides,
+      onboarding: state.onboarding,
+      manualEvents: state.calendarEvents,
+      pots: state.pots,
+      incomeSources: state.incomeSources ?? [],
+      spendHold: state.spendHold ?? null,
+      whatIfHolds: state.whatIfHolds ?? [],
+      windowDays: 35,
+      now: new Date('2026-08-18T08:00:00.000Z'),
+      includeSampleBills: false,
+    });
+    expect(events.map(({ date, title, amount }) => ({ date, title, amount }))).toEqual([
+      { date: '2026-08-20', title: 'Council tax', amount: -120 },
+      { date: '2026-08-22', title: 'Energy', amount: -68 },
+      { date: '2026-08-28', title: 'Payday', amount: 2600 },
+      { date: '2026-09-01', title: 'Check Klarna · 2 of 3', amount: undefined },
+      { date: '2026-09-01', title: 'Council Tax', amount: -162 },
+      { date: '2026-09-01', title: 'Octopus Energy', amount: -118.4 },
+      { date: '2026-09-03', title: 'BT Broadband', amount: -38 },
+      { date: '2026-09-11', title: 'Rent', amount: -540 },
+    ]);
+
+    const route = routeFromStore(state, new Date('2026-08-18T08:00:00.000Z'));
+    expect(route.daysToPayday).toBe(10);
+    expect(route.spare).toBe(3892);
+    expect(route.tightPoint).toEqual({ date: '2026-08-22', amount: 1292 });
+    expect(route.points.find((point) => point.date === '2026-09-11')?.y).toBeCloseTo(3033.6);
   });
 
   it('keeps empty and first-run states distinct and unconfigured', () => {

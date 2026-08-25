@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "nowISO": "2026-08-18T08:00:00.000Z",
+  "locale": "en-GB",
+  "timeZone": "UTC",
+  "personalDefaults": {
+    "name": "Alex",
+    "transaction": {
+      "id": "fixture-txn-groceries",
+      "when": "2026-08-17T08:00:00.000Z",
+      "merchant": "Groceries",
+      "amount": -42,
+      "category": "food",
+      "source": "manual"
+    }
+  },
+  "designAdapter": {
+    "note": "The pinned web prototype unconditionally derives four demo bills and one Klarna review marker. Native adds equivalent manual calendar events only in capture mode. Evidence runs in UTC because the pinned source serializes monthly local-midnight dates through UTC ISO slices; UTC prevents DST drift while preserving en-GB copy and the same visible 08:00 capture day.",
+    "implicitCalendarEvents": [
+      {
+        "id": "fixture-design-bill-octopus-2026-09-01",
+        "date": "2026-09-01",
+        "kind": "out",
+        "title": "Octopus Energy",
+        "note": "Variable — could land lower",
+        "amount": -118.4
+      },
+      {
+        "id": "fixture-design-bill-council-tax-2026-09-01",
+        "date": "2026-09-01",
+        "kind": "out",
+        "title": "Council Tax",
+        "note": "Monthly direct debit",
+        "amount": -162
+      },
+      {
+        "id": "fixture-design-bill-broadband-2026-09-03",
+        "date": "2026-09-03",
+        "kind": "out",
+        "title": "BT Broadband",
+        "amount": -38
+      },
+      {
+        "id": "fixture-design-bill-rent-2026-09-11",
+        "date": "2026-09-11",
+        "kind": "out",
+        "title": "Rent",
+        "note": "Monthly",
+        "amount": -540
+      },
+      {
+        "id": "fixture-design-review-klarna-2026-09-01",
+        "date": "2026-09-01",
+        "kind": "review",
+        "title": "Check Klarna · 2 of 3",
+        "note": "Confirm the next instalment lands cleanly"
+      }
+    ]
+  },
+  "fixtures": {
+    "confirmed-safe": {
+      "kind": "personal",
+      "designPressure": "safe",
+      "balance": 1480,
+      "balanceSource": "corrected",
+      "confidence": "corrected",
+      "income": 2600,
+      "payday": 28,
+      "subscriptions": [
+        { "name": "Council tax", "cost": 120, "daysAway": 2 },
+        { "name": "Energy", "cost": 68, "daysAway": 4 }
+      ]
+    },
+    "provisional-low-confidence": {
+      "kind": "personal",
+      "designPressure": "soft",
+      "balance": 680,
+      "balanceSource": "user-entered",
+      "confidence": "rough",
+      "income": 1450,
+      "payday": 28,
+      "subscriptions": [
+        { "name": "Council tax", "cost": 120, "daysAway": 2 },
+        { "name": "Energy", "cost": 68, "daysAway": 4 }
+      ]
+    },
+    "pressured": {
+      "kind": "personal",
+      "designPressure": "pressured",
+      "balance": 520,
+      "balanceSource": "corrected",
+      "confidence": "corrected",
+      "income": 1500,
+      "payday": 28,
+      "subscriptions": [
+        { "name": "Council tax", "cost": 260, "daysAway": 2 },
+        { "name": "Energy", "cost": 180, "daysAway": 4 }
+      ]
+    },
+    "negative-shortfall": {
+      "kind": "personal",
+      "designPressure": "overspent",
+      "balance": 300,
+      "balanceSource": "corrected",
+      "confidence": "corrected",
+      "income": 1200,
+      "payday": 28,
+      "subscriptions": [
+        { "name": "Council tax", "cost": 420, "daysAway": 2 },
+        { "name": "Energy", "cost": 310, "daysAway": 4 }
+      ]
+    },
+    "populated-commitments": {
+      "kind": "personal",
+      "designPressure": "safe",
+      "balance": 1480,
+      "balanceSource": "corrected",
+      "confidence": "corrected",
+      "income": 2600,
+      "payday": 28,
+      "subscriptions": [
+        { "name": "Council tax", "cost": 120, "daysAway": 2 },
+        { "name": "Energy", "cost": 68, "daysAway": 4 }
+      ]
+    },
+    "pending-review": {
+      "kind": "personal",
+      "designPressure": "safe",
+      "balance": 1480,
+      "balanceSource": "corrected",
+      "confidence": "corrected",
+      "income": 2600,
+      "payday": 28,
+      "subscriptions": [
+        { "name": "Council tax", "cost": 120, "daysAway": 2 },
+        { "name": "Energy", "cost": 68, "daysAway": 4 }
+      ]
+    },
+    "business-sole-trader": { "kind": "business-sole-trader" },
+    "business-ltd": { "kind": "business-ltd" },
+    "empty": { "kind": "empty" },
+    "first-run": { "kind": "first-run" }
+  }
+}

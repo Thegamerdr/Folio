@@ -8,6 +8,7 @@
  */
 import {
   addAccount,
+  addCalendarEvent,
   addDebt,
   addEvidenceDocument,
   addPlan,
@@ -26,6 +27,7 @@ import {
   type BalanceConfidence,
   type Sub,
 } from '../store';
+import fixtureManifestJson from './fixtures.json';
 import {
   BUSINESS_ACCEPTANCE_NOW,
   ltdAcceptanceFixture,
@@ -37,21 +39,59 @@ import {
 } from '../lib/workspaceRoot';
 import type { ScreenId, SheetId } from '../types';
 
-export const PARITY_FIXTURE_IDS = [
-  'confirmed-safe',
-  'provisional-low-confidence',
-  'pressured',
-  'negative-shortfall',
-  'populated-commitments',
-  'pending-review',
-  'business-sole-trader',
-  'business-ltd',
-  'empty',
-  'first-run',
-] as const;
-
-export type ParityFixtureId = (typeof PARITY_FIXTURE_IDS)[number];
+export type ParityFixtureId = keyof typeof fixtureManifestJson.fixtures;
+export const PARITY_FIXTURE_IDS = Object.freeze(
+  Object.keys(fixtureManifestJson.fixtures) as ParityFixtureId[],
+);
 export type ParityTheme = 'light' | 'dark';
+
+type PersonalFixture = Readonly<{
+  kind: 'personal';
+  designPressure: 'safe' | 'calm' | 'soft' | 'pressured' | 'overspent';
+  balance: number;
+  balanceSource: 'user-entered' | 'corrected';
+  confidence: BalanceConfidence;
+  income: number;
+  payday: number;
+  subscriptions: ReadonlyArray<Readonly<{ name: string; cost: number; daysAway: number }>>;
+}>;
+
+const fixtureManifest = fixtureManifestJson as unknown as Readonly<{
+  schemaVersion: 1;
+  nowISO: string;
+  locale: 'en-GB';
+  timeZone: 'UTC';
+  personalDefaults: Readonly<{
+    name: string;
+    transaction: Readonly<{
+      id: string;
+      when: string;
+      merchant: string;
+      amount: number;
+      category: 'food';
+      source: 'manual';
+    }>;
+  }>;
+  designAdapter: Readonly<{
+    implicitCalendarEvents: ReadonlyArray<
+      Readonly<{
+        id: string;
+        date: string;
+        kind: 'out' | 'review';
+        title: string;
+        note?: string;
+        amount?: number;
+      }>
+    >;
+  }>;
+  fixtures: Record<ParityFixtureId, PersonalFixture | Readonly<{ kind: string }>>;
+}>;
+
+function isPersonalFixture(
+  fixture: PersonalFixture | Readonly<{ kind: string }>,
+): fixture is PersonalFixture {
+  return fixture.kind === 'personal' && 'balance' in fixture;
+}
 
 export type ParityHarnessConfig = Readonly<{
   fixture: ParityFixtureId;
@@ -61,7 +101,7 @@ export type ParityHarnessConfig = Readonly<{
   theme: ParityTheme;
 }>;
 
-const DEFAULT_CAPTURE_NOW = '2026-08-18T08:00:00.000Z';
+const DEFAULT_CAPTURE_NOW = fixtureManifest.nowISO;
 
 const SCREEN_IDS: ReadonlySet<string> = new Set([
   'start',
@@ -205,39 +245,28 @@ function isoDay(offsetDays: number): string {
   return new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
 }
 
-function baseSubscriptions(kind: 'safe' | 'pressured' | 'negative'): Sub[] {
-  const rows: Sub[] = [
-    {
-      name: 'Council tax',
-      cost: kind === 'safe' ? 120 : kind === 'pressured' ? 260 : 420,
-      nextRenewalDaysAway: 2,
-      nextRenewalISO: isoDay(2),
-      lastUsedDaysAgo: 0,
-      usesPerMonth: 1,
-    },
-    {
-      name: 'Energy',
-      cost: kind === 'safe' ? 68 : kind === 'pressured' ? 180 : 310,
-      nextRenewalDaysAway: 4,
-      nextRenewalISO: isoDay(4),
-      lastUsedDaysAgo: 0,
-      usesPerMonth: 1,
-    },
-  ];
-  return rows;
+function fixtureSubscriptions(fixture: PersonalFixture): Sub[] {
+  return fixture.subscriptions.map((row) => ({
+    name: row.name,
+    cost: row.cost,
+    nextRenewalDaysAway: row.daysAway,
+    nextRenewalISO: isoDay(row.daysAway),
+    lastUsedDaysAgo: 0,
+    usesPerMonth: 1,
+  }));
 }
 
-function configurePersonalBase(input: Readonly<{
-  balance: number;
-  confidence: BalanceConfidence;
-  income: number;
-  kind: 'safe' | 'pressured' | 'negative';
-}>): void {
+function configurePersonalBase(input: PersonalFixture): void {
   resetToEmpty({ onboardingDone: true });
-  setOnboarding({ done: true, name: 'Alex', payday: 28, monthlyIncome: input.income });
+  setOnboarding({
+    done: true,
+    name: fixtureManifest.personalDefaults.name,
+    payday: input.payday,
+    monthlyIncome: input.income,
+  });
   setCurrentBalance({
     amount: input.balance,
-    source: input.confidence === 'rough' ? 'user-entered' : 'corrected',
+    source: input.balanceSource,
     confidence: input.confidence,
   });
   setIncomeSources([
@@ -245,21 +274,24 @@ function configurePersonalBase(input: Readonly<{
       id: 'fixture-income-main',
       label: 'Payday',
       cadence: 'monthly',
-      dayOfMonth: 28,
+      dayOfMonth: input.payday,
       amount: input.income,
       source: input.confidence === 'rough' ? 'inferred' : 'onboarding',
     },
   ]);
-  setSubs(baseSubscriptions(input.kind));
+  setSubs(fixtureSubscriptions(input));
   setMeloPrimerSeen(true);
-  addTransaction({
-    id: 'fixture-txn-groceries',
-    when: new Date(Date.now() - 86_400_000).toISOString(),
-    merchant: 'Groceries',
-    amount: -42,
-    category: 'food',
-    source: 'manual',
-  });
+  for (const event of fixtureManifest.designAdapter.implicitCalendarEvents) {
+    addCalendarEvent({
+      id: event.id,
+      date: event.date,
+      kind: event.kind,
+      title: event.title,
+      ...(event.note === undefined ? {} : { note: event.note }),
+      ...(event.amount === undefined ? {} : { amount: event.amount }),
+    });
+  }
+  addTransaction(fixtureManifest.personalDefaults.transaction);
 }
 
 function configureBusiness(kind: 'sole-trader' | 'ltd'): void {
@@ -298,6 +330,8 @@ function configureBusiness(kind: 'sole-trader' | 'ltd'): void {
 export function activateParityHarness(config: ParityHarnessConfig): void {
   installCaptureClock(config.nowISO);
 
+  const fixture = fixtureManifest.fixtures[config.fixture];
+
   if (config.fixture === 'business-sole-trader') {
     configureBusiness('sole-trader');
     return;
@@ -315,20 +349,10 @@ export function activateParityHarness(config: ParityHarnessConfig): void {
     return;
   }
 
-  if (config.fixture === 'provisional-low-confidence') {
-    configurePersonalBase({ balance: 680, confidence: 'rough', income: 1450, kind: 'safe' });
-    return;
+  if (!isPersonalFixture(fixture)) {
+    throw new Error(`Parity fixture ${config.fixture} has unsupported kind ${fixture.kind}.`);
   }
-  if (config.fixture === 'pressured') {
-    configurePersonalBase({ balance: 520, confidence: 'corrected', income: 1500, kind: 'pressured' });
-    return;
-  }
-  if (config.fixture === 'negative-shortfall') {
-    configurePersonalBase({ balance: 300, confidence: 'corrected', income: 1200, kind: 'negative' });
-    return;
-  }
-
-  configurePersonalBase({ balance: 1480, confidence: 'corrected', income: 2600, kind: 'safe' });
+  configurePersonalBase(fixture);
 
   if (config.fixture === 'populated-commitments') {
     setPots([

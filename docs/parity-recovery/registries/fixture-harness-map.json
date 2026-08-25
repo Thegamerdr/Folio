@@ -14,7 +14,7 @@
     "native": {
       "repository": "Thegamerdr/Folio",
       "checkout": "C:/dev/melo-native-today-batch1-2026-08-24",
-      "auditedSha": "3fa8af04da81799268d64d4135f1761e04caa798",
+      "auditedSha": "9818e2b45f8353302ab1970b9c74db9a7ef2f9db",
       "recoveryBranch": "codex/melo-native-true-parity-2026-08-25"
     }
   },
@@ -56,8 +56,8 @@
       }
     },
     "designCapture": {
-      "routeDeviceParam": "362x748",
-      "reason": "HeroPhone resolves device minus 2px width and minus 36px height, producing a 360x712 phone shell. Removing its 44px simulated iOS status region leaves the exact 360x668 S9 app-product viewport.",
+      "routeDeviceParam": "370x756",
+      "reason": "HeroPhone subtracts 2px width and 36px height, then its iOS preview uses a 4px bezel. This produces a 368x720 outer locator and an exact 360x712 inner glass. Cropping the 44px simulated source status region from that inner glass leaves the exact 360x668 S9 app-product viewport without resampling.",
       "browserViewportCssPx": {
         "width": 1280,
         "height": 1800
@@ -65,12 +65,17 @@
       "deviceScaleFactor": 3,
       "phoneLocator": "[data-folio-screen]",
       "locatorSizeBeforeCropCssPx": {
+        "width": 368,
+        "height": 720
+      },
+      "innerGlassCssPx": {
+        "inset": 4,
         "width": 360,
         "height": 712
       },
       "productCropWithinLocatorCssPx": {
-        "left": 0,
-        "top": 44,
+        "left": 4,
+        "top": 48,
         "width": 360,
         "height": 668
       },
@@ -90,7 +95,7 @@
     "fixturesWithExistingDesignStateReuse": 10,
     "fixturesWithExistingNativeStateReuse": 10,
     "fixturesWithExistingNativeNamedBuilder": 2,
-    "fixturesWithAutomatedLightAndDarkSourceCapture": 0,
+    "fixturesWithAutomatedLightAndDarkSourceCapture": 1,
     "fixturesWithAutomatedLightAndDarkNativeCapture": 0,
     "fixturesWithSideBySide": 0,
     "fixturesWithFiftyPercentOverlay": 0,
@@ -733,12 +738,12 @@
         "localStorage[folio-theme]",
         "Date/time and matchMedia init-script overrides"
       ],
-      "routeTarget": "http://127.0.0.1:8080/?s={screen}&sheet={optionalSheet}&device=362x748",
+      "routeTarget": "http://127.0.0.1:4179/?s={screen}&sheet={optionalSheet}&device=370x756",
       "verificationBeforeCapture": [
         "requested data-folio-screen is mounted",
         "requested data-folio-sheet is mounted when applicable",
         "documentElement.dark matches requested theme",
-        "phone locator is exactly 360x712 CSS px",
+        "phone locator is exactly 368x720 CSS px and its inner glass is exactly 360x712 CSS px",
         "product clip is exactly 360x668 CSS px",
         "fixture sentinel and fixed clock are observable from a test-only page probe",
         "fonts.ready and animation-settle gate pass"
@@ -820,14 +825,17 @@
         "doesNotProduce": "fixture/theme/screen selection"
       }
     ],
-    "requiredCommandContractsNotYetImplemented": [
+    "commandContracts": [
       {
         "id": "capture-source-fixture",
-        "available": false,
-        "proposedCommand": "pnpm parity:capture:source --fixture {id} --theme {light|dark} --screen {screen} --device s9-product",
+        "available": true,
+        "command": "node docs/parity-recovery/tooling/capture-pinned-source.mjs --fixture={id} --theme={light|dark} --screen={screen}",
+        "implementedFor": [
+          "personal fixtures"
+        ],
         "requirements": [
           "fresh Playwright context",
-          "preboot state/theme/clock injection",
+          "preboot theme/clock injection and reversible source-store fixture overlay",
           "360x668 locator clip at deviceScaleFactor 3",
           "dimension and mounted-state assertions"
         ]
