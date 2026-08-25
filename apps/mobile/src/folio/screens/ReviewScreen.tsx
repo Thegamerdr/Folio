@@ -99,6 +99,7 @@ import { findCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import { isOverspentLanding } from '@/folio/lib/storeRoute';
 import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import { formatGBP } from '@/folio/screens/today/format';
+import { formatEditableAmount } from '@/folio/screens/reviewFormat';
 import type { Nav } from '@/folio/types';
 
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
@@ -470,12 +471,7 @@ export function ReviewScreen({
   // review card before Add, not in a separate sheet. Seeded from the candidate; the candidate itself
   // is never mutated — only the local draft, which is what Accept actually records.
   const [merchant, setMerchant] = useState(candidate.merchant);
-  const [amountText, setAmountText] = useState(
-    candidate.amount.toLocaleString('en-GB', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }),
-  );
+  const [amountText, setAmountText] = useState(() => formatEditableAmount(candidate.amount));
   const editedAmount = Math.max(0, Number(amountText.replace(/,/g, '')) || 0);
 
   // Existing rows + a mount-gated clock, for the de-dupe proposal (ENGINES §8 / the dedupe engine):

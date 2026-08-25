@@ -16,6 +16,7 @@ import {
   type DecisionHistoryRow,
 } from '@/folio/lib/reviewHistory';
 import { ReviewScreen } from '@/folio/screens/ReviewScreen';
+import { formatGBPExact } from '@/folio/screens/reviewFormat';
 import { formatGBP } from '@/folio/screens/today/format';
 import { useAppStore } from '@/folio/store';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
@@ -212,7 +213,7 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                   Looks like a repeating charge
                 </Text>
                 <Text style={[styles.pressureBody, { color: t.ink }]}>
-                  {caught.name} — {formatGBP(caught.amount)}, seen {caught.seen} months running.
+                  {caught.name} — {formatGBPExact(caught.amount)}, seen {caught.seen} months running.
                 </Text>
               </View>
               <View style={styles.destinationList}>
