@@ -1,0 +1,34 @@
+{
+  "status": "installed-and-cold-launched",
+  "verifiedAt": "2026-08-25",
+  "nativeSha": "e2fb76f2854856143fa99b15b733341398647204",
+  "package": "com.folio.v2.greenfield",
+  "artifactKind": "normal-release-apk",
+  "captureMode": false,
+  "aabBuilt": false,
+  "apkSha256": "8763F437939CE8E4DB934D6E64CE754CE6BFDEC79406F70F41108E815342AA84",
+  "apkBytes": 155055888,
+  "includedAbis": [
+    "arm64-v8a",
+    "x86_64"
+  ],
+  "devices": [
+    {
+      "serial": "emulator-5570",
+      "kind": "emulator",
+      "installedBaseApkSha256": "8763F437939CE8E4DB934D6E64CE754CE6BFDEC79406F70F41108E815342AA84",
+      "processStarted": true,
+      "fatalLogScan": "clean"
+    },
+    {
+      "serial": "2af26a2c19017ece",
+      "kind": "physical",
+      "model": "SM-G960F",
+      "installedBaseApkSha256": "8763F437939CE8E4DB934D6E64CE754CE6BFDEC79406F70F41108E815342AA84",
+      "processStarted": true,
+      "resumedActivity": "com.folio.v2.greenfield/.MainActivity",
+      "fatalLogScan": "clean",
+      "appDataRetained": true
+    }
+  ]
+}
