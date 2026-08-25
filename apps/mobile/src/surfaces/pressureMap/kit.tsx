@@ -801,12 +801,14 @@ export function BottomNav({
   onChange: (screen: ProductScreen) => void;
   reviewCount?: number;
 }) {
-  // Android's app window already excludes the S9 three-button system bar. Keep the product
-  // tab band at the pinned 68dp height, using only a small gesture inset when one is reported.
+  // Expo's edge-to-edge Android window includes the system navigation area. Preserve the pinned
+  // 68dp product tab band above that area, then extend only its background through the reported
+  // bottom inset. Without the added height, three-button navigation covers the tab labels on S9.
   const insets = useSafeAreaInsets();
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const navPaddingBottom = insets.bottom > 0 ? Math.min(insets.bottom, 12) : 6;
+  const systemBottomInset = Math.max(0, insets.bottom);
+  const navPaddingBottom = systemBottomInset > 0 ? systemBottomInset : 6;
 
   return (
     // Fabric can retain only the two tab children whose `selected` prop changed when the screen
@@ -818,7 +820,10 @@ export function BottomNav({
     <View
       collapsable={false}
       key={`bottom-nav-${active}`}
-      style={[s.nav, { paddingBottom: navPaddingBottom }]}
+      style={[
+        s.nav,
+        { height: NAV_HEIGHT + systemBottomInset, paddingBottom: navPaddingBottom },
+      ]}
     >
       {NAV_TABS.map((tab) => {
         const selected = active === tab.id;
