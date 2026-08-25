@@ -73,6 +73,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-obligations' ||
     entry.routeKey === 'business-vat' ||
     entry.routeKey === 'business-insights' ||
+    entry.routeKey === 'business-runway' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
@@ -107,6 +108,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-runway': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-runway/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-runway/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-7a4dda7/business-empty/light/business-runway/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-7a4dda7/business-empty/dark/business-runway/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/7a4dda7/business-empty/light/business-runway/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/7a4dda7/business-empty/dark/business-runway/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/7a4dda7/business-empty/light/business-runway/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/7a4dda7/business-empty/dark/business-runway/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Runway disclaimer, answer, account action and empty forecast-card restoration.',
+      consequence:
+        'The compared no-account state now matches the pinned cash-runway explanation and routes both account actions to the real native account flow; the pinned synthetic demo control remains capture-only and writes no production state. The source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated forecasts and owner-money transfers remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 10.507,
+        darkMeanAbsoluteRgbDelta: 10.1332,
+      },
+    },
+  },
   'business-insights': {
     evidence: {
       lightSource:

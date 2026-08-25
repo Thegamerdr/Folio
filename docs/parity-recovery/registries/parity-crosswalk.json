@@ -18,11 +18,11 @@
     "nativeShippingSurfaces": 192,
     "exactDesignOwnersResolved": 170,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 21,
-    "surfacesMissingDirectComparison": 171,
-    "comparisonCount": 34,
-    "lightComparisonCount": 17,
-    "darkComparisonCount": 17,
+    "surfacesWithDirectComparison": 22,
+    "surfacesMissingDirectComparison": 170,
+    "comparisonCount": 36,
+    "lightComparisonCount": 18,
+    "darkComparisonCount": 18,
     "designSurfacesNotMappedToNativeShippingSurface": 37
   },
   "entries": [
@@ -4807,21 +4807,35 @@
         "ownerStatus": "resolved"
       },
       "matchedFixtures": [
+        "business-empty",
         "business-sole-trader",
         "business-ltd"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-runway/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-runway/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-7a4dda7/business-empty/light/business-runway/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-7a4dda7/business-empty/dark/business-runway/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/7a4dda7/business-empty/light/business-runway/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/7a4dda7/business-empty/dark/business-runway/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/7a4dda7/business-empty/light/business-runway/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/7a4dda7/business-empty/dark/business-runway/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business Runway disclaimer, answer, account action and empty forecast-card restoration.",
+          "consequence": "The compared no-account state now matches the pinned cash-runway explanation and routes both account actions to the real native account flow; the pinned synthetic demo control remains capture-only and writes no production state. The source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated forecasts and owner-money transfers remain separate captures.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 10.507,
+            "darkMeanAbsoluteRgbDelta": 10.1332
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "screen.business-today",
