@@ -1,0 +1,2206 @@
+{
+  "schemaVersion": 1,
+  "status": "pending-owner-signoff",
+  "source": {
+    "crosswalk": "docs/parity-recovery/registries/parity-crosswalk.json",
+    "batchLedgers": [
+      "docs/parity-recovery/evidence/comparisons/2de19e5/batch-ledger.json",
+      "docs/parity-recovery/evidence/comparisons/d90bb19/batch-ledger.json"
+    ]
+  },
+  "evidenceSummary": {
+    "shippingSurfaces": 192,
+    "surfacesWithDirectEvidence": 141,
+    "uniqueMeasuredPairs": 118,
+    "measuredOutlierPairs": 71,
+    "measuredOutlierSurfaces": 38,
+    "measuredCleanPairs": 47,
+    "outlierSurfacesByKind": {
+      "screen": 19,
+      "sheet": 19
+    },
+    "outlierSurfacesByClassification": {
+      "family-owner-route-divergence": 3,
+      "interaction-kind-divergence": 1,
+      "same-owner-content-geometry-or-raster-drift": 34
+    }
+  },
+  "signoffPolicy": {
+    "automatedPixelThresholdIsDiagnosticNotApproval": true,
+    "pendingDoesNotMeanAccepted": true,
+    "ownerMustInspectLinkedArtifacts": true,
+    "allowedOwnerDecisions": [
+      "accept-measured-deviation",
+      "reject-and-return-for-fix"
+    ]
+  },
+  "surfaces": [
+    {
+      "stableId": "screen.account",
+      "kind": "screen",
+      "routeKey": "account",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "screen:account",
+          "kind": "screen",
+          "routeKey": "account",
+          "sourceReference": "src/components/folio/screens/ScreenAccount.tsx#ScreenAccount",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 26.6613,
+            "rmsRgbDelta": 65.6002,
+            "materialChangedPixelFraction": 0.400998
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/account/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/account/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/account/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/account/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 24.9809,
+            "rmsRgbDelta": 64.2808,
+            "materialChangedPixelFraction": 0.374921
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/account/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/account/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/account/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/account/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.calendar",
+      "kind": "screen",
+      "routeKey": "calendar",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:calendar",
+          "kind": "screen",
+          "routeKey": "calendar",
+          "sourceReference": "src/components/folio/screens/ScreenCalendar.tsx#ScreenCalendar",
+          "keyStates": [
+            "hydration-skeleton",
+            "events-empty",
+            "missing-payday",
+            "missing-bills",
+            "missing-saving-rhythm"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 16.3956,
+            "rmsRgbDelta": 35.3777,
+            "materialChangedPixelFraction": 0.571603
+          },
+          "reasons": [
+            "mae",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/calendar/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/calendar/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 14.1933,
+            "rmsRgbDelta": 36.1848,
+            "materialChangedPixelFraction": 0.570005
+          },
+          "reasons": [
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/calendar/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/calendar/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.image-fallback",
+      "kind": "screen",
+      "routeKey": "image-fallback",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "screen:image-fallback",
+          "kind": "screen",
+          "routeKey": "image-fallback",
+          "sourceReference": "src/components/folio/screens/ScreenImageFallback.tsx#ScreenImageFallback",
+          "keyStates": [
+            "reader-failure-fallback"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 25.0806,
+            "rmsRgbDelta": 61.2624,
+            "materialChangedPixelFraction": 0.363104
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/image-fallback/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/image-fallback/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/image-fallback/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/image-fallback/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.5161,
+            "rmsRgbDelta": 55.0911,
+            "materialChangedPixelFraction": 0.360906
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/image-fallback/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/image-fallback/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/image-fallback/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/image-fallback/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.insights",
+      "kind": "screen",
+      "routeKey": "insights",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:insights",
+          "kind": "screen",
+          "routeKey": "insights",
+          "sourceReference": "src/components/folio/screens/ScreenInsights.tsx#ScreenInsights",
+          "keyStates": [
+            "no-closed-cycles"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.6351,
+            "rmsRgbDelta": 58.961,
+            "materialChangedPixelFraction": 0.164131
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/insights/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/insights/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/insights/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/insights/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 18.9958,
+            "rmsRgbDelta": 52.9349,
+            "materialChangedPixelFraction": 0.1643
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/insights/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/insights/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/insights/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/insights/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.paste-success",
+      "kind": "screen",
+      "routeKey": "paste-success",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "screen:paste-success",
+          "kind": "screen",
+          "routeKey": "paste-success",
+          "sourceReference": "src/components/folio/screens/ScreenPasteSuccess.tsx#ScreenPasteSuccess",
+          "keyStates": [
+            "nothing-readable",
+            "no-usable-lines",
+            "send-error"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 17.0089,
+            "rmsRgbDelta": 38.5399,
+            "materialChangedPixelFraction": 0.40733
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/paste-success/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/paste-success/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/paste-success/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/paste-success/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.paywall",
+      "kind": "screen",
+      "routeKey": "paywall",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "screen:paywall",
+          "kind": "screen",
+          "routeKey": "paywall",
+          "sourceReference": "src/components/folio/screens/ScreenPaywall.tsx#ScreenPaywall",
+          "keyStates": [
+            "native-store-unavailable"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 18.1765,
+            "rmsRgbDelta": 49.0245,
+            "materialChangedPixelFraction": 0.354245
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/paywall/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/paywall/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/paywall/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/paywall/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 17.2584,
+            "rmsRgbDelta": 47.9966,
+            "materialChangedPixelFraction": 0.352373
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/paywall/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/paywall/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/paywall/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/paywall/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.pdf-fallback",
+      "kind": "screen",
+      "routeKey": "pdf-fallback",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "screen:pdf-fallback",
+          "kind": "screen",
+          "routeKey": "pdf-fallback",
+          "sourceReference": "src/components/folio/screens/ScreenPdfFallback.tsx#ScreenPdfFallback",
+          "keyStates": [
+            "reader-failure-fallback"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.6278,
+            "rmsRgbDelta": 55.234,
+            "materialChangedPixelFraction": 0.396394
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/pdf-fallback/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/pdf-fallback/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/pdf-fallback/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/pdf-fallback/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 20.0895,
+            "rmsRgbDelta": 51.2937,
+            "materialChangedPixelFraction": 0.395476
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/pdf-fallback/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/pdf-fallback/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/pdf-fallback/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/pdf-fallback/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.plans",
+      "kind": "screen",
+      "routeKey": "plans",
+      "workspace": "personal|business",
+      "designOwners": [
+        {
+          "stableId": "screen:plans",
+          "kind": "screen",
+          "routeKey": "plans",
+          "sourceReference": "src/components/folio/screens/ScreenPlans.tsx#ScreenPlans",
+          "keyStates": [
+            "stale-derived",
+            "nothing-due-before-payday"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 31.2557,
+            "rmsRgbDelta": 66.7419,
+            "materialChangedPixelFraction": 0.612309
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/plans/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/plans/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/plans/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/plans/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 29.742,
+            "rmsRgbDelta": 66.1922,
+            "materialChangedPixelFraction": 0.608054
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/plans/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/plans/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/plans/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/plans/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.pots",
+      "kind": "screen",
+      "routeKey": "pots",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:pots",
+          "kind": "screen",
+          "routeKey": "pots",
+          "sourceReference": "src/components/folio/screens/ScreenPots.tsx#ScreenPots",
+          "keyStates": [
+            "no-pots",
+            "no-dated-goals",
+            "no-open-ended-pots"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 25.2346,
+            "rmsRgbDelta": 63.0562,
+            "materialChangedPixelFraction": 0.372392
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/pots/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/pots/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/pots/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/pots/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 24.7346,
+            "rmsRgbDelta": 58.7192,
+            "materialChangedPixelFraction": 0.369514
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/pots/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/pots/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/pots/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/pots/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.privacy",
+      "kind": "screen",
+      "routeKey": "privacy",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "screen:privacy",
+          "kind": "screen",
+          "routeKey": "privacy",
+          "sourceReference": "src/components/folio/screens/ScreenPrivacy.tsx#ScreenPrivacy",
+          "keyStates": [
+            "permission-needed"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 26.5772,
+            "rmsRgbDelta": 66.5295,
+            "materialChangedPixelFraction": 0.290727
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/privacy/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/privacy/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/privacy/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/privacy/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 25.9909,
+            "rmsRgbDelta": 65.7456,
+            "materialChangedPixelFraction": 0.285915
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/privacy/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/privacy/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/privacy/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/privacy/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.recovery",
+      "kind": "screen",
+      "routeKey": "recovery",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:recovery",
+          "kind": "screen",
+          "routeKey": "recovery",
+          "sourceReference": "src/components/folio/screens/ScreenRecovery.tsx#ScreenRecovery",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 28.2458,
+            "rmsRgbDelta": 62.5727,
+            "materialChangedPixelFraction": 0.574182
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/recovery/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/recovery/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/recovery/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/recovery/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 26.3336,
+            "rmsRgbDelta": 57.3931,
+            "materialChangedPixelFraction": 0.572746
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/recovery/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/recovery/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/recovery/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/recovery/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.ritual",
+      "kind": "screen",
+      "routeKey": "ritual",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:ritual",
+          "kind": "screen",
+          "routeKey": "ritual",
+          "sourceReference": "src/components/folio/screens/ScreenPaydayRitual.tsx#ScreenPaydayRitual",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 24.4448,
+            "rmsRgbDelta": 59.5692,
+            "materialChangedPixelFraction": 0.413656
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/ritual/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/ritual/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/ritual/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/ritual/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 20.1293,
+            "rmsRgbDelta": 51.1225,
+            "materialChangedPixelFraction": 0.405825
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/ritual/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/ritual/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/ritual/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/ritual/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.subs",
+      "kind": "screen",
+      "routeKey": "subs",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:subs",
+          "kind": "screen",
+          "routeKey": "subs",
+          "sourceReference": "src/components/folio/screens/ScreenSubscriptions.tsx#ScreenSubscriptions",
+          "keyStates": [
+            "nothing-recurring"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.4251,
+            "rmsRgbDelta": 53.0323,
+            "materialChangedPixelFraction": 0.4476
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/subs/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/subs/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/subs/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/subs/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 20.2301,
+            "rmsRgbDelta": 51.6391,
+            "materialChangedPixelFraction": 0.443026
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/subs/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/subs/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/subs/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/subs/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.timeline",
+      "kind": "screen",
+      "routeKey": "timeline",
+      "workspace": "personal|business",
+      "designOwners": [
+        {
+          "stableId": "screen:timeline",
+          "kind": "screen",
+          "routeKey": "timeline",
+          "sourceReference": "src/components/folio/screens/ScreenTimeline.tsx#ScreenTimeline",
+          "keyStates": [
+            "transactions-empty",
+            "actions-empty",
+            "search-empty"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 22.1209,
+            "rmsRgbDelta": 58.4252,
+            "materialChangedPixelFraction": 0.331406
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/timeline/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/timeline/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/timeline/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/timeline/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.0071,
+            "rmsRgbDelta": 57.2462,
+            "materialChangedPixelFraction": 0.332015
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/timeline/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/timeline/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/timeline/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/timeline/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.today-after",
+      "kind": "screen",
+      "routeKey": "today-after",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:today-after",
+          "kind": "screen",
+          "routeKey": "today-after",
+          "sourceReference": "src/components/folio/screens/ScreenTodayAfter.tsx#ScreenTodayAfter",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 25.1132,
+            "rmsRgbDelta": 60.0278,
+            "materialChangedPixelFraction": 0.492904
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today-after/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/today-after/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-after/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-after/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 22.5279,
+            "rmsRgbDelta": 59.8753,
+            "materialChangedPixelFraction": 0.468581
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today-after/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/today-after/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-after/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-after/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.today-mode",
+      "kind": "screen",
+      "routeKey": "today-mode",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:today",
+          "kind": "screen",
+          "routeKey": "today",
+          "sourceReference": "src/components/folio/screens/ScreenToday.tsx#ScreenToday",
+          "keyStates": [],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "family-owner-route-divergence",
+        "explanation": "Shipping route today-mode uses family-owner evidence from today."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 22.8953,
+            "rmsRgbDelta": 59.3416,
+            "materialChangedPixelFraction": 0.247399
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today-mode/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/today-mode/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-mode/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-mode/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 19.5064,
+            "rmsRgbDelta": 51.6987,
+            "materialChangedPixelFraction": 0.244679
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today-mode/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/today-mode/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-mode/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-mode/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.today-stability",
+      "kind": "screen",
+      "routeKey": "today-stability",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:today",
+          "kind": "screen",
+          "routeKey": "today",
+          "sourceReference": "src/components/folio/screens/ScreenToday.tsx#ScreenToday",
+          "keyStates": [],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "family-owner-route-divergence",
+        "explanation": "Shipping route today-stability uses family-owner evidence from today."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.15,
+            "rmsRgbDelta": 43.6311,
+            "materialChangedPixelFraction": 0.753438
+          },
+          "reasons": [
+            "mae",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today-stability/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/today-stability/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-stability/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-stability/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 17.2223,
+            "rmsRgbDelta": 40.346,
+            "materialChangedPixelFraction": 0.761274
+          },
+          "reasons": [
+            "mae",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today-stability/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/today-stability/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-stability/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-stability/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.visualizer",
+      "kind": "screen",
+      "routeKey": "visualizer",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "screen:visualizer",
+          "kind": "screen",
+          "routeKey": "visualizer",
+          "sourceReference": "src/components/folio/screens/ScreenTimeline.tsx#ScreenTimeline(initialTab=saw,screenId=visualizer)",
+          "keyStates": [
+            "actions-empty"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 22.1002,
+            "rmsRgbDelta": 55.7013,
+            "materialChangedPixelFraction": 0.49022
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/visualizer/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/visualizer/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/visualizer/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/visualizer/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.7521,
+            "rmsRgbDelta": 57.1735,
+            "materialChangedPixelFraction": 0.486506
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/visualizer/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/visualizer/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/visualizer/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/visualizer/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "screen.whatif",
+      "kind": "screen",
+      "routeKey": "whatif",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "screen:whatif",
+          "kind": "screen",
+          "routeKey": "whatif",
+          "sourceReference": "src/components/folio/screens/ScreenWhatIf.tsx#ScreenWhatIf",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 26.9264,
+            "rmsRgbDelta": 65.1132,
+            "materialChangedPixelFraction": 0.455655
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/whatif/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/whatif/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/whatif/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/whatif/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 24.7485,
+            "rmsRgbDelta": 63.7032,
+            "materialChangedPixelFraction": 0.458358
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/whatif/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/whatif/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/whatif/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/whatif/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.add-plan",
+      "kind": "sheet",
+      "routeKey": "add-plan",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:add-plan",
+          "kind": "sheet",
+          "routeKey": "add-plan",
+          "sourceReference": "src/components/folio/sheets/SheetAddPlan.tsx#SheetAddPlan",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.061,
+            "rmsRgbDelta": 44.7551,
+            "materialChangedPixelFraction": 0.406808
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/add-plan/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/add-plan/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/add-plan/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/add-plan/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.afford-check",
+      "kind": "sheet",
+      "routeKey": "afford-check",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:afford-check",
+          "kind": "sheet",
+          "routeKey": "afford-check",
+          "sourceReference": "src/components/folio/sheets/SheetAffordCheck.tsx#SheetAffordCheck",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 20.2424,
+            "rmsRgbDelta": 53.7796,
+            "materialChangedPixelFraction": 0.219205
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/afford-check/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/afford-check/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/afford-check/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/afford-check/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.appearance",
+      "kind": "sheet",
+      "routeKey": "appearance",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "screen:appearance",
+          "kind": "screen",
+          "routeKey": "appearance",
+          "sourceReference": "src/components/folio/screens/ScreenAppearance.tsx#ScreenAppearance",
+          "keyStates": [],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping sheet is owned by pinned screen evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 57.461,
+            "rmsRgbDelta": 75.3625,
+            "materialChangedPixelFraction": 0.944958
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/appearance/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/appearance/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/appearance/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/appearance/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 56.2972,
+            "rmsRgbDelta": 72.9648,
+            "materialChangedPixelFraction": 0.90521
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/appearance/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/appearance/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/appearance/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/appearance/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.calendar-connect",
+      "kind": "sheet",
+      "routeKey": "calendar-connect",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "sheet:calendar-connect",
+          "kind": "sheet",
+          "routeKey": "calendar-connect",
+          "sourceReference": "src/components/folio/sheets/SheetCalendarExport.tsx#SheetCalendarExport",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 22.3215,
+            "rmsRgbDelta": 56.7894,
+            "materialChangedPixelFraction": 0.341052
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/calendar-connect/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/calendar-connect/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar-connect/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar-connect/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 17.476,
+            "rmsRgbDelta": 48.248,
+            "materialChangedPixelFraction": 0.338362
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/calendar-connect/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/calendar-connect/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar-connect/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar-connect/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.calendar-export",
+      "kind": "sheet",
+      "routeKey": "calendar-export",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "sheet:calendar-export",
+          "kind": "sheet",
+          "routeKey": "calendar-export",
+          "sourceReference": "src/components/folio/sheets/SheetCalendarExport.tsx#SheetCalendarExport",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 31.154,
+            "rmsRgbDelta": 63.1638,
+            "materialChangedPixelFraction": 0.47621
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/calendar-export/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/calendar-export/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar-export/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar-export/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 23.9305,
+            "rmsRgbDelta": 53.5534,
+            "materialChangedPixelFraction": 0.476167
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/calendar-export/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/calendar-export/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar-export/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar-export/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.chart-style",
+      "kind": "sheet",
+      "routeKey": "chart-style",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:chart-style",
+          "kind": "sheet",
+          "routeKey": "chart-style",
+          "sourceReference": "src/components/folio/sheets/SheetChartStyle.tsx#SheetChartStyle",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 15.2787,
+            "rmsRgbDelta": 35.1327,
+            "materialChangedPixelFraction": 0.553249
+          },
+          "reasons": [
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/chart-style/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/chart-style/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/chart-style/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/chart-style/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 11.8606,
+            "rmsRgbDelta": 30.0609,
+            "materialChangedPixelFraction": 0.531078
+          },
+          "reasons": [
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/chart-style/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/chart-style/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/chart-style/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/chart-style/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.day-detail",
+      "kind": "sheet",
+      "routeKey": "day-detail",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "sheet:day-detail",
+          "kind": "sheet",
+          "routeKey": "day-detail",
+          "sourceReference": "src/components/folio/sheets/SheetDayDetail.tsx#SheetDayDetail",
+          "keyStates": [
+            "quiet-day"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 32.726,
+            "rmsRgbDelta": 66.5194,
+            "materialChangedPixelFraction": 0.694553
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/day-detail/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/day-detail/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/day-detail/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/day-detail/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 28.1453,
+            "rmsRgbDelta": 54.4672,
+            "materialChangedPixelFraction": 0.691148
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/day-detail/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/day-detail/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/day-detail/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/day-detail/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.declare-debt",
+      "kind": "sheet",
+      "routeKey": "declare-debt",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:add-debt",
+          "kind": "sheet",
+          "routeKey": "add-debt",
+          "sourceReference": "src/components/folio/sheets/SheetAddDebt.tsx#SheetAddDebt",
+          "keyStates": [],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "family-owner-route-divergence",
+        "explanation": "Shipping route declare-debt uses family-owner evidence from add-debt."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 17.5618,
+            "rmsRgbDelta": 38.9092,
+            "materialChangedPixelFraction": 0.409174
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/declare-debt/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/declare-debt/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/declare-debt/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/declare-debt/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.edit-txn",
+      "kind": "sheet",
+      "routeKey": "edit-txn",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "sheet:edit-txn",
+          "kind": "sheet",
+          "routeKey": "edit-txn",
+          "sourceReference": "src/components/folio/sheets/SheetEditTxn.tsx#SheetEditTxn",
+          "keyStates": [
+            "nothing-selected",
+            "split-open"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 73.9204,
+            "rmsRgbDelta": 96.7856,
+            "materialChangedPixelFraction": 0.710352
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/edit-txn/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/edit-txn/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/edit-txn/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/edit-txn/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 59.0881,
+            "rmsRgbDelta": 79.4395,
+            "materialChangedPixelFraction": 0.675682
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/edit-txn/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/edit-txn/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/edit-txn/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/edit-txn/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.hidden-review",
+      "kind": "sheet",
+      "routeKey": "hidden-review",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "sheet:hidden-review",
+          "kind": "sheet",
+          "routeKey": "hidden-review",
+          "sourceReference": "src/components/folio/sheets/SheetHiddenReview.tsx#SheetHiddenReview",
+          "keyStates": [
+            "nothing-hidden"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 35.762,
+            "rmsRgbDelta": 69.3044,
+            "materialChangedPixelFraction": 0.388881
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/hidden-review/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/hidden-review/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/hidden-review/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/hidden-review/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 29.201,
+            "rmsRgbDelta": 58.7169,
+            "materialChangedPixelFraction": 0.362257
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/hidden-review/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/hidden-review/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/hidden-review/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/hidden-review/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.household-setup",
+      "kind": "sheet",
+      "routeKey": "household-setup",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:household-setup",
+          "kind": "sheet",
+          "routeKey": "household-setup",
+          "sourceReference": "src/components/folio/sheets/SheetHouseholdSetup.tsx#SheetHouseholdSetup",
+          "keyStates": [
+            "nothing-to-split"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 28.4921,
+            "rmsRgbDelta": 67.2494,
+            "materialChangedPixelFraction": 0.303546
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/household-setup/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/household-setup/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/household-setup/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/household-setup/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 20.3931,
+            "rmsRgbDelta": 52.6437,
+            "materialChangedPixelFraction": 0.279381
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/household-setup/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/household-setup/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/household-setup/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/household-setup/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.lens-picker",
+      "kind": "sheet",
+      "routeKey": "lens-picker",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:lens-picker",
+          "kind": "sheet",
+          "routeKey": "lens-picker",
+          "sourceReference": "src/components/folio/sheets/SheetLensPicker.tsx#SheetLensPicker",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 16.9138,
+            "rmsRgbDelta": 44.9237,
+            "materialChangedPixelFraction": 0.341965
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/lens-picker/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/lens-picker/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/lens-picker/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/lens-picker/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.log-spend",
+      "kind": "sheet",
+      "routeKey": "log-spend",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "sheet:log-spend",
+          "kind": "sheet",
+          "routeKey": "log-spend",
+          "sourceReference": "src/components/folio/sheets/SheetLogSpend.tsx#SheetLogSpend",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.5797,
+            "rmsRgbDelta": 49.2884,
+            "materialChangedPixelFraction": 0.314462
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/log-spend/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/log-spend/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/log-spend/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/log-spend/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 17.3176,
+            "rmsRgbDelta": 42.1772,
+            "materialChangedPixelFraction": 0.286691
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/log-spend/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/log-spend/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/log-spend/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/log-spend/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.melo-chat",
+      "kind": "sheet",
+      "routeKey": "melo-chat",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "sheet:melo-chat",
+          "kind": "sheet",
+          "routeKey": "melo-chat",
+          "sourceReference": "src/components/folio/sheets/SheetMeloChat.tsx#SheetMeloChat",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 34.0515,
+            "rmsRgbDelta": 63.8483,
+            "materialChangedPixelFraction": 0.346611
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo-chat/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/melo-chat/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/melo-chat/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/melo-chat/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 28.0953,
+            "rmsRgbDelta": 53.0003,
+            "materialChangedPixelFraction": 0.380266
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo-chat/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/melo-chat/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/melo-chat/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/melo-chat/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.onboarding",
+      "kind": "sheet",
+      "routeKey": "onboarding",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:onboarding",
+          "kind": "sheet",
+          "routeKey": "onboarding",
+          "sourceReference": "src/components/folio/sheets/SheetOnboarding.tsx#SheetOnboarding",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 51.592,
+            "rmsRgbDelta": 82.2325,
+            "materialChangedPixelFraction": 0.523383
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/onboarding/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/onboarding/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/onboarding/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/onboarding/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 40.3769,
+            "rmsRgbDelta": 66.8298,
+            "materialChangedPixelFraction": 0.489508
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/onboarding/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/onboarding/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/onboarding/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/onboarding/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.route-detail",
+      "kind": "sheet",
+      "routeKey": "route-detail",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:route-detail",
+          "kind": "sheet",
+          "routeKey": "route-detail",
+          "sourceReference": "src/components/folio/sheets/SheetRouteDetail.tsx#SheetRouteDetail",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 44.4576,
+            "rmsRgbDelta": 80.5196,
+            "materialChangedPixelFraction": 0.400077
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/route-detail/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/route-detail/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/route-detail/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/route-detail/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 35.2941,
+            "rmsRgbDelta": 66.0304,
+            "materialChangedPixelFraction": 0.366664
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/route-detail/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/route-detail/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/route-detail/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/route-detail/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.safe-zone",
+      "kind": "sheet",
+      "routeKey": "safe-zone",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:safe-zone",
+          "kind": "sheet",
+          "routeKey": "safe-zone",
+          "sourceReference": "src/components/folio/sheets/SheetSafeZone.tsx#SheetSafeZone",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 21.3267,
+            "rmsRgbDelta": 57.2317,
+            "materialChangedPixelFraction": 0.230249
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/safe-zone/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/safe-zone/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/safe-zone/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/safe-zone/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 17.3892,
+            "rmsRgbDelta": 48.297,
+            "materialChangedPixelFraction": 0.197696
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/safe-zone/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/safe-zone/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/safe-zone/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/safe-zone/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.share",
+      "kind": "sheet",
+      "routeKey": "share",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "sheet:share",
+          "kind": "sheet",
+          "routeKey": "share",
+          "sourceReference": "src/components/folio/sheets/SheetShare.tsx#SheetShare",
+          "keyStates": [],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 34.5234,
+            "rmsRgbDelta": 76.8014,
+            "materialChangedPixelFraction": 0.320837
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/share/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/share/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/share/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/share/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 24.749,
+            "rmsRgbDelta": 59.057,
+            "materialChangedPixelFraction": 0.26051
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/share/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/share/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/share/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/share/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "sheet.shelf",
+      "kind": "sheet",
+      "routeKey": "shelf",
+      "workspace": "personal",
+      "designOwners": [
+        {
+          "stableId": "sheet:shelf",
+          "kind": "sheet",
+          "routeKey": "shelf",
+          "sourceReference": "src/components/folio/sheets/SheetShelf.tsx#SheetShelf",
+          "keyStates": [
+            "nothing-on-shelf"
+          ],
+          "resolution": "exact-route-key"
+        }
+      ],
+      "classification": {
+        "code": "same-owner-content-geometry-or-raster-drift",
+        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 32.6117,
+            "rmsRgbDelta": 62.1272,
+            "materialChangedPixelFraction": 0.35495
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/shelf/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/shelf/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/shelf/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/shelf/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 27.0342,
+            "rmsRgbDelta": 51.6454,
+            "materialChangedPixelFraction": 0.332019
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/shelf/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/shelf/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/shelf/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/shelf/absolute-difference.png"
+        }
+      ]
+    }
+  ]
+}
