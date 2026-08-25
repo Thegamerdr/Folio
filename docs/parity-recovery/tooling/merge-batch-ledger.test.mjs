@@ -42,6 +42,7 @@ function row(overrides) {
     screen,
     nativeKind: overrides.nativeKind ?? 'screen',
     nativeRoute: overrides.nativeRoute ?? screen,
+    nativeStableId: overrides.nativeStableId ?? null,
     nativeScreen: overrides.nativeScreen ?? screen,
     nativeSheet: overrides.nativeSheet ?? null,
     theme,
@@ -201,6 +202,7 @@ test('maps every declared capture-batch surface to one shipping crosswalk entry'
           theme,
           nativeKind,
           nativeRoute,
+          nativeStableId: surface.nativeStableId ?? null,
           nativeScreen: surface.nativeScreen ?? surface.screen,
           nativeSheet,
         }),
@@ -208,7 +210,9 @@ test('maps every declared capture-batch surface to one shipping crosswalk entry'
     }),
   );
   const nativeSurfaceKeys = new Set(
-    rankedPairs.map((candidate) => `${candidate.nativeKind}:${candidate.nativeRoute}`),
+    rankedPairs.map(
+      (candidate) => candidate.nativeStableId ?? `${candidate.nativeKind}:${candidate.nativeRoute}`,
+    ),
   );
   const ledger = {
     schemaVersion: 1,
@@ -222,7 +226,8 @@ test('maps every declared capture-batch surface to one shipping crosswalk entry'
     directSurfaceKeys: [...nativeSurfaceKeys].sort(),
     rankedPairs: rankedPairs.map((candidate) => ({
       ...candidate,
-      nativeSurfaceKey: `${candidate.nativeKind}:${candidate.nativeRoute}`,
+      nativeSurfaceKey:
+        candidate.nativeStableId ?? `${candidate.nativeKind}:${candidate.nativeRoute}`,
     })),
   };
 

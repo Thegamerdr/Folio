@@ -14,11 +14,26 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const CROSSWALK_RELATIVE_PATH = 'docs/parity-recovery/registries/parity-crosswalk.json';
 const OUTPUT_RELATIVE_PATH = 'docs/parity-recovery/registries/parity-archetypes.json';
 const CAPTURE_OUTPUT_RELATIVE_PATH = 'docs/parity-recovery/registries/capture-batches.json';
+const DECISION_DIALOGS_RELATIVE_PATH = 'apps/mobile/src/folio/parity/decisionDialogs.json';
 const CROSSWALK_PATH = path.join(ROOT, CROSSWALK_RELATIVE_PATH);
 const OUTPUT_PATH = path.join(ROOT, OUTPUT_RELATIVE_PATH);
 const CAPTURE_OUTPUT_PATH = path.join(ROOT, CAPTURE_OUTPUT_RELATIVE_PATH);
+const DECISION_DIALOGS_PATH = path.join(ROOT, DECISION_DIALOGS_RELATIVE_PATH);
 
-const crosswalk = JSON.parse(await readFile(CROSSWALK_PATH, 'utf8'));
+const [crosswalk, decisionDialogs] = await Promise.all([
+  readFile(CROSSWALK_PATH, 'utf8').then(JSON.parse),
+  readFile(DECISION_DIALOGS_PATH, 'utf8').then(JSON.parse),
+]);
+if (
+  decisionDialogs.schemaVersion !== 1 ||
+  decisionDialogs.familyId !== 'decision-dialog' ||
+  typeof decisionDialogs.entries !== 'object' ||
+  decisionDialogs.entries === null
+) {
+  throw new Error(
+    `Unsupported decision-dialog capture registry: ${DECISION_DIALOGS_RELATIVE_PATH}`,
+  );
+}
 
 const screenGroups = {
   'editorial-money-hero': new Set([
@@ -530,6 +545,12 @@ const manifest = {
     representativePairsPerArchetype: { min: 2, max: 3 },
     evidenceMode: 'bulk-render-contact-sheet-overlay-outliers',
     passingSiblingReview: 'automated-batch-only',
+    triggerFamilyCapture: {
+      familyId: decisionDialogs.familyId,
+      stableSurfaceCount: Object.keys(decisionDialogs.entries).length,
+      sourceMode: 'pinned-lovable-owner-context',
+      nativeMode: 'capture-only-production-alert-contract',
+    },
   },
   implementationWaves,
   archetypes,
@@ -567,8 +588,70 @@ const SCREEN_CAPTURE_OVERRIDES = new Map([
 ]);
 
 const captureableAssignments = assignments.filter(
-  (entry) => entry.kind === 'screen' || (entry.kind === 'sheet' && SHEET_CAPTURE_ROUTES.has(entry.routeKey)),
+  (entry) =>
+    entry.kind === 'screen' || (entry.kind === 'sheet' && SHEET_CAPTURE_ROUTES.has(entry.routeKey)),
 );
+
+const decisionDialogAssignments = assignments.filter(
+  (entry) => entry.archetypeId === decisionDialogs.familyId,
+);
+const decisionDialogAssignmentById = new Map(
+  decisionDialogAssignments.map((entry) => [entry.stableId, entry]),
+);
+const crosswalkEntryById = new Map(crosswalk.entries.map((entry) => [entry.stableId, entry]));
+const decisionDialogFamilySurfaces = Object.entries(decisionDialogs.entries)
+  .sort(([left], [right]) => left.localeCompare(right))
+  .map(([stableId, dialog]) => {
+    const assignment = decisionDialogAssignmentById.get(stableId);
+    if (assignment === undefined) {
+      throw new Error(`${stableId} is not assigned to the decision-dialog archetype`);
+    }
+    if (assignment.designOwnerStatus !== 'resolved') {
+      throw new Error(
+        `${stableId} cannot be directly captured: design owner is ${assignment.designOwnerStatus}`,
+      );
+    }
+    if (assignment.componentSource !== dialog.componentSource) {
+      throw new Error(
+        `${stableId} component source drifted: ${dialog.componentSource} != ${assignment.componentSource}`,
+      );
+    }
+    const context = dialog.ownerContext;
+    for (const required of ['sourceScreen', 'nativeScreen']) {
+      if (typeof context?.[required] !== 'string' || context[required] === '') {
+        throw new Error(`${stableId} has no ${required} owner context`);
+      }
+    }
+    const crosswalkEntry = crosswalkEntryById.get(stableId);
+    const sourceOwnerRoute = context.sourceSheet ?? context.sourceScreen;
+    const sourceOwner = crosswalkEntry?.design.owners.find(
+      (owner) => owner.routeKey === sourceOwnerRoute,
+    );
+    if (sourceOwner === undefined) {
+      throw new Error(
+        `${stableId} source context ${sourceOwnerRoute} is not a resolved design owner`,
+      );
+    }
+    return {
+      id: stableId,
+      nativeStableId: stableId,
+      sourceOwnerStableId: sourceOwner.stableId,
+      screen: context.nativeScreen,
+      sourceScreen: context.sourceScreen,
+      ...(context.sourceSheet === undefined ? {} : { sourceSheet: context.sourceSheet }),
+      nativeScreen: context.nativeScreen,
+      ...(context.nativeSheet === undefined ? {} : { nativeSheet: context.nativeSheet }),
+      nativeDialog: stableId,
+      sourceEvidenceMode: 'pinned-lovable-owner-context',
+      nativeEvidenceMode: 'capture-only-production-alert-contract',
+      themes: ['light', 'dark'],
+    };
+  });
+if (decisionDialogFamilySurfaces.length < 20 || decisionDialogFamilySurfaces.length > 40) {
+  throw new Error(
+    `Decision-dialog family must contain 20-40 surfaces; got ${decisionDialogFamilySurfaces.length}`,
+  );
+}
 const captureFixtureGroups = new Map();
 for (const assignment of captureableAssignments) {
   const fixture = assignment.matchedFixtures[0];
@@ -655,22 +738,41 @@ const captureManifest = {
   settleMs: 900,
   generatedFrom: OUTPUT_RELATIVE_PATH,
   scope: {
-    mode: 'family-screen-and-sheet-bulk-capture',
+    mode: 'family-screen-sheet-and-trigger-dialog-bulk-capture',
     includedNonBusinessSurfaces:
+      captureableAssignments.length +
+      supplementalNonBusinessSurfaces.length +
+      decisionDialogFamilySurfaces.length,
+    includedRoutedNonBusinessSurfaces:
       captureableAssignments.length + supplementalNonBusinessSurfaces.length,
+    includedTriggerOnlyDialogs: decisionDialogFamilySurfaces.length,
     includedBusinessFamilySurfaces: businessFamilySurfaces.length,
     explicitBusinessTrueExceptions: 1,
-    excludedNonBusinessSurfaces: assignments.length - captureableAssignments.length,
-    note: 'Direct routes and source/native deep-linkable sheets are batched. Payroll is an explicit true exception because the pinned source has no Payroll filing route. Trigger-only dialogs, self-hosted embedded sheets, global overlays and platform chrome remain explicit outliers requiring dedicated drivers.',
+    excludedNonBusinessSurfaces:
+      assignments.length -
+      captureableAssignments.length -
+      supplementalNonBusinessSurfaces.length -
+      decisionDialogFamilySurfaces.length,
+    note: 'Direct routes, source/native deep-linkable sheets, and the exact-owned decision-dialog family are batched. Payroll and Today remove-confirm are explicit true exceptions because the pinned source has no matching route/dialog. Remaining status dialogs, self-hosted embedded sheets, global overlays and platform chrome require dedicated drivers.',
   },
   batches: [...captureFixtureGroups.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([fixture, surfaces]) => ({
       id: `non-business-${fixture}`,
       fixture,
-      surfaces: surfaces.sort((left, right) => (left.id ?? left.screen).localeCompare(right.id ?? right.screen)),
+      surfaces: surfaces.sort((left, right) =>
+        (left.id ?? left.screen).localeCompare(right.id ?? right.screen),
+      ),
     }))
-    .concat([{ id: 'business-filing-family', fixture: 'business-ltd', surfaces: businessFamilySurfaces }]),
+    .concat([
+      {
+        id: 'non-business-decision-dialog',
+        fixture: 'confirmed-safe',
+        familyId: decisionDialogs.familyId,
+        surfaces: decisionDialogFamilySurfaces,
+      },
+      { id: 'business-filing-family', fixture: 'business-ltd', surfaces: businessFamilySurfaces },
+    ]),
 };
 
 const prettierConfig = (await resolveConfig(OUTPUT_PATH)) ?? {};
@@ -696,7 +798,7 @@ if (process.argv.includes('--check')) {
     process.exitCode = 1;
   } else {
     console.log(
-      `Validated ${assignments.length} non-Business surfaces across ${archetypes.length} archetypes and ${implementationWaves.length} waves; ${captureableAssignments.length} direct screen/sheet routes plus ${businessFamilySurfaces.length} Business routes.`,
+      `Validated ${assignments.length} non-Business surfaces across ${archetypes.length} archetypes and ${implementationWaves.length} waves; ${captureableAssignments.length} direct screen/sheet routes, ${decisionDialogFamilySurfaces.length} decision dialogs, plus ${businessFamilySurfaces.length} Business routes.`,
     );
   }
 } else {
@@ -705,6 +807,6 @@ if (process.argv.includes('--check')) {
     writeFile(CAPTURE_OUTPUT_PATH, captureRendered),
   ]);
   console.log(
-    `Wrote family manifest and capture batches: ${assignments.length} surfaces, ${archetypes.length} archetypes, ${implementationWaves.length} waves, ${captureableAssignments.length} non-Business routes plus ${businessFamilySurfaces.length} Business routes.`,
+    `Wrote family manifest and capture batches: ${assignments.length} surfaces, ${archetypes.length} archetypes, ${implementationWaves.length} waves, ${captureableAssignments.length} non-Business routes, ${decisionDialogFamilySurfaces.length} decision dialogs, plus ${businessFamilySurfaces.length} Business routes.`,
   );
 }

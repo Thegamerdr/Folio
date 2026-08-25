@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "familyId": "decision-dialog",
+  "capturePolicy": "Capture-only snapshots of production Alert.alert contracts. Buttons intentionally have no handlers, so evidence rendering cannot mutate fixture state.",
+  "entries": {
+    "dialog.account-delete-gate-1": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:1209",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Delete account & cloud data?",
+      "message": "This deletes your Melo sign-in, encrypted cloud backup, and Melo’s stored bank connections. Money and history on this phone stay until you clear local data separately.",
+      "buttons": [{ "text": "Cancel", "style": "cancel" }, { "text": "Continue" }]
+    },
+    "dialog.account-delete-gate-2": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:1217",
+      "ownerContext": { "sourceScreen": "connections", "nativeScreen": "account" },
+      "title": "One bank permission remains separate",
+      "message": "Melo deletes its provider credentials and stops future access. Your bank’s separate permission may remain until it expires, so revoke Melo in your bank too.",
+      "buttons": [{ "text": "Cancel", "style": "cancel" }, { "text": "I understand" }]
+    },
+    "dialog.account-delete-gate-3": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:1225",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Delete your Melo account now?",
+      "message": "This cannot be undone. Local money and history will remain on this phone.",
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Delete account", "style": "destructive" }
+      ]
+    },
+    "dialog.account-sign-out-confirm": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:1253",
+      "ownerContext": { "sourceScreen": "signin", "nativeScreen": "account" },
+      "title": "Sign out?",
+      "message": "You'll still keep everything on this device.",
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Sign out", "style": "destructive" }
+      ]
+    },
+    "dialog.account-source-remove-confirm": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:274",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Remove saved source?",
+      "message": "The encrypted original will be deleted. Confirmed money records stay in Melo.",
+      "buttons": [
+        { "text": "Keep source", "style": "cancel" },
+        { "text": "Remove", "style": "destructive" }
+      ]
+    },
+    "dialog.bank-disconnect-confirm": {
+      "componentSource": "apps/mobile/src/folio/sheets/BankConnectionSheet.tsx:247",
+      "ownerContext": {
+        "sourceScreen": "connections",
+        "sourceSheet": "bank-connection",
+        "nativeScreen": "account"
+      },
+      "title": "Disconnect this bank?",
+      "message": "Melo will delete its server-side connection identifier and stop future refreshes. Already accepted rows on this phone are a separate choice. TrueLayer Data v3 does not currently give Melo an API that can claim the bank-side consent itself was revoked.",
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Disconnect Melo", "style": "destructive" }
+      ]
+    },
+    "dialog.bank-imported-history-choice": {
+      "componentSource": "apps/mobile/src/folio/sheets/BankConnectionSheet.tsx:264",
+      "ownerContext": {
+        "sourceScreen": "connections",
+        "sourceSheet": "bank-connection",
+        "nativeScreen": "account"
+      },
+      "title": "Keep imported history?",
+      "message": "The bank is disconnected from Melo. Rows already accepted on this phone can stay, or be removed separately now.",
+      "buttons": [
+        { "text": "Keep history", "style": "cancel" },
+        { "text": "Remove bank history", "style": "destructive" }
+      ]
+    },
+    "dialog.cloud-backup-delete-confirm": {
+      "componentSource": "apps/mobile/src/folio/sheets/CloudBackupSheet.tsx:130",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "account" },
+      "title": "Delete cloud backup?",
+      "message": "The encrypted cloud copy will be deleted. Everything on this device stays here.",
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Delete backup", "style": "destructive" }
+      ]
+    },
+    "dialog.cloud-backup-local-replace-confirm": {
+      "componentSource": "apps/mobile/src/folio/sheets/CloudBackupSheet.tsx:344",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "account" },
+      "title": "Replace this device’s Melo data?",
+      "message": "Backup for Alex from 18 Aug 2026, 08:00. 4 transactions, 2 subscriptions and 1 pots. Your current local state will be replaced.",
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Restore backup", "style": "destructive" }
+      ]
+    },
+    "dialog.cloud-backup-recovery-code-replace-confirm": {
+      "componentSource": "apps/mobile/src/folio/sheets/CloudBackupSheet.tsx:304",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "account" },
+      "title": "Replace recovery code?",
+      "message": "Melo will create a new code and immediately re-encrypt the latest backup. Store the new code when it appears.",
+      "buttons": [{ "text": "Cancel", "style": "cancel" }, { "text": "Replace code" }]
+    },
+    "dialog.edit-txn-receipt-source-choice": {
+      "componentSource": "apps/mobile/src/folio/sheets/EditTxnSheet.tsx:413",
+      "ownerContext": {
+        "sourceScreen": "timeline",
+        "sourceSheet": "edit-txn",
+        "nativeScreen": "timeline",
+        "nativeSheet": "edit-txn"
+      },
+      "title": "Add a receipt photo",
+      "message": "The original is encrypted in this workspace on this device.",
+      "buttons": [
+        { "text": "Take photo" },
+        { "text": "Choose photo" },
+        { "text": "Cancel", "style": "cancel" }
+      ]
+    },
+    "dialog.edit-txn-unlink-receipt-confirm": {
+      "componentSource": "apps/mobile/src/folio/sheets/EditTxnSheet.tsx:435",
+      "ownerContext": {
+        "sourceScreen": "timeline",
+        "sourceSheet": "edit-txn",
+        "nativeScreen": "timeline",
+        "nativeSheet": "edit-txn"
+      },
+      "title": "Unlink this receipt?",
+      "message": "The encrypted file stays in Statements & receipts. Only this transaction link is removed.",
+      "buttons": [
+        { "text": "Keep linked", "style": "cancel" },
+        { "text": "Unlink", "style": "destructive" }
+      ]
+    },
+    "dialog.intake-image-source-choice": {
+      "componentSource": "apps/mobile/src/folio/screens/IntakeScreen.tsx:213",
+      "ownerContext": { "sourceScreen": "intake", "nativeScreen": "intake" },
+      "title": "Add a statement image",
+      "message": "Take a new photo or choose one already on this phone.",
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Choose image" },
+        { "text": "Take photo" }
+      ]
+    },
+    "dialog.melo-chat-clear-confirm": {
+      "componentSource": "apps/mobile/src/folio/sheets/MeloChatSheet.tsx:594",
+      "ownerContext": {
+        "sourceScreen": "melo",
+        "sourceSheet": "melo-chat",
+        "nativeScreen": "melo",
+        "nativeSheet": "melo-chat"
+      },
+      "title": "Clear this conversation?",
+      "message": null,
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Clear", "style": "destructive" }
+      ]
+    },
+    "dialog.privacy-clear-gate-1": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:244",
+      "ownerContext": { "sourceScreen": "privacy", "nativeScreen": "privacy" },
+      "title": "Clear local money and history?",
+      "message": "This clears money, setup details, imports, history, widgets and app-owned export files from this device. It does not delete your sign-in, cloud backup or bank connections. Export first if you want to keep a copy.",
+      "buttons": [{ "text": "Cancel", "style": "cancel" }, { "text": "I've exported — continue" }]
+    },
+    "dialog.privacy-clear-gate-2": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:254",
+      "ownerContext": { "sourceScreen": "privacy", "nativeScreen": "privacy" },
+      "title": "Are you sure?",
+      "message": "This local data cannot be recovered unless you already exported it or kept a separate encrypted cloud backup.",
+      "buttons": [{ "text": "Cancel", "style": "cancel" }, { "text": "Yes, clear local data" }]
+    },
+    "dialog.privacy-clear-gate-3": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:263",
+      "ownerContext": { "sourceScreen": "privacy", "nativeScreen": "privacy" },
+      "title": "Clear this device now?",
+      "message": "Local money, setup details and history will be removed. Remote account data stays until you delete it separately.",
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Clear local data", "style": "destructive" }
+      ]
+    },
+    "dialog.privacy-clear-result": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:219",
+      "ownerContext": { "sourceScreen": "privacy", "nativeScreen": "privacy" },
+      "title": "Local data cleared",
+      "message": "Money, setup details, imports, history and app-owned export files were cleared from this device. Your sign-in, cloud backup and bank connections are separate and unchanged.",
+      "buttons": [{ "text": "OK", "style": "cancel" }]
+    },
+    "dialog.privacy-restore-gate-1": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:314",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "privacy" },
+      "title": "Restore from this export?",
+      "message": "melo-export.json holds 4 transactions, 2 subscriptions and 1 pot for Alex. Loading it replaces everything currently in the app — export your current data first if you want to keep it.",
+      "buttons": [{ "text": "Cancel", "style": "cancel" }, { "text": "Continue" }]
+    },
+    "dialog.privacy-restore-gate-2": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:323",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "privacy" },
+      "title": "Replace everything now?",
+      "message": "What’s in the app now is overwritten by the file.",
+      "buttons": [
+        { "text": "Cancel", "style": "cancel" },
+        { "text": "Restore", "style": "destructive" }
+      ]
+    },
+    "dialog.privacy-restore-result": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:333",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "privacy" },
+      "title": "Restored",
+      "message": "Your data is back.",
+      "buttons": [{ "text": "OK", "style": "cancel" }]
+    }
+  }
+}

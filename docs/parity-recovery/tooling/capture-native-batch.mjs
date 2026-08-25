@@ -22,7 +22,10 @@ function readArg(name, fallback) {
 const BUILD_ROOT = path.resolve(readArg('build-root', ROOT));
 const MOBILE_ROOT = path.join(BUILD_ROOT, 'apps/mobile');
 const ANDROID_ROOT = path.join(MOBILE_ROOT, 'android');
-const manifestPath = path.resolve(ROOT, readArg('manifest', 'docs/parity-recovery/registries/capture-batches.json'));
+const manifestPath = path.resolve(
+  ROOT,
+  readArg('manifest', 'docs/parity-recovery/registries/capture-batches.json'),
+);
 const deviceId = readArg('device', 'emulator-5554');
 const batchFilter = readArg('batch', '');
 const surfaceFilter = readArg('surface', '');
@@ -31,22 +34,26 @@ if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.batches)) {
   throw new Error(`Unsupported capture batch manifest: ${manifestPath}`);
 }
 
-const nativeSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
-const buildSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: BUILD_ROOT, encoding: 'utf8' }).trim();
+const nativeSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+  cwd: ROOT,
+  encoding: 'utf8',
+}).trim();
+const buildSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+  cwd: BUILD_ROOT,
+  encoding: 'utf8',
+}).trim();
 if (buildSha !== nativeSha) {
   throw new Error(`Build worktree SHA mismatch: evidence=${nativeSha}, build=${buildSha}.`);
 }
 const nativeRef = nativeSha.slice(0, 7);
-const androidHome = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? DEFAULT_ANDROID_HOME;
+const androidHome =
+  process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? DEFAULT_ANDROID_HOME;
 const adb = path.join(androidHome, 'platform-tools/adb.exe');
 const javaHome = process.env.JAVA_HOME ?? DEFAULT_JAVA_HOME;
 const gradle = path.join(ANDROID_ROOT, 'gradlew.bat');
 const builtApk = path.join(ANDROID_ROOT, 'app/build/outputs/apk/release/app-release.apk');
 const artifactRoot = path.join(ROOT, 'release-artifacts');
-const evidenceRoot = path.join(
-  ROOT,
-  `docs/parity-recovery/evidence/native/harness-${nativeRef}`,
-);
+const evidenceRoot = path.join(ROOT, `docs/parity-recovery/evidence/native/harness-${nativeRef}`);
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -61,7 +68,9 @@ function run(command, args, options = {}) {
 function runStreaming(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const windowsBatch = process.platform === 'win32' && command.toLowerCase().endsWith('.bat');
-    const executable = windowsBatch ? (process.env.ComSpec ?? 'C:/Windows/System32/cmd.exe') : command;
+    const executable = windowsBatch
+      ? (process.env.ComSpec ?? 'C:/Windows/System32/cmd.exe')
+      : command;
     const executableArgs = windowsBatch
       ? ['/d', '/s', '/c', `.\\${path.basename(command)}`, ...args]
       : args;
@@ -98,8 +107,9 @@ async function invalidateFixtureBundle() {
   });
 }
 
-function assertRuntimeControl(log, { screen, sheet, theme }) {
+function assertRuntimeControl(log, { screen, sheet, dialog, theme }) {
   const expectedSheet = sheet === 'none' ? 'null' : `"${sheet}"`;
+  const expectedDialog = dialog === 'none' ? 'null' : `"${dialog}"`;
   const matched = log
     .split(/\r?\n/u)
     .some(
@@ -107,11 +117,12 @@ function assertRuntimeControl(log, { screen, sheet, theme }) {
         line.includes('[parity-shell]') &&
         line.includes(`"screen":"${screen}"`) &&
         line.includes(`"sheet":${expectedSheet}`) &&
+        line.includes(`"dialog":${expectedDialog}`) &&
         line.includes(`"theme":"${theme}"`),
     );
   if (!matched) {
     throw new Error(
-      `Runtime control was not acknowledged for screen=${screen} sheet=${sheet} theme=${theme}.`,
+      `Runtime control was not acknowledged for screen=${screen} sheet=${sheet} dialog=${dialog} theme=${theme}.`,
     );
   }
 }
@@ -171,19 +182,34 @@ for (const batch of selectedBatches) {
     for (const theme of surface.themes ?? ['light', 'dark']) {
       const screen = surface.nativeScreen ?? surface.screen;
       const sheet = surface.nativeSheet ?? surface.sheet ?? 'none';
+      const dialog = surface.nativeDialog ?? 'none';
       const surfaceId = surface.id ?? surface.screen;
-      const deepLink = `folio:///?capture=1&screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&theme=${theme}`;
+      const deepLink = `folio:///?capture=1&screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&dialog=${encodeURIComponent(dialog)}&theme=${theme}`;
+      // Each dialog is deliberately non-cancelable so the screenshot cannot race an accidental
+      // BACK dismissal. Restart the disposable capture process between jobs instead of depending
+      // on button coordinates or localized Android chrome to close the preceding dialog.
+      run(adb, ['-s', deviceId, 'shell', 'am', 'force-stop', PACKAGE]);
       run(adb, ['-s', deviceId, 'logcat', '-c']);
       run(adb, [
-        '-s', deviceId, 'shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW',
+        '-s',
+        deviceId,
+        'shell',
+        'am',
+        'start',
+        '-W',
+        '-a',
+        'android.intent.action.VIEW',
         // adb joins `shell` arguments for Android's remote shell. Quote the URI there so its `&`
         // query separators cannot become shell operators; the quotes are consumed remotely and do
         // not become part of the Intent data URI.
-        '-d', `'${deepLink}'`, '-p', PACKAGE,
+        '-d',
+        `'${deepLink}'`,
+        '-p',
+        PACKAGE,
       ]);
       await wait(manifest.settleMs ?? 900);
       const runtimeLog = run(adb, ['-s', deviceId, 'logcat', '-d', '-s', 'ReactNativeJS:I', '*:S']);
-      assertRuntimeControl(runtimeLog, { screen, sheet, theme });
+      assertRuntimeControl(runtimeLog, { screen, sheet, dialog, theme });
       // Browser reference captures never include a software keyboard. Some Android TextInputs
       // autofocus and leave Gboard's floating toolbar over the sheet even with a hardware keyboard
       // attached. ESC dismisses only that input surface (and is inert when no IME is showing), so
@@ -217,5 +243,10 @@ const captureRun = {
   viewport: { widthPx: 1080, heightPx: 2220, densityDpi: 480, fontScale: 1 },
   fixtureRuns,
 };
-await writeFile(path.join(evidenceRoot, 'capture-run.json'), `${JSON.stringify(captureRun, null, 2)}\n`);
-process.stdout.write(`Native batch complete: ${fixtureRuns.reduce((sum, row) => sum + row.captureCount, 0)} captures.\n`);
+await writeFile(
+  path.join(evidenceRoot, 'capture-run.json'),
+  `${JSON.stringify(captureRun, null, 2)}\n`,
+);
+process.stdout.write(
+  `Native batch complete: ${fixtureRuns.reduce((sum, row) => sum + row.captureCount, 0)} captures.\n`,
+);

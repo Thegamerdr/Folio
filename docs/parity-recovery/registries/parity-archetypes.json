@@ -16,8 +16,8 @@
     "shippingSurfaces": 192,
     "includedNonBusinessSurfaces": 147,
     "excludedBusinessSurfaces": 45,
-    "directlyEvidencedNonBusinessSurfaces": 9,
-    "pendingDirectEvidenceNonBusinessSurfaces": 138,
+    "directlyEvidencedNonBusinessSurfaces": 58,
+    "pendingDirectEvidenceNonBusinessSurfaces": 89,
     "archetypes": 10,
     "implementationWaves": 6
   },
@@ -32,7 +32,13 @@
       "max": 3
     },
     "evidenceMode": "bulk-render-contact-sheet-overlay-outliers",
-    "passingSiblingReview": "automated-batch-only"
+    "passingSiblingReview": "automated-batch-only",
+    "triggerFamilyCapture": {
+      "familyId": "decision-dialog",
+      "stableSurfaceCount": 21,
+      "sourceMode": "pinned-lovable-owner-context",
+      "nativeMode": "capture-only-production-alert-contract"
+    }
   },
   "implementationWaves": [
     {
@@ -67,8 +73,8 @@
       "sharedFixTarget": "Sheet frame, field/control, section and settings-row geometry.",
       "counts": {
         "surfaces": 26,
-        "directlyEvidenced": 1,
-        "pendingDirectEvidence": 25,
+        "directlyEvidenced": 21,
+        "pendingDirectEvidence": 5,
         "resolvedDesignOwners": 26,
         "unresolvedDesignOwners": 0
       },
@@ -80,8 +86,8 @@
       "sharedFixTarget": "Pressure-screen typography/insets plus time/list row geometry.",
       "counts": {
         "surfaces": 21,
-        "directlyEvidenced": 3,
-        "pendingDirectEvidence": 18,
+        "directlyEvidenced": 19,
+        "pendingDirectEvidence": 2,
         "resolvedDesignOwners": 21,
         "unresolvedDesignOwners": 0
       },
@@ -93,8 +99,8 @@
       "sharedFixTarget": "Entry/result action rhythm plus Melo presence and chip treatments.",
       "counts": {
         "surfaces": 20,
-        "directlyEvidenced": 1,
-        "pendingDirectEvidence": 19,
+        "directlyEvidenced": 14,
+        "pendingDirectEvidence": 6,
         "resolvedDesignOwners": 18,
         "unresolvedDesignOwners": 2
       },
@@ -246,8 +252,8 @@
       "implementationWaveId": "wave-4-editorial-time-and-detail",
       "counts": {
         "surfaces": 8,
-        "directlyEvidenced": 1,
-        "pendingDirectEvidence": 7,
+        "directlyEvidenced": 8,
+        "pendingDirectEvidence": 0,
         "resolvedDesignOwners": 8,
         "unresolvedDesignOwners": 0
       },
@@ -298,8 +304,8 @@
       "implementationWaveId": "wave-4-editorial-time-and-detail",
       "counts": {
         "surfaces": 13,
-        "directlyEvidenced": 2,
-        "pendingDirectEvidence": 11,
+        "directlyEvidenced": 11,
+        "pendingDirectEvidence": 2,
         "resolvedDesignOwners": 13,
         "unresolvedDesignOwners": 0
       },
@@ -350,8 +356,8 @@
       "implementationWaveId": "wave-5-intake-and-melo",
       "counts": {
         "surfaces": 14,
-        "directlyEvidenced": 0,
-        "pendingDirectEvidence": 14,
+        "directlyEvidenced": 10,
+        "pendingDirectEvidence": 4,
         "resolvedDesignOwners": 12,
         "unresolvedDesignOwners": 2
       },
@@ -402,8 +408,8 @@
       "implementationWaveId": "wave-3-structured-sheets-and-settings",
       "counts": {
         "surfaces": 11,
-        "directlyEvidenced": 0,
-        "pendingDirectEvidence": 11,
+        "directlyEvidenced": 10,
+        "pendingDirectEvidence": 1,
         "resolvedDesignOwners": 11,
         "unresolvedDesignOwners": 0
       },
@@ -455,8 +461,8 @@
       "implementationWaveId": "wave-3-structured-sheets-and-settings",
       "counts": {
         "surfaces": 15,
-        "directlyEvidenced": 1,
-        "pendingDirectEvidence": 14,
+        "directlyEvidenced": 11,
+        "pendingDirectEvidence": 4,
         "resolvedDesignOwners": 15,
         "unresolvedDesignOwners": 0
       },
@@ -507,8 +513,8 @@
       "implementationWaveId": "wave-5-intake-and-melo",
       "counts": {
         "surfaces": 6,
-        "directlyEvidenced": 1,
-        "pendingDirectEvidence": 5,
+        "directlyEvidenced": 4,
+        "pendingDirectEvidence": 2,
         "resolvedDesignOwners": 6,
         "unresolvedDesignOwners": 0
       },
@@ -1705,8 +1711,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:account"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.add-bill",
@@ -1719,8 +1725,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:add-bill"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.add-debt",
@@ -1733,8 +1739,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:add-debt"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.calendar",
@@ -1747,8 +1753,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:calendar"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.guided",
@@ -1761,8 +1767,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:guided"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.image-fallback",
@@ -1775,8 +1781,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:image-fallback"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.image-success",
@@ -1789,8 +1795,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:image-success"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.insights",
@@ -1803,8 +1809,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:insights"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.intake",
@@ -1817,8 +1823,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:intake"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.melo",
@@ -1859,8 +1865,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:paste-success"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.paywall",
@@ -1873,8 +1879,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:paywall"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.pdf-fallback",
@@ -1887,8 +1893,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:pdf-fallback"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.pdf-success",
@@ -1901,8 +1907,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:pdf-success"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.plan",
@@ -1915,7 +1921,7 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:plan"],
       "matchedFixtures": ["confirmed-safe", "empty", "populated-commitments"],
-      "directComparisonCount": 2,
+      "directComparisonCount": 4,
       "evidenceStatus": "direct-evidence-present"
     },
     {
@@ -1929,8 +1935,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:plans"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.pots",
@@ -1943,8 +1949,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:pots"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.privacy",
@@ -1957,8 +1963,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:privacy"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.recovery",
@@ -1971,8 +1977,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:recovery"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.review",
@@ -1999,8 +2005,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["component:review-item"],
       "matchedFixtures": ["pending-review"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.ritual",
@@ -2013,8 +2019,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:ritual"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.shortfall",
@@ -2027,8 +2033,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:shortfall"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.start",
@@ -2041,8 +2047,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:start"],
       "matchedFixtures": ["first-run", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.subs",
@@ -2055,8 +2061,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:subs"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.timeline",
@@ -2069,8 +2075,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:timeline"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.today",
@@ -2097,8 +2103,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:today-after"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.today-mode",
@@ -2111,8 +2117,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:today"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.today-stability",
@@ -2125,8 +2131,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:today"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.visualizer",
@@ -2139,8 +2145,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:visualizer"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "screen.whatif",
@@ -2153,8 +2159,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:whatif"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.account-bank-connection",
@@ -2209,8 +2215,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:add-event"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.add-plan",
@@ -2223,8 +2229,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:add-plan"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.afford-check",
@@ -2237,8 +2243,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:afford-check"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.annual-caught",
@@ -2265,8 +2271,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:appearance"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.bill-caught",
@@ -2293,8 +2299,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:calendar-connect"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.calendar-export",
@@ -2307,8 +2313,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:calendar-export"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.chart-style",
@@ -2321,8 +2327,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:chart-style"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.day-detail",
@@ -2335,8 +2341,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:day-detail"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.declare-debt",
@@ -2349,8 +2355,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:add-debt"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.drift-caught",
@@ -2377,8 +2383,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:edit-txn"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.hidden-review",
@@ -2391,8 +2397,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:hidden-review"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.household-setup",
@@ -2405,8 +2411,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:household-setup"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.income-caught",
@@ -2433,8 +2439,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:lens-picker"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.log-spend",
@@ -2447,8 +2453,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:log-spend"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.melo-chat",
@@ -2461,8 +2467,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:melo-chat"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.melo-context",
@@ -2503,8 +2509,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:onboarding"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.pots-open-pot",
@@ -2545,8 +2551,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:route-detail"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.safe-zone",
@@ -2559,8 +2565,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:safe-zone"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.share",
@@ -2573,8 +2579,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:share"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.shelf",
@@ -2587,8 +2593,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:shelf"],
       "matchedFixtures": ["confirmed-safe", "empty"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.sub-caught",
@@ -2601,8 +2607,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["sheet:sub-caught"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "sheet.visualizer-edit-candidate",

@@ -30,6 +30,7 @@ import {
   type Sub,
 } from '../store';
 import fixtureManifestJson from './fixtures.json';
+import { getParityDecisionDialog } from './decisionDialogs';
 import {
   BUSINESS_ACCEPTANCE_NOW,
   ltdAcceptanceFixture,
@@ -249,6 +250,7 @@ function captureSheet(value: string | undefined): SheetId {
 export type ParityRuntimeControl = Readonly<{
   screen: ScreenId;
   sheet: SheetId;
+  dialog: string | null;
   theme: ParityTheme;
   sequence: number;
 }>;
@@ -268,26 +270,32 @@ export function subscribeParityRuntimeControl(listener: () => void): () => void 
   return () => parityRuntimeListeners.delete(listener);
 }
 
-export function applyParityRuntimeControl(input: Readonly<{
-  screen: string | undefined;
-  sheet: string | undefined;
-  theme: string | undefined;
-}>): void {
+export function applyParityRuntimeControl(
+  input: Readonly<{
+    screen: string | undefined;
+    sheet: string | undefined;
+    dialog?: string | undefined;
+    theme: string | undefined;
+  }>,
+): void {
   const baked = getParityHarnessConfig();
   if (baked === null) return;
   const screenValue = input.screen;
   const sheetValue = input.sheet;
+  const dialogValue = input.dialog;
   const themeValue = input.theme;
   const prior = parityRuntimeControl ?? {
     screen: baked.screen,
     sheet: baked.sheet,
+    dialog: null,
     theme: baked.theme,
     sequence: parityRuntimeSequence,
   };
 
-  const screen = screenValue !== undefined && SCREEN_IDS.has(screenValue)
-    ? (screenValue as ScreenId)
-    : prior.screen;
+  const screen =
+    screenValue !== undefined && SCREEN_IDS.has(screenValue)
+      ? (screenValue as ScreenId)
+      : prior.screen;
   const sheet =
     sheetValue === 'none'
       ? null
@@ -297,9 +305,17 @@ export function applyParityRuntimeControl(input: Readonly<{
           ? null
           : prior.sheet;
   const theme = themeValue === 'dark' || themeValue === 'light' ? themeValue : prior.theme;
+  const dialog =
+    dialogValue === 'none'
+      ? null
+      : getParityDecisionDialog(dialogValue) !== null
+        ? dialogValue!
+        : screenValue !== undefined
+          ? null
+          : prior.dialog;
 
   parityRuntimeSequence += 1;
-  parityRuntimeControl = { screen, sheet, theme, sequence: parityRuntimeSequence };
+  parityRuntimeControl = { screen, sheet, dialog, theme, sequence: parityRuntimeSequence };
   // Capture-only diagnostics: no product/user data, only the requested deterministic surface.
   // eslint-disable-next-line no-console
   console.info('[parity-control]', JSON.stringify(parityRuntimeControl));
@@ -316,10 +332,12 @@ function applyParityRuntimeUrl(url: string): void {
   if (
     parsed.protocol !== 'folio:' ||
     (parsed.hostname !== 'parity' && parsed.searchParams.get('capture') !== '1')
-  ) return;
+  )
+    return;
   applyParityRuntimeControl({
     screen: parsed.searchParams.get('screen') ?? undefined,
     sheet: parsed.searchParams.get('sheet') ?? undefined,
+    dialog: parsed.searchParams.get('dialog') ?? undefined,
     theme: parsed.searchParams.get('theme') ?? undefined,
   });
 }

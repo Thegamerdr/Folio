@@ -28,6 +28,7 @@ import {
 import type { ErrorInfo, ReactNode } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   AppState,
   BackHandler,
   Platform,
@@ -151,6 +152,7 @@ import {
   startParityRuntimeControl,
   subscribeParityRuntimeControl,
 } from '@/folio/parity/parityHarness';
+import { getParityDecisionDialog } from '@/folio/parity/decisionDialogs';
 
 // The shell's landing pressure. The web showcase let a design tool flip Melo through her five moods
 // (web-only chrome, not ported); the real web app derives pressure from state and defaults to `calm`
@@ -411,6 +413,24 @@ export function FolioShell() {
     setLogSpendAmount(undefined);
     setScreen(parityRuntime.screen);
     setSheet(parityRuntime.sheet);
+  }, [parity, parityRuntime]);
+
+  useEffect(() => {
+    if (parity === null || parityRuntime?.dialog === null || parityRuntime === null) return;
+    const dialog = getParityDecisionDialog(parityRuntime.dialog);
+    if (dialog === null) return;
+    // Alert is intentionally delayed until the requested owner screen/sheet has committed. This
+    // path exists only in a capture APK, and inert handlers prevent evidence runs from mutating the
+    // deterministic fixture while preserving the production Alert contract and native chrome.
+    const timer = setTimeout(() => {
+      Alert.alert(
+        dialog.title,
+        dialog.message ?? undefined,
+        dialog.buttons.map((button) => ({ ...button, onPress: () => undefined })),
+        { cancelable: false },
+      );
+    }, 300);
+    return () => clearTimeout(timer);
   }, [parity, parityRuntime]);
 
   // More-subtree navigation keeps the same active tab. Android Fabric can therefore finish the
