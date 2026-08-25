@@ -30,7 +30,6 @@ import {
   AccessibilityInfo,
   AppState,
   BackHandler,
-  ImageBackground,
   Platform,
   Pressable,
   StyleSheet,
@@ -48,7 +47,6 @@ import {
   Muted,
   PressureScreen,
   PrimaryAction,
-  useIsDark,
   useTheme,
 } from '@/surfaces/pressureMap/kit';
 import {
@@ -344,7 +342,6 @@ function useReducedMotion(): boolean {
 
 export function FolioShell() {
   const t = useTheme();
-  const isDark = useIsDark();
   const parity = useMemo(() => getParityHarnessConfig(), []);
   // In-memory nav state — the doorway is `start`, but the home tab is `today`. The web index lands
   // on `start`; here the shell opens on `today` so the bottom nav has a lit home from the first
@@ -623,17 +620,15 @@ export function FolioShell() {
           boundary (or the two native siblings independently) lets Fabric commit the canvas and nav
           on different frames, which can expose stale/black pixels during More-subtree navigation.
           This grouped host gives Android one complete frame to paint, without a page-wide animation. */}
-          <ImageBackground
+          <View
+            collapsable={false}
             key={`route-frame-${screen}`}
-            resizeMode="stretch"
-            source={
-              isDark
-                ? require('../../../assets/material/paper-canvas-dark.png')
-                : require('../../../assets/material/paper-canvas-light.png')
-            }
             style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
           >
-            <View collapsable={false} style={shellStyles.screenHost}>
+            <View
+              collapsable={false}
+              style={[shellStyles.screenHost, { backgroundColor: t.canvas }]}
+            >
               <ScreenErrorBoundary
                 key={`screen-${screen}`}
                 screenLabel={screen}
@@ -648,7 +643,7 @@ export function FolioShell() {
               onChange={onTabChange}
               reviewCount={pendingReviewCount}
             />
-          </ImageBackground>
+          </View>
           {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
           sheets (onboarding, appearance, edit-txn, log-spend, sub-caught, add-event, calendar-export,
           calendar-connect, route-detail, melo-chat, share, day-detail) each wrap the kit Sheet
@@ -750,7 +745,7 @@ export function FolioShell() {
 
 const shellStyles = StyleSheet.create({
   root: { flex: 1 },
-  routeFrame: { flex: 1, height: '100%', width: '100%' },
+  routeFrame: { flex: 1 },
   screenHost: { flex: 1 },
 });
 
