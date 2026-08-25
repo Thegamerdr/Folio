@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { selectBusinessOneMove } from '@folio/business-workspace';
+import { businessDeadlines, selectBusinessOneMove } from '@folio/business-workspace';
 
 import { type MeloMood } from '@/folio/melo/Melo';
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import { setMelo, useAppStore } from '@/folio/store';
 import type { Nav, ScreenId } from '@/folio/types';
 import { useBusinessOperations } from './business/useBusinessOperations';
@@ -50,6 +50,13 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
     [accounts, business],
   );
   const memory = business.memory.slice(0, 4);
+  const nextDue = useMemo(
+    () =>
+      businessDeadlines(business, { withinDays: 42 })
+        .filter((deadline) => deadline.direction === 'out')
+        .sort((left, right) => left.date.localeCompare(right.date))[0] ?? null,
+    [business],
+  );
   const mood: MeloMood =
     move.kind === 'runway' || move.kind === 'vat'
       ? 'concern'
@@ -88,10 +95,11 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
             <MeloCompanionHost
               mood={mood}
               size={74}
-              position={preferredPosition}
+              position="left"
               presence={presence}
               accessibilityLabel={`Melo, ${mood}, business context`}
               onPress={() => setContextOpen(true)}
+              style={styles.heroCompanion}
             />
           )}
           <Text style={[styles.eyebrow, { color: t.muted }]}>{workspace.name}</Text>
@@ -99,6 +107,19 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
             {move.headline}
           </Text>
           <Text style={[styles.intro, { color: t.muted }]}>{move.body}</Text>
+          {nextDue ? (
+            <Text style={[styles.nextDue, { borderTopColor: t.hairline, color: t.ink }]}>
+              Next out: <Text style={styles.nextDueStrong}>{nextDue.label}</Text>{' '}
+              {formatDeadlineDate(nextDue.date)}
+              {nextDue.amountMinor === undefined
+                ? ''
+                : ` · ${formatBusinessMinor(nextDue.amountMinor)}`}
+            </Text>
+          ) : (
+            <Text style={[styles.noNextDue, { color: t.muted }]}>
+              Nothing is due to go out in the next few weeks.
+            </Text>
+          )}
         </View>
 
         {move.action ? (
@@ -121,12 +142,18 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
           <Text style={[styles.sectionTitle, { color: t.muted }]}>What Melo watches here</Text>
           {[
             'Cash across business accounts and 30-day burn.',
-            'Invoices ageing past their due date.',
-            'VAT pot against the current return.',
-            'Recurring costs landing inside the runway.',
-            'Tax and filing dates tied to the saved entity.',
-          ].map((line) => (
-            <Text key={line} style={[styles.watchLine, { color: t.muted }]}>
+            'Invoices aging past their due date.',
+            'VAT pot vs the estimated bill.',
+            'Recurring obligations landing inside the runway.',
+          ].map((line, index) => (
+            <Text
+              key={line}
+              style={[
+                styles.watchLine,
+                index > 0 ? styles.watchLineSpaced : undefined,
+                { color: t.muted },
+              ]}
+            >
               · {line}
             </Text>
           ))}
@@ -175,6 +202,17 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
           <Text style={[styles.primaryLabel, { color: t.inverse }]}>Ask Melo</Text>
         </Pressable>
       </ScrollView>
+      {!melo.quietMode ? (
+        <MeloCompanionHost
+          mood="calm"
+          size={71}
+          position="right"
+          presence={presence}
+          accessibilityLabel="Melo, perched at the business summary"
+          onPress={() => setContextOpen(true)}
+          style={styles.semanticPerch}
+        />
+      ) : null}
       <MeloContextSheet
         visible={contextOpen}
         onClose={() => setContextOpen(false)}
@@ -213,42 +251,78 @@ function formatMemoryDate(value: string): string {
     : value;
 }
 
+function formatDeadlineDate(value: string): string {
+  const date = new Date(`${value}T12:00:00.000Z`);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+    : value;
+}
+
+function formatBusinessMinor(valueMinor: number): string {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP',
+    maximumFractionDigits: valueMinor % 100 === 0 ? 0 : 2,
+  }).format(valueMinor / 100);
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: gap.xl },
   wordmarkRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   wordmark: { fontFamily: serif.displayItalic, fontSize: 14 },
-  workspaceKind: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.7 },
+  workspaceKind: { fontFamily: weightFamily(600), fontSize: 11, letterSpacing: 0.88 },
   hero: { alignItems: 'flex-start', marginTop: gap.xl },
   quietCompanion: { fontFamily: serif.displayItalic, fontSize: 15, marginBottom: gap.md },
-  eyebrow: { fontFamily: serif.displayItalic, fontSize: 13, marginTop: gap.md },
+  eyebrow: { fontFamily: serif.displayItalic, fontSize: 14, marginTop: gap.md },
   headline: {
     fontFamily: serif.display,
-    fontSize: 31,
-    letterSpacing: -0.35,
-    lineHeight: 37,
+    fontSize: 28,
+    lineHeight: 33,
     marginTop: gap.xs,
   },
-  intro: { fontSize: 13.5, lineHeight: 21, marginTop: gap.md, maxWidth: 520 },
+  intro: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: gap.md,
+    maxWidth: 520,
+  },
+  nextDue: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+    paddingTop: gap.md,
+  },
+  nextDueStrong: { fontFamily: weightFamily(600) },
+  noNextDue: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
   move: {
     alignItems: 'center',
     borderRadius: radius.md,
     flexDirection: 'row',
     marginTop: gap.lg,
-    minHeight: 50,
+    minHeight: 44,
     paddingHorizontal: gap.lg,
   },
-  moveLabel: { flex: 1, fontSize: 13, fontWeight: '600' },
+  moveLabel: { flex: 1, fontFamily: weightFamily(600), fontSize: 14 },
   arrow: { fontSize: 18, marginLeft: gap.md },
   watching: { marginTop: gap.xl },
   sectionTitle: {
+    fontFamily: weightFamily(400),
     fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1,
+    letterSpacing: 1.54,
     marginBottom: gap.sm,
     textTransform: 'uppercase',
   },
-  watchLine: { fontSize: 12.5, lineHeight: 20 },
+  watchLine: { fontFamily: weightFamily(400), fontSize: 12.5, lineHeight: 19 },
+  watchLineSpaced: { marginTop: 6 },
   memory: { marginTop: gap.xl },
   memoryCard: { borderRadius: radius.lg, overflow: 'hidden', paddingHorizontal: gap.lg },
   memoryRow: { paddingVertical: gap.md },
@@ -262,5 +336,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: gap.lg,
   },
-  primaryLabel: { fontSize: 15, fontWeight: '700' },
+  primaryLabel: { fontFamily: weightFamily(700), fontSize: 16 },
+  heroCompanion: { marginBottom: -13, marginLeft: -4, marginTop: 5 },
+  semanticPerch: { position: 'absolute', right: 23, top: 304, zIndex: 55 },
 });
