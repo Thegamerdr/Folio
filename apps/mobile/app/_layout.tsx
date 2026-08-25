@@ -2,6 +2,7 @@ import { Component, useEffect, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import {
   Fraunces_400Regular,
+  Fraunces_400Regular_Italic,
   Fraunces_500Medium,
   Fraunces_500Medium_Italic,
   Fraunces_600SemiBold,
@@ -135,6 +136,7 @@ function ThemedRoot() {
 function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Fraunces_400Regular,
+    Fraunces_400Regular_Italic,
     Fraunces_500Medium,
     Fraunces_500Medium_Italic,
     Fraunces_600SemiBold,

@@ -126,8 +126,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 // app/_layout). Headlines/verdicts are serif; ONE italic accent word per headline. Numerals and
 // UI labels stay in the system grotesque with tabular figures (money always reads as money).
 export const serif = {
-  display: 'Fraunces_600SemiBold',
-  displayItalic: 'Fraunces_500Medium_Italic',
+  display: 'Fraunces_400Regular',
+  displayItalic: 'Fraunces_400Regular_Italic',
   medium: 'Fraunces_500Medium',
   regular: 'Fraunces_400Regular',
 } as const;
