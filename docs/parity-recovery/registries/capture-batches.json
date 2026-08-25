@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "nowISO": "2026-08-18T08:00:00.000Z",
+  "settleMs": 900,
+  "generatedFrom": "docs/parity-recovery/registries/parity-archetypes.json",
+  "scope": {
+    "mode": "direct-screen-route-bulk-capture",
+    "includedScreenSurfaces": 33,
+    "excludedNonScreenSurfaces": 114,
+    "note": "Sheets, dialogs, global overlays and platform chrome require dedicated state/opening drivers and are deliberately excluded from this direct-screen batch feed."
+  },
+  "batches": [
+    {
+      "id": "non-business-confirmed-safe",
+      "fixture": "confirmed-safe",
+      "surfaces": [
+        {
+          "screen": "account",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "add-bill",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "add-debt",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "calendar",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "guided",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "image-fallback",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "image-success",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "insights",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "intake",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "melo",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "more",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "paste-success",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "paywall",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "pdf-fallback",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "pdf-success",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "plan",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "plans",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "pots",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "privacy",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "recovery",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "ritual",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "shortfall",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "subs",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "timeline",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "today",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "today-after",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "today-mode",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "today-stability",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "visualizer",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "whatif",
+          "themes": ["light", "dark"]
+        }
+      ]
+    },
+    {
+      "id": "non-business-first-run",
+      "fixture": "first-run",
+      "surfaces": [
+        {
+          "screen": "start",
+          "themes": ["light", "dark"]
+        }
+      ]
+    },
+    {
+      "id": "non-business-pending-review",
+      "fixture": "pending-review",
+      "surfaces": [
+        {
+          "screen": "review",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "review-item",
+          "themes": ["light", "dark"]
+        }
+      ]
+    }
+  ]
+}
