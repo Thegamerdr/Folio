@@ -153,6 +153,7 @@ import {
   subscribeParityRuntimeControl,
 } from '@/folio/parity/parityHarness';
 import { getParityDecisionDialog } from '@/folio/parity/decisionDialogs';
+import { getParityStatusDialog } from '@/folio/ui/statusDialogs';
 
 // The shell's landing pressure. The web showcase let a design tool flip Melo through her five moods
 // (web-only chrome, not ported); the real web app derives pressure from state and defaults to `calm`
@@ -417,7 +418,8 @@ export function FolioShell() {
 
   useEffect(() => {
     if (parity === null || parityRuntime?.dialog === null || parityRuntime === null) return;
-    const dialog = getParityDecisionDialog(parityRuntime.dialog);
+    const dialog =
+      getParityDecisionDialog(parityRuntime.dialog) ?? getParityStatusDialog(parityRuntime.dialog);
     if (dialog === null) return;
     // Alert is intentionally delayed until the requested owner screen/sheet has committed. This
     // path exists only in a capture APK, and inert handlers prevent evidence runs from mutating the

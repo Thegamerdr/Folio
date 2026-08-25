@@ -10,7 +10,7 @@
 // shared kit primitives + ported screens rely on the gesture system and safe-area insets.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, StyleSheet, View, type AppStateStatus } from 'react-native';
+import { AppState, StyleSheet, View, type AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
@@ -29,6 +29,7 @@ import { startWidgetSync } from '@/folio/widget/widgetSnapshotWriter';
 import { reconcileEntitlements } from '@/folio/lib/billing/entitlements';
 import { authenticateAppLock, prepareAppLock, subscribeAppLockSettings } from '@/folio/lib/appLock';
 import { AppLockGate } from '@/folio/ui/AppLockGate';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { PERSONAL_WORKSPACE_ID } from '@/folio/lib/workspaceRoot';
 import {
   applyParityRuntimeControl,
@@ -126,11 +127,7 @@ export default function FolioRoute() {
 
   useEffect(() => {
     if (!ready || !recoveredRemovedDeviceLock) return;
-    Alert.alert(
-      'App lock was turned off',
-      'This device no longer has the screen lock Melo previously used. Your encrypted vault is unchanged; add a device lock before enabling Melo app lock again.',
-      [{ text: 'OK', style: 'cancel' }],
-    );
+    showStatusDialog('dialog.app-lock-removed');
     setRecoveredRemovedDeviceLock(false);
   }, [ready, recoveredRemovedDeviceLock]);
 

@@ -87,6 +87,7 @@ import {
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { runExport } from '@/folio/lib/exportNative';
 import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
@@ -164,23 +165,11 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     void changeAppLockEnabled(!appLockSettings.enabled)
       .then((result) => {
         if (result.reason === 'device-lock-not-set') {
-          Alert.alert(
-            'Add a device screen lock first',
-            'Set a PIN, pattern, password or biometric in Android or iPhone settings, then come back to turn on Melo app lock.',
-            [{ text: 'OK', style: 'cancel' }],
-          );
+          showStatusDialog('dialog.privacy-app-lock-no-device-lock');
         } else if (result.reason === 'unavailable') {
-          Alert.alert(
-            'App lock is unavailable',
-            'This device could not securely save or open the app-lock setting. Your Melo vault remains encrypted on disk.',
-            [{ text: 'OK', style: 'cancel' }],
-          );
+          showStatusDialog('dialog.privacy-app-lock-unavailable');
         } else if (result.reason === 'failed') {
-          Alert.alert(
-            'Device authentication did not finish',
-            'Melo left the app-lock setting unchanged.',
-            [{ text: 'OK', style: 'cancel' }],
-          );
+          showStatusDialog('dialog.privacy-app-lock-auth-failed');
         }
       })
       .finally(() => setChangingAppLock(false));
@@ -229,9 +218,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
         reason instanceof Error
           ? reason.message
           : 'Melo could not verify that local data was fully cleared.';
-      Alert.alert('Local clear did not finish', message, [{ text: 'OK', style: 'cancel' }], {
-        cancelable: true,
-      });
+      showStatusDialog('dialog.privacy-clear-failed', { message });
     }
   };
 
@@ -299,12 +286,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       const picked = await pickRestoreFile(activeWorkspaceId);
       if (picked.status === 'cancelled') return;
       if (picked.status === 'invalid') {
-        Alert.alert(
-          'Couldn’t read that file',
-          'That file doesn’t look like a Melo data export. Pick the personal or business export file that Melo created.',
-          [{ text: 'OK', style: 'cancel' }],
-          { cancelable: true },
-        );
+        showStatusDialog('dialog.privacy-restore-invalid-file');
         return;
       }
       const { summary, raw, fileName } = picked;
@@ -352,9 +334,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     })().catch((err: unknown) => {
       const message =
         err instanceof Error ? err.message : 'Restore could not finish on this device.';
-      Alert.alert('Restore didn’t finish', message, [{ text: 'OK', style: 'cancel' }], {
-        cancelable: true,
-      });
+      showStatusDialog('dialog.privacy-restore-failed', { message });
     });
   };
 
@@ -368,9 +348,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     void runExport(activeWorkspaceId).catch((err: unknown) => {
       const message =
         err instanceof Error ? err.message : 'Export could not finish on this device.';
-      Alert.alert('Export didn’t finish', message, [{ text: 'OK', style: 'cancel' }], {
-        cancelable: true,
-      });
+      showStatusDialog('dialog.privacy-export-failed', { message });
     });
   };
 

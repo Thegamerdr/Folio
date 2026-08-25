@@ -48,15 +48,7 @@
 // note / Melo line / CTAs are @copy FROZEN inline literals (the web keeps them inline).
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -70,6 +62,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import {
   consumeReaderFallbackEvidenceId,
@@ -176,14 +169,13 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
 
   const openSource = () => {
     if (workspace === undefined || evidenceDocument === undefined) {
-      Alert.alert('Saved file unavailable', 'This encrypted original is no longer on this device.');
+      showStatusDialog('dialog.pdf-source-unavailable');
       return;
     }
     void openEvidenceDocument(workspace, evidenceDocument).catch((reason: unknown) => {
-      Alert.alert(
-        'Could not open the saved file',
-        reason instanceof Error ? reason.message : 'The encrypted file could not be opened.',
-      );
+      showStatusDialog('dialog.pdf-source-open-failed', {
+        message: reason instanceof Error ? reason.message : undefined,
+      });
     });
   };
 

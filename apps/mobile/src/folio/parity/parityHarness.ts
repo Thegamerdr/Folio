@@ -34,6 +34,7 @@ import {
 } from '../store';
 import fixtureManifestJson from './fixtures.json';
 import { getParityDecisionDialog } from './decisionDialogs';
+import { getParityStatusDialog } from '../ui/statusDialogs';
 import {
   BUSINESS_ACCEPTANCE_NOW,
   ltdAcceptanceFixture,
@@ -321,7 +322,7 @@ export function applyParityRuntimeControl(
   const dialog =
     dialogValue === 'none'
       ? null
-      : getParityDecisionDialog(dialogValue) !== null
+      : getParityDecisionDialog(dialogValue) !== null || getParityStatusDialog(dialogValue) !== null
         ? dialogValue!
         : screenValue !== undefined
           ? null

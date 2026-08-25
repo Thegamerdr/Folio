@@ -36,7 +36,7 @@
 // render once probeAvailability() proves the store is reachable. Every row/button ≥44px.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccessibilityInfo } from 'react-native';
 import Animated, {
@@ -69,6 +69,7 @@ import { loadActiveEntitlement, saveVerifiedEntitlement } from '@/folio/lib/bill
 import { verifyGooglePurchase } from '@/folio/lib/billing/billingVerification';
 import { resolveCtaMode } from '@/folio/lib/billing/ctaMode';
 import { showToast } from '@/folio/ui/Toast';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import type { Nav } from '@/folio/types';
 
 export type PaywallScreenState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
@@ -376,16 +377,12 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
             verification.status === 'pending'
               ? 'Google Play is still processing it. Melo will not unlock or finish the purchase until Play confirms it.'
               : verification.message;
-          Alert.alert(title, message, [{ text: 'OK', style: 'cancel' }]);
+          showStatusDialog('dialog.paywall-purchase-verification', { title, message });
           return;
         }
         const persisted = await saveVerifiedEntitlement(verification.grant);
         if (persisted === null) {
-          Alert.alert(
-            'Purchase needs verification',
-            'Melo verified the purchase but could not safely save its signed entitlement. Try Restore purchases shortly.',
-            [{ text: 'OK', style: 'cancel' }],
-          );
+          showStatusDialog('dialog.paywall-entitlement-save-failed');
           return;
         }
         const resolvedTier = verification.entitlement.tier;
@@ -394,22 +391,18 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         // The Worker already attempts acknowledgement; finishing here is the replay-safe client
         // fallback, and only happens after provider verification + signed local persistence.
         await finishPurchase(outcome.purchase);
-        Alert.alert(
-          resolvedTier === 'live' ? 'Melo Live is on' : 'Melo Full is yours',
-          resolvedTier === 'live'
-            ? 'Unlimited reads while it runs — cancel any month.'
-            : 'Every lens unlocked. One payment — nothing renews.',
-          [{ text: 'OK', style: 'cancel' }],
-        );
+        showStatusDialog('dialog.paywall-purchase-succeeded', {
+          title: resolvedTier === 'live' ? 'Melo Live is on' : undefined,
+          message:
+            resolvedTier === 'live'
+              ? 'Unlimited reads while it runs — cancel any month.'
+              : undefined,
+        });
         nav.back();
       } else if (outcome.status === 'pending') {
-        Alert.alert(
-          'Purchase pending',
-          'Google Play is still processing it. Melo will unlock only after Play confirms the payment.',
-          [{ text: 'OK', style: 'cancel' }],
-        );
+        showStatusDialog('dialog.paywall-purchase-pending');
       } else if (outcome.status === 'failed') {
-        Alert.alert('Purchase failed', outcome.message, [{ text: 'OK', style: 'cancel' }]);
+        showStatusDialog('dialog.paywall-purchase-failed', { message: outcome.message });
       }
       // 'cancelled' — silent, matches the platform's own cancel UX (no extra alert on top of it).
     } finally {
@@ -423,21 +416,17 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       if (fullUnlocked || liveActive) {
         const owned =
           fullUnlocked && liveActive ? 'Full + Live are' : fullUnlocked ? 'Full is' : 'Live is';
-        Alert.alert(`Melo ${owned} active on this device`, undefined, [
-          { text: 'OK', style: 'cancel' },
-        ]);
+        showStatusDialog('dialog.paywall-local-entitlement-active', {
+          title: `Melo ${owned} active on this device`,
+        });
         return;
       }
-      Alert.alert(
-        'No purchase found on this device',
-        'This is the current build — real restore ships with a future update.',
-        [{ text: 'OK', style: 'cancel' }],
-      );
+      showStatusDialog('dialog.paywall-restore-unavailable-build');
       return;
     }
     const restored = await restorePurchases();
     if (restored.length === 0) {
-      Alert.alert('No purchase found on this device', undefined, [{ text: 'OK', style: 'cancel' }]);
+      showStatusDialog('dialog.paywall-restore-none');
       return;
     }
     const tiers = new Set<'full' | 'live'>();
@@ -462,17 +451,16 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       await finishPurchase(restoredPurchase);
     }
     if (tiers.size === 0) {
-      Alert.alert(
-        pending
+      showStatusDialog('dialog.paywall-restore-not-granted', {
+        title: pending
           ? 'Purchase pending'
           : unavailableMessage
             ? 'Restore needs verification'
-            : 'No active purchase found',
-        pending
+            : undefined,
+        message: pending
           ? 'Google Play is still processing this purchase.'
-          : (unavailableMessage ?? 'Google Play did not confirm an active Melo purchase.'),
-        [{ text: 'OK', style: 'cancel' }],
-      );
+          : (unavailableMessage ?? undefined),
+      });
       return;
     }
     if (tiers.has('full')) setLensFullUnlocked(true);
@@ -483,7 +471,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         : tiers.has('live')
           ? 'Melo Live restored'
           : 'Melo Full restored';
-    Alert.alert(label, undefined, [{ text: 'OK', style: 'cancel' }]);
+    showStatusDialog('dialog.paywall-restore-succeeded', { title: label });
   };
 
   // Ownership per door — Full and Live are independent (not a ladder), so "current" is per-tier.

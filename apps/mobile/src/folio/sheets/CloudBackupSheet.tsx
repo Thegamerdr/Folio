@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/clerk-expo';
 
 import { gap, radius, serif, Sheet, Surface, useTheme } from '@/folio/theme';
 import { useAppStore } from '@/folio/store';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import {
   applyCloudRestore,
   createCloudBackup,
@@ -108,11 +109,7 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
             );
             return;
           }
-          Alert.alert(
-            'Backup restored',
-            'This device now has the state from your encrypted backup.',
-            [{ text: 'Done', onPress: onClose }],
-          );
+          showStatusDialog('dialog.cloud-backup-restore-succeeded', { onDone: onClose });
         } catch (reason: unknown) {
           setError(messageFor(reason));
         } finally {

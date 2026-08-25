@@ -56,7 +56,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -98,6 +97,7 @@ import { findDriftCandidates } from '@/folio/lib/caughtDrift';
 import { findCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import { isOverspentLanding } from '@/folio/lib/storeRoute';
 import { openEvidenceDocument } from '@/folio/lib/documentVault';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { formatGBP } from '@/folio/screens/today/format';
 import { formatEditableAmount } from '@/folio/screens/reviewFormat';
 import type { Nav } from '@/folio/types';
@@ -433,10 +433,9 @@ export function ReviewScreen({
   const openSourceEvidence = () => {
     if (sourceEvidence === undefined) return;
     void openEvidenceDocument(workspace, sourceEvidence).catch((reason: unknown) => {
-      Alert.alert(
-        'Could not open the saved source',
-        reason instanceof Error ? reason.message : 'The encrypted source could not be opened.',
-      );
+      showStatusDialog('dialog.review-source-open-failed', {
+        message: reason instanceof Error ? reason.message : undefined,
+      });
     });
   };
 

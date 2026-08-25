@@ -38,6 +38,17 @@
       "stableSurfaceCount": 21,
       "sourceMode": "pinned-lovable-owner-context",
       "nativeMode": "capture-only-production-alert-contract"
+    },
+    "statusFamilyCapture": {
+      "familyId": "status-dialog",
+      "stableSurfaceCount": 38,
+      "sharedAction": {
+        "text": "Done",
+        "style": "cancel",
+        "cancelable": true
+      },
+      "sourceMode": "pinned-lovable-owner-context",
+      "nativeMode": "centralized-production-status-contract"
     }
   },
   "implementationWaves": [

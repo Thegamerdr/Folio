@@ -10,21 +10,14 @@
 // those native authorities reachable without pretending the missing destinations exist.
 
 import { useEffect, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChevronRight, gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import {
   DEFAULT_REMINDERS_SETTINGS,
   loadRemindersSettings,
@@ -95,12 +88,9 @@ function useAccessibilityDescription(): () => void {
 
   return () => {
     const motion = reducedMotion === null ? 'still being checked' : reducedMotion ? 'on' : 'off';
-    Alert.alert(
-      'Accessibility',
-      `Melo follows your device text size and reduced-motion preference. Reduced motion is ${motion}.`,
-      [{ text: 'Done', style: 'cancel' }],
-      { cancelable: true },
-    );
+    showStatusDialog('dialog.more-accessibility-info', {
+      message: `Melo follows your device text size and reduced-motion preference. Reduced motion is ${motion}.`,
+    });
   };
 }
 
@@ -134,12 +124,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const describeAccessibility = useAccessibilityDescription();
 
   const describeAiAutomation = () => {
-    Alert.alert(
-      'AI and automation',
-      'Melo only reads a statement after you choose that path. Suggestions wait in Review, and nothing reaches your records until you confirm it.',
-      [{ text: 'Done', style: 'cancel' }],
-      { cancelable: true },
-    );
+    showStatusDialog('dialog.more-ai-transparency-info');
   };
 
   // ScreenMore.tsx is the exact composition authority. These are its five sections and ten rows in

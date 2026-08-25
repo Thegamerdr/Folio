@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "familyId": "status-dialog",
+  "capturePolicy": "Production status-dialog copy with one consistent trailing Done action. Dynamic failures use deterministic safe fallback copy for capture.",
+  "entries": {
+    "dialog.account-bank-unavailable": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:455",
+      "ownerContext": { "sourceScreen": "connections", "nativeScreen": "account" },
+      "title": "Bank connection is not available",
+      "message": "Melo’s current release is manual and statement-led. Your local data stays on this device."
+    },
+    "dialog.account-bank-unconfigured": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:461",
+      "ownerContext": { "sourceScreen": "connections", "nativeScreen": "account" },
+      "title": "Bank connection is not configured",
+      "message": "Statements, photos, CSV and manual entries still work on this device."
+    },
+    "dialog.account-delete-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:1194",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Account deletion did not finish",
+      "message": "Melo could not confirm account deletion. Your local money is unchanged."
+    },
+    "dialog.account-delete-succeeded": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:1180",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Melo account deleted",
+      "message": "Your sign-in, encrypted cloud backup and Melo's stored bank credentials were deleted. Money and history on this phone remain until you clear local data."
+    },
+    "dialog.account-delete-unavailable": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:1202",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Account deletion unavailable",
+      "message": "The sign-in provider has not enabled self-service deletion for this account. Nothing was deleted."
+    },
+    "dialog.account-share-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:501",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Could not share this snapshot",
+      "message": "Nothing was changed in Melo."
+    },
+    "dialog.account-source-open-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:266",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Could not open the saved source",
+      "message": "The encrypted source could not be opened."
+    },
+    "dialog.account-source-remove-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/AccountScreen.tsx:289",
+      "ownerContext": { "sourceScreen": "account", "nativeScreen": "account" },
+      "title": "Could not remove the saved source",
+      "message": "The encrypted source is still on this device."
+    },
+    "dialog.app-lock-removed": {
+      "componentSource": "apps/mobile/app/index.tsx:112",
+      "ownerContext": { "sourceScreen": "applock", "nativeScreen": "privacy" },
+      "title": "App lock was turned off",
+      "message": "This device no longer has the screen lock Melo previously used. Your encrypted vault is unchanged; add a device lock before enabling Melo app lock again."
+    },
+    "dialog.cloud-backup-restore-succeeded": {
+      "componentSource": "apps/mobile/src/folio/sheets/CloudBackupSheet.tsx:111",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "account" },
+      "title": "Backup restored",
+      "message": "This device now has the state from your encrypted backup."
+    },
+    "dialog.edit-txn-evidence-attach-failed": {
+      "componentSource": "apps/mobile/src/folio/sheets/EditTxnSheet.tsx:406",
+      "ownerContext": {
+        "sourceScreen": "timeline",
+        "sourceSheet": "edit-txn",
+        "nativeScreen": "timeline",
+        "nativeSheet": "edit-txn"
+      },
+      "title": "Could not save this source",
+      "message": "Melo could not save an encrypted copy of this file. Try again, or add the record manually. Nothing was added."
+    },
+    "dialog.edit-txn-permission-off": {
+      "componentSource": "apps/mobile/src/folio/sheets/EditTxnSheet.tsx:379",
+      "ownerContext": {
+        "sourceScreen": "timeline",
+        "sourceSheet": "edit-txn",
+        "nativeScreen": "timeline",
+        "nativeSheet": "edit-txn"
+      },
+      "title": "Permission is off",
+      "message": "Allow photo access in device settings, then try again."
+    },
+    "dialog.edit-txn-source-open-failed": {
+      "componentSource": "apps/mobile/src/folio/sheets/EditTxnSheet.tsx:364",
+      "ownerContext": {
+        "sourceScreen": "timeline",
+        "sourceSheet": "edit-txn",
+        "nativeScreen": "timeline",
+        "nativeSheet": "edit-txn"
+      },
+      "title": "Could not open the saved source",
+      "message": "The encrypted source could not be opened."
+    },
+    "dialog.image-source-open-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/ImageFallbackScreen.tsx:189",
+      "ownerContext": { "sourceScreen": "image-fallback", "nativeScreen": "image-fallback" },
+      "title": "Could not open the saved image",
+      "message": "The encrypted image could not be opened."
+    },
+    "dialog.image-source-unavailable": {
+      "componentSource": "apps/mobile/src/folio/screens/ImageFallbackScreen.tsx:182",
+      "ownerContext": { "sourceScreen": "image-fallback", "nativeScreen": "image-fallback" },
+      "title": "Saved image unavailable",
+      "message": "This encrypted original is no longer on this device."
+    },
+    "dialog.intake-reader-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/IntakeScreen.tsx:390",
+      "ownerContext": { "sourceScreen": "intake", "nativeScreen": "intake" },
+      "title": "Could not save this source",
+      "message": "Melo could not save an encrypted copy of this file. Try again, or add the record manually. Nothing was added."
+    },
+    "dialog.more-accessibility-info": {
+      "componentSource": "apps/mobile/src/folio/screens/MoreScreen.tsx:230",
+      "ownerContext": { "sourceScreen": "accessibility", "nativeScreen": "more" },
+      "title": "Accessibility",
+      "message": "Melo follows your device text size and reduced-motion preference. Reduced motion is off."
+    },
+    "dialog.more-ai-transparency-info": {
+      "componentSource": "apps/mobile/src/folio/screens/MoreScreen.tsx:302",
+      "ownerContext": { "sourceScreen": "ai-transparency", "nativeScreen": "more" },
+      "title": "AI and automation",
+      "message": "Melo only reads a statement after you choose that path. Suggestions wait in Review, and nothing reaches your records until you confirm it."
+    },
+    "dialog.paywall-entitlement-save-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:384",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "Purchase needs verification",
+      "message": "Melo verified the purchase but could not safely save its signed entitlement. Try Restore purchases shortly."
+    },
+    "dialog.paywall-local-entitlement-active": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:426",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "Melo Full is active on this device",
+      "message": null
+    },
+    "dialog.paywall-purchase-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:412",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "Purchase failed",
+      "message": "Google Play could not finish the purchase."
+    },
+    "dialog.paywall-purchase-pending": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:406",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "Purchase pending",
+      "message": "Google Play is still processing it. Melo will unlock only after Play confirms the payment."
+    },
+    "dialog.paywall-purchase-succeeded": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:397",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "Melo Full is yours",
+      "message": "Every lens unlocked. One payment — nothing renews."
+    },
+    "dialog.paywall-purchase-verification": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:379",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "Purchase needs verification",
+      "message": "Melo will not unlock or finish the purchase until Google Play confirms it."
+    },
+    "dialog.paywall-restore-none": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:440",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "No purchase found on this device",
+      "message": null
+    },
+    "dialog.paywall-restore-not-granted": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:465",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "No active purchase found",
+      "message": "Google Play did not confirm an active Melo purchase."
+    },
+    "dialog.paywall-restore-succeeded": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:486",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "Melo Full restored",
+      "message": null
+    },
+    "dialog.paywall-restore-unavailable-build": {
+      "componentSource": "apps/mobile/src/folio/screens/PaywallScreen.tsx:431",
+      "ownerContext": { "sourceScreen": "paywall", "nativeScreen": "paywall" },
+      "title": "No purchase found on this device",
+      "message": "This is the current build — real restore ships with a future update."
+    },
+    "dialog.pdf-source-open-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/PdfFallbackScreen.tsx:183",
+      "ownerContext": { "sourceScreen": "pdf-fallback", "nativeScreen": "pdf-fallback" },
+      "title": "Could not open the saved file",
+      "message": "The encrypted file could not be opened."
+    },
+    "dialog.pdf-source-unavailable": {
+      "componentSource": "apps/mobile/src/folio/screens/PdfFallbackScreen.tsx:179",
+      "ownerContext": { "sourceScreen": "pdf-fallback", "nativeScreen": "pdf-fallback" },
+      "title": "Saved file unavailable",
+      "message": "This encrypted original is no longer on this device."
+    },
+    "dialog.privacy-app-lock-auth-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:179",
+      "ownerContext": { "sourceScreen": "applock", "nativeScreen": "privacy" },
+      "title": "Device authentication did not finish",
+      "message": "Melo left the app-lock setting unchanged."
+    },
+    "dialog.privacy-app-lock-no-device-lock": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:167",
+      "ownerContext": { "sourceScreen": "applock", "nativeScreen": "privacy" },
+      "title": "Add a device screen lock first",
+      "message": "Set a PIN, pattern, password or biometric in Android or iPhone settings, then come back to turn on Melo app lock."
+    },
+    "dialog.privacy-app-lock-unavailable": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:173",
+      "ownerContext": { "sourceScreen": "applock", "nativeScreen": "privacy" },
+      "title": "App lock is unavailable",
+      "message": "This device could not securely save or open the app-lock setting. Your Melo vault remains encrypted on disk."
+    },
+    "dialog.privacy-clear-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:232",
+      "ownerContext": { "sourceScreen": "privacy", "nativeScreen": "privacy" },
+      "title": "Local clear did not finish",
+      "message": "Melo could not verify that local data was fully cleared."
+    },
+    "dialog.privacy-export-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:371",
+      "ownerContext": { "sourceScreen": "privacy", "nativeScreen": "privacy" },
+      "title": "Export didn’t finish",
+      "message": "Export could not finish on this device."
+    },
+    "dialog.privacy-restore-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:355",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "privacy" },
+      "title": "Restore didn’t finish",
+      "message": "Restore could not finish on this device."
+    },
+    "dialog.privacy-restore-invalid-file": {
+      "componentSource": "apps/mobile/src/folio/screens/PrivacyScreen.tsx:302",
+      "ownerContext": { "sourceScreen": "backup", "nativeScreen": "privacy" },
+      "title": "Couldn’t read that file",
+      "message": "That file doesn’t look like a Melo data export. Pick the personal or business export file that Melo created."
+    },
+    "dialog.review-source-open-failed": {
+      "componentSource": "apps/mobile/src/folio/screens/ReviewScreen.tsx:419",
+      "ownerContext": { "sourceScreen": "review", "nativeScreen": "review" },
+      "title": "Could not open the saved source",
+      "message": "The encrypted source could not be opened."
+    }
+  }
+}

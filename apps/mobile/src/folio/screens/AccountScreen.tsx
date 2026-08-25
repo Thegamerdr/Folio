@@ -79,6 +79,7 @@ import { normaliseBusinessOperationsState } from '@folio/business-workspace';
 import { Surface, Hairline, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { copy } from '@/folio/copy/copy';
 import {
   addAccount,
@@ -263,10 +264,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
 
   const openSource = (document: NonNullable<typeof evidenceDocuments>[number]) => {
     void openEvidenceDocument(workspace, document).catch((reason: unknown) => {
-      Alert.alert(
-        'Could not open the saved source',
-        reason instanceof Error ? reason.message : 'The encrypted source could not be opened.',
-      );
+      showStatusDialog('dialog.account-source-open-failed', {
+        message: reason instanceof Error ? reason.message : undefined,
+      });
     });
   };
 
@@ -286,12 +286,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 removeEvidenceDocument(document.id);
               })
               .catch((reason: unknown) => {
-                Alert.alert(
-                  'Could not remove the saved source',
-                  reason instanceof Error
-                    ? reason.message
-                    : 'The encrypted source is still on this device.',
-                );
+                showStatusDialog('dialog.account-source-remove-failed', {
+                  message: reason instanceof Error ? reason.message : undefined,
+                });
               })
               .finally(() => setEvidenceBusyId(null));
           },
@@ -452,16 +449,10 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         state: bankSummary?.active ? ('connected' as const) : ('optional' as const),
         action: () =>
           !openBankingEnabled
-            ? Alert.alert(
-                'Bank connection is not available',
-                'Melo’s current release is manual and statement-led. Your local data stays on this device.',
-              )
+            ? showStatusDialog('dialog.account-bank-unavailable')
             : clerkConfigured
               ? setBankConnectionVisible(true)
-              : Alert.alert(
-                  'Bank connection is not configured',
-                  'Statements, photos, CSV and manual entries still work on this device.',
-                ),
+              : showStatusDialog('dialog.account-bank-unconfigured'),
       },
       {
         label: 'Payday & income',
@@ -498,9 +489,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
     const balance = `£${Math.round(currentBalance.amount).toLocaleString('en-GB')}`;
     const message = `${workspace.name}: ${balance} current balance · ${transactionsCount} ${transactionsCount === 1 ? 'transaction' : 'transactions'} recorded.`;
     void Share.share({ message, title: 'Melo money snapshot' }).catch(() => {
-      Alert.alert('Could not share this snapshot', 'Nothing was changed in Melo.', [
-        { text: 'OK', style: 'cancel' },
-      ]);
+      showStatusDialog('dialog.account-share-failed');
     });
   };
 
@@ -1177,21 +1166,19 @@ function ClerkAccountRows({
       if (token === null) throw new Error('Sign in again before deleting your Melo account.');
       const result = await deleteRemoteMeloAccount(token, () => user.delete());
       await signOut().catch(() => undefined);
-      Alert.alert(
-        'Melo account deleted',
-        `Your sign-in, encrypted cloud backup and Melo's stored bank credentials were deleted. Money and history on this phone remain until you clear local data.${
+      showStatusDialog('dialog.account-delete-succeeded', {
+        message: `Your sign-in, encrypted cloud backup and Melo's stored bank credentials were deleted. Money and history on this phone remain until you clear local data.${
           result.localCloudSecretsCleared
             ? ''
             : ' Melo could not remove a stale local backup key; clear Android app storage before transferring this phone.'
         }`,
-        [{ text: 'OK', style: 'cancel' }],
-      );
+      });
     } catch (reason: unknown) {
       const message =
         reason instanceof RemoteAccountDeletionError || reason instanceof Error
           ? reason.message
           : 'Melo could not confirm account deletion. Your local money is unchanged.';
-      Alert.alert('Account deletion did not finish', message, [{ text: 'OK', style: 'cancel' }]);
+      showStatusDialog('dialog.account-delete-failed', { message });
     } finally {
       setDeletingAccount(false);
     }
@@ -1199,11 +1186,7 @@ function ClerkAccountRows({
 
   const handleAccountDeletion = () => {
     if (user?.deleteSelfEnabled !== true) {
-      Alert.alert(
-        'Account deletion unavailable',
-        'The sign-in provider has not enabled self-service deletion for this account. Nothing was deleted.',
-        [{ text: 'OK', style: 'cancel' }],
-      );
+      showStatusDialog('dialog.account-delete-unavailable');
       return;
     }
     Alert.alert(

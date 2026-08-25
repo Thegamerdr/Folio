@@ -92,6 +92,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
   addEvidenceDocument,
@@ -387,7 +388,10 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         await deleteEvidenceDocumentFile(workspace, retained).catch(() => undefined);
       }
       const failure = evidenceRetentionFailureCopy(reason);
-      Alert.alert(failure.title, failure.body);
+      showStatusDialog('dialog.intake-reader-failed', {
+        title: failure.title,
+        message: failure.body,
+      });
       return null;
     }
   }

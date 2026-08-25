@@ -33,7 +33,7 @@ test('decision-dialog capture family is stable, exact-owned, and complete', asyn
   assert.ok(batch);
   assert.equal(batch.fixture, 'confirmed-safe');
   assert.equal(batch.familyId, 'decision-dialog');
-  assert.equal(captures.scope.includedTriggerOnlyDialogs, dialogIds.length);
+  assert.equal(captures.scope.includedDecisionDialogs, dialogIds.length);
   assert.deepEqual(batch.surfaces.map((surface) => surface.id).sort(), dialogIds);
 
   const crosswalkById = new Map(crosswalk.entries.map((entry) => [entry.stableId, entry]));

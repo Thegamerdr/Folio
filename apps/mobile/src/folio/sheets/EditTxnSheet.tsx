@@ -83,6 +83,7 @@ import {
   type TxnEditPreview,
 } from '@/folio/lib/editTxn';
 import { useUndo } from '@/folio/ui/useUndo';
+import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import {
   deleteEvidenceDocumentFile,
   evidenceRetentionFailureCopy,
@@ -361,10 +362,9 @@ function EditTxnForm({
 
   function openEvidence(document: NonNullable<typeof evidenceDocuments>[number]) {
     void openEvidenceDocument(workspace, document).catch((reason: unknown) => {
-      Alert.alert(
-        'Could not open the saved source',
-        reason instanceof Error ? reason.message : 'The encrypted source could not be opened.',
-      );
+      showStatusDialog('dialog.edit-txn-source-open-failed', {
+        message: reason instanceof Error ? reason.message : undefined,
+      });
     });
   }
 
@@ -376,7 +376,7 @@ function EditTxnForm({
       const result = await request();
       if (result.kind === 'cancelled') return;
       if (result.kind === 'denied') {
-        Alert.alert('Permission is off', result.message);
+        showStatusDialog('dialog.edit-txn-permission-off', { message: result.message });
         return;
       }
       retained = await retainEvidenceDocument({
@@ -403,7 +403,10 @@ function EditTxnForm({
       }
       const failure = evidenceRetentionFailureCopy(reason);
       void triggerFeedback('error');
-      Alert.alert(failure.title, failure.body);
+      showStatusDialog('dialog.edit-txn-evidence-attach-failed', {
+        title: failure.title,
+        message: failure.body,
+      });
     } finally {
       setAttachingEvidence(false);
     }
