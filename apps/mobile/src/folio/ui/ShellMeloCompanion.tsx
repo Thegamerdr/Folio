@@ -15,8 +15,17 @@ const INTRO_DWELL_MS = 15_000;
 export function ShellMeloCompanion({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   const t = useTheme();
   const melo = useAppStore((state) => state.melo ?? { quietMode: false, wardrobe: [] });
+  const workspaceKind = useAppStore(
+    (state) =>
+      state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)?.kind ??
+      'personal',
+  );
   const [showIntro, setShowIntro] = useState(melo.companionIntroSeen !== true);
-  const placement = shellCompanionPlacement(screen, melo.preferredPosition ?? 'auto');
+  const placement = shellCompanionPlacement(
+    screen,
+    melo.preferredPosition ?? 'auto',
+    workspaceKind,
+  );
 
   useEffect(() => {
     if (!showIntro || placement === null || melo.quietMode) return undefined;
