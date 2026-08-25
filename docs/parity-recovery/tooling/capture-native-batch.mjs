@@ -96,6 +96,7 @@ for (const batch of manifest.batches) {
     ANDROID_HOME: androidHome,
     ANDROID_SDK_ROOT: androidHome,
     NODE_ENV: 'production',
+    SENTRY_DISABLE_AUTO_UPLOAD: 'true',
     EXPO_PUBLIC_MELO_PARITY_CAPTURE: 'true',
     EXPO_PUBLIC_MELO_PARITY_FIXTURE: batch.fixture,
     EXPO_PUBLIC_MELO_PARITY_NOW: manifest.nowISO ?? '2026-08-18T08:00:00.000Z',
