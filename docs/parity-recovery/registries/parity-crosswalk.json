@@ -15,15 +15,15 @@
     "missingEvidenceIsNotAPass": true
   },
   "counts": {
-    "nativeShippingSurfaces": 185,
-    "exactDesignOwnersResolved": 163,
+    "nativeShippingSurfaces": 186,
+    "exactDesignOwnersResolved": 164,
     "unresolvedDesignOwners": 22,
     "surfacesWithDirectComparison": 2,
-    "surfacesMissingDirectComparison": 183,
+    "surfacesMissingDirectComparison": 184,
     "comparisonCount": 2,
     "lightComparisonCount": 1,
     "darkComparisonCount": 1,
-    "designSurfacesNotMappedToNativeShippingSurface": 43
+    "designSurfacesNotMappedToNativeShippingSurface": 42
   },
   "entries": [
     {
@@ -5083,6 +5083,53 @@
       "finalStatus": "missing-direct-visual-comparison"
     },
     {
+      "stableId": "screen.plan",
+      "kind": "screen",
+      "native": {
+        "routeKey": "plan",
+        "componentSource": "apps/mobile/src/folio/screens/PlanScreen.tsx#PlanScreen",
+        "workspace": "personal|business",
+        "states": [
+          "personal-populated",
+          "personal-empty",
+          "personal-loading",
+          "personal-error",
+          "personal-offline",
+          "business-populated",
+          "business-empty"
+        ]
+      },
+      "design": {
+        "owners": [
+          {
+            "stableId": "screen:plan",
+            "kind": "screen",
+            "routeKey": "plan",
+            "sourceReference": "src/components/folio/screens/ScreenPlanHub.tsx#ScreenPlanHub",
+            "keyStates": [],
+            "resolution": "exact-route-key"
+          }
+        ],
+        "ownerStatus": "resolved"
+      },
+      "matchedFixtures": [
+        "confirmed-safe",
+        "empty"
+      ],
+      "evidence": {
+        "lightSource": null,
+        "darkSource": null,
+        "lightNative": null,
+        "darkNative": null,
+        "lightOverlay": null,
+        "darkOverlay": null,
+        "differenceImages": [],
+        "comparisonCount": 0
+      },
+      "deviations": [],
+      "finalStatus": "missing-direct-visual-comparison"
+    },
+    {
       "stableId": "screen.plans",
       "kind": "screen",
       "native": {
@@ -8905,7 +8952,7 @@
       "stableId": "tab.plan",
       "kind": "tab",
       "native": {
-        "routeKey": "plans",
+        "routeKey": "plan",
         "componentSource": "apps/mobile/src/surfaces/pressureMap/kit.tsx#BottomNav",
         "workspace": "shared",
         "states": [
@@ -9040,12 +9087,6 @@
     }
   ],
   "unmappedDesignSurfaces": [
-    {
-      "stableId": "screen:plan",
-      "kind": "screen",
-      "routeKey": "plan",
-      "sourceReference": "src/components/folio/screens/ScreenPlanHub.tsx#ScreenPlanHub"
-    },
     {
       "stableId": "screen:memory",
       "kind": "screen",
