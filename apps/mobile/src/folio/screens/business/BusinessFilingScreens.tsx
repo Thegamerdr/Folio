@@ -458,6 +458,45 @@ export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; rout
     String(business.basisPeriodTransition?.yearsLeft ?? 4) as '1' | '2' | '3' | '4',
   );
 
+  // The pinned source treats an unavailable filing as a useful member of the same filing family,
+  // not as a generic empty state. Keep the exact limited-company Self-Assessment explanation and
+  // its three relevant exits so direct routing, the filings hub and capture all converge on the
+  // same contract.
+  if (!copy && kind === 'self-assessment' && business.entity?.kind === 'ltd') {
+    return (
+      <BusinessScreenFrame
+        title="Self-Assessment"
+        eyebrow="Self-Assessment"
+        headline={
+          <>
+            Self-Assessment is a{' '}
+            <Text style={{ color: t.calmStrong }}>sole trader&apos;s</Text> return.
+          </>
+        }
+        intro="You're set up as a limited company, so the company pays Corporation Tax and the personal return (the SA100) doesn't apply. If you also take a salary or dividends, that personal return is filed separately from Melo."
+        onBack={nav.back}
+      >
+        <BusinessCard>
+          <BusinessRouteRow
+            label="Corporation Tax"
+            hint="Worked out from the trading profit Melo holds"
+            onPress={() => nav.go('business-filing-ct')}
+          />
+          <BusinessRouteRow
+            label="VAT return"
+            hint="Four boxes, ready when the quarter closes"
+            onPress={() => nav.go('business-filing-vat')}
+          />
+          <BusinessRouteRow
+            label="Salary vs dividends"
+            hint="See what taking money out costs you"
+            onPress={() => nav.go('business-dividends')}
+          />
+        </BusinessCard>
+      </BusinessScreenFrame>
+    );
+  }
+
   if (!copy) {
     return (
       <BusinessScreenFrame

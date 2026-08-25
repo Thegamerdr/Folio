@@ -5,8 +5,8 @@
   "generatedFrom": "docs/parity-recovery/registries/parity-archetypes.json",
   "scope": {
     "mode": "family-screen-and-sheet-bulk-capture",
-    "includedNonBusinessSurfaces": 54,
-    "includedBusinessFamilySurfaces": 8,
+    "includedNonBusinessSurfaces": 55,
+    "includedBusinessFamilySurfaces": 7,
     "explicitBusinessTrueExceptions": 1,
     "excludedNonBusinessSurfaces": 93,
     "note": "Direct routes and source/native deep-linkable sheets are batched. Payroll is an explicit true exception because the pinned source has no Payroll filing route. Trigger-only dialogs, self-hosted embedded sheets, global overlays and platform chrome remain explicit outliers requiring dedicated drivers."
@@ -166,6 +166,15 @@
           "sourceSheet": "lens-picker",
           "nativeScreen": "today",
           "nativeSheet": "lens-picker",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "log-payment",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "log-payment",
+          "nativeScreen": "today",
+          "nativeSheet": "log-payment",
           "themes": ["light", "dark"]
         },
         {
@@ -391,15 +400,6 @@
           "sourceSheet": "log-invoice",
           "nativeScreen": "business-invoices",
           "nativeSheet": "log-invoice",
-          "themes": ["light", "dark"]
-        },
-        {
-          "id": "log-payment",
-          "screen": "business-invoices",
-          "sourceScreen": "business-invoices",
-          "sourceSheet": "log-payment",
-          "nativeScreen": "business-invoices",
-          "nativeSheet": "log-payment",
           "themes": ["light", "dark"]
         }
       ]

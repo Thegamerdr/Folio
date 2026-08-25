@@ -184,6 +184,12 @@ for (const batch of selectedBatches) {
       await wait(manifest.settleMs ?? 900);
       const runtimeLog = run(adb, ['-s', deviceId, 'logcat', '-d', '-s', 'ReactNativeJS:I', '*:S']);
       assertRuntimeControl(runtimeLog, { screen, sheet, theme });
+      // Browser reference captures never include a software keyboard. Some Android TextInputs
+      // autofocus and leave Gboard's floating toolbar over the sheet even with a hardware keyboard
+      // attached. ESC dismisses only that input surface (and is inert when no IME is showing), so
+      // every form/edit sheet is compared at the same resting state as its pinned source.
+      run(adb, ['-s', deviceId, 'shell', 'input', 'keyevent', '111']);
+      await wait(150);
       const png = run(adb, ['-s', deviceId, 'exec-out', 'screencap', '-p'], { encoding: null });
       const outDir = path.join(evidenceRoot, batch.fixture, theme, surfaceId);
       await mkdir(outDir, { recursive: true });

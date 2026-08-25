@@ -6,14 +6,16 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 
 export function BusinessScreenFrame({
   onBack,
+  title,
   eyebrow,
   headline,
   intro,
   children,
 }: {
   onBack: () => void;
+  title?: string;
   eyebrow: string;
-  headline: string;
+  headline: ReactNode;
   intro?: string;
   children: ReactNode;
 }) {
@@ -29,14 +31,17 @@ export function BusinessScreenFrame({
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Pressable
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-          onPress={onBack}
-          style={({ pressed }) => [ui.back, { opacity: pressed ? 0.6 : 1 }]}
-        >
-          <Text style={[ui.backLabel, { color: t.muted }]}>←</Text>
-        </Pressable>
+        <View style={ui.header}>
+          <Pressable
+            accessibilityLabel="Back"
+            accessibilityRole="button"
+            onPress={onBack}
+            style={({ pressed }) => [ui.back, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Text style={[ui.backLabel, { color: t.muted }]}>←</Text>
+          </Pressable>
+          {title ? <Text style={[ui.headerTitle, { color: t.ink }]}>{title}</Text> : null}
+        </View>
         <View style={ui.hero}>
           <Text style={[ui.eyebrow, { color: t.muted }]}>{eyebrow}</Text>
           <Text accessibilityRole="header" style={[ui.headline, { color: t.ink }]}>
@@ -363,6 +368,13 @@ export function formatBusinessDate(iso: string): string {
 const ui = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: gap.xl },
+  header: { height: 44, justifyContent: 'center', position: 'relative' },
+  headerTitle: {
+    alignSelf: 'center',
+    fontSize: 17,
+    fontWeight: '600',
+    position: 'absolute',
+  },
   back: {
     alignItems: 'flex-start',
     height: 44,

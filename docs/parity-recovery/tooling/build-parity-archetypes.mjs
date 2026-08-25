@@ -604,6 +604,25 @@ for (const assignment of captureableAssignments) {
   captureFixtureGroups.set(fixture, group);
 }
 
+// Log Payment is a personal Debt-lens sheet. It was previously grouped with Business merely because
+// its trigger sat beside an invoice capture; that made native correctly see an empty business
+// partition while the source's global demo debt leaked through. Capture it on the confirmed-safe
+// personal fixture and a matching Today base instead.
+const supplementalNonBusinessSurfaces = [
+  {
+    id: 'log-payment',
+    screen: 'today',
+    sourceScreen: 'today',
+    sourceSheet: 'log-payment',
+    nativeScreen: 'today',
+    nativeSheet: 'log-payment',
+    themes: ['light', 'dark'],
+  },
+];
+const confirmedSafeCaptureGroup = captureFixtureGroups.get('confirmed-safe') ?? [];
+confirmedSafeCaptureGroup.push(...supplementalNonBusinessSurfaces);
+captureFixtureGroups.set('confirmed-safe', confirmedSafeCaptureGroup);
+
 const businessFamilySurfaces = [
   {
     id: 'business-deductions',
@@ -628,15 +647,6 @@ const businessFamilySurfaces = [
     nativeSheet: 'log-invoice',
     themes: ['light', 'dark'],
   },
-  {
-    id: 'log-payment',
-    screen: 'business-invoices',
-    sourceScreen: 'business-invoices',
-    sourceSheet: 'log-payment',
-    nativeScreen: 'business-invoices',
-    nativeSheet: 'log-payment',
-    themes: ['light', 'dark'],
-  },
 ];
 
 const captureManifest = {
@@ -646,7 +656,8 @@ const captureManifest = {
   generatedFrom: OUTPUT_RELATIVE_PATH,
   scope: {
     mode: 'family-screen-and-sheet-bulk-capture',
-    includedNonBusinessSurfaces: captureableAssignments.length,
+    includedNonBusinessSurfaces:
+      captureableAssignments.length + supplementalNonBusinessSurfaces.length,
     includedBusinessFamilySurfaces: businessFamilySurfaces.length,
     explicitBusinessTrueExceptions: 1,
     excludedNonBusinessSurfaces: assignments.length - captureableAssignments.length,

@@ -2029,7 +2029,6 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
   const currentHomeOffice = business.homeOfficeConfigs.find(
     (item) => item.taxYear === UK_BUSINESS_POLICY_2026_27.taxYear,
   );
-  const [tripOpen, setTripOpen] = useState(false);
   const [homeOfficeOpen, setHomeOfficeOpen] = useState(false);
   const [claimOpen, setClaimOpen] = useState(false);
   const [ir35Open, setIr35Open] = useState(false);
@@ -2117,7 +2116,7 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
 
   const saveTrip = () => {
     const distance = Number(miles);
-    if (!Number.isFinite(distance) || distance <= 0 || !purpose.trim()) return;
+    if (!Number.isFinite(distance) || distance <= 0) return;
     updateBusinessOperations((state) => ({
       mileageTrips: [
         ...state.mileageTrips,
@@ -2126,13 +2125,12 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
           date: todayIso(),
           distanceMilliMiles: Math.round(distance * 1000),
           vehicle,
-          purpose: purpose.trim(),
+          purpose: purpose.trim() || 'Business trip',
         },
       ],
     }));
     setMiles('');
     setPurpose('');
-    setTripOpen(false);
   };
 
   const saveClaim = () => {
@@ -2218,7 +2216,7 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
       <BusinessScreenFrame
         eyebrow="Mileage"
         headline="HMRC approved mileage."
-        intro="55p per mile for the first 10,000 car or goods-vehicle miles this tax year, 25p above. Log trips as a quick tally — no location tracking runs in the background."
+        intro="55p per mile for the first 10,000 car or goods-vehicle miles this tax year, 25p above. Log trips as a quick tally — the real trip log with GPS lives in the mobile app."
         onBack={nav.back}
       >
         <View style={styles.deductionFigure}>
@@ -2226,7 +2224,7 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
             Worth claiming this tax year
           </Text>
           <Text style={[styles.deductionFigureValue, { color: t.calmStrong }]}>
-            {formatMinor(mileage)}
+            {formatMinor(mileage, { pence: true })}
           </Text>
           <Text style={[styles.deductionFigureCaption, { color: t.muted }]}>
             {mileageMiles.toLocaleString('en-GB')} mi logged ·{' '}
@@ -2235,42 +2233,70 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
         </View>
 
         <View style={styles.section}>
-          <BusinessSectionTitle
-            title="Mileage"
-            value={`${business.mileageTrips.length} trip${business.mileageTrips.length === 1 ? '' : 's'}`}
-          />
           <BusinessCard>
-            {business.mileageTrips.length === 0 ? (
-              <Text style={[styles.emptyBody, { color: t.muted }]}>
-                Trips are manual and require a business purpose.
-              </Text>
-            ) : (
-              business.mileageTrips.map((trip, index) => (
-                <View
-                  key={trip.id}
-                  style={[
-                    styles.simpleRow,
-                    index > 0
-                      ? {
-                          borderTopColor: t.hairline,
-                          borderTopWidth: StyleSheet.hairlineWidth,
-                        }
-                      : undefined,
-                  ]}
-                >
-                  <View style={styles.simpleCopy}>
-                    <Text style={[styles.simpleTitle, { color: t.ink }]}>{trip.purpose}</Text>
-                    <Text style={[styles.simpleMeta, { color: t.muted }]}>
-                      {(trip.distanceMilliMiles / 1000).toLocaleString('en-GB')} miles ·{' '}
-                      {trip.vehicle}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            )}
+            <BusinessChoicePills
+              label="Vehicle"
+              onChange={setVehicle}
+              options={[
+                { id: 'car', label: 'Car' },
+                { id: 'van', label: 'Van' },
+                { id: 'motorbike', label: 'Motorbike' },
+              ]}
+              value={vehicle}
+            />
+            <BusinessField
+              keyboardType="decimal-pad"
+              label="Miles this trip"
+              onChangeText={setMiles}
+              placeholder="0"
+              value={miles}
+            />
+            <BusinessField
+              label="Reason (optional)"
+              onChangeText={setPurpose}
+              placeholder="Client — where"
+              value={purpose}
+            />
+            <BusinessPrimaryAction
+              disabled={!Number.isFinite(Number(miles)) || Number(miles) <= 0}
+              label="Add"
+              onPress={saveTrip}
+            />
           </BusinessCard>
-          <BusinessSecondaryAction label="Add a trip" onPress={() => setTripOpen(true)} />
         </View>
+
+        {business.mileageTrips.length > 0 ? (
+          <View style={styles.section}>
+            <BusinessSectionTitle title="Recent trips" />
+            <BusinessCard>
+              {business.mileageTrips
+                .slice(-8)
+                .reverse()
+                .map((trip, index) => (
+                  <View
+                    key={trip.id}
+                    style={[
+                      styles.simpleRow,
+                      index > 0
+                        ? {
+                            borderTopColor: t.hairline,
+                            borderTopWidth: StyleSheet.hairlineWidth,
+                          }
+                        : undefined,
+                    ]}
+                  >
+                    <View style={styles.simpleCopy}>
+                      <Text style={[styles.simpleTitle, { color: t.ink }]}>{trip.purpose}</Text>
+                      <Text style={[styles.simpleMeta, { color: t.muted }]}>
+                        {formatBusinessDate(trip.date)} · {trip.vehicle} ·{' '}
+                        {(trip.distanceMilliMiles / 1000).toLocaleString('en-GB')} mi
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+            </BusinessCard>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <BusinessSectionTitle
@@ -2391,40 +2417,6 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
           />
         </View>
       </BusinessScreenFrame>
-
-      <BusinessFormSheet
-        onClose={() => setTripOpen(false)}
-        onPrimary={saveTrip}
-        primaryDisabled={!purpose.trim() || Number(miles) <= 0}
-        primaryLabel="Save trip"
-        title="Business mileage"
-        visible={tripOpen}
-      >
-        <BusinessField
-          keyboardType="decimal-pad"
-          label="Miles"
-          onChangeText={setMiles}
-          placeholder="0"
-          value={miles}
-        />
-        <BusinessField
-          label="Business purpose"
-          onChangeText={setPurpose}
-          placeholder="Client site visit"
-          value={purpose}
-        />
-        <BusinessChoicePills
-          label="Vehicle"
-          onChange={setVehicle}
-          options={[
-            { id: 'car', label: 'Car' },
-            { id: 'van', label: 'Van' },
-            { id: 'motorbike', label: 'Motorbike' },
-            { id: 'bicycle', label: 'Bicycle' },
-          ]}
-          value={vehicle}
-        />
-      </BusinessFormSheet>
 
       <BusinessFormSheet
         onClose={() => setHomeOfficeOpen(false)}

@@ -74,7 +74,6 @@ import {
 } from '@/folio/screens/business/BusinessPlanningScreens';
 import { IntakeScreen } from '@/folio/screens/IntakeScreen';
 import { AddEntryScreen } from '@/folio/screens/AddEntryScreen';
-import { VisualizerScreen } from '@/folio/screens/VisualizerScreen';
 import { ReviewScreen } from '@/folio/screens/ReviewScreen';
 import { ReviewHubScreen } from '@/folio/screens/ReviewHubScreen';
 import { PdfSuccessScreen } from '@/folio/screens/PdfSuccessScreen';
@@ -294,12 +293,9 @@ const PLAN_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
 // detail; Melo lights for `melo`; the whole More subtree lights the More tab. Anything else falls
 // back to Today (the home anchor).
 //
-// Why the deviation: `visualizer` reads the store's transient `readerCandidates` staging slot, which
-// is emptied the moment a batch is accepted (see VisualizerScreen's @writes). A bottom tab must show
-// something real on every press, not "add a statement first" the instant there is nothing staged.
-// `ReviewHubScreen` is therefore the persistent destination: it composes pending proposals,
-// confirmed activity and durable decisions without merging those authorities. `visualizer` and
-// `review-item` remain focused descendants.
+// `ReviewHubScreen` is the persistent destination: it composes pending proposals, confirmed
+// activity and durable decisions without merging those authorities. The pinned `visualizer` owner
+// is a Timeline-family alias, while `review-item` remains the focused candidate descendant.
 function activeTabForScreen(screen: ScreenId, business: boolean): ProductScreen {
   if (screen === 'today' || screen === 'today-after') return 'today';
   if (business && PLAN_SUBTREE.has(screen)) return 'money';
@@ -1081,7 +1077,10 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   if (screen === 'image-success') return <ImageSuccessScreen nav={nav} />;
   if (screen === 'image-fallback') return <ImageFallbackScreen nav={nav} />;
   if (screen === 'paste-success') return <PasteSuccessScreen nav={nav} />;
-  if (screen === 'visualizer') return <VisualizerScreen nav={nav} />;
+  // The pinned owner routes `visualizer` to the Timeline family's "What Melo saw" view. Keep the
+  // transient reader preview behind the intake flow, but make the shipping route honor its actual
+  // source owner instead of presenting an unrelated empty import state.
+  if (screen === 'visualizer') return <TimelineScreen nav={nav} />;
   if (screen === 'review') return <ReviewHubScreen nav={nav} />;
   if (screen === 'review-item') return <ReviewScreen nav={nav} />;
   // AddEntryScreen is reused for both kinds via the `kind` prop (bill | debt).
