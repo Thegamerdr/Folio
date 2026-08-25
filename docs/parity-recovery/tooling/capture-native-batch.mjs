@@ -28,6 +28,12 @@ const manifestPath = path.resolve(
 );
 const deviceId = readArg('device', 'emulator-5554');
 const batchFilter = readArg('batch', '');
+const batchFilters = new Set(
+  batchFilter
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
 const surfaceFilter = readArg('surface', '');
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.batches)) {
@@ -134,8 +140,9 @@ run(adb, ['-s', deviceId, 'shell', 'wm', 'density', '480']);
 run(adb, ['-s', deviceId, 'shell', 'settings', 'put', 'system', 'font_scale', '1.0']);
 
 const fixtureRuns = [];
+const fixtureApkCache = new Map();
 const selectedBatches = manifest.batches.filter(
-  (batch) => batchFilter === '' || batch.id === batchFilter,
+  (batch) => batchFilters.size === 0 || batchFilters.has(batch.id),
 );
 for (const batch of selectedBatches) {
   const selectedSurfaces = batch.surfaces.filter(
@@ -158,18 +165,32 @@ for (const batch of selectedBatches) {
     EXPO_PUBLIC_MELO_PARITY_THEME: 'light',
   };
 
-  process.stdout.write(`BUILD fixture ${batch.fixture}\n`);
-  await invalidateFixtureBundle();
-  await runStreaming(
-    gradle,
-    [':app:assembleRelease', '--no-daemon', '-PreactNativeArchitectures=x86_64', '--console=plain'],
-    { cwd: ANDROID_ROOT, env: buildEnv },
-  );
+  let artifactPath;
+  let apkSha256;
+  const cachedFixture = fixtureApkCache.get(batch.fixture);
+  if (cachedFixture !== undefined) {
+    ({ artifactPath, apkSha256 } = cachedFixture);
+    process.stdout.write(`REUSE fixture ${batch.fixture} for ${batch.id}\n`);
+  } else {
+    process.stdout.write(`BUILD fixture ${batch.fixture}\n`);
+    await invalidateFixtureBundle();
+    await runStreaming(
+      gradle,
+      [
+        ':app:assembleRelease',
+        '--no-daemon',
+        '-PreactNativeArchitectures=x86_64',
+        '--console=plain',
+      ],
+      { cwd: ANDROID_ROOT, env: buildEnv },
+    );
 
-  const apkBytes = await readFile(builtApk);
-  const apkSha256 = createHash('sha256').update(apkBytes).digest('hex').toUpperCase();
-  const artifactPath = path.join(artifactRoot, `capture-${nativeRef}-${batch.fixture}.apk`);
-  await copyFile(builtApk, artifactPath);
+    const apkBytes = await readFile(builtApk);
+    apkSha256 = createHash('sha256').update(apkBytes).digest('hex').toUpperCase();
+    artifactPath = path.join(artifactRoot, `capture-${nativeRef}-${batch.fixture}.apk`);
+    await copyFile(builtApk, artifactPath);
+    fixtureApkCache.set(batch.fixture, { artifactPath, apkSha256 });
+  }
   run(adb, ['-s', deviceId, 'install', '-r', artifactPath]);
   // A fixture APK is a disposable deterministic environment. Clearing only this emulator package
   // prevents persisted state from one fixture contaminating the next; the connected S9 is never
@@ -227,6 +248,7 @@ for (const batch of selectedBatches) {
   }
 
   fixtureRuns.push({
+    batchId: batch.id,
     fixture: batch.fixture,
     apkPath: path.relative(ROOT, artifactPath).replaceAll('\\', '/'),
     apkSha256,
