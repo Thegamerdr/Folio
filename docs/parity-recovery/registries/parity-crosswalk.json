@@ -18,11 +18,11 @@
     "nativeShippingSurfaces": 192,
     "exactDesignOwnersResolved": 170,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 17,
-    "surfacesMissingDirectComparison": 175,
-    "comparisonCount": 26,
-    "lightComparisonCount": 13,
-    "darkComparisonCount": 13,
+    "surfacesWithDirectComparison": 18,
+    "surfacesMissingDirectComparison": 174,
+    "comparisonCount": 28,
+    "lightComparisonCount": 14,
+    "darkComparisonCount": 14,
     "designSurfacesNotMappedToNativeShippingSurface": 37
   },
   "entries": [
@@ -4391,21 +4391,35 @@
         "ownerStatus": "resolved"
       },
       "matchedFixtures": [
+        "business-empty",
         "business-sole-trader",
         "business-ltd"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-invoices/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-invoices/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-145bc7c/business-empty/light/business-invoices/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-145bc7c/business-empty/dark/business-invoices/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/145bc7c/business-empty/light/business-invoices/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/145bc7c/business-empty/dark/business-invoices/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/145bc7c/business-empty/light/business-invoices/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/145bc7c/business-empty/dark/business-invoices/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business Invoices answer, empty-state, demo affordance and primary-action restoration.",
+          "consequence": "The pinned synthetic demo loader is reproduced only in the isolated parity fixture and never writes production invoice history; the shipping empty state keeps the real Add invoice flow. The pinned source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated aging and recurring-invoice states remain separate captures.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 12.4394,
+            "darkMeanAbsoluteRgbDelta": 11.8437
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "screen.business-melo",

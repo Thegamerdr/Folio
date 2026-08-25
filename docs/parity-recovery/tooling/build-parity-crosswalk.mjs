@@ -69,6 +69,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-money' ||
     entry.routeKey === 'business-calendar' ||
     entry.routeKey === 'business-clients' ||
+    entry.routeKey === 'business-invoices' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
@@ -103,6 +104,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-invoices': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-invoices/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-invoices/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-145bc7c/business-empty/light/business-invoices/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-145bc7c/business-empty/dark/business-invoices/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/145bc7c/business-empty/light/business-invoices/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/145bc7c/business-empty/dark/business-invoices/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/145bc7c/business-empty/light/business-invoices/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/145bc7c/business-empty/dark/business-invoices/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Invoices answer, empty-state, demo affordance and primary-action restoration.',
+      consequence:
+        'The pinned synthetic demo loader is reproduced only in the isolated parity fixture and never writes production invoice history; the shipping empty state keeps the real Add invoice flow. The pinned source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated aging and recurring-invoice states remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 12.4394,
+        darkMeanAbsoluteRgbDelta: 11.8437,
+      },
+    },
+  },
   'business-clients': {
     evidence: {
       lightSource:

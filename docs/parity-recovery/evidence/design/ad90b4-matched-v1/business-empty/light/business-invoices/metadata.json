@@ -1,0 +1,78 @@
+{
+  "evidenceKind": "matched-source-fixture",
+  "acceptanceEligible": true,
+  "fixtureSchemaVersion": 1,
+  "fixtureId": "business-empty",
+  "theme": "light",
+  "screen": "business-invoices",
+  "sourceSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "route": "http://127.0.0.1:4183/?s=business-invoices&p=safe&device=370x756",
+  "clock": "2026-08-18T08:00:00.000Z",
+  "locale": "en-GB",
+  "timeZone": "UTC",
+  "deviceScaleFactor": 3,
+  "sourceOuterFrameCssPx": {
+    "width": 368,
+    "height": 720
+  },
+  "sourceInnerGlassCssPx": {
+    "inset": 4,
+    "width": 360,
+    "height": 712
+  },
+  "productViewportCssPx": {
+    "top": 44,
+    "width": 360,
+    "height": 668
+  },
+  "sourceOuterFramePhysicalPx": {
+    "width": 1104,
+    "height": 2160
+  },
+  "productViewportPhysicalPx": {
+    "width": 1080,
+    "height": 2004
+  },
+  "fixtureAdapter": "Fresh browser storage is paired with an active, empty native Business partition named Business.",
+  "engine": {
+    "state": {
+      "businessState": "empty",
+      "persistedBusinessState": null
+    },
+    "events": [],
+    "route": null
+  },
+  "semanticGeometry": {
+    "header": null,
+    "editorialTitle": null,
+    "editorialNarrative": null,
+    "dominantCard": null,
+    "dominantMoney": null,
+    "hero": null,
+    "heroHeadline": null,
+    "heroMoney": null,
+    "heroMeta": null,
+    "primaryDecision": null,
+    "secondaryDecision": null,
+    "chart": null,
+    "chartHeader": null,
+    "chartPlot": null,
+    "chartScrub": null,
+    "chartSummary": null
+  },
+  "pageErrors": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "resourceFailures": [
+    {
+      "status": 404,
+      "url": "http://127.0.0.1:4183/__l5e/assets-v1/17ef295b-2e9e-4305-9760-3cbbb4ca8a30/favicon.png"
+    },
+    {
+      "status": 404,
+      "url": "http://127.0.0.1:4183/__l5e/assets-v1/0edb83ab-1188-468b-8f43-ff6d88beb282/favicon-maskable.png"
+    }
+  ]
+}
