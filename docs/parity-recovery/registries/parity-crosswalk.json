@@ -18,11 +18,11 @@
     "nativeShippingSurfaces": 186,
     "exactDesignOwnersResolved": 164,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 2,
-    "surfacesMissingDirectComparison": 184,
-    "comparisonCount": 2,
-    "lightComparisonCount": 1,
-    "darkComparisonCount": 1,
+    "surfacesWithDirectComparison": 8,
+    "surfacesMissingDirectComparison": 178,
+    "comparisonCount": 8,
+    "lightComparisonCount": 4,
+    "darkComparisonCount": 4,
     "designSurfacesNotMappedToNativeShippingSurface": 42
   },
   "entries": [
@@ -4875,17 +4875,30 @@
         "empty"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-4a8f20f/confirmed-safe/light/more/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-4a8f20f/confirmed-safe/dark/more/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/light/more/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/dark/more/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/light/more/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/dark/more/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark pixel differences remain after root hierarchy calibration.",
+          "consequence": "Fine text rasterisation, material and child-route coverage still require physical-S9 review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 6.8695,
+            "darkMeanAbsoluteRgbDelta": 6.4871
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "screen.paste-success",
@@ -5114,20 +5127,34 @@
       },
       "matchedFixtures": [
         "confirmed-safe",
-        "empty"
+        "empty",
+        "populated-commitments"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/populated-commitments/light/plan/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/populated-commitments/dark/plan/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-9a52e34/populated-commitments/light/plan/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-e2fb76f/populated-commitments/dark/plan/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/9a52e34/populated-commitments/light/plan/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/e2fb76f/populated-commitments/dark/plan/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/9a52e34/populated-commitments/light/plan/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/e2fb76f/populated-commitments/dark/plan/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark pixel differences remain after companion and root composition calibration.",
+          "consequence": "Fine material, typography and geometry still require physical-S9 review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 7.4944,
+            "darkMeanAbsoluteRgbDelta": 7.2708
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "screen.plans",
@@ -5365,17 +5392,30 @@
         "pending-review"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/light/review/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/dark/review/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-c6535dd/pending-review/light/review/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-e2fb76f/pending-review/dark/review/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/c6535dd/pending-review/light/review/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/e2fb76f/pending-review/dark/review/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/c6535dd/pending-review/light/review/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/e2fb76f/pending-review/dark/review/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark pixel differences remain after companion perch calibration.",
+          "consequence": "Category-chip and card vertical composition plus fine rasterisation still require physical-S9 review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 14.4519,
+            "darkMeanAbsoluteRgbDelta": 14.3463
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "screen.review-item",
@@ -8936,17 +8976,30 @@
         "confirmed-safe"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-4a8f20f/confirmed-safe/light/more/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-4a8f20f/confirmed-safe/dark/more/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/light/more/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/dark/more/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/light/more/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/dark/more/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark pixel differences remain after root hierarchy calibration.",
+          "consequence": "Fine text rasterisation, material and child-route coverage still require physical-S9 review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 6.8695,
+            "darkMeanAbsoluteRgbDelta": 6.4871
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "tab.plan",
@@ -8974,20 +9027,34 @@
         "ownerStatus": "unresolved"
       },
       "matchedFixtures": [
-        "confirmed-safe"
+        "confirmed-safe",
+        "populated-commitments"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/populated-commitments/light/plan/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/populated-commitments/dark/plan/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-9a52e34/populated-commitments/light/plan/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-e2fb76f/populated-commitments/dark/plan/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/9a52e34/populated-commitments/light/plan/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/e2fb76f/populated-commitments/dark/plan/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/9a52e34/populated-commitments/light/plan/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/e2fb76f/populated-commitments/dark/plan/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark pixel differences remain after companion and root composition calibration.",
+          "consequence": "Fine material, typography and geometry still require physical-S9 review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 7.4944,
+            "darkMeanAbsoluteRgbDelta": 7.2708
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "tab.review",
@@ -9019,17 +9086,30 @@
         "pending-review"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/light/review/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/dark/review/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-c6535dd/pending-review/light/review/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-e2fb76f/pending-review/dark/review/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/c6535dd/pending-review/light/review/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/e2fb76f/pending-review/dark/review/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/c6535dd/pending-review/light/review/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/e2fb76f/pending-review/dark/review/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark pixel differences remain after companion perch calibration.",
+          "consequence": "Category-chip and card vertical composition plus fine rasterisation still require physical-S9 review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 14.4519,
+            "darkMeanAbsoluteRgbDelta": 14.3463
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "tab.today",

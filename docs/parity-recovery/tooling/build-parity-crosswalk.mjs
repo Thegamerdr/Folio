@@ -68,43 +68,153 @@ function fixturesFor(entry) {
   }
   if (entry.routeKey === 'start') return ['first-run', 'empty'];
   if (entry.routeKey === 'review' || entry.routeKey === 'review-item') return ['pending-review'];
+  if (entry.routeKey === 'plan') {
+    return entry.states?.some((state) => state.includes('empty'))
+      ? ['confirmed-safe', 'empty', 'populated-commitments']
+      : ['confirmed-safe', 'populated-commitments'];
+  }
   if (entry.states?.some((state) => state.includes('empty'))) return ['confirmed-safe', 'empty'];
   return ['confirmed-safe'];
 }
 
-function todayEvidence(routeKey) {
-  if (routeKey !== 'today') {
-    return {
-      lightSource: null,
-      darkSource: null,
-      lightNative: null,
-      darkNative: null,
-      lightOverlay: null,
-      darkOverlay: null,
-      differenceImages: [],
-      comparisonCount: 0,
-    };
-  }
+function emptyEvidence() {
   return {
-    lightSource:
-      'docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/source-product-1080x2004.png',
-    darkSource:
-      'docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today/source-product-1080x2004.png',
-    lightNative:
-      'docs/parity-recovery/evidence/native/harness-104a279/confirmed-safe/light/today/native-product-1080x2004.png',
-    darkNative:
-      'docs/parity-recovery/evidence/native/harness-9c8b5e3/confirmed-safe/dark/today/native-product-1080x2004.png',
-    lightOverlay:
-      'docs/parity-recovery/evidence/comparisons/104a279/confirmed-safe/light/today/overlay-50.png',
-    darkOverlay:
-      'docs/parity-recovery/evidence/comparisons/9c8b5e3/confirmed-safe/dark/today/overlay-50.png',
-    differenceImages: [
-      'docs/parity-recovery/evidence/comparisons/104a279/confirmed-safe/light/today/absolute-difference.png',
-      'docs/parity-recovery/evidence/comparisons/9c8b5e3/confirmed-safe/dark/today/absolute-difference.png',
-    ],
-    comparisonCount: 2,
+    lightSource: null,
+    darkSource: null,
+    lightNative: null,
+    darkNative: null,
+    lightOverlay: null,
+    darkOverlay: null,
+    differenceImages: [],
+    comparisonCount: 0,
   };
 }
+
+const CALIBRATIONS = {
+  today: {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-104a279/confirmed-safe/light/today/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-9c8b5e3/confirmed-safe/dark/today/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/104a279/confirmed-safe/light/today/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/9c8b5e3/confirmed-safe/dark/today/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/104a279/confirmed-safe/light/today/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/9c8b5e3/confirmed-safe/dark/today/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason: 'Measured Light/Dark pixel differences remain after gross composition calibration.',
+      consequence: 'Fine material, typography and geometry still require physical-S9 calibration.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 12.5244,
+        darkMeanAbsoluteRgbDelta: 12.8249,
+      },
+    },
+  },
+  more: {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-4a8f20f/confirmed-safe/light/more/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-4a8f20f/confirmed-safe/dark/more/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/light/more/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/dark/more/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/light/more/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/4a8f20f/confirmed-safe/dark/more/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason: 'Measured Light/Dark pixel differences remain after root hierarchy calibration.',
+      consequence:
+        'Fine text rasterisation, material and child-route coverage still require physical-S9 review.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 6.8695,
+        darkMeanAbsoluteRgbDelta: 6.4871,
+      },
+    },
+  },
+  plan: {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/populated-commitments/light/plan/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/populated-commitments/dark/plan/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-9a52e34/populated-commitments/light/plan/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-e2fb76f/populated-commitments/dark/plan/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/9a52e34/populated-commitments/light/plan/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/e2fb76f/populated-commitments/dark/plan/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/9a52e34/populated-commitments/light/plan/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/e2fb76f/populated-commitments/dark/plan/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark pixel differences remain after companion and root composition calibration.',
+      consequence: 'Fine material, typography and geometry still require physical-S9 review.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 7.4944,
+        darkMeanAbsoluteRgbDelta: 7.2708,
+      },
+    },
+  },
+  review: {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/light/review/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/dark/review/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-c6535dd/pending-review/light/review/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-e2fb76f/pending-review/dark/review/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/c6535dd/pending-review/light/review/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/e2fb76f/pending-review/dark/review/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/c6535dd/pending-review/light/review/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/e2fb76f/pending-review/dark/review/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason: 'Measured Light/Dark pixel differences remain after companion perch calibration.',
+      consequence:
+        'Category-chip and card vertical composition plus fine rasterisation still require physical-S9 review.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 14.4519,
+        darkMeanAbsoluteRgbDelta: 14.3463,
+      },
+    },
+  },
+};
 
 const collections = [
   ['stack-route', native.stackRoutes],
@@ -119,7 +229,8 @@ const entries = collections
   .flatMap(([kind, rows]) =>
     rows.map((entry) => {
       const designOwners = resolveDesignOwners(kind, entry);
-      const evidence = todayEvidence(entry.routeKey);
+      const calibration = CALIBRATIONS[entry.routeKey];
+      const evidence = calibration?.evidence ?? emptyEvidence();
       const hasExactOwner = designOwners.some((owner) =>
         ['exact-route-key', 'exact-source-hint'].includes(owner.resolution),
       );
@@ -145,20 +256,7 @@ const entries = collections
         },
         matchedFixtures: fixturesFor(entry),
         evidence,
-        deviations:
-          entry.routeKey === 'today'
-            ? [
-                {
-                  status: 'open',
-                  reason: 'Measured Light/Dark pixel differences remain after gross composition calibration.',
-                  consequence: 'Fine material, typography and geometry still require physical-S9 calibration.',
-                  metrics: {
-                    lightMeanAbsoluteRgbDelta: 12.5244,
-                    darkMeanAbsoluteRgbDelta: 12.8249,
-                  },
-                },
-              ]
-            : [],
+        deviations: calibration ? [calibration.deviation] : [],
         finalStatus:
           evidence.comparisonCount > 0
             ? 'calibration-evidence-recorded-not-owner-approved'
@@ -175,15 +273,17 @@ if (entries.length !== native.counts.totalRegisteredSurfaces) {
 }
 
 const evidencePaths = new Set(
-  entries.flatMap((entry) => [
-    entry.evidence.lightSource,
-    entry.evidence.darkSource,
-    entry.evidence.lightNative,
-    entry.evidence.darkNative,
-    entry.evidence.lightOverlay,
-    entry.evidence.darkOverlay,
-    ...entry.evidence.differenceImages,
-  ]).filter(Boolean),
+  entries
+    .flatMap((entry) => [
+      entry.evidence.lightSource,
+      entry.evidence.darkSource,
+      entry.evidence.lightNative,
+      entry.evidence.darkNative,
+      entry.evidence.lightOverlay,
+      entry.evidence.darkOverlay,
+      ...entry.evidence.differenceImages,
+    ])
+    .filter(Boolean),
 );
 await Promise.all([...evidencePaths].map((relativePath) => access(path.join(ROOT, relativePath))));
 
@@ -199,9 +299,13 @@ const unmappedDesign = designEntries
     sourceReference: entry.source_ref,
   }));
 
-const ownerResolvedCount = entries.filter((entry) => entry.design.ownerStatus === 'resolved').length;
+const ownerResolvedCount = entries.filter(
+  (entry) => entry.design.ownerStatus === 'resolved',
+).length;
 const comparedSurfaceCount = entries.filter((entry) => entry.evidence.comparisonCount > 0).length;
-const lightComparisons = new Set(entries.map((entry) => entry.evidence.lightNative).filter(Boolean));
+const lightComparisons = new Set(
+  entries.map((entry) => entry.evidence.lightNative).filter(Boolean),
+);
 const darkComparisons = new Set(entries.map((entry) => entry.evidence.darkNative).filter(Boolean));
 const comparisonCount = lightComparisons.size + darkComparisons.size;
 
