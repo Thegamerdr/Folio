@@ -15,6 +15,20 @@ ROOT = Path(__file__).resolve().parents[3]
 SOURCE_SHA = "ad90b4fee36c58be156e145e8663d8c6be1bf0eb"
 PRODUCT_SIZE = (1080, 2004)
 NATIVE_PRODUCT_CROP = (0, 72, 1080, 2076)
+MATERIAL_PIXEL_DELTA_FLOOR = 2
+
+
+def pixel_change_fractions(
+    histogram: list[int],
+    total_pixels: int,
+    material_floor: int = MATERIAL_PIXEL_DELTA_FLOOR,
+) -> tuple[float, float]:
+    """Return raw non-zero and material grayscale-delta pixel fractions."""
+    if total_pixels <= 0:
+        raise ValueError("total_pixels must be positive")
+    changed_pixels = sum(histogram[1:])
+    material_changed_pixels = sum(histogram[material_floor + 1 :])
+    return changed_pixels / total_pixels, material_changed_pixels / total_pixels
 
 
 def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -121,8 +135,10 @@ def main() -> None:
     rms = (sum(value * value for value in stat.rms) / 3) ** 0.5
     grayscale = difference.convert("L")
     histogram = grayscale.histogram()
-    changed_pixels = sum(histogram[1:])
     total_pixels = PRODUCT_SIZE[0] * PRODUCT_SIZE[1]
+    changed_fraction, material_changed_fraction = pixel_change_fractions(
+        histogram, total_pixels
+    )
     source_engine = source_metadata["engine"]
     source_state = source_engine["state"]
     source_route = source_engine["route"]
@@ -180,13 +196,17 @@ def main() -> None:
         },
         "meanAbsoluteRgbDelta": round(mean_abs, 4),
         "rmsRgbDelta": round(rms, 4),
-        "changedPixelFraction": round(changed_pixels / total_pixels, 6),
+        "changedPixelFraction": round(changed_fraction, 6),
+        "materialChangedPixelFraction": round(material_changed_fraction, 6),
+        "materialPixelDeltaFloor": MATERIAL_PIXEL_DELTA_FLOOR,
         "nonZeroDiffBoundingBoxPx": difference.getbbox(),
         "engineInvariants": engine_invariants,
         "interpretation": (
-            "This is valid unscaled matched-state evidence. The metrics quantify the current "
-            "native-versus-source output; the pair is not an automatic parity pass, and unresolved "
-            "visual differences remain subject to calibration and owner review."
+            "This is valid unscaled matched-state evidence. changedPixelFraction reports every "
+            "non-zero grayscale delta, while materialChangedPixelFraction reports only grayscale "
+            f"deltas greater than {MATERIAL_PIXEL_DELTA_FLOOR}. Material coverage is used for the "
+            "coverage outlier gate; MAE and RMS remain independent strict gates. These metrics do "
+            "not make the pair an automatic parity pass."
         ),
     }
     (out / "metrics.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")

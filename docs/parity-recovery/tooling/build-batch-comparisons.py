@@ -13,12 +13,66 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[3]
 PAIR_SCRIPT = Path(__file__).with_name("build-matched-today-comparison.py")
+MATERIAL_PIXEL_DELTA_FLOOR = 2
+
+
+def parse_batch_filters(values: list[str]) -> set[str]:
+    """Parse repeatable, comma-separated batch filters."""
+    return {
+        batch_id
+        for value in values
+        for item in value.split(",")
+        if (batch_id := item.strip())
+    }
+
+
+def select_batches(
+    batches: list[dict[str, object]], requested_ids: set[str]
+) -> list[tuple[int, dict[str, object], str]]:
+    identified = [
+        (index, batch, str(batch.get("id", f"batch-{index + 1}")))
+        for index, batch in enumerate(batches)
+    ]
+    if not requested_ids:
+        return identified
+    known_ids = {batch_id for _, _, batch_id in identified}
+    unknown_ids = sorted(requested_ids - known_ids)
+    if unknown_ids:
+        raise ValueError(f"Unknown --batch value(s): {', '.join(unknown_ids)}")
+    return [row for row in identified if row[2] in requested_ids]
+
+
+def comparison_metric_values(metrics: dict[str, object]) -> tuple[float, float, str]:
+    raw_changed = float(metrics["changedPixelFraction"])
+    if "materialChangedPixelFraction" in metrics:
+        return raw_changed, float(metrics["materialChangedPixelFraction"]), "material"
+    return raw_changed, raw_changed, "raw-legacy-fallback"
+
+
+def outlier_reasons(
+    metrics: dict[str, object], mae_limit: float, rms_limit: float, material_limit: float
+) -> list[str]:
+    _, material_changed, _ = comparison_metric_values(metrics)
+    reasons = []
+    if float(metrics["meanAbsoluteRgbDelta"]) > mae_limit:
+        reasons.append("mae")
+    if float(metrics["rmsRgbDelta"]) > rms_limit:
+        reasons.append("rms")
+    if material_changed > material_limit:
+        reasons.append("material-changed-pixels")
+    return reasons
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--native-ref", required=True)
+    parser.add_argument(
+        "--batch",
+        action="append",
+        default=[],
+        help="Only process these batch ids; may be repeated or comma-separated.",
+    )
     return parser.parse_args()
 
 
@@ -43,12 +97,18 @@ def main() -> None:
     thresholds = manifest.get("outlierThresholds", {})
     mae_limit = float(thresholds.get("meanAbsoluteRgbDelta", 16))
     rms_limit = float(thresholds.get("rmsRgbDelta", 52))
-    changed_limit = float(thresholds.get("changedPixelFraction", 0.45))
+    material_changed_limit = float(
+        thresholds.get(
+            "materialChangedPixelFraction",
+            thresholds.get("changedPixelFraction", 0.45),
+        )
+    )
+    requested_batch_ids = parse_batch_filters(args.batch)
+    selected_batches = select_batches(manifest["batches"], requested_batch_ids)
 
     all_rows: list[dict[str, object]] = []
-    for batch_index, batch in enumerate(manifest["batches"]):
+    for batch_index, batch, batch_id in selected_batches:
         fixture = batch["fixture"]
-        batch_id = batch.get("id", f"batch-{batch_index + 1}")
         batch_rows: list[dict[str, object]] = []
         for surface in batch["surfaces"]:
             for theme in surface.get("themes", ["light", "dark"]):
@@ -93,13 +153,12 @@ def main() -> None:
                 native_surface_key = surface.get("nativeStableId") or (
                     f"{native_kind}:{native_route}"
                 )
-                reasons = []
-                if metrics["meanAbsoluteRgbDelta"] > mae_limit:
-                    reasons.append("mae")
-                if metrics["rmsRgbDelta"] > rms_limit:
-                    reasons.append("rms")
-                if metrics["changedPixelFraction"] > changed_limit:
-                    reasons.append("changed-pixels")
+                raw_changed, material_changed, material_metric_source = (
+                    comparison_metric_values(metrics)
+                )
+                reasons = outlier_reasons(
+                    metrics, mae_limit, rms_limit, material_changed_limit
+                )
                 row = {
                     "batchId": batch_id,
                     "fixture": fixture,
@@ -115,7 +174,9 @@ def main() -> None:
                     "theme": theme,
                     "meanAbsoluteRgbDelta": metrics["meanAbsoluteRgbDelta"],
                     "rmsRgbDelta": metrics["rmsRgbDelta"],
-                    "changedPixelFraction": metrics["changedPixelFraction"],
+                    "changedPixelFraction": raw_changed,
+                    "materialChangedPixelFraction": material_changed,
+                    "materialChangedPixelFractionSource": material_metric_source,
                     "outlier": bool(reasons),
                     "outlierReasons": reasons,
                     "source": str(source_path.relative_to(ROOT)).replace("\\", "/"),
@@ -156,10 +217,12 @@ def main() -> None:
         key=lambda row: (
             float(row["meanAbsoluteRgbDelta"]),
             float(row["rmsRgbDelta"]),
+            float(row["materialChangedPixelFraction"]),
             float(row["changedPixelFraction"]),
         ),
         reverse=True,
     )
+    ranked = [{**row, "rank": index} for index, row in enumerate(ranked, start=1)]
     ledger = {
         "schemaVersion": 1,
         "nativeSha": run["nativeSha"],
@@ -172,7 +235,9 @@ def main() -> None:
         "thresholds": {
             "meanAbsoluteRgbDelta": mae_limit,
             "rmsRgbDelta": rms_limit,
-            "changedPixelFraction": changed_limit,
+            "materialChangedPixelFraction": material_changed_limit,
+            "materialPixelDeltaFloor": MATERIAL_PIXEL_DELTA_FLOOR,
+            "legacyChangedPixelFractionFallback": material_changed_limit,
         },
         "rankedPairs": ranked,
     }
