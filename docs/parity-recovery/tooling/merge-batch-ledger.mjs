@@ -199,10 +199,13 @@ export async function mergeBatchLedgerEvidence(
   const comparisonsByStableId = new Map(
     entries.map((entry) => [entry.stableId, existingComparisons(entry)]),
   );
-  const existingKeys = new Set();
+  const existingByKey = new Map();
   for (const [stableId, comparisons] of comparisonsByStableId) {
-    for (const comparison of comparisons) {
-      existingKeys.add(comparisonKey(stableId, comparison.fixture, comparison.theme));
+    for (const [index, comparison] of comparisons.entries()) {
+      existingByKey.set(comparisonKey(stableId, comparison.fixture, comparison.theme), {
+        comparison,
+        index,
+      });
     }
   }
 
@@ -310,6 +313,7 @@ export async function mergeBatchLedgerEvidence(
   }
 
   let preservedOverlapCount = 0;
+  let replacedComparisonCount = 0;
   let addedComparisonCount = 0;
   for (const [key, { entry, comparison }] of uniqueBatchRows) {
     await Promise.all(
@@ -317,12 +321,25 @@ export async function mergeBatchLedgerEvidence(
         assertArtifact(path.join(root, comparison[field])),
       ),
     );
-    if (existingKeys.has(key)) {
-      preservedOverlapCount += 1;
+    const existing = existingByKey.get(key);
+    if (existing) {
+      if (
+        existing.comparison.provenance !== 'batch-ledger' ||
+        sameComparison(existing.comparison, comparison)
+      ) {
+        preservedOverlapCount += 1;
+        continue;
+      }
+      comparisonsByStableId.get(entry.stableId)[existing.index] = comparison;
+      existingByKey.set(key, { comparison, index: existing.index });
+      replacedComparisonCount += 1;
       continue;
     }
     comparisonsByStableId.get(entry.stableId).push(comparison);
-    existingKeys.add(key);
+    existingByKey.set(key, {
+      comparison,
+      index: comparisonsByStableId.get(entry.stableId).length - 1,
+    });
     addedComparisonCount += 1;
   }
 
@@ -368,6 +385,7 @@ export async function mergeBatchLedgerEvidence(
       duplicatePairCount,
       batchStableSurfaceCount: batchStableIds.size,
       preservedOverlapCount,
+      replacedComparisonCount,
       addedComparisonCount,
       finalDirectSurfaceCount,
     },

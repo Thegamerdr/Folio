@@ -82,7 +82,7 @@ test('parses optional CLI and environment batch-ledger controls', () => {
   );
 });
 
-test('merges sheet/screen evidence, preserves accepted overlap and deduplicates rows', async () => {
+test('merges evidence, preserves accepted overlap, replaces prior batches and deduplicates', async () => {
   const acceptedToday = {
     ...emptyEvidence(),
     lightSource:
@@ -113,6 +113,29 @@ test('merges sheet/screen evidence, preserves accepted overlap and deduplicates 
     nativeSheet: 'appearance',
   });
   delete appearanceDark.materialChangedPixelFraction;
+  const staleAppearance = {
+    ...emptyEvidence(),
+    comparisons: [
+      {
+        provenance: 'batch-ledger',
+        fixture: 'confirmed-safe',
+        theme: 'light',
+        source: appearanceLight.source,
+        native: appearanceLight.native.replace('harness-abc1234', 'harness-older'),
+        overlay: appearanceLight.overlay.replace('comparisons/abc1234', 'comparisons/older'),
+        difference: appearanceLight.difference.replace('comparisons/abc1234', 'comparisons/older'),
+        metrics: {
+          meanAbsoluteRgbDelta: 12,
+          rmsRgbDelta: 24,
+          changedPixelFraction: 0.2,
+        },
+        outlier: true,
+        outlierReasons: ['mae'],
+        batchId: 'older-batch',
+      },
+    ],
+    comparisonCount: 1,
+  };
   const ledger = {
     schemaVersion: 1,
     nativeSha: 'abc1234'.padEnd(40, 'f'),
@@ -126,7 +149,7 @@ test('merges sheet/screen evidence, preserves accepted overlap and deduplicates 
   const merged = await mergeBatchLedgerEvidence(
     [
       entry('screen.today', 'screen', 'today', acceptedToday),
-      entry('sheet.appearance', 'sheet', 'appearance'),
+      entry('sheet.appearance', 'sheet', 'appearance', staleAppearance),
     ],
     ledger,
     {
@@ -141,7 +164,8 @@ test('merges sheet/screen evidence, preserves accepted overlap and deduplicates 
     duplicatePairCount: 1,
     batchStableSurfaceCount: 2,
     preservedOverlapCount: 1,
-    addedComparisonCount: 2,
+    replacedComparisonCount: 1,
+    addedComparisonCount: 1,
     finalDirectSurfaceCount: 2,
   });
   assert.equal(checked.length, 12);

@@ -1185,6 +1185,7 @@ const output = {
           batchLedgerDuplicatePairs: batchLedgerStats.duplicatePairCount,
           batchLedgerStableSurfaces: batchLedgerStats.batchStableSurfaceCount,
           batchLedgerPreservedOverlaps: batchLedgerStats.preservedOverlapCount,
+          batchLedgerComparisonsReplaced: batchLedgerStats.replacedComparisonCount,
           batchLedgerComparisonsAdded: batchLedgerStats.addedComparisonCount,
         }
       : {}),
