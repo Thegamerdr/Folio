@@ -268,24 +268,16 @@ export function subscribeParityRuntimeControl(listener: () => void): () => void 
   return () => parityRuntimeListeners.delete(listener);
 }
 
-function applyParityRuntimeUrl(url: string): void {
+export function applyParityRuntimeControl(input: Readonly<{
+  screen: string | undefined;
+  sheet: string | undefined;
+  theme: string | undefined;
+}>): void {
   const baked = getParityHarnessConfig();
   if (baked === null) return;
-
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return;
-  }
-  if (
-    parsed.protocol !== 'folio:' ||
-    (parsed.hostname !== 'parity' && parsed.searchParams.get('capture') !== '1')
-  ) return;
-
-  const screenValue = parsed.searchParams.get('screen') ?? undefined;
-  const sheetValue = parsed.searchParams.get('sheet') ?? undefined;
-  const themeValue = parsed.searchParams.get('theme') ?? undefined;
+  const screenValue = input.screen;
+  const sheetValue = input.sheet;
+  const themeValue = input.theme;
   const prior = parityRuntimeControl ?? {
     screen: baked.screen,
     sheet: baked.sheet,
@@ -309,6 +301,24 @@ function applyParityRuntimeUrl(url: string): void {
   parityRuntimeSequence += 1;
   parityRuntimeControl = { screen, sheet, theme, sequence: parityRuntimeSequence };
   for (const listener of parityRuntimeListeners) listener();
+}
+
+function applyParityRuntimeUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return;
+  }
+  if (
+    parsed.protocol !== 'folio:' ||
+    (parsed.hostname !== 'parity' && parsed.searchParams.get('capture') !== '1')
+  ) return;
+  applyParityRuntimeControl({
+    screen: parsed.searchParams.get('screen') ?? undefined,
+    sheet: parsed.searchParams.get('sheet') ?? undefined,
+    theme: parsed.searchParams.get('theme') ?? undefined,
+  });
 }
 
 /**

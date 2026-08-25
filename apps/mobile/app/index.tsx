@@ -14,6 +14,7 @@ import { Alert, AppState, StyleSheet, View, type AppStateStatus } from 'react-na
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
+import { useLocalSearchParams } from 'expo-router';
 
 import { useTheme } from '@/surfaces/pressureMap/kit';
 import { FolioShell } from '@/folio/shell/FolioShell';
@@ -30,12 +31,19 @@ import { authenticateAppLock, prepareAppLock, subscribeAppLockSettings } from '@
 import { AppLockGate } from '@/folio/ui/AppLockGate';
 import { PERSONAL_WORKSPACE_ID } from '@/folio/lib/workspaceRoot';
 import {
+  applyParityRuntimeControl,
   activateParityHarness,
   getParityHarnessConfig,
 } from '@/folio/parity/parityHarness';
 
 export default function FolioRoute() {
   const t = useTheme();
+  const captureSearch = useLocalSearchParams<{
+    capture?: string;
+    screen?: string;
+    sheet?: string;
+    theme?: string;
+  }>();
   // Gate first render until persisted state is hydrated, so the shell never
   // paints seeded defaults for a frame before the user's real data loads —
   // the splash stays up (it is hidden only once `ready` flips).
@@ -48,6 +56,15 @@ export default function FolioRoute() {
   const lockEnabledRef = useRef(false);
   const lockedRef = useRef(false);
   const authenticatingRef = useRef(false);
+
+  useEffect(() => {
+    if (captureSearch.capture !== '1') return;
+    applyParityRuntimeControl({
+      screen: captureSearch.screen,
+      sheet: captureSearch.sheet,
+      theme: captureSearch.theme,
+    });
+  }, [captureSearch.capture, captureSearch.screen, captureSearch.sheet, captureSearch.theme]);
 
   const updateLocked = useCallback((next: boolean) => {
     lockedRef.current = next;

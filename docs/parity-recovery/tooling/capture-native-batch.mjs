@@ -24,6 +24,8 @@ const MOBILE_ROOT = path.join(BUILD_ROOT, 'apps/mobile');
 const ANDROID_ROOT = path.join(MOBILE_ROOT, 'android');
 const manifestPath = path.resolve(ROOT, readArg('manifest', 'docs/parity-recovery/registries/capture-batches.json'));
 const deviceId = readArg('device', 'emulator-5554');
+const batchFilter = readArg('batch', '');
+const surfaceFilter = readArg('surface', '');
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.batches)) {
   throw new Error(`Unsupported capture batch manifest: ${manifestPath}`);
@@ -88,8 +90,15 @@ run(adb, ['-s', deviceId, 'shell', 'wm', 'density', '480']);
 run(adb, ['-s', deviceId, 'shell', 'settings', 'put', 'system', 'font_scale', '1.0']);
 
 const fixtureRuns = [];
-for (const batch of manifest.batches) {
-  const firstScreen = batch.surfaces[0]?.nativeScreen ?? batch.surfaces[0]?.screen ?? 'today';
+const selectedBatches = manifest.batches.filter(
+  (batch) => batchFilter === '' || batch.id === batchFilter,
+);
+for (const batch of selectedBatches) {
+  const selectedSurfaces = batch.surfaces.filter(
+    (surface) => surfaceFilter === '' || (surface.id ?? surface.screen) === surfaceFilter,
+  );
+  if (selectedSurfaces.length === 0) continue;
+  const firstScreen = selectedSurfaces[0]?.nativeScreen ?? selectedSurfaces[0]?.screen ?? 'today';
   const buildEnv = {
     ...process.env,
     JAVA_HOME: javaHome,
@@ -120,7 +129,7 @@ for (const batch of manifest.batches) {
   run(adb, ['-s', deviceId, 'shell', 'am', 'force-stop', PACKAGE]);
 
   let captureCount = 0;
-  for (const surface of batch.surfaces) {
+  for (const surface of selectedSurfaces) {
     for (const theme of surface.themes ?? ['light', 'dark']) {
       const screen = surface.nativeScreen ?? surface.screen;
       const sheet = surface.nativeSheet ?? surface.sheet ?? 'none';
