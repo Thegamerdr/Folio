@@ -15,15 +15,15 @@
     "missingEvidenceIsNotAPass": true
   },
   "counts": {
-    "nativeShippingSurfaces": 187,
-    "exactDesignOwnersResolved": 165,
+    "nativeShippingSurfaces": 188,
+    "exactDesignOwnersResolved": 166,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 10,
+    "surfacesWithDirectComparison": 11,
     "surfacesMissingDirectComparison": 177,
-    "comparisonCount": 12,
-    "lightComparisonCount": 6,
-    "darkComparisonCount": 6,
-    "designSurfacesNotMappedToNativeShippingSurface": 41
+    "comparisonCount": 14,
+    "lightComparisonCount": 7,
+    "darkComparisonCount": 7,
+    "designSurfacesNotMappedToNativeShippingSurface": 40
   },
   "entries": [
     {
@@ -4319,6 +4319,63 @@
       "finalStatus": "missing-direct-visual-comparison"
     },
     {
+      "stableId": "screen.business-more",
+      "kind": "screen",
+      "native": {
+        "routeKey": "business-more",
+        "componentSource": "apps/mobile/src/folio/screens/BusinessMoreScreen.tsx#BusinessMoreScreen",
+        "workspace": "business",
+        "states": [
+          "business-sole-trader",
+          "business-limited-company",
+          "business-unconfigured"
+        ]
+      },
+      "design": {
+        "owners": [
+          {
+            "stableId": "screen:business-more",
+            "kind": "screen",
+            "routeKey": "business-more",
+            "sourceReference": "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMore",
+            "keyStates": [],
+            "resolution": "exact-route-key"
+          }
+        ],
+        "ownerStatus": "resolved"
+      },
+      "matchedFixtures": [
+        "business-empty",
+        "business-sole-trader",
+        "business-ltd"
+      ],
+      "evidence": {
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-more/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-more/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-c5f2438/business-empty/light/business-more/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-c5f2438/business-empty/dark/business-more/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/c5f2438/business-empty/light/business-more/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/c5f2438/business-empty/dark/business-more/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/c5f2438/business-empty/light/business-more/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/c5f2438/business-empty/dark/business-more/absolute-difference.png"
+        ],
+        "comparisonCount": 2
+      },
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business More hierarchy calibration.",
+          "consequence": "The source companion perch intentionally remains absent pending a native-owned perch, and several source child routes currently resolve to consolidated real native authorities pending exact child-route ports.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 18.9861,
+            "darkMeanAbsoluteRgbDelta": 18.7859
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
+    },
+    {
       "stableId": "screen.business-obligations",
       "kind": "screen",
       "native": {
@@ -4915,16 +4972,13 @@
       "native": {
         "routeKey": "more",
         "componentSource": "apps/mobile/src/folio/screens/MoreScreen.tsx#MoreScreen",
-        "workspace": "personal|business",
+        "workspace": "personal",
         "states": [
           "personal-populated",
           "personal-loading",
           "personal-empty",
           "personal-error",
-          "personal-offline",
-          "business-sole-trader",
-          "business-limited-company",
-          "business-unconfigured"
+          "personal-offline"
         ]
       },
       "design": {
@@ -9281,12 +9335,6 @@
       "kind": "screen",
       "routeKey": "business-melo",
       "sourceReference": "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMelo"
-    },
-    {
-      "stableId": "screen:business-more",
-      "kind": "screen",
-      "routeKey": "business-more",
-      "sourceReference": "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMore"
     },
     {
       "stableId": "screen:business-account",

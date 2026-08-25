@@ -2,7 +2,7 @@
   "$schema": "melo-native-shipping-surface-registry/v1",
   "generatedFrom": {
     "nativeRepository": "Thegamerdr/Folio",
-    "nativeCommit": "93862fc0b7c80e92691dd2aecd6d8253184f7db1",
+    "nativeCommit": "c5f2438960a29680c5458c573ac4d070f243e3d3",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRepository": "Thegamerdr/private-money-pilot",
     "designCommit": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
@@ -486,34 +486,41 @@
       "stableId": "screen.more",
       "routeKey": "more",
       "componentSource": "apps/mobile/src/folio/screens/MoreScreen.tsx#MoreScreen",
-      "workspace": "personal|business",
+      "workspace": "personal",
       "themeHandling": "theme-provider",
-      "workspaceComponents": {
-        "personal": ["apps/mobile/src/folio/screens/MoreScreen.tsx#MoreScreen"],
-        "business": ["apps/mobile/src/folio/screens/BusinessMoreScreen.tsx#BusinessMoreScreen"]
-      },
+      "workspaceComponents": ["apps/mobile/src/folio/screens/MoreScreen.tsx#MoreScreen"],
       "dataStateDependencies": [
         "state prop",
-        "active workspace",
         "notification settings",
         "app lock",
-        "chart style",
-        "business entity kind"
+        "chart style"
       ],
       "states": [
         "personal-populated",
         "personal-loading",
         "personal-empty",
         "personal-error",
-        "personal-offline",
+        "personal-offline"
+      ],
+      "designOwnerHints": ["src/components/folio/screens/ScreenMore.tsx"]
+    },
+    {
+      "stableId": "screen.business-more",
+      "routeKey": "business-more",
+      "componentSource": "apps/mobile/src/folio/screens/BusinessMoreScreen.tsx#BusinessMoreScreen",
+      "workspace": "business",
+      "themeHandling": "theme-provider",
+      "dataStateDependencies": [
+        "active business workspace",
+        "business entity kind",
+        "native business screen authorities"
+      ],
+      "states": [
         "business-sole-trader",
         "business-limited-company",
         "business-unconfigured"
       ],
-      "designOwnerHints": [
-        "src/components/folio/screens/ScreenMore.tsx",
-        "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMore"
-      ]
+      "designOwnerHints": ["src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMore"]
     },
     {
       "stableId": "screen.timeline",
@@ -2767,11 +2774,11 @@
   "counts": {
     "stackRoutes": 2,
     "tabs": 4,
-    "screens": 54,
+    "screens": 55,
     "sheetsAndEmbeddedModals": 52,
     "appOwnedDialogs": 61,
     "platformOwnedSurfaces": 6,
     "globalStates": 8,
-    "totalRegisteredSurfaces": 187
+    "totalRegisteredSurfaces": 188
   }
 }

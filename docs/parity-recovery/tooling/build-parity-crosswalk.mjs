@@ -63,7 +63,7 @@ function resolveDesignOwners(kind, entry) {
 }
 
 function fixturesFor(entry) {
-  if (entry.routeKey === 'business-today') {
+  if (entry.routeKey === 'business-today' || entry.routeKey === 'business-more') {
     return ['business-empty', 'business-sole-trader', 'business-ltd'];
   }
   if (entry.workspace === 'business' || entry.routeKey?.startsWith('business-')) {
@@ -94,6 +94,37 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-more': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-more/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-more/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-c5f2438/business-empty/light/business-more/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-c5f2438/business-empty/dark/business-more/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/c5f2438/business-empty/light/business-more/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/c5f2438/business-empty/dark/business-more/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/c5f2438/business-empty/light/business-more/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/c5f2438/business-empty/dark/business-more/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason: 'Measured Light/Dark differences remain after Business More hierarchy calibration.',
+      consequence:
+        'The source companion perch intentionally remains absent pending a native-owned perch, and several source child routes currently resolve to consolidated real native authorities pending exact child-route ports.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 18.9861,
+        darkMeanAbsoluteRgbDelta: 18.7859,
+      },
+    },
+  },
   'business-today': {
     evidence: {
       lightSource:
