@@ -1642,7 +1642,7 @@ function BusinessVatNotRegistered({
         <View style={styles.vatNotHero}>
           <Text style={[styles.vatNotEyebrow, { color: t.muted }]}>VAT</Text>
           <Text accessibilityRole="header" style={[styles.vatNotHeadline, { color: t.ink }]}>
-            You’re not <Text style={{ color: t.calm }}>VAT-registered</Text> yet.
+            You’re not <Text style={{ color: t.calm }}>{'VAT-\u200Bregistered'}</Text> yet.
           </Text>
           <Text style={[styles.vatNotWhy, { color: t.muted }]}>
             Once turnover crosses £90,000 in any rolling 12 months you must register. Flip it on in
