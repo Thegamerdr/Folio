@@ -4,14 +4,14 @@
 // mascot. Source of truth (read-only, do not edit): the Lovable web component at
 // C:/dev/folio-melo/.claude/worktrees/design-main/src/components/folio/MeloPhoenix.tsx
 //
-// Mood is expressed as physical gesture (tilt, float, halo pulse, ember output) and by cross-fading
-// between a small pose-sprite library — never by recolouring the bird. One character across every
+// Mood is expressed as physical gesture (tilt, float, halo pulse, ember output) around the single
+// approved Fenice A+ master — never by swapping or recolouring the bird. One character across every
 // surface.
 //
 // Rendering stack (back to front):
 //   1. Halo         — soft radial ember light, breathes with vitality
 //   2. Embers       — up to 5 drifting particles rising behind the bird
-//   3. Phoenix pose — cross-fades 420ms between pose sprites, floats + tilts + breathes
+//   3. Phoenix      — the approved master floats + tilts + breathes
 //   4. Ground pool  — soft warm shadow anchoring it to the surface
 //   5. Pose badge   — optional enamel-pin accessory (kept from the pre-sprite vector rig; still an
 //                      overlay, not a repaint of the bird itself)
@@ -41,11 +41,7 @@ import Svg, {
 
 import { useTheme, type Palette } from '@/surfaces/pressureMap/kit';
 
-const phoenixHero = require('./assets/phoenix-hero.png');
-const phoenixProtect = require('./assets/phoenix-protect.png');
-const phoenixCelebrate = require('./assets/phoenix-celebrate.png');
-const phoenixThink = require('./assets/phoenix-think.png');
-const phoenixConcern = require('./assets/phoenix-concern.png');
+const feniceMaster = require('./assets/fenice-a-plus-master-square.png');
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -72,9 +68,9 @@ export type MeloProps = {
 
 // ---------------------------------------------------------------------------
 // Mood specs — mirrored 1:1 from the web kit's MOOD map (PhoenixMood), full 7-mood set.
-// curious shares the think sprite and cheer shares the hero sprite exactly as the source
-// MOOD table does; float/halo timing names map to amplitude/duration pairs (base 3/3200,
-// fast 3/2400, slow 2/4000) and emberSpeed seconds convert to ms.
+// All moods retain the same approved master, exactly as the pinned source does. Float/halo timing
+// names map to amplitude/duration pairs (base 3/3200, fast 3/2400, slow 2/4000) and emberSpeed
+// seconds convert to ms.
 // ---------------------------------------------------------------------------
 
 type MoodSpec = Readonly<{
@@ -97,7 +93,7 @@ const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
     glow: 0.42,
     embers: 2,
     emberSpeedMs: 6400,
-    src: phoenixHero,
+    src: feniceMaster,
   },
   curious: {
     tilt: -4,
@@ -107,7 +103,7 @@ const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
     glow: 0.52,
     embers: 3,
     emberSpeedMs: 4800,
-    src: phoenixThink,
+    src: feniceMaster,
   },
   cheer: {
     tilt: 2,
@@ -117,7 +113,7 @@ const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
     glow: 0.7,
     embers: 4,
     emberSpeedMs: 4200,
-    src: phoenixHero,
+    src: feniceMaster,
   },
   concern: {
     tilt: -2,
@@ -127,7 +123,7 @@ const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
     glow: 0.22,
     embers: 1,
     emberSpeedMs: 8000,
-    src: phoenixConcern,
+    src: feniceMaster,
   },
   celebrate: {
     tilt: 4,
@@ -137,7 +133,7 @@ const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
     glow: 0.92,
     embers: 5,
     emberSpeedMs: 3200,
-    src: phoenixCelebrate,
+    src: feniceMaster,
   },
   protect: {
     tilt: 0,
@@ -147,7 +143,7 @@ const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
     glow: 0.6,
     embers: 3,
     emberSpeedMs: 5600,
-    src: phoenixProtect,
+    src: feniceMaster,
   },
   think: {
     tilt: -6,
@@ -157,7 +153,7 @@ const MOOD: Readonly<Record<MeloMood, MoodSpec>> = {
     glow: 0.34,
     embers: 2,
     emberSpeedMs: 7200,
-    src: phoenixThink,
+    src: feniceMaster,
   },
 };
 
@@ -210,8 +206,10 @@ export function Melo({ mood, pose = 'none', size = 28, grounded = true, onTap }:
 
   const effGlow = Math.min(1, spec.glow * vMul);
   const effEmbers = Math.max(0, Math.round(spec.embers * (0.4 + v * 0.9)));
-  const showGlow = size >= 32;
-  const showEmbers = showGlow && !reduceMotion && effEmbers > 0 && size >= 44;
+  const isReactive = mood !== 'calm';
+  const isMajor = mood === 'celebrate' || mood === 'cheer' || mood === 'protect';
+  const showGlow = isReactive && size >= 32;
+  const showEmbers = showGlow && isMajor && !reduceMotion && effEmbers > 0 && size >= 44;
 
   // Tap — a quick acknowledge scale (matches the vector rig's tap affordance).
   const tapScale = useRef(new Animated.Value(1)).current;

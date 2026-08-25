@@ -5,7 +5,7 @@ import { shellCompanionPlacement } from './shellCompanion';
 describe('pinned shell companion perches', () => {
   it('owns the canonical Plan and Review anchors', () => {
     expect(shellCompanionPlacement('plan', 'auto')).toEqual({
-      top: 459,
+      top: 485,
       bubbleLeft: 30,
       birdLeft: 260,
     });
@@ -18,7 +18,7 @@ describe('pinned shell companion perches', () => {
 
   it('mirrors the composition for an explicit left-side preference', () => {
     expect(shellCompanionPlacement('plan', 'left')).toEqual({
-      top: 459,
+      top: 485,
       bubbleLeft: 110,
       birdLeft: 36,
     });
