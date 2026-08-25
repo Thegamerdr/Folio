@@ -1237,22 +1237,10 @@ export function BusinessVatScreen({ nav }: { nav: Nav }) {
 
   if (!registered) {
     return (
-      <BusinessScreenFrame
-        eyebrow="VAT"
-        headline="Not VAT-registered."
-        intro={`The current registration threshold in the ${UK_BUSINESS_POLICY_2026_27.taxYear} policy pack is ${formatMinor(UK_BUSINESS_POLICY_2026_27.vatRegistrationThresholdMinor)} taxable turnover.`}
-        onBack={nav.back}
-      >
-        <BusinessCard tone="inset">
-          <Text style={[styles.emptyBody, { color: t.muted }]}>
-            Turn VAT on only after registration. Melo will not create a return before then.
-          </Text>
-        </BusinessCard>
-        <BusinessPrimaryAction
-          label="Open Business type"
-          onPress={() => nav.go('business-entity-setup')}
-        />
-      </BusinessScreenFrame>
+      <BusinessVatNotRegistered
+        nav={nav}
+        onOpenBusinessType={() => nav.go('business-entity-setup')}
+      />
     );
   }
 
@@ -1620,6 +1608,58 @@ export function BusinessVatScreen({ nav }: { nav: Nav }) {
         />
       </BusinessFormSheet>
     </>
+  );
+}
+
+function BusinessVatNotRegistered({
+  nav,
+  onOpenBusinessType,
+}: {
+  nav: Nav;
+  onOpenBusinessType: () => void;
+}) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.vatNotRoot, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.vatNotContent,
+          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.vatNotBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.vatNotBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+
+        <View style={styles.vatNotHero}>
+          <Text style={[styles.vatNotEyebrow, { color: t.muted }]}>VAT</Text>
+          <Text accessibilityRole="header" style={[styles.vatNotHeadline, { color: t.ink }]}>
+            You’re not <Text style={{ color: t.calm }}>VAT-registered</Text> yet.
+          </Text>
+          <Text style={[styles.vatNotWhy, { color: t.muted }]}>
+            Once turnover crosses £90,000 in any rolling 12 months you must register. Flip it on in
+            Business type when you do.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onOpenBusinessType}
+            style={({ pressed }) => [styles.vatNotAction, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Text style={[styles.vatNotActionLabel, { color: t.calmStrong }]}>
+              Open Business type →
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -2441,6 +2481,42 @@ function nextCadenceDate(date: string, cadence: Exclude<InvoiceCadence, 'one-off
 }
 
 const styles = StyleSheet.create({
+  vatNotRoot: { flex: 1 },
+  vatNotContent: { paddingHorizontal: gap.xl },
+  vatNotBack: {
+    alignItems: 'flex-start',
+    height: 44,
+    justifyContent: 'center',
+    marginLeft: -8,
+    width: 44,
+  },
+  vatNotBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  vatNotHero: { marginTop: gap.lg },
+  vatNotEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  vatNotHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 33,
+    marginTop: gap.sm,
+  },
+  vatNotWhy: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  vatNotAction: {
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    marginTop: gap.xl,
+    minHeight: 44,
+  },
+  vatNotActionLabel: { fontFamily: weightFamily(600), fontSize: 14 },
   obligationsEmptyRoot: { flex: 1 },
   obligationsEmptyContent: { paddingHorizontal: gap.xl },
   obligationsEmptyBack: {
