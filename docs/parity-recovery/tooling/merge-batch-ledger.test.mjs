@@ -49,6 +49,7 @@ function row(overrides) {
     meanAbsoluteRgbDelta: 4,
     rmsRgbDelta: 8,
     changedPixelFraction: 0.1,
+    materialChangedPixelFraction: 0.04,
     outlier: false,
     outlierReasons: [],
     source: `${base}/design/ad90b4-matched-v1/${fixture}/${theme}/${screen}/source-product-1080x2004.png`,
@@ -111,6 +112,7 @@ test('merges sheet/screen evidence, preserves accepted overlap and deduplicates 
     nativeScreen: 'more',
     nativeSheet: 'appearance',
   });
+  delete appearanceDark.materialChangedPixelFraction;
   const ledger = {
     schemaVersion: 1,
     nativeSha: 'abc1234'.padEnd(40, 'f'),
@@ -149,6 +151,11 @@ test('merges sheet/screen evidence, preserves accepted overlap and deduplicates 
   const appearance = merged.entries.find((candidate) => candidate.stableId === 'sheet.appearance');
   assert.equal(appearance.evidence.comparisonCount, 2);
   assert.equal(appearance.evidence.comparisons[0].provenance, 'batch-ledger');
+  assert.equal(appearance.evidence.comparisons[0].metrics.materialChangedPixelFraction, 0.04);
+  assert.equal(
+    Object.hasOwn(appearance.evidence.comparisons[1].metrics, 'materialChangedPixelFraction'),
+    false,
+  );
   assert.equal(appearance.evidence.lightNative, appearanceLight.native);
   assert.equal(appearance.evidence.darkNative, appearanceDark.native);
   assert.equal(appearance.finalStatus, 'calibration-evidence-recorded-not-owner-approved');
@@ -167,6 +174,14 @@ test('rejects ledger count drift and unmapped native routes', async () => {
   await assert.rejects(
     mergeBatchLedgerEvidence([], { ...baseLedger, pairCount: 2 }, { root: 'C:/repo' }),
     /pairCount mismatch/,
+  );
+  await assert.rejects(
+    mergeBatchLedgerEvidence(
+      [],
+      { ...baseLedger, rankedPairs: [{ ...oneRow, materialChangedPixelFraction: -0.01 }] },
+      { root: 'C:/repo' },
+    ),
+    /invalid materialChangedPixelFraction/,
   );
   await assert.rejects(
     mergeBatchLedgerEvidence([], baseLedger, { root: 'C:/repo' }),

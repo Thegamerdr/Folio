@@ -227,6 +227,16 @@ export async function mergeBatchLedgerEvidence(
         );
       }
     }
+    if (
+      row.materialChangedPixelFraction !== undefined &&
+      (typeof row.materialChangedPixelFraction !== 'number' ||
+        !Number.isFinite(row.materialChangedPixelFraction) ||
+        row.materialChangedPixelFraction < 0)
+    ) {
+      throw new Error(
+        `Batch ledger row ${row.fixture}/${row.screen}/${row.theme} has invalid materialChangedPixelFraction.`,
+      );
+    }
     const locator = nativeLocator(row);
     batchNativeSurfaceKeys.add(
       row.nativeSurfaceKey ?? locator.stableId ?? `${locator.kind}:${locator.route}`,
@@ -260,6 +270,9 @@ export async function mergeBatchLedgerEvidence(
         meanAbsoluteRgbDelta: row.meanAbsoluteRgbDelta,
         rmsRgbDelta: row.rmsRgbDelta,
         changedPixelFraction: row.changedPixelFraction,
+        ...(row.materialChangedPixelFraction === undefined
+          ? {}
+          : { materialChangedPixelFraction: row.materialChangedPixelFraction }),
       },
       outlier: Boolean(row.outlier),
       outlierReasons: Array.isArray(row.outlierReasons) ? row.outlierReasons : [],
