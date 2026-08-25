@@ -279,6 +279,62 @@ try {
     );
   }
 
+  const semanticGeometry = await page.evaluate(
+    ({ originX, originY }) => {
+      const screenNode = document.querySelector('[data-folio-screen="today"]');
+      const findButton = (copy) =>
+        [...(screenNode?.querySelectorAll('button') ?? [])].find((node) =>
+          node.textContent?.replace(/\s+/g, ' ').trim().includes(copy),
+        );
+      const describe = (node) => {
+        if (!(node instanceof HTMLElement || node instanceof SVGElement)) return null;
+        const rect = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        return {
+          rectCssPx: {
+            left: Number((rect.left - originX).toFixed(3)),
+            top: Number((rect.top - originY).toFixed(3)),
+            width: Number(rect.width.toFixed(3)),
+            height: Number(rect.height.toFixed(3)),
+          },
+          typography: {
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            fontStyle: style.fontStyle,
+            fontWeight: style.fontWeight,
+            lineHeight: style.lineHeight,
+            letterSpacing: style.letterSpacing,
+          },
+          decoration: {
+            backgroundColor: style.backgroundColor,
+            borderColor: style.borderColor,
+            borderRadius: style.borderRadius,
+            borderWidth: style.borderWidth,
+            color: style.color,
+          },
+        };
+      };
+      return {
+        header: describe(screenNode?.querySelector('header')),
+        hero: describe(screenNode?.querySelector('[data-melo-exclude="hero"]')),
+        heroHeadline: describe(screenNode?.querySelector('[data-melo-exclude="hero.headline"]')),
+        heroMoney: describe(screenNode?.querySelector('[data-melo-exclude="hero.money"]')),
+        heroMeta: describe(screenNode?.querySelector('[data-melo-exclude="hero.meta"]')),
+        primaryDecision: describe(findButton('Can I spend something?')),
+        secondaryDecision: describe(findButton('See the working')),
+        chart: describe(screenNode?.querySelector('[data-melo-exclude="chart"]')),
+        chartHeader: describe(screenNode?.querySelector('[data-melo-exclude="chart.header"]')),
+        chartPlot: describe(screenNode?.querySelector('[data-melo-exclude="chart.plot"]')),
+        chartScrub: describe(screenNode?.querySelector('[data-melo-exclude="chart.scrub"]')),
+        chartSummary: describe(screenNode?.querySelector('[data-melo-exclude="chart.summary"]')),
+      };
+    },
+    {
+      originX: box.x + INNER_GLASS.inset,
+      originY: box.y + INNER_GLASS.inset + PRODUCT.top,
+    },
+  );
+
   const outDir = path.join(
     NATIVE_ROOT,
     'docs/parity-recovery/evidence/design/ad90b4-matched-v1',
@@ -318,6 +374,7 @@ try {
     productViewportPhysicalPx: { width: 1080, height: 2004 },
     fixtureAdapter: fixtureManifest.designAdapter.note,
     engine,
+    semanticGeometry,
     pageErrors,
     consoleErrors,
     resourceFailures,
