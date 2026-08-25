@@ -6,7 +6,7 @@
  */
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '../../..');
@@ -83,6 +83,39 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function invalidateFixtureBundle() {
+  // Expo's public capture variables are JS bundle inputs, but Gradle does not model environment
+  // values as task inputs. Remove only the two generated React output directories so a fixture
+  // change cannot silently reuse the previous fixture's bundle. Downstream asset/package tasks
+  // then invalidate naturally without rerunning the other ~1,000 Android tasks.
+  await rm(path.join(ANDROID_ROOT, 'app/build/generated/assets/react/release'), {
+    recursive: true,
+    force: true,
+  });
+  await rm(path.join(ANDROID_ROOT, 'app/build/intermediates/sourcemaps/react/release'), {
+    recursive: true,
+    force: true,
+  });
+}
+
+function assertRuntimeControl(log, { screen, sheet, theme }) {
+  const expectedSheet = sheet === 'none' ? 'null' : `"${sheet}"`;
+  const matched = log
+    .split(/\r?\n/u)
+    .some(
+      (line) =>
+        line.includes('[parity-shell]') &&
+        line.includes(`"screen":"${screen}"`) &&
+        line.includes(`"sheet":${expectedSheet}`) &&
+        line.includes(`"theme":"${theme}"`),
+    );
+  if (!matched) {
+    throw new Error(
+      `Runtime control was not acknowledged for screen=${screen} sheet=${sheet} theme=${theme}.`,
+    );
+  }
+}
+
 await mkdir(artifactRoot, { recursive: true });
 await mkdir(evidenceRoot, { recursive: true });
 run(adb, ['-s', deviceId, 'shell', 'wm', 'size', '1080x2220']);
@@ -115,6 +148,7 @@ for (const batch of selectedBatches) {
   };
 
   process.stdout.write(`BUILD fixture ${batch.fixture}\n`);
+  await invalidateFixtureBundle();
   await runStreaming(
     gradle,
     [':app:assembleRelease', '--no-daemon', '-PreactNativeArchitectures=x86_64', '--console=plain'],
@@ -126,25 +160,33 @@ for (const batch of selectedBatches) {
   const artifactPath = path.join(artifactRoot, `capture-${nativeRef}-${batch.fixture}.apk`);
   await copyFile(builtApk, artifactPath);
   run(adb, ['-s', deviceId, 'install', '-r', artifactPath]);
-  run(adb, ['-s', deviceId, 'shell', 'am', 'force-stop', PACKAGE]);
+  // A fixture APK is a disposable deterministic environment. Clearing only this emulator package
+  // prevents persisted state from one fixture contaminating the next; the connected S9 is never
+  // addressed by this driver.
+  run(adb, ['-s', deviceId, 'shell', 'pm', 'clear', PACKAGE]);
 
   let captureCount = 0;
+  let verifiedCaptureCount = 0;
   for (const surface of selectedSurfaces) {
     for (const theme of surface.themes ?? ['light', 'dark']) {
       const screen = surface.nativeScreen ?? surface.screen;
       const sheet = surface.nativeSheet ?? surface.sheet ?? 'none';
       const surfaceId = surface.id ?? surface.screen;
       const deepLink = `folio:///?capture=1&screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&theme=${theme}`;
+      run(adb, ['-s', deviceId, 'logcat', '-c']);
       run(adb, [
         '-s', deviceId, 'shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW',
-        '-d', `'${deepLink}'`, '-p', PACKAGE,
+        '-d', deepLink, '-p', PACKAGE,
       ]);
       await wait(manifest.settleMs ?? 900);
+      const runtimeLog = run(adb, ['-s', deviceId, 'logcat', '-d', '-s', 'ReactNativeJS:I', '*:S']);
+      assertRuntimeControl(runtimeLog, { screen, sheet, theme });
       const png = run(adb, ['-s', deviceId, 'exec-out', 'screencap', '-p'], { encoding: null });
       const outDir = path.join(evidenceRoot, batch.fixture, theme, surfaceId);
       await mkdir(outDir, { recursive: true });
       await writeFile(path.join(outDir, 'native-full-1080x2220.png'), png);
       captureCount += 1;
+      verifiedCaptureCount += 1;
       process.stdout.write(`captured ${batch.fixture}/${theme}/${surfaceId}\n`);
     }
   }
@@ -154,6 +196,7 @@ for (const batch of selectedBatches) {
     apkPath: path.relative(ROOT, artifactPath).replaceAll('\\', '/'),
     apkSha256,
     captureCount,
+    verifiedCaptureCount,
   });
 }
 
