@@ -35,6 +35,8 @@ const batchFilters = new Set(
     .filter(Boolean),
 );
 const surfaceFilter = readArg('surface', '');
+const startAt = readArg('start-at', '');
+const reuseExistingApks = readArg('reuse-existing-apks', 'false') === 'true';
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.batches)) {
   throw new Error(`Unsupported capture batch manifest: ${manifestPath}`);
@@ -133,6 +135,21 @@ function assertRuntimeControl(log, { screen, sheet, dialog, theme }) {
   }
 }
 
+async function waitForRuntimeControl(expected) {
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const runtimeLog = run(adb, ['-s', deviceId, 'logcat', '-d', '-s', 'ReactNativeJS:I', '*:S']);
+    try {
+      assertRuntimeControl(runtimeLog, expected);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 4) await wait(350);
+    }
+  }
+  throw lastError;
+}
+
 await mkdir(artifactRoot, { recursive: true });
 await mkdir(evidenceRoot, { recursive: true });
 run(adb, ['-s', deviceId, 'shell', 'wm', 'size', '1080x2220']);
@@ -141,13 +158,22 @@ run(adb, ['-s', deviceId, 'shell', 'settings', 'put', 'system', 'font_scale', '1
 
 const fixtureRuns = [];
 const fixtureApkCache = new Map();
+let reachedStart = startAt === '';
+let foundStart = startAt === '';
 const selectedBatches = manifest.batches.filter(
   (batch) => batchFilters.size === 0 || batchFilters.has(batch.id),
 );
 for (const batch of selectedBatches) {
-  const selectedSurfaces = batch.surfaces.filter(
-    (surface) => surfaceFilter === '' || (surface.id ?? surface.screen) === surfaceFilter,
-  );
+  const selectedSurfaces = batch.surfaces.filter((surface) => {
+    const surfaceId = surface.id ?? surface.screen;
+    if (surfaceFilter !== '' && surfaceId !== surfaceFilter) return false;
+    if (!reachedStart) {
+      if (surfaceId !== startAt) return false;
+      reachedStart = true;
+      foundStart = true;
+    }
+    return true;
+  });
   if (selectedSurfaces.length === 0) continue;
   const firstScreen = selectedSurfaces[0]?.nativeScreen ?? selectedSurfaces[0]?.screen ?? 'today';
   const buildEnv = {
@@ -172,23 +198,33 @@ for (const batch of selectedBatches) {
     ({ artifactPath, apkSha256 } = cachedFixture);
     process.stdout.write(`REUSE fixture ${batch.fixture} for ${batch.id}\n`);
   } else {
-    process.stdout.write(`BUILD fixture ${batch.fixture}\n`);
-    await invalidateFixtureBundle();
-    await runStreaming(
-      gradle,
-      [
-        ':app:assembleRelease',
-        '--no-daemon',
-        '-PreactNativeArchitectures=x86_64',
-        '--console=plain',
-      ],
-      { cwd: ANDROID_ROOT, env: buildEnv },
-    );
-
-    const apkBytes = await readFile(builtApk);
-    apkSha256 = createHash('sha256').update(apkBytes).digest('hex').toUpperCase();
     artifactPath = path.join(artifactRoot, `capture-${nativeRef}-${batch.fixture}.apk`);
-    await copyFile(builtApk, artifactPath);
+    let apkBytes;
+    if (reuseExistingApks) {
+      try {
+        apkBytes = await readFile(artifactPath);
+        process.stdout.write(`REUSE existing fixture ${batch.fixture} for ${batch.id}\n`);
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
+    }
+    if (apkBytes === undefined) {
+      process.stdout.write(`BUILD fixture ${batch.fixture}\n`);
+      await invalidateFixtureBundle();
+      await runStreaming(
+        gradle,
+        [
+          ':app:assembleRelease',
+          '--no-daemon',
+          '-PreactNativeArchitectures=x86_64',
+          '--console=plain',
+        ],
+        { cwd: ANDROID_ROOT, env: buildEnv },
+      );
+      apkBytes = await readFile(builtApk);
+      await copyFile(builtApk, artifactPath);
+    }
+    apkSha256 = createHash('sha256').update(apkBytes).digest('hex').toUpperCase();
     fixtureApkCache.set(batch.fixture, { artifactPath, apkSha256 });
   }
   run(adb, ['-s', deviceId, 'install', '-r', artifactPath]);
@@ -229,8 +265,7 @@ for (const batch of selectedBatches) {
         PACKAGE,
       ]);
       await wait(manifest.settleMs ?? 900);
-      const runtimeLog = run(adb, ['-s', deviceId, 'logcat', '-d', '-s', 'ReactNativeJS:I', '*:S']);
-      assertRuntimeControl(runtimeLog, { screen, sheet, dialog, theme });
+      await waitForRuntimeControl({ screen, sheet, dialog, theme });
       // Browser reference captures never include a software keyboard. Some Android TextInputs
       // autofocus and leave Gboard's floating toolbar over the sheet even with a hardware keyboard
       // attached. ESC dismisses only that input surface (and is inert when no IME is showing), so
@@ -255,6 +290,10 @@ for (const batch of selectedBatches) {
     captureCount,
     verifiedCaptureCount,
   });
+}
+
+if (!foundStart) {
+  throw new Error(`Requested --start-at surface was not found: ${startAt}`);
 }
 
 const captureRun = {
