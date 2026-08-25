@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   UK_BUSINESS_POLICY_2026_27,
   analyseVatSchemes,
@@ -23,7 +24,7 @@ import {
   type VatScheme,
 } from '@folio/business-workspace';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import { updateBusinessOperations, useAppStore } from '@/folio/store';
 import { recordPersistedOwnerTransfer, type PersistedOwnerTransferKind } from '@/folio/lib/persist';
 import type { Nav } from '@/folio/types';
@@ -379,49 +380,38 @@ export function BusinessClientsScreen({ nav }: { nav: Nav }) {
     setAdding(false);
   };
 
+  if (summaries.length === 0) {
+    return <BusinessClientsEmpty nav={nav} />;
+  }
+
   return (
     <>
       <BusinessScreenFrame
         eyebrow="Clients"
-        headline={
-          summaries.length === 0
-            ? 'No clients yet.'
-            : `${summaries.length} client${summaries.length === 1 ? '' : 's'}.`
-        }
+        headline={`${summaries.length} client${summaries.length === 1 ? '' : 's'}.`}
         intro="Names and contact details stay anchored to invoices, so there is one balance per client."
         onBack={nav.back}
       >
         <View style={styles.stack}>
-          {summaries.length === 0 ? (
-            <BusinessCard tone="inset">
-              <Text style={[styles.emptyTitle, { color: t.ink }]}>
-                They can arrive with the first invoice.
-              </Text>
-              <Text style={[styles.emptyBody, { color: t.muted }]}>
-                Or add someone now if you already know who you are billing.
-              </Text>
-            </BusinessCard>
-          ) : (
-            summaries.map((summary) => (
-              <BusinessCard key={summary.client.id}>
-                <View style={styles.cardHeading}>
-                  <View style={styles.cardHeadingCopy}>
-                    <Text style={[styles.cardTitle, { color: t.ink }]}>{summary.client.name}</Text>
-                    <Text style={[styles.cardMeta, { color: t.muted }]}>
-                      {summary.invoiceCount} invoice{summary.invoiceCount === 1 ? '' : 's'} ·{' '}
-                      {formatMinor(summary.lifetimeMinor)} lifetime
-                    </Text>
-                  </View>
-                  <Text style={[styles.cardMoney, { color: t.ink }]}>
-                    {formatMinor(summary.outstandingMinor)}
+          {summaries.map((summary) => (
+            <BusinessCard key={summary.client.id}>
+              <View style={styles.cardHeading}>
+                <View style={styles.cardHeadingCopy}>
+                  <Text style={[styles.cardTitle, { color: t.ink }]}>{summary.client.name}</Text>
+                  <Text style={[styles.cardMeta, { color: t.muted }]}>
+                    {summary.invoiceCount} invoice{summary.invoiceCount === 1 ? '' : 's'} ·{' '}
+                    {formatMinor(summary.lifetimeMinor)} lifetime
                   </Text>
                 </View>
-                {summary.client.note ? (
-                  <Text style={[styles.note, { color: t.muted }]}>{summary.client.note}</Text>
-                ) : null}
-              </BusinessCard>
-            ))
-          )}
+                <Text style={[styles.cardMoney, { color: t.ink }]}>
+                  {formatMinor(summary.outstandingMinor)}
+                </Text>
+              </View>
+              {summary.client.note ? (
+                <Text style={[styles.note, { color: t.muted }]}>{summary.client.note}</Text>
+              ) : null}
+            </BusinessCard>
+          ))}
         </View>
         <BusinessPrimaryAction label="Add a client" onPress={() => setAdding(true)} />
       </BusinessScreenFrame>
@@ -457,6 +447,77 @@ export function BusinessClientsScreen({ nav }: { nav: Nav }) {
         />
       </BusinessFormSheet>
     </>
+  );
+}
+
+function BusinessClientsEmpty({ nav }: { nav: Nav }) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.clientsEmptyRoot, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.clientsEmptyContent,
+          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.clientsEmptyBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.clientsEmptyBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+
+        <View style={styles.clientsEmptyHero}>
+          <Text style={[styles.clientsEmptyEyebrow, { color: t.muted }]}>Clients</Text>
+          <Text accessibilityRole="header" style={[styles.clientsEmptyHeadline, { color: t.ink }]}>
+            No <Text style={{ color: t.calm }}>clients</Text> yet.
+          </Text>
+          <Text style={[styles.clientsEmptyWhy, { color: t.muted }]}>
+            Clients come from the invoices you log — none have been added yet.
+          </Text>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.openSheet('log-invoice')}
+          style={({ pressed }) => [
+            styles.clientsEmptyPrimary,
+            { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+          ]}
+        >
+          <Text style={[styles.clientsEmptyPrimaryLabel, { color: t.inverse }]}>
+            Log an invoice
+          </Text>
+        </Pressable>
+
+        <View
+          accessibilityLabel="No clients yet. Log an invoice and this list fills in."
+          style={[
+            styles.clientsEmptyPanel,
+            { backgroundColor: t.surface, borderColor: t.hairline },
+          ]}
+        >
+          <View style={[styles.clientsEmptyInfo, { borderColor: t.ink }]}>
+            <Text style={[styles.clientsEmptyInfoLabel, { color: t.ink }]}>i</Text>
+          </View>
+          <View style={styles.clientsEmptyPanelCopy}>
+            <Text style={[styles.clientsEmptyPanelTitle, { color: t.ink }]}>No clients yet</Text>
+            <Text style={[styles.clientsEmptyPanelBody, { color: t.muted }]}>
+              Log an invoice and this list fills in.
+            </Text>
+          </View>
+        </View>
+
+        <Text style={[styles.clientsEmptyNote, { color: t.muted }]}>
+          Adding clients from the contacts already on your phone comes with the mobile app.
+        </Text>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -2180,6 +2241,85 @@ function nextCadenceDate(date: string, cadence: Exclude<InvoiceCadence, 'one-off
 }
 
 const styles = StyleSheet.create({
+  clientsEmptyRoot: { flex: 1 },
+  clientsEmptyContent: { paddingHorizontal: gap.xl },
+  clientsEmptyBack: {
+    alignItems: 'flex-start',
+    height: 44,
+    justifyContent: 'center',
+    marginLeft: -8,
+    width: 44,
+  },
+  clientsEmptyBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  clientsEmptyHero: { marginTop: gap.sm },
+  clientsEmptyEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  clientsEmptyHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 33,
+    marginTop: gap.sm,
+  },
+  clientsEmptyWhy: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  clientsEmptyPrimary: {
+    alignItems: 'center',
+    borderRadius: 12,
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  clientsEmptyPrimaryLabel: { fontFamily: weightFamily(600), fontSize: 14 },
+  clientsEmptyPanel: {
+    alignItems: 'flex-start',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    marginTop: gap.xl,
+    padding: gap.xl,
+  },
+  clientsEmptyInfo: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1.6,
+    height: 20,
+    justifyContent: 'center',
+    marginTop: 2,
+    width: 20,
+  },
+  clientsEmptyInfoLabel: {
+    fontFamily: weightFamily(600),
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  clientsEmptyPanelCopy: { flex: 1, marginLeft: gap.md },
+  clientsEmptyPanelTitle: {
+    fontFamily: weightFamily(500),
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  clientsEmptyPanelBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: gap.sm,
+  },
+  clientsEmptyNote: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    fontStyle: 'italic',
+    lineHeight: 17,
+    marginTop: gap.xl,
+  },
   section: { marginTop: gap.xl },
   routes: { marginTop: gap.xl },
   stack: { gap: gap.sm },
