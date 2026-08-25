@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  combineBatchLedgers,
   comparisonPaths,
   mergeBatchLedgerEvidence,
   parseBatchLedgerOptions,
@@ -1062,8 +1063,9 @@ let entries = collections
   .sort((a, b) => a.stableId.localeCompare(b.stableId));
 
 let batchLedgerStats = null;
-if (batchLedgerOptions.ledgerPath) {
-  const batchLedger = await readBatchLedger(batchLedgerOptions.ledgerPath);
+if (batchLedgerOptions.ledgerPaths.length > 0) {
+  const batchLedgers = await Promise.all(batchLedgerOptions.ledgerPaths.map(readBatchLedger));
+  const batchLedger = combineBatchLedgers(batchLedgers);
   const merged = await mergeBatchLedgerEvidence(entries, batchLedger, { root: ROOT });
   entries = merged.entries;
   batchLedgerStats = merged.stats;
@@ -1154,9 +1156,19 @@ const output = {
     designRegistry: path.relative(ROOT, DESIGN_PATH).replaceAll('\\', '/'),
     nativeRegistry: path.relative(ROOT, NATIVE_PATH).replaceAll('\\', '/'),
     ownerResolutionRegistry: path.relative(ROOT, OWNER_RESOLUTIONS_PATH).replaceAll('\\', '/'),
-    ...(batchLedgerOptions.ledgerPath
+    ...(batchLedgerOptions.ledgerPaths.length > 0
       ? {
-          batchLedger: path.relative(ROOT, batchLedgerOptions.ledgerPath).replaceAll('\\', '/'),
+          ...(batchLedgerOptions.ledgerPaths.length === 1
+            ? {
+                batchLedger: path
+                  .relative(ROOT, batchLedgerOptions.ledgerPaths[0])
+                  .replaceAll('\\', '/'),
+              }
+            : {
+                batchLedgers: batchLedgerOptions.ledgerPaths.map((ledgerPath) =>
+                  path.relative(ROOT, ledgerPath).replaceAll('\\', '/'),
+                ),
+              }),
         }
       : {}),
     primaryAcceptanceDevice: DEVICE_RELATIVE_PATH,

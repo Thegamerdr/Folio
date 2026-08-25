@@ -4,7 +4,11 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { mergeBatchLedgerEvidence, parseBatchLedgerOptions } from './merge-batch-ledger.mjs';
+import {
+  combineBatchLedgers,
+  mergeBatchLedgerEvidence,
+  parseBatchLedgerOptions,
+} from './merge-batch-ledger.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -69,6 +73,7 @@ test('parses optional CLI and environment batch-ledger controls', () => {
     ),
     {
       ledgerPath: path.resolve(root, 'evidence/batch-ledger.json'),
+      ledgerPaths: [path.resolve(root, 'evidence/batch-ledger.json')],
       expectedDirectCount: 80,
     },
   );
@@ -80,6 +85,36 @@ test('parses optional CLI and environment batch-ledger controls', () => {
     () => parseBatchLedgerOptions(['--expected-direct-count=nope'], {}, root),
     /non-negative integer/,
   );
+});
+
+test('combines bulk and narrow recapture ledgers with newest matching rows winning', () => {
+  const light = row({ screen: 'today', theme: 'light' });
+  const dark = row({ screen: 'today', theme: 'dark' });
+  const corrected = { ...light, meanAbsoluteRgbDelta: 2, native: light.native.replace('abc1234', 'def5678') };
+  const first = {
+    schemaVersion: 1,
+    nativeSha: 'abc1234000000000000000000000000000000000',
+    nativeRef: 'abc1234',
+    pairCount: 2,
+    surfaceCount: 1,
+    rankedPairs: [light, dark],
+  };
+  const second = {
+    schemaVersion: 1,
+    nativeSha: 'def5678000000000000000000000000000000000',
+    nativeRef: 'def5678',
+    pairCount: 1,
+    surfaceCount: 1,
+    rankedPairs: [corrected],
+  };
+
+  const combined = combineBatchLedgers([first, second]);
+  assert.equal(combined.nativeRef, 'def5678');
+  assert.equal(combined.pairCount, 2);
+  assert.equal(combined.surfaceCount, 1);
+  assert.equal(combined.directSurfaceCount, 1);
+  assert.equal(combined.rankedPairs.find((item) => item.theme === 'light').meanAbsoluteRgbDelta, 2);
+  assert.equal(combined.rankedPairs.find((item) => item.theme === 'dark').meanAbsoluteRgbDelta, 4);
 });
 
 test('merges evidence, preserves accepted overlap, replaces prior batches and deduplicates', async () => {

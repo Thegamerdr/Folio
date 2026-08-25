@@ -31,9 +31,17 @@ export function parseBatchLedgerOptions(argv, env, root) {
   ) {
     throw new Error(`Expected direct count must be a non-negative integer, got ${expectedValue}.`);
   }
+  const ledgerPaths =
+    ledgerValue === undefined || ledgerValue === ''
+      ? []
+      : ledgerValue
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+          .map((value) => path.resolve(root, value));
   return {
-    ledgerPath:
-      ledgerValue === undefined || ledgerValue === '' ? null : path.resolve(root, ledgerValue),
+    ledgerPath: ledgerPaths[0] ?? null,
+    ledgerPaths,
     expectedDirectCount,
   };
 }
@@ -44,6 +52,63 @@ export async function readBatchLedger(ledgerPath) {
     throw new Error(`Unsupported batch comparison ledger: ${ledgerPath}`);
   }
   return ledger;
+}
+
+function combinedRowKey(row) {
+  const locator =
+    typeof row.nativeStableId === 'string' && row.nativeStableId !== ''
+      ? row.nativeStableId
+      : `${row.nativeKind ?? (row.nativeSheet ? 'sheet' : 'screen')}:${row.nativeRoute ?? row.nativeSheet ?? row.nativeScreen}`;
+  return `${locator}\u0000${row.fixture}\u0000${row.theme}`;
+}
+
+/**
+ * Compose a base family ledger with one or more later, narrower recapture ledgers. The newest row
+ * wins only for the same native surface/fixture/theme, so a one-family correction does not discard
+ * the unaffected bulk capture that preceded it.
+ */
+export function combineBatchLedgers(ledgers) {
+  if (ledgers.length === 0) return null;
+  if (ledgers.length === 1) return ledgers[0];
+
+  const rows = new Map();
+  for (const ledger of ledgers) {
+    if (ledger.schemaVersion !== 1 || !Array.isArray(ledger.rankedPairs)) {
+      throw new Error('Unsupported batch comparison ledger object.');
+    }
+    if (ledger.pairCount !== ledger.rankedPairs.length) {
+      throw new Error(
+        `Batch pairCount mismatch: declared ${ledger.pairCount}, found ${ledger.rankedPairs.length}.`,
+      );
+    }
+    for (const row of ledger.rankedPairs) rows.set(combinedRowKey(row), row);
+  }
+
+  const rankedPairs = [...rows.values()].map((row, index) => ({ ...row, rank: index + 1 }));
+  const directSurfaceKeys = [
+    ...new Set(
+      rankedPairs.map(
+        (row) =>
+          row.nativeSurfaceKey ??
+          row.nativeStableId ??
+          `${row.nativeKind ?? (row.nativeSheet ? 'sheet' : 'screen')}:${row.nativeRoute ?? row.nativeSheet ?? row.nativeScreen}`,
+      ),
+    ),
+  ].sort();
+  const latest = ledgers.at(-1);
+  return {
+    schemaVersion: 1,
+    nativeSha: latest.nativeSha,
+    nativeRef: latest.nativeRef,
+    sourceLedgers: ledgers.map(({ nativeSha, nativeRef }) => ({ nativeSha, nativeRef })),
+    pairCount: rankedPairs.length,
+    surfaceCount: new Set(rankedPairs.map(ledgerSurfaceKey)).size,
+    directSurfaceCount: directSurfaceKeys.length,
+    directSurfaceKeys,
+    outlierCount: rankedPairs.filter((row) => row.outlier).length,
+    thresholds: latest.thresholds,
+    rankedPairs,
+  };
 }
 
 function normaliseRelativePath(value, field) {
