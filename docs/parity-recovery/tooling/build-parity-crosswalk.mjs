@@ -71,6 +71,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-clients' ||
     entry.routeKey === 'business-invoices' ||
     entry.routeKey === 'business-obligations' ||
+    entry.routeKey === 'business-vat' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
@@ -105,6 +106,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-vat': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-vat/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-vat/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-06197fd/business-empty/light/business-vat/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-06197fd/business-empty/dark/business-vat/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/06197fd/business-empty/light/business-vat/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/06197fd/business-empty/dark/business-vat/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/06197fd/business-empty/light/business-vat/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/06197fd/business-empty/dark/business-vat/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business VAT registration answer, threshold explanation and Business type action restoration.',
+      consequence:
+        'The compared unregistered state now matches the pinned threshold explanation and routes to the real native Business Type screen; the pinned source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while registered VAT pot, return and scheme states remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 7.4247,
+        darkMeanAbsoluteRgbDelta: 7.8056,
+      },
+    },
+  },
   'business-obligations': {
     evidence: {
       lightSource:
