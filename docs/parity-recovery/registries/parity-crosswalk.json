@@ -18,11 +18,11 @@
     "nativeShippingSurfaces": 192,
     "exactDesignOwnersResolved": 170,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 22,
-    "surfacesMissingDirectComparison": 170,
-    "comparisonCount": 36,
-    "lightComparisonCount": 18,
-    "darkComparisonCount": 18,
+    "surfacesWithDirectComparison": 23,
+    "surfacesMissingDirectComparison": 169,
+    "comparisonCount": 38,
+    "lightComparisonCount": 19,
+    "darkComparisonCount": 19,
     "designSurfacesNotMappedToNativeShippingSurface": 37
   },
   "entries": [
@@ -4297,21 +4297,35 @@
         "ownerStatus": "resolved"
       },
       "matchedFixtures": [
+        "business-empty",
         "business-sole-trader",
         "business-ltd"
       ],
       "evidence": {
-        "lightSource": null,
-        "darkSource": null,
-        "lightNative": null,
-        "darkNative": null,
-        "lightOverlay": null,
-        "darkOverlay": null,
-        "differenceImages": [],
-        "comparisonCount": 0
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-filings/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-filings/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-be2e0d3/business-empty/light/business-filings/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-be2e0d3/business-empty/dark/business-filings/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/be2e0d3/business-empty/light/business-filings/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/be2e0d3/business-empty/dark/business-filings/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/be2e0d3/business-empty/light/business-filings/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/be2e0d3/business-empty/dark/business-filings/absolute-difference.png"
+        ],
+        "comparisonCount": 2
       },
-      "deviations": [],
-      "finalStatus": "missing-direct-visual-comparison"
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business Filings empty answer, filing explanation and Business type action restoration.",
+          "consequence": "The compared unconfigured state now matches the pinned filing explanation and routes its action to the real native Business Type flow; the pinned source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while configured sole-trader and limited-company filing sets plus working-copy and submission states remain separate captures.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 9.5073,
+            "darkMeanAbsoluteRgbDelta": 8.5688
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
     },
     {
       "stableId": "screen.business-insights",

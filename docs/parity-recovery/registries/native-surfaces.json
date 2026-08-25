@@ -2,7 +2,7 @@
   "$schema": "melo-native-shipping-surface-registry/v1",
   "generatedFrom": {
     "nativeRepository": "Thegamerdr/Folio",
-    "nativeCommit": "7a4dda7867ccd6f1de20982d98e0ebbac8d69482",
+    "nativeCommit": "be2e0d3c30196f2f586d3a6a2efeb715c5aef53f",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRepository": "Thegamerdr/private-money-pilot",
     "designCommit": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
@@ -354,12 +354,10 @@
         "invoice ledger",
         "business operations"
       ],
-      "states": [
-        "business-unconfigured",
-        "business-populated",
-        "business-review-pending"
-      ],
-      "designOwnerHints": ["src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessToday"]
+      "states": ["business-unconfigured", "business-populated", "business-review-pending"],
+      "designOwnerHints": [
+        "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessToday"
+      ]
     },
     {
       "stableId": "screen.business-review",
@@ -380,7 +378,9 @@
         "activity-populated",
         "documents"
       ],
-      "designOwnerHints": ["src/components/folio/screens/ScreenBusinessReviewHub.tsx#ScreenBusinessReviewHub"]
+      "designOwnerHints": [
+        "src/components/folio/screens/ScreenBusinessReviewHub.tsx#ScreenBusinessReviewHub"
+      ]
     },
     {
       "stableId": "screen.today-mode",
@@ -523,12 +523,7 @@
       "workspace": "personal",
       "themeHandling": "theme-provider",
       "workspaceComponents": ["apps/mobile/src/folio/screens/MoreScreen.tsx#MoreScreen"],
-      "dataStateDependencies": [
-        "state prop",
-        "notification settings",
-        "app lock",
-        "chart style"
-      ],
+      "dataStateDependencies": ["state prop", "notification settings", "app lock", "chart style"],
       "states": [
         "personal-populated",
         "personal-loading",
@@ -549,12 +544,10 @@
         "business entity kind",
         "native business screen authorities"
       ],
-      "states": [
-        "business-sole-trader",
-        "business-limited-company",
-        "business-unconfigured"
-      ],
-      "designOwnerHints": ["src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMore"]
+      "states": ["business-sole-trader", "business-limited-company", "business-unconfigured"],
+      "designOwnerHints": [
+        "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessMore"
+      ]
     },
     {
       "stableId": "screen.timeline",
@@ -674,7 +667,9 @@
         "business-invoices-outstanding",
         "business-vat-registered"
       ],
-      "designOwnerHints": ["src/components/folio/screens/BusinessMoneySurfaces.tsx#ScreenBusinessMoney"]
+      "designOwnerHints": [
+        "src/components/folio/screens/BusinessMoneySurfaces.tsx#ScreenBusinessMoney"
+      ]
     },
     {
       "stableId": "screen.plans",

@@ -74,6 +74,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-vat' ||
     entry.routeKey === 'business-insights' ||
     entry.routeKey === 'business-runway' ||
+    entry.routeKey === 'business-filings' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
@@ -108,6 +109,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-filings': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-filings/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-filings/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-be2e0d3/business-empty/light/business-filings/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-be2e0d3/business-empty/dark/business-filings/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/be2e0d3/business-empty/light/business-filings/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/be2e0d3/business-empty/dark/business-filings/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/be2e0d3/business-empty/light/business-filings/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/be2e0d3/business-empty/dark/business-filings/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Filings empty answer, filing explanation and Business type action restoration.',
+      consequence:
+        'The compared unconfigured state now matches the pinned filing explanation and routes its action to the real native Business Type flow; the pinned source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while configured sole-trader and limited-company filing sets plus working-copy and submission states remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 9.5073,
+        darkMeanAbsoluteRgbDelta: 8.5688,
+      },
+    },
+  },
   'business-runway': {
     evidence: {
       lightSource:
@@ -575,7 +608,8 @@ const CALIBRATIONS = {
     },
     deviation: {
       status: 'open',
-      reason: 'Measured Light/Dark pixel differences remain after dedicated Melo composition calibration.',
+      reason:
+        'Measured Light/Dark pixel differences remain after dedicated Melo composition calibration.',
       consequence:
         'Fine typography, Fenice halo/scale and lower-route content still require physical-S9 review.',
       metrics: {
