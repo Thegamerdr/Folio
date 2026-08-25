@@ -267,11 +267,20 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
     [moneyMode, currentBalance, onboarding, pots, subs, subPaused, route, cycles],
   );
 
-  // Vitality — the real safe-zone read, normalised against monthly income. See FIDELITY DECISIONS.
+  // Source-owned live vitality: safe runway (65%), pot health (30%), and a small recent-ritual
+  // lift. This never persists and is not a level or streak.
   const vitality = useMemo(() => {
-    const monthly = Math.max(1, onboarding.monthlyIncome);
-    return Math.max(0, Math.min(1, modeState.safeZone.amount / monthly));
-  }, [modeState, onboarding.monthlyIncome]);
+    const income = Math.max(1, onboarding.monthlyIncome);
+    const tightestSpare = route.tightPoint.amount;
+    const safe = Math.max(0, Math.min(1, tightestSpare / income / 0.4));
+    const potShare = pots.length
+      ? pots.filter((pot) => pot.goal > 0 && pot.saved / pot.goal >= 0.6).length / pots.length
+      : 0.5;
+    const fresh = cycles[0]?.closedAt ? 0.08 : 0;
+    let next = safe * 0.65 + potShare * 0.3 + fresh;
+    if (tightestSpare < 0) next = Math.min(next, 0.22);
+    return Math.max(0, Math.min(1, next));
+  }, [cycles, onboarding.monthlyIncome, pots, route.tightPoint.amount]);
   const plumage = vitalityLabel(vitality);
   const plumageCopy = PLUMAGE_COPY[plumage];
 
@@ -407,7 +416,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         {/* Presence — hero Melo or the quiet-mode resting line. */}
         <View style={styles.heroWrap}>
           <MeloCompanionHost
-            size={156}
+            size={172}
             mood={melo.quietMode ? 'calm' : modeState.mood}
             pose={modeState.pose}
             position={preferredPosition}
@@ -842,7 +851,7 @@ const styles = StyleSheet.create({
     width: 20,
   },
   titleBlock: {
-    marginTop: gap.xl,
+    marginTop: 56,
   },
   kicker: {
     fontFamily: serif.displayItalic,
@@ -865,7 +874,7 @@ const styles = StyleSheet.create({
   },
   heroWrap: {
     alignItems: 'center',
-    marginTop: gap.xxl,
+    marginTop: 44,
   },
   restingWrap: {
     alignItems: 'center',
@@ -896,7 +905,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: gap.md,
+    marginTop: 28,
   },
   tapToTalkLabel: {
     fontSize: 11,
@@ -914,7 +923,7 @@ const styles = StyleSheet.create({
     columnGap: gap.sm,
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: gap.md,
+    marginTop: gap.xl,
     minHeight: 44,
     paddingHorizontal: gap.md,
   },
@@ -941,7 +950,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   section: {
-    marginTop: gap.xxl,
+    marginTop: 40,
   },
   ritualsSection: {
     marginBottom: gap.xxl,
