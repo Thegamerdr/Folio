@@ -1,79 +1,13 @@
-// MoreScreen — the faithful 1:1 React Native port of the web hub
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenMore.tsx).
+// MoreScreen — native presentation of the pinned Lovable More hub.
 //
-// @rn-screen    MoreScreen
-// @rn-stack     MainTabs > More
-// @purpose      The quiet hub — ONE flat scannable list of links to every secondary surface, in the
-//               web's exact order, plus two dev/demo actions kept last and visually quiet.
-// @reads        appearance (system|light|dark) via useThemeMode() — drives the Appearance row hint. chartStyle
-//               via useChartStyle() — drives the "Chart style" row hint. ignoredReviewSigs.length via
-//               the store — drives the "Hidden from Review" row hint.
-// @writes       fastForwardMonth() (demo) · setMode (appearance picker). Start fresh ROUTES to Data &
-//               privacy (the gated D3 reset); it no longer wipes from here (one-confirm bypass removed).
-// @opens-sheet  share (from "Share a cycle") · onboarding (from "Payday & income") · chart-style
-//               (from "Chart style") · hidden-review (from "Hidden from Review")
-// @copy         FROZEN
-// @tokens       calm (accent) · surface · hairline · muted · repairInk (negative) · canvas (paper) ·
-//               ink · caution — all from the kit, no new token defined here.
-// @motion       press feedback on every row · Melo breathe + blink (the only continuous motion on
-//               this quiet screen). The native hub stays static so its long scroll never covers
-//               persistent Android navigation chrome with a retained full-screen animation layer.
-// @notes        Fast-forward is a dev/demo action; Start fresh routes to the gated reset on Data &
-//               privacy (D3 forbids a one-confirm wipe here, so it no longer wipes from this hub).
-//               Both are kept LAST and visually quiet (same row styling; only "Start fresh" carries
-//               the negative label tone). No buttons, no badges, no elevation on them.
+// Visual and copy authority:
+//   private-money-pilot@ad90b4fee36c58be156e145e8663d8c6be1bf0eb
+//   src/components/folio/screens/ScreenMore.tsx
 //
-// FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store source):
-//   • Flat list, not grouped: the prior build reorganised the web's ONE 19-row flat list into four
-//     titled groups, which changed the scan order and dropped two rows entirely ("Chart style",
-//     "Hidden from Review" — both real, already-wired sheets on this app, simply unreachable from the
-//     hub). This port restores the web's flat single-list structure and exact row order, and adds
-//     both missing rows back in, in their frozen positions (see PARITY_GAPS.md Group 3).
-//   • "Chart style" row: reads `useChartStyle()` (`@/folio/lib/chartStyle`) for the live style +
-//     hint, opens the already-wired `chart-style` sheet (confirmed hosted in FolioShell.tsx). "Hidden
-//     from Review" reads `ignoredReviewSigs.length` from the store and opens the already-wired
-//     `hidden-review` sheet — both sheets existed and were fully wired; only the hub row was missing.
-//   • Theme mechanism: the web useTheme() is web-coupled (document.documentElement.classList,
-//     localStorage('folio-theme'), meta[name=theme-color]). NONE exist in RN. Per the spec's
-//     fidelityRisks, this is re-implemented as the kit's theme store. The Appearance row opens the
-//     native System / Light / Dark picker; kitTheme persists the preference and System follows OS
-//     changes through useColorScheme.
-//   • Press-handler precedence is onPress > sheet > to (exactly the web's onClick > sheet > to). This
-//     keeps "Payday & income" opening the onboarding SHEET (not a screen) and "Share a cycle" opening
-//     the share sheet.
-//   • Melo mood: the web header uses <MeloAvatar size={30} mood="soft">. RN's MeloMood union has no
-//     'soft' ('calm' | 'curious' | 'cheer' | 'concern' | 'celebrate') — 'soft' was a web-only
-//     accent-soft expression. Mapped to the closest existing quiet mood, 'calm'. Kept sized 30, as the
-//     rare quiet header companion. Flagged in PARITY_GAPS.md as a visible-but-reasonable mood
-//     substitution, not a bug.
-//   • Group card: the web is `divide-y divide-[hairline]` inside a `hairline rounded-2xl` surface. RN
-//     has no divide-y, so rows render with a 1px Hairline rule between them (not after the last) and
-//     the Surface carries a 1px hairline border + rounded-2xl (radius.xl) with overflow hidden so the
-//     press highlight clips to the rounded card.
-//   • Accent "calmly": the web is <em not-italic text-[accent]> inside an upright font-display
-//     heading — rendered UPRIGHT (Fraunces display, normal style) + terracotta (t.calm), NOT italic.
-//   • Chevron is a literal "→" text glyph in muted ink on the web. Kept as a muted "→" Text glyph
-//     (the kit's ChevronRight is an option, but the web glyph is the literal "→"; staying faithful).
-//   • The web's page-wide slide-in is deliberately omitted on native. Android can retain the
-//     full-screen animation layer after it settles and composite it over unchanged navigation after
-//     a long scroll. Row feedback and Melo's local motion preserve life without risking the shell.
-//   • Header carries the "Folio" wordmark (font-display italic 14px) + a 20px empty balance spacer on
-//     the right — the spacer is kept so the wordmark stays left-aligned; it is NOT a button.
-//   • Scroll container hides scrollbars and clears the tab bar with a bottom safe-area inset + bottom
-//     margin so the closing MeloLine never tucks under the nav.
-//   • STATES: More is populated-only (offline ≡ populated; empty/error n/a). All five branches are
-//     rendered for completeness: populated/offline = the hub; loading = Melo curious + a line, never
-//     a spinner; empty/error = the calm EmptyState doorway (n/a in practice — the hub has no data
-//     dependency — but rendered so every branch is exercised).
-//
-// HONEST CLAIMS: no privacy/security assertion is made anywhere here. The "Data & privacy" row hint
-// is the verbatim web copy "what's saved, what to export" — it never claims data "stays on device",
-// is "encrypted", "bank-grade", or "100% private". The closing line is the verbatim web reassurance.
-// Banned vocabulary is absent from every visible string.
-//
-// Tokens only — no new colour, font, spacing, or radius. Every row is a >=44px tap target (px-5 py-4
-// rows clear it). Copy is VERBATIM from the web source (the row labels/hints are @copy FROZEN inline
-// literals exactly as the web keeps them; only app.name is keyed in COPY_DECK).
+// Native remains the authority for workspace switching, appearance persistence, notification
+// permission/state, accessibility state, account data and privacy controls. A few Lovable child
+// routes are not yet present in the native ScreenId registry; their temporary bindings below keep
+// those native authorities reachable without pretending the missing destinations exist.
 
 import { useEffect, useState } from 'react';
 import {
@@ -87,13 +21,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Surface, Hairline, gap, radius, serif, useTheme, useThemeMode } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
+import { ChevronRight, gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { fastForwardMonth, useAppStore } from '@/folio/store';
-import { useChartStyle, CHART_STYLE_LABEL, CHART_STYLE_HINT } from '@/folio/lib/chartStyle';
 import {
   DEFAULT_REMINDERS_SETTINGS,
   loadRemindersSettings,
@@ -103,30 +34,12 @@ import {
 import { getPermissionState, requestPermission } from '@/folio/lib/notifications';
 import { forceRescheduleNow } from '@/folio/lib/notifyScheduler';
 import type { PermissionState } from '@/folio/lib/notifications';
-import {
-  getCachedAppLockSettings,
-  inspectAppLockCapability,
-  loadAppLockSettings,
-  subscribeAppLockSettings,
-} from '@/folio/lib/appLock';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
-/** The Reminders row's live hint, one calm line per permission/enabled combination — no separate
- *  screen, this is a single settings-row toggle (per the notifications-binding brief). */
-function remindersHint(enabled: boolean, permission: PermissionState): string {
-  if (!enabled) return 'off';
-  if (permission === 'denied') return 'blocked in system settings';
-  if (permission === 'undetermined') return 'tap to allow';
-  return 'on · quiet by default';
-}
-
-/** Reminders on/off + live permission state, backing the MoreScreen "Reminders" row. Self-contained
- *  (own persisted module, not store.ts) — see lib/notifySettings.ts + lib/notifications.ts. */
 function useReminders(): {
   settings: RemindersSettings;
   permission: PermissionState;
   toggleEnabled: () => void;
-  toggleSensitivePreviews: () => void;
 } {
   const [settings, setSettings] = useState(DEFAULT_REMINDERS_SETTINGS);
   const [permission, setPermission] = useState<PermissionState>('undetermined');
@@ -134,10 +47,13 @@ function useReminders(): {
   useEffect(() => {
     let mounted = true;
     void (async () => {
-      const [settings, perm] = await Promise.all([loadRemindersSettings(), getPermissionState()]);
+      const [saved, currentPermission] = await Promise.all([
+        loadRemindersSettings(),
+        getPermissionState(),
+      ]);
       if (!mounted) return;
-      setSettings(settings);
-      setPermission(perm);
+      setSettings(saved);
+      setPermission(currentPermission);
     })();
     return () => {
       mounted = false;
@@ -149,7 +65,6 @@ function useReminders(): {
       const next = { ...settings, remindersEnabled: !settings.remindersEnabled };
       setSettings(next);
       await saveRemindersSettings(next);
-      // Permission is asked only on the same explicit tap that enables reminders—never at startup.
       if (next.remindersEnabled && permission !== 'granted') {
         setPermission(await requestPermission());
       }
@@ -157,49 +72,10 @@ function useReminders(): {
     })();
   };
 
-  const toggleSensitivePreviews = () => {
-    void (async () => {
-      const next = { ...settings, sensitivePreviews: !settings.sensitivePreviews };
-      setSettings(next);
-      await saveRemindersSettings(next);
-      forceRescheduleNow();
-    })();
-  };
-
-  return { settings, permission, toggleEnabled, toggleSensitivePreviews };
+  return { settings, permission, toggleEnabled };
 }
 
-function useAppLockHint(): string {
-  const [settings, setSettings] = useState(getCachedAppLockSettings());
-  const [available, setAvailable] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    const unsubscribe = subscribeAppLockSettings(setSettings);
-    void Promise.all([loadAppLockSettings(), inspectAppLockCapability()]).then(
-      ([loaded, capability]) => {
-        if (!mounted) return;
-        setSettings(loaded);
-        setAvailable(capability.available);
-      },
-    );
-    return () => {
-      mounted = false;
-      unsubscribe();
-    };
-  }, []);
-
-  if (settings.enabled) return 'on · locks when Melo leaves';
-  if (available === false) return 'off · device screen lock required';
-  if (available === null) return 'checking device lock';
-  return 'off · tap to configure';
-}
-
-/**
- * Accessibility is owned by the device. More only reports the live OS preference and explains
- * what Melo follows; it does not create a second in-app accessibility authority.
- */
-function useAccessibilityHint(): { hint: string; describe: () => void } {
+function useAccessibilityDescription(): () => void {
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -217,16 +93,8 @@ function useAccessibilityHint(): { hint: string; describe: () => void } {
     };
   }, []);
 
-  const hint =
-    reducedMotion === null
-      ? 'follows your device settings'
-      : reducedMotion
-        ? 'text size · reduced motion on'
-        : 'text size · standard motion';
-
-  const describe = () => {
-    const motion =
-      reducedMotion === null ? 'still checking reduced motion' : reducedMotion ? 'on' : 'off';
+  return () => {
+    const motion = reducedMotion === null ? 'still being checked' : reducedMotion ? 'on' : 'off';
     Alert.alert(
       'Accessibility',
       `Melo follows your device text size and reduced-motion preference. Reduced motion is ${motion}.`,
@@ -234,18 +102,8 @@ function useAccessibilityHint(): { hint: string; describe: () => void } {
       { cancelable: true },
     );
   };
-
-  return { hint, describe };
 }
 
-// Routing: the web "Data & privacy" row navigates to the Privacy screen (web `to: "privacy"`), where
-// the export action lives (the Privacy "Export my data" CTA). This RN row is faithful to that — it
-// carries `to: 'privacy'` and navigates via nav.go('privacy'), so export is reached FROM Privacy, not
-// fired from this hub. The label, hint, layout, and tone are the web literals.
-
-// The render states this screen can occupy. Per the spec, More is populated-only and offline is
-// identical to populated (the hub is pure routing chrome with no data dependency); loading/empty/
-// error are n/a but are rendered for completeness so every branch is exercised.
 export type MoreState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
 
 export type MoreScreenProps = {
@@ -253,186 +111,144 @@ export type MoreScreenProps = {
   state?: MoreState;
 };
 
-// A single link/action row. Faithful to the web row shape: a label, a hint, and exactly one of
-// { to | sheet | onPress }, resolved in that precedence. `tone: 'negative'` colours the label coral
-// (the web --negative) for the one destructive action.
 type MoreRow = {
   label: string;
-  hint: string;
+  meta: string;
   to?: ScreenId;
   sheet?: SheetId;
   onPress?: () => void;
-  tone?: 'negative';
 };
 
-type MoreGroup = {
+type MoreSection = {
+  eyebrow: string;
   title: string;
+  accessibilityLabel: string;
   rows: MoreRow[];
+  note?: string;
 };
-
-// The web's w-5 (20px) balance spacer that keeps the wordmark left-aligned. Not a button.
-const BALANCE_SPACER = 20;
 
 export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-
-  // Appearance is a preference picker backed by the single theme authority. The selected mode is
-  // persisted by kitTheme; System continues to resolve from the live OS colour scheme.
-  const { mode } = useThemeMode();
-
-  // Chart style + hidden-review count — real, live reads backing the two rows the prior build
-  // dropped (see FIDELITY DECISIONS).
-  const { style: chartStyle } = useChartStyle();
-  const hiddenCount = useAppStore((s) => s.ignoredReviewSigs?.length ?? 0);
   const reminders = useReminders();
-  const appLockHint = useAppLockHint();
-  const accessibility = useAccessibilityHint();
-  const aiReads = useAppStore((s) => s.aiReads);
-  const activeWorkspaceKind = useAppStore(
-    (s) =>
-      s.workspaces.find((workspace) => workspace.id === s.activeWorkspaceId)?.kind ?? 'personal',
-  );
-  const aiReadHint =
-    aiReads?.used && aiReads.used > 0
-      ? `${aiReads.used} read${aiReads.used === 1 ? '' : 's'} this month · asks before changes`
-      : 'asks before anything reaches your records';
+  const describeAccessibility = useAccessibilityDescription();
 
   const describeAiAutomation = () => {
     Alert.alert(
-      'AI & automation',
+      'AI and automation',
       'Melo only reads a statement after you choose that path. Suggestions wait in Review, and nothing reaches your records until you confirm it.',
       [{ text: 'Done', style: 'cancel' }],
       { cancelable: true },
     );
   };
 
-  // Group by user intent. Twenty unrelated rows in one card made the hub feel like an implementation
-  // index; these sections keep the same working destinations while making the next choice legible.
-  // Demo time travel is development-only and can never ship as a real account action.
-  const groups: MoreGroup[] = [
+  // ScreenMore.tsx is the exact composition authority. These are its five sections and ten rows in
+  // source order. Temporary native bindings are intentionally local and are called out inline:
+  // global-search, notifications, accessibility, connections, trust and ai-transparency need
+  // shared ScreenId + shell owners before their navigation can become byte-for-byte equivalent.
+  const sections: MoreSection[] = [
     {
-      title: 'Workspace',
+      eyebrow: 'Find',
+      title: 'Go straight there',
+      accessibilityLabel: 'Find and jump',
       rows: [
         {
-          label: activeWorkspaceKind === 'personal' ? 'Switch to Business' : 'Switch to Personal',
-          hint: 'keep Personal and Business money separate',
+          label: 'Search Melo',
+          meta: 'jump to pots, subscriptions, settings and actions',
+          // Native has no global-search ScreenId yet. The existing Melo doorway is the only honest
+          // search/help authority available from this screen until the shared registry is extended.
+          onPress: () => nav.openMelo(),
+        },
+      ],
+    },
+    {
+      eyebrow: 'Workspace',
+      title: 'Switch workspace',
+      accessibilityLabel: 'Workspace',
+      rows: [
+        {
+          label: 'Switch to Business',
+          meta: 'keep Personal and Business money separate',
           onPress: () => nav.openWorkspace?.(),
         },
       ],
     },
     {
-      title: 'Your money',
-      rows: [
-        { label: 'Account & plan', hint: 'tier, accounts, sign in', to: 'account' },
-        { label: 'Money sources', hint: 'accounts, statements and connections', to: 'account' },
-        { label: 'Timeline', hint: 'everything you added or changed', to: 'timeline' },
-        { label: 'Calendar', hint: 'the dates that matter', to: 'calendar' },
-        { label: 'Plans', hint: "what's coming before payday", to: 'plans' },
-        { label: 'Insights', hint: 'the shape of your months', to: 'insights' },
-        { label: 'Subscriptions', hint: 'what still earns its place', to: 'subs' },
-        { label: 'Pots & goals', hint: 'what you are setting aside', to: 'pots' },
-      ],
-    },
-    {
-      title: 'Melo & routines',
-      rows: [
-        { label: 'Melo settings', hint: 'companion, tone, quiet mode', to: 'melo' },
-        { label: 'Payday & income', hint: 'change when money lands', sheet: 'onboarding' },
-        { label: 'Payday review', hint: 'wrap up the month in four steps', to: 'ritual' },
-        { label: 'What if I spend', hint: 'preview before you decide', to: 'whatif' },
-        { label: 'Recovery', hint: 'make room when the route runs short', to: 'recovery' },
-        { label: 'Share a cycle', hint: 'a quiet win card', sheet: 'share' },
-      ],
-    },
-    {
-      title: 'Preferences',
+      eyebrow: 'Your Melo',
+      title: 'Looks, alerts and behaviour',
+      accessibilityLabel: 'Your Melo',
       rows: [
         {
           label: 'Appearance',
-          hint: mode === 'system' ? 'system · follows your phone' : `${mode} · tap to change`,
+          meta: 'light, dark or follow your device',
+          // Appearance is already a persisted native sheet. Keep that authority until the shared
+          // `appearance` screen route exists.
           sheet: 'appearance',
         },
         {
           label: 'Notifications',
-          hint: remindersHint(reminders.settings.remindersEnabled, reminders.permission),
+          meta: 'what Melo may say, and when',
+          // The native notification module owns permission and scheduling. Its dedicated source
+          // route is not registered in native yet, so this remains the existing explicit toggle.
           onPress: reminders.toggleEnabled,
         },
         {
           label: 'Accessibility',
-          hint: accessibility.hint,
-          onPress: accessibility.describe,
+          meta: 'text, contrast, motion and companion restraint',
+          // Native accessibility follows the OS. The dedicated source route is a shared-registry
+          // dependency; this preserves the existing truthful device-state explanation meanwhile.
+          onPress: describeAccessibility,
         },
         {
-          label: 'Chart style',
-          hint: `${CHART_STYLE_LABEL[chartStyle]} · ${CHART_STYLE_HINT[chartStyle]}`,
-          sheet: 'chart-style',
-        },
-        {
-          label: 'Hidden from Review',
-          hint:
-            hiddenCount === 0
-              ? 'nothing hidden'
-              : `${hiddenCount} ${hiddenCount === 1 ? 'row' : 'rows'} · tap to un-hide`,
-          sheet: 'hidden-review',
-        },
-        {
-          label: 'Lock-screen details',
-          hint: reminders.settings.sensitivePreviews
-            ? 'show titles and details'
-            : 'hidden · recommended',
-          onPress: reminders.toggleSensitivePreviews,
+          label: 'Melo',
+          meta: 'memory, wardrobe, quiet and conversation',
+          to: 'melo',
         },
       ],
     },
     {
-      title: 'Trust & control',
+      eyebrow: 'Account & money',
+      title: 'Identity and sources',
+      accessibilityLabel: 'Account and money',
       rows: [
         {
-          label: 'Data & privacy',
-          hint: "what's saved, what to export",
-          to: 'privacy',
-        },
-        { label: 'Security', hint: appLockHint, to: 'privacy' },
-        {
-          label: 'AI & automation',
-          hint: aiReadHint,
-          onPress: describeAiAutomation,
+          label: 'Account and plan',
+          meta: 'identity, access and paid plan',
+          to: 'account',
         },
         {
-          label: 'Melo memory',
-          hint: 'what Melo has learned from your choices',
-          to: 'melo',
-        },
-        {
-          label: 'Start fresh',
-          hint: 'clear local money, not your account',
-          to: 'privacy',
-          tone: 'negative',
+          label: 'Money sources',
+          meta: 'manual, file and available connections',
+          // The native account surface currently owns money-source controls. A separate
+          // `connections` ScreenId is a shared-shell dependency.
+          to: 'account',
         },
       ],
     },
-    ...(__DEV__
-      ? [
-          {
-            title: 'Developer',
-            rows: [
-              {
-                label: 'Fast-forward 1 month',
-                hint: 'test cycle ageing',
-                onPress: () => {
-                  fastForwardMonth();
-                  nav.go('insights');
-                },
-              },
-            ],
-          },
-        ]
-      : []),
+    {
+      eyebrow: 'Privacy & control',
+      title: 'Data and decisions',
+      accessibilityLabel: 'Privacy and control',
+      rows: [
+        {
+          label: 'Data and privacy',
+          meta: 'what Melo reads, backup, export, deletion and app lock',
+          // PrivacyScreen is the current native authority for these controls; the pinned source's
+          // intermediate `trust` hub is not registered in the native shell yet.
+          to: 'privacy',
+        },
+        {
+          label: 'AI and automation',
+          meta: 'what the model sees and when Melo asks first',
+          // Preserve the existing truthful Review-before-truth explanation until the shared
+          // `ai-transparency` route is available.
+          onPress: describeAiAutomation,
+        },
+      ],
+      note: 'Nothing is connected, shared or deleted without an explicit step from you.',
+    },
   ];
 
-  // empty / error — the calm EmptyState doorway (n/a in practice; the hub has no data dependency).
-  // The single CTA routes back to Today so the doorway never dead-ends.
   if (state === 'empty' || state === 'error') {
     const headline = state === 'error' ? copy.err.generic : 'Everything else, calmly.';
     const body = state === 'error' ? undefined : 'The quiet hub — back in a moment.';
@@ -446,8 +262,6 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
     );
   }
 
-  // loading — Melo curious + a line, never a spinner (per the hard rule + STATES.md). A calm,
-  // centred holding moment while the hub settles.
   if (state === 'loading') {
     return (
       <View
@@ -458,32 +272,31 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
     );
   }
 
-  // populated / offline — the real hub. offline ≡ populated (local-first; nothing here needs the
-  // network). The static root keeps the persistent tab shell stable throughout long scrolling.
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
       <ScrollView
+        accessibilityLabel="More"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
           {
-            paddingTop: insets.top + gap.lg,
-            paddingBottom: insets.bottom + gap.xxl,
+            // The shell begins behind Android's status bar. Source product content starts 8px
+            // below the status area, so the physical inset and mt-2 are both owned here.
+            paddingTop: insets.top + gap.sm,
+            paddingBottom: gap.xl,
           },
         ]}
       >
-        {/* Header — the app wordmark (font-display italic 14px, from the deck so the brand renames
-            in ONE place) + a 20px balance spacer (web wordmark span; not a button). */}
-        <View style={styles.header}>
-          <Text style={[styles.wordmark, { color: t.ink }]}>{copy.global.app.name}</Text>
-          <View style={styles.balanceSpacer} />
-        </View>
-
-        {/* Hero / intro — Melo avatar (web mood "soft", mapped to "calm" — see FIDELITY DECISIONS)
-            + the eyebrow + the upright accented heading. */}
         <View style={styles.hero}>
-          <Melo size={30} mood="calm" />
-          <View style={styles.heroText}>
+          {/* ScreenMore reserves a 64px semantic companion perch here. The visible companion is a
+              shell-level overlay in Lovable; native does not yet have that shared resolver. Keep
+              the exact anchor geometry without drawing a screen-owned substitute. */}
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={styles.perch}
+          />
+          <View style={styles.heroCopy}>
             <Text style={[styles.eyebrow, { color: t.muted }]}>The quiet hub</Text>
             <Text accessibilityRole="header" style={[styles.heading, { color: t.ink }]}>
               {'Everything else, '}
@@ -493,35 +306,35 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
           </View>
         </View>
 
-        <View style={styles.groups}>
-          {groups.map((group) => (
-            <View key={group.title}>
-              <Text style={[styles.groupTitle, { color: t.muted }]}>{group.title}</Text>
-              <Surface style={[styles.card, { borderColor: t.hairline }]}>
-                {group.rows.map((row, index) => (
-                  <View key={row.label}>
-                    {index > 0 ? <Hairline /> : null}
-                    <MoreRowView nav={nav} row={row} />
-                  </View>
-                ))}
-              </Surface>
+        {sections.map((section) => (
+          <View key={section.eyebrow} style={styles.section}>
+            <Text style={[styles.eyebrow, { color: t.muted }]}>{section.eyebrow}</Text>
+            <Text style={[styles.sectionTitle, { color: t.ink }]} numberOfLines={1}>
+              {section.title}
+            </Text>
+            <View
+              accessibilityLabel={section.accessibilityLabel}
+              style={[styles.list, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            >
+              {section.rows.map((row, index) => (
+                <View key={row.label}>
+                  {index > 0 ? (
+                    <View style={[styles.divider, { backgroundColor: t.hairline }]} />
+                  ) : null}
+                  <MoreRowView nav={nav} row={row} />
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
-
-        {/* Closing reassurance — the verbatim web line. */}
-        <View style={styles.closing}>
-          <MeloLine text="Export any time. Start fresh clears this device, not your account." />
-        </View>
+            {section.note ? (
+              <Text style={[styles.note, { color: t.muted }]}>{section.note}</Text>
+            ) : null}
+          </View>
+        ))}
       </ScrollView>
     </View>
   );
 }
 
-// A single hub row. Press precedence is onPress > sheet > to (the web's onClick > sheet > to). The
-// "→" chevron is a muted Text glyph on every row (including Appearance, which opens its picker). Carries
-// the kit `pressed` feel (scale 0.97 / lowered opacity — the web `press` util) and selection haptics
-// via the kit primitives' convention; the row itself is a >=44px tap target (px-5 py-4).
 function MoreRowView({ nav, row }: { nav: Nav; row: MoreRow }) {
   const t = useTheme();
 
@@ -534,135 +347,133 @@ function MoreRowView({ nav, row }: { nav: Nav; row: MoreRow }) {
       nav.openSheet(row.sheet);
       return;
     }
-    if (row.to) {
-      nav.go(row.to);
-    }
+    if (row.to) nav.go(row.to);
   };
-
-  const labelColor = row.tone === 'negative' ? t.repairInk : t.ink;
 
   return (
     <Pressable
       accessibilityRole="button"
       onPress={handlePress}
-      style={({ pressed: isPressed }) => [styles.row, isPressed ? styles.rowPressed : undefined]}
+      style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : undefined]}
     >
-      <View style={styles.rowText}>
-        <Text style={[styles.rowLabel, { color: labelColor }]}>{row.label}</Text>
-        <Text style={[styles.rowHint, { color: t.muted }]}>{row.hint}</Text>
+      <View style={styles.rowCopy}>
+        <Text style={[styles.rowLabel, { color: t.ink }]} numberOfLines={2}>
+          {row.label}
+        </Text>
+        <Text style={[styles.rowMeta, { color: t.muted }]} numberOfLines={2}>
+          {row.meta}
+        </Text>
       </View>
-      <Text style={[styles.chevron, { color: t.muted }]}>→</Text>
+      <View style={styles.chevron}>
+        <ChevronRight color={t.muted} />
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  loading: {
-    flex: 1,
-    // px-7 ≈ gap.xl (the StartScreen precedent for the web's 28px screen inset).
-    paddingHorizontal: gap.xl,
-  },
-  // The scroll content column. px-7 ≈ gap.xl screen inset.
+  root: { flex: 1 },
+  loading: { flex: 1, paddingHorizontal: gap.xl },
   content: {
     paddingHorizontal: gap.xl,
   },
-  // Header row — wordmark left, balance spacer right (web flex items-center justify-between).
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  // Fraunces italic wordmark, 14px (web font-display italic text-[14px]).
-  wordmark: {
-    fontFamily: serif.displayItalic,
-    fontSize: 14,
-  },
-  // The web w-5 (20px) balance spacer — keeps the wordmark left-aligned. Not interactive.
-  balanceSpacer: {
-    width: BALANCE_SPACER,
-  },
-  // mt-6 (24px) = gap.xl; gap-3 (12px) = gap.md between Melo and the text; items-start.
+  // Source: mt-2 flex items-start gap-4; the 64px perch and text column form the whole hero.
   hero: {
     alignItems: 'flex-start',
-    columnGap: gap.md,
+    columnGap: gap.lg,
     flexDirection: 'row',
-    marginTop: gap.xl,
   },
-  heroText: {
+  perch: {
+    flexShrink: 0,
+    height: 64,
+    width: 64,
+  },
+  heroCopy: {
     flex: 1,
+    minWidth: 0,
+    paddingTop: gap.xs,
   },
-  // Fraunces italic eyebrow, 13px, muted (web font-display italic text-[13px] text-muted-ink).
+  // Source Eyebrow: 11 / 1.5, uppercase, 0.14em tracking.
   eyebrow: {
-    fontFamily: serif.displayItalic,
-    fontSize: 13,
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    lineHeight: 16.5,
+    textTransform: 'uppercase',
   },
-  // Fraunces hero, 30px, tight line-height (web font-display text-[30px] leading-[1.05]); mt-1 (4px).
+  // Source TYPE.display: 28 / 1.15, Fraunces 400. Web applies the family tracking (-0.02em).
   heading: {
     fontFamily: serif.display,
-    fontSize: 30,
-    lineHeight: 32,
+    fontSize: 28,
+    letterSpacing: -0.56,
+    lineHeight: 32.2,
     marginTop: gap.xs,
   },
-  // The accent word "calmly" stays UPRIGHT (web em.not-italic) — same display face, normal style.
   headingAccent: {
     fontFamily: serif.display,
     fontStyle: 'normal',
   },
-  // mt-7 (28px) ≈ gap.xl; space-y-6 (24px) = gap.xl between groups.
-  groups: {
-    marginTop: gap.xl,
-    rowGap: gap.xl,
+  // Default Section rank is secondary: exactly 32px above every section.
+  section: {
+    marginTop: gap.xxl,
   },
-  // Group title — 11px, uppercase, tracked (web text-[11px] uppercase tracking-[0.16em]); mb-2 (8px)
-  // = gap.sm; px-1 (4px) = gap.xs.
-  groupTitle: {
-    fontSize: 11,
-    letterSpacing: 1.6,
-    marginBottom: gap.sm,
-    paddingHorizontal: gap.xs,
-    textTransform: 'uppercase',
+  // Source TYPE.bodyLarge: Inter Tight 500, 16 / 1.5, mt-1.
+  sectionTitle: {
+    fontFamily: weightFamily(500),
+    fontSize: 16,
+    lineHeight: 24,
+    marginTop: gap.xs,
   },
-  // The group card — rounded-2xl (radius.xl) hairline surface; overflow hidden clips the row press
-  // highlight to the rounded corners. The 1px hairline border is the web `hairline` outer rule.
-  card: {
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
+  // Source ListGroup: raised surface, 18px radius, 1px hairline, mt-3, px-4.
+  list: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginTop: gap.md,
     overflow: 'hidden',
+    paddingHorizontal: gap.lg,
   },
-  // A row — px-5 (20px) py-4 (16px = gap.lg) flex items-center. ~52px tall: clears the 44px target.
+  divider: {
+    height: 1,
+    width: '100%',
+  },
+  // Source Row: min-h-11, gap-3, py-3. Horizontal inset belongs to ListGroup, not each row.
   row: {
     alignItems: 'center',
+    columnGap: gap.md,
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: gap.lg,
+    minHeight: 44,
+    paddingVertical: gap.md,
   },
-  // The kit press feel (web `press` util — scale 0.97 / lowered opacity).
   rowPressed: {
-    opacity: 0.6,
     transform: [{ scale: 0.97 }],
   },
-  rowText: {
+  rowCopy: {
     flex: 1,
+    minWidth: 0,
   },
-  // 15px medium label (web text-[15px] font-medium).
+  // Source secondary Row: TYPE.body (14 / 1.55), regular weight.
   rowLabel: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 21.7,
   },
-  // 12px muted hint; mt-0.5 (2px) = gap.xxs.
-  rowHint: {
-    fontSize: 12,
-    marginTop: gap.xxs,
+  // Source TYPE.small: 12.5 / 1.5, mt-0.5.
+  rowMeta: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 18.75,
+    marginTop: 2,
   },
-  // The literal "→" glyph in muted ink (web span text-muted-ink "→").
   chevron: {
-    fontSize: 15,
+    alignItems: 'center',
+    height: 18,
+    justifyContent: 'center',
+    width: 18,
   },
-  // mt-6 (24px) = gap.xl; the bottom inset on the scroll content clears the tab bar (web mb-8).
-  closing: {
-    marginTop: gap.xl,
+  note: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 18.75,
+    marginTop: gap.md,
   },
 });
