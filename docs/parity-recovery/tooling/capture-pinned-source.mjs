@@ -47,8 +47,19 @@ if (theme !== 'light' && theme !== 'dark') throw new Error(`Unsupported theme: $
 const fixtureManifest = JSON.parse(await readFile(FIXTURE_PATH, 'utf8'));
 const fixture = fixtureManifest.fixtures[fixtureId];
 if (fixture === undefined) throw new Error(`Unknown fixture: ${fixtureId}`);
-if (fixture.kind !== 'personal' && fixture.kind !== 'business-empty') {
+if (
+  fixture.kind !== 'personal' &&
+  fixture.kind !== 'business-empty' &&
+  fixture.kind !== 'business-sole-trader' &&
+  fixture.kind !== 'business-ltd'
+) {
   throw new Error(`Source capture currently supports personal fixtures, not ${fixture.kind}.`);
+}
+
+const isBusinessFixture = fixture.kind.startsWith('business-');
+const businessState = fixtureManifest.designAdapter.businessStates?.[fixtureId] ?? null;
+if (isBusinessFixture && fixture.kind !== 'business-empty' && businessState === null) {
+  throw new Error(`No pinned-source Business adapter exists for fixture: ${fixtureId}`);
 }
 
 const actualSha = execFileSync('git', ['rev-parse', 'HEAD'], {
@@ -121,7 +132,7 @@ try {
   });
 
   await context.addInitScript(
-    ({ nowISO, captureTheme }) => {
+    ({ nowISO, captureTheme, captureIsBusinessFixture, captureBusinessState }) => {
       const NativeDate = Date;
       const fixedTime = NativeDate.parse(nowISO);
       const FixedDate = new Proxy(NativeDate, {
@@ -137,13 +148,25 @@ try {
       window.Date = FixedDate;
       localStorage.setItem('folio-theme', captureTheme);
       localStorage.setItem('folio-sound-enabled', 'false');
+      if (captureIsBusinessFixture) {
+        if (captureBusinessState === null) {
+          localStorage.removeItem('folio.business.entity.v1');
+        } else {
+          localStorage.setItem('folio.business.entity.v1', JSON.stringify(captureBusinessState));
+        }
+      }
       let seed = 0x6d656c6f;
       Math.random = () => {
         seed = (seed * 1664525 + 1013904223) >>> 0;
         return seed / 0x1_0000_0000;
       };
     },
-    { nowISO: fixtureManifest.nowISO, captureTheme: theme },
+    {
+      nowISO: fixtureManifest.nowISO,
+      captureTheme: theme,
+      captureIsBusinessFixture: isBusinessFixture,
+      captureBusinessState: businessState,
+    },
   );
 
   const page = await context.newPage();
@@ -168,125 +191,125 @@ try {
   const locator = page.locator(`[data-folio-screen="${screen}"]`);
   await locator.waitFor({ state: 'visible' });
 
-  const engine =
-    fixture.kind === 'business-empty'
-      ? await page.evaluate(() => ({
+  const engine = isBusinessFixture
+    ? await page.evaluate(() => {
+        const persisted = localStorage.getItem('folio.business.entity.v1');
+        return {
           state: {
-            businessState: 'empty',
-            persistedBusinessState: localStorage.getItem('folio.business.entity.v1'),
+            businessState: persisted === null ? 'empty' : 'populated',
+            persistedBusinessState: persisted === null ? null : JSON.parse(persisted),
           },
           events: [],
           route: null,
-        }))
-      : await page.evaluate(
-          async ({ canonicalFixture, defaults, nowISO }) => {
-            const store = await import('/src/lib/store.ts');
-            const calendar = await import('/src/lib/calendar-events.ts');
-            const subscriptions = canonicalFixture.subscriptions.map((row) => ({
-              name: row.name,
-              cost: row.cost,
-              nextRenewalDaysAway: row.daysAway,
-              lastUsedDaysAgo: 0,
-              usesPerMonth: 1,
-            }));
-            const patch = {
-              pots: canonicalFixture.pots ?? [],
-              subs: subscriptions,
-              subPaused: {},
-              subOverrides: [],
-              cycles: [],
-              onboarding: {
-                done: true,
-                name: defaults.name,
-                payday: canonicalFixture.payday,
-                monthlyIncome: canonicalFixture.income,
-                weekendRule: 'previous',
-                paydayCadence: 'monthly',
-                primerSeen: true,
-                incomeStreams: [],
-                persona: 'personal',
-                createdAt: nowISO,
-              },
-              currentBalance: {
-                amount: canonicalFixture.balance,
-                source: canonicalFixture.balanceSource,
-                confidence: canonicalFixture.confidence,
-                setAt: nowISO,
-              },
-              potLedger: [],
-              transactions: defaults.transactions,
-              calendarEvents: [],
-              tightPointGoal: null,
-              moneyMode: 'survival',
-              bufferAmount: 100,
-              debts: canonicalFixture.debts ?? [],
-              plans: canonicalFixture.plans ?? [],
-              spendHold: null,
-              whatIfHolds: [],
-            };
-            store.applyPreviewOverlay(patch);
-            const nativeRandom = Math.random;
-            let seed = defaults.randomSeed >>> 0;
-            Math.random = () => {
-              seed = (seed * 1664525 + 1013904223) >>> 0;
-              return seed / 0x1_0000_0000;
-            };
-            try {
-              store.enqueueReviewItems(
-                (canonicalFixture.reviewItems ?? []).map(
-                  ({ category: _category, ...item }) => item,
-                ),
-              );
-            } finally {
-              Math.random = nativeRandom;
-            }
-            const state = store.getState();
-            const events = calendar.deriveCalendarEvents({
-              subs: state.subs,
-              subPaused: state.subPaused,
-              subOverrides: state.subOverrides,
-              onboarding: state.onboarding,
-              manualEvents: state.calendarEvents,
-              pots: state.pots,
-              spendHold: state.spendHold,
-              whatIfHolds: state.whatIfHolds,
-              windowDays: 35,
-              now: new Date(nowISO),
-            });
-            const routeResult = calendar.computeSpareAndTightest(
-              calendar.groupByDay(events),
-              state.currentBalance.amount,
-            );
-            return {
-              state: {
-                balance: state.currentBalance,
-                onboarding: state.onboarding,
-                subscriptions: state.subs,
-                pots: state.pots,
-                debts: state.debts,
-                plans: state.plans,
-                reviewQueue: state.reviewQueue,
-                transactionCount: state.transactions.length,
-                manualEventCount: state.calendarEvents.length,
-              },
-              events: events.map(({ date, title, amount, source }) => ({
-                date,
-                title,
-                amount,
-                source,
-              })),
-              route: routeResult,
-            };
-          },
-          {
-            canonicalFixture: fixture,
-            defaults: {
-              ...fixtureManifest.personalDefaults,
-              randomSeed: fixtureManifest.randomSeed,
+        };
+      })
+    : await page.evaluate(
+        async ({ canonicalFixture, defaults, nowISO }) => {
+          const store = await import('/src/lib/store.ts');
+          const calendar = await import('/src/lib/calendar-events.ts');
+          const subscriptions = canonicalFixture.subscriptions.map((row) => ({
+            name: row.name,
+            cost: row.cost,
+            nextRenewalDaysAway: row.daysAway,
+            lastUsedDaysAgo: 0,
+            usesPerMonth: 1,
+          }));
+          const patch = {
+            pots: canonicalFixture.pots ?? [],
+            subs: subscriptions,
+            subPaused: {},
+            subOverrides: [],
+            cycles: [],
+            onboarding: {
+              done: true,
+              name: defaults.name,
+              payday: canonicalFixture.payday,
+              monthlyIncome: canonicalFixture.income,
+              weekendRule: 'previous',
+              paydayCadence: 'monthly',
+              primerSeen: true,
+              incomeStreams: [],
+              persona: 'personal',
+              createdAt: nowISO,
             },
-            nowISO: fixtureManifest.nowISO,
+            currentBalance: {
+              amount: canonicalFixture.balance,
+              source: canonicalFixture.balanceSource,
+              confidence: canonicalFixture.confidence,
+              setAt: nowISO,
+            },
+            potLedger: [],
+            transactions: defaults.transactions,
+            calendarEvents: [],
+            tightPointGoal: null,
+            moneyMode: 'survival',
+            bufferAmount: 100,
+            debts: canonicalFixture.debts ?? [],
+            plans: canonicalFixture.plans ?? [],
+            spendHold: null,
+            whatIfHolds: [],
+          };
+          store.applyPreviewOverlay(patch);
+          const nativeRandom = Math.random;
+          let seed = defaults.randomSeed >>> 0;
+          Math.random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+          };
+          try {
+            store.enqueueReviewItems(
+              (canonicalFixture.reviewItems ?? []).map(({ category: _category, ...item }) => item),
+            );
+          } finally {
+            Math.random = nativeRandom;
+          }
+          const state = store.getState();
+          const events = calendar.deriveCalendarEvents({
+            subs: state.subs,
+            subPaused: state.subPaused,
+            subOverrides: state.subOverrides,
+            onboarding: state.onboarding,
+            manualEvents: state.calendarEvents,
+            pots: state.pots,
+            spendHold: state.spendHold,
+            whatIfHolds: state.whatIfHolds,
+            windowDays: 35,
+            now: new Date(nowISO),
+          });
+          const routeResult = calendar.computeSpareAndTightest(
+            calendar.groupByDay(events),
+            state.currentBalance.amount,
+          );
+          return {
+            state: {
+              balance: state.currentBalance,
+              onboarding: state.onboarding,
+              subscriptions: state.subs,
+              pots: state.pots,
+              debts: state.debts,
+              plans: state.plans,
+              reviewQueue: state.reviewQueue,
+              transactionCount: state.transactions.length,
+              manualEventCount: state.calendarEvents.length,
+            },
+            events: events.map(({ date, title, amount, source }) => ({
+              date,
+              title,
+              amount,
+              source,
+            })),
+            route: routeResult,
+          };
+        },
+        {
+          canonicalFixture: fixture,
+          defaults: {
+            ...fixtureManifest.personalDefaults,
+            randomSeed: fixtureManifest.randomSeed,
           },
-        );
+          nowISO: fixtureManifest.nowISO,
+        },
+      );
 
   await page.addStyleTag({
     content: [
@@ -430,10 +453,11 @@ try {
     productViewportCssPx: PRODUCT,
     sourceOuterFramePhysicalPx: { width: 1104, height: 2160 },
     productViewportPhysicalPx: { width: 1080, height: 2004 },
-    fixtureAdapter:
-      fixture.kind === 'business-empty'
+    fixtureAdapter: isBusinessFixture
+      ? fixture.kind === 'business-empty'
         ? 'Fresh browser storage is paired with an active, empty native Business partition named Business.'
-        : fixtureManifest.designAdapter.note,
+        : 'The pinned source receives the source-model projection of the native Business acceptance fixture before React hydration. Amounts are converted from native minor units to source major units; the native capture still builds its state through the real Business engines.'
+      : fixtureManifest.designAdapter.note,
     engine,
     semanticGeometry,
     pageErrors,

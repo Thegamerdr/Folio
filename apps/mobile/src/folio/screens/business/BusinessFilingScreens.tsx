@@ -6,6 +6,7 @@ import type { BusinessFilingKind } from '@folio/business-workspace';
 import {
   buildBusinessFilingWorkingCopy,
   shareBusinessFilingPdf,
+  type BusinessFilingWorkingCopy,
 } from '@/folio/lib/businessFilingExport';
 import { gap, serif, useTheme, weightFamily } from '@/folio/theme';
 import { updateBusinessOperations } from '@/folio/store';
@@ -250,6 +251,166 @@ function BusinessFilingsEmpty({ nav }: { nav: Nav }) {
   );
 }
 
+function AnnualAccountsWorkingCopy({
+  accountsDue,
+  confirmed,
+  copy,
+  nav,
+  onConfirmedChange,
+  onExternal,
+  onShare,
+  shareError,
+  sharing,
+  tradingProfitMinor,
+  yearEnd,
+}: {
+  accountsDue: string;
+  confirmed: boolean;
+  copy: BusinessFilingWorkingCopy;
+  nav: Nav;
+  onConfirmedChange: (confirmed: boolean) => void;
+  onExternal: () => void;
+  onShare: () => void;
+  shareError: string | null;
+  sharing: boolean;
+  tradingProfitMinor: number;
+  yearEnd: string;
+}) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const period = `YE ${formatLongBusinessDate(yearEnd)}`;
+  const figures = [
+    { label: 'Company', value: copy.entityName },
+    {
+      label: 'Number',
+      value: copy.rows.find((row) => row.label === 'Company number')?.value ?? 'Not recorded',
+    },
+    { label: 'Year end', value: formatLongBusinessDate(yearEnd) },
+    { label: 'Trading profit', value: formatMinor(tradingProfitMinor) },
+  ];
+
+  return (
+    <View style={[styles.annualRoot, { backgroundColor: t.canvas }]}>
+      <View
+        style={[
+          styles.annualHeader,
+          {
+            backgroundColor: t.surface,
+            height: insets.top + 72,
+            paddingTop: insets.top,
+          },
+        ]}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.annualBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.annualBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+        <Text accessibilityRole="header" style={[styles.annualScreenTitle, { color: t.ink }]}>
+          Annual accounts
+        </Text>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[styles.annualContent, { paddingBottom: insets.bottom + gap.xxxl }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.annualEyebrow, { color: t.muted }]}>Annual accounts · {period}</Text>
+        <Text accessibilityRole="header" style={[styles.annualHeadline, { color: t.ink }]}>
+          Get annual accounts ready for <Text style={{ color: t.calm }}>{period}</Text>.
+        </Text>
+        <Text style={[styles.annualIntro, { color: t.muted }]}>
+          Due {formatLongBusinessDate(accountsDue)}. Micro-entity accounts to Companies House.
+        </Text>
+
+        <View style={styles.annualSection}>
+          <Text style={[styles.annualEyebrow, { color: t.muted }]}>The figures</Text>
+          <Text style={[styles.annualSectionTitle, { color: t.ink }]}>
+            What Melo has worked out
+          </Text>
+          <View
+            accessibilityLabel="Figures for this filing"
+            style={[styles.annualFigures, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          >
+            {figures.map((row, index) => (
+              <View
+                key={row.label}
+                style={[
+                  styles.annualFigureRow,
+                  index > 0
+                    ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
+                    : undefined,
+                ]}
+              >
+                <Text style={[styles.annualFigureLabel, { color: t.ink }]}>{row.label}</Text>
+                <Text style={[styles.annualFigureValue, { color: t.ink }]}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.annualActions}>
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: confirmed }}
+            onPress={() => onConfirmedChange(!confirmed)}
+            style={({ pressed }) => [
+              styles.annualConfirmation,
+              { backgroundColor: t.inset, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <View
+              style={[
+                styles.annualCheckbox,
+                {
+                  backgroundColor: confirmed ? t.calm : 'transparent',
+                  borderColor: confirmed ? t.calm : t.muted,
+                },
+              ]}
+            >
+              {confirmed ? <Text style={[styles.annualCheck, { color: t.surface }]}>✓</Text> : null}
+            </View>
+            <Text style={[styles.annualConfirmationLabel, { color: t.ink }]}>
+              I've checked the numbers and they look right. Melo will pack them for Companies House
+              — I'll send them myself.
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={!confirmed || sharing}
+            onPress={onShare}
+            style={({ pressed }) => [
+              styles.annualPrimary,
+              {
+                backgroundColor: t.calmStrong,
+                opacity: !confirmed || sharing ? 0.4 : pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.annualPrimaryLabel, { color: t.surface }]}>
+              {sharing ? 'Creating PDF…' : 'Prepare the Companies House pack'}
+            </Text>
+          </Pressable>
+          <Text style={[styles.annualDisclaimer, { color: t.muted }]}>
+            Melo has no connection to Companies House. This prepares and keeps the figures so you
+            can send them in recognised software, on the Companies House service, or through your
+            accountant.
+          </Text>
+          {shareError ? (
+            <View style={[styles.error, { backgroundColor: t.repairSoft }]}>
+              <Text style={[styles.errorText, { color: t.repairInk }]}>{shareError}</Text>
+            </View>
+          ) : null}
+          <BusinessSecondaryAction label="Record a real external submission" onPress={onExternal} />
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
 export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; route: FilingRoute }) {
   const t = useTheme();
   const business = useBusinessOperations();
@@ -261,6 +422,7 @@ export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; rout
   const [reference, setReference] = useState('');
   const [submittedOn, setSubmittedOn] = useState(new Date().toISOString().slice(0, 10));
   const [selfAssessmentOpen, setSelfAssessmentOpen] = useState(false);
+  const [annualConfirmed, setAnnualConfirmed] = useState(false);
   const [profit, setProfit] = useState((business.ytdProfitMinor / 100).toString());
   const [transitionRemaining, setTransitionRemaining] = useState(
     business.basisPeriodTransition
@@ -388,6 +550,49 @@ export function BusinessFilingWorkingCopyScreen({ nav, route }: { nav: Nav; rout
     });
     setSelfAssessmentOpen(false);
   };
+
+  if (copy.kind === 'annual-accounts' && business.entity?.kind === 'ltd') {
+    const accountsDue =
+      copy.rows.find((row) => row.label === 'Accounts due')?.value ?? business.entity.yearEnd;
+    return (
+      <>
+        <AnnualAccountsWorkingCopy
+          accountsDue={accountsDue}
+          confirmed={annualConfirmed}
+          copy={copy}
+          nav={nav}
+          onConfirmedChange={setAnnualConfirmed}
+          onExternal={() => setExternalOpen(true)}
+          onShare={() => void share()}
+          shareError={shareError}
+          sharing={sharing}
+          tradingProfitMinor={business.ytdProfitMinor}
+          yearEnd={business.entity.yearEnd}
+        />
+        <BusinessFormSheet
+          onClose={() => setExternalOpen(false)}
+          onPrimary={recordExternalSubmission}
+          primaryDisabled={!reference.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(submittedOn)}
+          primaryLabel="Record submission"
+          title={`Submitted to ${copy.authority}`}
+          visible={externalOpen}
+        >
+          <BusinessField
+            label="Official reference"
+            onChangeText={setReference}
+            placeholder="Reference from the authority"
+            value={reference}
+          />
+          <BusinessField
+            label="Submitted · YYYY-MM-DD"
+            onChangeText={setSubmittedOn}
+            placeholder="2026-07-18"
+            value={submittedOn}
+          />
+        </BusinessFormSheet>
+      </>
+    );
+  }
 
   return (
     <>
@@ -520,6 +725,18 @@ function kindForRoute(route: FilingRoute): BusinessFilingKind {
   return 'annual-accounts';
 }
 
+function formatLongBusinessDate(iso: string): string {
+  const date = new Date(`${iso}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        timeZone: 'UTC',
+        year: 'numeric',
+      })
+    : iso;
+}
+
 function filingLabel(kind: BusinessFilingKind): string {
   if (kind === 'vat') return 'VAT return';
   if (kind === 'self-assessment') return 'Self-Assessment';
@@ -548,6 +765,108 @@ function missingCopyReason(
 }
 
 const styles = StyleSheet.create({
+  annualRoot: { flex: 1 },
+  annualHeader: { alignItems: 'center', flexDirection: 'row' },
+  annualBack: {
+    alignItems: 'flex-start',
+    bottom: 14,
+    height: 44,
+    justifyContent: 'center',
+    left: 16,
+    position: 'absolute',
+    width: 44,
+  },
+  annualBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  annualScreenTitle: { fontFamily: weightFamily(600), fontSize: 16, marginLeft: 76 },
+  annualContent: { paddingHorizontal: gap.xl, paddingTop: gap.xs },
+  annualEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    lineHeight: 16,
+    textTransform: 'uppercase',
+  },
+  annualHeadline: {
+    fontFamily: serif.display,
+    fontSize: 20,
+    letterSpacing: -0.4,
+    lineHeight: 25,
+    marginTop: gap.sm,
+  },
+  annualIntro: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: gap.lg,
+  },
+  annualSection: { marginTop: 36 },
+  annualSectionTitle: {
+    fontFamily: weightFamily(600),
+    fontSize: 16,
+    lineHeight: 22,
+    marginTop: gap.sm,
+  },
+  annualFigures: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.lg,
+    paddingHorizontal: gap.lg,
+  },
+  annualFigureRow: { alignItems: 'center', flexDirection: 'row', minHeight: 46 },
+  annualFigureLabel: {
+    flex: 1,
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    paddingRight: gap.md,
+  },
+  annualFigureValue: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 20,
+    maxWidth: '64%',
+    textAlign: 'right',
+  },
+  annualActions: { marginTop: 36 },
+  annualConfirmation: {
+    alignItems: 'flex-start',
+    borderRadius: 18,
+    flexDirection: 'row',
+    padding: gap.lg,
+  },
+  annualCheckbox: {
+    alignItems: 'center',
+    borderRadius: 2,
+    borderWidth: 1,
+    height: 20,
+    justifyContent: 'center',
+    marginTop: 2,
+    width: 20,
+  },
+  annualCheck: { fontFamily: weightFamily(600), fontSize: 13 },
+  annualConfirmationLabel: {
+    flex: 1,
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginLeft: gap.md,
+  },
+  annualPrimary: {
+    alignItems: 'center',
+    borderRadius: 18,
+    justifyContent: 'center',
+    marginTop: gap.md,
+    minHeight: 48,
+    paddingHorizontal: gap.lg,
+  },
+  annualPrimaryLabel: { fontFamily: weightFamily(600), fontSize: 14 },
+  annualDisclaimer: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: gap.md,
+  },
   filingsEmptyRoot: { flex: 1 },
   filingsEmptyHeader: {
     alignItems: 'center',
