@@ -128,7 +128,7 @@ for (const batch of manifest.batches) {
       const deepLink = `folio://parity?screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&theme=${theme}`;
       run(adb, [
         '-s', deviceId, 'shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW',
-        '-d', deepLink, PACKAGE,
+        '-d', `'${deepLink}'`, '-p', PACKAGE,
       ]);
       await wait(manifest.settleMs ?? 900);
       const png = run(adb, ['-s', deviceId, 'exec-out', 'screencap', '-p'], { encoding: null });
