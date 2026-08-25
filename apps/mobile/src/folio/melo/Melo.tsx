@@ -49,7 +49,9 @@ import Svg, {
 
 import { useTheme, type Palette } from '@/surfaces/pressureMap/kit';
 
-const feniceMaster = require('./assets/fenice-a-plus-master-square.png');
+// Lossless Android-safe encoding of the byte-identical pinned master beside it. The decoded RGBA
+// pixels are identical; the original file stays in-repo as the immutable provenance artifact.
+const feniceMaster = require('./assets/fenice-a-plus-master-square-android.png');
 
 // ---------------------------------------------------------------------------
 // Public API
