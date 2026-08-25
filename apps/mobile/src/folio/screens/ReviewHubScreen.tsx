@@ -1,25 +1,24 @@
-// ReviewHubScreen — the stable Review destination for the native tab.
+// ReviewHubScreen — pinned-source owner:
+// private-money-pilot/src/components/folio/screens/ScreenReviewHub.tsx @ ad90b4f.
 //
-// ReviewScreen remains the one-candidate, review-before-truth detail. This hub keeps its three
-// jobs together without turning them into an admin table: Needs you (proposals still waiting for a
-// decision), Activity (what has actually landed), and Decisions (ignored items and immutable
-// corrections). Pending proposals never appear in the confirmed history projections.
+// The Review tab is deliberately a small composition: one canonical segmented control and the
+// existing one-decision Review surface mounted in place. It is not a second queue dashboard.
 
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
-import { MeloLine } from '@/folio/melo/MeloLine';
-import { ScreenHeader } from '@/folio/ui/ScreenHeader';
-import { useAppStore } from '@/folio/store';
+import { useCaughtSubs } from '@/folio/lib/caughtSubs';
 import {
   buildDecisionHistoryRows,
-  buildPendingReviewRows,
   type DecisionHistoryKind,
   type DecisionHistoryRow,
 } from '@/folio/lib/reviewHistory';
+import { ReviewScreen } from '@/folio/screens/ReviewScreen';
 import { formatGBP } from '@/folio/screens/today/format';
+import { useAppStore } from '@/folio/store';
+import { gap, radius, serif, useTheme } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 
 type ReviewHubTab = 'needs' | 'activity' | 'decisions';
@@ -59,43 +58,82 @@ function formatValue(value: string | number | undefined): string {
   return value;
 }
 
-function DecisionRow({
-  row,
-  styles: s,
+function Chevron({ color }: { color: string }) {
+  return (
+    <Svg accessibilityElementsHidden width={16} height={16} viewBox="0 0 16 16">
+      <Path
+        d="M6 3.5 10.5 8 6 12.5"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.4}
+      />
+    </Svg>
+  );
+}
+
+function DestinationLine({
+  label,
+  meta,
   onPress,
 }: {
-  row: DecisionHistoryRow;
-  styles: ReturnType<typeof makeStyles>;
-  onPress: (() => void) | undefined;
+  label: string;
+  meta: string;
+  onPress?: () => void;
 }) {
   const t = useTheme();
-  const body =
-    row.kind === 'edited' && row.field !== undefined
-      ? `${row.field} · ${formatValue(row.before)} → ${formatValue(row.after)}`
-      : row.note;
-  const content = (
-    <>
-      <View style={s.rowMain}>
-        <Text numberOfLines={1} style={[s.rowTitle, { color: t.ink }]}>
-          {row.title}
-        </Text>
-        <Text style={[s.rowMeta, { color: t.muted }]}>
-          {kindLabel(row.kind)} · {formatWhen(row.at)}
-        </Text>
-      </View>
-      {body !== undefined ? <Text style={[s.rowDetail, { color: t.muted }]}>{body}</Text> : null}
-    </>
-  );
-  if (onPress === undefined) return <View style={s.row}>{content}</View>;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${kindLabel(row.kind)} ${row.title}`}
-      accessibilityHint="Opens this entry so you can inspect or correct it"
+      accessibilityLabel={label}
+      disabled={onPress === undefined}
       onPress={onPress}
-      style={({ pressed }) => [s.row, pressed ? s.pressed : undefined]}
+      style={({ pressed }) => [styles.destination, pressed ? styles.pressed : undefined]}
     >
-      {content}
+      <View style={styles.destinationCopy}>
+        <Text style={[styles.destinationLabel, { color: t.ink }]}>{label}</Text>
+        <Text numberOfLines={1} style={[styles.destinationMeta, { color: t.muted }]}>
+          {meta}
+        </Text>
+      </View>
+      <Chevron color={t.muted} />
+    </Pressable>
+  );
+}
+
+function HistoryRow({
+  row,
+  onPress,
+}: {
+  row: DecisionHistoryRow;
+  onPress: (() => void) | undefined;
+}) {
+  const t = useTheme();
+  const detail =
+    row.kind === 'edited' && row.field !== undefined
+      ? `${row.field} · ${formatValue(row.before)} → ${formatValue(row.after)}`
+      : row.note;
+  return (
+    <Pressable
+      accessibilityRole={onPress ? 'button' : undefined}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => [styles.historyRow, pressed ? styles.pressed : undefined]}
+    >
+      <View style={styles.historyMain}>
+        <Text numberOfLines={1} style={[styles.historyTitle, { color: t.ink }]}>
+          {row.title}
+        </Text>
+        {detail ? (
+          <Text numberOfLines={1} style={[styles.historyDetail, { color: t.muted }]}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+      <Text style={[styles.historyWhen, { color: t.muted }]}>
+        {kindLabel(row.kind)} · {formatWhen(row.at)}
+      </Text>
     </Pressable>
   );
 }
@@ -103,295 +141,215 @@ function DecisionRow({
 export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const s = useMemo(() => makeStyles(t), [t]);
   const [tab, setTab] = useState<ReviewHubTab>('needs');
-  const queue = useAppStore((state) => state.reviewQueue ?? []);
-  const hiddenCount = useAppStore((state) => (state.ignoredReviewSigs ?? []).length);
+  const queueCount = useAppStore((state) => state.reviewQueue?.length ?? 0);
+  const hiddenCount = useAppStore((state) => state.ignoredReviewSigs?.length ?? 0);
   const transactions = useAppStore((state) => state.transactions);
   const edits = useAppStore((state) => state.edits ?? []);
   const events = useAppStore((state) => state.timelineEvents ?? []);
-  const pending = useMemo(() => buildPendingReviewRows(queue), [queue]);
+  const caught = useCaughtSubs()[0];
   const history = useMemo(
     () => buildDecisionHistoryRows({ transactions, edits, events }),
     [transactions, edits, events],
   );
-  const activity = useMemo(
-    () => history.filter((row) => row.kind === 'added' || row.kind === 'edited'),
-    [history],
+  const visibleHistory = useMemo(
+    () =>
+      tab === 'activity'
+        ? history.filter((row) => row.kind === 'added' || row.kind === 'edited')
+        : history.filter((row) => row.kind !== 'added'),
+    [history, tab],
   );
-  const decisions = useMemo(() => history.filter((row) => row.kind !== 'added'), [history]);
 
   return (
-    <View style={[s.root, { backgroundColor: t.canvas }]}>
-      <ScrollView
-        contentContainerStyle={[
-          s.content,
-          { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.xxxl },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <ScreenHeader
-          onBack={nav.back}
-          eyebrow="Review"
-          arrow="text"
-          spacerWidth={20}
-          backHitWidth={20}
-          backHitHeight={0}
-          eyebrowTracking={1.68}
-        />
-
-        <View style={s.intro}>
-          <Text accessibilityRole="header" style={[s.headline, { color: t.ink }]}>
-            A calm place to check, change, and choose.
-          </Text>
-          <Text style={[s.subhead, { color: t.muted }]}>
-            Proposals wait here. Confirmed activity and your decisions stay in their own history.
-          </Text>
-        </View>
-
-        <View accessibilityRole="tablist" style={[s.tabs, { borderColor: t.hairline }]}>
+    <View style={[styles.root, { backgroundColor: t.canvas, paddingTop: insets.top + gap.lg }]}>
+      <View style={styles.segmentInset}>
+        <View
+          accessibilityLabel="Review destinations"
+          accessibilityRole="tablist"
+          style={[styles.segmented, { backgroundColor: t.inset }]}
+        >
           {TAB_LABELS.map(({ key, label }) => {
             const selected = tab === key;
-            const count =
-              key === 'needs' ? pending.length : key === 'decisions' ? decisions.length : undefined;
             return (
               <Pressable
                 key={key}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
-                accessibilityLabel={count === undefined ? label : `${label}, ${count}`}
                 onPress={() => setTab(key)}
                 style={({ pressed }) => [
-                  s.tab,
-                  selected ? { backgroundColor: t.ink } : undefined,
-                  pressed ? s.pressed : undefined,
+                  styles.segment,
+                  selected
+                    ? {
+                        backgroundColor: t.surface,
+                        borderColor: t.hairline,
+                        borderWidth: StyleSheet.hairlineWidth,
+                      }
+                    : undefined,
+                  pressed ? styles.pressed : undefined,
                 ]}
               >
-                <Text style={[s.tabLabel, { color: selected ? t.canvas : t.muted }]}>{label}</Text>
-                {count !== undefined ? (
-                  <Text style={[s.tabCount, { color: selected ? t.canvas : t.muted }]}>
-                    {count}
-                  </Text>
-                ) : null}
+                <Text
+                  numberOfLines={1}
+                  style={[styles.segmentLabel, { color: selected ? t.ink : t.muted }]}
+                >
+                  {label}
+                  {key === 'needs' && queueCount > 0 ? (
+                    <Text style={[styles.segmentCount, { color: t.muted }]}> {queueCount}</Text>
+                  ) : null}
+                </Text>
               </Pressable>
             );
           })}
         </View>
+      </View>
 
-        {tab === 'needs' ? (
-          <View style={s.section}>
-            <Text style={[s.sectionLabel, { color: t.muted }]}>Waiting for your decision</Text>
-            {pending.length === 0 ? (
-              <View style={[s.empty, { borderTopColor: t.hairline }]}>
-                <Text style={[s.emptyTitle, { color: t.ink }]}>Nothing waiting to be checked.</Text>
-                <Text style={[s.emptyBody, { color: t.muted }]}>
-                  When Melo finds something new, it will show up here first.
+      {tab === 'needs' ? (
+        <View style={styles.screenHost}>
+          {caught ? (
+            <View style={styles.caughtBlock}>
+              <View style={[styles.pressureNote, { borderLeftColor: t.caution }]}>
+                <Text style={[styles.eyebrow, { color: t.muted }]}>
+                  Looks like a repeating charge
                 </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => nav.go('intake')}
-                  style={s.linkButton}
-                >
-                  <Text style={[s.linkLabel, { color: t.calm }]}>Add a statement</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={[s.list, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-                {pending.map((row, index) => (
-                  <Pressable
-                    key={row.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Check ${row.title}`}
-                    accessibilityHint="Opens one proposal for your decision"
-                    onPress={() => nav.go('review-item')}
-                    style={({ pressed }) => [
-                      s.row,
-                      index > 0
-                        ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
-                        : undefined,
-                      pressed ? s.pressed : undefined,
-                    ]}
-                  >
-                    <View style={s.rowMain}>
-                      <Text numberOfLines={1} style={[s.rowTitle, { color: t.ink }]}>
-                        {row.title}
-                      </Text>
-                      <Text style={[s.rowMeta, { color: t.muted }]}>
-                        {row.source} · {row.date ?? formatWhen(row.at)}
-                      </Text>
-                    </View>
-                    <Text style={[s.amount, { color: row.amount >= 0 ? t.positive : t.ink }]}>
-                      {formatGBP(row.amount)}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-            {hiddenCount > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => nav.openSheet('hidden-review')}
-                style={s.quietButton}
-              >
-                <Text style={[s.quietLabel, { color: t.muted }]}>
-                  {hiddenCount} put aside · view hidden
+                <Text style={[styles.pressureBody, { color: t.ink }]}>
+                  {caught.name} — {formatGBP(caught.amount)}, seen {caught.seen} months running.
                 </Text>
-              </Pressable>
-            ) : null}
+              </View>
+              <View style={styles.destinationList}>
+                <DestinationLine
+                  label="Check this charge"
+                  meta="add it to the plan, or wait until you see it again"
+                  onPress={() => nav.openSheet('sub-caught')}
+                />
+              </View>
+            </View>
+          ) : null}
+          <View style={styles.screenHost}>
+            <ReviewScreen embedded nav={nav} />
           </View>
-        ) : null}
-
-        {tab === 'activity' ? (
-          <View style={s.section}>
-            <Text style={[s.sectionLabel, { color: t.muted }]}>Confirmed activity</Text>
-            {activity.length === 0 ? (
-              <View style={[s.empty, { borderTopColor: t.hairline }]}>
-                <Text style={[s.emptyTitle, { color: t.ink }]}>Your activity starts here.</Text>
-                <Text style={[s.emptyBody, { color: t.muted }]}>
-                  Confirmed money will appear newest first.
-                </Text>
-              </View>
-            ) : (
-              <View style={[s.list, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-                {activity.map((row, index) => (
-                  <View
-                    key={row.id}
-                    style={
-                      index > 0
-                        ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
-                        : undefined
-                    }
-                  >
-                    <DecisionRow
-                      row={row}
-                      styles={s}
-                      onPress={
-                        row.transactionId === undefined
-                          ? undefined
-                          : () => nav.openSheet('edit-txn', { id: row.transactionId! })
-                      }
-                    />
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        ) : null}
-
-        {tab === 'decisions' ? (
-          <View style={s.section}>
-            <Text style={[s.sectionLabel, { color: t.muted }]}>What you chose</Text>
-            {decisions.length === 0 ? (
-              <View style={[s.empty, { borderTopColor: t.hairline }]}>
-                <Text style={[s.emptyTitle, { color: t.ink }]}>No decisions recorded yet.</Text>
-                <Text style={[s.emptyBody, { color: t.muted }]}>
-                  Changes and items you put aside will stay here, with the original detail intact.
-                </Text>
-              </View>
-            ) : (
-              <View style={[s.list, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-                {decisions.map((row, index) => (
-                  <View
-                    key={row.id}
-                    style={
-                      index > 0
-                        ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
-                        : undefined
-                    }
-                  >
-                    <DecisionRow
-                      row={row}
-                      styles={s}
-                      onPress={
-                        row.transactionId === undefined
-                          ? undefined
-                          : () => nav.openSheet('edit-txn', { id: row.transactionId! })
-                      }
-                    />
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        ) : null}
-
-        <View style={s.melo}>
-          <MeloLine mood="calm" text="Nothing is counted until you choose it." />
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + gap.xxxl }}
+          showsVerticalScrollIndicator={false}
+          style={styles.screenHost}
+        >
+          <View style={styles.destinationBlock}>
+            {tab === 'activity' ? (
+              <>
+                <Text style={[styles.listEyebrow, { color: t.muted }]}>Everything Melo said</Text>
+                <View style={styles.destinationList}>
+                  <DestinationLine label="Inbox" meta="every whisper in one place" />
+                  <View style={[styles.rule, { backgroundColor: t.hairline }]} />
+                  <DestinationLine
+                    label="Insights"
+                    meta="the shape of your finished months"
+                    onPress={() => nav.go('insights')}
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.listEyebrow, { color: t.muted }]}>Undo and corrections</Text>
+                <View style={styles.destinationList}>
+                  <DestinationLine
+                    label="Hidden items"
+                    meta={hiddenCount ? `${hiddenCount} put aside` : 'nothing hidden'}
+                    onPress={() => nav.openSheet('hidden-review')}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+
+          <View style={styles.timelineInset}>
+            <Text style={[styles.timelineKicker, { color: t.muted }]}>Your log</Text>
+            <Text style={[styles.timelineHeadline, { color: t.ink }]}>
+              Everything you've added or logged.
+            </Text>
+            <Text style={[styles.timelineSubhead, { color: t.muted }]}>
+              Newest first. Nothing is hidden.
+            </Text>
+            <View style={styles.historyList}>
+              {visibleHistory.length ? (
+                visibleHistory.map((row, index) => (
+                  <View key={row.id}>
+                    {index ? <View style={[styles.rule, { backgroundColor: t.hairline }]} /> : null}
+                    <HistoryRow
+                      row={row}
+                      onPress={
+                        row.transactionId
+                          ? () => nav.openSheet('edit-txn', { id: row.transactionId! })
+                          : undefined
+                      }
+                    />
+                  </View>
+                ))
+              ) : (
+                <Text style={[styles.emptyHistory, { color: t.muted }]}>Nothing decided yet.</Text>
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 }
 
-function makeStyles(_t: ReturnType<typeof useTheme>) {
-  return StyleSheet.create({
-    root: { flex: 1 },
-    content: { paddingHorizontal: gap.xl },
-    intro: { marginTop: gap.xl },
-    headline: { fontFamily: serif.display, fontSize: 28, lineHeight: 32, letterSpacing: -0.56 },
-    subhead: { fontSize: 13, lineHeight: 19, marginTop: gap.sm },
-    tabs: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: radius.pill,
-      flexDirection: 'row',
-      gap: gap.xs,
-      marginTop: gap.xl,
-      padding: gap.xs,
-    },
-    tab: {
-      alignItems: 'center',
-      borderRadius: radius.pill,
-      flex: 1,
-      minHeight: 40,
-      justifyContent: 'center',
-      paddingHorizontal: gap.xs,
-    },
-    tabLabel: { fontSize: 11.5, fontWeight: '600' },
-    tabCount: { fontSize: 10.5, marginTop: 1 },
-    section: { marginTop: gap.xl },
-    sectionLabel: {
-      fontSize: 11,
-      fontWeight: '600',
-      letterSpacing: 1.1,
-      textTransform: 'uppercase',
-    },
-    list: {
-      borderRadius: radius.lg,
-      borderWidth: StyleSheet.hairlineWidth,
-      marginTop: gap.sm,
-      overflow: 'hidden',
-    },
-    row: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: gap.md,
-      minHeight: 64,
-      paddingHorizontal: gap.lg,
-      paddingVertical: gap.md,
-    },
-    rowMain: { flex: 1, minWidth: 0 },
-    rowTitle: { fontSize: 14, fontWeight: '600' },
-    rowMeta: { fontSize: 11.5, marginTop: 3 },
-    rowDetail: { fontSize: 11.5, marginTop: 3, textAlign: 'right' },
-    amount: { fontSize: 13.5, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    empty: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: gap.sm, paddingVertical: gap.xl },
-    emptyTitle: { fontFamily: serif.medium, fontSize: 18 },
-    emptyBody: { fontSize: 12.5, lineHeight: 18, marginTop: gap.xs },
-    linkButton: {
-      alignSelf: 'flex-start',
-      minHeight: 44,
-      justifyContent: 'center',
-      marginTop: gap.xs,
-    },
-    linkLabel: { fontSize: 13, fontWeight: '600' },
-    quietButton: {
-      alignSelf: 'flex-start',
-      minHeight: 44,
-      justifyContent: 'center',
-      marginTop: gap.xs,
-    },
-    quietLabel: { fontSize: 12.5 },
-    melo: { marginTop: gap.xxl },
-    pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
-  });
-}
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  segmentInset: { paddingHorizontal: gap.xl },
+  segmented: {
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: gap.xs,
+    padding: gap.xs,
+  },
+  segment: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: gap.xs,
+  },
+  segmentLabel: { fontSize: 12.5, fontWeight: '500', lineHeight: 19 },
+  segmentCount: { fontVariant: ['tabular-nums'] },
+  screenHost: { flex: 1, minHeight: 0 },
+  caughtBlock: { paddingHorizontal: gap.xl, paddingTop: gap.md },
+  pressureNote: { borderLeftWidth: 2, paddingLeft: gap.md },
+  eyebrow: { fontSize: 11, fontWeight: '600', letterSpacing: 1.4, textTransform: 'uppercase' },
+  pressureBody: { fontSize: 14, lineHeight: 22, marginTop: gap.xs },
+  destinationBlock: { paddingHorizontal: gap.xl, paddingTop: gap.xs },
+  listEyebrow: { fontSize: 11, fontWeight: '600', letterSpacing: 1.4, textTransform: 'uppercase' },
+  destinationList: { marginTop: gap.md },
+  destination: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: gap.md,
+    minHeight: 44,
+    paddingVertical: 10,
+  },
+  destinationCopy: { flex: 1, minWidth: 0 },
+  destinationLabel: { fontSize: 14, lineHeight: 22 },
+  destinationMeta: { fontSize: 12.5, lineHeight: 19, marginTop: 2 },
+  rule: { height: StyleSheet.hairlineWidth },
+  timelineInset: { paddingHorizontal: gap.xl, paddingTop: gap.lg },
+  timelineKicker: { fontFamily: serif.displayItalic, fontSize: 14 },
+  timelineHeadline: { fontFamily: serif.display, fontSize: 28, lineHeight: 32, marginTop: gap.xs },
+  timelineSubhead: { fontSize: 12.5, marginTop: 6 },
+  historyList: { marginTop: gap.xl },
+  historyRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: gap.md,
+    minHeight: 58,
+    paddingVertical: gap.md,
+  },
+  historyMain: { flex: 1, minWidth: 0 },
+  historyTitle: { fontSize: 14, fontWeight: '500' },
+  historyDetail: { fontSize: 11.5, marginTop: 3 },
+  historyWhen: { fontSize: 11.5 },
+  emptyHistory: { fontSize: 14, fontStyle: 'italic', marginTop: gap.lg },
+  pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
+});

@@ -76,6 +76,7 @@ import Animated, {
 
 import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
+import { Melo } from '@/folio/melo/Melo';
 import { copy } from '@/folio/copy/copy';
 import {
   addIgnoredBankExternalId,
@@ -153,6 +154,18 @@ const PERSONAL_CATEGORIES = [
   'Income',
   'Other',
 ] as const;
+// Pinned ScreenReview category order. Income is appended only for a real incoming candidate: the
+// browser prototype did not model incoming review items, while native must keep the accepted record
+// truthful instead of visually selecting a spend category for money in.
+const SOURCE_PERSONAL_CATEGORIES = [
+  'Groceries',
+  'Transport',
+  'Bills',
+  'Eating out',
+  'Subscription',
+  'Shopping',
+  'Other',
+] as const;
 const BUSINESS_CATEGORIES = [
   'Travel',
   'Software & services',
@@ -169,6 +182,8 @@ export type ReviewScreenProps = {
   nav: Nav;
   candidate?: ReviewCandidate;
   state?: ReviewState;
+  /** The pinned Review tab mounts this decision surface in place, without a second safe area/header. */
+  embedded?: boolean;
 };
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1) — for the slide-in.
@@ -363,6 +378,7 @@ export function ReviewScreen({
   nav,
   candidate: candidateProp,
   state = 'populated',
+  embedded = false,
 }: ReviewScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -433,12 +449,16 @@ export function ReviewScreen({
   // groceries despite carrying no evidence for that category. `categoryLabelFor` is the reverse of
   // `categoryFor` below. Lazy
   // initializer — evaluated once at mount, exactly like the merchant/amount seeds below.
-  const [category, setCategory] = useState<Category>(
-    () =>
+  const [category, setCategory] = useState<Category>(() => {
+    // ScreenReview @ ad90b4f opens personal spend review on Groceries. Incoming money is the one
+    // native authority the browser fixture did not model, so it keeps an honest Income default.
+    if (embedded && !isBusiness) return candidate.flow === 'in' ? 'Income' : 'Groceries';
+    return (
       (candidate.category !== undefined
         ? categoryLabelFor(candidate.category, isBusiness)
-        : null) ?? (candidate.flow === 'in' ? (isBusiness ? 'Client income' : 'Income') : 'Other'),
-  );
+        : null) ?? (candidate.flow === 'in' ? (isBusiness ? 'Client income' : 'Income') : 'Other')
+    );
+  });
   // Whether the chip is still showing an untouched merchant-memory recall — drives the "remembered"
   // caption. Any manual chip tap (including re-picking the same label) counts as the user's own
   // decision, so the caption clears rather than misrepresenting a fresh tap as passive memory.
@@ -674,6 +694,289 @@ export function ReviewScreen({
   function onCancel() {
     if (stamped) return;
     nav.back();
+  }
+
+  // The personal Review TAB owns the pinned browser composition directly. The native decision
+  // authorities above remain unchanged: this branch is presentation only, and its Add / Ignore /
+  // Cancel actions call the same review-before-truth handlers as the standalone detail route.
+  if (embedded && !isBusiness) {
+    if (state === 'loading') {
+      return (
+        <View style={[sourceStyles.loading, { backgroundColor: t.canvas }]}>
+          <MeloLine mood="curious" text="One second — getting this ready for you." />
+        </View>
+      );
+    }
+
+    if (state === 'empty' || !hasRealCandidate) {
+      return (
+        <Animated.View style={[sourceStyles.root, enterStyle, { backgroundColor: t.canvas }]}>
+          <View style={sourceStyles.emptyContent}>
+            <View style={sourceStyles.emptyRow}>
+              <View style={sourceStyles.emptyMelo}>
+                <Melo mood="calm" size={56} />
+              </View>
+              <View style={sourceStyles.emptyCopy}>
+                <Text style={[sourceStyles.emptyHeadline, { color: t.ink }]}>
+                  Nothing waiting to be <Text style={{ color: t.calm }}>checked</Text>.
+                </Text>
+                <Text style={[sourceStyles.emptyBody, { color: t.muted }]}>
+                  When Melo finds something new, it will show up here first.
+                </Text>
+              </View>
+            </View>
+            {(getState().ignoredReviewSigs ?? []).length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.openSheet('hidden-review')}
+                style={({ pressed: isPressed }) => [
+                  sourceStyles.hiddenButton,
+                  { borderColor: t.hairline },
+                  isPressed ? sourceStyles.pressed : undefined,
+                ]}
+              >
+                <Text style={[sourceStyles.hiddenLabel, { color: t.muted }]}>
+                  {(getState().ignoredReviewSigs ?? []).length} hidden · un-hide
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </Animated.View>
+      );
+    }
+
+    const sourceCategories: readonly Category[] =
+      candidate.flow === 'in'
+        ? ([...SOURCE_PERSONAL_CATEGORIES, 'Income'] as const)
+        : SOURCE_PERSONAL_CATEGORIES;
+    const afterAmount = Math.max(
+      0,
+      candidate.before + (candidate.flow === 'out' ? -editedAmount : editedAmount),
+    );
+    const hidden = (getState().ignoredReviewSigs ?? []).length;
+
+    return (
+      <Animated.View style={[sourceStyles.root, enterStyle, { backgroundColor: t.canvas }]}>
+        <ScrollView
+          contentContainerStyle={sourceStyles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={[sourceStyles.eyebrow, { color: t.muted }]}>New transaction found</Text>
+
+          {hidden > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.openSheet('hidden-review')}
+              style={sourceStyles.hiddenInline}
+            >
+              <Text style={[sourceStyles.hiddenInlineLabel, { color: t.muted }]}>
+                {hidden} hidden · un-hide
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <View style={sourceStyles.hero}>
+            {stamped ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[sourceStyles.stamp, stampStyle, { borderColor: t.calm }]}
+              >
+                <Text style={[sourceStyles.stampLabel, { color: t.calm }]}>Added</Text>
+              </Animated.View>
+            ) : null}
+            <View style={[sourceStyles.merchantRule, { borderBottomColor: t.hairline }]}>
+              <TextInput
+                accessibilityLabel="Merchant"
+                editable={!stamped}
+                onChangeText={setMerchant}
+                style={[sourceStyles.merchantInput, { color: t.ink }]}
+                value={merchant}
+              />
+            </View>
+            <View style={sourceStyles.amountRow}>
+              <Text style={[sourceStyles.amountPrefix, { color: t.ink }]}>
+                {candidate.flow === 'out' ? '−£' : '+£'}
+              </Text>
+              <TextInput
+                accessibilityLabel="Amount"
+                editable={!stamped}
+                inputMode="decimal"
+                keyboardType="decimal-pad"
+                onChangeText={setAmountText}
+                style={[
+                  sourceStyles.amountValue,
+                  { color: t.ink, width: Math.max(40, amountText.length * 31) },
+                ]}
+                value={amountText}
+              />
+            </View>
+            <Text style={[sourceStyles.editHint, { color: t.muted }]}>Tap to edit</Text>
+          </View>
+
+          <View
+            style={[
+              sourceStyles.balanceShift,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+            ]}
+          >
+            <View>
+              <Text style={[sourceStyles.balanceLabel, { color: t.muted }]}>Now</Text>
+              <Text style={[sourceStyles.balanceValue, { color: t.ink }]}>
+                {formatGBP(candidate.before)}
+              </Text>
+            </View>
+            <View style={sourceStyles.balanceArrow}>
+              <View style={[sourceStyles.arrowRule, { backgroundColor: t.hairline }]} />
+              <Text style={[sourceStyles.arrowGlyph, { color: t.muted }]}>→</Text>
+              <View style={[sourceStyles.arrowRule, { backgroundColor: t.hairline }]} />
+            </View>
+            <View style={sourceStyles.afterBlock}>
+              <Text style={[sourceStyles.balanceLabel, { color: t.muted }]}>After</Text>
+              <Text style={[sourceStyles.balanceValue, { color: t.calm }]}>
+                {formatGBP(Math.round(afterAmount))}
+              </Text>
+            </View>
+          </View>
+
+          <View style={sourceStyles.categoryBlock}>
+            <Text style={[sourceStyles.categoryEyebrow, { color: t.muted }]}>Category</Text>
+            <View style={sourceStyles.chipRow}>
+              {sourceCategories.map((item) => {
+                const active = item === category;
+                return (
+                  <Pressable
+                    key={item}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active, disabled: stamped }}
+                    disabled={stamped}
+                    onPress={() => {
+                      setCategory(item);
+                      setShowingRecall(false);
+                    }}
+                    style={({ pressed: isPressed }) => [
+                      sourceStyles.chip,
+                      {
+                        backgroundColor: active ? t.calm : 'transparent',
+                        borderColor: active ? t.calm : t.hairline,
+                      },
+                      isPressed ? sourceStyles.pressed : undefined,
+                    ]}
+                  >
+                    <Text style={[sourceStyles.chipLabel, { color: active ? t.inverse : t.muted }]}>
+                      {item}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={sourceStyles.spacer} />
+
+          {dupeProposal && !stamped ? (
+            <View
+              style={[sourceStyles.dupeCard, { backgroundColor: t.calmSoft, borderColor: t.calm }]}
+            >
+              <Text style={[sourceStyles.dupeHead, { color: t.ink }]}>
+                This looks like something you already added.
+              </Text>
+              <Text style={[sourceStyles.dupeSub, { color: t.muted }]}>
+                {reviewMatchSubline(dupeProposal)}
+              </Text>
+              <View style={sourceStyles.dupeRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onLink}
+                  style={({ pressed: isPressed }) => [
+                    sourceStyles.dupePrimary,
+                    { backgroundColor: t.calm },
+                    isPressed ? sourceStyles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[sourceStyles.dupePrimaryLabel, { color: t.inverse }]}>
+                    Link them
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onAdd}
+                  style={({ pressed: isPressed }) => [
+                    sourceStyles.dupeCell,
+                    { backgroundColor: t.surface, borderColor: t.hairline },
+                    isPressed ? sourceStyles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[sourceStyles.secondaryLabel, { color: t.ink }]}>Keep both</Text>
+                </Pressable>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={onIgnore}
+                style={({ pressed: isPressed }) => [
+                  sourceStyles.dupeIgnore,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? sourceStyles.pressed : undefined,
+                ]}
+              >
+                <Text style={[sourceStyles.secondaryLabel, { color: t.ink }]}>Ignore</Text>
+              </Pressable>
+              <Text style={[sourceStyles.dupeFoot, { color: t.muted }]}>
+                Linking keeps your original.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: stamped || editedAmount <= 0 }}
+                disabled={stamped || editedAmount <= 0}
+                onPress={onAdd}
+                style={({ pressed: isPressed }) => [
+                  sourceStyles.primary,
+                  { backgroundColor: t.calm },
+                  stamped || editedAmount <= 0 ? sourceStyles.disabled : undefined,
+                  isPressed ? sourceStyles.pressed : undefined,
+                ]}
+              >
+                <Text style={[sourceStyles.primaryLabel, { color: t.inverse }]}>
+                  {stamped ? 'Added' : 'Add to '}
+                  {!stamped ? <Text style={sourceStyles.meloWord}>Melo</Text> : null}
+                </Text>
+              </Pressable>
+
+              <View style={sourceStyles.secondaryRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={stamped}
+                  onPress={onIgnore}
+                  style={({ pressed: isPressed }) => [
+                    sourceStyles.ignoreButton,
+                    { borderColor: t.hairline },
+                    isPressed ? sourceStyles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[sourceStyles.secondaryLabel, { color: t.muted }]}>
+                    Ignore permanently
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onCancel}
+                  style={({ pressed: isPressed }) => [
+                    sourceStyles.cancelButton,
+                    isPressed ? sourceStyles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[sourceStyles.secondaryLabel, { color: t.muted }]}>Cancel</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+          <View style={sourceStyles.bottomSpace} />
+        </ScrollView>
+      </Animated.View>
+    );
   }
 
   // empty — no candidate to review: an explicit empty state, OR a cold open with no candidate passed
@@ -1440,4 +1743,194 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     transform: [{ scale: 0.97 }],
   },
+});
+
+// ScreenReview.tsx @ ad90b4f — local geometry for the embedded personal composition. Kept local so
+// the parity recovery does not mutate shared kit/shell tokens while another lane calibrates them.
+const sourceStyles = StyleSheet.create({
+  root: { flex: 1 },
+  content: {
+    flexGrow: 1,
+    paddingBottom: gap.xl,
+    paddingHorizontal: gap.xl,
+    paddingTop: gap.lg,
+  },
+  loading: {
+    flex: 1,
+    paddingHorizontal: gap.xl,
+    paddingTop: gap.lg,
+  },
+  emptyContent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingBottom: gap.xl,
+    paddingHorizontal: gap.xl,
+    paddingTop: gap.lg,
+  },
+  emptyRow: { alignItems: 'center', flexDirection: 'row', gap: gap.lg },
+  emptyMelo: { alignItems: 'center', height: 64, justifyContent: 'center', width: 64 },
+  emptyCopy: { flex: 1, minWidth: 0 },
+  emptyHeadline: { fontFamily: serif.display, fontSize: 28, lineHeight: 32 },
+  emptyBody: { fontSize: 14, lineHeight: 22, marginTop: gap.md, maxWidth: 240 },
+  hiddenButton: {
+    alignSelf: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
+    marginTop: gap.lg + gap.xs,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  hiddenLabel: { fontSize: 12.5 },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.76,
+    marginTop: gap.xl,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  hiddenInline: { alignItems: 'center', marginTop: gap.sm },
+  hiddenInlineLabel: {
+    fontFamily: serif.displayItalic,
+    fontSize: 11,
+    textDecorationLine: 'underline',
+  },
+  hero: { marginTop: gap.lg + gap.xs, position: 'relative' },
+  stamp: {
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.xs,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 2,
+  },
+  stampLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.98, textTransform: 'uppercase' },
+  merchantRule: { borderBottomWidth: StyleSheet.hairlineWidth, borderStyle: 'dashed' },
+  merchantInput: {
+    fontSize: 20,
+    fontWeight: '500',
+    letterSpacing: -0.3,
+    padding: 0,
+    paddingBottom: gap.xs,
+    textAlign: 'center',
+  },
+  amountRow: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: gap.lg,
+  },
+  amountPrefix: {
+    fontFamily: serif.display,
+    fontSize: 56,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '400',
+    lineHeight: 57,
+  },
+  amountValue: {
+    fontFamily: serif.display,
+    fontSize: 56,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '400',
+    lineHeight: 57,
+    padding: 0,
+  },
+  editHint: { fontSize: 11, marginTop: gap.sm, textAlign: 'center' },
+  balanceShift: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: gap.md,
+    marginTop: gap.xl + gap.xs,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.lg,
+  },
+  balanceLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1.4, textTransform: 'uppercase' },
+  balanceValue: {
+    fontFamily: serif.display,
+    fontSize: 16,
+    fontVariant: ['tabular-nums'],
+    marginTop: gap.xs,
+  },
+  balanceArrow: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: gap.xs },
+  arrowRule: { flex: 1, height: StyleSheet.hairlineWidth },
+  arrowGlyph: { fontSize: 14, lineHeight: 16 },
+  afterBlock: { alignItems: 'flex-end' },
+  categoryBlock: { marginTop: gap.xl },
+  categoryEyebrow: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    marginBottom: gap.md,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
+  chip: {
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.md,
+    paddingVertical: 6,
+  },
+  chipLabel: { fontSize: 12.5 },
+  spacer: { flex: 1, minHeight: gap.lg },
+  primary: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    height: 54,
+    justifyContent: 'center',
+  },
+  primaryLabel: { fontSize: 16, fontWeight: '500' },
+  meloWord: { fontFamily: serif.displayItalic, fontWeight: '400' },
+  disabled: { opacity: 0.6 },
+  secondaryRow: { alignItems: 'center', flexDirection: 'row', gap: gap.md, marginTop: gap.md },
+  ignoreButton: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    height: 44,
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    paddingHorizontal: gap.lg,
+  },
+  secondaryLabel: { fontSize: 14 },
+  dupeCard: { borderRadius: radius.lg, borderWidth: 1, padding: gap.lg },
+  dupeHead: { fontFamily: serif.display, fontSize: 16, lineHeight: 20 },
+  dupeSub: { fontSize: 12.5, marginTop: gap.xs },
+  dupeRow: { flexDirection: 'row', gap: gap.md, marginTop: gap.md },
+  dupePrimary: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flex: 1,
+    height: 44,
+    justifyContent: 'center',
+  },
+  dupePrimaryLabel: { fontSize: 14, fontWeight: '600' },
+  dupeCell: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    height: 44,
+    justifyContent: 'center',
+  },
+  dupeIgnore: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 44,
+    justifyContent: 'center',
+    marginTop: gap.md,
+  },
+  dupeFoot: { fontSize: 11, marginTop: gap.md, textAlign: 'center' },
+  bottomSpace: { height: gap.lg },
+  pressed: { opacity: 0.6, transform: [{ scale: 0.97 }] },
 });
