@@ -4,10 +4,11 @@
   "settleMs": 900,
   "generatedFrom": "docs/parity-recovery/registries/parity-archetypes.json",
   "scope": {
-    "mode": "direct-screen-route-bulk-capture",
-    "includedScreenSurfaces": 33,
-    "excludedNonScreenSurfaces": 114,
-    "note": "Sheets, dialogs, global overlays and platform chrome require dedicated state/opening drivers and are deliberately excluded from this direct-screen batch feed."
+    "mode": "family-screen-and-sheet-bulk-capture",
+    "includedNonBusinessSurfaces": 54,
+    "includedBusinessFamilySurfaces": 7,
+    "excludedNonBusinessSurfaces": 93,
+    "note": "Direct routes and source/native deep-linkable sheets are batched. Trigger-only dialogs, self-hosted embedded sheets, global overlays and platform chrome remain explicit outliers requiring dedicated drivers."
   },
   "batches": [
     {
@@ -27,11 +28,118 @@
           "themes": ["light", "dark"]
         },
         {
+          "id": "add-event",
+          "screen": "calendar",
+          "sourceScreen": "calendar",
+          "sourceSheet": "add-event",
+          "nativeScreen": "calendar",
+          "nativeSheet": "add-event",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "add-plan",
+          "screen": "plans",
+          "sourceScreen": "plans",
+          "sourceSheet": "add-plan",
+          "nativeScreen": "plans",
+          "nativeSheet": "add-plan",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "afford-check",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "afford-check",
+          "nativeScreen": "today",
+          "nativeSheet": "afford-check",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "appearance",
+          "screen": "appearance",
+          "sourceScreen": "appearance",
+          "nativeScreen": "more",
+          "nativeSheet": "appearance",
+          "themes": ["light", "dark"]
+        },
+        {
           "screen": "calendar",
           "themes": ["light", "dark"]
         },
         {
+          "id": "calendar-connect",
+          "screen": "calendar",
+          "sourceScreen": "calendar",
+          "sourceSheet": "calendar-connect",
+          "nativeScreen": "calendar",
+          "nativeSheet": "calendar-connect",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "calendar-export",
+          "screen": "calendar",
+          "sourceScreen": "calendar",
+          "sourceSheet": "calendar-export",
+          "nativeScreen": "calendar",
+          "nativeSheet": "calendar-export",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "chart-style",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "chart-style",
+          "nativeScreen": "today",
+          "nativeSheet": "chart-style",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "day-detail",
+          "screen": "calendar",
+          "sourceScreen": "calendar",
+          "sourceSheet": "day-detail",
+          "nativeScreen": "calendar",
+          "nativeSheet": "day-detail",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "declare-debt",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "add-debt",
+          "nativeScreen": "today",
+          "nativeSheet": "declare-debt",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "edit-txn",
+          "screen": "timeline",
+          "sourceScreen": "timeline",
+          "sourceSheet": "edit-txn",
+          "nativeScreen": "timeline",
+          "nativeSheet": "edit-txn",
+          "themes": ["light", "dark"]
+        },
+        {
           "screen": "guided",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "hidden-review",
+          "screen": "review",
+          "sourceScreen": "review",
+          "sourceSheet": "hidden-review",
+          "nativeScreen": "review",
+          "nativeSheet": "hidden-review",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "household-setup",
+          "screen": "more",
+          "sourceScreen": "more",
+          "sourceSheet": "household-setup",
+          "nativeScreen": "more",
+          "nativeSheet": "household-setup",
           "themes": ["light", "dark"]
         },
         {
@@ -51,11 +159,47 @@
           "themes": ["light", "dark"]
         },
         {
+          "id": "lens-picker",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "lens-picker",
+          "nativeScreen": "today",
+          "nativeSheet": "lens-picker",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "log-spend",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "log-spend",
+          "nativeScreen": "today",
+          "nativeSheet": "log-spend",
+          "themes": ["light", "dark"]
+        },
+        {
           "screen": "melo",
           "themes": ["light", "dark"]
         },
         {
+          "id": "melo-chat",
+          "screen": "melo",
+          "sourceScreen": "melo",
+          "sourceSheet": "melo-chat",
+          "nativeScreen": "melo",
+          "nativeSheet": "melo-chat",
+          "themes": ["light", "dark"]
+        },
+        {
           "screen": "more",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "onboarding",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "onboarding",
+          "nativeScreen": "today",
+          "nativeSheet": "onboarding",
           "themes": ["light", "dark"]
         },
         {
@@ -99,7 +243,52 @@
           "themes": ["light", "dark"]
         },
         {
+          "id": "route-detail",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "route-detail",
+          "nativeScreen": "today",
+          "nativeSheet": "route-detail",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "safe-zone",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "safe-zone",
+          "nativeScreen": "today",
+          "nativeSheet": "safe-zone",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "share",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "share",
+          "nativeScreen": "today",
+          "nativeSheet": "share",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "shelf",
+          "screen": "today",
+          "sourceScreen": "today",
+          "sourceSheet": "shelf",
+          "nativeScreen": "today",
+          "nativeSheet": "shelf",
+          "themes": ["light", "dark"]
+        },
+        {
           "screen": "shortfall",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "sub-caught",
+          "screen": "subs",
+          "sourceScreen": "subs",
+          "sourceSheet": "sub-caught",
+          "nativeScreen": "subs",
+          "nativeSheet": "sub-caught",
           "themes": ["light", "dark"]
         },
         {
@@ -156,6 +345,40 @@
         },
         {
           "screen": "review-item",
+          "themes": ["light", "dark"]
+        }
+      ]
+    },
+    {
+      "id": "business-filing-family",
+      "fixture": "business-ltd",
+      "surfaces": [
+        {
+          "screen": "business-deductions",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "business-filing-accounts",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "business-filing-cs",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "business-filing-ct",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "business-filing-payroll",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "business-filing-sa",
+          "themes": ["light", "dark"]
+        },
+        {
+          "screen": "business-filing-vat",
           "themes": ["light", "dark"]
         }
       ]

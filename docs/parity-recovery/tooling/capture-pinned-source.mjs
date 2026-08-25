@@ -43,6 +43,8 @@ function readArg(name, fallback) {
 const fixtureId = readArg('fixture', 'confirmed-safe');
 const theme = readArg('theme', 'light');
 const screen = readArg('screen', 'today');
+const sheet = readArg('sheet', '');
+const surface = readArg('surface', sheet || screen);
 if (theme !== 'light' && theme !== 'dark') throw new Error(`Unsupported theme: ${theme}`);
 
 const fixtureManifest = JSON.parse(await readFile(FIXTURE_PATH, 'utf8'));
@@ -188,6 +190,7 @@ try {
 
   const route = new URL(BASE_URL);
   route.searchParams.set('s', screen);
+  if (sheet !== '') route.searchParams.set('sheet', sheet);
   route.searchParams.set('p', fixture.designPressure ?? 'safe');
   route.searchParams.set('device', '370x756');
   await page.goto(route.href, { waitUntil: 'networkidle' });
@@ -421,7 +424,7 @@ try {
     'docs/parity-recovery/evidence/design/ad90b4-matched-v1',
     fixtureId,
     theme,
-    screen,
+    surface,
   );
   await mkdir(outDir, { recursive: true });
   await page.screenshot({
@@ -444,7 +447,9 @@ try {
     fixtureSchemaVersion: fixtureManifest.schemaVersion,
     fixtureId,
     theme,
+    surface,
     screen,
+    sheet: sheet || null,
     sourceSha: actualSha,
     route: route.href,
     clock: fixtureManifest.nowISO,

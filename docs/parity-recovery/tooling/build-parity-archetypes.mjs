@@ -536,15 +536,69 @@ const manifest = {
   assignments,
 };
 
-const captureableAssignments = assignments.filter((entry) => entry.kind === 'screen');
+const SHEET_CAPTURE_ROUTES = new Map([
+  ['route-detail', { screen: 'today' }],
+  ['edit-txn', { screen: 'timeline' }],
+  [
+    'appearance',
+    { screen: 'appearance', sourceScreen: 'appearance', sourceSheet: null, nativeScreen: 'more' },
+  ],
+  ['melo-chat', { screen: 'melo' }],
+  ['share', { screen: 'today' }],
+  ['onboarding', { screen: 'today' }],
+  ['log-spend', { screen: 'today' }],
+  ['add-plan', { screen: 'plans' }],
+  ['declare-debt', { screen: 'today', sourceSheet: 'add-debt' }],
+  ['household-setup', { screen: 'more' }],
+  ['sub-caught', { screen: 'subs' }],
+  ['add-event', { screen: 'calendar' }],
+  ['calendar-export', { screen: 'calendar' }],
+  ['calendar-connect', { screen: 'calendar' }],
+  ['safe-zone', { screen: 'today' }],
+  ['shelf', { screen: 'today' }],
+  ['afford-check', { screen: 'today' }],
+  ['lens-picker', { screen: 'today' }],
+  ['chart-style', { screen: 'today' }],
+  ['hidden-review', { screen: 'review' }],
+  ['day-detail', { screen: 'calendar' }],
+]);
+
+const captureableAssignments = assignments.filter(
+  (entry) => entry.kind === 'screen' || (entry.kind === 'sheet' && SHEET_CAPTURE_ROUTES.has(entry.routeKey)),
+);
 const captureFixtureGroups = new Map();
 for (const assignment of captureableAssignments) {
   const fixture = assignment.matchedFixtures[0];
   if (!fixture) throw new Error(`${assignment.stableId} has no matched capture fixture`);
   const group = captureFixtureGroups.get(fixture) ?? [];
-  group.push({ screen: assignment.routeKey, themes: ['light', 'dark'] });
+  if (assignment.kind === 'screen') {
+    group.push({ screen: assignment.routeKey, themes: ['light', 'dark'] });
+  } else {
+    const route = SHEET_CAPTURE_ROUTES.get(assignment.routeKey);
+    group.push({
+      id: assignment.routeKey,
+      screen: route.screen,
+      sourceScreen: route.sourceScreen ?? route.screen,
+      ...(route.sourceSheet === null
+        ? {}
+        : { sourceSheet: route.sourceSheet ?? assignment.routeKey }),
+      nativeScreen: route.nativeScreen ?? route.screen,
+      nativeSheet: assignment.routeKey,
+      themes: ['light', 'dark'],
+    });
+  }
   captureFixtureGroups.set(fixture, group);
 }
+
+const businessFamilySurfaces = [
+  'business-deductions',
+  'business-filing-accounts',
+  'business-filing-cs',
+  'business-filing-ct',
+  'business-filing-payroll',
+  'business-filing-sa',
+  'business-filing-vat',
+].map((screen) => ({ screen, themes: ['light', 'dark'] }));
 
 const captureManifest = {
   schemaVersion: 1,
@@ -552,18 +606,20 @@ const captureManifest = {
   settleMs: 900,
   generatedFrom: OUTPUT_RELATIVE_PATH,
   scope: {
-    mode: 'direct-screen-route-bulk-capture',
-    includedScreenSurfaces: captureableAssignments.length,
-    excludedNonScreenSurfaces: assignments.length - captureableAssignments.length,
-    note: 'Sheets, dialogs, global overlays and platform chrome require dedicated state/opening drivers and are deliberately excluded from this direct-screen batch feed.',
+    mode: 'family-screen-and-sheet-bulk-capture',
+    includedNonBusinessSurfaces: captureableAssignments.length,
+    includedBusinessFamilySurfaces: businessFamilySurfaces.length,
+    excludedNonBusinessSurfaces: assignments.length - captureableAssignments.length,
+    note: 'Direct routes and source/native deep-linkable sheets are batched. Trigger-only dialogs, self-hosted embedded sheets, global overlays and platform chrome remain explicit outliers requiring dedicated drivers.',
   },
   batches: [...captureFixtureGroups.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([fixture, surfaces]) => ({
       id: `non-business-${fixture}`,
       fixture,
-      surfaces: surfaces.sort((left, right) => left.screen.localeCompare(right.screen)),
-    })),
+      surfaces: surfaces.sort((left, right) => (left.id ?? left.screen).localeCompare(right.id ?? right.screen)),
+    }))
+    .concat([{ id: 'business-filing-family', fixture: 'business-ltd', surfaces: businessFamilySurfaces }]),
 };
 
 const prettierConfig = (await resolveConfig(OUTPUT_PATH)) ?? {};
@@ -589,7 +645,7 @@ if (process.argv.includes('--check')) {
     process.exitCode = 1;
   } else {
     console.log(
-      `Validated ${assignments.length} non-Business surfaces across ${archetypes.length} archetypes and ${implementationWaves.length} waves; ${captureableAssignments.length} direct-screen batch routes.`,
+      `Validated ${assignments.length} non-Business surfaces across ${archetypes.length} archetypes and ${implementationWaves.length} waves; ${captureableAssignments.length} direct screen/sheet routes plus ${businessFamilySurfaces.length} Business routes.`,
     );
   }
 } else {
@@ -598,6 +654,6 @@ if (process.argv.includes('--check')) {
     writeFile(CAPTURE_OUTPUT_PATH, captureRendered),
   ]);
   console.log(
-    `Wrote family manifest and capture batches: ${assignments.length} surfaces, ${archetypes.length} archetypes, ${implementationWaves.length} waves, ${captureableAssignments.length} direct-screen routes.`,
+    `Wrote family manifest and capture batches: ${assignments.length} surfaces, ${archetypes.length} archetypes, ${implementationWaves.length} waves, ${captureableAssignments.length} non-Business routes plus ${businessFamilySurfaces.length} Business routes.`,
   );
 }

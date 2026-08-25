@@ -52,7 +52,7 @@ def main() -> None:
         batch_rows: list[dict[str, object]] = []
         for surface in batch["surfaces"]:
             for theme in surface.get("themes", ["light", "dark"]):
-                screen = surface["screen"]
+                screen = surface.get("id", surface["screen"])
                 subprocess.run(
                     [
                         sys.executable,
@@ -81,6 +81,10 @@ def main() -> None:
                     "batchId": batch_id,
                     "fixture": fixture,
                     "screen": screen,
+                    "sourceScreen": surface.get("sourceScreen", surface["screen"]),
+                    "sourceSheet": surface.get("sourceSheet", surface.get("sheet")),
+                    "nativeScreen": surface.get("nativeScreen", surface["screen"]),
+                    "nativeSheet": surface.get("nativeSheet", surface.get("sheet")),
                     "theme": theme,
                     "meanAbsoluteRgbDelta": metrics["meanAbsoluteRgbDelta"],
                     "rmsRgbDelta": metrics["rmsRgbDelta"],

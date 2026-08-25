@@ -27,7 +27,9 @@ const jobs = manifest.batches.flatMap((batch) =>
   batch.surfaces.flatMap((surface) =>
     (surface.themes ?? ['light', 'dark']).map((theme) => ({
       fixture: batch.fixture,
-      screen: surface.screen,
+      screen: surface.sourceScreen ?? surface.screen,
+      sheet: surface.sourceSheet ?? surface.sheet ?? '',
+      surface: surface.id ?? surface.screen,
       theme,
     })),
   ),
@@ -57,7 +59,14 @@ function runJob(job) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [CAPTURE_SCRIPT, `--fixture=${job.fixture}`, `--screen=${job.screen}`, `--theme=${job.theme}`],
+      [
+        CAPTURE_SCRIPT,
+        `--fixture=${job.fixture}`,
+        `--screen=${job.screen}`,
+        `--sheet=${job.sheet}`,
+        `--surface=${job.surface}`,
+        `--theme=${job.theme}`,
+      ],
       {
         cwd: ROOT,
         env: { ...process.env, MELO_SOURCE_CAPTURE_REUSE_SERVER: 'true' },
@@ -71,10 +80,10 @@ function runJob(job) {
     child.on('error', reject);
     child.on('exit', (code) => {
       if (code === 0) {
-        process.stdout.write(`captured ${job.fixture}/${job.theme}/${job.screen}\n`);
+        process.stdout.write(`captured ${job.fixture}/${job.theme}/${job.surface}\n`);
         resolve();
       } else {
-        reject(new Error(`Capture failed for ${job.fixture}/${job.theme}/${job.screen}\n${output}`));
+        reject(new Error(`Capture failed for ${job.fixture}/${job.theme}/${job.surface}\n${output}`));
       }
     });
   });

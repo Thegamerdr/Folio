@@ -79,7 +79,7 @@ run(adb, ['-s', deviceId, 'shell', 'settings', 'put', 'system', 'font_scale', '1
 
 const fixtureRuns = [];
 for (const batch of manifest.batches) {
-  const firstScreen = batch.surfaces[0]?.screen ?? 'today';
+  const firstScreen = batch.surfaces[0]?.nativeScreen ?? batch.surfaces[0]?.screen ?? 'today';
   const buildEnv = {
     ...process.env,
     JAVA_HOME: javaHome,
@@ -111,19 +111,21 @@ for (const batch of manifest.batches) {
   let captureCount = 0;
   for (const surface of batch.surfaces) {
     for (const theme of surface.themes ?? ['light', 'dark']) {
-      const sheet = surface.sheet ?? 'none';
-      const deepLink = `folio://parity?screen=${encodeURIComponent(surface.screen)}&sheet=${encodeURIComponent(sheet)}&theme=${theme}`;
+      const screen = surface.nativeScreen ?? surface.screen;
+      const sheet = surface.nativeSheet ?? surface.sheet ?? 'none';
+      const surfaceId = surface.id ?? surface.screen;
+      const deepLink = `folio://parity?screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&theme=${theme}`;
       run(adb, [
         '-s', deviceId, 'shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW',
         '-d', deepLink, PACKAGE,
       ]);
       await wait(manifest.settleMs ?? 900);
       const png = run(adb, ['-s', deviceId, 'exec-out', 'screencap', '-p'], { encoding: null });
-      const outDir = path.join(evidenceRoot, batch.fixture, theme, surface.screen);
+      const outDir = path.join(evidenceRoot, batch.fixture, theme, surfaceId);
       await mkdir(outDir, { recursive: true });
       await writeFile(path.join(outDir, 'native-full-1080x2220.png'), png);
       captureCount += 1;
-      process.stdout.write(`captured ${batch.fixture}/${theme}/${surface.screen}\n`);
+      process.stdout.write(`captured ${batch.fixture}/${theme}/${surfaceId}\n`);
     }
   }
 
