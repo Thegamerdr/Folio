@@ -70,6 +70,7 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-calendar' ||
     entry.routeKey === 'business-clients' ||
     entry.routeKey === 'business-invoices' ||
+    entry.routeKey === 'business-obligations' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
     entry.routeKey === 'business-more'
@@ -104,6 +105,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-obligations': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-obligations/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-obligations/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-86e4715/business-empty/light/business-obligations/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-86e4715/business-empty/dark/business-obligations/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/86e4715/business-empty/light/business-obligations/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/86e4715/business-empty/dark/business-obligations/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/86e4715/business-empty/light/business-obligations/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/86e4715/business-empty/dark/business-obligations/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Obligations answer, primary move, recurring-cost panel and coming-up hierarchy restoration.',
+      consequence:
+        'The pinned synthetic demo loader is reproduced only in the isolated parity fixture and never writes production obligations; both visible Add obligation actions open the real native persisted form. The pinned source companion bird/bubble, browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated recurring-cost and dated-deadline states remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 23.4367,
+        darkMeanAbsoluteRgbDelta: 22.0656,
+      },
+    },
+  },
   'business-invoices': {
     evidence: {
       lightSource:
