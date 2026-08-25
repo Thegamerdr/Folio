@@ -949,22 +949,17 @@ export function BusinessObligationsScreen({ nav }: { nav: Nav }) {
 
   return (
     <>
-      <BusinessScreenFrame
-        eyebrow="Recurring money out"
-        headline="What the business owes, on repeat."
-        intro="Rent, payroll, software, tax and loans. These dates make the runway useful."
-        onBack={nav.back}
-      >
-        <View style={styles.stack}>
-          {sorted.length === 0 ? (
-            <BusinessCard tone="inset">
-              <Text style={[styles.emptyTitle, { color: t.ink }]}>Nothing recurring yet.</Text>
-              <Text style={[styles.emptyBody, { color: t.muted }]}>
-                Add only costs that really repeat; one-off spending belongs in Activity.
-              </Text>
-            </BusinessCard>
-          ) : (
-            sorted.map((obligation) => (
+      {sorted.length === 0 ? (
+        <BusinessObligationsEmpty nav={nav} onAdd={() => setAdding(true)} />
+      ) : (
+        <BusinessScreenFrame
+          eyebrow="Recurring money out"
+          headline="What the business owes, on repeat."
+          intro="Rent, payroll, software, tax and loans. These dates make the runway useful."
+          onBack={nav.back}
+        >
+          <View style={styles.stack}>
+            {sorted.map((obligation) => (
               <BusinessCard key={obligation.id}>
                 <View style={styles.cardHeading}>
                   <View style={styles.cardHeadingCopy}>
@@ -989,11 +984,11 @@ export function BusinessObligationsScreen({ nav }: { nav: Nav }) {
                   <Text style={[styles.removeLabel, { color: t.muted }]}>Remove</Text>
                 </Pressable>
               </BusinessCard>
-            ))
-          )}
-        </View>
-        <BusinessPrimaryAction label="Add recurring money out" onPress={() => setAdding(true)} />
-      </BusinessScreenFrame>
+            ))}
+          </View>
+          <BusinessPrimaryAction label="Add recurring money out" onPress={() => setAdding(true)} />
+        </BusinessScreenFrame>
+      )}
       <BusinessFormSheet
         onClose={() => setAdding(false)}
         onPrimary={save}
@@ -1047,6 +1042,138 @@ export function BusinessObligationsScreen({ nav }: { nav: Nav }) {
         />
       </BusinessFormSheet>
     </>
+  );
+}
+
+function BusinessObligationsEmpty({ nav, onAdd }: { nav: Nav; onAdd: () => void }) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  // The pinned source demo action swaps in fabricated Ltd data. Preserve its
+  // geometry only in the isolated fixture; production remains user-owned.
+  const showSourceDemoControl = getParityHarnessConfig()?.fixture === 'business-empty';
+
+  return (
+    <View style={[styles.obligationsEmptyRoot, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.obligationsEmptyContent,
+          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          onPress={nav.back}
+          style={({ pressed }) => [styles.obligationsEmptyBack, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={[styles.obligationsEmptyBackLabel, { color: t.muted }]}>←</Text>
+        </Pressable>
+
+        <View style={styles.obligationsEmptyHero}>
+          <Text style={[styles.obligationsEmptyEyebrow, { color: t.muted }]}>
+            Recurring money out
+          </Text>
+          <Text
+            accessibilityRole="header"
+            style={[styles.obligationsEmptyHeadline, { color: t.ink }]}
+          >
+            Nothing leaves the business <Text style={{ color: t.calm }}>on repeat</Text> yet.
+          </Text>
+          <Text style={[styles.obligationsEmptyWhy, { color: t.muted }]}>
+            Rent, payroll, software, tax pots and loans belong here so the runway can be honest.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onAdd}
+            style={({ pressed }) => [
+              styles.obligationsEmptyMove,
+              { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+            ]}
+          >
+            <Text style={[styles.obligationsEmptyMoveLabel, { color: t.inverse }]}>
+              Add an obligation
+            </Text>
+          </Pressable>
+        </View>
+
+        <View
+          style={[
+            styles.obligationsEmptyPanel,
+            { backgroundColor: t.surface, borderColor: t.hairline },
+          ]}
+        >
+          <View style={[styles.obligationsEmptyInfo, { borderColor: t.ink }]}>
+            <Text style={[styles.obligationsEmptyInfoLabel, { color: t.ink }]}>i</Text>
+          </View>
+          <View style={styles.obligationsEmptyPanelCopy}>
+            <Text style={[styles.obligationsEmptyPanelTitle, { color: t.ink }]}>
+              Nothing on repeat yet
+            </Text>
+            <Text style={[styles.obligationsEmptyPanelBody, { color: t.muted }]}>
+              Add rent, payroll, software, tax pots — anything that leaves regularly. The runway
+              only stays honest if Melo can see it.
+            </Text>
+            {showSourceDemoControl ? (
+              <Pressable
+                accessibilityLabel="Load demo obligations — parity capture control"
+                accessibilityRole="button"
+                onPress={() => undefined}
+                style={({ pressed }) => [
+                  styles.obligationsEmptyDemo,
+                  { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+                ]}
+              >
+                <Text style={[styles.obligationsEmptyDemoLabel, { color: t.inverse }]}>
+                  Load demo obligations
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.obligationsEmptyComingUp}>
+          <Text style={[styles.obligationsEmptyEyebrow, { color: t.muted }]}>Coming up</Text>
+          <Text style={[styles.obligationsEmptyComingTitle, { color: t.ink }]}>
+            What’s already <Text style={{ color: t.calm }}>spoken for</Text>.
+          </Text>
+          <Text style={[styles.obligationsEmptyComingBody, { color: t.muted }]}>
+            Bills, filings, payroll and invoices due in the next 45 days.
+          </Text>
+          <View
+            style={[
+              styles.obligationsEmptyComingPanel,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+            ]}
+          >
+            <View style={[styles.obligationsEmptyInfo, { borderColor: t.ink }]}>
+              <Text style={[styles.obligationsEmptyInfoLabel, { color: t.ink }]}>i</Text>
+            </View>
+            <View style={styles.obligationsEmptyPanelCopy}>
+              <Text style={[styles.obligationsEmptyPanelTitle, { color: t.ink }]}>
+                Nothing dated yet
+              </Text>
+              <Text style={[styles.obligationsEmptyPanelBody, { color: t.muted }]}>
+                Add a bill, filing or invoice and it will sit here with the date it’s due.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAdd}
+          style={({ pressed }) => [
+            styles.obligationsEmptyPrimary,
+            { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+          ]}
+        >
+          <Text style={[styles.obligationsEmptyPrimaryLabel, { color: t.inverse }]}>
+            Add an obligation
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -2314,6 +2441,118 @@ function nextCadenceDate(date: string, cadence: Exclude<InvoiceCadence, 'one-off
 }
 
 const styles = StyleSheet.create({
+  obligationsEmptyRoot: { flex: 1 },
+  obligationsEmptyContent: { paddingHorizontal: gap.xl },
+  obligationsEmptyBack: {
+    alignItems: 'flex-start',
+    height: 44,
+    justifyContent: 'center',
+    marginLeft: -8,
+    width: 44,
+  },
+  obligationsEmptyBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
+  obligationsEmptyHero: { marginTop: gap.lg },
+  obligationsEmptyEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  obligationsEmptyHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 33,
+    marginTop: gap.sm,
+  },
+  obligationsEmptyWhy: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  obligationsEmptyMove: {
+    alignItems: 'center',
+    borderRadius: 12,
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  obligationsEmptyMoveLabel: { fontFamily: weightFamily(600), fontSize: 14 },
+  obligationsEmptyPanel: {
+    alignItems: 'flex-start',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    marginTop: gap.xl,
+    padding: gap.xl,
+  },
+  obligationsEmptyInfo: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1.6,
+    height: 20,
+    justifyContent: 'center',
+    marginTop: 2,
+    width: 20,
+  },
+  obligationsEmptyInfoLabel: {
+    fontFamily: weightFamily(600),
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  obligationsEmptyPanelCopy: { flex: 1, marginLeft: gap.md },
+  obligationsEmptyPanelTitle: {
+    fontFamily: weightFamily(500),
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  obligationsEmptyPanelBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 23,
+    marginTop: gap.sm,
+  },
+  obligationsEmptyDemo: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderRadius: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+    marginTop: gap.lg,
+    paddingHorizontal: gap.lg,
+  },
+  obligationsEmptyDemoLabel: { fontFamily: weightFamily(500), fontSize: 14 },
+  obligationsEmptyComingUp: { marginTop: gap.xxl },
+  obligationsEmptyComingTitle: {
+    fontFamily: serif.display,
+    fontSize: 20,
+    lineHeight: 25,
+    marginTop: gap.sm,
+  },
+  obligationsEmptyComingBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 20,
+    marginTop: gap.sm,
+  },
+  obligationsEmptyComingPanel: {
+    alignItems: 'flex-start',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    marginTop: gap.md,
+    padding: gap.xl,
+  },
+  obligationsEmptyPrimary: {
+    alignItems: 'center',
+    borderRadius: 18,
+    justifyContent: 'center',
+    marginTop: gap.xl,
+    minHeight: 48,
+    paddingHorizontal: gap.lg,
+  },
+  obligationsEmptyPrimaryLabel: { fontFamily: weightFamily(600), fontSize: 14 },
   invoicesEmptyRoot: { flex: 1 },
   invoicesEmptyContent: { paddingHorizontal: gap.xl },
   invoicesEmptyBack: {
