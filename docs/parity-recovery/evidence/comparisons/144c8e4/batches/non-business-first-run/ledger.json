@@ -1,0 +1,59 @@
+{
+  "batchId": "non-business-first-run",
+  "pairs": [
+    {
+      "batchId": "non-business-first-run",
+      "fixture": "first-run",
+      "screen": "start",
+      "sourceScreen": "start",
+      "sourceSheet": null,
+      "nativeScreen": "start",
+      "nativeSheet": null,
+      "nativeKind": "screen",
+      "nativeRoute": "start",
+      "nativeStableId": null,
+      "nativeSurfaceKey": "screen:start",
+      "theme": "light",
+      "meanAbsoluteRgbDelta": 31.2025,
+      "rmsRgbDelta": 69.6531,
+      "changedPixelFraction": 0.982066,
+      "outlier": true,
+      "outlierReasons": [
+        "mae",
+        "rms",
+        "changed-pixels"
+      ],
+      "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/first-run/light/start/source-product-1080x2004.png",
+      "native": "docs/parity-recovery/evidence/native/harness-144c8e4/first-run/light/start/native-product-1080x2004.png",
+      "overlay": "docs/parity-recovery/evidence/comparisons/144c8e4/first-run/light/start/overlay-50.png",
+      "difference": "docs/parity-recovery/evidence/comparisons/144c8e4/first-run/light/start/absolute-difference.png"
+    },
+    {
+      "batchId": "non-business-first-run",
+      "fixture": "first-run",
+      "screen": "start",
+      "sourceScreen": "start",
+      "sourceSheet": null,
+      "nativeScreen": "start",
+      "nativeSheet": null,
+      "nativeKind": "screen",
+      "nativeRoute": "start",
+      "nativeStableId": null,
+      "nativeSurfaceKey": "screen:start",
+      "theme": "dark",
+      "meanAbsoluteRgbDelta": 27.5409,
+      "rmsRgbDelta": 63.0602,
+      "changedPixelFraction": 0.999052,
+      "outlier": true,
+      "outlierReasons": [
+        "mae",
+        "rms",
+        "changed-pixels"
+      ],
+      "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/first-run/dark/start/source-product-1080x2004.png",
+      "native": "docs/parity-recovery/evidence/native/harness-144c8e4/first-run/dark/start/native-product-1080x2004.png",
+      "overlay": "docs/parity-recovery/evidence/comparisons/144c8e4/first-run/dark/start/overlay-50.png",
+      "difference": "docs/parity-recovery/evidence/comparisons/144c8e4/first-run/dark/start/absolute-difference.png"
+    }
+  ]
+}

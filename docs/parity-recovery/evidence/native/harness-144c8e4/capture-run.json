@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "nativeSha": "144c8e40357caaca5c51b4d6e92c5a0828324216",
+  "nativeRef": "144c8e4",
+  "deviceId": "emulator-5570",
+  "viewport": {
+    "widthPx": 1080,
+    "heightPx": 2220,
+    "densityDpi": 480,
+    "fontScale": 1
+  },
+  "fixtureRuns": [
+    {
+      "fixture": "confirmed-safe",
+      "apkPath": "release-artifacts/capture-144c8e4-confirmed-safe.apk",
+      "apkSha256": "1FBB3E49038B5E1449BC854D93D1720EFD7241A820D6D866FA6BBFBD6C55D682",
+      "captureCount": 104,
+      "verifiedCaptureCount": 104
+    },
+    {
+      "fixture": "first-run",
+      "apkPath": "release-artifacts/capture-144c8e4-first-run.apk",
+      "apkSha256": "94B1F1D2FADF3A32FAF2A0E47F696EEE7DF9FCD0467F14BCE8F3DA8915F4C288",
+      "captureCount": 2,
+      "verifiedCaptureCount": 2
+    },
+    {
+      "fixture": "pending-review",
+      "apkPath": "release-artifacts/capture-144c8e4-pending-review.apk",
+      "apkSha256": "3830D9C987B1F27E77375AD2A0347C1D0299DF7AC37D1CCCE2E447696430C986",
+      "captureCount": 4,
+      "verifiedCaptureCount": 4
+    },
+    {
+      "fixture": "business-ltd",
+      "apkPath": "release-artifacts/capture-144c8e4-business-ltd.apk",
+      "apkSha256": "82E37DE09D9ACABA1AF450F21BEB10C7006B863CED65F0C49928138CDDDB261B",
+      "captureCount": 14,
+      "verifiedCaptureCount": 14
+    }
+  ]
+}

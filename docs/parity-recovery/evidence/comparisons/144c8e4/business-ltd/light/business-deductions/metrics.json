@@ -1,0 +1,140 @@
+{
+  "comparisonKind": "matched-data-calibration",
+  "status": "visual-parity-differences-remain",
+  "acceptanceEvidenceEligible": true,
+  "fixtureId": "business-ltd",
+  "theme": "light",
+  "screen": "business-deductions",
+  "fixtureSchemaVersion": 1,
+  "sourceSha": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
+  "nativeSha": "144c8e40357caaca5c51b4d6e92c5a0828324216",
+  "captureApkSha256": "82E37DE09D9ACABA1AF450F21BEB10C7006B863CED65F0C49928138CDDDB261B",
+  "captureDeviceId": "emulator-5570",
+  "fixedNow": "2026-08-18T08:00:00.000Z",
+  "locale": "en-GB",
+  "timeZone": "UTC",
+  "productViewportPhysicalPx": {
+    "width": 1080,
+    "height": 2004
+  },
+  "productViewportLogicalDp": {
+    "width": 360,
+    "height": 668
+  },
+  "sourceWasResized": false,
+  "nativeWasResized": false,
+  "nativeProductCropInFullPx": {
+    "left": 0,
+    "top": 72,
+    "right": 1080,
+    "bottom": 2076
+  },
+  "meanAbsoluteRgbDelta": 15.2551,
+  "rmsRgbDelta": 42.4692,
+  "changedPixelFraction": 0.846534,
+  "nonZeroDiffBoundingBoxPx": [
+    0,
+    0,
+    1080,
+    2004
+  ],
+  "engineInvariants": {
+    "businessState": "populated",
+    "persistedBusinessState": {
+      "sample": false,
+      "entity": {
+        "kind": "ltd",
+        "companyName": "Harbour & Field Ltd",
+        "companyNumber": "12345678",
+        "incorporatedOn": "2022-08-01",
+        "yearEnd": "2026-03-31",
+        "directors": [
+          {
+            "id": "director-1",
+            "name": "Alex Morgan",
+            "role": "Director"
+          }
+        ],
+        "shareholders": [
+          {
+            "id": "shareholder-1",
+            "name": "Alex Morgan",
+            "shares": 100
+          }
+        ],
+        "vat": {
+          "registered": true,
+          "scheme": "standard",
+          "number": "GB987654321"
+        },
+        "payeRef": "123/AB456",
+        "createdAt": "2022-08-01T09:00:00.000Z"
+      },
+      "employees": [],
+      "payrollRuns": [],
+      "dividends": [],
+      "dla": [],
+      "ytdProfit": 50270,
+      "ctPot": 7000,
+      "accounts": [
+        {
+          "id": "account-current",
+          "name": "Business current account",
+          "balance": 14000,
+          "kind": "current"
+        }
+      ],
+      "invoices": [
+        {
+          "id": "invoice-paid",
+          "client": "Elm & Co",
+          "amount": 2000,
+          "issuedOn": "2026-01-10",
+          "dueOn": "2026-02-10",
+          "paidOn": "2026-02-04",
+          "reference": "JAN-001"
+        },
+        {
+          "id": "invoice-overdue",
+          "client": "Elm & Co",
+          "amount": 4500,
+          "issuedOn": "2026-06-01",
+          "dueOn": "2026-07-01",
+          "reference": "JUN-014"
+        },
+        {
+          "id": "invoice-current",
+          "client": "Elm & Co",
+          "amount": 1800,
+          "issuedOn": "2026-07-02",
+          "dueOn": "2026-07-25",
+          "reference": "JUL-015"
+        }
+      ],
+      "obligations": [
+        {
+          "id": "obligation-studio",
+          "label": "Studio rent",
+          "amount": 900,
+          "cadence": "monthly",
+          "nextDue": "2026-07-20",
+          "category": "rent"
+        }
+      ],
+      "vatPot": 600,
+      "vatReturns": [
+        {
+          "id": "vat-q1",
+          "periodStart": "2026-04-01",
+          "periodEnd": "2026-06-30",
+          "dueOn": "2026-08-07",
+          "box1_outputVat": 1250,
+          "box4_inputVat": 450,
+          "box6_totalSalesExVat": 6250,
+          "box7_totalPurchasesExVat": 2250
+        }
+      ]
+    }
+  },
+  "interpretation": "This is valid unscaled matched-state evidence. The metrics quantify the current native-versus-source output; the pair is not an automatic parity pass, and unresolved visual differences remain subject to calibration and owner review."
+}

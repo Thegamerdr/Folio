@@ -1,0 +1,109 @@
+{
+  "batchId": "non-business-pending-review",
+  "pairs": [
+    {
+      "batchId": "non-business-pending-review",
+      "fixture": "pending-review",
+      "screen": "review",
+      "sourceScreen": "review",
+      "sourceSheet": null,
+      "nativeScreen": "review",
+      "nativeSheet": null,
+      "nativeKind": "screen",
+      "nativeRoute": "review",
+      "nativeStableId": null,
+      "nativeSurfaceKey": "screen:review",
+      "theme": "light",
+      "meanAbsoluteRgbDelta": 15.1321,
+      "rmsRgbDelta": 46.9806,
+      "changedPixelFraction": 0.745922,
+      "outlier": true,
+      "outlierReasons": [
+        "changed-pixels"
+      ],
+      "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/light/review/source-product-1080x2004.png",
+      "native": "docs/parity-recovery/evidence/native/harness-144c8e4/pending-review/light/review/native-product-1080x2004.png",
+      "overlay": "docs/parity-recovery/evidence/comparisons/144c8e4/pending-review/light/review/overlay-50.png",
+      "difference": "docs/parity-recovery/evidence/comparisons/144c8e4/pending-review/light/review/absolute-difference.png"
+    },
+    {
+      "batchId": "non-business-pending-review",
+      "fixture": "pending-review",
+      "screen": "review",
+      "sourceScreen": "review",
+      "sourceSheet": null,
+      "nativeScreen": "review",
+      "nativeSheet": null,
+      "nativeKind": "screen",
+      "nativeRoute": "review",
+      "nativeStableId": null,
+      "nativeSurfaceKey": "screen:review",
+      "theme": "dark",
+      "meanAbsoluteRgbDelta": 14.9379,
+      "rmsRgbDelta": 47.5348,
+      "changedPixelFraction": 0.775358,
+      "outlier": true,
+      "outlierReasons": [
+        "changed-pixels"
+      ],
+      "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/dark/review/source-product-1080x2004.png",
+      "native": "docs/parity-recovery/evidence/native/harness-144c8e4/pending-review/dark/review/native-product-1080x2004.png",
+      "overlay": "docs/parity-recovery/evidence/comparisons/144c8e4/pending-review/dark/review/overlay-50.png",
+      "difference": "docs/parity-recovery/evidence/comparisons/144c8e4/pending-review/dark/review/absolute-difference.png"
+    },
+    {
+      "batchId": "non-business-pending-review",
+      "fixture": "pending-review",
+      "screen": "review-item",
+      "sourceScreen": "review",
+      "sourceSheet": null,
+      "nativeScreen": "review-item",
+      "nativeSheet": null,
+      "nativeKind": "screen",
+      "nativeRoute": "review-item",
+      "nativeStableId": null,
+      "nativeSurfaceKey": "screen:review-item",
+      "theme": "light",
+      "meanAbsoluteRgbDelta": 27.5119,
+      "rmsRgbDelta": 64.8115,
+      "changedPixelFraction": 0.900288,
+      "outlier": true,
+      "outlierReasons": [
+        "mae",
+        "rms",
+        "changed-pixels"
+      ],
+      "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/light/review-item/source-product-1080x2004.png",
+      "native": "docs/parity-recovery/evidence/native/harness-144c8e4/pending-review/light/review-item/native-product-1080x2004.png",
+      "overlay": "docs/parity-recovery/evidence/comparisons/144c8e4/pending-review/light/review-item/overlay-50.png",
+      "difference": "docs/parity-recovery/evidence/comparisons/144c8e4/pending-review/light/review-item/absolute-difference.png"
+    },
+    {
+      "batchId": "non-business-pending-review",
+      "fixture": "pending-review",
+      "screen": "review-item",
+      "sourceScreen": "review",
+      "sourceSheet": null,
+      "nativeScreen": "review-item",
+      "nativeSheet": null,
+      "nativeKind": "screen",
+      "nativeRoute": "review-item",
+      "nativeStableId": null,
+      "nativeSurfaceKey": "screen:review-item",
+      "theme": "dark",
+      "meanAbsoluteRgbDelta": 25.4266,
+      "rmsRgbDelta": 61.3264,
+      "changedPixelFraction": 0.884896,
+      "outlier": true,
+      "outlierReasons": [
+        "mae",
+        "rms",
+        "changed-pixels"
+      ],
+      "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/dark/review-item/source-product-1080x2004.png",
+      "native": "docs/parity-recovery/evidence/native/harness-144c8e4/pending-review/dark/review-item/native-product-1080x2004.png",
+      "overlay": "docs/parity-recovery/evidence/comparisons/144c8e4/pending-review/dark/review-item/overlay-50.png",
+      "difference": "docs/parity-recovery/evidence/comparisons/144c8e4/pending-review/dark/review-item/absolute-difference.png"
+    }
+  ]
+}
