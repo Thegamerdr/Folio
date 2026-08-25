@@ -6,7 +6,8 @@
     "nativeRepository": "Thegamerdr/Folio",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRegistry": "docs/parity-recovery/registries/design-surfaces.json",
-    "nativeRegistry": "docs/parity-recovery/registries/native-surfaces.json"
+    "nativeRegistry": "docs/parity-recovery/registries/native-surfaces.json",
+    "primaryAcceptanceDevice": "docs/parity-recovery/evidence/s9/device-configuration.json"
   },
   "statusPolicy": {
     "passingTestsDoNotImplyVisualParity": true,

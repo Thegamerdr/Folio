@@ -1,0 +1,91 @@
+{
+  "$schema": "melo-s9-parity-device-configuration/v1",
+  "capturedAtUtc": "2026-08-25T09:27:53Z",
+  "captureMethod": "direct ADB read-only queries",
+  "device": {
+    "serial": "2af26a2c19017ece",
+    "manufacturer": "samsung",
+    "model": "SM-G960F",
+    "androidRelease": "10",
+    "sdkLevel": 29,
+    "buildFingerprint": "samsung/starltexx/starlte:10/QP1A.190711.020/G960FXXUHFVG4:user/release-keys"
+  },
+  "display": {
+    "physicalPixels": {
+      "width": 1440,
+      "height": 2960
+    },
+    "activeOverridePixels": {
+      "width": 1080,
+      "height": 2220
+    },
+    "physicalDensityDpi": 480,
+    "activeDensityDpi": 480,
+    "logicalViewportDp": {
+      "width": 360,
+      "height": 740
+    },
+    "fontScale": 1.0,
+    "displaySizeForcedSetting": null,
+    "displayDensityForcedSetting": 480,
+    "displayZoomInterpretation": "Density equals the device physical density; the active 1080x2220 Samsung resolution mode does not add a density zoom override."
+  },
+  "windowInsets": {
+    "displayFramesPixels": {
+      "width": 1080,
+      "height": 2220,
+      "rotation": 0
+    },
+    "stableContentPixels": {
+      "left": 0,
+      "top": 72,
+      "right": 1080,
+      "bottom": 2076,
+      "width": 1080,
+      "height": 2004
+    },
+    "logicalProductViewportDp": {
+      "width": 360,
+      "height": 668
+    },
+    "statusBar": {
+      "pixels": 72,
+      "dp": 24
+    },
+    "navigationBar": {
+      "pixels": 144,
+      "dp": 48,
+      "position": "bottom"
+    },
+    "displayCutoutInsetsPixels": {
+      "left": 0,
+      "top": 0,
+      "right": 0,
+      "bottom": 0
+    }
+  },
+  "navigation": {
+    "navigationModeRaw": 0,
+    "navigationBarHideEnabledRaw": 0,
+    "mode": "three-button",
+    "immersivePolicy": null
+  },
+  "appearance": {
+    "uiModeNightCommand": "Night mode: no",
+    "uiNightModeSettingRaw": 1,
+    "effectiveThemeAtCapture": "light"
+  },
+  "rotation": {
+    "userRotationRaw": 0,
+    "accelerometerRotationRaw": 1,
+    "captureOrientation": "portrait"
+  },
+  "installedCandidate": {
+    "kind": "normal release APK; never a parity-capture build",
+    "nativeAppRevision": "b67933ea822b2875fa2b199d48acfba3595e92a8",
+    "sha256": "215DC40274CFB8E6487BF007A8CDF663E1463656FEC7AAB6B2FB2C15F676B770",
+    "package": "com.folio.v2.greenfield",
+    "coldLaunchStatus": "ok",
+    "fatalReactNativeAnrLogMatches": 0
+  }
+}

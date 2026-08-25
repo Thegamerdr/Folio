@@ -9,12 +9,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const DESIGN_PATH = path.join(ROOT, 'docs/parity-recovery/registries/design-surfaces.json');
 const NATIVE_PATH = path.join(ROOT, 'docs/parity-recovery/registries/native-surfaces.json');
 const OUTPUT_PATH = path.join(ROOT, 'docs/parity-recovery/registries/parity-crosswalk.json');
+const DEVICE_RELATIVE_PATH = 'docs/parity-recovery/evidence/s9/device-configuration.json';
+const DEVICE_PATH = path.join(ROOT, DEVICE_RELATIVE_PATH);
 const DESIGN_SHA = 'ad90b4fee36c58be156e145e8663d8c6be1bf0eb';
 
 const [design, native] = await Promise.all([
   readFile(DESIGN_PATH, 'utf8').then(JSON.parse),
   readFile(NATIVE_PATH, 'utf8').then(JSON.parse),
 ]);
+await access(DEVICE_PATH);
 
 const designScreens = new Map(design.phone_screens.map((entry) => [entry.screen_id, entry]));
 const designSheets = new Map(design.sheets.map((entry) => [entry.sheet_id, entry]));
@@ -211,6 +214,7 @@ const output = {
     nativeBranch: 'codex/melo-native-true-parity-2026-08-25',
     designRegistry: path.relative(ROOT, DESIGN_PATH).replaceAll('\\', '/'),
     nativeRegistry: path.relative(ROOT, NATIVE_PATH).replaceAll('\\', '/'),
+    primaryAcceptanceDevice: DEVICE_RELATIVE_PATH,
   },
   statusPolicy: {
     passingTestsDoNotImplyVisualParity: true,
