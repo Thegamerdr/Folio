@@ -75,6 +75,10 @@ function fixturesFor(entry) {
     entry.routeKey === 'business-insights' ||
     entry.routeKey === 'business-runway' ||
     entry.routeKey === 'business-filings' ||
+    entry.routeKey === 'business-corp-tax' ||
+    entry.routeKey === 'business-payroll' ||
+    entry.routeKey === 'business-dividends' ||
+    entry.routeKey === 'business-dla' ||
     entry.routeKey === 'business-companies-house' ||
     entry.routeKey === 'business-entity-setup' ||
     entry.routeKey === 'business-melo' ||
@@ -110,6 +114,134 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-corp-tax': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-corp-tax/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-corp-tax/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/light/business-corp-tax/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/dark/business-corp-tax/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-corp-tax/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-corp-tax/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-corp-tax/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-corp-tax/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after the shared Limited Company setup guard and Business type action restoration.',
+      consequence:
+        'The compared unconfigured state matches the pinned Limited Company-only guard and routes its primary action to the real native Business Type flow; the pinned synthetic demo-company control remains capture-only and writes no production state. Browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while the populated Corporation Tax estimate, pot and policy-version engine remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 8.205,
+        darkMeanAbsoluteRgbDelta: 8.2375,
+      },
+    },
+  },
+  'business-payroll': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-payroll/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-payroll/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/light/business-payroll/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/dark/business-payroll/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-payroll/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-payroll/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-payroll/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-payroll/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after the shared Limited Company setup guard and Business type action restoration.',
+      consequence:
+        'The compared unconfigured state matches the pinned Limited Company-only guard and routes its primary action to the real native Business Type flow; the pinned synthetic demo-company control remains capture-only and writes no production state. Browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated employees, payroll runs and liability calculations remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 8.205,
+        darkMeanAbsoluteRgbDelta: 8.2375,
+      },
+    },
+  },
+  'business-dividends': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-dividends/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-dividends/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/light/business-dividends/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/dark/business-dividends/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-dividends/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-dividends/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-dividends/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-dividends/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after the shared Limited Company setup guard and Business type action restoration.',
+      consequence:
+        'The compared unconfigured state matches the pinned Limited Company-only guard and routes its primary action to the real native Business Type flow; the pinned synthetic demo-company control remains capture-only and writes no production state. Browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated distributable reserves, declarations and dividend-tax calculations remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 8.205,
+        darkMeanAbsoluteRgbDelta: 8.2375,
+      },
+    },
+  },
+  'business-dla': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-dla/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-dla/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/light/business-dla/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-ea08cfa/business-empty/dark/business-dla/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-dla/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-dla/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/light/business-dla/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/ea08cfa/business-empty/dark/business-dla/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after the shared Limited Company setup guard and Business type action restoration.',
+      consequence:
+        'The compared unconfigured state matches the pinned Limited Company-only guard and routes its primary action to the real native Business Type flow; the pinned synthetic demo-company control remains capture-only and writes no production state. Browser/native shell geometry and fine text rasterisation still require physical-S9 owner review, while populated director-loan movements, section 455 and benefit-in-kind calculations remain separate captures.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 8.205,
+        darkMeanAbsoluteRgbDelta: 8.2375,
+      },
+    },
+  },
   'business-companies-house': {
     evidence: {
       lightSource:
