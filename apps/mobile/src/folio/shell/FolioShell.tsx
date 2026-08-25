@@ -93,6 +93,7 @@ import { MoreScreen } from '@/folio/screens/MoreScreen';
 import { PrivacyScreen } from '@/folio/screens/PrivacyScreen';
 import { TimelineScreen } from '@/folio/screens/TimelineScreen';
 import { PlansScreen } from '@/folio/screens/PlansScreen';
+import { PlanScreen } from '@/folio/screens/PlanScreen';
 import { GuidedCheckInScreen } from '@/folio/screens/GuidedCheckInScreen';
 import { MeloScreen } from '@/folio/screens/MeloScreen';
 import { PaywallScreen } from '@/folio/screens/PaywallScreen';
@@ -181,6 +182,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'today-stability': 'Today',
   'today-after': 'After',
   whatif: 'What if',
+  plan: 'Plan',
   plans: 'Plans',
   calendar: 'Calendar',
   timeline: 'Timeline',
@@ -265,6 +267,7 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
 ]);
 
 const PLAN_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
+  'plan',
   'plans',
   'calendar',
   'subs',
@@ -306,7 +309,7 @@ function activeTabForScreen(screen: ScreenId): ProductScreen {
 // The screen a bottom-tab press navigates to. The kit's Review tab (id `import`) opens the stable
 // Review hub; Timeline and the one-candidate review remain descendants of the same tab.
 function screenForTab(tab: ProductScreen): ScreenId {
-  if (tab === 'plans') return 'plans';
+  if (tab === 'plans') return 'plan';
   if (tab === 'import') return 'review';
   if (tab === 'more') return 'more';
   return 'today';
@@ -953,6 +956,7 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
     if (screen === 'melo') return <BusinessMeloScreen nav={nav} />;
     if (screen === 'timeline') return <BusinessReviewScreen nav={nav} />;
     if (screen === 'calendar') return <BusinessCalendarScreen nav={nav} />;
+    if (screen === 'plan') return <BusinessPlansScreen nav={nav} />;
     if (screen === 'plans') return <BusinessPlansScreen nav={nav} />;
     if (screen === 'business-entity-setup') return <BusinessEntitySetupScreen nav={nav} />;
     if (screen.startsWith('business-')) {
@@ -1013,6 +1017,7 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   if (screen === 'more') return <MoreScreen nav={nav} />;
   if (screen === 'privacy') return <PrivacyScreen nav={nav} />;
   if (screen === 'timeline') return <TimelineScreen nav={nav} />;
+  if (screen === 'plan') return <PlanScreen nav={nav} />;
   if (screen === 'plans') return <PlansScreen nav={nav} />;
   if (screen === 'guided') return <GuidedCheckInScreen nav={nav} />;
   if (screen === 'melo') return <MeloScreen nav={nav} pressure={pressure} />;

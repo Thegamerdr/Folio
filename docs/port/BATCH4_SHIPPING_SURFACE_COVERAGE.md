@@ -1,7 +1,7 @@
 # Batch 4 shipping surface coverage
 
 This is the narrow registry closure for the native shell at the Batch 4 start SHA. It classifies
-the 52 `ScreenId` entries and 27 non-null `SheetId` entries in
+the 53 `ScreenId` entries and 27 non-null `SheetId` entries in
 `apps/mobile/src/folio/types.ts` (79 registered shipping surfaces total). The `null` sheet value is
 shell state, not a surface, and is intentionally excluded. Screen-owned nested sheets remain
 classified with their owning screen; they are not counted a second time.
@@ -28,6 +28,7 @@ classified with their owning screen; they are not counted a second time.
 | Screen   | `more`                     | ported         | `MoreScreen`                  |
 | Screen   | `timeline`                 | ported         | `TimelineScreen`              |
 | Screen   | `calendar`                 | ported         | `CalendarScreen`              |
+| Screen   | `plan`                     | ported         | `PlanScreen`                  |
 | Screen   | `plans`                    | ported         | `PlansScreen`                 |
 | Screen   | `paywall`                  | ported         | `PaywallScreen`               |
 | Screen   | `whatif`                   | ported         | `WhatIfScreen`                |
@@ -88,7 +89,7 @@ classified with their owning screen; they are not counted a second time.
 | Sheet    | `hidden-review`            | ported         | `HiddenReviewSheet`           |
 | Sheet    | `day-detail`               | ported         | `SheetDayDetail`              |
 
-Coverage count: 52 screens + 27 sheets = 79 registered surfaces; 79 ported, 0 intentionally
+Coverage count: 53 screens + 27 sheets = 80 registered surfaces; 80 ported, 0 intentionally
 native-only, 0 deprecated/not shipping in the active registry, 0 open. The previous candidate
 `EditItemSheet` pathway is deliberately outside the active registry: Review detail's inline draft
 fields are the sole pre-truth candidate correction owner; Shortfall now routes to Subscriptions.

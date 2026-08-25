@@ -40,6 +40,7 @@ export type ScreenId =
   | 'more'
   | 'timeline'
   | 'calendar'
+  | 'plan'
   | 'plans'
   | 'paywall'
   | 'whatif'
