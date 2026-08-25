@@ -416,7 +416,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         {/* Presence — hero Melo or the quiet-mode resting line. */}
         <View style={styles.heroWrap}>
           <MeloCompanionHost
-            size={172}
+            size={162}
             mood={melo.quietMode ? 'calm' : modeState.mood}
             pose={modeState.pose}
             position={preferredPosition}
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
     width: 20,
   },
   titleBlock: {
-    marginTop: 56,
+    marginTop: 43,
   },
   kicker: {
     fontFamily: serif.displayItalic,
@@ -874,7 +874,7 @@ const styles = StyleSheet.create({
   },
   heroWrap: {
     alignItems: 'center',
-    marginTop: 44,
+    marginTop: 36,
   },
   restingWrap: {
     alignItems: 'center',
@@ -905,7 +905,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 28,
+    marginTop: 20,
   },
   tapToTalkLabel: {
     fontSize: 11,
@@ -923,7 +923,7 @@ const styles = StyleSheet.create({
     columnGap: gap.sm,
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: gap.xl,
+    marginTop: 19,
     minHeight: 44,
     paddingHorizontal: gap.md,
   },
@@ -950,7 +950,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   section: {
-    marginTop: 40,
+    marginTop: 35,
   },
   ritualsSection: {
     marginBottom: gap.xxl,
