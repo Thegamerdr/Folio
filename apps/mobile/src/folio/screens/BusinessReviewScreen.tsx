@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import { useAppStore, type Transaction } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
@@ -60,7 +60,10 @@ export function BusinessReviewScreen({
                 <Text
                   style={[
                     styles.segmentLabel,
-                    { color: selected ? t.ink : t.muted, fontWeight: selected ? '600' : '500' },
+                    {
+                      color: selected ? t.ink : t.muted,
+                      fontFamily: weightFamily(selected ? 600 : 500),
+                    },
                   ]}
                 >
                   {option.label}
@@ -288,6 +291,7 @@ function ActionRow({
       onPress={() => nav.go(to)}
       style={({ pressed }) => [
         styles.action,
+        surfaced ? styles.surfacedAction : underlined ? styles.underlinedAction : undefined,
         surfaced
           ? {
               backgroundColor: t.surface,
@@ -345,50 +349,71 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
   },
-  segmentLabel: { fontSize: 13.5, lineHeight: 18 },
+  segmentLabel: { fontFamily: weightFamily(500), fontSize: 13.5, lineHeight: 18 },
   wordmarkRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: gap.lg,
   },
   wordmark: { fontFamily: serif.displayItalic, fontSize: 14 },
-  workspaceKind: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.7 },
-  hero: { marginTop: 28 },
-  eyebrow: { fontSize: 11, fontWeight: '500', letterSpacing: 1.5, textTransform: 'uppercase' },
+  workspaceKind: { fontFamily: weightFamily(600), fontSize: 11.5, letterSpacing: 0.7 },
+  hero: { marginTop: gap.xl },
+  eyebrow: {
+    fontFamily: weightFamily(500),
+    fontSize: 11,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
   headline: {
     fontFamily: serif.display,
     fontSize: 29,
     letterSpacing: -0.3,
     lineHeight: 35,
-    marginTop: 12,
+    marginTop: gap.sm,
   },
-  why: { fontSize: 14, lineHeight: 20, marginTop: gap.lg },
-  noAction: { fontSize: 14, lineHeight: 20, marginTop: gap.lg },
+  why: { fontFamily: weightFamily(400), fontSize: 14, lineHeight: 20, marginTop: gap.md },
+  noAction: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
   action: {
     alignItems: 'center',
     flexDirection: 'row',
-    marginTop: gap.lg,
     minHeight: 56,
     paddingHorizontal: gap.lg,
     paddingVertical: gap.md,
   },
+  surfacedAction: { marginTop: gap.sm, paddingVertical: 0 },
+  underlinedAction: { marginTop: gap.xl },
   actionCopy: { flex: 1, paddingRight: gap.md },
-  actionLabel: { fontSize: 14, fontWeight: '600', lineHeight: 19 },
-  actionHint: { fontSize: 12.5, lineHeight: 17, marginTop: 2 },
-  actionArrow: { fontSize: 18 },
+  actionLabel: { fontFamily: weightFamily(600), fontSize: 14, lineHeight: 19 },
+  actionHint: { fontFamily: weightFamily(400), fontSize: 12.5, lineHeight: 17, marginTop: 2 },
+  actionArrow: { fontFamily: weightFamily(400), fontSize: 18 },
   history: { marginTop: 28 },
-  sectionTitle: { fontSize: 11, fontWeight: '600', letterSpacing: 1.5, textTransform: 'uppercase' },
+  sectionTitle: {
+    fontFamily: weightFamily(600),
+    fontSize: 11,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
   activitySection: { marginTop: 28 },
   activityHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  count: { fontSize: 11, fontVariant: ['tabular-nums'] },
+  count: { fontFamily: weightFamily(400), fontSize: 11, fontVariant: ['tabular-nums'] },
   activityEmpty: {
     borderTopWidth: StyleSheet.hairlineWidth,
     marginTop: gap.sm,
     paddingVertical: gap.xl,
   },
   activityEmptyTitle: { fontFamily: serif.medium, fontSize: 18 },
-  activityEmptyBody: { fontSize: 12.5, lineHeight: 18, marginTop: gap.xs },
+  activityEmptyBody: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 18,
+    marginTop: gap.xs,
+  },
   activityRows: {
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -403,8 +428,8 @@ const styles = StyleSheet.create({
     paddingVertical: gap.md,
   },
   activityCopy: { flex: 1, paddingRight: gap.md },
-  activityTitle: { fontSize: 13.5, fontWeight: '600' },
-  activityMeta: { fontSize: 11.5, marginTop: 2 },
-  amount: { fontSize: 13.5, fontVariant: ['tabular-nums'], fontWeight: '600' },
+  activityTitle: { fontFamily: weightFamily(600), fontSize: 13.5 },
+  activityMeta: { fontFamily: weightFamily(400), fontSize: 11.5, marginTop: 2 },
+  amount: { fontFamily: weightFamily(600), fontSize: 13.5, fontVariant: ['tabular-nums'] },
   documentActions: { marginTop: gap.xl },
 });
