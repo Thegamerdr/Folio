@@ -655,7 +655,9 @@ export function TodayScreen({
               {tight.tightestDate
                 ? `at its lowest point · ${formatDayProse(tight.tightestDate)}`
                 : 'at its lowest point'}
-              {' · '}from £{groupedPounds(currentBalance.amount)} · {balanceSourceLabel}
+              <Text style={{ opacity: 0.6 }}>
+                {' · '}from £{groupedPounds(currentBalance.amount)} · {balanceSourceLabel}
+              </Text>
             </Text>
           </Pressable>
           <Text style={[styles.heroSource, { color: t.muted }]}>
@@ -1554,7 +1556,7 @@ const styles = StyleSheet.create({
     marginTop: gap.lg,
     paddingHorizontal: gap.lg,
     paddingTop: gap.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
   pathHead: {
     minHeight: 44,
@@ -1610,7 +1612,7 @@ const styles = StyleSheet.create({
   pathSummary: {
     marginTop: gap.md,
     paddingTop: gap.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     fontFamily: weightFamily(400),
     fontSize: 12.5,
     lineHeight: 18.75,

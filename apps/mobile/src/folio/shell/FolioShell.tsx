@@ -30,6 +30,7 @@ import {
   AccessibilityInfo,
   AppState,
   BackHandler,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -47,6 +48,7 @@ import {
   Muted,
   PressureScreen,
   PrimaryAction,
+  useIsDark,
   useTheme,
 } from '@/surfaces/pressureMap/kit';
 import {
@@ -342,6 +344,7 @@ function useReducedMotion(): boolean {
 
 export function FolioShell() {
   const t = useTheme();
+  const isDark = useIsDark();
   const parity = useMemo(() => getParityHarnessConfig(), []);
   // In-memory nav state — the doorway is `start`, but the home tab is `today`. The web index lands
   // on `start`; here the shell opens on `today` so the bottom nav has a lit home from the first
@@ -625,10 +628,16 @@ export function FolioShell() {
             key={`route-frame-${screen}`}
             style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
           >
-            <View
-              collapsable={false}
-              style={[shellStyles.screenHost, { backgroundColor: t.canvas }]}
-            >
+            <Image
+              resizeMode="repeat"
+              source={
+                isDark
+                  ? require('../../../assets/material/paper-grain-dark.png')
+                  : require('../../../assets/material/paper-grain-light.png')
+              }
+              style={shellStyles.paperGrain}
+            />
+            <View collapsable={false} style={shellStyles.screenHost}>
               <ScreenErrorBoundary
                 key={`screen-${screen}`}
                 screenLabel={screen}
@@ -746,6 +755,7 @@ export function FolioShell() {
 const shellStyles = StyleSheet.create({
   root: { flex: 1 },
   routeFrame: { flex: 1 },
+  paperGrain: { position: 'absolute', inset: 0 },
   screenHost: { flex: 1 },
 });
 

@@ -198,8 +198,8 @@ export function MoneyPathChart({
                     x={event.x}
                     y={y + (outgoing ? 21 : -16)}
                     textAnchor="middle"
+                    fontFamily="InterTightMedium"
                     fontSize={8}
-                    fontWeight="500"
                     letterSpacing={0.3}
                     fill={t.muted}
                   >
@@ -247,8 +247,8 @@ export function MoneyPathChart({
               x={point.x + dx}
               y={point.y - (isLow ? 15 : 13)}
               textAnchor={anchor}
+              fontFamily={isLow ? 'InterTightBold' : 'InterTightSemiBold'}
               fontSize={isLow ? 13 : 11}
-              fontWeight={isLow ? '700' : '600'}
               fill={isLow ? t.calm : t.ink}
             >
               {point.value}
@@ -257,8 +257,8 @@ export function MoneyPathChart({
               x={point.x + dx}
               y={BASELINE + 15}
               textAnchor={anchor}
+              fontFamily={isLow ? 'InterTightBold' : 'InterTightMedium'}
               fontSize={8.5}
-              fontWeight={isLow ? '700' : '500'}
               fill={isLow ? t.calm : t.muted}
               letterSpacing={0.9}
             >
@@ -286,8 +286,8 @@ export function MoneyPathChart({
             x={Math.max(52, Math.min(W - 52, focusX))}
             y={52}
             textAnchor="middle"
+            fontFamily="InterTightSemiBold"
             fontSize={9.5}
-            fontWeight="600"
             fill={t.ink}
           >
             from Calendar · {focusLabel}

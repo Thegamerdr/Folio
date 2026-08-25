@@ -724,7 +724,7 @@ const NAV_TABS: readonly NavTab[] = [
 ];
 
 function NavIcon({ id, active, t }: { id: ProductScreen; active: boolean; t: Palette }) {
-  const stroke = active ? t.calmStrong : t.muted;
+  const stroke = active ? t.calm : t.muted;
   if (id === 'today') {
     // Lucide CircleDot — exact pinned-source geometry.
     return (
@@ -1068,17 +1068,16 @@ function makeStyles(t: Palette) {
       height: NAV_HEIGHT,
       flexDirection: 'row',
       backgroundColor: t.surface,
-      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopWidth: 1,
       borderTopColor: t.hairline,
-      paddingTop: 8,
     },
     navLabel: {
       color: t.muted,
+      fontFamily: weightFamily(400),
       fontSize: 11,
-      fontWeight: '600',
-      letterSpacing: 0.2,
+      letterSpacing: 0.275,
     },
-    navLabelActive: { color: t.calmStrong },
+    navLabelActive: { color: t.ink, fontFamily: weightFamily(500) },
     navBadge: {
       alignItems: 'center',
       backgroundColor: t.calmStrong,
