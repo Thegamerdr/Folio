@@ -373,8 +373,13 @@ function BusinessRunwayEmpty({
           <Text style={[styles.runwayEmptyBackLabel, { color: t.muted }]}>←</Text>
         </Pressable>
 
-        <Text style={[styles.runwayEmptyDisclaimer, { color: t.muted }]}>
-          Estimates only. Melo doesn’t file with HMRC or Companies House.
+        <Text
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+          numberOfLines={1}
+          style={[styles.runwayEmptyDisclaimer, { color: t.muted }]}
+        >
+          Estimates only. Melo doesn't file with HMRC or Companies House.
         </Text>
 
         <View style={styles.runwayEmptyHero}>
@@ -2754,7 +2759,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginTop: gap.md,
   },
-  runwayEmptyHero: { marginTop: gap.lg },
+  runwayEmptyHero: { marginTop: 20 },
   runwayEmptyEyebrow: {
     fontFamily: weightFamily(400),
     fontSize: 11,
