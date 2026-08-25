@@ -1,21 +1,48 @@
 {
   "schemaVersion": 1,
   "nowISO": "2026-08-18T08:00:00.000Z",
+  "randomSeed": 1835363439,
   "locale": "en-GB",
   "timeZone": "UTC",
   "personalDefaults": {
     "name": "Alex",
-    "transaction": {
-      "id": "fixture-txn-groceries",
-      "when": "2026-08-17T08:00:00.000Z",
-      "merchant": "Groceries",
-      "amount": -42,
-      "category": "food",
-      "source": "manual"
-    }
+    "transactions": [
+      {
+        "id": "fixture-txn-groceries",
+        "when": "2026-08-17T08:00:00.000Z",
+        "merchant": "Groceries",
+        "amount": -42,
+        "category": "food",
+        "source": "manual"
+      },
+      {
+        "id": "fixture-txn-sound-aug",
+        "when": "2026-08-12T08:00:00.000Z",
+        "merchant": "Sound+ Studio",
+        "amount": -6.99,
+        "category": "fun",
+        "source": "manual"
+      },
+      {
+        "id": "fixture-txn-sound-jul",
+        "when": "2026-07-12T08:00:00.000Z",
+        "merchant": "Sound+ Studio",
+        "amount": -6.99,
+        "category": "fun",
+        "source": "manual"
+      },
+      {
+        "id": "fixture-txn-sound-jun",
+        "when": "2026-06-12T08:00:00.000Z",
+        "merchant": "Sound+ Studio",
+        "amount": -6.99,
+        "category": "fun",
+        "source": "manual"
+      }
+    ]
   },
   "designAdapter": {
-    "note": "The pinned web prototype unconditionally derives four demo bills and one Klarna review marker. Native adds equivalent manual calendar events only in capture mode. Evidence runs in UTC because the pinned source serializes monthly local-midnight dates through UTC ISO slices; UTC prevents DST drift while preserving en-GB copy and the same visible 08:00 capture day.",
+    "note": "The pinned web prototype unconditionally derives four demo bills, one Klarna review marker, and a synthetic Sound+ Studio recurring-charge candidate. Native adds equivalent calendar rows and real recurring ledger facts only in capture mode, letting its detector derive the candidate. Evidence runs in UTC because the pinned source serializes monthly local-midnight dates through UTC ISO slices; UTC prevents DST drift while preserving en-GB copy and the same visible 08:00 capture day.",
     "implicitCalendarEvents": [
       {
         "id": "fixture-design-bill-octopus-2026-09-01",
@@ -121,6 +148,47 @@
       "subscriptions": [
         { "name": "Council tax", "cost": 120, "daysAway": 2 },
         { "name": "Energy", "cost": 68, "daysAway": 4 }
+      ],
+      "pots": [
+        {
+          "id": "fixture-buffer",
+          "name": "Buffer",
+          "saved": 420,
+          "goal": 900,
+          "perWeek": 30,
+          "accent": true
+        },
+        {
+          "id": "fixture-holiday",
+          "name": "Holiday · October",
+          "saved": 360,
+          "goal": 1200,
+          "perWeek": 45,
+          "accent": false
+        }
+      ],
+      "debts": [
+        {
+          "id": "fixture-loan",
+          "name": "Personal loan",
+          "kind": "loan",
+          "balance": 2400,
+          "apr": 12.9,
+          "minPayment": 120,
+          "dueDom": 24,
+          "addedAt": "2026-06-01T08:00:00.000Z"
+        }
+      ],
+      "plans": [
+        {
+          "id": "fixture-plan",
+          "name": "New laptop",
+          "target": 1600,
+          "saved": 420,
+          "byDate": "2026-12-15",
+          "perWeek": 45,
+          "addedAt": "2026-06-01T08:00:00.000Z"
+        }
       ]
     },
     "pending-review": {
@@ -134,6 +202,24 @@
       "subscriptions": [
         { "name": "Council tax", "cost": 120, "daysAway": 2 },
         { "name": "Energy", "cost": 68, "daysAway": 4 }
+      ],
+      "reviewItems": [
+        {
+          "source": "pdf",
+          "merchant": "Railcard",
+          "amount": -30,
+          "date": "2026-08-17",
+          "category": "transport",
+          "hint": "looks like travel"
+        },
+        {
+          "source": "pdf",
+          "merchant": "Freelance payment",
+          "amount": 480,
+          "date": "2026-08-16",
+          "category": "income",
+          "hint": "looks like income"
+        }
       ]
     },
     "business-sole-trader": { "kind": "business-sole-trader" },

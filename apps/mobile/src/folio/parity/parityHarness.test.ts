@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { getState, hasConfiguredMoneyPicture } from '../store';
 import { deriveCalendarEvents } from '../lib/calendarEvents';
+import { findCaughtSubs } from '../lib/caughtSubs';
 import { routeFromStore } from '../lib/storeRoute';
 import { activateParityHarness, type ParityFixtureId } from './parityHarness';
 
@@ -22,7 +23,7 @@ describe('visual parity fixture harness', () => {
       currentBalance: { amount: 1480, confidence: 'corrected' },
       onboarding: { done: true, payday: 28, monthlyIncome: 2600 },
     });
-    expect(getState().transactions).toHaveLength(1);
+    expect(getState().transactions).toHaveLength(4);
     expect(getState().subs).toHaveLength(2);
     expect(getState().calendarEvents).toEqual(
       expect.arrayContaining([
@@ -33,6 +34,21 @@ describe('visual parity fixture harness', () => {
     );
     expect(getState().calendarEvents).toHaveLength(5);
     expect(getState().incomeSources?.[0]?.dayOfMonth).toBe(28);
+    expect(
+      findCaughtSubs(
+        getState().transactions,
+        getState().subs.map((subscription) => subscription.name),
+        '2026-08-18',
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        name: 'Sound+ Studio',
+        amount: 6.99,
+        seen: 3,
+        lastDateIso: '2026-08-12',
+        cadence: 'monthly',
+      }),
+    ]);
 
     expect(activate('provisional-low-confidence').currentBalance).toMatchObject({
       amount: 680,
@@ -47,6 +63,9 @@ describe('visual parity fixture harness', () => {
     expect(commitments.pots).toHaveLength(2);
     expect(commitments.debts).toHaveLength(1);
     expect(commitments.plans).toHaveLength(1);
+    expect(commitments.pots[0]).toMatchObject({ id: 'fixture-buffer', saved: 420, goal: 900 });
+    expect(commitments.debts?.[0]).toMatchObject({ id: 'fixture-loan', balance: 2400 });
+    expect(commitments.plans?.[0]).toMatchObject({ id: 'fixture-plan', target: 1600 });
 
     const pending = activate('pending-review');
     expect(pending.evidenceDocuments).toHaveLength(1);
@@ -54,6 +73,30 @@ describe('visual parity fixture harness', () => {
     expect(pending.reviewQueue?.map((item) => item.merchant)).toEqual([
       'Railcard',
       'Freelance payment',
+    ]);
+    expect(
+      pending.reviewQueue?.map(({ id, addedAt, date, amount, category }) => ({
+        id,
+        addedAt,
+        date,
+        amount,
+        category,
+      })),
+    ).toEqual([
+      {
+        id: 'rv-1787040000000-shsw58',
+        addedAt: '2026-08-18T08:00:00.000Z',
+        date: '2026-08-17',
+        amount: -30,
+        category: 'transport',
+      },
+      {
+        id: 'rv-1787040000000-mzt6a4',
+        addedAt: '2026-08-18T08:00:00.000Z',
+        date: '2026-08-16',
+        amount: 480,
+        category: 'income',
+      },
     ]);
   });
 

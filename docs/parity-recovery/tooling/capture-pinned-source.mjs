@@ -24,10 +24,7 @@ const PLAYWRIGHT_ROOT =
 const CHROMIUM_EXECUTABLE =
   process.env.MELO_CHROMIUM_EXECUTABLE ??
   'C:/Users/User/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe';
-const FIXTURE_PATH = path.join(
-  NATIVE_ROOT,
-  'apps/mobile/src/folio/parity/fixtures.json',
-);
+const FIXTURE_PATH = path.join(NATIVE_ROOT, 'apps/mobile/src/folio/parity/fixtures.json');
 const PORT = Number.parseInt(process.env.MELO_SOURCE_CAPTURE_PORT ?? '4179', 10);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 // HeroPhone treats the query as an outer device, then subtracts 2x36 and adds a 4px iOS bezel.
@@ -89,7 +86,13 @@ function waitForServer(url, timeoutMs = 30_000) {
 
 const vite = spawn(
   process.execPath,
-  [path.join(DESIGN_ROOT, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(PORT)],
+  [
+    path.join(DESIGN_ROOT, 'node_modules/vite/bin/vite.js'),
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(PORT),
+  ],
   { cwd: DESIGN_ROOT, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
 );
 let viteOutput = '';
@@ -173,7 +176,7 @@ try {
         usesPerMonth: 1,
       }));
       const patch = {
-        pots: [],
+        pots: canonicalFixture.pots ?? [],
         subs: subscriptions,
         subPaused: {},
         subOverrides: [],
@@ -197,18 +200,30 @@ try {
           setAt: nowISO,
         },
         potLedger: [],
-        transactions: [defaults.transaction],
+        transactions: defaults.transactions,
         calendarEvents: [],
         tightPointGoal: null,
         moneyMode: 'survival',
         bufferAmount: 100,
-        reviewQueue: [],
-        debts: [],
-        plans: [],
+        debts: canonicalFixture.debts ?? [],
+        plans: canonicalFixture.plans ?? [],
         spendHold: null,
         whatIfHolds: [],
       };
       store.applyPreviewOverlay(patch);
+      const nativeRandom = Math.random;
+      let seed = defaults.randomSeed >>> 0;
+      Math.random = () => {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 0x1_0000_0000;
+      };
+      try {
+        store.enqueueReviewItems(
+          (canonicalFixture.reviewItems ?? []).map(({ category: _category, ...item }) => item),
+        );
+      } finally {
+        Math.random = nativeRandom;
+      }
       const state = store.getState();
       const events = calendar.deriveCalendarEvents({
         subs: state.subs,
@@ -231,6 +246,10 @@ try {
           balance: state.currentBalance,
           onboarding: state.onboarding,
           subscriptions: state.subs,
+          pots: state.pots,
+          debts: state.debts,
+          plans: state.plans,
+          reviewQueue: state.reviewQueue,
           transactionCount: state.transactions.length,
           manualEventCount: state.calendarEvents.length,
         },
@@ -240,7 +259,10 @@ try {
     },
     {
       canonicalFixture: fixture,
-      defaults: fixtureManifest.personalDefaults,
+      defaults: {
+        ...fixtureManifest.personalDefaults,
+        randomSeed: fixtureManifest.randomSeed,
+      },
       nowISO: fixtureManifest.nowISO,
     },
   );

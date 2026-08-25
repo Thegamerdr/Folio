@@ -33,10 +33,7 @@ import {
   ltdAcceptanceFixture,
   soleTraderAcceptanceFixture,
 } from '../lib/fixtures/businessAcceptanceFixture';
-import {
-  createBusinessWorkspace,
-  createPersonalWorkspaceRoot,
-} from '../lib/workspaceRoot';
+import { createBusinessWorkspace, createPersonalWorkspaceRoot } from '../lib/workspaceRoot';
 import type { ScreenId, SheetId } from '../types';
 
 export type ParityFixtureId = keyof typeof fixtureManifestJson.fixtures;
@@ -54,23 +51,69 @@ type PersonalFixture = Readonly<{
   income: number;
   payday: number;
   subscriptions: ReadonlyArray<Readonly<{ name: string; cost: number; daysAway: number }>>;
+  pots?: ReadonlyArray<
+    Readonly<{
+      id: string;
+      name: string;
+      saved: number;
+      goal: number;
+      perWeek: number;
+      accent: boolean;
+    }>
+  >;
+  debts?: ReadonlyArray<
+    Readonly<{
+      id: string;
+      name: string;
+      kind: 'loan';
+      balance: number;
+      apr: number;
+      minPayment: number;
+      dueDom: number;
+      addedAt: string;
+    }>
+  >;
+  plans?: ReadonlyArray<
+    Readonly<{
+      id: string;
+      name: string;
+      target: number;
+      saved: number;
+      byDate: string;
+      perWeek: number;
+      addedAt: string;
+    }>
+  >;
+  reviewItems?: ReadonlyArray<
+    Readonly<{
+      source: 'pdf';
+      merchant: string;
+      amount: number;
+      date: string;
+      category: 'transport' | 'income';
+      hint: string;
+    }>
+  >;
 }>;
 
 const fixtureManifest = fixtureManifestJson as unknown as Readonly<{
   schemaVersion: 1;
   nowISO: string;
+  randomSeed: number;
   locale: 'en-GB';
   timeZone: 'UTC';
   personalDefaults: Readonly<{
     name: string;
-    transaction: Readonly<{
-      id: string;
-      when: string;
-      merchant: string;
-      amount: number;
-      category: 'food';
-      source: 'manual';
-    }>;
+    transactions: ReadonlyArray<
+      Readonly<{
+        id: string;
+        when: string;
+        merchant: string;
+        amount: number;
+        category: 'food' | 'fun';
+        source: 'manual';
+      }>
+    >;
   }>;
   designAdapter: Readonly<{
     implicitCalendarEvents: ReadonlyArray<
@@ -120,6 +163,7 @@ const SCREEN_IDS: ReadonlySet<string> = new Set([
   'today-stability',
   'today-after',
   'whatif',
+  'plan',
   'plans',
   'calendar',
   'timeline',
@@ -256,6 +300,20 @@ function fixtureSubscriptions(fixture: PersonalFixture): Sub[] {
   }));
 }
 
+function withFixtureRandom<T>(run: () => T): T {
+  const nativeRandom = Math.random;
+  let seed = fixtureManifest.randomSeed >>> 0;
+  Math.random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x1_0000_0000;
+  };
+  try {
+    return run();
+  } finally {
+    Math.random = nativeRandom;
+  }
+}
+
 function configurePersonalBase(input: PersonalFixture): void {
   resetToEmpty({ onboardingDone: true });
   setOnboarding({
@@ -291,7 +349,32 @@ function configurePersonalBase(input: PersonalFixture): void {
       ...(event.amount === undefined ? {} : { amount: event.amount }),
     });
   }
-  addTransaction(fixtureManifest.personalDefaults.transaction);
+  for (const transaction of fixtureManifest.personalDefaults.transactions) {
+    addTransaction(transaction);
+  }
+  setPots([...(input.pots ?? [])]);
+  for (const debt of input.debts ?? []) addDebt(debt);
+  for (const plan of input.plans ?? []) addPlan(plan);
+  if ((input.reviewItems?.length ?? 0) > 0) {
+    const evidence = addEvidenceDocument({
+      id: 'evidence_11111111111111111111111111111111',
+      filename: 'parity-statement.pdf',
+      mediaType: 'application/pdf',
+      byteSize: 4096,
+      addedAtISO: fixtureManifest.nowISO,
+      sourceType: 'document',
+      extractionStatus: 'read',
+      storageState: 'encrypted-device-vault',
+    });
+    withFixtureRandom(() =>
+      enqueueReviewItems(
+        (input.reviewItems ?? []).map((item) => ({
+          ...item,
+          sourceEvidenceId: evidence.id,
+        })),
+      ),
+    );
+  }
 }
 
 function configureBusiness(kind: 'sole-trader' | 'ltd'): void {
@@ -307,7 +390,11 @@ function configureBusiness(kind: 'sole-trader' | 'ltd'): void {
     activeWorkspaceId: business.id,
     dataWorkspaceId: business.id,
   } as const;
-  const empty = createEmptyWorkspacePartition(root, business.id, BUSINESS_ACCEPTANCE_NOW.toISOString());
+  const empty = createEmptyWorkspacePartition(
+    root,
+    business.id,
+    BUSINESS_ACCEPTANCE_NOW.toISOString(),
+  );
   hydrateFromBlob(JSON.stringify(empty), business.id);
   const fixture = kind === 'sole-trader' ? soleTraderAcceptanceFixture() : ltdAcceptanceFixture();
   updateBusinessOperations(fixture.state);
@@ -353,77 +440,4 @@ export function activateParityHarness(config: ParityHarnessConfig): void {
     throw new Error(`Parity fixture ${config.fixture} has unsupported kind ${fixture.kind}.`);
   }
   configurePersonalBase(fixture);
-
-  if (config.fixture === 'populated-commitments') {
-    setPots([
-      { id: 'fixture-buffer', name: 'Buffer', saved: 420, goal: 900, perWeek: 30, accent: true },
-      {
-        id: 'fixture-holiday',
-        name: 'Holiday · October',
-        saved: 360,
-        goal: 1200,
-        perWeek: 45,
-        accent: false,
-      },
-    ]);
-    addDebt({
-      id: 'fixture-loan',
-      name: 'Personal loan',
-      kind: 'loan',
-      balance: 2400,
-      apr: 12.9,
-      minPayment: 120,
-      dueDom: 24,
-      addedAt: '2026-06-01T08:00:00.000Z',
-    });
-    addPlan({
-      id: 'fixture-plan',
-      name: 'New laptop',
-      target: 1600,
-      saved: 420,
-      byDate: '2026-12-15',
-      perWeek: 45,
-      addedAt: '2026-06-01T08:00:00.000Z',
-    });
-    return;
-  }
-
-  if (config.fixture === 'pending-review') {
-    const evidence = addEvidenceDocument({
-      id: 'evidence_11111111111111111111111111111111',
-      filename: 'parity-statement.pdf',
-      mediaType: 'application/pdf',
-      byteSize: 4096,
-      addedAtISO: new Date().toISOString(),
-      sourceType: 'document',
-      extractionStatus: 'read',
-      storageState: 'encrypted-device-vault',
-    });
-    const nativeRandom = Math.random;
-    Math.random = () => 0.3141592653;
-    try {
-      enqueueReviewItems([
-        {
-          source: 'pdf',
-          sourceEvidenceId: evidence.id,
-          merchant: 'Railcard',
-          amount: -30,
-          date: isoDay(-1),
-          category: 'transport',
-          hint: 'looks like travel',
-        },
-        {
-          source: 'pdf',
-          sourceEvidenceId: evidence.id,
-          merchant: 'Freelance payment',
-          amount: 480,
-          date: isoDay(-2),
-          category: 'income',
-          hint: 'looks like income',
-        },
-      ]);
-    } finally {
-      Math.random = nativeRandom;
-    }
-  }
 }
