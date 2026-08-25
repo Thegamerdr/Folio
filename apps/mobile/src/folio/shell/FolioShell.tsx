@@ -750,7 +750,7 @@ export function FolioShell() {
 
 const shellStyles = StyleSheet.create({
   root: { flex: 1 },
-  routeFrame: { flex: 1 },
+  routeFrame: { flex: 1, height: '100%', width: '100%' },
   screenHost: { flex: 1 },
 });
 
