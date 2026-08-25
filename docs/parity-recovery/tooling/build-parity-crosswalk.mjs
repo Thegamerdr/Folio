@@ -66,6 +66,7 @@ function fixturesFor(entry) {
   if (
     entry.routeKey === 'business-today' ||
     entry.routeKey === 'business-review' ||
+    entry.routeKey === 'business-money' ||
     entry.routeKey === 'business-more'
   ) {
     return ['business-empty', 'business-sole-trader', 'business-ltd'];
@@ -98,6 +99,38 @@ function emptyEvidence() {
 }
 
 const CALIBRATIONS = {
+  'business-money': {
+    evidence: {
+      lightSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-money/source-product-1080x2004.png',
+      darkSource:
+        'docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-money/source-product-1080x2004.png',
+      lightNative:
+        'docs/parity-recovery/evidence/native/harness-3419ef5/business-empty/light/business-money/native-product-1080x2004.png',
+      darkNative:
+        'docs/parity-recovery/evidence/native/harness-3419ef5/business-empty/dark/business-money/native-product-1080x2004.png',
+      lightOverlay:
+        'docs/parity-recovery/evidence/comparisons/3419ef5/business-empty/light/business-money/overlay-50.png',
+      darkOverlay:
+        'docs/parity-recovery/evidence/comparisons/3419ef5/business-empty/dark/business-money/overlay-50.png',
+      differenceImages: [
+        'docs/parity-recovery/evidence/comparisons/3419ef5/business-empty/light/business-money/absolute-difference.png',
+        'docs/parity-recovery/evidence/comparisons/3419ef5/business-empty/dark/business-money/absolute-difference.png',
+      ],
+      comparisonCount: 2,
+    },
+    deviation: {
+      status: 'open',
+      reason:
+        'Measured Light/Dark differences remain after Business Money answer, value and card calibration.',
+      consequence:
+        'The source introductory companion speech occupies a large comparison region; fine companion choreography, card material and text rasterisation still require physical-S9 owner review.',
+      metrics: {
+        lightMeanAbsoluteRgbDelta: 19.5687,
+        darkMeanAbsoluteRgbDelta: 19.2551,
+      },
+    },
+  },
   'business-review': {
     evidence: {
       lightSource:

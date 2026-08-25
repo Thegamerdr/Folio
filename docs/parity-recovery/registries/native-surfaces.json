@@ -2,7 +2,7 @@
   "$schema": "melo-native-shipping-surface-registry/v1",
   "generatedFrom": {
     "nativeRepository": "Thegamerdr/Folio",
-    "nativeCommit": "e4faa6012bbf033adcc3d676b7fbf9902c06d37c",
+    "nativeCommit": "3419ef57c9f083546625c757528a677af70e9b0d",
     "nativeBranch": "codex/melo-native-true-parity-2026-08-25",
     "designRepository": "Thegamerdr/private-money-pilot",
     "designCommit": "ad90b4fee36c58be156e145e8663d8c6be1bf0eb",
@@ -610,35 +610,44 @@
       "stableId": "screen.plan",
       "routeKey": "plan",
       "componentSource": "apps/mobile/src/folio/screens/PlanScreen.tsx#PlanScreen",
-      "workspace": "personal|business",
+      "workspace": "personal",
       "themeHandling": "theme-provider",
-      "workspaceComponents": {
-        "personal": ["apps/mobile/src/folio/screens/PlanScreen.tsx#PlanScreen"],
-        "business": [
-          "apps/mobile/src/folio/screens/business/BusinessPlanningScreens.tsx#BusinessPlansScreen"
-        ]
-      },
       "dataStateDependencies": [
         "calendar events",
         "route projection",
         "subscriptions",
         "pots",
-        "debts",
-        "business invoices/obligations"
+        "debts"
       ],
       "states": [
         "personal-populated",
         "personal-empty",
         "personal-loading",
         "personal-error",
-        "personal-offline",
-        "business-populated",
-        "business-empty"
+        "personal-offline"
       ],
-      "designOwnerHints": [
-        "src/components/folio/screens/ScreenPlanHub.tsx",
-        "src/components/folio/screens/BusinessReviewSurfaces.tsx#ScreenBusinessPlans"
-      ]
+      "designOwnerHints": ["src/components/folio/screens/ScreenPlanHub.tsx"]
+    },
+    {
+      "stableId": "screen.business-money",
+      "routeKey": "business-money",
+      "componentSource": "apps/mobile/src/folio/screens/BusinessMoneyScreen.tsx#BusinessMoneyScreen",
+      "workspace": "business",
+      "themeHandling": "theme-provider",
+      "dataStateDependencies": [
+        "active business workspace",
+        "business accounts and cash runway",
+        "invoices and outstanding amounts",
+        "VAT registration and open returns",
+        "dated recurring obligations"
+      ],
+      "states": [
+        "business-empty",
+        "business-cash-populated",
+        "business-invoices-outstanding",
+        "business-vat-registered"
+      ],
+      "designOwnerHints": ["src/components/folio/screens/BusinessMoneySurfaces.tsx#ScreenBusinessMoney"]
     },
     {
       "stableId": "screen.plans",
@@ -2800,6 +2809,6 @@
     "appOwnedDialogs": 61,
     "platformOwnedSurfaces": 6,
     "globalStates": 8,
-    "totalRegisteredSurfaces": 189
+    "totalRegisteredSurfaces": 190
   }
 }

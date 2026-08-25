@@ -15,14 +15,14 @@
     "missingEvidenceIsNotAPass": true
   },
   "counts": {
-    "nativeShippingSurfaces": 189,
-    "exactDesignOwnersResolved": 167,
+    "nativeShippingSurfaces": 190,
+    "exactDesignOwnersResolved": 168,
     "unresolvedDesignOwners": 22,
-    "surfacesWithDirectComparison": 12,
+    "surfacesWithDirectComparison": 13,
     "surfacesMissingDirectComparison": 177,
-    "comparisonCount": 16,
-    "lightComparisonCount": 8,
-    "darkComparisonCount": 8,
+    "comparisonCount": 18,
+    "lightComparisonCount": 9,
+    "darkComparisonCount": 9,
     "designSurfacesNotMappedToNativeShippingSurface": 39
   },
   "entries": [
@@ -4319,6 +4319,67 @@
       "finalStatus": "missing-direct-visual-comparison"
     },
     {
+      "stableId": "screen.business-money",
+      "kind": "screen",
+      "native": {
+        "routeKey": "business-money",
+        "componentSource": "apps/mobile/src/folio/screens/BusinessMoneyScreen.tsx#BusinessMoneyScreen",
+        "workspace": "business",
+        "states": [
+          "business-empty",
+          "business-cash-populated",
+          "business-invoices-outstanding",
+          "business-vat-registered"
+        ]
+      },
+      "design": {
+        "owners": [
+          {
+            "stableId": "screen:business-money",
+            "kind": "screen",
+            "routeKey": "business-money",
+            "sourceReference": "src/components/folio/screens/BusinessMoneySurfaces.tsx#ScreenBusinessMoney",
+            "keyStates": [
+              "no-cash-picture",
+              "offline"
+            ],
+            "resolution": "exact-route-key"
+          }
+        ],
+        "ownerStatus": "resolved"
+      },
+      "matchedFixtures": [
+        "business-empty",
+        "business-sole-trader",
+        "business-ltd"
+      ],
+      "evidence": {
+        "lightSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/light/business-money/source-product-1080x2004.png",
+        "darkSource": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/business-empty/dark/business-money/source-product-1080x2004.png",
+        "lightNative": "docs/parity-recovery/evidence/native/harness-3419ef5/business-empty/light/business-money/native-product-1080x2004.png",
+        "darkNative": "docs/parity-recovery/evidence/native/harness-3419ef5/business-empty/dark/business-money/native-product-1080x2004.png",
+        "lightOverlay": "docs/parity-recovery/evidence/comparisons/3419ef5/business-empty/light/business-money/overlay-50.png",
+        "darkOverlay": "docs/parity-recovery/evidence/comparisons/3419ef5/business-empty/dark/business-money/overlay-50.png",
+        "differenceImages": [
+          "docs/parity-recovery/evidence/comparisons/3419ef5/business-empty/light/business-money/absolute-difference.png",
+          "docs/parity-recovery/evidence/comparisons/3419ef5/business-empty/dark/business-money/absolute-difference.png"
+        ],
+        "comparisonCount": 2
+      },
+      "deviations": [
+        {
+          "status": "open",
+          "reason": "Measured Light/Dark differences remain after Business Money answer, value and card calibration.",
+          "consequence": "The source introductory companion speech occupies a large comparison region; fine companion choreography, card material and text rasterisation still require physical-S9 owner review.",
+          "metrics": {
+            "lightMeanAbsoluteRgbDelta": 19.5687,
+            "darkMeanAbsoluteRgbDelta": 19.2551
+          }
+        }
+      ],
+      "finalStatus": "calibration-evidence-recorded-not-owner-approved"
+    },
+    {
       "stableId": "screen.business-more",
       "kind": "screen",
       "native": {
@@ -5286,15 +5347,13 @@
       "native": {
         "routeKey": "plan",
         "componentSource": "apps/mobile/src/folio/screens/PlanScreen.tsx#PlanScreen",
-        "workspace": "personal|business",
+        "workspace": "personal",
         "states": [
           "personal-populated",
           "personal-empty",
           "personal-loading",
           "personal-error",
-          "personal-offline",
-          "business-populated",
-          "business-empty"
+          "personal-offline"
         ]
       },
       "design": {
