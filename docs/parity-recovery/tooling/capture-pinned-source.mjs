@@ -302,11 +302,16 @@ try {
   }
 
   const semanticGeometry = await page.evaluate(
-    ({ originX, originY }) => {
-      const screenNode = document.querySelector('[data-folio-screen="today"]');
+    ({ originX, originY, captureScreen }) => {
+      const screenNode = document.querySelector(`[data-folio-screen="${captureScreen}"]`);
+      const normalize = (value) => value?.replace(/\s+/g, ' ').trim();
       const findButton = (copy) =>
         [...(screenNode?.querySelectorAll('button') ?? [])].find((node) =>
-          node.textContent?.replace(/\s+/g, ' ').trim().includes(copy),
+          normalize(node.textContent)?.includes(copy),
+        );
+      const findExactText = (copy) =>
+        [...(screenNode?.querySelectorAll('*') ?? [])].find(
+          (node) => normalize(node.textContent) === copy,
         );
       const describe = (node) => {
         if (!(node instanceof HTMLElement || node instanceof SVGElement)) return null;
@@ -338,12 +343,18 @@ try {
       };
       return {
         header: describe(screenNode?.querySelector('header')),
+        editorialTitle: describe(screenNode?.querySelector('header h1, header h2')),
+        editorialNarrative: describe(screenNode?.querySelector('header p')),
+        dominantCard: describe(findExactText('16 things still to leave')?.closest('.hairline')),
+        dominantMoney: describe(findExactText('£1,421')),
         hero: describe(screenNode?.querySelector('[data-melo-exclude="hero"]')),
         heroHeadline: describe(screenNode?.querySelector('[data-melo-exclude="hero.headline"]')),
         heroMoney: describe(screenNode?.querySelector('[data-melo-exclude="hero.money"]')),
         heroMeta: describe(screenNode?.querySelector('[data-melo-exclude="hero.meta"]')),
-        primaryDecision: describe(findButton('Can I spend something?')),
-        secondaryDecision: describe(findButton('See the working')),
+        primaryDecision: describe(
+          findButton('Can I spend something?') ?? findButton("See what's coming"),
+        ),
+        secondaryDecision: describe(findButton('See the working') ?? findButton('Try a change')),
         chart: describe(screenNode?.querySelector('[data-melo-exclude="chart"]')),
         chartHeader: describe(screenNode?.querySelector('[data-melo-exclude="chart.header"]')),
         chartPlot: describe(screenNode?.querySelector('[data-melo-exclude="chart.plot"]')),
@@ -354,6 +365,7 @@ try {
     {
       originX: box.x + INNER_GLASS.inset,
       originY: box.y + INNER_GLASS.inset + PRODUCT.top,
+      captureScreen: screen,
     },
   );
 

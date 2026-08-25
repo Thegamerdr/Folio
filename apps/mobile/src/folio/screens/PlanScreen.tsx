@@ -625,9 +625,9 @@ const styles = StyleSheet.create({
   narrative: {
     fontFamily: weightFamily(400),
     fontSize: 14,
-    lineHeight: 22,
+    lineHeight: 21.7,
     marginTop: 8,
-    maxWidth: 240,
+    maxWidth: 259,
   },
   dominant: {
     borderRadius: 24,
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 45.375,
     paddingHorizontal: 16,
     flexShrink: 1,
   },
@@ -670,14 +670,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 12,
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 45.375,
     paddingHorizontal: 16,
     flexShrink: 1,
   },
   buttonLabel: {
     fontFamily: weightFamily(500),
     fontSize: 14,
-    lineHeight: 22,
+    lineHeight: 21.7,
     textAlign: 'center',
   },
   buttonLabelShrink: {
