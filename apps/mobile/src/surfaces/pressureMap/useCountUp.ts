@@ -34,9 +34,12 @@ export function useCountUp(
     }
 
     const from = fromRef.current;
-    const start = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - start;
+    let start: number | null = null;
+    const tick = (frameTime: number) => {
+      // requestAnimationFrame supplies a monotonic clock. Wall-clock time can jump when the device
+      // corrects its time and is deliberately frozen by the deterministic parity harness.
+      if (start === null) start = frameTime;
+      const elapsed = frameTime - start;
       const t = Math.min(1, elapsed / durationMs);
       // easeOutCubic — a calm settle, never a linear crawl.
       const eased = 1 - Math.pow(1 - t, 3);
