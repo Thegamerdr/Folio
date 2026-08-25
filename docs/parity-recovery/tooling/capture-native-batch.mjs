@@ -10,8 +10,6 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '../../..');
-const MOBILE_ROOT = path.join(ROOT, 'apps/mobile');
-const ANDROID_ROOT = path.join(MOBILE_ROOT, 'android');
 const PACKAGE = 'com.folio.v2.greenfield';
 const DEFAULT_JAVA_HOME = 'C:/Program Files/Android/Android Studio/jbr';
 const DEFAULT_ANDROID_HOME = 'C:/Users/User/AppData/Local/Android/Sdk';
@@ -21,6 +19,9 @@ function readArg(name, fallback) {
   return inline === undefined ? fallback : inline.slice(name.length + 3);
 }
 
+const BUILD_ROOT = path.resolve(readArg('build-root', ROOT));
+const MOBILE_ROOT = path.join(BUILD_ROOT, 'apps/mobile');
+const ANDROID_ROOT = path.join(MOBILE_ROOT, 'android');
 const manifestPath = path.resolve(ROOT, readArg('manifest', 'docs/parity-recovery/registries/capture-batches.json'));
 const deviceId = readArg('device', 'emulator-5554');
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
@@ -29,6 +30,10 @@ if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.batches)) {
 }
 
 const nativeSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
+const buildSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: BUILD_ROOT, encoding: 'utf8' }).trim();
+if (buildSha !== nativeSha) {
+  throw new Error(`Build worktree SHA mismatch: evidence=${nativeSha}, build=${buildSha}.`);
+}
 const nativeRef = nativeSha.slice(0, 7);
 const androidHome = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? DEFAULT_ANDROID_HOME;
 const adb = path.join(androidHome, 'platform-tools/adb.exe');
