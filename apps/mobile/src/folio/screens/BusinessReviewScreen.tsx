@@ -1,22 +1,29 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Melo } from '@/folio/melo/Melo';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
-import { useAppStore } from '@/folio/store';
+import { useAppStore, type Transaction } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
-/**
- * Permanent Business Review-tab destination.
- *
- * The transient single-candidate ReviewScreen still owns a pending decision.
- * This root owns the calm queue-empty state and confirmed history, so the
- * primary tab never looks like a pushed detail screen with a back arrow.
- */
-export function BusinessReviewScreen({ nav }: { nav: Nav }) {
+type ReviewSegment = 'needs' | 'activity' | 'documents';
+
+const REVIEW_SEGMENTS: readonly Readonly<{ id: ReviewSegment; label: string }>[] = [
+  { id: 'needs', label: 'Needs you' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'documents', label: 'Documents' },
+];
+
+export function BusinessReviewScreen({
+  nav,
+  initialSegment = 'needs',
+}: {
+  nav: Nav;
+  initialSegment?: ReviewSegment;
+}) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const [segment, setSegment] = useState<ReviewSegment>(initialSegment);
   const queueCount = useAppStore(
     (state) =>
       state.readerCandidates.length +
@@ -24,10 +31,7 @@ export function BusinessReviewScreen({ nav }: { nav: Nav }) {
       (state.reviewQueueSpillover?.length ?? 0),
   );
   const transactions = useAppStore((state) => state.transactions);
-  const workspace = useAppStore(
-    (state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId)!,
-  );
-  const recent = useMemo(() => transactions.slice(0, 8), [transactions]);
+  const recent = useMemo(() => transactions.slice(0, 12), [transactions]);
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
@@ -38,114 +42,274 @@ export function BusinessReviewScreen({ nav }: { nav: Nav }) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.wordmarkRow}>
-          <Text style={[styles.wordmark, { color: t.ink }]}>Melo</Text>
-          <Text style={[styles.workspaceKind, { color: t.muted }]}>Business</Text>
-        </View>
-
-        <View style={styles.hero}>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>Review</Text>
-          <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {queueCount > 0 ? 'Waiting for your check.' : 'Everything checked.'}
-          </Text>
-          <Text style={[styles.intro, { color: t.muted }]}>
-            Found amounts wait here first. Nothing changes {workspace.name} until you confirm it.
-          </Text>
-        </View>
-
-        {queueCount === 0 ? (
-          <View style={[styles.empty, { backgroundColor: t.inset }]}>
-            <Melo mood="calm" size={34} />
-            <View style={styles.emptyCopy}>
-              <Text style={[styles.emptyTitle, { color: t.ink }]}>Nothing waiting.</Text>
-              <Text style={[styles.emptyBody, { color: t.muted }]}>
-                Read a statement or receipt and anything Melo finds will wait here for one calm
-                pass.
-              </Text>
+        <View accessibilityRole="tablist" style={[styles.segmented, { backgroundColor: t.inset }]}>
+          {REVIEW_SEGMENTS.map((option) => {
+            const selected = segment === option.id;
+            return (
               <Pressable
-                accessibilityRole="button"
-                onPress={() => nav.go('intake')}
-                style={({ pressed }) => [styles.linkAction, { opacity: pressed ? 0.62 : 1 }]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                key={option.id}
+                onPress={() => setSegment(option.id)}
+                style={({ pressed }) => [
+                  styles.segment,
+                  selected ? { backgroundColor: t.surface } : undefined,
+                  { opacity: pressed ? 0.64 : 1 },
+                ]}
               >
-                <Text style={[styles.linkLabel, { color: t.calmStrong }]}>
-                  Add to the business side →
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => nav.go('review')}
-            style={({ pressed }) => [
-              styles.queueAction,
-              { backgroundColor: t.calmStrong, opacity: pressed ? 0.68 : 1 },
-            ]}
-          >
-            <View style={styles.queueCopy}>
-              <Text style={[styles.queueLabel, { color: t.inverse }]}>
-                Check {queueCount} {queueCount === 1 ? 'amount' : 'amounts'}
-              </Text>
-              <Text style={[styles.queueHint, { color: t.inverse }]}>One decision at a time</Text>
-            </View>
-            <Text accessibilityElementsHidden style={[styles.queueArrow, { color: t.inverse }]}>
-              →
-            </Text>
-          </Pressable>
-        )}
-
-        <View style={styles.history}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: t.muted }]}>Confirmed history</Text>
-            <Text style={[styles.sectionCount, { color: t.muted }]}>{transactions.length}</Text>
-          </View>
-          {recent.length === 0 ? (
-            <View style={[styles.historyEmpty, { borderTopColor: t.hairline }]}>
-              <Text style={[styles.historyEmptyTitle, { color: t.ink }]}>
-                Business activity starts empty.
-              </Text>
-              <Text style={[styles.historyEmptyBody, { color: t.muted }]}>
-                Confirmed and corrected amounts will stay in order here.
-              </Text>
-            </View>
-          ) : (
-            <View style={[styles.rows, { backgroundColor: t.surface }]}>
-              {recent.map((transaction, index) => (
-                <View
-                  key={transaction.id}
+                <Text
                   style={[
-                    styles.row,
-                    index > 0
-                      ? {
-                          borderTopColor: t.hairline,
-                          borderTopWidth: StyleSheet.hairlineWidth,
-                        }
-                      : undefined,
+                    styles.segmentLabel,
+                    { color: selected ? t.ink : t.muted, fontWeight: selected ? '600' : '500' },
                   ]}
                 >
-                  <View style={styles.rowCopy}>
-                    <Text numberOfLines={1} style={[styles.rowTitle, { color: t.ink }]}>
-                      {transaction.merchant}
-                    </Text>
-                    <Text style={[styles.rowMeta, { color: t.muted }]}>
-                      {formatDate(transaction.when)} · {formatCategory(transaction.category)}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.rowAmount,
-                      { color: transaction.amount >= 0 ? t.calmStrong : t.ink },
-                    ]}
-                  >
-                    {formatAmount(transaction.amount)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
+
+        {segment === 'needs' ? (
+          <NeedsReview nav={nav} queueCount={queueCount} />
+        ) : segment === 'activity' ? (
+          <BusinessActivity recent={recent} transactionCount={transactions.length} />
+        ) : (
+          <BusinessDocuments nav={nav} />
+        )}
       </ScrollView>
     </View>
+  );
+}
+
+function NeedsReview({ nav, queueCount }: { nav: Nav; queueCount: number }) {
+  const t = useTheme();
+  const nothingWaiting = queueCount === 0;
+
+  return (
+    <View>
+      <BusinessWordmark />
+      <View style={styles.hero}>
+        <Text style={[styles.eyebrow, { color: t.muted }]}>Business review</Text>
+        <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+          {nothingWaiting ? (
+            <>
+              Nothing is waiting to be <Text style={{ color: t.calmStrong }}>checked</Text>.
+            </>
+          ) : (
+            <>
+              {queueCount} {queueCount === 1 ? 'amount is' : 'amounts are'} waiting to be{' '}
+              <Text style={{ color: t.calmStrong }}>checked</Text>.
+            </>
+          )}
+        </Text>
+        <Text style={[styles.why, { color: t.muted }]}>
+          Anything Melo finds on the business side waits here until you confirm it. Nothing counts
+          before that.
+        </Text>
+        <Text style={[styles.noAction, { color: t.muted }]}>
+          {nothingWaiting ? 'Nothing to do here today.' : 'One calm pass keeps the picture honest.'}
+        </Text>
+      </View>
+
+      {nothingWaiting ? (
+        <ActionRow
+          hint="anything found queues here for one calm pass"
+          label="Add a statement or receipt"
+          nav={nav}
+          to="intake"
+          underlined
+        />
+      ) : (
+        <ActionRow
+          hint="start with the next amount; nothing counts until you confirm it"
+          label={`Check ${queueCount} ${queueCount === 1 ? 'amount' : 'amounts'}`}
+          nav={nav}
+          to="review-item"
+          underlined
+        />
+      )}
+
+      <View style={styles.history}>
+        <Text style={[styles.sectionTitle, { color: t.muted }]}>History</Text>
+        <ActionRow
+          hint="everything you've confirmed or corrected"
+          label="Business activity"
+          nav={nav}
+          to="timeline"
+          surfaced
+        />
+        <ActionRow
+          hint="revenue, top clients, tax year story"
+          label="Insights"
+          nav={nav}
+          to="business-insights"
+          surfaced
+        />
+      </View>
+    </View>
+  );
+}
+
+function BusinessActivity({
+  recent,
+  transactionCount,
+}: {
+  recent: readonly Transaction[];
+  transactionCount: number;
+}) {
+  const t = useTheme();
+  return (
+    <View>
+      <BusinessWordmark />
+      <View style={styles.hero}>
+        <Text style={[styles.eyebrow, { color: t.muted }]}>Business activity</Text>
+        <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+          What the business has <Text style={{ color: t.calmStrong }}>confirmed</Text>.
+        </Text>
+        <Text style={[styles.why, { color: t.muted }]}>
+          Every checked or corrected amount stays in order here.
+        </Text>
+      </View>
+      <View style={styles.activitySection}>
+        <View style={styles.activityHeader}>
+          <Text style={[styles.sectionTitle, { color: t.muted }]}>Activity</Text>
+          <Text style={[styles.count, { color: t.muted }]}>{transactionCount}</Text>
+        </View>
+        {recent.length === 0 ? (
+          <View style={[styles.activityEmpty, { borderTopColor: t.hairline }]}>
+            <Text style={[styles.activityEmptyTitle, { color: t.ink }]}>
+              Nothing confirmed yet.
+            </Text>
+            <Text style={[styles.activityEmptyBody, { color: t.muted }]}>
+              Business activity starts empty.
+            </Text>
+          </View>
+        ) : (
+          <View
+            style={[styles.activityRows, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          >
+            {recent.map((transaction, index) => (
+              <View
+                key={transaction.id}
+                style={[
+                  styles.activityRow,
+                  index > 0
+                    ? { borderTopColor: t.hairline, borderTopWidth: StyleSheet.hairlineWidth }
+                    : undefined,
+                ]}
+              >
+                <View style={styles.activityCopy}>
+                  <Text numberOfLines={1} style={[styles.activityTitle, { color: t.ink }]}>
+                    {transaction.merchant}
+                  </Text>
+                  <Text style={[styles.activityMeta, { color: t.muted }]}>
+                    {formatDate(transaction.when)} · {formatCategory(transaction.category)}
+                  </Text>
+                </View>
+                <Text
+                  style={[styles.amount, { color: transaction.amount >= 0 ? t.calmStrong : t.ink }]}
+                >
+                  {formatAmount(transaction.amount)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function BusinessDocuments({ nav }: { nav: Nav }) {
+  const t = useTheme();
+  return (
+    <View>
+      <BusinessWordmark />
+      <View style={styles.hero}>
+        <Text style={[styles.eyebrow, { color: t.muted }]}>Business documents</Text>
+        <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+          Records stay tied to the <Text style={{ color: t.calmStrong }}>business</Text>.
+        </Text>
+        <Text style={[styles.why, { color: t.muted }]}>
+          Read statements and receipts first. Export only the workspace you chose.
+        </Text>
+      </View>
+      <View style={styles.documentActions}>
+        <ActionRow
+          hint="review every amount before it counts"
+          label="Read a document"
+          nav={nav}
+          to="intake"
+          surfaced
+        />
+        <ActionRow
+          hint="export and recovery controls"
+          label="Data, export & recovery"
+          nav={nav}
+          to="privacy"
+          surfaced
+        />
+      </View>
+    </View>
+  );
+}
+
+function BusinessWordmark() {
+  const t = useTheme();
+  return (
+    <View style={styles.wordmarkRow}>
+      <Text style={[styles.wordmark, { color: t.ink }]}>Melo</Text>
+      <Text style={[styles.workspaceKind, { color: t.muted }]}>Business</Text>
+    </View>
+  );
+}
+
+function ActionRow({
+  label,
+  hint,
+  nav,
+  to,
+  surfaced = false,
+  underlined = false,
+}: {
+  label: string;
+  hint: string;
+  nav: Nav;
+  to: Parameters<Nav['go']>[0];
+  surfaced?: boolean;
+  underlined?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityHint={hint}
+      accessibilityRole="button"
+      onPress={() => nav.go(to)}
+      style={({ pressed }) => [
+        styles.action,
+        surfaced
+          ? {
+              backgroundColor: t.surface,
+              borderColor: t.hairline,
+              borderRadius: radius.lg,
+              borderWidth: StyleSheet.hairlineWidth,
+            }
+          : undefined,
+        underlined
+          ? { borderBottomColor: t.hairline, borderBottomWidth: StyleSheet.hairlineWidth }
+          : undefined,
+        { opacity: pressed ? 0.62 : 1 },
+      ]}
+    >
+      <View style={styles.actionCopy}>
+        <Text style={[styles.actionLabel, { color: t.ink }]}>{label}</Text>
+        <Text style={[styles.actionHint, { color: t.muted }]}>{hint}</Text>
+      </View>
+      <Text accessibilityElementsHidden style={[styles.actionArrow, { color: t.calmStrong }]}>
+        →
+      </Text>
+    </Pressable>
   );
 }
 
@@ -173,74 +337,74 @@ function formatCategory(category: string): string {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: gap.xl },
-  wordmarkRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  wordmark: { fontFamily: serif.displayItalic, fontSize: 14 },
-  workspaceKind: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.7 },
-  hero: { marginTop: gap.xl },
-  eyebrow: { fontFamily: serif.displayItalic, fontSize: 13 },
-  headline: {
-    fontFamily: serif.display,
-    fontSize: 30,
-    letterSpacing: -0.35,
-    lineHeight: 36,
-    marginTop: gap.xs,
-  },
-  intro: { fontSize: 13.5, lineHeight: 20, marginTop: gap.md, maxWidth: 520 },
-  empty: {
-    alignItems: 'flex-start',
-    borderRadius: radius.xl,
-    flexDirection: 'row',
-    gap: gap.md,
-    marginTop: gap.xl,
-    padding: gap.xl,
-  },
-  emptyCopy: { flex: 1 },
-  emptyTitle: { fontFamily: serif.medium, fontSize: 20, lineHeight: 25 },
-  emptyBody: { fontSize: 13, lineHeight: 19, marginTop: gap.sm },
-  linkAction: { justifyContent: 'center', marginTop: gap.sm, minHeight: 44 },
-  linkLabel: { fontSize: 13, fontWeight: '600' },
-  queueAction: {
+  segmented: { borderRadius: 20, flexDirection: 'row', padding: 4 },
+  segment: {
     alignItems: 'center',
-    borderRadius: radius.lg,
-    flexDirection: 'row',
-    marginTop: gap.xl,
-    minHeight: 64,
-    paddingHorizontal: gap.lg,
+    borderRadius: 16,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
   },
-  queueCopy: { flex: 1 },
-  queueLabel: { fontSize: 15, fontWeight: '700' },
-  queueHint: { fontSize: 12, marginTop: 2, opacity: 0.82 },
-  queueArrow: { fontSize: 19 },
-  history: { marginTop: gap.xxl },
-  sectionHeader: {
+  segmentLabel: { fontSize: 13.5, lineHeight: 18 },
+  wordmarkRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: gap.sm,
+    marginTop: 20,
   },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
+  wordmark: { fontFamily: serif.displayItalic, fontSize: 14 },
+  workspaceKind: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.7 },
+  hero: { marginTop: 28 },
+  eyebrow: { fontSize: 11, fontWeight: '500', letterSpacing: 1.5, textTransform: 'uppercase' },
+  headline: {
+    fontFamily: serif.display,
+    fontSize: 29,
+    letterSpacing: -0.3,
+    lineHeight: 35,
+    marginTop: 12,
   },
-  sectionCount: { fontSize: 11, fontVariant: ['tabular-nums'] },
-  historyEmpty: {
+  why: { fontSize: 14, lineHeight: 20, marginTop: gap.lg },
+  noAction: { fontSize: 14, lineHeight: 20, marginTop: gap.lg },
+  action: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: gap.lg,
+    minHeight: 56,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.md,
+  },
+  actionCopy: { flex: 1, paddingRight: gap.md },
+  actionLabel: { fontSize: 14, fontWeight: '600', lineHeight: 19 },
+  actionHint: { fontSize: 12.5, lineHeight: 17, marginTop: 2 },
+  actionArrow: { fontSize: 18 },
+  history: { marginTop: 28 },
+  sectionTitle: { fontSize: 11, fontWeight: '600', letterSpacing: 1.5, textTransform: 'uppercase' },
+  activitySection: { marginTop: 28 },
+  activityHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  count: { fontSize: 11, fontVariant: ['tabular-nums'] },
+  activityEmpty: {
     borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.sm,
     paddingVertical: gap.xl,
   },
-  historyEmptyTitle: { fontFamily: serif.medium, fontSize: 18 },
-  historyEmptyBody: { fontSize: 12.5, lineHeight: 18, marginTop: gap.xs },
-  rows: { borderRadius: radius.lg, overflow: 'hidden' },
-  row: {
+  activityEmptyTitle: { fontFamily: serif.medium, fontSize: 18 },
+  activityEmptyBody: { fontSize: 12.5, lineHeight: 18, marginTop: gap.xs },
+  activityRows: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.sm,
+    overflow: 'hidden',
+  },
+  activityRow: {
     alignItems: 'center',
     flexDirection: 'row',
     minHeight: 62,
     paddingHorizontal: gap.lg,
     paddingVertical: gap.md,
   },
-  rowCopy: { flex: 1, paddingRight: gap.md },
-  rowTitle: { fontSize: 13.5, fontWeight: '600' },
-  rowMeta: { fontSize: 11.5, marginTop: 2 },
-  rowAmount: { fontSize: 13.5, fontVariant: ['tabular-nums'], fontWeight: '600' },
+  activityCopy: { flex: 1, paddingRight: gap.md },
+  activityTitle: { fontSize: 13.5, fontWeight: '600' },
+  activityMeta: { fontSize: 11.5, marginTop: 2 },
+  amount: { fontSize: 13.5, fontVariant: ['tabular-nums'], fontWeight: '600' },
+  documentActions: { marginTop: gap.xl },
 });

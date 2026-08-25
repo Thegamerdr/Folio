@@ -70,6 +70,15 @@ describe('native shell registry — exact shipping coverage', () => {
     expect(screenView).toContain("screen.startsWith('business-')");
   });
 
+  it('keeps Business Review on the business-owned hub and activity segment', () => {
+    expect(screenView).toContain(
+      "if (screen === 'review') return <BusinessReviewScreen nav={nav} />",
+    );
+    expect(screenView).toContain(
+      'if (screen === \'timeline\') return <BusinessReviewScreen initialSegment="activity" nav={nav} />',
+    );
+  });
+
   it('gives every non-null SheetId a title, self-host registration and render branch', () => {
     const titled = objectKeys('const SHEET_TITLE:');
     const selfHosted = setMembers('const SELF_HOSTING_SHEETS:');

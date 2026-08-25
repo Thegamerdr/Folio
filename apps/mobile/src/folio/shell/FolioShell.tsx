@@ -1023,7 +1023,8 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
     if (screen === 'today') return <BusinessTodayScreen nav={nav} />;
     if (screen === 'more') return <BusinessMoreScreen nav={nav} />;
     if (screen === 'melo') return <BusinessMeloScreen nav={nav} />;
-    if (screen === 'timeline') return <BusinessReviewScreen nav={nav} />;
+    if (screen === 'review') return <BusinessReviewScreen nav={nav} />;
+    if (screen === 'timeline') return <BusinessReviewScreen initialSegment="activity" nav={nav} />;
     if (screen === 'calendar') return <BusinessCalendarScreen nav={nav} />;
     if (screen === 'plan') return <BusinessPlansScreen nav={nav} />;
     if (screen === 'plans') return <BusinessPlansScreen nav={nav} />;
