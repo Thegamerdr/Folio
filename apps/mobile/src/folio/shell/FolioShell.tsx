@@ -40,6 +40,7 @@ import {
 // Matches errorReporting.ts's own import — that module only inits Sentry, it exposes no
 // captureException helper, so componentDidCatch below imports the SDK directly.
 import * as Sentry from '@sentry/react-native';
+import * as SplashScreen from 'expo-splash-screen';
 
 import {
   BottomNav,
@@ -130,6 +131,9 @@ import { DriftCaughtSheet } from '@/folio/sheets/DriftCaughtSheet';
 import { AnnualCaughtSheet } from '@/folio/sheets/AnnualCaughtSheet';
 import { UndoProvider } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
+import { UndoToast } from '@/folio/ui/UndoToast';
+import { AppLockGate } from '@/folio/ui/AppLockGate';
+import { RootErrorFallback } from '@/folio/ui/RootErrorFallback';
 import { ShellMeloCompanion } from '@/folio/ui/ShellMeloCompanion';
 import { reanchorSubRenewals, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
@@ -417,6 +421,11 @@ export function FolioShell() {
   }, [parity, parityRuntime]);
 
   useEffect(() => {
+    if (parityRuntime === null || parityRuntime.globalSurface === 'global.boot-splash') return;
+    void SplashScreen.hideAsync().catch(() => undefined);
+  }, [parityRuntime]);
+
+  useEffect(() => {
     if (parity === null || parityRuntime?.dialog === null || parityRuntime === null) return;
     const dialog =
       getParityDecisionDialog(parityRuntime.dialog) ?? getParityStatusDialog(parityRuntime.dialog);
@@ -667,6 +676,12 @@ export function FolioShell() {
     [businessWorkspaceActive, screen],
   );
 
+  const captureGlobalSurface = parityRuntime?.globalSurface ?? parity?.globalSurface ?? null;
+  if (captureGlobalSurface === 'global.app-lock-gate') {
+    return <AppLockGate busy={false} message={null} onUnlock={() => undefined} />;
+  }
+  if (captureGlobalSurface === 'global.root-error-boundary') return <RootErrorFallback />;
+
   return (
     // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
     // (ENGINES §6) via useUndo(); its snackbar host renders above the screen + bottom nav.
@@ -677,7 +692,9 @@ export function FolioShell() {
           unreadable, say so ONCE, visibly, instead of booting an empty app that reads as a fresh
           install (silence must never look identical to success). */}
           <HydrationNotice />
-          <PersistenceSaveNotice />
+          <PersistenceSaveNotice
+            forceFailed={captureGlobalSurface === 'global.persistence-save-notice'}
+          />
           {/* Every screen renders inside the error boundary so one screen throwing renders a calm
           fallback instead of taking down the whole shell (faithful to the web HeroPhone, which wraps
           its screen switch in ScreenErrorBoundary). `screenLabel` resets the boundary when the screen
@@ -699,6 +716,7 @@ export function FolioShell() {
                 key={`screen-${screen}`}
                 screenLabel={screen}
                 onReset={() => go('today')}
+                forceError={captureGlobalSurface === 'global.screen-error-boundary'}
               >
                 <ScreenView screen={screen} nav={nav} pressure={activePressure} />
               </ScreenErrorBoundary>
@@ -807,7 +825,25 @@ export function FolioShell() {
           {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
           ported). Mounted once at the top-level overlay, alongside the undo snackbar it never
           disturbs. */}
-          <ToastHost />
+          <ToastHost
+            capture={
+              captureGlobalSurface === 'global.toast'
+                ? {
+                    title: 'Saved calmly',
+                    description: 'Your latest change is safe on this device.',
+                  }
+                : undefined
+            }
+          />
+          {captureGlobalSurface === 'global.undo-toast' ? (
+            <UndoToast
+              label="Removed from this plan"
+              onUndo={() => undefined}
+              onDismiss={() => undefined}
+              durationMs={30_000}
+              reduceMotion
+            />
+          ) : null}
         </View>
       </SheetPortalProvider>
     </UndoProvider>
@@ -932,15 +968,15 @@ function HydrationNotice() {
   );
 }
 
-function PersistenceSaveNotice() {
+function PersistenceSaveNotice({ forceFailed = false }: { forceFailed?: boolean }) {
   const t = useTheme();
   const runtime = useSyncExternalStore(
     subscribePersistenceRuntime,
     getPersistenceRuntimeState,
     getPersistenceRuntimeState,
   );
-  const retrying = runtime.status === 'saving' && runtime.consecutiveFailures > 0;
-  if (runtime.status !== 'failed' && !retrying) return null;
+  const retrying = !forceFailed && runtime.status === 'saving' && runtime.consecutiveFailures > 0;
+  if (!forceFailed && runtime.status !== 'failed' && !retrying) return null;
 
   const body =
     runtime.failureKind === 'storage'
@@ -1176,6 +1212,7 @@ type ScreenErrorBoundaryProps = {
   children: ReactNode;
   screenLabel: ScreenId;
   onReset: () => void;
+  forceError?: boolean;
 };
 type ScreenErrorBoundaryState = { error: Error | null; forLabel: ScreenId };
 
@@ -1216,7 +1253,7 @@ class ScreenErrorBoundary extends Component<ScreenErrorBoundaryProps, ScreenErro
   };
 
   override render(): ReactNode {
-    if (this.state.error) {
+    if (this.state.error || this.props.forceError === true) {
       return (
         <PressureScreen centered>
           <Muted style={errorStyles.eyebrow}>A small slip</Muted>

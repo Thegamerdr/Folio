@@ -13,7 +13,6 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
 // Same SDK import errorReporting.ts uses internally — that module only inits Sentry, it exposes
 // no captureException helper.
@@ -24,6 +23,7 @@ import { clerkTokenCache, getClerkPublishableKey } from '../src/folio/lib/clerkA
 import { initErrorReporting } from '../src/folio/lib/errorReporting';
 import { clearEvidenceViewCache } from '../src/folio/lib/documentVault';
 import { safeZoneWidgetTaskHandler } from '../src/folio/widget/widgetTaskHandler';
+import { RootErrorFallback } from '../src/folio/ui/RootErrorFallback';
 
 // ---------------------------------------------------------------------------
 // Root error boundary — the LAST line of defence, above every provider and above FolioShell's own
@@ -55,40 +55,11 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
 
   override render(): ReactNode {
     if (this.state.hasError) {
-      return (
-        <View style={rootErrorStyles.container}>
-          <Text style={rootErrorStyles.title}>Something broke on the way in.</Text>
-          <Text style={rootErrorStyles.body}>
-            Your data is safe on this device. Close and reopen the app.
-          </Text>
-        </View>
-      );
+      return <RootErrorFallback />;
     }
     return this.props.children;
   }
 }
-
-const rootErrorStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1a1a1a',
-    paddingHorizontal: 24,
-  },
-  title: {
-    color: '#f5f5f5',
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  body: {
-    color: '#c9c9c9',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-});
 
 // Crash reporting first — module scope, before anything else can throw. Privacy-tuned
 // (no PII/screenshots/tracing — see errorReporting.ts); no-op when no DSN is configured.

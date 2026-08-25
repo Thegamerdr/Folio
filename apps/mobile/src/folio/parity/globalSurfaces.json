@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "familyId": "global-and-stack-surfaces",
+  "entries": {
+    "global.app-lock-gate": {
+      "kind": "global-state",
+      "componentSource": "apps/mobile/src/folio/ui/AppLockGate.tsx#AppLockGate",
+      "ownerContext": { "sourceScreen": "applock", "nativeScreen": "today" },
+      "sourceGlobal": null,
+      "nativeGlobal": "global.app-lock-gate"
+    },
+    "global.boot-splash": {
+      "kind": "global-state",
+      "componentSource": "apps/mobile/app/_layout.tsx; apps/mobile/app/index.tsx",
+      "ownerContext": { "sourceScreen": "start", "nativeScreen": "start" },
+      "sourceGlobal": "boot-splash",
+      "nativeGlobal": "global.boot-splash"
+    },
+    "global.persistence-save-notice": {
+      "kind": "global-state",
+      "componentSource": "apps/mobile/src/folio/shell/FolioShell.tsx#PersistenceSaveNotice",
+      "ownerContext": { "sourceScreen": "today", "nativeScreen": "today" },
+      "sourceGlobal": "persistence-degraded",
+      "nativeGlobal": "global.persistence-save-notice"
+    },
+    "global.root-error-boundary": {
+      "kind": "global-state",
+      "componentSource": "apps/mobile/app/_layout.tsx#RootErrorBoundary",
+      "ownerContext": { "sourceScreen": "today", "nativeScreen": "today" },
+      "sourceGlobal": "screen-error",
+      "nativeGlobal": "global.root-error-boundary"
+    },
+    "global.screen-error-boundary": {
+      "kind": "global-state",
+      "componentSource": "apps/mobile/src/folio/shell/FolioShell.tsx#ScreenErrorBoundary",
+      "ownerContext": { "sourceScreen": "today", "nativeScreen": "today" },
+      "sourceGlobal": "screen-error",
+      "nativeGlobal": "global.screen-error-boundary"
+    },
+    "global.toast": {
+      "kind": "global-state",
+      "componentSource": "apps/mobile/src/folio/ui/Toast.tsx#ToastHost",
+      "ownerContext": { "sourceScreen": "today", "nativeScreen": "today" },
+      "sourceGlobal": "toast",
+      "nativeGlobal": "global.toast"
+    },
+    "global.undo-toast": {
+      "kind": "global-state",
+      "componentSource": "apps/mobile/src/folio/ui/UndoToast.tsx; apps/mobile/src/folio/ui/useUndo.tsx",
+      "ownerContext": { "sourceScreen": "today", "nativeScreen": "today" },
+      "sourceGlobal": "undo-toast",
+      "nativeGlobal": "global.undo-toast"
+    },
+    "screen.review-item": {
+      "kind": "screen",
+      "componentSource": "apps/mobile/src/folio/screens/ReviewScreen.tsx#ReviewScreen",
+      "ownerContext": { "sourceScreen": "review", "nativeScreen": "review-item" },
+      "sourceGlobal": null,
+      "nativeGlobal": null
+    },
+    "screen.start": {
+      "kind": "screen",
+      "componentSource": "apps/mobile/src/folio/screens/StartScreen.tsx#StartScreen",
+      "ownerContext": { "sourceScreen": "start", "nativeScreen": "start" },
+      "sourceGlobal": null,
+      "nativeGlobal": null
+    },
+    "stack.index": {
+      "kind": "stack-route",
+      "componentSource": "apps/mobile/app/index.tsx#FolioRoute",
+      "ownerContext": { "sourceScreen": "today", "nativeScreen": "today" },
+      "sourceGlobal": "stack-index",
+      "nativeGlobal": "stack.index"
+    },
+    "stack.root-layout": {
+      "kind": "stack-route",
+      "componentSource": "apps/mobile/app/_layout.tsx#Root",
+      "ownerContext": { "sourceScreen": "today", "nativeScreen": "today" },
+      "sourceGlobal": "root-layout",
+      "nativeGlobal": "stack.root-layout"
+    }
+  }
+}

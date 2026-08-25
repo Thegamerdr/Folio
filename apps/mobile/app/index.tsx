@@ -44,6 +44,7 @@ export default function FolioRoute() {
     screen?: string;
     sheet?: string;
     theme?: string;
+    global?: string;
   }>();
   // Gate first render until persisted state is hydrated, so the shell never
   // paints seeded defaults for a frame before the user's real data loads —
@@ -63,9 +64,16 @@ export default function FolioRoute() {
     applyParityRuntimeControl({
       screen: captureSearch.screen,
       sheet: captureSearch.sheet,
+      globalSurface: captureSearch.global,
       theme: captureSearch.theme,
     });
-  }, [captureSearch.capture, captureSearch.screen, captureSearch.sheet, captureSearch.theme]);
+  }, [
+    captureSearch.capture,
+    captureSearch.global,
+    captureSearch.screen,
+    captureSearch.sheet,
+    captureSearch.theme,
+  ]);
 
   const updateLocked = useCallback((next: boolean) => {
     lockedRef.current = next;
@@ -193,7 +201,9 @@ export default function FolioRoute() {
   }, [updateLocked]);
 
   useEffect(() => {
-    if (ready) void SplashScreen.hideAsync().catch(() => undefined);
+    if (ready && getParityHarnessConfig()?.globalSurface !== 'global.boot-splash') {
+      void SplashScreen.hideAsync().catch(() => undefined);
+    }
   }, [ready]);
 
   if (!ready) return null; // keep the native splash up until hydration finishes.

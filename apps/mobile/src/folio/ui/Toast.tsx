@@ -68,12 +68,20 @@ function useReducedMotion(): boolean {
 // Mount once near the shell root (a sibling overlay, like UndoProvider's toast). Owns the dismiss
 // timer; a new showToast() call while one is visible replaces it (latest wins), matching UndoToast's
 // single-toast policy.
-export function ToastHost() {
+export function ToastHost({
+  capture,
+}: {
+  capture?: Readonly<{ title: string; description?: string | undefined }> | undefined;
+} = {}) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReducedMotion();
 
   const [active, setActive] = useState<ToastPayload | null>(null);
+  const visible =
+    capture === undefined
+      ? active
+      : { key: -1, title: capture.title, description: capture.description };
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const progress = useRef(new Animated.Value(0)).current;
@@ -97,7 +105,7 @@ export function ToastHost() {
   }, []);
 
   useEffect(() => {
-    if (active === null) return undefined;
+    if (visible === null) return undefined;
     if (reduceMotion) {
       progress.setValue(1);
       return undefined;
@@ -111,9 +119,9 @@ export function ToastHost() {
     });
     animation.start();
     return () => animation.stop();
-  }, [active, progress, reduceMotion]);
+  }, [visible, progress, reduceMotion]);
 
-  if (active === null) return null;
+  if (visible === null) return null;
 
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
@@ -125,11 +133,11 @@ export function ToastHost() {
         style={[s.toast, { opacity: progress, transform: [{ translateY }] }]}
       >
         <Text numberOfLines={2} style={s.title}>
-          {active.title}
+          {visible.title}
         </Text>
-        {active.description ? (
+        {visible.description ? (
           <Text numberOfLines={3} style={s.description}>
-            {active.description}
+            {visible.description}
           </Text>
         ) : null}
       </Animated.View>

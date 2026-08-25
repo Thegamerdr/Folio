@@ -16,16 +16,19 @@ const OUTPUT_RELATIVE_PATH = 'docs/parity-recovery/registries/parity-archetypes.
 const CAPTURE_OUTPUT_RELATIVE_PATH = 'docs/parity-recovery/registries/capture-batches.json';
 const DECISION_DIALOGS_RELATIVE_PATH = 'apps/mobile/src/folio/parity/decisionDialogs.json';
 const STATUS_DIALOGS_RELATIVE_PATH = 'apps/mobile/src/folio/parity/statusDialogs.json';
+const GLOBAL_SURFACES_RELATIVE_PATH = 'apps/mobile/src/folio/parity/globalSurfaces.json';
 const CROSSWALK_PATH = path.join(ROOT, CROSSWALK_RELATIVE_PATH);
 const OUTPUT_PATH = path.join(ROOT, OUTPUT_RELATIVE_PATH);
 const CAPTURE_OUTPUT_PATH = path.join(ROOT, CAPTURE_OUTPUT_RELATIVE_PATH);
 const DECISION_DIALOGS_PATH = path.join(ROOT, DECISION_DIALOGS_RELATIVE_PATH);
 const STATUS_DIALOGS_PATH = path.join(ROOT, STATUS_DIALOGS_RELATIVE_PATH);
+const GLOBAL_SURFACES_PATH = path.join(ROOT, GLOBAL_SURFACES_RELATIVE_PATH);
 
-const [crosswalk, decisionDialogs, statusDialogs] = await Promise.all([
+const [crosswalk, decisionDialogs, statusDialogs, globalSurfaces] = await Promise.all([
   readFile(CROSSWALK_PATH, 'utf8').then(JSON.parse),
   readFile(DECISION_DIALOGS_PATH, 'utf8').then(JSON.parse),
   readFile(STATUS_DIALOGS_PATH, 'utf8').then(JSON.parse),
+  readFile(GLOBAL_SURFACES_PATH, 'utf8').then(JSON.parse),
 ]);
 if (
   decisionDialogs.schemaVersion !== 1 ||
@@ -36,6 +39,14 @@ if (
   throw new Error(
     `Unsupported decision-dialog capture registry: ${DECISION_DIALOGS_RELATIVE_PATH}`,
   );
+}
+if (
+  globalSurfaces.schemaVersion !== 1 ||
+  globalSurfaces.familyId !== 'global-and-stack-surfaces' ||
+  typeof globalSurfaces.entries !== 'object' ||
+  globalSurfaces.entries === null
+) {
+  throw new Error(`Unsupported global capture registry: ${GLOBAL_SURFACES_RELATIVE_PATH}`);
 }
 if (
   statusDialogs.schemaVersion !== 1 ||
@@ -569,6 +580,11 @@ const manifest = {
       sourceMode: 'pinned-lovable-owner-context',
       nativeMode: 'centralized-production-status-contract',
     },
+    globalAndStackCapture: {
+      familyId: globalSurfaces.familyId,
+      stableSurfaceCount: Object.keys(globalSurfaces.entries).length,
+      evidenceStatus: 'capture-definition-only',
+    },
   },
   implementationWaves,
   archetypes,
@@ -721,6 +737,54 @@ if (statusDialogFamilySurfaces.length < 20 || statusDialogFamilySurfaces.length 
     `Status-dialog capture family must contain 20-40 surfaces; got ${statusDialogFamilySurfaces.length}`,
   );
 }
+
+const globalCaptureAssignmentById = new Map(assignments.map((entry) => [entry.stableId, entry]));
+const globalAndStackFamilySurfaces = Object.entries(globalSurfaces.entries)
+  .sort(([left], [right]) => left.localeCompare(right))
+  .flatMap(([stableId, surface]) => {
+    const assignment = globalCaptureAssignmentById.get(stableId);
+    if (assignment === undefined) throw new Error(`${stableId} is not a non-Business assignment`);
+    if (assignment.componentSource !== surface.componentSource) {
+      throw new Error(
+        `${stableId} component source drifted: ${surface.componentSource} != ${assignment.componentSource}`,
+      );
+    }
+    if (assignment.designOwnerStatus !== 'resolved') return [];
+    if (surface.kind === 'screen') return [];
+    const ownerCandidates = crosswalkEntryById.get(stableId)?.design.owners ?? [];
+    const sourceRoutes = new Set(
+      [
+        surface.sourceGlobal,
+        surface.ownerContext.sourceSheet,
+        surface.ownerContext.sourceScreen,
+      ].filter((value) => typeof value === 'string' && value !== ''),
+    );
+    const sourceOwner =
+      ownerCandidates.find((owner) => sourceRoutes.has(owner.routeKey)) ??
+      (ownerCandidates.length === 1 ? ownerCandidates[0] : undefined);
+    if (sourceOwner?.stableId == null) throw new Error(`${stableId} has no stable source owner`);
+    return [
+      {
+        id: stableId,
+        nativeStableId: stableId,
+        sourceOwnerStableId: sourceOwner.stableId,
+        screen: surface.ownerContext.nativeScreen,
+        sourceScreen: surface.ownerContext.sourceScreen,
+        ...(surface.ownerContext.sourceSheet === undefined
+          ? {}
+          : { sourceSheet: surface.ownerContext.sourceSheet }),
+        nativeScreen: surface.ownerContext.nativeScreen,
+        ...(surface.ownerContext.nativeSheet === undefined
+          ? {}
+          : { nativeSheet: surface.ownerContext.nativeSheet }),
+        ...(surface.sourceGlobal === null ? {} : { sourceGlobal: surface.sourceGlobal }),
+        ...(surface.nativeGlobal === null ? {} : { nativeGlobal: surface.nativeGlobal }),
+        sourceEvidenceMode: 'pinned-owner-runtime-control',
+        nativeEvidenceMode: 'capture-only-global-runtime-control',
+        themes: ['light', 'dark'],
+      },
+    ];
+  });
 const captureFixtureGroups = new Map();
 for (const assignment of captureableAssignments) {
   const fixture = assignment.matchedFixtures[0];
@@ -730,9 +794,14 @@ for (const assignment of captureableAssignments) {
     const override = SCREEN_CAPTURE_OVERRIDES.get(assignment.routeKey);
     group.push(
       override === undefined
-        ? { screen: assignment.routeKey, themes: ['light', 'dark'] }
+        ? {
+            nativeStableId: assignment.stableId,
+            screen: assignment.routeKey,
+            themes: ['light', 'dark'],
+          }
         : {
             id: assignment.routeKey,
+            nativeStableId: assignment.stableId,
             screen: assignment.routeKey,
             sourceScreen: override.sourceScreen,
             nativeScreen: override.nativeScreen,
@@ -743,6 +812,7 @@ for (const assignment of captureableAssignments) {
     const route = SHEET_CAPTURE_ROUTES.get(assignment.routeKey);
     group.push({
       id: assignment.routeKey,
+      nativeStableId: assignment.stableId,
       screen: route.screen,
       sourceScreen: route.sourceScreen ?? route.screen,
       ...(route.sourceSheet === null
@@ -812,13 +882,15 @@ const captureManifest = {
       captureableAssignments.length +
       supplementalNonBusinessSurfaces.length +
       decisionDialogFamilySurfaces.length +
-      statusDialogFamilySurfaces.length,
+      statusDialogFamilySurfaces.length +
+      globalAndStackFamilySurfaces.length,
     includedRoutedNonBusinessSurfaces:
       captureableAssignments.length + supplementalNonBusinessSurfaces.length,
     includedTriggerOnlyDialogs:
       decisionDialogFamilySurfaces.length + statusDialogFamilySurfaces.length,
     includedDecisionDialogs: decisionDialogFamilySurfaces.length,
     includedStatusDialogs: statusDialogFamilySurfaces.length,
+    includedGlobalAndStackSurfaces: globalAndStackFamilySurfaces.length,
     includedBusinessFamilySurfaces: businessFamilySurfaces.length,
     explicitBusinessTrueExceptions: 1,
     excludedNonBusinessSurfaces:
@@ -826,8 +898,9 @@ const captureManifest = {
       captureableAssignments.length -
       supplementalNonBusinessSurfaces.length -
       decisionDialogFamilySurfaces.length -
-      statusDialogFamilySurfaces.length,
-    note: 'Direct routes, source/native deep-linkable sheets, and the exact-owned decision/status-dialog families are batched. Payroll, Today remove-confirm, and Review source-open are explicit true exceptions because the pinned source has no matching route/dialog. Remaining self-hosted embedded sheets, global overlays and platform chrome require dedicated drivers.',
+      statusDialogFamilySurfaces.length -
+      globalAndStackFamilySurfaces.length,
+    note: 'Direct routes, source/native deep-linkable sheets, exact-owned dialog families, and deterministic global/stack capture states are batched. Payroll, hydration recovery, Today remove-confirm, and Review source-open remain explicit true exceptions. Remaining self-hosted embedded sheets and platform chrome require dedicated drivers.',
   },
   batches: [...captureFixtureGroups.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
@@ -850,6 +923,12 @@ const captureManifest = {
         fixture: 'confirmed-safe',
         familyId: statusDialogs.familyId,
         surfaces: statusDialogFamilySurfaces,
+      },
+      {
+        id: 'non-business-global-and-stack',
+        fixture: 'confirmed-safe',
+        familyId: globalSurfaces.familyId,
+        surfaces: globalAndStackFamilySurfaces,
       },
       { id: 'business-filing-family', fixture: 'business-ltd', surfaces: businessFamilySurfaces },
     ]),
@@ -878,7 +957,7 @@ if (process.argv.includes('--check')) {
     process.exitCode = 1;
   } else {
     console.log(
-      `Validated ${assignments.length} non-Business surfaces across ${archetypes.length} archetypes and ${implementationWaves.length} waves; ${captureableAssignments.length} direct screen/sheet routes, ${decisionDialogFamilySurfaces.length} decision dialogs, ${statusDialogFamilySurfaces.length} status dialogs, plus ${businessFamilySurfaces.length} Business routes.`,
+      `Validated ${assignments.length} non-Business surfaces across ${archetypes.length} archetypes and ${implementationWaves.length} waves; ${captureableAssignments.length} direct screen/sheet routes, ${decisionDialogFamilySurfaces.length} decision dialogs, ${statusDialogFamilySurfaces.length} status dialogs, ${globalAndStackFamilySurfaces.length} global/stack surfaces, plus ${businessFamilySurfaces.length} Business routes.`,
     );
   }
 } else {
@@ -887,6 +966,6 @@ if (process.argv.includes('--check')) {
     writeFile(CAPTURE_OUTPUT_PATH, captureRendered),
   ]);
   console.log(
-    `Wrote family manifest and capture batches: ${assignments.length} surfaces, ${archetypes.length} archetypes, ${implementationWaves.length} waves, ${captureableAssignments.length} non-Business routes, ${decisionDialogFamilySurfaces.length} decision dialogs, ${statusDialogFamilySurfaces.length} status dialogs, plus ${businessFamilySurfaces.length} Business routes.`,
+    `Wrote family manifest and capture batches: ${assignments.length} surfaces, ${archetypes.length} archetypes, ${implementationWaves.length} waves, ${captureableAssignments.length} non-Business routes, ${decisionDialogFamilySurfaces.length} decision dialogs, ${statusDialogFamilySurfaces.length} status dialogs, ${globalAndStackFamilySurfaces.length} global/stack surfaces, plus ${businessFamilySurfaces.length} Business routes.`,
   );
 }

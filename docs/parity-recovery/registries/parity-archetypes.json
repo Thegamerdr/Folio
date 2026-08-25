@@ -16,8 +16,8 @@
     "shippingSurfaces": 192,
     "includedNonBusinessSurfaces": 147,
     "excludedBusinessSurfaces": 45,
-    "directlyEvidencedNonBusinessSurfaces": 58,
-    "pendingDirectEvidenceNonBusinessSurfaces": 89,
+    "directlyEvidencedNonBusinessSurfaces": 56,
+    "pendingDirectEvidenceNonBusinessSurfaces": 91,
     "archetypes": 10,
     "implementationWaves": 6
   },
@@ -49,6 +49,11 @@
       },
       "sourceMode": "pinned-lovable-owner-context",
       "nativeMode": "centralized-production-status-contract"
+    },
+    "globalAndStackCapture": {
+      "familyId": "global-and-stack-surfaces",
+      "stableSurfaceCount": 11,
+      "evidenceStatus": "capture-definition-only"
     }
   },
   "implementationWaves": [
@@ -97,8 +102,8 @@
       "sharedFixTarget": "Pressure-screen typography/insets plus time/list row geometry.",
       "counts": {
         "surfaces": 21,
-        "directlyEvidenced": 19,
-        "pendingDirectEvidence": 2,
+        "directlyEvidenced": 18,
+        "pendingDirectEvidence": 3,
         "resolvedDesignOwners": 21,
         "unresolvedDesignOwners": 0
       },
@@ -110,8 +115,8 @@
       "sharedFixTarget": "Entry/result action rhythm plus Melo presence and chip treatments.",
       "counts": {
         "surfaces": 20,
-        "directlyEvidenced": 14,
-        "pendingDirectEvidence": 6,
+        "directlyEvidenced": 13,
+        "pendingDirectEvidence": 7,
         "resolvedDesignOwners": 18,
         "unresolvedDesignOwners": 2
       },
@@ -315,8 +320,8 @@
       "implementationWaveId": "wave-4-editorial-time-and-detail",
       "counts": {
         "surfaces": 13,
-        "directlyEvidenced": 11,
-        "pendingDirectEvidence": 2,
+        "directlyEvidenced": 10,
+        "pendingDirectEvidence": 3,
         "resolvedDesignOwners": 13,
         "unresolvedDesignOwners": 0
       },
@@ -367,8 +372,8 @@
       "implementationWaveId": "wave-5-intake-and-melo",
       "counts": {
         "surfaces": 14,
-        "directlyEvidenced": 10,
-        "pendingDirectEvidence": 4,
+        "directlyEvidenced": 9,
+        "pendingDirectEvidence": 5,
         "resolvedDesignOwners": 12,
         "unresolvedDesignOwners": 2
       },
@@ -2016,8 +2021,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["component:review-item"],
       "matchedFixtures": ["pending-review"],
-      "directComparisonCount": 2,
-      "evidenceStatus": "direct-evidence-present"
+      "directComparisonCount": 0,
+      "evidenceStatus": "direct-evidence-pending"
     },
     {
       "stableId": "screen.ritual",
@@ -2058,8 +2063,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:start"],
       "matchedFixtures": ["first-run", "empty"],
-      "directComparisonCount": 2,
-      "evidenceStatus": "direct-evidence-present"
+      "directComparisonCount": 0,
+      "evidenceStatus": "direct-evidence-pending"
     },
     {
       "stableId": "screen.subs",

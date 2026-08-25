@@ -115,9 +115,10 @@ async function invalidateFixtureBundle() {
   });
 }
 
-function assertRuntimeControl(log, { screen, sheet, dialog, theme }) {
+function assertRuntimeControl(log, { screen, sheet, dialog, globalSurface, theme }) {
   const expectedSheet = sheet === 'none' ? 'null' : `"${sheet}"`;
   const expectedDialog = dialog === 'none' ? 'null' : `"${dialog}"`;
+  const expectedGlobal = globalSurface === 'none' ? 'null' : `"${globalSurface}"`;
   const matched = log
     .split(/\r?\n/u)
     .some(
@@ -126,11 +127,12 @@ function assertRuntimeControl(log, { screen, sheet, dialog, theme }) {
         line.includes(`"screen":"${screen}"`) &&
         line.includes(`"sheet":${expectedSheet}`) &&
         line.includes(`"dialog":${expectedDialog}`) &&
+        line.includes(`"globalSurface":${expectedGlobal}`) &&
         line.includes(`"theme":"${theme}"`),
     );
   if (!matched) {
     throw new Error(
-      `Runtime control was not acknowledged for screen=${screen} sheet=${sheet} dialog=${dialog} theme=${theme}.`,
+      `Runtime control was not acknowledged for screen=${screen} sheet=${sheet} dialog=${dialog} global=${globalSurface} theme=${theme}.`,
     );
   }
 }
@@ -189,6 +191,9 @@ for (const batch of selectedBatches) {
     EXPO_PUBLIC_MELO_PARITY_SCREEN: firstScreen,
     EXPO_PUBLIC_MELO_PARITY_SHEET: '',
     EXPO_PUBLIC_MELO_PARITY_THEME: 'light',
+    EXPO_PUBLIC_MELO_PARITY_GLOBAL:
+      selectedSurfaces.find((surface) => surface.nativeGlobal === 'global.boot-splash')
+        ?.nativeGlobal ?? '',
   };
 
   let artifactPath;
@@ -240,8 +245,9 @@ for (const batch of selectedBatches) {
       const screen = surface.nativeScreen ?? surface.screen;
       const sheet = surface.nativeSheet ?? surface.sheet ?? 'none';
       const dialog = surface.nativeDialog ?? 'none';
+      const globalSurface = surface.nativeGlobal ?? 'none';
       const surfaceId = surface.id ?? surface.screen;
-      const deepLink = `folio:///?capture=1&screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&dialog=${encodeURIComponent(dialog)}&theme=${theme}`;
+      const deepLink = `folio:///?capture=1&screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&dialog=${encodeURIComponent(dialog)}&global=${encodeURIComponent(globalSurface)}&theme=${theme}`;
       // Each dialog is deliberately non-cancelable so the screenshot cannot race an accidental
       // BACK dismissal. Restart the disposable capture process between jobs instead of depending
       // on button coordinates or localized Android chrome to close the preceding dialog.
@@ -265,7 +271,7 @@ for (const batch of selectedBatches) {
         PACKAGE,
       ]);
       await wait(manifest.settleMs ?? 900);
-      await waitForRuntimeControl({ screen, sheet, dialog, theme });
+      await waitForRuntimeControl({ screen, sheet, dialog, globalSurface, theme });
       // Runtime control is acknowledged when the target state is selected, which can precede the
       // final native frame while the release bundle leaves its launch placeholder or a sheet
       // finishes its opening layout. Give that owned frame one short, deterministic settle window.

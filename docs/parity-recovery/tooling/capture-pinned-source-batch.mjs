@@ -16,7 +16,10 @@ function readArg(name, fallback) {
   return inline === undefined ? fallback : inline.slice(name.length + 3);
 }
 
-const manifestPath = path.resolve(ROOT, readArg('manifest', 'docs/parity-recovery/registries/capture-batches.json'));
+const manifestPath = path.resolve(
+  ROOT,
+  readArg('manifest', 'docs/parity-recovery/registries/capture-batches.json'),
+);
 const concurrency = Math.max(1, Number.parseInt(readArg('concurrency', '3'), 10));
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.batches)) {
@@ -29,6 +32,7 @@ const jobs = manifest.batches.flatMap((batch) =>
       fixture: batch.fixture,
       screen: surface.sourceScreen ?? surface.screen,
       sheet: surface.sourceSheet ?? surface.sheet ?? '',
+      globalSurface: surface.sourceGlobal ?? '',
       surface: surface.id ?? surface.screen,
       theme,
     })),
@@ -64,6 +68,7 @@ function runJob(job) {
         `--fixture=${job.fixture}`,
         `--screen=${job.screen}`,
         `--sheet=${job.sheet}`,
+        `--global=${job.globalSurface}`,
         `--surface=${job.surface}`,
         `--theme=${job.theme}`,
       ],
@@ -75,15 +80,21 @@ function runJob(job) {
       },
     );
     let output = '';
-    child.stdout.on('data', (chunk) => { output += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { output += chunk.toString(); });
+    child.stdout.on('data', (chunk) => {
+      output += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      output += chunk.toString();
+    });
     child.on('error', reject);
     child.on('exit', (code) => {
       if (code === 0) {
         process.stdout.write(`captured ${job.fixture}/${job.theme}/${job.surface}\n`);
         resolve();
       } else {
-        reject(new Error(`Capture failed for ${job.fixture}/${job.theme}/${job.surface}\n${output}`));
+        reject(
+          new Error(`Capture failed for ${job.fixture}/${job.theme}/${job.surface}\n${output}`),
+        );
       }
     });
   });
@@ -108,12 +119,22 @@ async function captureExists(job) {
 
 const vite = spawn(
   process.execPath,
-  [path.join(DESIGN_ROOT, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(PORT)],
+  [
+    path.join(DESIGN_ROOT, 'node_modules/vite/bin/vite.js'),
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(PORT),
+  ],
   { cwd: DESIGN_ROOT, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
 );
 let viteOutput = '';
-vite.stdout.on('data', (chunk) => { viteOutput += chunk.toString(); });
-vite.stderr.on('data', (chunk) => { viteOutput += chunk.toString(); });
+vite.stdout.on('data', (chunk) => {
+  viteOutput += chunk.toString();
+});
+vite.stderr.on('data', (chunk) => {
+  viteOutput += chunk.toString();
+});
 
 try {
   await waitForServer();

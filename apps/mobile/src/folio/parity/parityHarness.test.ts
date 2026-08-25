@@ -12,6 +12,7 @@ function activate(fixture: ParityFixtureId) {
     nowISO: '2026-08-18T08:00:00.000Z',
     screen: 'today',
     sheet: null,
+    globalSurface: null,
     theme: 'light',
   });
   return getState();
@@ -161,6 +162,7 @@ describe('visual parity fixture harness', () => {
       nowISO: '2026-08-18T08:00:00.000Z',
       screen: 'image-success',
       sheet: null,
+      globalSurface: null,
       theme: 'light',
     });
     expect(getState().readerCandidates).toMatchObject([
@@ -174,6 +176,7 @@ describe('visual parity fixture harness', () => {
       nowISO: '2026-08-18T08:00:00.000Z',
       screen: 'pdf-success',
       sheet: null,
+      globalSurface: null,
       theme: 'dark',
     });
     expect(

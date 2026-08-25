@@ -44,6 +44,7 @@ const fixtureId = readArg('fixture', 'confirmed-safe');
 const theme = readArg('theme', 'light');
 const screen = readArg('screen', 'today');
 const sheet = readArg('sheet', '');
+const globalSurface = readArg('global', '');
 const surface = readArg('surface', sheet || screen);
 const renderedScreen = screen === 'today-mode' || screen === 'today-stability' ? 'today' : screen;
 if (theme !== 'light' && theme !== 'dark') throw new Error(`Unsupported theme: ${theme}`);
@@ -215,111 +216,113 @@ try {
       })
     : isPersonalFixture
       ? await page.evaluate(
-        async ({ canonicalFixture, defaults, nowISO }) => {
-          const store = await import('/src/lib/store.ts');
-          const calendar = await import('/src/lib/calendar-events.ts');
-          const subscriptions = canonicalFixture.subscriptions.map((row) => ({
-            name: row.name,
-            cost: row.cost,
-            nextRenewalDaysAway: row.daysAway,
-            lastUsedDaysAgo: 0,
-            usesPerMonth: 1,
-          }));
-          const patch = {
-            pots: canonicalFixture.pots ?? [],
-            subs: subscriptions,
-            subPaused: {},
-            subOverrides: [],
-            cycles: [],
-            onboarding: {
-              done: true,
-              name: defaults.name,
-              payday: canonicalFixture.payday,
-              monthlyIncome: canonicalFixture.income,
-              weekendRule: 'previous',
-              paydayCadence: 'monthly',
-              primerSeen: true,
-              incomeStreams: [],
-              persona: 'personal',
-              createdAt: nowISO,
-            },
-            currentBalance: {
-              amount: canonicalFixture.balance,
-              source: canonicalFixture.balanceSource,
-              confidence: canonicalFixture.confidence,
-              setAt: nowISO,
-            },
-            potLedger: [],
-            transactions: defaults.transactions,
-            calendarEvents: [],
-            tightPointGoal: null,
-            moneyMode: 'survival',
-            bufferAmount: 100,
-            debts: canonicalFixture.debts ?? [],
-            plans: canonicalFixture.plans ?? [],
-            spendHold: null,
-            whatIfHolds: [],
-          };
-          store.applyPreviewOverlay(patch);
-          const nativeRandom = Math.random;
-          let seed = defaults.randomSeed >>> 0;
-          Math.random = () => {
-            seed = (seed * 1664525 + 1013904223) >>> 0;
-            return seed / 0x1_0000_0000;
-          };
-          try {
-            store.enqueueReviewItems(
-              (canonicalFixture.reviewItems ?? []).map(({ category: _category, ...item }) => item),
-            );
-          } finally {
-            Math.random = nativeRandom;
-          }
-          const state = store.getState();
-          const events = calendar.deriveCalendarEvents({
-            subs: state.subs,
-            subPaused: state.subPaused,
-            subOverrides: state.subOverrides,
-            onboarding: state.onboarding,
-            manualEvents: state.calendarEvents,
-            pots: state.pots,
-            spendHold: state.spendHold,
-            whatIfHolds: state.whatIfHolds,
-            windowDays: 35,
-            now: new Date(nowISO),
-          });
-          const routeResult = calendar.computeSpareAndTightest(
-            calendar.groupByDay(events),
-            state.currentBalance.amount,
-          );
-          return {
-            state: {
-              balance: state.currentBalance,
+          async ({ canonicalFixture, defaults, nowISO }) => {
+            const store = await import('/src/lib/store.ts');
+            const calendar = await import('/src/lib/calendar-events.ts');
+            const subscriptions = canonicalFixture.subscriptions.map((row) => ({
+              name: row.name,
+              cost: row.cost,
+              nextRenewalDaysAway: row.daysAway,
+              lastUsedDaysAgo: 0,
+              usesPerMonth: 1,
+            }));
+            const patch = {
+              pots: canonicalFixture.pots ?? [],
+              subs: subscriptions,
+              subPaused: {},
+              subOverrides: [],
+              cycles: [],
+              onboarding: {
+                done: true,
+                name: defaults.name,
+                payday: canonicalFixture.payday,
+                monthlyIncome: canonicalFixture.income,
+                weekendRule: 'previous',
+                paydayCadence: 'monthly',
+                primerSeen: true,
+                incomeStreams: [],
+                persona: 'personal',
+                createdAt: nowISO,
+              },
+              currentBalance: {
+                amount: canonicalFixture.balance,
+                source: canonicalFixture.balanceSource,
+                confidence: canonicalFixture.confidence,
+                setAt: nowISO,
+              },
+              potLedger: [],
+              transactions: defaults.transactions,
+              calendarEvents: [],
+              tightPointGoal: null,
+              moneyMode: 'survival',
+              bufferAmount: 100,
+              debts: canonicalFixture.debts ?? [],
+              plans: canonicalFixture.plans ?? [],
+              spendHold: null,
+              whatIfHolds: [],
+            };
+            store.applyPreviewOverlay(patch);
+            const nativeRandom = Math.random;
+            let seed = defaults.randomSeed >>> 0;
+            Math.random = () => {
+              seed = (seed * 1664525 + 1013904223) >>> 0;
+              return seed / 0x1_0000_0000;
+            };
+            try {
+              store.enqueueReviewItems(
+                (canonicalFixture.reviewItems ?? []).map(
+                  ({ category: _category, ...item }) => item,
+                ),
+              );
+            } finally {
+              Math.random = nativeRandom;
+            }
+            const state = store.getState();
+            const events = calendar.deriveCalendarEvents({
+              subs: state.subs,
+              subPaused: state.subPaused,
+              subOverrides: state.subOverrides,
               onboarding: state.onboarding,
-              subscriptions: state.subs,
+              manualEvents: state.calendarEvents,
               pots: state.pots,
-              debts: state.debts,
-              plans: state.plans,
-              reviewQueue: state.reviewQueue,
-              transactionCount: state.transactions.length,
-              manualEventCount: state.calendarEvents.length,
-            },
-            events: events.map(({ date, title, amount, source }) => ({
-              date,
-              title,
-              amount,
-              source,
-            })),
-            route: routeResult,
-          };
-        },
-        {
-          canonicalFixture: fixture,
-          defaults: {
-            ...fixtureManifest.personalDefaults,
-            randomSeed: fixtureManifest.randomSeed,
+              spendHold: state.spendHold,
+              whatIfHolds: state.whatIfHolds,
+              windowDays: 35,
+              now: new Date(nowISO),
+            });
+            const routeResult = calendar.computeSpareAndTightest(
+              calendar.groupByDay(events),
+              state.currentBalance.amount,
+            );
+            return {
+              state: {
+                balance: state.currentBalance,
+                onboarding: state.onboarding,
+                subscriptions: state.subs,
+                pots: state.pots,
+                debts: state.debts,
+                plans: state.plans,
+                reviewQueue: state.reviewQueue,
+                transactionCount: state.transactions.length,
+                manualEventCount: state.calendarEvents.length,
+              },
+              events: events.map(({ date, title, amount, source }) => ({
+                date,
+                title,
+                amount,
+                source,
+              })),
+              route: routeResult,
+            };
           },
-          nowISO: fixtureManifest.nowISO,
-        },
+          {
+            canonicalFixture: fixture,
+            defaults: {
+              ...fixtureManifest.personalDefaults,
+              randomSeed: fixtureManifest.randomSeed,
+            },
+            nowISO: fixtureManifest.nowISO,
+          },
         )
       : {
           state: { fixtureKind: fixture.kind, onboardingDone: fixture.kind !== 'first-run' },
@@ -350,6 +353,100 @@ try {
       }
     }
   });
+  if (globalSurface !== '') {
+    await page.evaluate(async (captureGlobal) => {
+      if (captureGlobal === 'root-layout') return;
+      if (captureGlobal === 'stack-index') {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+        return;
+      }
+      const glass = document.querySelector('.iphone-glass, .android-glass');
+      if (!(glass instanceof HTMLElement)) throw new Error('Pinned source phone glass is missing.');
+      const mount = document.createElement('div');
+      mount.dataset.parityGlobalSurface = captureGlobal;
+      Object.assign(mount.style, {
+        position: 'absolute',
+        inset: '44px 0 0',
+        zIndex: '60',
+        pointerEvents: 'none',
+      });
+      glass.appendChild(mount);
+
+      const React = await import('/@id/react');
+      const { createRoot } = await import('/@id/react-dom/client');
+      const root = createRoot(mount);
+      const element = React.createElement;
+
+      if (captureGlobal === 'boot-splash') {
+        const previousUrl = window.location.href;
+        history.replaceState(null, '', window.location.pathname);
+        sessionStorage.removeItem('folio.splash.seen.v1');
+        const { SplashOverlay } = await import('/src/components/folio/shell/SplashOverlay.tsx');
+        root.render(element(SplashOverlay));
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        history.replaceState(null, '', previousUrl);
+        return;
+      }
+      if (captureGlobal === 'persistence-degraded') {
+        const { StateStrip } = await import('/src/components/folio/shell/StateStrip.tsx');
+        Object.assign(mount.style, { padding: '12px', background: 'transparent' });
+        root.render(
+          element(StateStrip, {
+            kind: 'persistence-degraded',
+            action: 'Try again',
+            onAction: () => undefined,
+          }),
+        );
+        return;
+      }
+      if (captureGlobal === 'screen-error') {
+        const { ScreenErrorBoundary } =
+          await import('/src/components/folio/shell/ScreenErrorBoundary.tsx');
+        Object.assign(mount.style, { background: 'var(--paper)' });
+        let boundary = null;
+        root.render(
+          element(
+            ScreenErrorBoundary,
+            { ref: (instance) => (boundary = instance), screenLabel: 'capture' },
+            element('div'),
+          ),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        boundary?.setState({ error: new Error('capture-only') });
+        return;
+      }
+      if (captureGlobal === 'toast' || captureGlobal === 'undo-toast') {
+        const { Toaster, toast } = await import('/@id/sonner');
+        root.render(
+          element(Toaster, {
+            position: 'bottom-center',
+            toastOptions: {
+              className: 'folio-toast',
+              style: {
+                background: 'var(--ink)',
+                color: 'var(--paper)',
+                border: '1px solid var(--ink)',
+                borderRadius: '14px',
+                fontFamily: 'var(--font-sans)',
+                fontSize: '13px',
+              },
+            },
+          }),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (captureGlobal === 'toast') {
+          toast('Saved calmly', { description: 'Your latest change is safe on this device.' });
+        } else {
+          const { undoToast } = await import('/src/lib/undo.ts');
+          undoToast('Removed from this plan', { onUndo: () => undefined });
+        }
+      }
+    }, globalSurface);
+    await page.addStyleTag({
+      content:
+        '[data-parity-global-surface] [data-sonner-toaster]{position:absolute!important;left:12px!important;right:12px!important;bottom:18px!important;width:auto!important}',
+    });
+  }
   await page.waitForTimeout(100);
 
   const box = await locator.boundingBox();
@@ -460,6 +557,7 @@ try {
     surface,
     screen,
     sheet: sheet || null,
+    globalSurface: globalSurface || null,
     sourceSha: actualSha,
     route: route.href,
     clock: fixtureManifest.nowISO,

@@ -33,6 +33,7 @@ import {
   type Sub,
 } from '../store';
 import fixtureManifestJson from './fixtures.json';
+import globalSurfaceManifestJson from './globalSurfaces.json';
 import { getParityDecisionDialog } from './decisionDialogs';
 import { getParityStatusDialog } from '../ui/statusDialogs';
 import {
@@ -159,9 +160,13 @@ export type ParityHarnessConfig = Readonly<{
   screen: ScreenId;
   sheet: SheetId;
   theme: ParityTheme;
+  globalSurface: string | null;
 }>;
 
 const DEFAULT_CAPTURE_NOW = fixtureManifest.nowISO;
+const GLOBAL_SURFACE_IDS: ReadonlySet<string> = new Set(
+  Object.keys(globalSurfaceManifestJson.entries),
+);
 
 const SCREEN_IDS: ReadonlySet<string> = new Set([
   'start',
@@ -265,6 +270,7 @@ export type ParityRuntimeControl = Readonly<{
   screen: ScreenId;
   sheet: SheetId;
   dialog: string | null;
+  globalSurface: string | null;
   theme: ParityTheme;
   sequence: number;
 }>;
@@ -289,6 +295,7 @@ export function applyParityRuntimeControl(
     screen: string | undefined;
     sheet: string | undefined;
     dialog?: string | undefined;
+    globalSurface?: string | undefined;
     theme: string | undefined;
   }>,
 ): void {
@@ -297,11 +304,13 @@ export function applyParityRuntimeControl(
   const screenValue = input.screen;
   const sheetValue = input.sheet;
   const dialogValue = input.dialog;
+  const globalSurfaceValue = input.globalSurface;
   const themeValue = input.theme;
   const prior = parityRuntimeControl ?? {
     screen: baked.screen,
     sheet: baked.sheet,
     dialog: null,
+    globalSurface: baked.globalSurface ?? null,
     theme: baked.theme,
     sequence: parityRuntimeSequence,
   };
@@ -327,11 +336,26 @@ export function applyParityRuntimeControl(
         : screenValue !== undefined
           ? null
           : prior.dialog;
+  const globalSurface =
+    globalSurfaceValue === 'none'
+      ? null
+      : globalSurfaceValue !== undefined && GLOBAL_SURFACE_IDS.has(globalSurfaceValue)
+        ? globalSurfaceValue
+        : screenValue !== undefined
+          ? null
+          : prior.globalSurface;
 
   configureCaptureReaderResult(screen);
 
   parityRuntimeSequence += 1;
-  parityRuntimeControl = { screen, sheet, dialog, theme, sequence: parityRuntimeSequence };
+  parityRuntimeControl = {
+    screen,
+    sheet,
+    dialog,
+    globalSurface,
+    theme,
+    sequence: parityRuntimeSequence,
+  };
   // Capture-only diagnostics: no product/user data, only the requested deterministic surface.
   // eslint-disable-next-line no-console
   console.info('[parity-control]', JSON.stringify(parityRuntimeControl));
@@ -354,6 +378,7 @@ function applyParityRuntimeUrl(url: string): void {
     screen: parsed.searchParams.get('screen') ?? undefined,
     sheet: parsed.searchParams.get('sheet') ?? undefined,
     dialog: parsed.searchParams.get('dialog') ?? undefined,
+    globalSurface: parsed.searchParams.get('global') ?? undefined,
     theme: parsed.searchParams.get('theme') ?? undefined,
   });
 }
@@ -392,6 +417,11 @@ export function getParityHarnessConfig(): ParityHarnessConfig | null {
     screen: captureScreen(process.env.EXPO_PUBLIC_MELO_PARITY_SCREEN),
     sheet: captureSheet(process.env.EXPO_PUBLIC_MELO_PARITY_SHEET),
     theme: process.env.EXPO_PUBLIC_MELO_PARITY_THEME === 'dark' ? 'dark' : 'light',
+    globalSurface:
+      process.env.EXPO_PUBLIC_MELO_PARITY_GLOBAL !== undefined &&
+      GLOBAL_SURFACE_IDS.has(process.env.EXPO_PUBLIC_MELO_PARITY_GLOBAL)
+        ? process.env.EXPO_PUBLIC_MELO_PARITY_GLOBAL
+        : null,
   };
 }
 

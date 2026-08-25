@@ -5,15 +5,16 @@
   "generatedFrom": "docs/parity-recovery/registries/parity-archetypes.json",
   "scope": {
     "mode": "family-screen-sheet-and-trigger-dialog-bulk-capture",
-    "includedNonBusinessSurfaces": 113,
+    "includedNonBusinessSurfaces": 122,
     "includedRoutedNonBusinessSurfaces": 55,
     "includedTriggerOnlyDialogs": 58,
     "includedDecisionDialogs": 21,
     "includedStatusDialogs": 37,
+    "includedGlobalAndStackSurfaces": 9,
     "includedBusinessFamilySurfaces": 7,
     "explicitBusinessTrueExceptions": 1,
-    "excludedNonBusinessSurfaces": 34,
-    "note": "Direct routes, source/native deep-linkable sheets, and the exact-owned decision/status-dialog families are batched. Payroll, Today remove-confirm, and Review source-open are explicit true exceptions because the pinned source has no matching route/dialog. Remaining self-hosted embedded sheets, global overlays and platform chrome require dedicated drivers."
+    "excludedNonBusinessSurfaces": 25,
+    "note": "Direct routes, source/native deep-linkable sheets, exact-owned dialog families, and deterministic global/stack capture states are batched. Payroll, hydration recovery, Today remove-confirm, and Review source-open remain explicit true exceptions. Remaining self-hosted embedded sheets and platform chrome require dedicated drivers."
   },
   "batches": [
     {
@@ -21,19 +22,23 @@
       "fixture": "confirmed-safe",
       "surfaces": [
         {
+          "nativeStableId": "screen.account",
           "screen": "account",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.add-bill",
           "screen": "add-bill",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.add-debt",
           "screen": "add-debt",
           "themes": ["light", "dark"]
         },
         {
           "id": "add-event",
+          "nativeStableId": "sheet.add-event",
           "screen": "calendar",
           "sourceScreen": "calendar",
           "sourceSheet": "add-event",
@@ -43,6 +48,7 @@
         },
         {
           "id": "add-plan",
+          "nativeStableId": "sheet.add-plan",
           "screen": "plans",
           "sourceScreen": "plans",
           "sourceSheet": "add-plan",
@@ -52,6 +58,7 @@
         },
         {
           "id": "afford-check",
+          "nativeStableId": "sheet.afford-check",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "afford-check",
@@ -61,6 +68,7 @@
         },
         {
           "id": "appearance",
+          "nativeStableId": "sheet.appearance",
           "screen": "appearance",
           "sourceScreen": "appearance",
           "nativeScreen": "more",
@@ -68,11 +76,13 @@
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.calendar",
           "screen": "calendar",
           "themes": ["light", "dark"]
         },
         {
           "id": "calendar-connect",
+          "nativeStableId": "sheet.calendar-connect",
           "screen": "calendar",
           "sourceScreen": "calendar",
           "sourceSheet": "calendar-connect",
@@ -82,6 +92,7 @@
         },
         {
           "id": "calendar-export",
+          "nativeStableId": "sheet.calendar-export",
           "screen": "calendar",
           "sourceScreen": "calendar",
           "sourceSheet": "calendar-export",
@@ -91,6 +102,7 @@
         },
         {
           "id": "chart-style",
+          "nativeStableId": "sheet.chart-style",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "chart-style",
@@ -100,6 +112,7 @@
         },
         {
           "id": "day-detail",
+          "nativeStableId": "sheet.day-detail",
           "screen": "calendar",
           "sourceScreen": "calendar",
           "sourceSheet": "day-detail",
@@ -109,6 +122,7 @@
         },
         {
           "id": "declare-debt",
+          "nativeStableId": "sheet.declare-debt",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "add-debt",
@@ -118,6 +132,7 @@
         },
         {
           "id": "edit-txn",
+          "nativeStableId": "sheet.edit-txn",
           "screen": "timeline",
           "sourceScreen": "timeline",
           "sourceSheet": "edit-txn",
@@ -126,11 +141,13 @@
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.guided",
           "screen": "guided",
           "themes": ["light", "dark"]
         },
         {
           "id": "hidden-review",
+          "nativeStableId": "sheet.hidden-review",
           "screen": "review",
           "sourceScreen": "review",
           "sourceSheet": "hidden-review",
@@ -140,6 +157,7 @@
         },
         {
           "id": "household-setup",
+          "nativeStableId": "sheet.household-setup",
           "screen": "more",
           "sourceScreen": "more",
           "sourceSheet": "household-setup",
@@ -148,23 +166,28 @@
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.image-fallback",
           "screen": "image-fallback",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.image-success",
           "screen": "image-success",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.insights",
           "screen": "insights",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.intake",
           "screen": "intake",
           "themes": ["light", "dark"]
         },
         {
           "id": "lens-picker",
+          "nativeStableId": "sheet.lens-picker",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "lens-picker",
@@ -183,6 +206,7 @@
         },
         {
           "id": "log-spend",
+          "nativeStableId": "sheet.log-spend",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "log-spend",
@@ -191,11 +215,13 @@
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.melo",
           "screen": "melo",
           "themes": ["light", "dark"]
         },
         {
           "id": "melo-chat",
+          "nativeStableId": "sheet.melo-chat",
           "screen": "melo",
           "sourceScreen": "melo",
           "sourceSheet": "melo-chat",
@@ -204,11 +230,13 @@
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.more",
           "screen": "more",
           "themes": ["light", "dark"]
         },
         {
           "id": "onboarding",
+          "nativeStableId": "sheet.onboarding",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "onboarding",
@@ -217,47 +245,58 @@
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.paste-success",
           "screen": "paste-success",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.paywall",
           "screen": "paywall",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.pdf-fallback",
           "screen": "pdf-fallback",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.pdf-success",
           "screen": "pdf-success",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.plan",
           "screen": "plan",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.plans",
           "screen": "plans",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.pots",
           "screen": "pots",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.privacy",
           "screen": "privacy",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.recovery",
           "screen": "recovery",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.ritual",
           "screen": "ritual",
           "themes": ["light", "dark"]
         },
         {
           "id": "route-detail",
+          "nativeStableId": "sheet.route-detail",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "route-detail",
@@ -267,6 +306,7 @@
         },
         {
           "id": "safe-zone",
+          "nativeStableId": "sheet.safe-zone",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "safe-zone",
@@ -276,6 +316,7 @@
         },
         {
           "id": "share",
+          "nativeStableId": "sheet.share",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "share",
@@ -285,6 +326,7 @@
         },
         {
           "id": "shelf",
+          "nativeStableId": "sheet.shelf",
           "screen": "today",
           "sourceScreen": "today",
           "sourceSheet": "shelf",
@@ -293,11 +335,13 @@
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.shortfall",
           "screen": "shortfall",
           "themes": ["light", "dark"]
         },
         {
           "id": "sub-caught",
+          "nativeStableId": "sheet.sub-caught",
           "screen": "subs",
           "sourceScreen": "subs",
           "sourceSheet": "sub-caught",
@@ -306,34 +350,42 @@
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.subs",
           "screen": "subs",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.timeline",
           "screen": "timeline",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.today",
           "screen": "today",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.today-after",
           "screen": "today-after",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.today-mode",
           "screen": "today-mode",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.today-stability",
           "screen": "today-stability",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.visualizer",
           "screen": "visualizer",
           "themes": ["light", "dark"]
         },
         {
+          "nativeStableId": "screen.whatif",
           "screen": "whatif",
           "themes": ["light", "dark"]
         }
@@ -344,6 +396,7 @@
       "fixture": "first-run",
       "surfaces": [
         {
+          "nativeStableId": "screen.start",
           "screen": "start",
           "themes": ["light", "dark"]
         }
@@ -354,11 +407,13 @@
       "fixture": "pending-review",
       "surfaces": [
         {
+          "nativeStableId": "screen.review",
           "screen": "review",
           "themes": ["light", "dark"]
         },
         {
           "id": "review-item",
+          "nativeStableId": "screen.review-item",
           "screen": "review-item",
           "sourceScreen": "review",
           "nativeScreen": "review-item",
@@ -1086,6 +1141,129 @@
           "nativeDialog": "dialog.privacy-restore-invalid-file",
           "sourceEvidenceMode": "pinned-lovable-owner-context",
           "nativeEvidenceMode": "centralized-production-status-contract",
+          "themes": ["light", "dark"]
+        }
+      ]
+    },
+    {
+      "id": "non-business-global-and-stack",
+      "fixture": "confirmed-safe",
+      "familyId": "global-and-stack-surfaces",
+      "surfaces": [
+        {
+          "id": "global.app-lock-gate",
+          "nativeStableId": "global.app-lock-gate",
+          "sourceOwnerStableId": "screen:applock",
+          "screen": "today",
+          "sourceScreen": "applock",
+          "nativeScreen": "today",
+          "nativeGlobal": "global.app-lock-gate",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "global.boot-splash",
+          "nativeStableId": "global.boot-splash",
+          "sourceOwnerStableId": "overlay:splash",
+          "screen": "start",
+          "sourceScreen": "start",
+          "nativeScreen": "start",
+          "sourceGlobal": "boot-splash",
+          "nativeGlobal": "global.boot-splash",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "global.persistence-save-notice",
+          "nativeStableId": "global.persistence-save-notice",
+          "sourceOwnerStableId": "state-strip:persistence-degraded",
+          "screen": "today",
+          "sourceScreen": "today",
+          "nativeScreen": "today",
+          "sourceGlobal": "persistence-degraded",
+          "nativeGlobal": "global.persistence-save-notice",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "global.root-error-boundary",
+          "nativeStableId": "global.root-error-boundary",
+          "sourceOwnerStableId": "overlay:screen-error",
+          "screen": "today",
+          "sourceScreen": "today",
+          "nativeScreen": "today",
+          "sourceGlobal": "screen-error",
+          "nativeGlobal": "global.root-error-boundary",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "global.screen-error-boundary",
+          "nativeStableId": "global.screen-error-boundary",
+          "sourceOwnerStableId": "overlay:screen-error",
+          "screen": "today",
+          "sourceScreen": "today",
+          "nativeScreen": "today",
+          "sourceGlobal": "screen-error",
+          "nativeGlobal": "global.screen-error-boundary",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "global.toast",
+          "nativeStableId": "global.toast",
+          "sourceOwnerStableId": "overlay:toast",
+          "screen": "today",
+          "sourceScreen": "today",
+          "nativeScreen": "today",
+          "sourceGlobal": "toast",
+          "nativeGlobal": "global.toast",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "global.undo-toast",
+          "nativeStableId": "global.undo-toast",
+          "sourceOwnerStableId": "interaction:undo-toast",
+          "screen": "today",
+          "sourceScreen": "today",
+          "nativeScreen": "today",
+          "sourceGlobal": "undo-toast",
+          "nativeGlobal": "global.undo-toast",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "stack.index",
+          "nativeStableId": "stack.index",
+          "sourceOwnerStableId": "dialog:command-palette",
+          "screen": "today",
+          "sourceScreen": "today",
+          "nativeScreen": "today",
+          "sourceGlobal": "stack-index",
+          "nativeGlobal": "stack.index",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "stack.root-layout",
+          "nativeStableId": "stack.root-layout",
+          "sourceOwnerStableId": "shell:hero-phone",
+          "screen": "today",
+          "sourceScreen": "today",
+          "nativeScreen": "today",
+          "sourceGlobal": "root-layout",
+          "nativeGlobal": "stack.root-layout",
+          "sourceEvidenceMode": "pinned-owner-runtime-control",
+          "nativeEvidenceMode": "capture-only-global-runtime-control",
           "themes": ["light", "dark"]
         }
       ]
