@@ -1080,7 +1080,7 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   // The pinned owner routes `visualizer` to the Timeline family's "What Melo saw" view. Keep the
   // transient reader preview behind the intake flow, but make the shipping route honor its actual
   // source owner instead of presenting an unrelated empty import state.
-  if (screen === 'visualizer') return <TimelineScreen nav={nav} />;
+  if (screen === 'visualizer') return <TimelineScreen nav={nav} initialTab="saw" />;
   if (screen === 'review') return <ReviewHubScreen nav={nav} />;
   if (screen === 'review-item') return <ReviewScreen nav={nav} />;
   // AddEntryScreen is reused for both kinds via the `kind` prop (bill | debt).

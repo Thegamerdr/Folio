@@ -248,9 +248,16 @@ type ScreenState = 'populated' | 'loading' | 'empty' | 'error' | 'offline';
 export type TimelineScreenProps = {
   nav: Nav;
   state?: ScreenState;
+  initialTab?: TimelineTab;
 };
 
-export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps) {
+type TimelineTab = 'transactions' | 'actions' | 'saw';
+
+export function TimelineScreen({
+  nav,
+  state = 'populated',
+  initialTab = 'transactions',
+}: TimelineScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
@@ -272,6 +279,8 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
   // screen is the only one that reads `transactions` directly and shows them as a flat log, so it is
   // the natural place to disclose the trim honestly rather than let the list simply stop, unexplained.
   const droppedTransactionCount = useAppStore((st) => st.droppedTransactionCount ?? 0);
+  const [tab, setTab] = useState<TimelineTab>(initialTab);
+  useEffect(() => setTab(initialTab), [initialTab]);
 
   // Project once per change. `now` is captured per render so the relative whens stay live without a
   // ticking timer (this is a read projection, not a clock).
@@ -411,7 +420,7 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
           <Text accessibilityRole="header" style={s.headline}>
             {isBusiness ? 'Every business ' : "Everything you've "}
             <Text style={s.headlineAccent}>{isBusiness ? 'record' : 'added'}</Text>
-            {isBusiness ? ', in order.' : ' or changed.'}
+            {isBusiness ? ', in order.' : ' or logged.'}
           </Text>
           <Text style={s.subhead}>
             {isBusiness
@@ -420,20 +429,26 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
           </Text>
         </View>
 
-        {/* Timeline list — a vertical rail behind the nodes, newest first. */}
-        <View style={s.list}>
-          <View style={[s.rail, { backgroundColor: t.hairline }]} pointerEvents="none" />
-          {rows.map((row, i) => (
-            <TimelineRowView
-              key={row.id}
-              row={row}
-              styles={s}
-              palette={t}
-              isLast={i === rows.length - 1}
-              nav={nav}
-            />
-          ))}
-        </View>
+        {!isBusiness ? <TimelineTabs value={tab} onChange={setTab} styles={s} palette={t} /> : null}
+
+        {tab === 'transactions' || isBusiness ? (
+          /* Timeline list — a vertical rail behind the nodes, newest first. */
+          <View style={s.list}>
+            <View style={[s.rail, { backgroundColor: t.hairline }]} pointerEvents="none" />
+            {rows.map((row, i) => (
+              <TimelineRowView
+                key={row.id}
+                row={row}
+                styles={s}
+                palette={t}
+                isLast={i === rows.length - 1}
+                nav={nav}
+              />
+            ))}
+          </View>
+        ) : (
+          <TimelineActionCards transactions={transactions} styles={s} palette={t} />
+        )}
 
         {/* DATA_INTELLIGENCE.md phase ④(A) — honest disclosure that the list is cut short by the
             live retention window, so a bulk-imported history's trimmed tail is disclosed rather than
@@ -457,6 +472,136 @@ export function TimelineScreen({ nav, state = 'populated' }: TimelineScreenProps
         </View>
       </ScrollView>
     </Animated.View>
+  );
+}
+
+function TimelineTabs({
+  value,
+  onChange,
+  styles,
+  palette,
+}: {
+  value: TimelineTab;
+  onChange: (value: TimelineTab) => void;
+  styles: Styles;
+  palette: Palette;
+}) {
+  const options: readonly { value: TimelineTab; label: string }[] = [
+    { value: 'transactions', label: 'Transactions' },
+    { value: 'actions', label: 'Actions' },
+    { value: 'saw', label: 'What Melo saw' },
+  ];
+  return (
+    <View style={[styles.tabs, { backgroundColor: palette.inset }]}>
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(option.value)}
+            style={({ pressed }) => [
+              styles.tab,
+              selected
+                ? {
+                    backgroundColor: palette.surface,
+                    borderColor: palette.hairline,
+                    borderWidth: 1,
+                  }
+                : undefined,
+              pressed ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.tabLabel, { color: selected ? palette.ink : palette.muted }]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function actionDayLabel(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Earlier';
+  return date
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    .toLocaleUpperCase('en-GB');
+}
+
+function TimelineActionCards({
+  transactions,
+  styles,
+  palette,
+}: {
+  transactions: readonly Transaction[];
+  styles: Styles;
+  palette: Palette;
+}) {
+  const groups = useMemo(() => {
+    const grouped = new Map<string, Transaction[]>();
+    for (const transaction of transactions) {
+      const day = actionDayLabel(transaction.when);
+      grouped.set(day, [...(grouped.get(day) ?? []), transaction]);
+    }
+    return [...grouped.entries()];
+  }, [transactions]);
+
+  return (
+    <View style={styles.actionGroups}>
+      {groups.map(([day, items]) => (
+        <View key={day} style={styles.actionGroup}>
+          <Text style={[styles.actionDay, { color: palette.muted }]}>{day}</Text>
+          <View
+            style={[
+              styles.actionCard,
+              { backgroundColor: palette.surface, borderColor: palette.hairline },
+            ]}
+          >
+            {items.map((transaction, index) => {
+              const incoming = transaction.amount >= 0;
+              const amount = Math.abs(transaction.amount).toLocaleString('en-GB', {
+                minimumFractionDigits: Number.isInteger(transaction.amount) ? 0 : 2,
+                maximumFractionDigits: 2,
+              });
+              return (
+                <View
+                  key={transaction.id}
+                  style={[
+                    styles.actionRow,
+                    index > 0 ? { borderTopColor: palette.hairline, borderTopWidth: 1 } : undefined,
+                  ]}
+                >
+                  <View style={styles.actionCopy}>
+                    <View style={[styles.actionChip, { backgroundColor: palette.inset }]}>
+                      <Text style={[styles.actionChipText, { color: palette.muted }]}>
+                        {incoming ? 'in' : 'spent'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.actionMerchant, { color: palette.ink }]}>
+                      {transaction.merchant}
+                    </Text>
+                    <Text style={[styles.actionCategory, { color: palette.muted }]}>
+                      {transaction.category}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.actionAmount,
+                      { color: incoming ? palette.positive : palette.ink },
+                    ]}
+                  >
+                    {incoming ? '+' : '\u2212'}£{amount}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -653,6 +798,24 @@ function makeStyles(_t: Palette) {
       lineHeight: 18,
       marginTop: gap.sm,
     },
+    tabs: {
+      borderRadius: 14,
+      flexDirection: 'row',
+      marginTop: gap.lg,
+      padding: 4,
+    },
+    tab: {
+      alignItems: 'center',
+      borderRadius: 11,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: 4,
+    },
+    tabLabel: {
+      fontSize: 12.5,
+      textAlign: 'center',
+    },
 
     // Loading branch — the calm "working it out" affordance, centred-ish under the header.
     loadingBlock: {
@@ -668,6 +831,57 @@ function makeStyles(_t: Palette) {
     list: {
       marginTop: gap.xl,
       position: 'relative',
+    },
+    actionGroups: {
+      gap: gap.xl,
+      marginTop: gap.xl,
+    },
+    actionGroup: {
+      gap: gap.sm,
+    },
+    actionDay: {
+      fontSize: 11,
+      letterSpacing: 1.1,
+      paddingHorizontal: 4,
+      textTransform: 'uppercase',
+    },
+    actionCard: {
+      borderRadius: 18,
+      borderWidth: 1,
+      overflow: 'hidden',
+    },
+    actionRow: {
+      flexDirection: 'row',
+      gap: gap.md,
+      justifyContent: 'space-between',
+      paddingHorizontal: gap.lg,
+      paddingVertical: gap.md,
+    },
+    actionCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    actionChip: {
+      alignSelf: 'flex-start',
+      borderRadius: radius.pill,
+      paddingHorizontal: gap.md,
+      paddingVertical: gap.xs,
+    },
+    actionChipText: {
+      fontSize: 11,
+    },
+    actionMerchant: {
+      fontSize: 15,
+      marginTop: gap.sm,
+    },
+    actionCategory: {
+      fontSize: 11.5,
+      marginTop: 2,
+    },
+    actionAmount: {
+      fontFamily: serif.display,
+      fontSize: 18,
+      fontVariant: ['tabular-nums'],
     },
     // Vertical rail — 1px line inset top..bottom, BEHIND the nodes. Sits at the dot's centre column.
     rail: {
