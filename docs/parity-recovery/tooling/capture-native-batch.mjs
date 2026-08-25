@@ -55,7 +55,7 @@ function runStreaming(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const windowsBatch = process.platform === 'win32' && command.toLowerCase().endsWith('.bat');
     const executable = windowsBatch ? (process.env.ComSpec ?? 'C:/Windows/System32/cmd.exe') : command;
-    const executableArgs = windowsBatch ? ['/d', '/s', '/c', command, ...args] : args;
+    const executableArgs = windowsBatch ? ['/d', '/s', '/c', path.basename(command), ...args] : args;
     const child = spawn(executable, executableArgs, {
       cwd: options.cwd ?? ROOT,
       env: options.env ?? process.env,
