@@ -10,6 +10,7 @@ export function BusinessScreenFrame({
   eyebrow,
   headline,
   heroAdornment,
+  heroTopInset = gap.sm,
   intro,
   sourceEditorial = false,
   children,
@@ -19,6 +20,7 @@ export function BusinessScreenFrame({
   eyebrow: string;
   headline: ReactNode;
   heroAdornment?: ReactNode;
+  heroTopInset?: number;
   intro?: string;
   sourceEditorial?: boolean;
   children: ReactNode;
@@ -46,7 +48,7 @@ export function BusinessScreenFrame({
           </Pressable>
           {title ? <Text style={[ui.headerTitle, { color: t.ink }]}>{title}</Text> : null}
         </View>
-        <View style={ui.hero}>
+        <View style={[ui.hero, { marginTop: heroTopInset }]}>
           {heroAdornment ? <View style={ui.heroAdornment}>{heroAdornment}</View> : null}
           <Text style={[sourceEditorial ? ui.sourceEyebrow : ui.eyebrow, { color: t.muted }]}>
             {eyebrow}
@@ -397,7 +399,7 @@ const ui = StyleSheet.create({
     width: 44,
   },
   backLabel: { fontSize: 22 },
-  hero: { marginTop: gap.sm, position: 'relative' },
+  hero: { position: 'relative' },
   heroAdornment: { position: 'absolute', right: 0, top: gap.sm, zIndex: 1 },
   eyebrow: { fontFamily: serif.displayItalic, fontSize: 13 },
   sourceEyebrow: {

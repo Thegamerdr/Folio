@@ -724,6 +724,16 @@ export function BusinessInvoicesScreen({ nav }: { nav: Nav }) {
     }))
     .filter((row) => row.invoices.length > 0);
   const outstanding = totalOutstandingInvoicesMinor(business);
+  const oldestOverdue = [...open]
+    .filter((invoice) => invoiceAgingBucket(invoice) !== 'current')
+    .sort((left, right) => left.dueOn.localeCompare(right.dueOn))[0];
+  const oldestDueLabel = oldestOverdue
+    ? new Date(`${oldestOverdue.dueOn}T00:00:00Z`).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        timeZone: 'UTC',
+      })
+    : null;
 
   const save = () => {
     const totalMinor = parseMinor(amount);
@@ -835,11 +845,41 @@ export function BusinessInvoicesScreen({ nav }: { nav: Nav }) {
         <BusinessScreenFrame
           eyebrow="Invoices"
           headline={
-            outstanding > 0 ? `${formatMinor(outstanding)} owed to you.` : 'Nothing outstanding.'
+            outstanding > 0 ? (
+              <>
+                {formatMinor(outstanding)} <Text style={{ color: t.calmStrong }}>owed</Text> to you.
+              </>
+            ) : (
+              <>
+                Nothing <Text style={{ color: t.calmStrong }}>outstanding</Text>.
+              </>
+            )
           }
-          intro="Sorted by age, with recurring work kept visible before it becomes an issued invoice."
+          heroTopInset={gap.xxl + gap.sm}
+          intro={
+            oldestOverdue && oldestDueLabel
+              ? `The oldest is ${oldestOverdue.clientName}, due ${oldestDueLabel}.`
+              : outstanding > 0
+                ? 'Nothing is late yet. Sorted by age, because the older it gets the harder it gets to collect.'
+                : 'Every invoice you have added has been paid.'
+          }
           onBack={nav.back}
+          sourceEditorial
         >
+          {oldestOverdue ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('business-clients')}
+              style={({ pressed }) => [
+                styles.invoiceHeroAction,
+                { backgroundColor: t.calmStrong, opacity: pressed ? 0.68 : 1 },
+              ]}
+            >
+              <Text style={[styles.invoiceHeroActionLabel, { color: t.inverse }]}>
+                See how {oldestOverdue.clientName} pays
+              </Text>
+            </Pressable>
+          ) : null}
           <BusinessRouteRow
             hint="Contact details and lifetime balances"
             label="Clients"
@@ -2222,6 +2262,7 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
             HMRC <Text style={{ color: t.calmStrong }}>approved</Text> mileage.
           </>
         }
+        heroAdornment={<MeloFigure mood="calm" size={40} />}
         intro="55p per mile for the first 10,000 car or goods-vehicle miles this tax year, 25p above. Log trips as a quick tally — the real trip log with GPS lives in the mobile app."
         onBack={nav.back}
         sourceEditorial
@@ -3276,6 +3317,14 @@ const styles = StyleSheet.create({
     marginTop: gap.xl,
   },
   section: { marginTop: gap.xl },
+  invoiceHeroAction: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
+  },
+  invoiceHeroActionLabel: { fontFamily: weightFamily(600), fontSize: 14 },
   routes: { marginTop: gap.xl },
   stack: { gap: gap.sm },
   metrics: { flexDirection: 'row', gap: gap.md },
