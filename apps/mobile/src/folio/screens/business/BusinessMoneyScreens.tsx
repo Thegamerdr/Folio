@@ -2572,7 +2572,7 @@ const styles = StyleSheet.create({
     width: 44,
   },
   insightsEmptyBackLabel: { fontFamily: weightFamily(400), fontSize: 24 },
-  insightsEmptyHero: { marginTop: gap.sm },
+  insightsEmptyHero: { marginTop: gap.lg },
   insightsEmptyEyebrow: {
     fontFamily: weightFamily(400),
     fontSize: 11,
