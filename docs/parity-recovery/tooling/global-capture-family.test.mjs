@@ -74,6 +74,8 @@ test('resolved global, screen and stack outliers have deterministic capture defi
   assert.match(nativeDriver, /global=\$\{encodeURIComponent\(globalSurface\)\}/u);
   assert.match(nativeDriver, /"globalSurface":\$\{expectedGlobal\}/u);
   assert.match(sourceBatchDriver, /--global=\$\{job\.globalSurface\}/u);
+  assert.match(sourceBatchDriver, /readArg\('batch', ''\)/u);
+  assert.match(sourceBatchDriver, /batchFilters\.has\(batch\.id\)/u);
   for (const sourceGlobal of [
     'boot-splash',
     'persistence-degraded',

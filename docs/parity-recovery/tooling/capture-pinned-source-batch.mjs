@@ -21,12 +21,27 @@ const manifestPath = path.resolve(
   readArg('manifest', 'docs/parity-recovery/registries/capture-batches.json'),
 );
 const concurrency = Math.max(1, Number.parseInt(readArg('concurrency', '3'), 10));
+const batchFilters = new Set(
+  readArg('batch', '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.batches)) {
   throw new Error(`Unsupported capture batch manifest: ${manifestPath}`);
 }
 
-const jobs = manifest.batches.flatMap((batch) =>
+const selectedBatches = manifest.batches.filter(
+  (batch) => batchFilters.size === 0 || batchFilters.has(batch.id),
+);
+if (batchFilters.size > 0) {
+  const selectedIds = new Set(selectedBatches.map((batch) => batch.id));
+  const unknown = [...batchFilters].filter((batchId) => !selectedIds.has(batchId));
+  if (unknown.length > 0) throw new Error(`Unknown capture batch: ${unknown.join(', ')}.`);
+}
+
+const jobs = selectedBatches.flatMap((batch) =>
   batch.surfaces.flatMap((surface) =>
     (surface.themes ?? ['light', 'dark']).map((theme) => ({
       fixture: batch.fixture,
