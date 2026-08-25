@@ -30,7 +30,7 @@ import {
   AccessibilityInfo,
   AppState,
   BackHandler,
-  Image,
+  ImageBackground,
   Platform,
   Pressable,
   StyleSheet,
@@ -623,20 +623,16 @@ export function FolioShell() {
           boundary (or the two native siblings independently) lets Fabric commit the canvas and nav
           on different frames, which can expose stale/black pixels during More-subtree navigation.
           This grouped host gives Android one complete frame to paint, without a page-wide animation. */}
-          <View
-            collapsable={false}
+          <ImageBackground
             key={`route-frame-${screen}`}
+            resizeMode="stretch"
+            source={
+              isDark
+                ? require('../../../assets/material/paper-canvas-dark.png')
+                : require('../../../assets/material/paper-canvas-light.png')
+            }
             style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
           >
-            <Image
-              resizeMode="stretch"
-              source={
-                isDark
-                  ? require('../../../assets/material/paper-canvas-dark.png')
-                  : require('../../../assets/material/paper-canvas-light.png')
-              }
-              style={shellStyles.paperGrain}
-            />
             <View collapsable={false} style={shellStyles.screenHost}>
               <ScreenErrorBoundary
                 key={`screen-${screen}`}
@@ -652,7 +648,7 @@ export function FolioShell() {
               onChange={onTabChange}
               reviewCount={pendingReviewCount}
             />
-          </View>
+          </ImageBackground>
           {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
           sheets (onboarding, appearance, edit-txn, log-spend, sub-caught, add-event, calendar-export,
           calendar-connect, route-detail, melo-chat, share, day-detail) each wrap the kit Sheet
@@ -755,7 +751,6 @@ export function FolioShell() {
 const shellStyles = StyleSheet.create({
   root: { flex: 1 },
   routeFrame: { flex: 1 },
-  paperGrain: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   screenHost: { flex: 1 },
 });
 
