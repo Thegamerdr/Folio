@@ -45,6 +45,7 @@ const theme = readArg('theme', 'light');
 const screen = readArg('screen', 'today');
 const sheet = readArg('sheet', '');
 const surface = readArg('surface', sheet || screen);
+const renderedScreen = screen === 'today-mode' || screen === 'today-stability' ? 'today' : screen;
 if (theme !== 'light' && theme !== 'dark') throw new Error(`Unsupported theme: ${theme}`);
 
 const fixtureManifest = JSON.parse(await readFile(FIXTURE_PATH, 'utf8'));
@@ -52,6 +53,8 @@ const fixture = fixtureManifest.fixtures[fixtureId];
 if (fixture === undefined) throw new Error(`Unknown fixture: ${fixtureId}`);
 if (
   fixture.kind !== 'personal' &&
+  fixture.kind !== 'empty' &&
+  fixture.kind !== 'first-run' &&
   fixture.kind !== 'business-empty' &&
   fixture.kind !== 'business-sole-trader' &&
   fixture.kind !== 'business-ltd'
@@ -60,6 +63,7 @@ if (
 }
 
 const isBusinessFixture = fixture.kind.startsWith('business-');
+const isPersonalFixture = fixture.kind === 'personal';
 const businessState = fixtureManifest.designAdapter.businessStates?.[fixtureId] ?? null;
 if (isBusinessFixture && fixture.kind !== 'business-empty' && businessState === null) {
   throw new Error(`No pinned-source Business adapter exists for fixture: ${fixtureId}`);
@@ -194,7 +198,7 @@ try {
   route.searchParams.set('p', fixture.designPressure ?? 'safe');
   route.searchParams.set('device', '370x756');
   await page.goto(route.href, { waitUntil: 'networkidle' });
-  const locator = page.locator(`[data-folio-screen="${screen}"]`);
+  const locator = page.locator(`[data-folio-screen="${renderedScreen}"]`);
   await locator.waitFor({ state: 'visible' });
 
   const engine = isBusinessFixture
@@ -209,7 +213,8 @@ try {
           route: null,
         };
       })
-    : await page.evaluate(
+    : isPersonalFixture
+      ? await page.evaluate(
         async ({ canonicalFixture, defaults, nowISO }) => {
           const store = await import('/src/lib/store.ts');
           const calendar = await import('/src/lib/calendar-events.ts');
@@ -315,7 +320,12 @@ try {
           },
           nowISO: fixtureManifest.nowISO,
         },
-      );
+        )
+      : {
+          state: { fixtureKind: fixture.kind, onboardingDone: fixture.kind !== 'first-run' },
+          events: [],
+          route: null,
+        };
 
   await page.addStyleTag({
     content: [
@@ -415,7 +425,7 @@ try {
     {
       originX: box.x + INNER_GLASS.inset,
       originY: box.y + INNER_GLASS.inset + PRODUCT.top,
-      captureScreen: screen,
+      captureScreen: renderedScreen,
     },
   );
 
@@ -465,7 +475,9 @@ try {
       ? fixture.kind === 'business-empty'
         ? 'Fresh browser storage is paired with an active, empty native Business partition named Business.'
         : 'The pinned source receives the source-model projection of the native Business acceptance fixture before React hydration. Amounts are converted from native minor units to source major units; the native capture still builds its state through the real Business engines.'
-      : fixtureManifest.designAdapter.note,
+      : isPersonalFixture
+        ? fixtureManifest.designAdapter.note
+        : 'Fresh source storage is paired with the equivalent empty native capture partition; no synthetic financial rows are injected.',
     engine,
     semanticGeometry,
     pageErrors,

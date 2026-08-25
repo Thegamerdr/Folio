@@ -6,9 +6,10 @@
   "scope": {
     "mode": "family-screen-and-sheet-bulk-capture",
     "includedNonBusinessSurfaces": 54,
-    "includedBusinessFamilySurfaces": 7,
+    "includedBusinessFamilySurfaces": 8,
+    "explicitBusinessTrueExceptions": 1,
     "excludedNonBusinessSurfaces": 93,
-    "note": "Direct routes and source/native deep-linkable sheets are batched. Trigger-only dialogs, self-hosted embedded sheets, global overlays and platform chrome remain explicit outliers requiring dedicated drivers."
+    "note": "Direct routes and source/native deep-linkable sheets are batched. Payroll is an explicit true exception because the pinned source has no Payroll filing route. Trigger-only dialogs, self-hosted embedded sheets, global overlays and platform chrome remain explicit outliers requiring dedicated drivers."
   },
   "batches": [
     {
@@ -344,7 +345,10 @@
           "themes": ["light", "dark"]
         },
         {
+          "id": "review-item",
           "screen": "review-item",
+          "sourceScreen": "review",
+          "nativeScreen": "review-item",
           "themes": ["light", "dark"]
         }
       ]
@@ -354,7 +358,10 @@
       "fixture": "business-ltd",
       "surfaces": [
         {
+          "id": "business-deductions",
           "screen": "business-deductions",
+          "sourceScreen": "business-mileage",
+          "nativeScreen": "business-deductions",
           "themes": ["light", "dark"]
         },
         {
@@ -370,15 +377,29 @@
           "themes": ["light", "dark"]
         },
         {
-          "screen": "business-filing-payroll",
-          "themes": ["light", "dark"]
-        },
-        {
           "screen": "business-filing-sa",
           "themes": ["light", "dark"]
         },
         {
           "screen": "business-filing-vat",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "log-invoice",
+          "screen": "business-invoices",
+          "sourceScreen": "business-invoices",
+          "sourceSheet": "log-invoice",
+          "nativeScreen": "business-invoices",
+          "nativeSheet": "log-invoice",
+          "themes": ["light", "dark"]
+        },
+        {
+          "id": "log-payment",
+          "screen": "business-invoices",
+          "sourceScreen": "business-invoices",
+          "sourceSheet": "log-payment",
+          "nativeScreen": "business-invoices",
+          "nativeSheet": "log-payment",
           "themes": ["light", "dark"]
         }
       ]

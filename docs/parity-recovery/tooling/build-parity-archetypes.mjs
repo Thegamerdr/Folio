@@ -562,6 +562,9 @@ const SHEET_CAPTURE_ROUTES = new Map([
   ['hidden-review', { screen: 'review' }],
   ['day-detail', { screen: 'calendar' }],
 ]);
+const SCREEN_CAPTURE_OVERRIDES = new Map([
+  ['review-item', { sourceScreen: 'review', nativeScreen: 'review-item' }],
+]);
 
 const captureableAssignments = assignments.filter(
   (entry) => entry.kind === 'screen' || (entry.kind === 'sheet' && SHEET_CAPTURE_ROUTES.has(entry.routeKey)),
@@ -572,7 +575,18 @@ for (const assignment of captureableAssignments) {
   if (!fixture) throw new Error(`${assignment.stableId} has no matched capture fixture`);
   const group = captureFixtureGroups.get(fixture) ?? [];
   if (assignment.kind === 'screen') {
-    group.push({ screen: assignment.routeKey, themes: ['light', 'dark'] });
+    const override = SCREEN_CAPTURE_OVERRIDES.get(assignment.routeKey);
+    group.push(
+      override === undefined
+        ? { screen: assignment.routeKey, themes: ['light', 'dark'] }
+        : {
+            id: assignment.routeKey,
+            screen: assignment.routeKey,
+            sourceScreen: override.sourceScreen,
+            nativeScreen: override.nativeScreen,
+            themes: ['light', 'dark'],
+          },
+    );
   } else {
     const route = SHEET_CAPTURE_ROUTES.get(assignment.routeKey);
     group.push({
@@ -591,14 +605,39 @@ for (const assignment of captureableAssignments) {
 }
 
 const businessFamilySurfaces = [
-  'business-deductions',
-  'business-filing-accounts',
-  'business-filing-cs',
-  'business-filing-ct',
-  'business-filing-payroll',
-  'business-filing-sa',
-  'business-filing-vat',
-].map((screen) => ({ screen, themes: ['light', 'dark'] }));
+  {
+    id: 'business-deductions',
+    screen: 'business-deductions',
+    sourceScreen: 'business-mileage',
+    nativeScreen: 'business-deductions',
+    themes: ['light', 'dark'],
+  },
+  ...[
+    'business-filing-accounts',
+    'business-filing-cs',
+    'business-filing-ct',
+    'business-filing-sa',
+    'business-filing-vat',
+  ].map((screen) => ({ screen, themes: ['light', 'dark'] })),
+  {
+    id: 'log-invoice',
+    screen: 'business-invoices',
+    sourceScreen: 'business-invoices',
+    sourceSheet: 'log-invoice',
+    nativeScreen: 'business-invoices',
+    nativeSheet: 'log-invoice',
+    themes: ['light', 'dark'],
+  },
+  {
+    id: 'log-payment',
+    screen: 'business-invoices',
+    sourceScreen: 'business-invoices',
+    sourceSheet: 'log-payment',
+    nativeScreen: 'business-invoices',
+    nativeSheet: 'log-payment',
+    themes: ['light', 'dark'],
+  },
+];
 
 const captureManifest = {
   schemaVersion: 1,
@@ -609,8 +648,9 @@ const captureManifest = {
     mode: 'family-screen-and-sheet-bulk-capture',
     includedNonBusinessSurfaces: captureableAssignments.length,
     includedBusinessFamilySurfaces: businessFamilySurfaces.length,
+    explicitBusinessTrueExceptions: 1,
     excludedNonBusinessSurfaces: assignments.length - captureableAssignments.length,
-    note: 'Direct routes and source/native deep-linkable sheets are batched. Trigger-only dialogs, self-hosted embedded sheets, global overlays and platform chrome remain explicit outliers requiring dedicated drivers.',
+    note: 'Direct routes and source/native deep-linkable sheets are batched. Payroll is an explicit true exception because the pinned source has no Payroll filing route. Trigger-only dialogs, self-hosted embedded sheets, global overlays and platform chrome remain explicit outliers requiring dedicated drivers.',
   },
   batches: [...captureFixtureGroups.entries()]
     .sort(([left], [right]) => left.localeCompare(right))

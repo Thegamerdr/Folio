@@ -2,7 +2,7 @@
 
 /** Batch-capture pinned Lovable references with one Vite server for the whole wave. */
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '../../..');
@@ -89,6 +89,23 @@ function runJob(job) {
   });
 }
 
+async function captureExists(job) {
+  const capturePath = path.join(
+    ROOT,
+    'docs/parity-recovery/evidence/design/ad90b4-matched-v1',
+    job.fixture,
+    job.theme,
+    job.surface,
+    'source-product-1080x2004.png',
+  );
+  try {
+    await access(capturePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const vite = spawn(
   process.execPath,
   [path.join(DESIGN_ROOT, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(PORT)],
@@ -105,6 +122,10 @@ try {
     while (next < jobs.length) {
       const job = jobs[next];
       next += 1;
+      if (await captureExists(job)) {
+        process.stdout.write(`reused ${job.fixture}/${job.theme}/${job.surface}\n`);
+        continue;
+      }
       await runJob(job);
     }
   });
