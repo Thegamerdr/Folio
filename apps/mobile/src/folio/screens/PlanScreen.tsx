@@ -28,7 +28,7 @@ import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import type { Nav } from '@/folio/types';
-import { buildPlanUpcoming, shortPlanDay } from './planModel';
+import { buildPlanTightPoint, buildPlanUpcoming, shortPlanDay } from './planModel';
 
 // ---------------------------------------------------------------------------
 // formatGBP — the web's exact pure function (folio kit). Signed, Intl en-GB, no
@@ -128,6 +128,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   const incomeSources = useAppStore((st) => st.incomeSources ?? []);
   const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
   const debts = useAppStore((st) => st.debts ?? []);
+  const currentBalance = useAppStore((st) => st.currentBalance.amount);
   // Demo example bills only while the seed is untouched; a cleared/real user sees only their own.
   const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
@@ -180,8 +181,12 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
 
   const upcoming = useMemo(() => buildPlanUpcoming(events), [events]);
   const total = useMemo(() => upcoming.reduce((sum, u) => sum + u.amount, 0), [upcoming]);
-  const tightDate = route?.tightPoint.date ?? null;
-  const tightSpare = route?.tightPoint.amount ?? null;
+  const planTightPoint = useMemo(
+    () => (now === null ? null : buildPlanTightPoint(events, currentBalance)),
+    [currentBalance, events, now],
+  );
+  const tightDate = planTightPoint?.date ?? null;
+  const tightSpare = planTightPoint?.amount ?? null;
   const daysToPayday = route?.daysToPayday ?? null;
   const potsSaved = useMemo(() => pots.reduce((sum, pot) => sum + pot.saved, 0), [pots]);
   const liveSubs = useMemo(() => subs.filter((sub) => !subPaused[sub.name]), [subs, subPaused]);

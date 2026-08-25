@@ -1,4 +1,4 @@
-import type { DerivedEvent } from '@/folio/lib/calendarEvents';
+import { computeSpareAndTightest, groupByDay, type DerivedEvent } from '../lib/calendarEvents';
 
 /** The pinned Plan Hub's forward-looking row shape. */
 export type PlanUpcoming = Readonly<{
@@ -25,6 +25,19 @@ export function buildPlanUpcoming(events: readonly DerivedEvent[]): PlanUpcoming
       amount: Math.abs(event.amount ?? 0),
       note: event.note ?? (event.recurring === 'monthly' ? 'monthly' : ''),
     }));
+}
+
+/**
+ * ScreenPlanHub's exact balance projection. The pinned Plan surface starts at
+ * the displayed current balance and applies its own calendar events; it does
+ * not use the broader route's protected-pot spendable balance.
+ */
+export function buildPlanTightPoint(
+  events: readonly DerivedEvent[],
+  currentBalance: number,
+): Readonly<{ date: string | null; amount: number }> {
+  const result = computeSpareAndTightest(groupByDay([...events]), currentBalance);
+  return { date: result.tightestDate, amount: result.tightestSpare };
 }
 
 /** Pinned-source date label: "Tue 1". */

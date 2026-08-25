@@ -42,7 +42,7 @@
     ]
   },
   "designAdapter": {
-    "note": "The pinned web prototype unconditionally derives four demo bills, one Klarna review marker, and a synthetic Sound+ Studio recurring-charge candidate. Native adds equivalent calendar rows and real recurring ledger facts only in capture mode, letting its detector derive the candidate. Evidence runs in UTC because the pinned source serializes monthly local-midnight dates through UTC ISO slices; UTC prevents DST drift while preserving en-GB copy and the same visible 08:00 capture day.",
+    "note": "The pinned web prototype unconditionally derives four demo bills, one Klarna review marker, legacy Friday pot top-ups, and a synthetic Sound+ Studio recurring-charge candidate. Native adds equivalent calendar rows and real recurring ledger facts only in capture mode, letting its detector derive the candidate while leaving the production pot-cadence engine unchanged. Evidence runs in UTC because the pinned source serializes monthly local-midnight dates through UTC ISO slices; UTC prevents DST drift while preserving en-GB copy and the same visible 08:00 capture day.",
     "implicitCalendarEvents": [
       {
         "id": "fixture-design-bill-octopus-2026-09-01",

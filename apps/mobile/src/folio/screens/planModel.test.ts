@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DerivedEvent } from '@/folio/lib/calendarEvents';
-import { buildPlanUpcoming, shortPlanDay } from './planModel';
+import { buildPlanTightPoint, buildPlanUpcoming, shortPlanDay } from './planModel';
 
 function event(patch: Partial<DerivedEvent>): DerivedEvent {
   return {
@@ -38,5 +38,20 @@ describe('pinned Plan Hub model', () => {
 
   it('uses the source short weekday-and-day label', () => {
     expect(shortPlanDay('2026-09-01')).toBe('Tue 1');
+  });
+
+  it('projects the pinned Plan tight point from displayed balance and calendar events', () => {
+    expect(
+      buildPlanTightPoint(
+        [
+          event({ id: 'council', date: '2026-08-20', amount: -120 }),
+          event({ id: 'buffer', date: '2026-08-21', amount: -30 }),
+          event({ id: 'holiday', date: '2026-08-21', amount: -45 }),
+          event({ id: 'energy', date: '2026-08-22', amount: -68 }),
+          event({ id: 'payday', date: '2026-08-28', kind: 'in', amount: 2600 }),
+        ],
+        1480,
+      ),
+    ).toEqual({ date: '2026-08-22', amount: 1217 });
   });
 });

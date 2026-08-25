@@ -66,6 +66,27 @@ describe('visual parity fixture harness', () => {
     expect(commitments.pots[0]).toMatchObject({ id: 'fixture-buffer', saved: 420, goal: 900 });
     expect(commitments.debts?.[0]).toMatchObject({ id: 'fixture-loan', balance: 2400 });
     expect(commitments.plans?.[0]).toMatchObject({ id: 'fixture-plan', target: 1600 });
+    const commitmentEvents = deriveCalendarEvents({
+      subs: commitments.subs,
+      subPaused: commitments.subPaused,
+      subOverrides: commitments.subOverrides,
+      onboarding: commitments.onboarding,
+      manualEvents: commitments.calendarEvents,
+      pots: commitments.pots,
+      incomeSources: commitments.incomeSources ?? [],
+      spendHold: commitments.spendHold ?? null,
+      whatIfHolds: commitments.whatIfHolds ?? [],
+      windowDays: 35,
+      now: new Date('2026-08-18T08:00:00.000Z'),
+      includeSampleBills: false,
+    });
+    const commitmentOut = commitmentEvents.filter(
+      (event) => event.kind === 'out' && typeof event.amount === 'number' && event.amount < 0,
+    );
+    expect(commitmentOut).toHaveLength(16);
+    expect(commitmentOut.reduce((sum, event) => sum + Math.abs(event.amount ?? 0), 0)).toBeCloseTo(
+      1421.4,
+    );
 
     const pending = activate('pending-review');
     expect(pending.evidenceDocuments).toHaveLength(1);

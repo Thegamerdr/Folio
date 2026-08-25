@@ -289,6 +289,33 @@ function isoDay(offsetDays: number): string {
   return new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
 }
 
+function addPinnedSourcePotCadenceAdapters(input: PersonalFixture): void {
+  const pots = input.pots ?? [];
+  if (pots.length === 0) return;
+
+  const now = new Date(Date.now());
+  const paydayOffset = (((input.payday - now.getUTCDate()) % 31) + 31) % 31;
+  const nativeDefaultTopUpDate = isoDay(paydayOffset);
+  for (let offset = 0; offset <= 35; offset += 1) {
+    const date = new Date(Date.now() + offset * 86_400_000);
+    if (date.getUTCDay() !== 5) continue;
+    const dateISO = date.toISOString().slice(0, 10);
+    // Native already projects an unmigrated pot once on the resolved payday.
+    if (dateISO === nativeDefaultTopUpDate) continue;
+    for (const pot of pots) {
+      if (!(pot.perWeek > 0)) continue;
+      addCalendarEvent({
+        id: `fixture-design-pot-${pot.id}-${dateISO}`,
+        date: dateISO,
+        kind: 'out',
+        title: `${pot.name} pot`,
+        note: 'Weekly top-up',
+        amount: -pot.perWeek,
+      });
+    }
+  }
+}
+
 function fixtureSubscriptions(fixture: PersonalFixture): Sub[] {
   return fixture.subscriptions.map((row) => ({
     name: row.name,
@@ -353,6 +380,7 @@ function configurePersonalBase(input: PersonalFixture): void {
     addTransaction(transaction);
   }
   setPots([...(input.pots ?? [])]);
+  addPinnedSourcePotCadenceAdapters(input);
   for (const debt of input.debts ?? []) addDebt(debt);
   for (const plan of input.plans ?? []) addPlan(plan);
   if ((input.reviewItems?.length ?? 0) > 0) {
