@@ -1,10 +1,11 @@
-"""Build an unscaled, data-matched S9 Today comparison artifact set."""
+"""Build an unscaled, data-matched S9 surface comparison artifact set."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import re
+from datetime import date
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageStat
@@ -25,7 +26,7 @@ def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build an unscaled, matched-fixture Today comparison."
+        description="Build an unscaled, matched-fixture surface comparison."
     )
     parser.add_argument(
         "--native-ref",
@@ -59,6 +60,7 @@ def main() -> None:
         / args.screen
         / "source-product-1080x2004.png"
     )
+    source_metadata_path = source_path.parent / "metadata.json"
     native_dir = (
         ROOT
         / f"docs/parity-recovery/evidence/native/harness-{args.native_ref}"
@@ -78,6 +80,7 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     native_dir.mkdir(parents=True, exist_ok=True)
     source = Image.open(source_path).convert("RGB")
+    source_metadata = json.loads(source_metadata_path.read_text(encoding="utf-8"))
     native_full = Image.open(native_full_path).convert("RGB")
     if source.size != PRODUCT_SIZE:
         raise ValueError(f"Source is {source.size}, expected {PRODUCT_SIZE}; refusing to resize.")
@@ -120,6 +123,18 @@ def main() -> None:
     histogram = grayscale.histogram()
     changed_pixels = sum(histogram[1:])
     total_pixels = PRODUCT_SIZE[0] * PRODUCT_SIZE[1]
+    source_engine = source_metadata["engine"]
+    source_state = source_engine["state"]
+    source_route = source_engine["route"]
+    payday_event = next(
+        (event for event in source_engine["events"] if event["source"] == "payday"), None
+    )
+    payday_date = payday_event["date"] if payday_event is not None else None
+    days_to_payday = (
+        (date.fromisoformat(payday_date) - date.fromisoformat("2026-08-18")).days
+        if payday_date is not None
+        else None
+    )
     metadata = {
         "comparisonKind": "matched-data-calibration",
         "status": "visual-parity-differences-remain",
@@ -150,11 +165,13 @@ def main() -> None:
         "changedPixelFraction": round(changed_pixels / total_pixels, 6),
         "nonZeroDiffBoundingBoxPx": difference.getbbox(),
         "engineInvariants": {
-            "todayBalance": 1480,
-            "tightestAmount": 1292,
-            "tightestDate": "2026-08-22",
-            "daysToPayday": 10,
-            "paydayAmount": 3892,
+            "todayBalance": source_state["balance"]["amount"],
+            "tightestAmount": source_route["tightestSpare"],
+            "tightestDate": source_route["tightestDate"],
+            "daysToPayday": days_to_payday,
+            "paydayAmount": (
+                source_route["spareByDay"].get(payday_date) if payday_date is not None else None
+            ),
         },
         "interpretation": (
             "This is valid unscaled matched-state evidence. The metrics quantify the current "

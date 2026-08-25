@@ -59,6 +59,8 @@ function Money({
   t: Palette;
 }) {
   const color = tone === 'negative' ? t.repair : t.ink;
+  const match = /^([−-]?)(£)(.*)$/u.exec(value);
+  const fontSize = MONEY_SIZE[size];
   return (
     <Text
       style={[
@@ -67,7 +69,15 @@ function Money({
       ]}
       numberOfLines={1}
     >
-      {value}
+      {match ? (
+        <>
+          {match[1]}
+          <Text style={{ fontSize: fontSize * 0.62 }}>{match[2]}</Text>
+          {match[3]}
+        </>
+      ) : (
+        value
+      )}
     </Text>
   );
 }
@@ -359,7 +369,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              <Text numberOfLines={1} style={[styles.buttonLabel, { color: t.ink }]}>
+              <Text style={[styles.buttonLabel, styles.buttonLabelShrink, { color: t.ink }]}>
                 See what's coming
               </Text>
             </Pressable>
@@ -372,7 +382,9 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              <Text style={[styles.buttonLabel, { color: t.calmStrong }]}>Try a change</Text>
+              <Text style={[styles.buttonLabel, styles.buttonLabelShrink, { color: t.calmStrong }]}>
+                Try a change
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -615,7 +627,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginTop: 8,
-    maxWidth: 230,
+    maxWidth: 240,
   },
   dominant: {
     borderRadius: 24,
@@ -652,6 +664,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     paddingHorizontal: 16,
+    flexShrink: 1,
   },
   quietAction: {
     alignItems: 'center',
@@ -659,11 +672,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     paddingHorizontal: 16,
+    flexShrink: 1,
   },
   buttonLabel: {
     fontFamily: weightFamily(500),
     fontSize: 14,
     lineHeight: 22,
+    textAlign: 'center',
+  },
+  buttonLabelShrink: {
+    flexShrink: 1,
   },
   pressureNote: {
     borderLeftWidth: 2,
