@@ -41,10 +41,10 @@ import Svg, {
 
 import { useTheme, type Palette } from '@/surfaces/pressureMap/kit';
 
-// Android-safe native raster of the pinned 2048px master beside it. It keeps the exact square
-// canvas, alpha and artwork while avoiding the platform pipeline's transparent 2048px decode.
+// Android-safe lossless WebP raster of the pinned 2048px master beside it. It keeps the square
+// canvas, alpha and decoded artwork while avoiding the platform PNG pipeline's transparent decode.
 // The byte-identical original stays in-repo as the immutable provenance artifact.
-const feniceMaster = require('./assets/fenice-a-plus-master-square-native.png');
+const feniceMaster = require('./assets/fenice-a-plus-master-square-native.webp');
 
 // ---------------------------------------------------------------------------
 // Public API
