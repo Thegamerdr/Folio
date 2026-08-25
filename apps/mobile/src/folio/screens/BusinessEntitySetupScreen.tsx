@@ -24,7 +24,7 @@ import {
   type VatScheme,
 } from '@folio/business-workspace';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import { updateBusinessOperations, useAppStore } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
@@ -40,7 +40,7 @@ export function BusinessEntitySetupScreen({ nav }: { nav: Nav }) {
     [stored],
   );
   const current = business.entity;
-  const [kind, setKind] = useState<EntityKind | null>(current?.kind ?? null);
+  const [kind, setKind] = useState<EntityKind | null>(null);
   const [name, setName] = useState(
     current?.kind === 'ltd' ? current.companyName : (current?.tradingName ?? ''),
   );
@@ -171,37 +171,77 @@ export function BusinessEntitySetupScreen({ nav }: { nav: Nav }) {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + gap.sm, paddingBottom: insets.bottom + gap.xxxl },
+          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
         ]}
         showsVerticalScrollIndicator={false}
       >
         <BackButton onPress={nav.back} />
 
         <View style={styles.hero}>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>Business setup</Text>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>
+            {kind === null
+              ? 'Business setup · step 1 of 2'
+              : kind === 'ltd'
+                ? 'Step 2 of 2 · a company'
+                : 'Step 2 of 2 · just me'}
+          </Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            What sort of business?
+            {kind === null ? (
+              current ? (
+                <>
+                  Set up as a{' '}
+                  <Text style={{ color: t.calm }}>
+                    {current.kind === 'ltd' ? 'limited company' : 'sole trader'}
+                  </Text>
+                  .
+                </>
+              ) : (
+                <>
+                  Two <Text style={{ color: t.calm }}>questions</Text>, then the cash picture.
+                </>
+              )
+            ) : kind === 'ltd' ? (
+              <>
+                The <Text style={{ color: t.calm }}>company</Text> basics.
+              </>
+            ) : (
+              <>
+                A few <Text style={{ color: t.calm }}>details</Text>.
+              </>
+            )}
           </Text>
-          <Text style={[styles.intro, { color: t.muted }]}>
-            This changes the questions, deadlines and tax calculations. It does not mix your
-            Personal and Business money.
-          </Text>
+          {kind === null ? (
+            <Text style={[styles.intro, { color: t.muted }]}>
+              {current
+                ? "Change it whenever the business changes. Nothing you've added is lost."
+                : "How the business is set up decides what counts as due. That's the only reason it's asked."}
+            </Text>
+          ) : null}
         </View>
 
-        <View style={styles.kindCards}>
-          <KindCard
-            label="Sole Trader"
-            hint="You and the business are one. Self-Assessment, and VAT if registered."
-            selected={kind === 'sole-trader'}
-            onPress={() => setKind('sole-trader')}
-          />
-          <KindCard
-            label="Limited Company"
-            hint="A separate legal entity. Corporation Tax, payroll, dividends and Companies House."
-            selected={kind === 'ltd'}
-            onPress={() => setKind('ltd')}
-          />
-        </View>
+        {kind === null ? (
+          <>
+            <View style={styles.kindCards}>
+              <KindCard
+                label="Just me"
+                legal="Sole trader"
+                hint="Self-Assessment each year, and VAT once you go over the threshold."
+                selected={current?.kind === 'sole-trader'}
+                onPress={() => setKind('sole-trader')}
+              />
+              <KindCard
+                label="A company"
+                legal="Limited company"
+                hint="Corporation Tax, payroll, dividends and Companies House dates."
+                selected={current?.kind === 'ltd'}
+                onPress={() => setKind('ltd')}
+              />
+            </View>
+            <Text style={[styles.kindNote, { color: t.muted }]}>
+              Not sure yet? Pick the closest — it's changeable in Business → Account.
+            </Text>
+          </>
+        ) : null}
 
         {kind ? (
           <View style={styles.form}>
@@ -296,7 +336,7 @@ export function BusinessEntitySetupScreen({ nav }: { nav: Nav }) {
               <View style={styles.switchCopy}>
                 <Text style={[styles.switchTitle, { color: t.ink }]}>VAT registered?</Text>
                 <Text style={[styles.switchHint, { color: t.muted }]}>
-                  Turn this on only when the registration is real.
+                  Turn on if you're over the £90k threshold or voluntarily registered.
                 </Text>
               </View>
               <Switch
@@ -358,22 +398,32 @@ export function BusinessEntitySetupScreen({ nav }: { nav: Nav }) {
               </View>
             ) : null}
 
-            <Pressable
-              accessibilityRole="button"
-              disabled={!canSave}
-              onPress={save}
-              style={({ pressed }) => [
-                styles.save,
-                {
-                  backgroundColor: t.calmStrong,
-                  opacity: !canSave ? 0.38 : pressed ? 0.68 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.saveLabel, { color: t.inverse }]}>
-                Save {kind === 'ltd' ? 'Limited Company' : 'Sole Trader'}
-              </Text>
-            </Pressable>
+            <View style={styles.formActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setKind(null)}
+                style={({ pressed }) => [
+                  styles.formBack,
+                  { backgroundColor: t.inset, opacity: pressed ? 0.68 : 1 },
+                ]}
+              >
+                <Text style={[styles.formBackLabel, { color: t.ink }]}>Back</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!canSave}
+                onPress={save}
+                style={({ pressed }) => [
+                  styles.save,
+                  {
+                    backgroundColor: t.calmStrong,
+                    opacity: !canSave ? 0.38 : pressed ? 0.68 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.saveLabel, { color: t.inverse }]}>Save and see the cash picture</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
       </ScrollView>
@@ -397,11 +447,13 @@ function BackButton({ onPress }: { onPress: () => void }) {
 
 function KindCard({
   label,
+  legal,
   hint,
   selected,
   onPress,
 }: {
   label: string;
+  legal: string;
   hint: string;
   selected: boolean;
   onPress: () => void;
@@ -415,17 +467,26 @@ function KindCard({
       style={({ pressed }) => [
         styles.kindCard,
         {
-          backgroundColor: selected ? t.inset : t.surface,
-          borderColor: selected ? t.calmStrong : t.hairline,
+          borderColor: t.hairline,
           opacity: pressed ? 0.65 : 1,
         },
       ]}
     >
-      <View style={styles.kindTitleRow}>
+      <View style={styles.kindCopy}>
         <Text style={[styles.kindTitle, { color: t.ink }]}>{label}</Text>
-        {selected ? <Text style={[styles.current, { color: t.calmStrong }]}>Current</Text> : null}
+        <Text style={[styles.kindHint, { color: t.muted }]}>
+          {legal} · {hint}
+        </Text>
       </View>
-      <Text style={[styles.kindHint, { color: t.muted }]}>{hint}</Text>
+      <Text
+        style={[
+          styles.kindAction,
+          selected ? styles.kindCurrent : styles.kindArrow,
+          { color: t.calmStrong },
+        ]}
+      >
+        {selected ? 'Current' : '→'}
+      </Text>
     </Pressable>
   );
 }
@@ -677,7 +738,7 @@ function nextMarch(): string {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { paddingHorizontal: gap.xl },
+  content: { paddingHorizontal: 24 },
   back: {
     alignItems: 'flex-start',
     height: 44,
@@ -686,27 +747,57 @@ const styles = StyleSheet.create({
     width: 44,
   },
   backLabel: { fontSize: 22 },
-  hero: { marginTop: gap.sm },
-  eyebrow: { fontFamily: serif.displayItalic, fontSize: 13 },
+  hero: { marginTop: 28 },
+  eyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
   headline: {
     fontFamily: serif.display,
-    fontSize: 30,
-    letterSpacing: -0.35,
+    fontSize: 28,
     lineHeight: 36,
-    marginTop: gap.xs,
+    marginTop: gap.sm,
   },
-  intro: { fontSize: 13.5, lineHeight: 20, marginTop: gap.md, maxWidth: 520 },
-  kindCards: { gap: gap.sm, marginTop: gap.xl },
+  intro: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.lg,
+    maxWidth: 520,
+  },
+  kindCards: { marginTop: 32 },
   kindCard: {
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: gap.lg,
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 64,
+    paddingVertical: gap.lg,
   },
-  kindTitleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  kindTitle: { fontSize: 15, fontWeight: '700' },
-  kindHint: { fontSize: 12.5, lineHeight: 18, marginTop: gap.xs },
-  current: { fontSize: 10, fontWeight: '700', letterSpacing: 0.9, textTransform: 'uppercase' },
-  form: { marginTop: gap.xl },
+  kindCopy: { flex: 1, paddingRight: gap.md },
+  kindTitle: { fontFamily: weightFamily(600), fontSize: 16 },
+  kindHint: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  kindAction: { marginLeft: gap.md },
+  kindArrow: { fontFamily: weightFamily(400), fontSize: 16 },
+  kindCurrent: {
+    fontFamily: weightFamily(600),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  kindNote: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: gap.xl,
+  },
+  form: { marginTop: 0 },
   field: { marginTop: gap.lg },
   fieldLabel: { fontSize: 11.5, fontWeight: '600', marginBottom: gap.xs },
   input: {
@@ -792,13 +883,23 @@ const styles = StyleSheet.create({
   sectorRowTitle: { fontSize: 13.5, fontWeight: '700', lineHeight: 19 },
   sectorExamples: { fontSize: 11.5, lineHeight: 16, marginTop: 3 },
   sectorRate: { fontSize: 14, fontWeight: '800' },
+  formActions: { flexDirection: 'row', gap: gap.sm, marginTop: gap.xl },
+  formBack: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: gap.md,
+  },
+  formBackLabel: { fontFamily: weightFamily(600), fontSize: 14 },
   save: {
     alignItems: 'center',
     borderRadius: radius.md,
+    flex: 2,
     justifyContent: 'center',
-    marginTop: gap.xl,
-    minHeight: 52,
-    paddingHorizontal: gap.lg,
+    minHeight: 48,
+    paddingHorizontal: gap.md,
   },
-  saveLabel: { fontSize: 14.5, fontWeight: '700' },
+  saveLabel: { fontFamily: weightFamily(600), fontSize: 14, textAlign: 'center' },
 });
