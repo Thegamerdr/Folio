@@ -55,7 +55,15 @@
 // row meta / Melo line / CTAs are @copy FROZEN inline literals (the web keeps them inline).
 
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -116,6 +124,17 @@ const SAMPLE_DATE_LABELS: Readonly<Record<string, string>> = {
   Salary: '25 Jun',
   Rent: '1 Jul',
 };
+
+// The pinned source keeps a real, user-invoked sample on the cold paste doorway. It is never
+// staged or counted until the user taps the sample link, and even then the parsed rows remain
+// review-before-truth candidates.
+const SAMPLE_PASTE_TEXT = [
+  'Date,Merchant,Amount',
+  '26/06/2026,Tesco,-42.30',
+  '25/06/2026,Salary,1200',
+  '24/06/2026,Rent,-750.00',
+  '23/06/2026,Boots,-8.40',
+].join('\n');
 
 // Format a bare GBP magnitude the way the web preformatted it: whole pounds, thousands grouped, no
 // pence (42 → "£42", 1200 → "£1,200", 750 → "£750"). Pence are shown only when the magnitude isn't
@@ -196,6 +215,11 @@ export function PasteSuccessScreen({
   // succeed and then rendered a misleading empty doorway. The slot is still review-only and is
   // cleared only after the candidates move into the persisted review queue.
   const staged = useReaderCandidates();
+  const [draft, setDraft] = useState(pasteText ?? '');
+
+  useEffect(() => {
+    if (pasteText !== undefined) setDraft(pasteText);
+  }, [pasteText]);
 
   // The real engine derivation. Live pasted text (when threaded in) is read by `parseSheet`;
   // otherwise we fall back to the faithful sample (the same module-level parse, no re-run). An
@@ -210,8 +234,8 @@ export function PasteSuccessScreen({
         candidates: [] as readonly CandidateMoneyItem[],
       };
     }
-    if (pasteText !== undefined) {
-      const parsed = parseSheet(pasteText, { source: 'paste' });
+    if (draft.trim()) {
+      const parsed = parseSheet(draft, { source: 'paste' });
       // RECALL (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): this is the
       // one paste path that never touches setReaderCandidates (the file/photo
       // reader's choke point), so a remembered merchant category is applied here
@@ -237,7 +261,7 @@ export function PasteSuccessScreen({
       issues: [] as readonly ColumnIssue[],
       candidates: [] as readonly CandidateMoneyItem[],
     };
-  }, [itemsOverride, pasteText, staged]);
+  }, [draft, itemsOverride, staged]);
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -296,9 +320,10 @@ export function PasteSuccessScreen({
     );
   }
 
-  // empty — n/a in practice (you only land here when something was found). Rendered as the calm
-  // EmptyState so the screen never shows a hollow "0 things" card.
-  if (state === 'empty' || items.length === 0) {
+  // Explicit empty remains the product's calm no-result doorway. A normal cold route is different:
+  // the pinned source owns the paste input itself, so render that actionable form below instead of
+  // claiming a read completed with no matches.
+  if (state === 'empty') {
     return (
       <EmptyState
         mood="calm"
@@ -306,6 +331,69 @@ export function PasteSuccessScreen({
         body="Melo didn't find money in this one. Paste a bit more, or add one thing yourself."
         cta={{ label: 'Paste again', onPress: () => nav.go('intake') }}
       />
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.lg },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={12}
+              onPress={nav.back}
+              style={({ pressed }) => [styles.pressIcon, pressed ? styles.pressed : undefined]}
+            >
+              <BackArrow color={t.muted} />
+            </Pressable>
+            <Text style={[styles.headerLabel, { color: t.muted }]}>Bring my sheet across</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <View style={styles.intro}>
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+              Paste your <Text style={[styles.headlineAccent, { color: t.calm }]}>sheet.</Text>
+            </Text>
+            <Text style={[styles.entryBody, { color: t.muted }]}>
+              Copy a range from Google Sheets or Excel. Melo will show you what it thinks each
+              column is — you can change anything before adding.
+            </Text>
+          </View>
+
+          <Text style={[styles.pasteLabel, { color: t.muted }]}>Paste area</Text>
+          <TextInput
+            accessibilityLabel="Paste area"
+            multiline
+            onChangeText={setDraft}
+            placeholder="Paste lines here — comma, tab, or semicolon separated."
+            placeholderTextColor={t.muted}
+            selectionColor={t.calm}
+            spellCheck={false}
+            style={[
+              styles.pasteInput,
+              { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink },
+            ]}
+            textAlignVertical="top"
+            value={draft}
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setDraft(SAMPLE_PASTE_TEXT)}
+            style={({ pressed }) => [styles.sampleButton, pressed ? styles.pressed : undefined]}
+          >
+            <Text style={[styles.sampleLabel, { color: t.muted }]}>or try the sample</Text>
+          </Pressable>
+        </ScrollView>
+      </Animated.View>
     );
   }
 
@@ -549,6 +637,39 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 20,
     marginTop: gap.md,
+  },
+  entryBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: gap.sm,
+  },
+  pasteLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.35,
+    marginBottom: 6,
+    marginTop: gap.lg,
+    textTransform: 'uppercase',
+  },
+  pasteInput: {
+    borderRadius: radius.md,
+    borderStyle: 'dashed',
+    borderWidth: StyleSheet.hairlineWidth,
+    fontFamily: 'monospace',
+    fontSize: 14,
+    lineHeight: 20,
+    minHeight: 120,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.md,
+  },
+  sampleButton: {
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  sampleLabel: {
+    fontSize: 12.5,
+    textDecorationLine: 'underline',
   },
   // Items card — surface bg, 1px hairline border, 2xl radius, mt-6, rows divided.
   card: {
