@@ -36,26 +36,10 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, {
-  Circle,
-  Defs,
-  G,
-  Line,
-  LinearGradient,
-  Path,
-  Rect,
-  Stop,
-  Text as SvgText,
-} from 'react-native-svg';
 import Animated, {
-  cancelAnimation,
   Easing,
-  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -84,6 +68,8 @@ import {
   touchOpened,
 } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { deriveCalendarEvents } from '@/folio/lib/calendarEvents';
+import { useChartStyle } from '@/folio/lib/chartStyle';
 import { resolveNextTopUp } from '@/folio/lib/potCadence';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
 import { deriveOneMove } from '@/folio/lib/melo/oneMove';
@@ -91,45 +77,24 @@ import { DISMISS_CHOICES, type DismissReason } from '@/folio/lib/melo/dismissRea
 import { computeGreenStreak } from '@/folio/lib/streaks';
 import { useLens } from '@/folio/lib/lens';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
+import { MoneyPathChart } from '@/folio/ui/MoneyPathChart';
 import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
 import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
 import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
 
-import { derivePressure, pressureLine, pressureLow } from './today/pressure';
+import { pressureLine, pressureLow } from './today/pressure';
 import { formatDayProse, formatGBP, groupedPounds } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
 import { useTodayTheme } from './today/todayTheme';
-import { buildTodayPathGeometry, TODAY_PATH_PLOT } from './today/todayPathGeometry';
+import {
+  buildTodayJourneyEvents,
+  buildTodayJourneyGeometry,
+  summarizeTodayCycleFlows,
+} from './today/todayPathGeometry';
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-const AnimatedG = Animated.createAnimatedComponent(G);
-
-// The SVG is authored in the web's 400×240 user space; react-native-svg scales it to the card width
-// via the viewBox, so every coordinate below is the web coordinate, unchanged.
-const VB_W = 400;
-const VB_H = 240;
-const SVG_RENDER_H = 200; // the web rendered the 400×240 viewBox into a 200px-tall box
-const ROUTE_DASH = 1200; // >= the actual path length so route-draw never clips
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-
-function smoothPath(points: readonly { x: number; y: number }[]): string {
-  if (points.length < 2) return '';
-  let d = `M ${points[0]!.x} ${points[0]!.y}`;
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const p0 = points[i - 1] ?? points[i]!;
-    const p1 = points[i]!;
-    const p2 = points[i + 1]!;
-    const p3 = points[i + 2] ?? p2;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
-  }
-  return d;
-}
 
 // A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be
 // called conditionally, so it runs against this until `now` is set; the result is discarded
@@ -185,6 +150,9 @@ export function TodayScreen({
   // these, unlike its two siblings).
   const subs = useAppStore((st) => st.subs);
   const subPaused = useAppStore((st) => st.subPaused);
+  const subOverrides = useAppStore((st) => st.subOverrides);
+  const calendarEvents = useAppStore((st) => st.calendarEvents);
+  const incomeSources = useAppStore((st) => st.incomeSources ?? []);
   const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const hasMoneyPicture = useAppStore(hasConfiguredMoneyPicture);
@@ -205,6 +173,7 @@ export function TodayScreen({
   const meloDismissLog = useAppStore((st) => st.meloDismissLog ?? []);
   const totalPendingReview = pendingReview + pendingReviewSpillover;
   const lens = useLens();
+  const { style: chartStyle } = useChartStyle();
 
   // Mount-gate (kept from the web to avoid a flash of the fallback before the engine computes; on
   // RN it also defers `new Date()` so the date-derived bits don't render on the first frame). When
@@ -350,29 +319,68 @@ export function TodayScreen({
   const routeTightestAmount = Math.round(tight.tightestSpare);
   const tightestSpare = Math.max(0, routeTightestAmount);
 
-  // ---- The money-path curve, from the REAL route (no hardcoded geometry) ------------------------
-  // The chart plots the route engine's projected day-by-day balance (`route.points`) into the SVG's
-  // 400×240 user space. An empty/cleared store yields a flat, honest line (no fabricated dips); a real
-  // one yields the user's actual curve. Only the meaningful nodes are labelled (today / lowest /
-  // payday) — the prototype's fake "salary rise / bill drop / debt drop" annotations are gone.
-  const PLOT = TODAY_PATH_PLOT;
-  const PLOT_MID = (PLOT.yTop + PLOT.yBottom) / 2;
-  const { points, lowIndex, lowPoint } = useMemo(() => {
-    return buildTodayPathGeometry(route?.points ?? [], daysToPayday, PLOT_MID);
-  }, [route, daysToPayday, PLOT_MID]);
-  // The lowest node's coordinates — used by the callout + scrub thumb. Derived from the real curve.
-  const lowY = points[lowIndex]?.y ?? PLOT_MID;
-  const lowX = points[lowIndex]?.x ?? 305;
-  // Unlike the headline tight point, the path's low point is intentionally payday-clipped. This
-  // keeps the idle callout and the scrub preview anchored to the same plotted horizon.
-  const pathLowAmount = Math.round(lowPoint?.y ?? route?.spare ?? 0);
-  const pathLowDate = lowPoint?.date ?? null;
-  const pathLowCopy =
-    pathLowAmount < 0
-      ? `£${groupedPounds(Math.abs(pathLowAmount))} short`
-      : `£${groupedPounds(pathLowAmount)} spare`;
-  const d = smoothPath(points);
-  const areaD = `${d} L ${PLOT.x1} ${PLOT.baseline} L ${PLOT.x0} ${PLOT.baseline} Z`;
+  // One source-authoritative journey: the hero and chart share the full-window tight point.
+  // The pre-payday totals and event notches come from the same calendar derivation that feeds the
+  // route, so labels, curve, and summary cannot drift into three different stories.
+  const projectedEvents = useMemo(
+    () =>
+      now
+        ? deriveCalendarEvents({
+            subs,
+            subPaused,
+            subOverrides,
+            onboarding,
+            manualEvents: calendarEvents,
+            pots,
+            incomeSources,
+            spendHold,
+            whatIfHolds,
+            windowDays: 35,
+            now,
+            includeSampleBills: currentBalance.source === 'sample',
+          })
+        : [],
+    [
+      now,
+      subs,
+      subPaused,
+      subOverrides,
+      onboarding,
+      calendarEvents,
+      pots,
+      incomeSources,
+      spendHold,
+      whatIfHolds,
+      currentBalance.source,
+    ],
+  );
+  const paydayIso = route?.points[Math.min(daysToPayday, route.points.length - 1)]?.date ?? '';
+  const points = useMemo(
+    () =>
+      buildTodayJourneyGeometry({
+        now: now ?? EPOCH,
+        todayAmount: currentBalance.amount,
+        tightAmount: routeTightestAmount,
+        tightDate: tight.tightestDate,
+        paydayAmount: routeTightestAmount + Math.round(onboarding.monthlyIncome),
+      }),
+    [now, currentBalance.amount, routeTightestAmount, tight.tightestDate, onboarding.monthlyIncome],
+  );
+  const pathEvents = useMemo(
+    () =>
+      now && paydayIso
+        ? buildTodayJourneyEvents(projectedEvents, now, paydayIso, points[1]?.x ?? 200)
+        : [],
+    [now, paydayIso, points, projectedEvents],
+  );
+  const cycleFlows = useMemo(
+    () =>
+      paydayIso
+        ? summarizeTodayCycleFlows(projectedEvents, paydayIso)
+        : { incoming: 0, outgoing: 0 },
+    [paydayIso, projectedEvents],
+  );
+  const pathLowAmount = routeTightestAmount;
 
   // Scrub — a 0..1 fraction across the plotted range, dragged with a PanResponder (the web used a
   // pointer drag against the SVG bounding box). A live ref lets the responder read width without
@@ -484,63 +492,6 @@ export function TodayScreen({
     return new Date(`${soonest}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
   }, [now, route, activePots]);
 
-  // --- Motion: route-draw (animated strokeDashoffset, keyed on `d`) -------------------------------
-  const draw = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    cancelAnimation(draw);
-    if (reduceMotion) {
-      draw.value = 1;
-      return;
-    }
-    draw.value = 0;
-    draw.value = withTiming(1, { duration: 2200, easing: EASE_OUT_EXPO });
-    return () => cancelAnimation(draw);
-  }, [draw, reduceMotion, d]);
-  const routeStrokeProps = useAnimatedProps(() => ({
-    strokeDashoffset: ROUTE_DASH * (1 - draw.value),
-  }));
-
-  // --- Motion: pulse-ring (lowest-point halo + focus halo) ----------------------------------------
-  const pulse = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    cancelAnimation(pulse);
-    if (reduceMotion) {
-      pulse.value = 1; // final state: ring at rest, fully shown
-      return;
-    }
-    pulse.value = withRepeat(
-      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true,
-    );
-    return () => cancelAnimation(pulse);
-  }, [pulse, reduceMotion]);
-  const pulseRingProps = useAnimatedProps(() => {
-    // 1.8s ease-in-out loop: ring scales 1→~1.25 and fades 0.5→0 (the web @keyframes pulse-ring).
-    const r = 11 + pulse.value * 3;
-    const opacity = 0.5 * (1 - pulse.value);
-    return { r, opacity };
-  });
-  const focusRingProps = useAnimatedProps(() => {
-    const r = 9 + pulse.value * 3;
-    const opacity = 0.8 * (1 - pulse.value * 0.7);
-    return { r, opacity };
-  });
-
-  // --- Motion: callout-in (idle lowest-point + focus chip), 600ms ease-out, 1.4s delay ------------
-  const callout = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    cancelAnimation(callout);
-    if (reduceMotion) {
-      callout.value = 1;
-      return;
-    }
-    callout.value = 0;
-    callout.value = withDelay(1400, withTiming(1, { duration: 600, easing: EASE_OUT_EXPO }));
-    return () => cancelAnimation(callout);
-  }, [callout, reduceMotion]);
-  const calloutStyle = useAnimatedProps(() => ({ opacity: callout.value }));
-
   // --- Motion: slide-in-r screen entrance, 360ms (translateX 28→0) --------------------------------
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
@@ -555,21 +506,6 @@ export function TodayScreen({
     transform: [{ translateX: 28 * (1 - enter.value) }],
   }));
 
-  const thumbX = 30 + scrub * 340;
-  const strokeEndColor = pressure === 'overspent' ? t.repair : t.positive;
-  const pathCurrentAmount = Math.round(route?.points[0]?.y ?? currentBalance.amount);
-  const pathPaydayAmount = Math.round(route?.spare ?? currentBalance.amount);
-  const pathPressure = derivePressure(pathLowAmount);
-  const pathAccessibilityLabel = [
-    'Money path from today to payday',
-    `today ${formatGBP(pathCurrentAmount)}`,
-    `lowest in the payday horizon ${formatGBP(pathLowAmount)}${
-      pathLowDate ? ` on ${formatDayProse(pathLowDate)}` : ''
-    }`,
-    `payday ${formatGBP(pathPaydayAmount)}`,
-    `Verdict: ${pressureLine[pathPressure]}`,
-    'Drag to preview a spend',
-  ].join('. ');
   const scrubSpend = Math.round(scrub * 120);
   const scrubLowAmount = pathLowAmount - scrubSpend;
   const scrubLowCopy =
@@ -865,7 +801,11 @@ export function TodayScreen({
             break, no card shell or decorative analytics grid. */}
         <View style={[styles.pathCard, { borderTopColor: t.hairline }]}>
           <View style={styles.pathHead}>
-            <Text style={[styles.pathEyebrow, { color: t.muted }]}>Today → payday</Text>
+            <Text style={[styles.pathEyebrow, { color: t.muted }]}>
+              {now
+                ? `Today → payday · ${new Date(now.getTime() + 28 * 86_400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                : 'Today → payday'}
+            </Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Open the day-by-day calendar"
@@ -879,190 +819,18 @@ export function TodayScreen({
           <View
             style={styles.svgWrap}
             onLayout={onCardLayout}
-            accessibilityRole="image"
-            accessibilityLabel={pathAccessibilityLabel}
             {...panResponder.panHandlers}
           >
-            <Svg width="100%" height={SVG_RENDER_H} viewBox={`0 0 ${VB_W} ${VB_H}`}>
-              <Defs>
-                <LinearGradient id="todayRouteFill" x1="0" x2="0" y1="0" y2="1">
-                  <Stop offset="0%" stopColor={t.calm} stopOpacity={0.18} />
-                  <Stop offset="100%" stopColor={t.calm} stopOpacity={0} />
-                </LinearGradient>
-                <LinearGradient id="todayRouteStroke" x1="0" x2="1" y1="0" y2="0">
-                  <Stop offset="0%" stopColor={t.ink} />
-                  <Stop offset={`${60 - scrub * 30}%`} stopColor={t.calm} />
-                  <Stop offset="100%" stopColor={strokeEndColor} />
-                </LinearGradient>
-              </Defs>
-
-              {/* area under the path */}
-              <Path d={areaD} fill="url(#todayRouteFill)" />
-
-              {scrub > 0.02 ? (
-                <Path
-                  d={smoothPath(
-                    points.map((p, index) => ({ x: p.x, y: index === 0 ? p.y : p.y + scrub * 26 })),
-                  )}
-                  fill="none"
-                  stroke={t.calm}
-                  strokeWidth={1.4}
-                  strokeDasharray="3 4"
-                  opacity={0.45}
-                />
-              ) : null}
-
-              {/* the route line — drawn on with an animated dashoffset, keyed on `d` */}
-              <AnimatedPath
-                animatedProps={routeStrokeProps}
-                d={d}
-                fill="none"
-                stroke="url(#todayRouteStroke)"
-                strokeWidth={2.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeDasharray={ROUTE_DASH}
-              />
-
-              {/* nodes — only the meaningful, labelled points (today / lowest / payday); the lowest
-                  carries the live pulse halo. */}
-              {points
-                .filter((p) => p.label !== '')
-                .map((p) => {
-                  const isLow = p.label === 'lowest';
-                  return (
-                    <G key={p.label} onPress={isLow ? () => nav.go('calendar') : undefined}>
-                      <Circle
-                        cx={p.x}
-                        cy={p.y}
-                        r={5}
-                        fill={t.surface}
-                        stroke={t.ink}
-                        strokeWidth={1.4}
-                      />
-                      {isLow ? (
-                        <>
-                          <AnimatedCircle
-                            animatedProps={pulseRingProps}
-                            cx={p.x}
-                            cy={p.y}
-                            fill="none"
-                            stroke={t.calm}
-                            strokeWidth={1}
-                          />
-                          <Circle cx={p.x} cy={p.y} r={5} fill={t.calm} />
-                        </>
-                      ) : null}
-                      <SvgText
-                        x={p.x}
-                        y={p.y - 12}
-                        textAnchor="middle"
-                        fontSize={9}
-                        fontWeight="500"
-                        fill={t.muted}
-                      >
-                        {p.label}
-                      </SvgText>
-                    </G>
-                  );
-                })}
-
-              {/* Idle payday-horizon low-point callout — only at rest, and only once the clipped
-                  plotted route has a real sample. It is anchored to that plotted low node so its
-                  date and amount cannot drift to a post-payday route tight point. */}
-              {scrub < 0.04 && pathLowDate ? (
-                <AnimatedG animatedProps={calloutStyle}>
-                  <Line
-                    x1={lowX}
-                    y1={lowY - 14}
-                    x2={lowX}
-                    y2={lowY - 28}
-                    stroke={t.calm}
-                    strokeWidth={0.8}
-                  />
-                  <Rect
-                    x={Math.max(20, Math.min(280, lowX - 50))}
-                    y={lowY - 52}
-                    width={100}
-                    height={22}
-                    rx={6}
-                    fill={t.canvas}
-                    stroke={t.calm}
-                    strokeWidth={0.8}
-                  />
-                  <SvgText
-                    x={Math.max(70, Math.min(330, lowX))}
-                    y={lowY - 37}
-                    textAnchor="middle"
-                    fontSize={9.5}
-                    fontWeight="600"
-                    fill={t.ink}
-                  >
-                    {`${formatDayProse(pathLowDate)} · ${pathLowCopy}`}
-                  </SvgText>
-                </AnimatedG>
-              ) : null}
-
-              {/* scrub thumb */}
-              <G transform={`translate(${thumbX}, 30)`}>
-                <Line
-                  x1={0}
-                  x2={0}
-                  y1={0}
-                  y2={200}
-                  stroke={t.calm}
-                  strokeWidth={1}
-                  strokeDasharray="2 3"
-                  opacity={0.7}
-                />
-                <Circle cx={0} cy={0} r={6} fill={t.calm} />
-                <Circle cx={0} cy={0} r={3} fill={t.inverse} />
-              </G>
-
-              {/* Calendar → Route focus marker */}
-              {focusX !== null ? (
-                <AnimatedG animatedProps={calloutStyle}>
-                  <Line
-                    x1={focusX}
-                    x2={focusX}
-                    y1={30}
-                    y2={220}
-                    stroke={t.calm}
-                    strokeWidth={1}
-                    strokeDasharray="3 3"
-                    opacity={0.7}
-                  />
-                  <AnimatedCircle
-                    animatedProps={focusRingProps}
-                    cx={focusX}
-                    cy={30}
-                    fill="none"
-                    stroke={t.calm}
-                    strokeWidth={1}
-                  />
-                  <Rect
-                    x={focusX - 48}
-                    y={10}
-                    width={96}
-                    height={18}
-                    rx={6}
-                    fill={t.canvas}
-                    stroke={t.calm}
-                    strokeWidth={0.8}
-                  />
-                  <SvgText
-                    x={focusX}
-                    y={22}
-                    textAnchor="middle"
-                    fontSize={9.5}
-                    fontWeight="600"
-                    fill={t.ink}
-                  >
-                    from Calendar · {focusLabel}
-                  </SvgText>
-                </AnimatedG>
-              ) : null}
-            </Svg>
+            <MoneyPathChart
+              points={points}
+              events={pathEvents}
+              style={chartStyle}
+              pressure={pressure}
+              scrub={scrub}
+              focusX={focusX}
+              focusLabel={focusLabel}
+              onTightTap={() => nav.go('calendar')}
+            />
           </View>
 
           {/* scrub hint */}
@@ -1110,9 +878,9 @@ export function TodayScreen({
             Worked out from what you’ve added — treat it as a close guess.
           </Text>
           <Text style={[styles.pathSummary, { color: t.muted }]}>
-            <Text style={{ color: t.ink }}>{formatGBP(Math.round(route?.incomingTotal ?? 0))}</Text>{' '}
+            <Text style={{ color: t.ink }}>{formatGBP(Math.round(cycleFlows.incoming))}</Text>{' '}
             coming in before payday,{' '}
-            <Text style={{ color: t.ink }}>{formatGBP(Math.round(route?.outgoingTotal ?? 0))}</Text>{' '}
+            <Text style={{ color: t.ink }}>{formatGBP(Math.round(cycleFlows.outgoing))}</Text>{' '}
             going out.
           </Text>
         </View>
@@ -1375,8 +1143,6 @@ function TodayFirstRun({ nav }: { nav: Nav }) {
     </Animated.View>
   );
 }
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // A dismissible, non-blocking "couldn't refresh" banner. STATES.md: error is a banner OVER
 // populated content, never a blank screen. Local dismiss state — tapping × hides it for the session.
@@ -1836,7 +1602,7 @@ const styles = StyleSheet.create({
   },
   svgWrap: {
     width: '100%',
-    height: SVG_RENDER_H,
+    height: 184,
   },
 
   scrubHint: {

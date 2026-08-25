@@ -34,6 +34,118 @@ export type TodayPathGeometry = Readonly<{
   lowPoint: TodayPathRoutePoint | null;
 }>;
 
+export type TodayJourneyPoint = Readonly<{
+  x: number;
+  y: number;
+  label: 'today' | 'tightest' | 'payday';
+  value: string;
+}>;
+
+export type TodayJourneyEvent = Readonly<{
+  x: number;
+  label: string;
+  amount: number;
+}>;
+
+export type TodayCalendarMovement = Readonly<{
+  date: string;
+  title?: string;
+  amount?: number;
+}>;
+
+const DAY_MS = 86_400_000;
+
+function atLocalMidnight(iso: string): number {
+  return new Date(`${iso}T00:00:00`).getTime();
+}
+
+function formatGBP(value: number): string {
+  const rounded = Math.round(value);
+  return `${rounded < 0 ? '−' : ''}£${Math.abs(rounded).toLocaleString('en-GB')}`;
+}
+
+/**
+ * Source-authoritative three-station journey used by Today.
+ *
+ * The tight point deliberately comes from the full 35-day projection, just as
+ * the headline does. All stations share one vertical scale, which prevents the
+ * route from visually contradicting its money labels.
+ */
+export function buildTodayJourneyGeometry({
+  now,
+  todayAmount,
+  tightAmount,
+  tightDate,
+  paydayAmount,
+}: {
+  now: Date;
+  todayAmount: number;
+  tightAmount: number;
+  tightDate: string | null;
+  paydayAmount: number;
+}): readonly TodayJourneyPoint[] {
+  const tightDays = tightDate
+    ? Math.max(0, Math.min(28, Math.round((atLocalMidnight(tightDate) - now.getTime()) / DAY_MS)))
+    : 14;
+  const tightX = Math.round(70 + (tightDays / 28) * 250);
+  const lo = Math.min(todayAmount, tightAmount, paydayAmount, 0);
+  const hi = Math.max(todayAmount, tightAmount, paydayAmount, lo + 1);
+  const y = (value: number) => Math.round(200 - ((value - lo) / (hi - lo)) * 132);
+
+  return [
+    { x: 30, y: y(todayAmount), label: 'today', value: formatGBP(todayAmount) },
+    { x: tightX, y: y(tightAmount), label: 'tightest', value: formatGBP(tightAmount) },
+    { x: 370, y: y(paydayAmount), label: 'payday', value: formatGBP(paydayAmount) },
+  ];
+}
+
+/** Select and position the two largest real movements before payday. */
+export function buildTodayJourneyEvents(
+  events: readonly TodayCalendarMovement[],
+  now: Date,
+  paydayIso: string,
+  tightX: number,
+): readonly TodayJourneyEvent[] {
+  const nowMs = now.getTime();
+  const paydayMs = atLocalMidnight(paydayIso);
+  return events
+    .filter((event) => {
+      const at = atLocalMidnight(event.date);
+      return at > nowMs && at <= paydayMs && Math.abs(event.amount ?? 0) > 0;
+    })
+    .sort((a, b) => Math.abs(b.amount ?? 0) - Math.abs(a.amount ?? 0))
+    .slice(0, 2)
+    .map((event) => {
+      const days = Math.max(
+        0,
+        Math.min(28, Math.round((atLocalMidnight(event.date) - nowMs) / DAY_MS)),
+      );
+      return {
+        x: Math.round(30 + (days / 28) * 340),
+        label: event.title ?? '',
+        amount: event.amount ?? 0,
+      };
+    })
+    .filter((event) => event.x > 55 && event.x < 345 && Math.abs(event.x - tightX) > 34)
+    .sort((a, b) => a.x - b.x);
+}
+
+/** Sum the same forward movements that draw the journey, capped at payday. */
+export function summarizeTodayCycleFlows(
+  events: readonly TodayCalendarMovement[],
+  paydayIso: string,
+): Readonly<{ incoming: number; outgoing: number }> {
+  let incoming = 0;
+  let outgoing = 0;
+  for (const event of events) {
+    if (event.date > paydayIso) continue;
+    const amount = event.amount ?? 0;
+    if (amount > 0) incoming += amount;
+    else outgoing += -amount;
+  }
+  return { incoming, outgoing };
+}
+
 /**
  * Build the plotted Today path from the canonical route.
  *
