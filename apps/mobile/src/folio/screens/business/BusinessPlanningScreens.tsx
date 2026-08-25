@@ -1,8 +1,11 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { businessDeadlines, type BusinessDeadline } from '@folio/business-workspace';
 
-import { gap, useTheme } from '@/folio/theme';
+import { MeloCompanionHost } from '@/folio/ui/MeloCompanionHost';
+import { useAppStore } from '@/folio/store';
+import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import type { Nav, ScreenId } from '@/folio/types';
 import {
   BusinessCard,
@@ -18,74 +21,158 @@ import { useBusinessOperations } from './useBusinessOperations';
 
 export function BusinessCalendarScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const business = useBusinessOperations();
+  const melo = useAppStore((state) => state.melo ?? { quietMode: false, wardrobe: [] });
   const deadlines = useMemo(() => businessDeadlines(business, { withinDays: 60 }), [business]);
   const groups = useMemo(() => groupDeadlines(deadlines), [deadlines]);
+  const nextDue = useMemo(
+    () =>
+      deadlines
+        .filter((item) => item.direction === 'out')
+        .sort((left, right) => left.date.localeCompare(right.date))[0] ?? null,
+    [deadlines],
+  );
   const incomingMinor = deadlines
     .filter((item) => item.direction === 'in')
     .reduce((sum, item) => sum + (item.amountMinor ?? 0), 0);
   const outgoingMinor = deadlines
     .filter((item) => item.direction === 'out')
     .reduce((sum, item) => sum + (item.amountMinor ?? 0), 0);
+  const isEmpty = business.entity === null && deadlines.length === 0;
 
   return (
-    <BusinessScreenFrame
-      eyebrow={business.entity ? entityName(business.entity) : 'Business calendar'}
-      headline="What’s coming in the next 60 days."
-      intro="Invoices, recurring costs, VAT and filings for this workspace."
-      onBack={nav.back}
-    >
-      {deadlines.length === 0 ? (
-        <>
-          <BusinessCard tone="inset">
-            <Text style={[styles.emptyTitle, { color: t.ink }]}>Nothing dated yet.</Text>
-            <Text style={[styles.emptyBody, { color: t.muted }]}>
-              Set up the entity and add an invoice or recurring cost. Deadlines land here on their
-              own.
+    <View style={[styles.calendarRoot, { backgroundColor: t.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.calendarContent,
+          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.calendarHeader}>
+          <Pressable
+            accessibilityLabel="Back"
+            accessibilityRole="button"
+            onPress={nav.back}
+            style={({ pressed }) => [styles.calendarBack, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Text style={[styles.calendarBackLabel, { color: t.muted }]}>←</Text>
+          </Pressable>
+          <Text style={[styles.calendarHeaderTitle, { color: t.muted }]}>Business calendar</Text>
+          <View style={styles.calendarHeaderSpacer} />
+        </View>
+
+        <View style={styles.calendarHero}>
+          <Text style={[styles.calendarEyebrow, { color: t.muted }]}>
+            {business.entity ? entityName(business.entity) : 'Business'}
+          </Text>
+          <Text accessibilityRole="header" style={[styles.calendarHeadline, { color: t.ink }]}>
+            {isEmpty ? (
+              <>
+                Nothing is <Text style={{ color: t.calm }}>dated</Text> yet.
+              </>
+            ) : deadlines.length === 0 ? (
+              <>
+                The next 60 days are <Text style={{ color: t.calm }}>clear</Text>.
+              </>
+            ) : (
+              <>
+                <Text style={{ color: t.calm }}>{deadlines.length}</Text>{' '}
+                {deadlines.length === 1 ? 'date' : 'dates'} in the next 60 days.
+              </>
+            )}
+          </Text>
+          <Text style={[styles.calendarWhy, { color: t.muted }]}>
+            {isEmpty
+              ? 'Dates arrive on their own once the business type is chosen and there is a bill or invoice to work from.'
+              : `${formatMinor(outgoingMinor)} going out, ${formatMinor(incomingMinor)} expected in over the window.`}
+          </Text>
+          {nextDue ? (
+            <Text style={[styles.calendarNextDue, { borderTopColor: t.hairline, color: t.ink }]}>
+              Next out: <Text style={styles.calendarNextDueStrong}>{nextDue.label}</Text>{' '}
+              {formatDate(nextDue.date)}
+              {nextDue.amountMinor === undefined ? '' : ` · ${formatMinor(nextDue.amountMinor)}`}
             </Text>
-          </BusinessCard>
-          <BusinessPrimaryAction
-            label={business.entity ? 'Add an invoice' : 'Set up the business'}
-            onPress={() => nav.go(business.entity ? 'business-invoices' : 'business-entity-setup')}
-          />
-        </>
-      ) : (
-        <>
-          <BusinessCard tone="inset">
-            <View style={styles.metrics}>
-              <BusinessMetric accent label="Money in" value={`+${formatMinor(incomingMinor)}`} />
-              <BusinessMetric label="Money out" value={formatMinor(outgoingMinor)} />
-            </View>
-          </BusinessCard>
+          ) : !isEmpty && deadlines.length === 0 ? (
+            <Text style={[styles.calendarNoAction, { color: t.muted }]}>
+              Nothing to pay or file in the window.
+            </Text>
+          ) : null}
+        </View>
 
-          {groups.map((group) => (
-            <View key={group.key} style={styles.section}>
-              <BusinessSectionTitle title={group.label} value={String(group.items.length)} />
-              <BusinessCard>
-                {group.items.map((deadline) => (
-                  <BusinessRouteRow
-                    hint={deadlineHint(deadline)}
-                    key={deadline.id}
-                    label={deadline.label}
-                    onPress={() => nav.go(deadlineRoute(deadline))}
-                    {...(deadline.amountMinor === undefined
-                      ? {}
-                      : {
-                          value: `${deadline.direction === 'in' ? '+' : ''}${formatMinor(deadline.amountMinor)}`,
-                        })}
-                  />
-                ))}
-              </BusinessCard>
+        {isEmpty ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.go('business-entity-setup')}
+            style={({ pressed }) => [
+              styles.calendarPrimary,
+              { backgroundColor: t.calm, opacity: pressed ? 0.68 : 1 },
+            ]}
+          >
+            <Text style={[styles.calendarPrimaryLabel, { color: t.inverse }]}>
+              Choose the business type
+            </Text>
+          </Pressable>
+        ) : (
+          <>
+            <View style={styles.calendarMetrics}>
+              <View style={[styles.calendarMetricCard, { backgroundColor: t.inset }]}>
+                <BusinessMetric accent label="Money in" value={`+${formatMinor(incomingMinor)}`} />
+              </View>
+              <View style={[styles.calendarMetricCard, { backgroundColor: t.inset }]}>
+                <BusinessMetric label="Money out" value={formatMinor(outgoingMinor)} />
+              </View>
             </View>
-          ))}
 
-          <BusinessSecondaryAction
-            label="Add to your calendar app"
-            onPress={() => nav.openSheet('calendar-export')}
-          />
-        </>
-      )}
-    </BusinessScreenFrame>
+            {groups.length === 0 ? (
+              <Text style={[styles.calendarNothingLeft, { color: t.muted }]}>
+                Nothing left to file or pay in the window.
+              </Text>
+            ) : (
+              groups.map((group) => (
+                <View key={group.key} style={styles.section}>
+                  <BusinessSectionTitle title={group.label} value={String(group.items.length)} />
+                  <BusinessCard>
+                    {group.items.map((deadline) => (
+                      <BusinessRouteRow
+                        hint={deadlineHint(deadline)}
+                        key={deadline.id}
+                        label={deadline.label}
+                        onPress={() => nav.go(deadlineRoute(deadline))}
+                        {...(deadline.amountMinor === undefined
+                          ? {}
+                          : {
+                              value: `${deadline.direction === 'in' ? '+' : ''}${formatMinor(deadline.amountMinor)}`,
+                            })}
+                      />
+                    ))}
+                  </BusinessCard>
+                </View>
+              ))
+            )}
+
+            <BusinessSecondaryAction
+              label="Add to your calendar app"
+              onPress={() => nav.openSheet('calendar-export')}
+            />
+          </>
+        )}
+      </ScrollView>
+      {!melo.quietMode ? (
+        <MeloCompanionHost
+          accessibilityLabel="Melo, perched at the business calendar answer"
+          mood="calm"
+          onPress={() =>
+            nav.openMelo({ seed: 'Explain the important business dates in the next 60 days.' })
+          }
+          position="right"
+          presence="offering-help"
+          size={74}
+          style={styles.calendarPerch}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -222,7 +309,80 @@ function entityName(entity: NonNullable<ReturnType<typeof useBusinessOperations>
 }
 
 const styles = StyleSheet.create({
-  metrics: { flexDirection: 'row', gap: gap.lg },
+  calendarRoot: { flex: 1 },
+  calendarContent: { paddingHorizontal: gap.xl },
+  calendarHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 32,
+  },
+  calendarBack: {
+    alignItems: 'flex-start',
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  calendarBackLabel: { fontFamily: weightFamily(400), fontSize: 22 },
+  calendarHeaderTitle: {
+    flex: 1,
+    fontFamily: weightFamily(600),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  calendarHeaderSpacer: { width: 32 },
+  calendarHero: { marginTop: gap.xl },
+  calendarEyebrow: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    letterSpacing: 1.54,
+    textTransform: 'uppercase',
+  },
+  calendarHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 33,
+    marginTop: gap.sm,
+  },
+  calendarWhy: {
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  calendarNextDue: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    fontFamily: weightFamily(400),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: gap.md,
+    paddingTop: gap.md,
+  },
+  calendarNextDueStrong: { fontFamily: weightFamily(600) },
+  calendarNoAction: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 20,
+    marginTop: gap.md,
+  },
+  calendarPrimary: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    marginTop: gap.xl,
+    minHeight: 52,
+    paddingHorizontal: gap.lg,
+  },
+  calendarPrimaryLabel: { fontFamily: weightFamily(600), fontSize: 14 },
+  calendarMetrics: { flexDirection: 'row', gap: gap.md, marginTop: gap.lg },
+  calendarMetricCard: { borderRadius: radius.md, flex: 1, padding: gap.lg },
+  calendarNothingLeft: {
+    fontFamily: serif.displayItalic,
+    fontSize: 14,
+    marginTop: gap.xl,
+  },
+  calendarPerch: { position: 'absolute', right: 23, top: 89, zIndex: 55 },
   section: { marginTop: gap.xl },
   emptyTitle: { fontSize: 17, fontWeight: '700' },
   emptyBody: { fontSize: 12.5, lineHeight: 19, marginTop: gap.xs },
