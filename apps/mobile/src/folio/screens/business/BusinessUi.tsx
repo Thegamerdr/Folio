@@ -9,14 +9,18 @@ export function BusinessScreenFrame({
   title,
   eyebrow,
   headline,
+  heroAdornment,
   intro,
+  sourceEditorial = false,
   children,
 }: {
   onBack: () => void;
   title?: string;
   eyebrow: string;
   headline: ReactNode;
+  heroAdornment?: ReactNode;
   intro?: string;
+  sourceEditorial?: boolean;
   children: ReactNode;
 }) {
   const t = useTheme();
@@ -43,13 +47,23 @@ export function BusinessScreenFrame({
           {title ? <Text style={[ui.headerTitle, { color: t.ink }]}>{title}</Text> : null}
         </View>
         <View style={ui.hero}>
-          <Text style={[ui.eyebrow, { color: t.muted }]}>{eyebrow}</Text>
-          <Text accessibilityRole="header" style={[ui.headline, { color: t.ink }]}>
+          {heroAdornment ? <View style={ui.heroAdornment}>{heroAdornment}</View> : null}
+          <Text style={[sourceEditorial ? ui.sourceEyebrow : ui.eyebrow, { color: t.muted }]}>
+            {eyebrow}
+          </Text>
+          <Text
+            accessibilityRole="header"
+            style={[sourceEditorial ? ui.sourceHeadline : ui.headline, { color: t.ink }]}
+          >
             {headline}
           </Text>
-          {intro ? <Text style={[ui.intro, { color: t.muted }]}>{intro}</Text> : null}
+          {intro ? (
+            <Text style={[sourceEditorial ? ui.sourceIntro : ui.intro, { color: t.muted }]}>
+              {intro}
+            </Text>
+          ) : null}
         </View>
-        <View style={ui.body}>{children}</View>
+        <View style={sourceEditorial ? ui.sourceBody : ui.body}>{children}</View>
       </ScrollView>
     </View>
   );
@@ -383,8 +397,15 @@ const ui = StyleSheet.create({
     width: 44,
   },
   backLabel: { fontSize: 22 },
-  hero: { marginTop: gap.sm },
+  hero: { marginTop: gap.sm, position: 'relative' },
+  heroAdornment: { position: 'absolute', right: 0, top: gap.sm, zIndex: 1 },
   eyebrow: { fontFamily: serif.displayItalic, fontSize: 13 },
+  sourceEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.54,
+    lineHeight: 16,
+    textTransform: 'uppercase',
+  },
   headline: {
     fontFamily: serif.display,
     fontSize: 30,
@@ -392,8 +413,17 @@ const ui = StyleSheet.create({
     lineHeight: 36,
     marginTop: gap.xs,
   },
+  sourceHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    letterSpacing: -0.56,
+    lineHeight: 33,
+    marginTop: gap.xs,
+  },
   intro: { fontSize: 13.5, lineHeight: 20, marginTop: gap.md, maxWidth: 520 },
+  sourceIntro: { fontSize: 14, lineHeight: 20, marginTop: gap.md, maxWidth: 520 },
   body: { marginTop: gap.xl },
+  sourceBody: { marginTop: gap.lg + gap.xs },
   card: {
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,

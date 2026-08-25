@@ -32,6 +32,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -52,9 +53,9 @@ const SHEET_RADIUS = 28;
 const HANDLE_WIDTH = 36;
 const HANDLE_HEIGHT = 3;
 
-// The sheet rises through no more than ~85% of the window so the children never push the
+// The pinned sheet rises through no more than 82% of the window so the children never push the
 // scrim entirely off the top; anything beyond that scrolls inside the panel.
-const MAX_HEIGHT_FRACTION = 0.85;
+const MAX_HEIGHT_FRACTION = 0.82;
 
 // sheet-in: ~450ms on the web's editorial ease. The scrim fades a touch faster so the
 // panel arrives onto an already-dimmed ground rather than racing it.
@@ -63,9 +64,9 @@ const SHEET_OUT_MS = 260;
 const SCRIM_IN_MS = 300;
 const SHEET_EASE = Easing.bezier(0.16, 1, 0.3, 1);
 
-// The ink/40 scrim from the web (bg-[var(--ink)]/40). Driven through an animated opacity
+// The ink/45 scrim from the pinned web shell. Driven through an animated opacity
 // so the literal panel colour stays paper.ink and only the alpha animates.
-const SCRIM_OPACITY = 0.4;
+const SCRIM_OPACITY = 0.45;
 
 type SheetProps = {
   visible: boolean;
@@ -142,6 +143,10 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const maxHeight = Math.round(height * MAX_HEIGHT_FRACTION);
+  // Android portal sheets already live inside the shell's safe product viewport. Applying the
+  // full-window navigation inset again made the panel materially taller than the pinned sheet.
+  // iOS Modal sheets still own the full window and retain their native safe-area contribution.
+  const panelBottomPadding = Platform.OS === 'ios' ? insets.bottom + gap.xl : gap.xl + gap.sm;
   const portal = useContext(SheetPortalContext);
   const portalId = useId();
   const usesAndroidPortal = Platform.OS === 'android' && portal !== null;
@@ -274,10 +279,18 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
               importantForAccessibility="yes"
               style={[
                 s.panel,
-                { maxHeight, paddingBottom: insets.bottom + gap.xxxl },
+                { maxHeight, paddingBottom: panelBottomPadding },
                 { transform: [{ translateY }] },
               ]}
             >
+              <Pressable
+                accessibilityLabel="Close"
+                accessibilityRole="button"
+                onPress={handleClose}
+                style={({ pressed }) => [s.close, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={s.closeLabel}>×</Text>
+              </Pressable>
               <View
                 accessibilityElementsHidden
                 importantForAccessibility="no-hide-descendants"
@@ -301,6 +314,7 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
       insets.bottom,
       insets.top,
       maxHeight,
+      panelBottomPadding,
       s,
       scrimOpacity,
       translateY,
@@ -376,7 +390,7 @@ const layout = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   scrollContent: {
-    // The panel already pads the bottom (safe-area + xxxl); the scroll content only needs
+    // The panel already owns the platform-safe bottom rhythm; the scroll content only needs
     // a little breathing room under the last child.
     paddingBottom: gap.sm,
   },
@@ -410,5 +424,16 @@ function makeStyles(t: Palette) {
       backgroundColor: t.hairlineStrong,
       marginBottom: gap.md,
     },
+    close: {
+      alignItems: 'center',
+      height: 44,
+      justifyContent: 'center',
+      position: 'absolute',
+      right: gap.xs,
+      top: 0,
+      width: 44,
+      zIndex: 1,
+    },
+    closeLabel: { color: t.muted, fontSize: 28, fontWeight: '300', lineHeight: 30 },
   });
 }

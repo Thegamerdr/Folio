@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   UK_BUSINESS_POLICY_2026_27,
@@ -25,6 +25,7 @@ import {
 } from '@folio/business-workspace';
 
 import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
+import { MeloFigure } from '@/surfaces/pressureMap/melo/MeloFigure';
 import { updateBusinessOperations, useAppStore } from '@/folio/store';
 import { recordPersistedOwnerTransfer, type PersistedOwnerTransferKind } from '@/folio/lib/persist';
 import { getParityHarnessConfig } from '@/folio/parity/parityHarness';
@@ -1489,6 +1490,7 @@ export function BusinessVatScreen({ nav }: { nav: Nav }) {
               : `${formatMinor(Math.abs(boxes.box5Minor))} reclaim shown.`
             : 'No open return.'
         }
+        heroAdornment={<MeloFigure mood="calm" size={56} />}
         intro={`Scheme: ${
           business.entity?.vat.registered ? business.entity.vat.scheme.replace('-', ' ') : ''
         }. Every box remains editable before a working copy is prepared.`}
@@ -2215,9 +2217,14 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
     <>
       <BusinessScreenFrame
         eyebrow="Mileage"
-        headline="HMRC approved mileage."
+        headline={
+          <>
+            HMRC <Text style={{ color: t.calmStrong }}>approved</Text> mileage.
+          </>
+        }
         intro="55p per mile for the first 10,000 car or goods-vehicle miles this tax year, 25p above. Log trips as a quick tally — the real trip log with GPS lives in the mobile app."
         onBack={nav.back}
+        sourceEditorial
       >
         <View style={styles.deductionFigure}>
           <Text style={[styles.deductionFigureLabel, { color: t.muted }]}>
@@ -2232,35 +2239,89 @@ export function BusinessDeductionsScreen({ nav }: { nav: Nav }) {
           </Text>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.mileageForm}>
           <BusinessCard>
-            <BusinessChoicePills
-              label="Vehicle"
-              onChange={setVehicle}
-              options={[
-                { id: 'car', label: 'Car' },
-                { id: 'van', label: 'Van' },
-                { id: 'motorbike', label: 'Motorbike' },
-              ]}
-              value={vehicle}
-            />
-            <BusinessField
-              keyboardType="decimal-pad"
-              label="Miles this trip"
-              onChangeText={setMiles}
-              placeholder="0"
-              value={miles}
-            />
-            <BusinessField
-              label="Reason (optional)"
+            <View
+              accessibilityLabel="Vehicle"
+              accessibilityRole="radiogroup"
+              style={[styles.mileageSegments, { backgroundColor: t.inset }]}
+            >
+              {(['car', 'van', 'motorbike'] as const).map((option) => {
+                const selected = vehicle === option;
+                return (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    key={option}
+                    onPress={() => setVehicle(option)}
+                    style={[
+                      styles.mileageSegment,
+                      selected
+                        ? {
+                            backgroundColor: t.surface,
+                            borderColor: t.hairline,
+                            borderWidth: StyleSheet.hairlineWidth,
+                          }
+                        : undefined,
+                    ]}
+                  >
+                    <Text style={[styles.mileageSegmentLabel, { color: t.ink }]}>
+                      {option === 'motorbike'
+                        ? 'Motorbike'
+                        : option.charAt(0).toUpperCase() + option.slice(1)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.mileageFieldLabel, { color: t.muted }]}>Miles this trip</Text>
+            <View style={styles.mileageEntryRow}>
+              <View style={[styles.mileageInputShell, { borderColor: t.hairline }]}>
+                <TextInput
+                  accessibilityLabel="Miles this trip"
+                  keyboardType="decimal-pad"
+                  onChangeText={setMiles}
+                  placeholder=""
+                  selectionColor={t.calmStrong}
+                  style={[styles.mileageInput, { color: t.ink }]}
+                  value={miles}
+                />
+                <Text style={[styles.mileageSuffix, { color: t.muted }]}>mi</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled: !Number.isFinite(Number(miles)) || Number(miles) <= 0,
+                }}
+                disabled={!Number.isFinite(Number(miles)) || Number(miles) <= 0}
+                onPress={saveTrip}
+                style={({ pressed }) => [
+                  styles.mileageAdd,
+                  {
+                    backgroundColor: t.calm,
+                    opacity:
+                      !Number.isFinite(Number(miles)) || Number(miles) <= 0
+                        ? 0.45
+                        : pressed
+                          ? 0.7
+                          : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.mileageAddLabel, { color: t.inverse }]}>Add</Text>
+              </Pressable>
+            </View>
+
+            <Text style={[styles.mileageFieldLabel, { color: t.muted }]}>Reason (optional)</Text>
+            <TextInput
+              accessibilityLabel="Reason (optional)"
               onChangeText={setPurpose}
               placeholder="Client — where"
+              placeholderTextColor={t.muted}
+              selectionColor={t.calmStrong}
+              style={[styles.mileageReasonInput, { borderColor: t.hairline, color: t.ink }]}
               value={purpose}
-            />
-            <BusinessPrimaryAction
-              disabled={!Number.isFinite(Number(miles)) || Number(miles) <= 0}
-              label="Add"
-              onPress={saveTrip}
             />
           </BusinessCard>
         </View>
@@ -3218,7 +3279,7 @@ const styles = StyleSheet.create({
   routes: { marginTop: gap.xl },
   stack: { gap: gap.sm },
   metrics: { flexDirection: 'row', gap: gap.md },
-  deductionFigure: { marginBottom: gap.xl },
+  deductionFigure: {},
   deductionFigureLabel: {
     fontFamily: weightFamily(600),
     fontSize: 11,
@@ -3239,6 +3300,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginTop: gap.xs,
+  },
+  mileageForm: { marginTop: gap.lg + gap.xs },
+  mileageSegments: {
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    padding: gap.xs,
+  },
+  mileageSegment: {
+    alignItems: 'center',
+    borderRadius: radius.sm,
+    flex: 1,
+    height: 44,
+    justifyContent: 'center',
+  },
+  mileageSegmentLabel: { fontSize: 13, fontWeight: '600' },
+  mileageFieldLabel: { fontSize: 12, lineHeight: 17, marginBottom: gap.sm, marginTop: gap.md },
+  mileageEntryRow: { alignItems: 'center', flexDirection: 'row', gap: gap.sm },
+  mileageInputShell: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    flexDirection: 'row',
+    minHeight: 48,
+    paddingHorizontal: gap.md,
+  },
+  mileageInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
+  mileageSuffix: { fontSize: 13 },
+  mileageAdd: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    height: 48,
+    justifyContent: 'center',
+    paddingHorizontal: gap.lg,
+  },
+  mileageAddLabel: { fontSize: 14, fontWeight: '600' },
+  mileageReasonInput: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    fontSize: 14,
+    minHeight: 48,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
   },
   movement: {
     alignItems: 'center',

@@ -51,7 +51,6 @@ export type LogInvoiceSheetProps = {
 };
 
 const PRESS_SCALE = 0.97; // .press — scale 0.97 on :active
-const DISABLED_FILL_ALPHA = '4D'; // --muted-ink @ 30% (0x4D ≈ 0.30 * 255), appended as #RRGGBBAA
 
 // The web's default "From" label when the field is left blank ("Invoice").
 const DEFAULT_SOURCE = 'Invoice';
@@ -123,42 +122,43 @@ function LogInvoiceForm({
 
   return (
     <View style={s.body}>
-      {/* Eyebrow — Fraunces italic, muted (literal; not in COPY_DECK per the web source). */}
+      {/* Canonical pinned sheet header. */}
       <Text style={s.eyebrow}>Log an invoice</Text>
-      {/* Headline — Fraunces display (literal). */}
       <Text style={s.headline} accessibilityRole="header">
         What just landed?
       </Text>
 
-      {/* Source input — focus ring animates borderColor to --accent (mirrors merchant input). */}
-      <TextInput
-        autoFocus
-        value={source}
-        onChangeText={setSource}
-        onFocus={() => setSourceFocused(true)}
-        onBlur={() => setSourceFocused(false)}
-        placeholder="From · e.g. Studio Ltd"
-        placeholderTextColor={t.muted}
-        style={[s.sourceInput, sourceFocused ? s.sourceInputFocused : null]}
-        accessibilityLabel="From"
-        returnKeyType="done"
-      />
-
-      {/* Amount card — label left, £ + decimal input right, baseline-aligned. Positive/inflow tone
-          (t.positive), the inverse of LogSpendSheet's t.calm spend tone. */}
-      <View style={s.amountCard}>
-        <Text style={s.amountLabel}>Amount</Text>
-        <View style={s.amountValueRow}>
-          <Text style={s.currency}>{copy.global.currency.symbol}</Text>
+      <View style={s.fields}>
+        <View>
+          <Text style={s.fieldLabel}>From</Text>
           <TextInput
-            value={amount}
-            onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ''))}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            placeholderTextColor={t.positive}
-            style={s.amountInput}
-            accessibilityLabel="Amount"
+            accessibilityLabel="From"
+            autoFocus
+            onBlur={() => setSourceFocused(false)}
+            onChangeText={setSource}
+            onFocus={() => setSourceFocused(true)}
+            placeholder="e.g. Studio Ltd"
+            placeholderTextColor={t.muted}
+            returnKeyType="done"
+            style={[s.fieldInput, sourceFocused ? s.fieldInputFocused : null]}
+            value={source}
           />
+        </View>
+
+        <View style={s.nextField}>
+          <Text style={s.fieldLabel}>Amount</Text>
+          <View style={s.amountField}>
+            <Text style={s.currency}>{copy.global.currency.symbol}</Text>
+            <TextInput
+              accessibilityLabel="Amount"
+              keyboardType="decimal-pad"
+              onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ''))}
+              placeholder="0"
+              placeholderTextColor={t.muted}
+              style={s.amountInput}
+              value={amount}
+            />
+          </View>
         </View>
       </View>
 
@@ -250,48 +250,28 @@ function PressCta({
 // ---------------------------------------------------------------------------
 
 function makeStyles(t: Palette) {
-  const disabledFill = `${t.muted}${DISABLED_FILL_ALPHA}`;
-
   return StyleSheet.create({
-    amountCard: {
-      alignItems: 'baseline',
-      backgroundColor: t.surface,
+    amountField: {
+      alignItems: 'center',
       borderColor: t.hairline,
-      borderRadius: radius.lg,
+      borderRadius: radius.md,
       borderWidth: StyleSheet.hairlineWidth,
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginTop: gap.md,
-      paddingHorizontal: gap.lg + gap.xs, // px-5 ≈ 20
-      paddingVertical: gap.lg, // py-4 = 16
+      minHeight: 48,
+      paddingHorizontal: gap.md,
     },
     amountInput: {
-      color: t.positive,
-      fontFamily: serif.display,
-      fontSize: 34,
+      color: t.ink,
+      flex: 1,
+      fontSize: 14,
       fontVariant: ['tabular-nums'],
+      paddingHorizontal: gap.sm,
       paddingVertical: 0,
-      textAlign: 'right',
-      width: 112, // slightly wider than LogSpendSheet's 96 — invoice amounts run larger
     },
-    amountLabel: {
-      color: t.muted,
-      fontSize: 11,
-      letterSpacing: 1.3,
-      textTransform: 'uppercase',
-    },
-    amountValueRow: {
-      alignItems: 'baseline',
-      flexDirection: 'row',
-    },
-    body: {
-      paddingBottom: gap.sm, // pb-2
-      paddingHorizontal: gap.xs, // px-1
-    },
+    body: {},
     currency: {
-      color: t.positive,
-      fontFamily: serif.display,
-      fontSize: 28,
+      color: t.muted,
+      fontSize: 14,
       fontVariant: ['tabular-nums'],
     },
     dismiss: {
@@ -301,59 +281,57 @@ function makeStyles(t: Palette) {
       marginTop: gap.sm, // mt-2
     },
     dismissLabel: {
-      color: t.muted,
+      color: t.calmStrong,
       fontSize: 12.5,
     },
     eyebrow: {
       color: t.muted,
-      fontFamily: serif.displayItalic,
-      fontSize: 13,
-      fontStyle: 'italic',
+      fontSize: 11,
+      letterSpacing: 1.54,
+      lineHeight: 16,
+      textTransform: 'uppercase',
     },
+    fieldInput: {
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      color: t.ink,
+      fontSize: 14,
+      minHeight: 48,
+      paddingHorizontal: gap.md,
+      paddingVertical: gap.sm,
+    },
+    fieldInputFocused: { borderColor: t.calmStrong, borderWidth: 1.5 },
+    fieldLabel: { color: t.muted, fontSize: 12.5, lineHeight: 17, marginBottom: 6 },
+    fields: { marginTop: gap.lg },
     headline: {
       color: t.ink,
       fontFamily: serif.display,
-      fontSize: 24,
+      fontSize: 20,
       letterSpacing: -0.4,
-      lineHeight: 28, // leading-tight
-      marginTop: gap.xxs, // mt-0.5 ≈ 2
+      lineHeight: 25,
+      marginTop: gap.xs,
     },
     hint: {
       color: t.muted,
-      fontSize: 11.5,
+      fontSize: 11,
       lineHeight: 16,
-      marginTop: gap.md, // mt-3
+      marginTop: gap.md,
     },
+    nextField: { marginTop: gap.md },
     primary: {
       alignItems: 'center',
-      backgroundColor: t.calm,
+      backgroundColor: t.calmStrong,
       borderRadius: radius.lg,
-      height: gap.xxxl, // h-12 = 48
+      height: gap.xxxl,
       justifyContent: 'center',
-      marginTop: gap.lg + gap.xs, // mt-5 ≈ 20
+      marginTop: gap.xl,
     },
-    primaryDisabled: {
-      backgroundColor: disabledFill,
-    },
+    primaryDisabled: { opacity: 0.45 },
     primaryLabel: {
       color: t.inverse,
       fontSize: 14,
       fontWeight: '500',
-    },
-    sourceInput: {
-      backgroundColor: t.surface,
-      borderColor: t.hairline,
-      borderRadius: radius.md, // rounded-xl = 12
-      borderWidth: StyleSheet.hairlineWidth,
-      color: t.ink,
-      fontSize: 14,
-      marginTop: gap.lg, // mt-4 = 16
-      paddingHorizontal: gap.lg, // px-4 = 16
-      paddingVertical: gap.md, // py-3 = 12
-    },
-    sourceInputFocused: {
-      borderColor: t.calm,
-      borderWidth: 1,
     },
   });
 }
