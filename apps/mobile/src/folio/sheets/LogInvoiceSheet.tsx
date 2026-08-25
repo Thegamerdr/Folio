@@ -268,7 +268,9 @@ function makeStyles(t: Palette) {
       paddingHorizontal: gap.sm,
       paddingVertical: 0,
     },
-    body: {},
+    // Native text/button metrics make this otherwise identical web stack 12dp shorter. Preserve
+    // the pinned sheet's bottom rhythm so the header, fields, and actions land on the same rows.
+    body: { paddingBottom: gap.md },
     currency: {
       color: t.muted,
       fontSize: 14,
