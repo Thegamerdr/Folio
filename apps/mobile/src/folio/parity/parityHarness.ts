@@ -18,15 +18,18 @@ import {
   createEmptyWorkspacePartition,
   enqueueReviewItems,
   hydrateFromBlob,
+  removeEvidenceDocument,
   resetToEmpty,
   setCurrentBalance,
   setIncomeSources,
   setMeloPrimerSeen,
   setOnboarding,
   setPots,
+  setReaderCandidates,
   setSubs,
   updateBusinessOperations,
   type BalanceConfidence,
+  type EvidenceDocument,
   type Sub,
 } from '../store';
 import fixtureManifestJson from './fixtures.json';
@@ -37,6 +40,7 @@ import {
   soleTraderAcceptanceFixture,
 } from '../lib/fixtures/businessAcceptanceFixture';
 import { createBusinessWorkspace, createPersonalWorkspaceRoot } from '../lib/workspaceRoot';
+import type { CandidateMoneyItem } from '../lib/importSheet';
 import type { ScreenId, SheetId } from '../types';
 
 export type ParityFixtureId = keyof typeof fixtureManifestJson.fixtures;
@@ -99,6 +103,14 @@ type PersonalFixture = Readonly<{
   >;
 }>;
 
+type CaptureReaderScreen = 'image-success' | 'pdf-success';
+type CaptureReaderResult = Readonly<{
+  evidence: Readonly<
+    Pick<EvidenceDocument, 'id' | 'filename' | 'mediaType' | 'byteSize' | 'sourceType'>
+  >;
+  candidates: ReadonlyArray<Readonly<Omit<CandidateMoneyItem, 'sourceEvidenceId'>>>;
+}>;
+
 const fixtureManifest = fixtureManifestJson as unknown as Readonly<{
   schemaVersion: 1;
   nowISO: string;
@@ -129,6 +141,7 @@ const fixtureManifest = fixtureManifestJson as unknown as Readonly<{
         amount?: number;
       }>
     >;
+    captureReaderResults: Readonly<Record<CaptureReaderScreen, CaptureReaderResult>>;
   }>;
   fixtures: Record<ParityFixtureId, PersonalFixture | Readonly<{ kind: string }>>;
 }>;
@@ -313,6 +326,8 @@ export function applyParityRuntimeControl(
         : screenValue !== undefined
           ? null
           : prior.dialog;
+
+  configureCaptureReaderResult(screen);
 
   parityRuntimeSequence += 1;
   parityRuntimeControl = { screen, sheet, dialog, theme, sequence: parityRuntimeSequence };
@@ -521,6 +536,28 @@ function configurePersonalBase(input: PersonalFixture): void {
   }
 }
 
+/** Keep the successful reader screens deterministic without contaminating sibling captures. The
+ * retained evidence and staged candidates exist only while that exact screen is requested; every
+ * other runtime route clears both before rendering. */
+function configureCaptureReaderResult(screen: ScreenId): void {
+  setReaderCandidates([]);
+  for (const result of Object.values(fixtureManifest.designAdapter.captureReaderResults)) {
+    removeEvidenceDocument(result.evidence.id);
+  }
+
+  if (screen !== 'image-success' && screen !== 'pdf-success') return;
+  const result = fixtureManifest.designAdapter.captureReaderResults[screen];
+  const evidence = addEvidenceDocument({
+    ...result.evidence,
+    addedAtISO: fixtureManifest.nowISO,
+    extractionStatus: 'read',
+    storageState: 'encrypted-device-vault',
+  });
+  setReaderCandidates(
+    result.candidates.map((candidate) => ({ ...candidate, sourceEvidenceId: evidence.id })),
+  );
+}
+
 function configureBusiness(kind: 'sole-trader' | 'ltd'): void {
   const personal = createPersonalWorkspaceRoot().workspaces[0]!;
   const suffix = kind === 'sole-trader' ? 'parity_sole' : 'parity_ltd';
@@ -609,4 +646,5 @@ export function activateParityHarness(config: ParityHarnessConfig): void {
     throw new Error(`Parity fixture ${config.fixture} has unsupported kind ${fixture.kind}.`);
   }
   configurePersonalBase(fixture);
+  configureCaptureReaderResult(config.screen);
 }

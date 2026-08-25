@@ -83,6 +83,70 @@
         "note": "Confirm the next instalment lands cleanly"
       }
     ],
+    "captureReaderResults": {
+      "image-success": {
+        "evidence": {
+          "id": "evidence_22222222222222222222222222222222",
+          "filename": "IMG_2643.jpg",
+          "mediaType": "image/jpeg",
+          "byteSize": 4096,
+          "sourceType": "image"
+        },
+        "candidates": [
+          {
+            "id": "fixture-photo-sainsburys",
+            "source": "photo",
+            "kind": "spend",
+            "merchant": "Sainsbury's",
+            "amount": -27.4,
+            "confidence": "medium"
+          },
+          {
+            "id": "fixture-photo-atm",
+            "source": "photo",
+            "kind": "spend",
+            "merchant": "ATM withdrawal",
+            "amount": -40,
+            "confidence": "medium"
+          }
+        ]
+      },
+      "pdf-success": {
+        "evidence": {
+          "id": "evidence_33333333333333333333333333333333",
+          "filename": "Statement_June_2025.pdf",
+          "mediaType": "application/pdf",
+          "byteSize": 32768,
+          "sourceType": "document"
+        },
+        "candidates": [
+          {
+            "id": "fixture-pdf-salary",
+            "source": "pdf",
+            "kind": "income",
+            "merchant": "Salary — Whitstone Ltd",
+            "amount": 2180,
+            "confidence": "high"
+          },
+          {
+            "id": "fixture-pdf-octopus",
+            "source": "pdf",
+            "kind": "bill",
+            "merchant": "Octopus Energy",
+            "amount": -118,
+            "confidence": "high"
+          },
+          {
+            "id": "fixture-pdf-tesco",
+            "source": "pdf",
+            "kind": "spend",
+            "merchant": "Tesco",
+            "amount": -42,
+            "confidence": "medium"
+          }
+        ]
+      }
+    },
     "businessStates": {
       "business-ltd": {
         "sample": false,

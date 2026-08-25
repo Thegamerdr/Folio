@@ -80,6 +80,7 @@ import {
   clearReaderCandidates,
   enqueueReviewItems,
   queueInputFromCandidates,
+  useAppStore,
   useReaderCandidates,
   useReaderClosingBalance,
 } from '@/folio/store';
@@ -173,9 +174,12 @@ const LIVE_READ_IMAGE_LABEL = 'Your photo';
 
 // Build the FoundImage for a live read from the store's staged candidates. Honest metadata (no
 // fabricated filename); the money movements are the reader's real output.
-function liveImageFrom(candidates: readonly CandidateMoneyItem[]): FoundImage {
+function liveImageFrom(
+  candidates: readonly CandidateMoneyItem[],
+  evidenceFilename: string | undefined,
+): FoundImage {
   return {
-    imageName: LIVE_READ_IMAGE_LABEL,
+    imageName: evidenceFilename?.trim() || LIVE_READ_IMAGE_LABEL,
     items: toFoundItems(candidates),
   };
 }
@@ -232,12 +236,19 @@ export function ImageSuccessScreen({
   // EMPTY image so the empty-doorway gate below shows — never a fabricated sample. An explicit `image`
   // prop still wins (fixtures / tests).
   const staged = useReaderCandidates();
+  const firstEvidenceId = staged[0]?.sourceEvidenceId;
+  const evidenceFilename = useAppStore(
+    (current) =>
+      current.evidenceDocuments?.find((document) => document.id === firstEvidenceId)?.filename,
+  );
   // The closing balance the reader staged alongside `staged` (null when the read didn't carry
   // one — a photographed statement's reader path can still return one, per StatementReadResult).
   const stagedClosingBalance = useReaderClosingBalance();
   const image: FoundImage =
     imageProp ??
-    (staged.length > 0 ? liveImageFrom(staged) : { imageName: LIVE_READ_IMAGE_LABEL, items: [] });
+    (staged.length > 0
+      ? liveImageFrom(staged, evidenceFilename)
+      : { imageName: LIVE_READ_IMAGE_LABEL, items: [] });
 
   // The raw candidates this screen would enqueue/land — a fixture-driven `image` prop carries none
   // (tests only). BULK ADD-AS-HISTORY (task): a multi-candidate read swaps the ordinary single-item

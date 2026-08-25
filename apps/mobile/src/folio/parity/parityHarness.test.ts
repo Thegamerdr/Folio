@@ -155,6 +155,45 @@ describe('visual parity fixture harness', () => {
     expect(route.points.find((point) => point.date === '2026-09-11')?.y).toBeCloseTo(3033.6);
   });
 
+  it('stages exact reader-result evidence only for the requested success screen', () => {
+    activateParityHarness({
+      fixture: 'confirmed-safe',
+      nowISO: '2026-08-18T08:00:00.000Z',
+      screen: 'image-success',
+      sheet: null,
+      theme: 'light',
+    });
+    expect(getState().readerCandidates).toMatchObject([
+      { merchant: "Sainsbury's", amount: -27.4, source: 'photo' },
+      { merchant: 'ATM withdrawal', amount: -40, source: 'photo' },
+    ]);
+    expect(getState().evidenceDocuments).toMatchObject([{ filename: 'IMG_2643.jpg' }]);
+
+    activateParityHarness({
+      fixture: 'confirmed-safe',
+      nowISO: '2026-08-18T08:00:00.000Z',
+      screen: 'pdf-success',
+      sheet: null,
+      theme: 'dark',
+    });
+    expect(
+      getState().readerCandidates.map(({ merchant, amount, source }) => ({
+        merchant,
+        amount,
+        source,
+      })),
+    ).toEqual([
+      { merchant: 'Salary — Whitstone Ltd', amount: 2180, source: 'pdf' },
+      { merchant: 'Octopus Energy', amount: -118, source: 'pdf' },
+      { merchant: 'Tesco', amount: -42, source: 'pdf' },
+    ]);
+    expect(getState().evidenceDocuments).toMatchObject([{ filename: 'Statement_June_2025.pdf' }]);
+
+    const ordinary = activate('confirmed-safe');
+    expect(ordinary.readerCandidates).toEqual([]);
+    expect(ordinary.evidenceDocuments).toEqual([]);
+  });
+
   it('keeps empty and first-run states distinct and unconfigured', () => {
     const empty = activate('empty');
     expect(empty.onboarding.done).toBe(true);
