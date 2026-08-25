@@ -56,6 +56,7 @@ import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { folioTokens } from '@folio/ui';
 
+import { resolveBottomNavInset, type BottomNavVariant } from './bottomNavGeometry';
 import type { ProductScreen } from './productScreen';
 import {
   ThemeProvider as ThemeProviderBase,
@@ -827,7 +828,7 @@ export function BottomNav({
   active: ProductScreen;
   onChange: (screen: ProductScreen) => void;
   reviewCount?: number;
-  variant?: 'personal' | 'business';
+  variant?: BottomNavVariant;
 }) {
   // Expo's edge-to-edge Android window includes the system navigation area. Preserve the pinned
   // 68dp product tab band above that area, then extend only its background through the reported
@@ -835,7 +836,11 @@ export function BottomNav({
   const insets = useSafeAreaInsets();
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const systemBottomInset = Math.max(0, insets.bottom);
+  const systemBottomInset = resolveBottomNavInset({
+    reportedBottomInset: insets.bottom,
+    parityCapture: process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true',
+    variant,
+  });
   const navPaddingBottom = systemBottomInset > 0 ? systemBottomInset : 6;
   const tabs = variant === 'business' ? BUSINESS_NAV_TABS : NAV_TABS;
 
