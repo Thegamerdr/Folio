@@ -25,7 +25,7 @@ export type { Palette, ThemeMode } from '@/surfaces/pressureMap/kit';
 // ---------------------------------------------------------------------------
 // Serif font constants (the Editorial Ledger display faces)
 // ---------------------------------------------------------------------------
-export { serif } from '@/surfaces/pressureMap/kit';
+export { serif, weightFamily } from '@/surfaces/pressureMap/kit';
 
 // ---------------------------------------------------------------------------
 // Rhythm + surface tokens: spacing scale, corner radii, pressed-state, elevation

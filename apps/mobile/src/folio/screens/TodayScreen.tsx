@@ -50,6 +50,7 @@ import {
   radius,
   serif,
   useCountUp,
+  weightFamily,
   type Palette,
 } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
@@ -70,7 +71,6 @@ import {
 import { useRoute } from '@/folio/lib/storeRoute';
 import { deriveCalendarEvents } from '@/folio/lib/calendarEvents';
 import { useChartStyle } from '@/folio/lib/chartStyle';
-import { resolveNextTopUp } from '@/folio/lib/potCadence';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
 import { deriveOneMove } from '@/folio/lib/melo/oneMove';
 import { DISMISS_CHOICES, type DismissReason } from '@/folio/lib/melo/dismissReasons';
@@ -465,33 +465,6 @@ export function TodayScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, routeFocusDate]);
 
-  // Pot top-ups become a labelled, cadence-derived dip (ENGINES §6 D5 — NO hardcoded Friday). Each
-  // active pot's own cadence (default "after income arrives") resolves to a real top-up date via the
-  // pot-cadence engine, anchored to the route-resolved payday; the dip is labelled with the soonest
-  // such day. If no date can be honestly resolved (e.g. an after-payday pot with no known payday), the
-  // dip reads "Pot top-up" with NO fabricated weekday.
-  const activePots = pots.filter((p) => p.perWeek > 0);
-  const weeklyPotTotal = activePots.reduce((sum, p) => sum + p.perWeek, 0);
-  const potDipDay = useMemo<string | null>(() => {
-    if (!now || activePots.length === 0) return null;
-    const DAY_MS = 86_400_000;
-    const isoOf = (date: Date): string => date.toISOString().slice(0, 10);
-    const nowIso = isoOf(now);
-    const nextPayday = route
-      ? isoOf(new Date(now.getTime() + route.daysToPayday * DAY_MS))
-      : undefined;
-    let soonest: string | null = null;
-    for (const p of activePots) {
-      const res = resolveNextTopUp(p.cadence ?? { kind: 'after-payday' }, {
-        now: nowIso,
-        nextPayday,
-      });
-      if (res.kind === 'date' && (soonest === null || res.date < soonest)) soonest = res.date;
-    }
-    if (soonest === null) return null;
-    return new Date(`${soonest}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
-  }, [now, route, activePots]);
-
   // --- Motion: slide-in-r screen entrance, 360ms (translateX 28→0) --------------------------------
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
@@ -676,7 +649,7 @@ export function TodayScreen({
             accessibilityRole="button"
             accessibilityLabel="Explain the tight point"
             onPress={() => nav.openSheet('safe-zone')}
-            style={({ pressed: p }) => (p ? pressed : undefined)}
+            style={({ pressed: p }) => [styles.heroMetaTarget, p ? pressed : undefined]}
           >
             <Text style={[styles.heroCaption, { color: t.muted }]}>
               {tight.tightestDate
@@ -744,26 +717,33 @@ export function TodayScreen({
               ) : null}
             </View>
           ) : null}
-          <View style={styles.heroOffer}>
-            <Text style={[styles.heroOfferReason, { color: t.muted }]}>
-              {pressure === 'pressured' || pressure === 'overspent'
-                ? 'This doesn’t reach payday on its own.'
-                : 'Thinking of spending?'}
-            </Text>
+          {pressure === 'pressured' || pressure === 'overspent' ? (
+            <View style={styles.heroOffer}>
+              <Text style={[styles.heroOfferReason, { color: t.muted }]}>
+                This doesn’t reach payday on its own.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.go('recovery')}
+                style={({ pressed: p }) => [styles.heroOfferActionTarget, p ? pressed : undefined]}
+              >
+                <Text style={[styles.heroOfferAction, { color: t.calmStrong }]}>
+                  See what could move →
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
             <Pressable
               accessibilityRole="button"
-              onPress={() =>
-                nav.go(pressure === 'pressured' || pressure === 'overspent' ? 'recovery' : 'whatif')
-              }
-              style={({ pressed: p }) => (p ? pressed : undefined)}
+              onPress={() => nav.go('whatif')}
+              style={({ pressed: p }) => [styles.heroOfferAside, p ? pressed : undefined]}
             >
-              <Text style={[styles.heroOfferAction, { color: t.calm }]}>
-                {pressure === 'pressured' || pressure === 'overspent'
-                  ? 'See what could move →'
-                  : 'Try it against this figure first. →'}
+              <Text style={[styles.heroOfferReason, { color: t.muted }]}>
+                Thinking of spending?{' '}
+                <Text style={{ color: t.ink }}>Try it against this figure first.</Text>
               </Text>
             </Pressable>
-          </View>
+          )}
           <View style={styles.heroActions}>
             <Pressable
               accessibilityRole="button"
@@ -771,7 +751,7 @@ export function TodayScreen({
               onPress={() => nav.openSheet('afford-check')}
               style={({ pressed: p }) => [
                 styles.primaryDecision,
-                { backgroundColor: t.calmSoft },
+                { backgroundColor: t.calmSoft, borderColor: 'rgba(158, 60, 24, 0.22)' },
                 p ? pressed : undefined,
               ]}
             >
@@ -833,6 +813,9 @@ export function TodayScreen({
             />
           </View>
 
+          <Text style={[styles.pathDisclaimer, { color: t.muted }]}>
+            Worked out from what you’ve added — treat it as a close guess.
+          </Text>
           {/* scrub hint */}
           <Text style={[styles.scrubHint, { color: t.muted }]}>
             {scrub > 0.02
@@ -857,26 +840,6 @@ export function TodayScreen({
               </Text>
             </Pressable>
           ) : null}
-
-          {/* Pot dip — the labelled pot top-up. Hidden when no active pots. The day is DERIVED from
-              each pot's cadence (ENGINES §6 D5), never a hardcoded Friday; with no resolvable date it
-              reads "Pot top-up" with no fabricated weekday. */}
-          {activePots.length > 0 ? (
-            <View style={[styles.potDip, { backgroundColor: t.inset }]}>
-              <Text style={[styles.potDipGlyph, { color: t.calm }]}>↘</Text>
-              <Text style={[styles.potDipText, { color: t.muted }]}>
-                {potDipDay ? `${potDipDay} dip` : 'Pot top-up'} ·{' '}
-                {activePots.map((p) => `${p.name.split(' ')[0]} £${p.perWeek}`).join(' + ')}
-                {activePots.length > 1
-                  ? ` · £${weeklyPotTotal}/wk to your pots`
-                  : '/wk to your pot'}
-              </Text>
-            </View>
-          ) : null}
-
-          <Text style={[styles.pathDisclaimer, { color: t.muted }]}>
-            Worked out from what you’ve added — treat it as a close guess.
-          </Text>
           <Text style={[styles.pathSummary, { color: t.muted }]}>
             <Text style={{ color: t.ink }}>{formatGBP(Math.round(cycleFlows.incoming))}</Text>{' '}
             coming in before payday,{' '}
@@ -1321,8 +1284,8 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 24,
-    paddingTop: gap.md,
-    paddingBottom: 4,
+    paddingTop: gap.lg,
+    paddingBottom: 6,
   },
   headerRow: {
     flexDirection: 'row',
@@ -1349,14 +1312,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerState: {
+    fontFamily: weightFamily(400),
     fontSize: 12.5,
     flexShrink: 1,
   },
   headerDate: {
+    fontFamily: weightFamily(400),
     fontSize: 12.5,
   },
   headerSeparator: { fontSize: 12.5, opacity: 0.4 },
   headerDays: {
+    fontFamily: weightFamily(400),
     fontSize: 12.5,
   },
   weatherButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
@@ -1449,8 +1415,8 @@ const styles = StyleSheet.create({
   dismissChoiceLabel: { fontSize: 11 },
 
   hero: {
-    paddingHorizontal: 28,
-    paddingTop: gap.md,
+    paddingHorizontal: 24,
+    paddingTop: gap.sm,
   },
   heroStreakEyebrow: {
     fontSize: 10.5,
@@ -1460,10 +1426,12 @@ const styles = StyleSheet.create({
   },
   verdict: {
     fontFamily: serif.displayItalic,
-    fontSize: 15,
+    fontSize: 16,
+    lineHeight: 22,
   },
   heroRow: {
     marginTop: gap.sm,
+    minHeight: 65,
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: gap.sm,
@@ -1477,27 +1445,28 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   heroQualifier: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontFamily: weightFamily(500),
+    fontSize: 13,
   },
   heroSpare: {
-    fontFamily: serif.displayItalic,
+    fontFamily: weightFamily(400),
     fontSize: 18,
     flexShrink: 1,
   },
   heroCaption: {
+    fontFamily: weightFamily(400),
     fontSize: 12.5,
     marginTop: 4,
+    lineHeight: 18.75,
   },
+  heroMetaTarget: { minHeight: 44, justifyContent: 'center' },
   heroOffer: {
     marginTop: gap.sm,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: gap.sm,
   },
-  heroOfferReason: { fontSize: 12 },
-  heroOfferAction: { fontSize: 12, fontWeight: '500' },
+  heroOfferAside: { marginTop: gap.xs, minHeight: 44, justifyContent: 'center' },
+  heroOfferReason: { fontFamily: weightFamily(400), fontSize: 12.5, lineHeight: 20 },
+  heroOfferActionTarget: { marginTop: 2, minHeight: 44, justifyContent: 'center' },
+  heroOfferAction: { fontFamily: weightFamily(500), fontSize: 12.5 },
   heroActions: {
     marginTop: gap.md,
     flexDirection: 'row',
@@ -1508,12 +1477,13 @@ const styles = StyleSheet.create({
   primaryDecision: {
     minHeight: 44,
     borderRadius: radius.md,
+    borderWidth: 1,
     paddingHorizontal: 18,
     justifyContent: 'center',
   },
-  primaryDecisionText: { fontSize: 14, fontWeight: '600' },
+  primaryDecisionText: { fontFamily: weightFamily(600), fontSize: 14, letterSpacing: -0.07 },
   secondaryDecision: { minHeight: 44, justifyContent: 'center' },
-  secondaryDecisionText: { fontSize: 12.5 },
+  secondaryDecisionText: { fontFamily: weightFamily(400), fontSize: 12.5 },
   checksRow: {
     paddingHorizontal: 28,
     marginTop: gap.md,
@@ -1529,6 +1499,7 @@ const styles = StyleSheet.create({
   checkPillLabel: { fontSize: 10.5, letterSpacing: 0.6, textTransform: 'uppercase' },
 
   heroSource: {
+    fontFamily: weightFamily(400),
     fontSize: 10.5,
     marginTop: 4,
     opacity: 0.7,
@@ -1580,24 +1551,27 @@ const styles = StyleSheet.create({
   },
 
   pathCard: {
-    marginTop: gap.xl,
+    marginTop: gap.lg,
     paddingHorizontal: gap.lg,
     paddingTop: gap.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   pathHead: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: gap.sm,
   },
   pathEyebrow: {
+    fontFamily: weightFamily(400),
     fontSize: 11,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
   pathRange: {
-    fontSize: 11,
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
     fontVariant: ['tabular-nums'],
   },
   svgWrap: {
@@ -1607,7 +1581,10 @@ const styles = StyleSheet.create({
 
   scrubHint: {
     marginTop: gap.sm,
-    fontSize: 10.5,
+    minHeight: 24,
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 24,
     textAlign: 'center',
   },
   scrubCommit: {
@@ -1623,26 +1600,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.4,
   },
-  pathDisclaimer: { marginTop: gap.xs, fontSize: 10.5, opacity: 0.75 },
+  pathDisclaimer: {
+    marginTop: gap.xs,
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    lineHeight: 16.5,
+    opacity: 0.7,
+  },
   pathSummary: {
     marginTop: gap.md,
     paddingTop: gap.md,
     borderTopWidth: StyleSheet.hairlineWidth,
+    fontFamily: weightFamily(400),
     fontSize: 12.5,
-    lineHeight: 18,
+    lineHeight: 18.75,
   },
-
-  potDip: {
-    marginTop: gap.sm,
-    paddingHorizontal: gap.xs,
-    paddingVertical: 6,
-    borderRadius: radius.md,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-  },
-  potDipGlyph: { fontSize: 11 },
-  potDipText: { flex: 1, fontSize: 10.5, lineHeight: 15 },
 
   summaryRow: {
     marginTop: gap.md,
