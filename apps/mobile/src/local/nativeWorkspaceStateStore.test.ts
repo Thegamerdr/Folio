@@ -247,13 +247,25 @@ const {
           });
           return { rows: [], rowsAffected: 1 };
         }
-        if (normalized.startsWith('INSERT INTO folio_workspace_vault_canonical_bindings')) {
+        if (
+          normalized.startsWith('INSERT INTO folio_workspace_vault_canonical_bindings') ||
+          normalized.startsWith('INSERT OR REPLACE INTO folio_workspace_vault_canonical_bindings')
+        ) {
           const [recordKind, recordId, generation, canonicalSnapshotSha256] = params as [
             string,
             string,
             number,
             string,
           ];
+          if (normalized.startsWith('INSERT OR REPLACE')) {
+            const conflict = canonicalBindings.findIndex(
+              (row) =>
+                row.record_kind === recordKind &&
+                row.record_id === recordId &&
+                row.generation === generation,
+            );
+            if (conflict >= 0) canonicalBindings.splice(conflict, 1);
+          }
           canonicalBindings.push({
             record_kind: recordKind,
             record_id: recordId,
@@ -491,6 +503,31 @@ beforeEach(() => {
 });
 
 describe('lossless SQLCipher workspace generations', () => {
+  it('repairs a stale canonical binding while committing its exact generation', async () => {
+    const workspace = businessWorkspace();
+    const databaseName = workspaceLedgerDatabaseName(workspace.id);
+    canonicalBindingsByDatabase.set(databaseName, [
+      {
+        record_kind: 'workspace-state',
+        record_id: String(workspace.id),
+        generation: 1,
+        canonical_snapshot_sha256: 'f'.repeat(64),
+      },
+    ]);
+
+    const generation = await saveState(workspace, 'repairs-stale-binding');
+    const bindings = canonicalBindingsByDatabase.get(databaseName) ?? [];
+
+    expect(generation.generation).toBe(1);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]).toMatchObject({
+      record_kind: 'workspace-state',
+      record_id: String(workspace.id),
+      generation: 1,
+    });
+    expect(bindings[0]?.canonical_snapshot_sha256).not.toBe('f'.repeat(64));
+  });
+
   it('writes exact state to the opaque workspace database and retains three generations', async () => {
     const workspace = businessWorkspace();
     for (const marker of ['one', 'two', 'three', 'four']) {

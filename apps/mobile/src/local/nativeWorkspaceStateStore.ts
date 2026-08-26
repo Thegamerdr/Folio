@@ -444,7 +444,7 @@ async function saveRecord(
         writeStage = 'canonical-binding';
         await transaction.execute(
           `
-            INSERT INTO ${CANONICAL_BINDING_TABLE_NAME} (
+            INSERT OR REPLACE INTO ${CANONICAL_BINDING_TABLE_NAME} (
               record_kind, record_id, generation, canonical_snapshot_sha256
             ) VALUES (?, ?, ?, ?)
           `,
