@@ -14,6 +14,7 @@ const PERSONAL_HEADER_PERCHES: Partial<
   plans: { top: 68, bubbleLeft: 44, birdLeft: 260 },
   whatif: { top: 68, bubbleLeft: 44, birdLeft: 260 },
   account: { top: 68, bubbleLeft: 44, birdLeft: 260 },
+  connections: { top: 68, bubbleLeft: 44, birdLeft: 260 },
   privacy: { top: 68, bubbleLeft: 44, birdLeft: 260 },
   'today-after': { top: 68, bubbleLeft: 68, birdLeft: 284 },
   timeline: { top: 68, bubbleLeft: 44, birdLeft: 260 },

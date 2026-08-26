@@ -129,7 +129,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
 
   // ScreenMore.tsx is the exact composition authority. These are its five sections and ten rows in
   // source order. Temporary native bindings are intentionally local and are called out inline:
-  // global-search, notifications, accessibility, connections, trust and ai-transparency need
+  // global-search, notifications, accessibility, trust and ai-transparency need
   // shared ScreenId + shell owners before their navigation can become byte-for-byte equivalent.
   const sections: MoreSection[] = [
     {
@@ -204,9 +204,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         {
           label: 'Money sources',
           meta: 'manual, file and available connections',
-          // The native account surface currently owns money-source controls. A separate
-          // `connections` ScreenId is a shared-shell dependency.
-          to: 'account',
+          to: 'connections',
         },
       ],
     },

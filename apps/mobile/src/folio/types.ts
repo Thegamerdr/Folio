@@ -56,6 +56,7 @@ export type ScreenId =
   | 'insights'
   | 'shortfall'
   | 'account'
+  | 'connections'
   | 'business-entity-setup'
   | 'business-runway'
   | 'business-clients'

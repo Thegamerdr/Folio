@@ -29,6 +29,7 @@ describe('pinned shell companion perches', () => {
       'plans',
       'whatif',
       'account',
+      'connections',
       'privacy',
       'timeline',
       'visualizer',

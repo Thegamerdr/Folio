@@ -96,6 +96,11 @@ const SHELL_CONTEXT_ACTIONS: Readonly<Record<string, MeloContextAction>> = {
     label: 'Explain my money sources',
     prompt: 'Explain which money sources are available and what each one shares.',
   },
+  connections: {
+    id: 'connections.explain',
+    label: 'Explain money sources',
+    prompt: 'Explain which money sources work now, what each one shares, and how to disconnect it.',
+  },
   privacy: {
     id: 'privacy.explain',
     label: 'Explain what Melo holds',
