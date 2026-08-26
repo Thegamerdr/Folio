@@ -166,9 +166,12 @@ function projectDurableMoneyContainers(
 
   for (const [sourceOrdinal, entry] of (state.potLedger ?? []).entries()) {
     assertRowWorkspace(entry, workspace, 'Pot ledger entry');
-    const potId =
-      canonicalPotIds.get(entry.potId) ??
-      canonicalContainerId('pot', workspace, entry.potId, 0, createPotId);
+    // Pot-ledger evidence is relational: an entry without a currently projected pot must not
+    // create a synthetic container. Keep the legacy source row untouched for export/evidence, but
+    // fail closed in the canonical money model so stale fixtures/deleted pots cannot surface as UI
+    // claims.
+    const potId = canonicalPotIds.get(entry.potId);
+    if (potId === undefined) continue;
     repository.potLedgerEntries.put({
       id: canonicalContainerId(
         'potledger',

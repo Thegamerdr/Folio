@@ -210,4 +210,35 @@ describe('canonical AppState projection', () => {
       createCanonicalAppStateProjection(invalid, workspace, '2026-07-16T09:00:00.000Z'),
     ).toThrow(/outside the canonical appstate workspace/i);
   });
+
+  it('does not project a pot-ledger row without a canonical pot', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const state: AppState = {
+      ...base,
+      potLedger: [
+        {
+          id: 'orphan-ledger',
+          potId: 'deleted-pot',
+          workspaceId: workspace.id,
+          at: '2026-07-16T08:00:00.000Z',
+          kind: 'deposit',
+          amount: 25,
+          source: 'statement-import',
+        },
+      ],
+    };
+
+    const projection = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-07-16T09:00:00.000Z',
+    );
+
+    expect(projection.repositorySnapshot.collections.pots).toHaveLength(0);
+    expect(projection.repositorySnapshot.collections.potLedgerEntries).toHaveLength(0);
+    // The legacy source remains untouched for evidence/export; only the canonical relational
+    // projection fails closed.
+    expect(state.potLedger).toHaveLength(1);
+  });
 });

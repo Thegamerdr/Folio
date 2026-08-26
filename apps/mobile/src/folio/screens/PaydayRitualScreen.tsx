@@ -29,7 +29,8 @@
 //     three Text runs so the accent run is the single coloured, non-italic span (NOT italic).
 //   • RETROSPECTIVE ACTUALS are REAL store data, end to end:
 //       spent     = Σ|negative txn amount| in the trailing 30 days (transactions)
-//       setAside  = round(Σ potLedger DEPOSIT entries in the trailing 30 days) (potLedger)
+//       setAside  = round(Σ potLedger DEPOSIT entries linked to canonical pots in the trailing 30
+//                    days) (potLedger + pots; statement rows alone do not qualify)
 //       spare     = route.spare      — balance on the resolved next payday (the curve's read-out)
 //       tightPoint = route.tightPoint.{amount,date} — lowest projected balance + the day it lands on
 //     `spare` and the tight point now come from the SAME pure money-path engine every other surface
@@ -107,6 +108,10 @@ import {
 } from '@/folio/store';
 import { endLensTrialIfExpired } from '@/folio/lib/lens';
 import { computeGreenStreak } from '@/folio/lib/streaks';
+import {
+  computeRitualLedgerActuals,
+  type RitualLedgerActuals,
+} from '@/folio/lib/potLedgerActuals';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
@@ -533,9 +538,6 @@ const MELO_DELAY_MS = 1500;
 // The stat count-up duration (money never slides — it ticks to target).
 const COUNT_MS = 700;
 
-// The trailing-30-day window the retrospective actuals look back over.
-const CYCLE_WINDOW_MS = 30 * 86_400_000;
-
 // The note's hard cap (web maxLength 140).
 const NOTE_MAX = 140;
 
@@ -592,28 +594,13 @@ function useReduceMotion(): boolean {
 // The two close-day figures the money-path route does NOT supply — both are direct trailing-30-day
 // ledger reads. `spare` and the tight point come from the route (see `// @rn-engine money-path` in the
 // screen body), so they are intentionally absent here.
-type LedgerActuals = {
-  spent: number;
-  setAside: number;
-};
-
-// Pure trailing-30-day ledger reads. `spent` = Σ|negative txn| in the window (transactions);
-// `setAside` = Σ pot DEPOSIT entries in the window (potLedger). The trailing window is anchored to the
-// injected `now` so nothing reads the clock during render — the mount-gated date is threaded in.
-function computeLedgerActuals(s: AppState, now: Date): LedgerActuals {
-  const cutoff = now.getTime() - CYCLE_WINDOW_MS;
-
-  const spent = s.transactions
-    .filter((tx) => tx.amount < 0 && new Date(tx.when).getTime() >= cutoff)
-    .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-
-  const setAside = Math.round(
-    s.potLedger
-      .filter((e) => e.kind === 'deposit' && new Date(e.at).getTime() >= cutoff)
-      .reduce((sum, e) => sum + e.amount, 0),
-  );
-
-  return { spent: Math.round(spent), setAside };
+// Pure trailing-30-day ledger reads. The helper requires each deposit to resolve to a canonical pot;
+// statement transactions alone never become pot evidence.
+export function computeLedgerActuals(
+  state: Pick<AppState, 'transactions' | 'potLedger' | 'pots'>,
+  now: Date,
+): RitualLedgerActuals {
+  return computeRitualLedgerActuals(state, now);
 }
 
 // ---------------------------------------------------------------------------
@@ -669,7 +656,8 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   }, []);
 
   // Store reads (the spec's @reads). `spent`/`setAside` derive from these ledger slices; `pots`
-  // backs step 2's first-name list; the route (below) reads the rest of the snapshot internally.
+  // backs step 2's first-name list and validates pot-ledger ownership; the route (below) reads the
+  // rest of the snapshot internally.
   const transactions = useAppStore((st) => st.transactions);
   const potLedger = useAppStore((st) => st.potLedger);
   const pots = useAppStore((st) => st.pots);
@@ -710,9 +698,9 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
 
   // The two figures the route does not supply — direct trailing-30-day ledger reads, anchored to the
   // mount-gated `now` (EPOCH for the pre-gate frame, discarded the same way the route result is).
-  const ledger = useMemo<LedgerActuals>(
-    () => computeLedgerActuals({ transactions, potLedger } as AppState, now ?? EPOCH),
-    [transactions, potLedger, now],
+  const ledger = useMemo<RitualLedgerActuals>(
+    () => computeLedgerActuals({ transactions, potLedger, pots }, now ?? EPOCH),
+    [transactions, potLedger, pots, now],
   );
 
   // The cycle-close actuals the steps + addCycle read. `spent`/`setAside` are the ledger reads; `spare`

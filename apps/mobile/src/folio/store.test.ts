@@ -62,6 +62,7 @@ import {
   stripSeedData,
   payCreditCardFromBank,
   pauseMany,
+  repayToPot,
   queueInputFromCandidates,
   rememberMerchantCategory,
   recordWorkspaceOwnerTransferLeg,
@@ -423,6 +424,22 @@ describe('borrowFromPot', () => {
     const applied = borrowFromPot('holiday', 30, 'shortfall-borrow'); // the correct call shape
     expect(applied).toBe(true);
     expect(getState().pots.find((p) => p.id === 'holiday')!.saved).toBe(before - 30);
+  });
+});
+
+describe('pot-linked writes', () => {
+  it('does not append an orphan deposit for an unknown pot', () => {
+    const before = getState();
+    const ledgerLength = before.potLedger.length;
+    addToPot('does-not-exist', 10, 'statement-import');
+    expect(getState().potLedger).toHaveLength(ledgerLength);
+    expect(getState().pots).toEqual(before.pots);
+  });
+
+  it('does not append an orphan repayment for an unknown pot', () => {
+    const ledgerLength = getState().potLedger.length;
+    repayToPot('does-not-exist', 10, 'statement-import');
+    expect(getState().potLedger).toHaveLength(ledgerLength);
   });
 });
 

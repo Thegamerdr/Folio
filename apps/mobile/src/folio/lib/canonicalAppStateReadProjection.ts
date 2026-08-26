@@ -212,15 +212,21 @@ export function readCanonicalAppStateMoneyProjection(
     snapshot.collections.potLedgerEntries,
     workspaceId,
     'canonical pot ledger entry',
-  ).map((entry) => ({
-    id: requiredText(entry.sourceEntryId, 'canonical source pot-ledger ID'),
-    workspaceId: entry.workspaceId,
-    potId: requiredText(entry.sourcePotId, 'canonical source pot ID'),
-    at: requiredText(entry.sourceOccurredAt, 'canonical source pot-ledger time'),
-    kind: entry.kind,
-    amount: minorToMajor(entry.amount.minorUnits),
-    source: entry.source,
-  }));
+  )
+    // Defensive read boundary: a hand-authored/older canonical snapshot may contain a ledger row
+    // whose pot was deleted. Such evidence must not become a pot-linked UI claim on hydration.
+    .filter((entry) =>
+      pots.some((pot) => pot.id === requiredText(entry.sourcePotId, 'canonical source pot ID')),
+    )
+    .map((entry) => ({
+      id: requiredText(entry.sourceEntryId, 'canonical source pot-ledger ID'),
+      workspaceId: entry.workspaceId,
+      potId: requiredText(entry.sourcePotId, 'canonical source pot ID'),
+      at: requiredText(entry.sourceOccurredAt, 'canonical source pot-ledger time'),
+      kind: entry.kind,
+      amount: minorToMajor(entry.amount.minorUnits),
+      source: entry.source,
+    }));
   const canonicalSubscriptions = orderedSourceRows(
     snapshot.collections.subscriptions,
     workspaceId,
@@ -1021,15 +1027,18 @@ function normalizedSourceMoneyProjection(
     ...(pot.cadence === undefined ? {} : { cadence: pot.cadence }),
     ...(pot.allowNegative === undefined ? {} : { allowNegative: pot.allowNegative }),
   }));
-  const potLedger: PotLedgerEntry[] = (state.potLedger ?? []).map((entry) => ({
-    id: entry.id,
-    workspaceId: entry.workspaceId ?? state.dataWorkspaceId,
-    potId: entry.potId,
-    at: entry.at,
-    kind: entry.kind,
-    amount: entry.amount,
-    source: entry.source,
-  }));
+  const canonicalPotIds = new Set(state.pots.map((pot) => pot.id));
+  const potLedger: PotLedgerEntry[] = (state.potLedger ?? [])
+    .filter((entry) => canonicalPotIds.has(entry.potId))
+    .map((entry) => ({
+      id: entry.id,
+      workspaceId: entry.workspaceId ?? state.dataWorkspaceId,
+      potId: entry.potId,
+      at: entry.at,
+      kind: entry.kind,
+      amount: entry.amount,
+      source: entry.source,
+    }));
   const subs = reanchorRenewals(
     state.subs.map((subscription) => ({
       name: subscription.name,

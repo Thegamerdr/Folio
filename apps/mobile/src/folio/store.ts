@@ -2287,6 +2287,9 @@ export function getMonthlyCancelSavings(cancelled: readonly CancelledSub[]): num
 export function addToPot(id: string, amount: number, source: string = 'manual') {
   if (!(amount > 0)) return;
   const before = state.pots.find((p) => p.id === id);
+  // A ledger row is meaningful only when it points at a canonical pot. Keep unknown IDs as a
+  // no-op so stale statement/fixture identifiers cannot manufacture a pot claim or an orphan row.
+  if (!before) return;
   const entry: PotLedgerEntry = {
     id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     potId: id,
@@ -2303,7 +2306,7 @@ export function addToPot(id: string, amount: number, source: string = 'manual') 
       commandType: 'folio.pot.deposit.v1',
       actorKind: 'user',
       entityRefs: [opaqueContainerEntityRef('pot', id), { type: 'pot-ledger-entry', id: entry.id }],
-      before: { pot: before ?? null },
+      before: { pot: before },
       after: { pot: nextPots.find((pot) => pot.id === id) ?? null, ledgerEntry: entry },
       invalidatedProjectionKinds: ['pots', 'pot-ledger', 'cashflow'],
       occurredAt: entry.at,
@@ -2401,6 +2404,10 @@ export function borrowFromPot(
  *  `owedByPot` derivations stop flagging it). No-op on a non-positive amount. */
 export function repayToPot(id: string, amount: number, source: string = 'manual') {
   if (!(amount > 0)) return;
+  // Repayment is also a pot-linked movement; do not persist an orphan entry for a deleted or stale
+  // pot identifier. Existing legacy rows remain available for evidence/export and are filtered at
+  // canonical projection and UI-read boundaries.
+  if (!state.pots.some((pot) => pot.id === id)) return;
   const entry: PotLedgerEntry = {
     id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     potId: id,
