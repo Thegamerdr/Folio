@@ -1362,31 +1362,31 @@ describe('fastForwardMonth', () => {
 });
 
 // ---------------------------------------------------------------------------
-// transactions — 2000-cap, newest-first, honest drop accounting
-// (DATA_INTELLIGENCE.md phase ④(A) — raised from the old 200)
+// transactions — 20k last-resort cap, newest-first, honest drop accounting
 // ---------------------------------------------------------------------------
 describe('transactions cap', () => {
-  it('keeps at most 2000, newest first', () => {
-    // Add 2050 melo-logged spends; the head should be the most recent.
-    // Each call round-trips the whole persisted blob (see store.ts `persist()`),
-    // and the cap is 10x the old 200, so this legitimately takes longer under
-    // parallel test-runner load than the default 5s budget — bump it rather
-    // than shrinking the iteration count and losing the over-cap assertion.
+  it('keeps a 2k+ ledger intact and newest first', () => {
+    // This used to cross the 2,000 ceiling and drop rows. It must now remain whole.
     for (let i = 0; i < 2050; i++) {
       applyMeloTool('log_spend', { merchant: `M${i}`, amount: 1, category: 'other' });
     }
     const txns = getState().transactions;
 
-    expect(txns.length).toBe(2000);
+    expect(txns.length).toBe(2061); // 11 seeded rows + 2,050 real rows
     expect(txns[0]!.merchant).toBe('M2049'); // last added is at the head
   }, 20_000);
 
-  it('increments droppedTransactionCount by exactly how many rows an eviction drops', () => {
+  it('increments droppedTransactionCount by exactly how many rows the 20k ceiling drops', () => {
     setPartial({ transactions: [], droppedTransactionCount: 0 });
-    for (let i = 0; i < 2010; i++) {
-      addTransaction({ merchant: `M${i}`, amount: 1, category: 'other', source: 'manual' });
-    }
-    expect(getState().transactions.length).toBe(2000);
+    addTransactionsBatch(
+      Array.from({ length: 20_010 }, (_, i) => ({
+        merchant: `M${i}`,
+        amount: 1,
+        category: 'other' as const,
+        source: 'manual' as const,
+      })),
+    );
+    expect(getState().transactions.length).toBe(20_000);
     expect(getState().droppedTransactionCount).toBe(10);
   }, 20_000);
 
@@ -1398,13 +1398,23 @@ describe('transactions cap', () => {
 
   it('accumulates across repeated eviction events rather than resetting each time', () => {
     setPartial({ transactions: [], droppedTransactionCount: 0 });
-    for (let i = 0; i < 2005; i++) {
-      addTransaction({ merchant: `A${i}`, amount: 1, category: 'other', source: 'manual' });
-    }
+    addTransactionsBatch(
+      Array.from({ length: 20_005 }, (_, i) => ({
+        merchant: `A${i}`,
+        amount: 1,
+        category: 'other' as const,
+        source: 'manual' as const,
+      })),
+    );
     expect(getState().droppedTransactionCount).toBe(5);
-    for (let i = 0; i < 5; i++) {
-      addTransaction({ merchant: `B${i}`, amount: 1, category: 'other', source: 'manual' });
-    }
+    addTransactionsBatch(
+      Array.from({ length: 5 }, (_, i) => ({
+        merchant: `B${i}`,
+        amount: 1,
+        category: 'other' as const,
+        source: 'manual' as const,
+      })),
+    );
     expect(getState().droppedTransactionCount).toBe(10);
   }, 20_000);
 });
@@ -1442,16 +1452,16 @@ describe('addTransactionsBatch', () => {
     expect(result.every((t) => typeof t.when === 'string' && t.when.length > 0)).toBe(true);
   });
 
-  it('applies the same 2000-cap + drop accounting as addTransaction', () => {
+  it('applies the same 20k-cap + drop accounting as addTransaction', () => {
     setPartial({ transactions: [], droppedTransactionCount: 0 });
-    const rows = Array.from({ length: 2010 }, (_, i) => ({
+    const rows = Array.from({ length: 20_010 }, (_, i) => ({
       merchant: `M${i}`,
       amount: 1,
       category: 'other' as const,
       source: 'manual' as const,
     }));
     addTransactionsBatch(rows);
-    expect(getState().transactions.length).toBe(2000);
+    expect(getState().transactions.length).toBe(20_000);
     expect(getState().droppedTransactionCount).toBe(10);
   });
 
@@ -3802,7 +3812,7 @@ describe('addStatementAsHistory', () => {
     // Seed the ledger already carrying a prior lifetime drop count, so this test proves the
     // returned number is this call's OWN delta, not `getState().droppedTransactionCount` verbatim.
     setPartial({
-      transactions: Array.from({ length: 1995 }, (_, i) => ({
+      transactions: Array.from({ length: 19_995 }, (_, i) => ({
         id: `seed-${i}`,
         when: new Date(2020, 0, 1 + i).toISOString(),
         merchant: `Seed${i}`,
@@ -3812,7 +3822,7 @@ describe('addStatementAsHistory', () => {
       })),
       droppedTransactionCount: 37, // some unrelated prior lifetime total
     });
-    // 10 new rows pushes 1995+10=2005 over the 2000 cap -> evicts exactly 5.
+    // 10 new rows pushes 19,995+10=20,005 over the 20,000 cap -> evicts exactly 5.
     const rows = Array.from({ length: 10 }, (_, i) =>
       candidate({
         merchant: `New${i}`,
@@ -4002,7 +4012,7 @@ describe('addStatementAsHistory', () => {
     it('an OLDER-dated import does not evict newer rows already in the ledger under the cap', () => {
       // Seed the ledger already at the cap with RECENT dates.
       setPartial({
-        transactions: Array.from({ length: 2000 }, (_, i) => ({
+        transactions: Array.from({ length: 20_000 }, (_, i) => ({
           id: `recent-${i}`,
           when: new Date(2026, 5, 1 + (i % 28)).toISOString(),
           merchant: `Recent${i}`,
@@ -4025,15 +4035,15 @@ describe('addStatementAsHistory', () => {
       const result = addStatementAsHistory(olderRows);
       expect(result.added).toBe(5);
       // The 5 new OLDER rows should be exactly what's evicted — not any of the newer, already
-      // present rows. Total is 2005, cap is 2000, so exactly 5 are evicted.
+      // present rows. Total is 20,005, cap is 20,000, so exactly 5 are evicted.
       expect(result.droppedTransactionCount).toBe(5);
 
       const txns = getState().transactions;
-      expect(txns.length).toBe(2000);
+      expect(txns.length).toBe(20_000);
       // None of the "Ancient" rows survive — they were the oldest by date, so retention evicted
       // them first, not the pre-existing "Recent" rows.
       expect(txns.some((t) => t.merchant.startsWith('Ancient'))).toBe(false);
-      expect(txns.filter((t) => t.merchant.startsWith('Recent')).length).toBe(2000);
+      expect(txns.filter((t) => t.merchant.startsWith('Recent')).length).toBe(20_000);
     });
 
     it('produces a date-correct ledger after mixed out-of-order imports', () => {

@@ -4,8 +4,8 @@
 // The Review tab is deliberately a small composition: one canonical segmented control and the
 // existing one-decision Review surface mounted in place. It is not a second queue dashboard.
 
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
@@ -103,7 +103,7 @@ function DestinationLine({
   );
 }
 
-function HistoryRow({
+const HistoryRow = memo(function HistoryRow({
   row,
   onPress,
 }: {
@@ -137,7 +137,7 @@ function HistoryRow({
       </Text>
     </Pressable>
   );
-}
+});
 
 export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   const t = useTheme();
@@ -159,6 +159,19 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
         ? history.filter((row) => row.kind === 'added' || row.kind === 'edited')
         : history.filter((row) => row.kind !== 'added'),
     [history, tab],
+  );
+  const renderHistoryRow = useCallback(
+    ({ item }: { item: DecisionHistoryRow }) => (
+      <HistoryRow
+        row={item}
+        onPress={
+          item.transactionId
+            ? () => nav.openSheet('edit-txn', { id: item.transactionId! })
+            : undefined
+        }
+      />
+    ),
+    [nav],
   );
 
   return (
@@ -213,7 +226,8 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                   Looks like a repeating charge
                 </Text>
                 <Text style={[styles.pressureBody, { color: t.ink }]}>
-                  {caught.name} — {formatGBPExact(caught.amount)}, seen {caught.seen} months running.
+                  {caught.name} — {formatGBPExact(caught.amount)}, seen {caught.seen} months
+                  running.
                 </Text>
               </View>
               <View style={styles.destinationList}>
@@ -230,68 +244,71 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
           </View>
         </View>
       ) : (
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + gap.xxxl }}
+        <FlatList
+          data={visibleHistory}
+          keyExtractor={(row) => row.id}
+          renderItem={renderHistoryRow}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          updateCellsBatchingPeriod={32}
+          windowSize={7}
           showsVerticalScrollIndicator={false}
           style={styles.screenHost}
-        >
-          <View style={styles.destinationBlock}>
-            {tab === 'activity' ? (
-              <>
-                <Text style={[styles.listEyebrow, { color: t.muted }]}>Everything Melo said</Text>
-                <View style={styles.destinationList}>
-                  <DestinationLine label="Inbox" meta="every whisper in one place" />
-                  <View style={[styles.rule, { backgroundColor: t.hairline }]} />
-                  <DestinationLine
-                    label="Insights"
-                    meta="the shape of your finished months"
-                    onPress={() => nav.go('insights')}
-                  />
-                </View>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.listEyebrow, { color: t.muted }]}>Undo and corrections</Text>
-                <View style={styles.destinationList}>
-                  <DestinationLine
-                    label="Hidden items"
-                    meta={hiddenCount ? `${hiddenCount} put aside` : 'nothing hidden'}
-                    onPress={() => nav.openSheet('hidden-review')}
-                  />
-                </View>
-              </>
-            )}
-          </View>
-
-          <View style={styles.timelineInset}>
-            <Text style={[styles.timelineKicker, { color: t.muted }]}>Your log</Text>
-            <Text style={[styles.timelineHeadline, { color: t.ink }]}>
-              Everything you've added or logged.
-            </Text>
-            <Text style={[styles.timelineSubhead, { color: t.muted }]}>
-              Newest first. Nothing is hidden.
-            </Text>
-            <View style={styles.historyList}>
-              {visibleHistory.length ? (
-                visibleHistory.map((row, index) => (
-                  <View key={row.id}>
-                    {index ? <View style={[styles.rule, { backgroundColor: t.hairline }]} /> : null}
-                    <HistoryRow
-                      row={row}
-                      onPress={
-                        row.transactionId
-                          ? () => nav.openSheet('edit-txn', { id: row.transactionId! })
-                          : undefined
-                      }
-                    />
-                  </View>
-                ))
-              ) : (
-                <Text style={[styles.emptyHistory, { color: t.muted }]}>Nothing decided yet.</Text>
-              )}
-            </View>
-          </View>
-        </ScrollView>
+          contentContainerStyle={[
+            styles.historyContent,
+            { paddingBottom: insets.bottom + gap.xxxl },
+          ]}
+          ItemSeparatorComponent={() => (
+            <View style={[styles.rule, { backgroundColor: t.hairline }]} />
+          )}
+          ListEmptyComponent={
+            <Text style={[styles.emptyHistory, { color: t.muted }]}>Nothing decided yet.</Text>
+          }
+          ListHeaderComponent={
+            <>
+              <View style={styles.destinationBlock}>
+                {tab === 'activity' ? (
+                  <>
+                    <Text style={[styles.listEyebrow, { color: t.muted }]}>
+                      Everything Melo said
+                    </Text>
+                    <View style={styles.destinationList}>
+                      <DestinationLine label="Inbox" meta="every whisper in one place" />
+                      <View style={[styles.rule, { backgroundColor: t.hairline }]} />
+                      <DestinationLine
+                        label="Insights"
+                        meta="the shape of your finished months"
+                        onPress={() => nav.go('insights')}
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.listEyebrow, { color: t.muted }]}>
+                      Undo and corrections
+                    </Text>
+                    <View style={styles.destinationList}>
+                      <DestinationLine
+                        label="Hidden items"
+                        meta={hiddenCount ? `${hiddenCount} put aside` : 'nothing hidden'}
+                        onPress={() => nav.openSheet('hidden-review')}
+                      />
+                    </View>
+                  </>
+                )}
+              </View>
+              <View style={styles.timelineInset}>
+                <Text style={[styles.timelineKicker, { color: t.muted }]}>Your log</Text>
+                <Text style={[styles.timelineHeadline, { color: t.ink }]}>
+                  Everything you've added or logged.
+                </Text>
+                <Text style={[styles.timelineSubhead, { color: t.muted }]}>
+                  Newest first. Nothing is hidden.
+                </Text>
+              </View>
+            </>
+          }
+        />
       )}
     </View>
   );
@@ -339,7 +356,7 @@ const styles = StyleSheet.create({
   timelineKicker: { fontFamily: serif.displayItalic, fontSize: 14 },
   timelineHeadline: { fontFamily: serif.display, fontSize: 28, lineHeight: 32, marginTop: gap.xs },
   timelineSubhead: { fontSize: 12.5, marginTop: 6 },
-  historyList: { marginTop: gap.xl },
+  historyContent: { paddingHorizontal: gap.xl },
   historyRow: {
     alignItems: 'center',
     flexDirection: 'row',

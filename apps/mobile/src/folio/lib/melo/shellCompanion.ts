@@ -6,6 +6,79 @@ export type ShellCompanionPlacement = Readonly<{
   birdLeft: number;
 }>;
 
+export type NormalizedCompanionPosition = Readonly<{ x: number; y: number }>;
+export type CompanionLayerBounds = Readonly<{ width: number; height: number }>;
+
+const FREE_SIZE = 64;
+const FREE_INSET = 8;
+const FREE_BOTTOM = 104;
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+/** Persisted 0..1 coordinates to device coordinates, with the tab bar and safe shell inset removed. */
+export function denormalizeCompanionPosition(
+  position: NormalizedCompanionPosition,
+  bounds: CompanionLayerBounds,
+): Readonly<{ x: number; y: number }> {
+  const maxX = Math.max(FREE_INSET, bounds.width - FREE_SIZE - FREE_INSET);
+  const maxY = Math.max(FREE_INSET, bounds.height - FREE_SIZE - FREE_BOTTOM);
+  return {
+    x: FREE_INSET + clamp(position.x, 0, 1) * (maxX - FREE_INSET),
+    y: FREE_INSET + clamp(position.y, 0, 1) * (maxY - FREE_INSET),
+  };
+}
+
+export function normalizeCompanionPosition(
+  position: Readonly<{ x: number; y: number }>,
+  bounds: CompanionLayerBounds,
+): NormalizedCompanionPosition {
+  const maxX = Math.max(FREE_INSET, bounds.width - FREE_SIZE - FREE_INSET);
+  const maxY = Math.max(FREE_INSET, bounds.height - FREE_SIZE - FREE_BOTTOM);
+  return {
+    x: maxX === FREE_INSET ? 0 : clamp((position.x - FREE_INSET) / (maxX - FREE_INSET), 0, 1),
+    y: maxY === FREE_INSET ? 0 : clamp((position.y - FREE_INSET) / (maxY - FREE_INSET), 0, 1),
+  };
+}
+
+/**
+ * Minimal screen-transition correction. The leading title block is the only shared authored text
+ * exclusion across these shell screens; the bottom navigation is already removed from the usable
+ * bounds. A drop remains continuous everywhere else and is never snapped to a left/right perch.
+ */
+export function correctCompanionForScreen(
+  screen: ScreenId,
+  position: Readonly<{ x: number; y: number }>,
+  bounds: CompanionLayerBounds,
+): Readonly<{ x: number; y: number }> {
+  const maxX = Math.max(FREE_INSET, bounds.width - FREE_SIZE - FREE_INSET);
+  const maxY = Math.max(FREE_INSET, bounds.height - FREE_SIZE - FREE_BOTTOM);
+  let x = clamp(position.x, FREE_INSET, maxX);
+  const y = clamp(position.y, FREE_INSET, maxY);
+  const headerScreens: readonly ScreenId[] = [
+    'plans',
+    'whatif',
+    'account',
+    'privacy',
+    'today-after',
+    'timeline',
+    'visualizer',
+  ];
+  // Left-aligned two-line titles occupy this authored header region. Move only the minimum distance
+  // to its trailing edge; do not reset the user's vertical choice or spring back to a perch.
+  if (
+    headerScreens.includes(screen) &&
+    x < 252 &&
+    y < 174 &&
+    x + FREE_SIZE > 16 &&
+    y + FREE_SIZE > 48
+  ) {
+    x = clamp(252, FREE_INSET, maxX);
+  }
+  return { x, y };
+}
+
 type WorkspaceKind = 'personal' | 'business';
 
 const PERSONAL_HEADER_PERCHES: Partial<

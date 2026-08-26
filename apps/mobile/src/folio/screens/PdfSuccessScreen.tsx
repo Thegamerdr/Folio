@@ -357,6 +357,21 @@ export function PdfSuccessScreen({
   // here needs the network).
   const foundLabel = `${statement.items.length} thing${statement.items.length === 1 ? '' : 's'} found`;
 
+  // A statement owns its viewport: the virtualized row list below BulkStatementLanding is the only
+  // vertical scroll owner, while summary and actions remain mounted outside it.
+  if (isBulk) {
+    return (
+      <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+        <BulkStatementLanding
+          nav={nav}
+          candidates={rawCandidates}
+          {...(closingBalance !== undefined ? { closingBalance } : {})}
+          onAdded={() => clearReaderCandidates()}
+        />
+      </Animated.View>
+    );
+  }
+
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView

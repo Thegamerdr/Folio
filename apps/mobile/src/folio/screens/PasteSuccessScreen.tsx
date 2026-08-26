@@ -402,6 +402,20 @@ export function PasteSuccessScreen({
   const eyebrow = `${count} thing${count === 1 ? '' : 's'} to check`;
   const reviewSource = candidates[0]?.source === 'paste' ? 'paste' : 'csv';
 
+  // The scalable review workspace is full-screen so its virtualized list is never nested in this
+  // legacy success ScrollView and its action area is immediately reachable at every statement size.
+  if (isBulk) {
+    return (
+      <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+        <BulkStatementLanding
+          nav={nav}
+          candidates={candidates}
+          onAdded={() => clearReaderCandidates()}
+        />
+      </Animated.View>
+    );
+  }
+
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView

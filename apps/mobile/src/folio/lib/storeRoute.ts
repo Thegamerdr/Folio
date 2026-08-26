@@ -32,6 +32,7 @@ import { deriveCalendarEvents } from './calendarEvents';
 import { resolvePayday } from './payday';
 import { nextIncomeDate, selectMonthlyIncome } from './income';
 import { monthlySpendBaseline } from './historyStats';
+import { recentTransactionHorizon } from './transactionHorizon';
 import { useAppStore, selectBankBalanceMinor, bankTransactions, type AppState } from '../store';
 import { derivePressure } from '../screens/today/pressure';
 
@@ -233,7 +234,12 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   // Bank-only (ACCOUNTS_MODEL.md §2.4): a credit-card statement's spend is borrowing, not a bank
   // outflow, so it must never feed the realized "Going out" figure. `bankTransactions` is a no-op
   // filter on a single-account (migrated) install.
-  const bankTxns = bankTransactions(state);
+  // Realized monthly spend is a recent-behaviour question. Keep years of history available to
+  // history/export while avoiding regrouping irrelevant old rows on each route mount.
+  const bankTxns = bankTransactions({
+    accounts: state.accounts,
+    transactions: recentTransactionHorizon(state.transactions, todayIso, 24),
+  });
   const projectedOutgoing =
     spend.reduce((acc, d) => acc + d.amount, 0) + holds.reduce((acc, d) => acc + d.amount, 0);
   const hasHistory = bankTxns.length > 0;

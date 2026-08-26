@@ -396,6 +396,7 @@
     "business-empty": { "kind": "business-empty" },
     "business-sole-trader": { "kind": "business-sole-trader" },
     "business-ltd": { "kind": "business-ltd" },
+    "scale-10001": { "kind": "scale" },
     "empty": { "kind": "empty" },
     "first-run": { "kind": "first-run" }
   }

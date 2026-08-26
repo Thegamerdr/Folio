@@ -1,57 +1,30 @@
-// BulkStatementLanding — the shared bulk-landing surface for a multi-candidate read (task: BULK
-// ADD-AS-HISTORY). Rendered by PdfSuccessScreen / ImageSuccessScreen / PasteSuccessScreen in place
-// of their ordinary single-item preview whenever the reader/parse produced MORE THAN ONE candidate
-// (a "statement"), per `isBulkStatement` (lib/bulkLanding.ts). Single-candidate reads are UNCHANGED
-// — each screen's existing per-row `enqueueReviewItems` -> Review path still handles those.
-//
-// FLOW (owner spec, task: BULK ADD-AS-HISTORY; account step per ACCOUNTS_MODEL.md §3 step 1/5):
-//   0. WHICH ACCOUNT — confirm-gated, shown before anything else. Detects a best-effort name/kind
-//      from the candidates (`detectAccountName`, lib/detectAccountName.ts — honestly `null`/'bank'
-//      today, since the reader carries no institution/header text yet; see that module's doc) and
-//      offers: pick an existing `Account`, or name a new one with a bank/credit-card toggle,
-//      defaulting to the detection. "Continue" resolves the accountId (creating the new account via
-//      `addAccount` only on confirm, never speculatively) before the landing card below can render.
-//      A blank new-account name falls through to `DEFAULT_ACCOUNT_ID` ('Main') rather than creating
-//      an unnamed account — the no-choice-made path still lands in Main, per the owner spec.
-//   1. BULK LANDING — a calm summary: 'Found {N} transactions · {from}–{to} · £{in} in / £{out}
-//      out', a short preview list with money-in vs money-out unmistakably distinguished (the same
-//      positiveInk/repairInk convention TodayScreen's "Coming in" / "Going out" uses — reused here,
-//      never re-invented). PRIMARY CTA 'Add all as history' calls `addStatementAsHistory` with the
-//      resolved accountId from step 0 and routes to Today (via the offer sequencer below). SECONDARY
-//      'Review one by one' falls back to the screen's existing per-row enqueue-then-Review path —
-//      nobody who wants line-by-line control loses it (that path does not carry the account choice
-//      through — a P3 concern, see ACCOUNTS_MODEL.md).
-//   2. POST-IMPORT OFFERS — after the add lands, `nextBulkLandingOffer` (lib/bulkLanding.ts) walks
-//      the two named offers ONE AT A TIME, each with its own calm confirm card: closing balance
-//      first ('Your balance looks like £X as of {date} — use it?' -> "Use it" calls
-//      `setAccountBalance(offer.accountId, ...)`, the SAME account step 0 resolved and
-//      `addStatementAsHistory` tagged the batch's transactions with — never the legacy global
-//      `setCurrentBalance`, so a second account's import can never clobber a different account's
-//      balance), then an unmatched income signal (routes to the existing self-deriving
-//      IncomeCaughtSheet — it reads the live post-add ledger itself, so no candidate payload needs
-//      threading through). Both are SKIPPABLE ("Not now") and NEITHER auto-applies —
-//      review-before-truth extends past the add itself, matching the single-item Review card's own
-//      confirm-before-truth contract.
-//
-// @tokens surface · hairline · calm (accent) · calmSoft · inset · muted · ink · inverse ·
-//         positiveInk · repairInk — all from '@/folio/theme'. No new token, no new colour.
-// @motion none of its own — mounts inside the success screens' existing slide-in-r frame.
-
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { memo, useCallback, useMemo, useState } from 'react';
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { gap, radius, serif, useTheme } from '@/folio/theme';
-import { MeloLine } from '@/folio/melo/MeloLine';
 import {
-  bulkSummaryLine,
+  filterStatementReviewRows,
+  buildStatementReviewModel,
+  type StatementReviewFilter,
+  type StatementReviewRow,
+} from '@/folio/lib/statementReviewModel';
+import {
   closingBalanceOfferLine,
   nextBulkLandingOffer,
   type BulkLandingOffer,
 } from '@/folio/lib/bulkLanding';
-import { buildStatementSummary } from '@/folio/lib/statementSummary';
-import { reconcileStatement, statementTotalsFrom } from '@/folio/lib/reconcileStatement';
 import { detectAccountName } from '@/folio/lib/detectAccountName';
-import type { CandidateMoneyItem } from '@/folio/lib/importSheet';
+import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
 import {
   addAccount,
   addStatementAsHistory,
@@ -65,569 +38,741 @@ import {
 } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
+type FolioTheme = ReturnType<typeof useTheme>;
+
 export type BulkStatementLandingProps = {
   nav: Nav;
-  /** The full candidate batch this statement read produced — rendered as the preview list AND, on
-   *  "Add all as history", handed to `addStatementAsHistory` verbatim (this component makes the
-   *  ONE money-path write; nothing lands before that tap). */
   candidates: readonly CandidateMoneyItem[];
-  /** Passed straight through to `addStatementAsHistory` when the reader supplied a closing balance
-   *  (see that function's doc) — omit when it didn't. Never fabricated by this component. Carries the
-   *  optional reconciliation figures (opening balance + stated totals) too, verbatim. */
   closingBalance?: ReaderClosingBalance;
-  /** Fires once "Add all as history" has actually landed the batch — the caller clears whatever
-   *  staging slot it used (e.g. `clearReaderCandidates`), since that slot differs per reader path.
-   *  Fired exactly once, before the post-import offers (if any) are shown. */
   onAdded: () => void;
-  /** Fires when the user chooses "Review one by one", carrying the account they
-   *  just confirmed so accepted rows cannot silently fall back to Main. */
-  onReviewOneByOne: (accountId: string) => void;
+  /** Kept for source compatibility. Review now happens in this uncapped virtualized workspace. */
+  onReviewOneByOne?: (accountId: string) => void;
 };
 
-// Format a signed GBP magnitude the way the rest of the success screens do: whole pounds grouped,
-// pence only when the magnitude isn't whole, leading +/- glyph (matches formatSignedAmount in
-// PdfSuccessScreen/ImageSuccessScreen — restated here rather than importing a screen-local helper).
-function formatSignedAmount(amount: number): string {
-  const magnitude = Math.abs(amount);
-  const grouped = magnitude.toLocaleString('en-GB', {
-    minimumFractionDigits: Number.isInteger(magnitude) ? 0 : 2,
+const FILTERS: readonly { key: StatementReviewFilter; label: string }[] = [
+  { key: 'issues', label: 'Issues' },
+  { key: 'ready', label: 'Ready' },
+  { key: 'duplicates', label: 'Duplicates' },
+  { key: 'transfers', label: 'Transfers' },
+  { key: 'income', label: 'Income' },
+  { key: 'bills', label: 'Bills' },
+  { key: 'debt', label: 'Debt' },
+  { key: 'aside', label: 'Aside' },
+  { key: 'all', label: 'All' },
+];
+
+const KINDS: readonly CandidateKind[] = [
+  'income',
+  'spend',
+  'bill',
+  'subscription',
+  'debt-payment',
+  'transfer',
+  'unknown',
+];
+
+function money(amount: number): string {
+  return `${amount >= 0 ? '+' : '−'}£${Math.abs(amount).toLocaleString('en-GB', {
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
-  const sign = amount >= 0 ? '+' : '−';
-  return `${sign}£${grouped}`;
+  })}`;
 }
 
-// ACCOUNTS_MODEL.md §3 step 1/5 — sentinel value for "create a new account" in the picker below,
-// distinct from any real `Account.id` (which are always `acct-...`).
+function shortDateRange(from?: string, to?: string): string {
+  if (from === undefined) return 'Dates not supplied';
+  return from === to ? from : `${from} – ${to}`;
+}
+
+function issueLabel(row: StatementReviewRow): string {
+  if (row.issue === 'possible-duplicate') return 'Possible duplicate';
+  if (row.issue === 'transfer') return 'Transfer — check both sides';
+  if (row.issue === 'unknown') return 'Type needs checking';
+  if (row.issue === 'low-confidence') return 'Uncertain read';
+  return 'Ready';
+}
+
+type ReviewRowProps = {
+  row: StatementReviewRow;
+  selected: boolean;
+  aside: boolean;
+  onToggle: (id: string) => void;
+  onEdit: (candidate: CandidateMoneyItem) => void;
+  theme: FolioTheme;
+};
+
+const ReviewRow = memo(function ReviewRow({
+  row,
+  selected,
+  aside,
+  onToggle,
+  onEdit,
+  theme: t,
+}: ReviewRowProps) {
+  const candidate = row.candidate;
+  return (
+    <View style={[styles.row, { borderBottomColor: t.hairline }]}>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selected }}
+        accessibilityLabel={`${selected ? 'Selected' : 'Not selected'}, ${candidate.merchant}`}
+        onPress={() => onToggle(candidate.id)}
+        style={[
+          styles.check,
+          {
+            borderColor: selected ? t.calm : t.hairline,
+            backgroundColor: selected ? t.calm : t.inset,
+          },
+        ]}
+      >
+        <Text style={[styles.checkGlyph, { color: t.inverse }]}>{selected ? '✓' : ''}</Text>
+      </Pressable>
+      <View style={styles.rowCopy}>
+        <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
+          {candidate.merchant}
+        </Text>
+        <Text
+          numberOfLines={1}
+          style={[styles.meta, { color: row.status === 'issue' ? t.repairInk : t.muted }]}
+        >
+          {`${candidate.date ?? 'No date'} · ${candidate.kind} · ${aside ? 'Kept aside' : issueLabel(row)}`}
+        </Text>
+      </View>
+      <Text style={[styles.amount, { color: candidate.amount >= 0 ? t.positiveInk : t.ink }]}>
+        {money(candidate.amount)}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Edit ${candidate.merchant}`}
+        hitSlop={8}
+        onPress={() => onEdit(candidate)}
+        style={styles.editButton}
+      >
+        <Text style={[styles.editLabel, { color: t.calm }]}>Edit</Text>
+      </Pressable>
+    </View>
+  );
+});
+
 const NEW_ACCOUNT_OPTION = '__new__';
 
 export function BulkStatementLanding({
   nav,
-  candidates,
+  candidates: initialCandidates,
   closingBalance,
   onAdded,
-  onReviewOneByOne,
 }: BulkStatementLandingProps) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const [candidates, setCandidates] = useState<readonly CandidateMoneyItem[]>(initialCandidates);
+  const [filter, setFilter] = useState<StatementReviewFilter>('issues');
+  const [query, setQuery] = useState('');
+  const [asideIds, setAsideIds] = useState<ReadonlySet<string>>(new Set());
+  const model = useMemo(() => buildStatementReviewModel(candidates), [candidates]);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
+    () =>
+      new Set(
+        buildStatementReviewModel(initialCandidates)
+          .rows.filter((row) => row.status === 'ready')
+          .map((row) => row.candidate.id),
+      ),
+  );
+  const rows = useMemo(
+    () => filterStatementReviewRows(model.rows, filter, query, asideIds),
+    [asideIds, filter, model.rows, query],
+  );
+  const [editing, setEditing] = useState<CandidateMoneyItem | null>(null);
+  const [editMerchant, setEditMerchant] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editKind, setEditKind] = useState<CandidateKind>('unknown');
 
-  // The bulk summary + offers — `null` until "Add all as history" is tapped (the ONE money-path
-  // write on this component; nothing lands from a render alone).
   const [summary, setSummary] = useState<AddStatementAsHistoryResult | null>(null);
-  // Which offers have already been resolved (confirmed OR skipped) this landing — drives
-  // `nextBulkLandingOffer` to walk the sequence exactly once each, never re-showing one.
   const [shownOffers, setShownOffers] = useState<ReadonlySet<BulkLandingOffer>>(new Set());
+  const currentOffer = summary !== null ? nextBulkLandingOffer(summary, shownOffers) : null;
 
-  // ACCOUNTS_MODEL.md §3 step 1/5 — "Which account is this?" step, shown BEFORE the existing
-  // summary/CTA card, confirm-gated (owner spec). `existingAccounts` reads live so a freshly-created
-  // account from a PRIOR statement in the same session already appears in the picker.
   const existingAccounts = useAppStore((s) => s.accounts ?? []);
   const detection = useMemo(() => detectAccountName(candidates), [candidates]);
   const [accountConfirmed, setAccountConfirmed] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string>(NEW_ACCOUNT_OPTION);
   const [newAccountName, setNewAccountName] = useState(detection.name ?? '');
   const [newAccountKind, setNewAccountKind] = useState<AccountKind>(detection.kind);
-  // The resolved accountId this landing will pass to `addStatementAsHistory` — created lazily on
-  // confirm (a new account is only ever created once the user actually commits to this step, never
-  // speculatively on every render/keystroke).
   const [resolvedAccountId, setResolvedAccountId] = useState<string | null>(null);
 
-  const currentOffer = summary !== null ? nextBulkLandingOffer(summary, shownOffers) : null;
+  const toggle = useCallback((id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
-  function resolveOffer(offer: BulkLandingOffer) {
-    if (summary === null) return;
-    const next = new Set(shownOffers);
-    if (offer !== null) next.add(offer);
-    setShownOffers(next);
-    // Once the walk is exhausted, route onward — mirrors ReviewScreen.onAdd's own
-    // "nothing left to offer -> go home" fallthrough.
-    if (nextBulkLandingOffer(summary, next) === null) {
-      nav.go('today');
-    }
+  const openEditor = useCallback((candidate: CandidateMoneyItem) => {
+    setEditing(candidate);
+    setEditMerchant(candidate.merchant);
+    setEditAmount(String(candidate.amount));
+    setEditDate(candidate.date ?? '');
+    setEditKind(candidate.kind);
+  }, []);
+
+  function saveEdit() {
+    if (editing === null) return;
+    const parsed = Number(editAmount.replace(',', '.'));
+    if (!Number.isFinite(parsed) || editMerchant.trim().length === 0) return;
+    const nextCandidate: CandidateMoneyItem = {
+      ...editing,
+      merchant: editMerchant.trim(),
+      amount: parsed,
+      kind: editKind,
+      ...(editDate.trim().length > 0 ? { date: editDate.trim() } : {}),
+    };
+    if (editDate.trim().length === 0) delete (nextCandidate as { date?: string }).date;
+    setCandidates((current) =>
+      current.map((candidate) => (candidate.id === editing.id ? nextCandidate : candidate)),
+    );
+    setEditing(null);
   }
 
-  // Confirm the account step: either use the selected existing account, or create a new one from the
-  // name/kind fields (defaulting to the detected name/kind when the user didn't change them). A blank
-  // new-account name falls back to Main (DEFAULT_ACCOUNT_ID) rather than creating an unnamed account —
-  // the default path (no account chosen) must still land in Main per the owner spec.
-  function handleConfirmAccount() {
+  function resolveAccount() {
     if (selectedOption !== NEW_ACCOUNT_OPTION) {
       setResolvedAccountId(selectedOption);
       setAccountConfirmed(true);
       return;
     }
-    const trimmedName = newAccountName.trim();
-    if (trimmedName.length === 0) {
+    const name = newAccountName.trim();
+    if (name.length === 0) {
       setResolvedAccountId(DEFAULT_ACCOUNT_ID);
-      setAccountConfirmed(true);
-      return;
+    } else {
+      const account: Account = addAccount({ name, kind: newAccountKind });
+      setResolvedAccountId(account.id);
     }
-    const account: Account = addAccount({ name: trimmedName, kind: newAccountKind });
-    setResolvedAccountId(account.id);
     setAccountConfirmed(true);
   }
 
-  function handleAddAll() {
-    const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
-    const result = addStatementAsHistory(candidates, closingBalance, accountId);
-    setSummary(result);
-    onAdded();
-    // If neither offer exists, route straight to Today (or to the existing bill/drift/annual
-    // caught-sheet chain, which `addStatementAsHistory` computes for parity but does not surface —
-    // see that function's doc; only income + closing-balance are threaded through per the owner
-    // spec's two named offers).
-    if (nextBulkLandingOffer(result, new Set()) === null) {
-      nav.go('today');
-    }
+  function resolveOffer(offer: BulkLandingOffer) {
+    if (summary === null) return;
+    const next = new Set(shownOffers);
+    next.add(offer);
+    setShownOffers(next);
+    if (nextBulkLandingOffer(summary, next) === null) nav.go('today');
   }
 
-  // ACCOUNTS_MODEL.md §3 step 1/5 — the account-picker step, shown before anything else on a fresh
-  // landing (never re-shown once confirmed, even if the component re-renders for other reasons).
+  function addSelected() {
+    const selected = candidates.filter(
+      (candidate) => selectedIds.has(candidate.id) && !asideIds.has(candidate.id),
+    );
+    if (selected.length === 0) return;
+    const isWholeStatement = selected.length === candidates.length;
+    const result = addStatementAsHistory(
+      selected,
+      isWholeStatement ? closingBalance : undefined,
+      resolvedAccountId ?? DEFAULT_ACCOUNT_ID,
+    );
+    setSummary(result);
+    if (isWholeStatement) onAdded();
+    if (nextBulkLandingOffer(result, new Set()) === null) nav.go('today');
+  }
+
+  function selectReady() {
+    setSelectedIds(
+      new Set(
+        model.rows
+          .filter((row) => row.status === 'ready' && !asideIds.has(row.candidate.id))
+          .map((row) => row.candidate.id),
+      ),
+    );
+    setFilter('ready');
+  }
+
+  function keepCurrentIssuesAside() {
+    const issueIds = model.rows
+      .filter((row) => row.status === 'issue')
+      .map((row) => row.candidate.id);
+    setAsideIds((current) => new Set([...current, ...issueIds]));
+    setSelectedIds((current) => new Set([...current].filter((id) => !issueIds.includes(id))));
+    setFilter('aside');
+  }
+
+  const renderItem = useCallback(
+    ({ item }: { item: StatementReviewRow }) => (
+      <ReviewRow
+        row={item}
+        selected={selectedIds.has(item.candidate.id)}
+        aside={asideIds.has(item.candidate.id)}
+        onToggle={toggle}
+        onEdit={openEditor}
+        theme={t}
+      />
+    ),
+    [asideIds, openEditor, selectedIds, t, toggle],
+  );
+
   if (!accountConfirmed) {
     return (
-      <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-        <Text style={[styles.offerHead, { color: t.ink }]}>Which account is this?</Text>
-        {detection.name !== null ? (
-          <Text style={[styles.accountHint, { color: t.muted }]}>
-            {`Looks like ${detection.name}`}
-          </Text>
-        ) : null}
-
-        {existingAccounts.length > 0 ? (
-          <View style={styles.accountOptionList}>
-            {existingAccounts.map((account) => {
-              const selected = selectedOption === account.id;
-              return (
-                <Pressable
-                  key={account.id}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={account.name}
-                  onPress={() => setSelectedOption(account.id)}
-                  style={({ pressed }) => [
-                    styles.accountOption,
-                    { backgroundColor: selected ? t.calmSoft : t.inset },
-                    pressed ? styles.pressed : undefined,
-                  ]}
-                >
-                  <Text style={[styles.accountOptionLabel, { color: t.ink }]}>{account.name}</Text>
-                </Pressable>
-              );
-            })}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: selectedOption === NEW_ACCOUNT_OPTION }}
-              accessibilityLabel="A new account"
-              onPress={() => setSelectedOption(NEW_ACCOUNT_OPTION)}
-              style={({ pressed }) => [
-                styles.accountOption,
-                {
-                  backgroundColor: selectedOption === NEW_ACCOUNT_OPTION ? t.calmSoft : t.inset,
-                },
-                pressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.accountOptionLabel, { color: t.ink }]}>+ New account</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {selectedOption === NEW_ACCOUNT_OPTION ? (
-          <>
-            <TextInput
-              value={newAccountName}
-              onChangeText={setNewAccountName}
-              placeholder="Name this account"
-              placeholderTextColor={t.muted}
-              style={[
-                styles.accountNameInput,
-                { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink },
-              ]}
-              accessibilityLabel="Account name"
-            />
-            <View style={styles.kindToggleRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: newAccountKind === 'bank' }}
-                accessibilityLabel="Bank account"
-                onPress={() => setNewAccountKind('bank')}
-                style={({ pressed }) => [
-                  styles.kindToggle,
-                  { backgroundColor: newAccountKind === 'bank' ? t.calmSoft : t.inset },
-                  pressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.kindToggleLabel, { color: t.ink }]}>Bank</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: newAccountKind === 'credit-card' }}
-                accessibilityLabel="Credit card"
-                onPress={() => setNewAccountKind('credit-card')}
-                style={({ pressed }) => [
-                  styles.kindToggle,
-                  { backgroundColor: newAccountKind === 'credit-card' ? t.calmSoft : t.inset },
-                  pressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.kindToggleLabel, { color: t.ink }]}>Credit card</Text>
-              </Pressable>
-            </View>
-          </>
-        ) : null}
-
-        <View style={styles.offerRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Confirm account"
-            onPress={handleConfirmAccount}
-            style={({ pressed }) => [
-              styles.offerPrimary,
-              { backgroundColor: t.calm },
-              pressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.offerPrimaryLabel, { color: t.inverse }]}>Continue</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  // Post-import offer sequencer — replaces the landing card once the add has happened AND at
-  // least one offer remains. Each offer is its own calm confirm, "Not now" always skips it.
-  const closingBalanceOffer =
-    currentOffer === 'closing-balance' ? (summary?.closingBalanceOffer ?? null) : null;
-  if (closingBalanceOffer !== null) {
-    const offer = closingBalanceOffer;
-    return (
-      <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-        <Text style={[styles.offerHead, { color: t.ink }]}>{closingBalanceOfferLine(offer)}</Text>
-        {summary?.reconciliation?.status === 'mismatch' ? (
-          <Text style={[styles.reconcileWarn, { color: t.repairInk }]}>
-            {summary.reconciliation.message}
-          </Text>
-        ) : null}
-        <View style={styles.offerRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Use this balance"
-            onPress={() => {
-              // ACCOUNTS_MODEL.md §3 step 4 — sets THIS offer's own account (`offer.accountId`,
-              // stamped by `addStatementAsHistory` to match whichever account the batch's
-              // transactions were tagged with), never the legacy global `currentBalance` scalar. A
-              // second account's import can never clobber a different account's balance this way.
-              // Falls back to DEFAULT_ACCOUNT_ID for a hand-built fixture offer predating this field
-              // (see StatementClosingBalanceOffer's own back-compat doc).
-              setAccountBalance(
-                offer.accountId ?? DEFAULT_ACCOUNT_ID,
-                offer.amountPence / 100,
-                offer.asOfISO,
-                // Provenance for the synced legacy scalar: this figure came off the statement,
-                // so the balance-source caption must say so, not "corrected" or "user-entered".
-                { source: 'statement', confidence: 'statement-derived' },
-              );
-              resolveOffer('closing-balance');
-            }}
-            style={({ pressed }) => [
-              styles.offerPrimary,
-              { backgroundColor: t.calm },
-              pressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.offerPrimaryLabel, { color: t.inverse }]}>Use it</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Not now"
-            onPress={() => resolveOffer('closing-balance')}
-            style={({ pressed }) => [
-              styles.offerSecondary,
-              { borderColor: t.hairline },
-              pressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.offerSecondaryLabel, { color: t.muted }]}>Not now</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  const incomeOffer = currentOffer === 'income' ? (summary?.incomeSignal ?? null) : null;
-  if (incomeOffer !== null) {
-    const signal = incomeOffer;
-    return (
-      <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-        <Text style={[styles.offerHead, { color: t.ink }]}>
-          {`Looks like ${signal.merchant} pays you — set as your pay?`}
-        </Text>
-        <View style={styles.offerRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Check this income"
-            onPress={() => {
-              resolveOffer('income');
-              nav.openSheet('income-caught');
-            }}
-            style={({ pressed }) => [
-              styles.offerPrimary,
-              { backgroundColor: t.calm },
-              pressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.offerPrimaryLabel, { color: t.inverse }]}>Check it</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Not now"
-            onPress={() => resolveOffer('income')}
-            style={({ pressed }) => [
-              styles.offerSecondary,
-              { borderColor: t.hairline },
-              pressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.offerSecondaryLabel, { color: t.muted }]}>Not now</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  // The pre-add preview summary — the exact same pure math `addStatementAsHistory` runs
-  // internally (`buildStatementSummary`), computed here just for the headline before any write
-  // happens, so the pre-add and post-add headlines read byte-identical.
-  const previewSummary: AddStatementAsHistoryResult = buildStatementSummary(candidates);
-
-  // Reconciliation self-check for the PRE-add preview — proves (or honestly flags) that the extracted
-  // rows add up to the statement's own balance/totals BEFORE the user commits (review-before-truth).
-  // Same pure math `addStatementAsHistory` runs internally, so pre-add and post-add agree. Silent when
-  // 'unverified' (the statement didn't print enough to check) — no noise, no false reassurance.
-  const previewReconciliation = reconcileStatement(candidates, statementTotalsFrom(closingBalance));
-
-  // The bulk landing card itself — summary line + preview list + the two CTAs. Hidden once
-  // `summary` is set and there's nothing left to offer (nav.go('today') has already fired by then).
-  return (
-    <>
-      <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-        <Text style={[styles.summary, { color: t.ink }]}>{bulkSummaryLine(previewSummary)}</Text>
-        {previewReconciliation.status === 'ok' ? (
-          <Text style={[styles.reconcileOk, { color: t.positiveInk }]}>
-            ✓ These rows add up to your statement.
-          </Text>
-        ) : previewReconciliation.status === 'mismatch' ? (
-          <Text style={[styles.reconcileWarn, { color: t.repairInk }]}>
-            {previewReconciliation.message}
-          </Text>
-        ) : null}
-        <View style={styles.list}>
-          {candidates.slice(0, 6).map((row) => {
-            const isIn = row.amount >= 0;
-            return (
-              <View key={row.id} style={styles.row}>
-                <View style={[styles.dot, { backgroundColor: isIn ? t.positive : t.calm }]} />
-                <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
-                  {row.merchant}
-                </Text>
-                <Text style={[styles.amount, { color: isIn ? t.positiveInk : t.repairInk }]}>
-                  {formatSignedAmount(row.amount)}
-                </Text>
-              </View>
-            );
-          })}
-          {candidates.length > 6 ? (
-            <Text style={[styles.more, { color: t.muted }]}>
-              {`+ ${candidates.length - 6} more`}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.meloBlock}>
-        <MeloLine mood="calm" text="One tap adds it all. You can still check each one instead." />
-      </View>
-
-      <View style={styles.spacer} />
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add all as history"
-        onPress={handleAddAll}
-        style={({ pressed }) => [
-          styles.primary,
-          { backgroundColor: t.calm },
-          pressed ? styles.pressed : undefined,
+      <View
+        style={[
+          styles.root,
+          {
+            backgroundColor: t.canvas,
+            paddingTop: insets.top + gap.lg,
+            paddingBottom: insets.bottom + gap.lg,
+          },
         ]}
       >
-        <Text style={[styles.primaryLabel, { color: t.inverse }]}>Add all as history</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Review one by one"
-        onPress={() => onReviewOneByOne(resolvedAccountId ?? DEFAULT_ACCOUNT_ID)}
-        style={({ pressed }) => [styles.secondary, pressed ? styles.pressed : undefined]}
+        <View style={styles.accountHeader}>
+          <Pressable onPress={() => nav.go('intake')} hitSlop={12} accessibilityLabel="Back">
+            <Text style={[styles.back, { color: t.ink }]}>←</Text>
+          </Pressable>
+          <Text style={[styles.kicker, { color: t.muted }]}>STATEMENT REVIEW</Text>
+          <View style={styles.headerBalance} />
+        </View>
+        <View style={[styles.accountCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text style={[styles.accountTitle, { color: t.ink }]}>Which account is this?</Text>
+          <Text style={[styles.accountHint, { color: t.muted }]}>
+            Choose once; every accepted row keeps that source.
+          </Text>
+          <View style={styles.accountOptions}>
+            {existingAccounts.map((account) => (
+              <AccountOption
+                key={account.id}
+                account={account}
+                selected={selectedOption === account.id}
+                onPress={() => setSelectedOption(account.id)}
+                theme={t}
+              />
+            ))}
+            <AccountOption
+              account={{ id: NEW_ACCOUNT_OPTION, name: '+ New account' }}
+              selected={selectedOption === NEW_ACCOUNT_OPTION}
+              onPress={() => setSelectedOption(NEW_ACCOUNT_OPTION)}
+              theme={t}
+            />
+          </View>
+          {selectedOption === NEW_ACCOUNT_OPTION ? (
+            <>
+              <TextInput
+                value={newAccountName}
+                onChangeText={setNewAccountName}
+                placeholder="Account name"
+                placeholderTextColor={t.muted}
+                style={[
+                  styles.input,
+                  { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
+                ]}
+              />
+              <View style={styles.kindRow}>
+                {(['bank', 'credit-card'] as const).map((kind) => (
+                  <Pressable
+                    key={kind}
+                    onPress={() => setNewAccountKind(kind)}
+                    style={[
+                      styles.kindButton,
+                      { backgroundColor: newAccountKind === kind ? t.calmSoft : t.inset },
+                    ]}
+                  >
+                    <Text style={{ color: t.ink }}>{kind === 'bank' ? 'Bank' : 'Credit card'}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : null}
+          <Pressable onPress={resolveAccount} style={[styles.primary, { backgroundColor: t.calm }]}>
+            <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+              Continue to {candidates.length.toLocaleString('en-GB')} rows
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  const closingOffer =
+    currentOffer === 'closing-balance' ? summary?.closingBalanceOffer : undefined;
+  const incomeOffer = currentOffer === 'income' ? summary?.incomeSignal : undefined;
+  if (closingOffer !== undefined || incomeOffer !== undefined) {
+    return (
+      <View
+        style={[
+          styles.root,
+          styles.offerRoot,
+          {
+            backgroundColor: t.canvas,
+            paddingTop: insets.top + gap.xl,
+            paddingBottom: insets.bottom + gap.xl,
+          },
+        ]}
       >
-        <Text style={[styles.secondaryLabel, { color: t.muted }]}>Review one by one</Text>
-      </Pressable>
-    </>
+        <View style={[styles.accountCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text style={[styles.accountTitle, { color: t.ink }]}>
+            {closingOffer !== undefined
+              ? closingBalanceOfferLine(closingOffer)
+              : `Looks like ${incomeOffer?.merchant} pays you — set as your pay?`}
+          </Text>
+          <View style={styles.offerActions}>
+            <Pressable
+              onPress={() => {
+                if (closingOffer !== undefined) {
+                  setAccountBalance(
+                    closingOffer.accountId ?? DEFAULT_ACCOUNT_ID,
+                    closingOffer.amountPence / 100,
+                    closingOffer.asOfISO,
+                    { source: 'statement', confidence: 'statement-derived' },
+                  );
+                  resolveOffer('closing-balance');
+                } else {
+                  resolveOffer('income');
+                  nav.openSheet('income-caught');
+                }
+              }}
+              style={[styles.primary, styles.offerButton, { backgroundColor: t.calm }]}
+            >
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+                {closingOffer !== undefined ? 'Use it' : 'Check it'}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                resolveOffer(closingOffer !== undefined ? 'closing-balance' : 'income')
+              }
+              style={styles.secondaryButton}
+            >
+              <Text style={{ color: t.muted }}>Not now</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.root,
+        {
+          backgroundColor: t.canvas,
+          paddingTop: insets.top + gap.sm,
+          paddingBottom: insets.bottom,
+        },
+      ]}
+    >
+      <View style={styles.workspaceHeader}>
+        <View style={styles.titleRow}>
+          <Pressable onPress={() => nav.go('intake')} hitSlop={12} accessibilityLabel="Back">
+            <Text style={[styles.back, { color: t.ink }]}>←</Text>
+          </Pressable>
+          <View style={styles.titleCopy}>
+            <Text style={[styles.workspaceTitle, { color: t.ink }]}>Check this statement</Text>
+            <Text
+              style={[styles.sourceLine, { color: t.muted }]}
+            >{`${candidates[0]?.source.toUpperCase() ?? 'FILE'} · ${shortDateRange(model.dateFrom, model.dateTo)}`}</Text>
+          </View>
+          <Text style={[styles.totalCount, { color: t.ink }]}>
+            {model.counts.total.toLocaleString('en-GB')}
+          </Text>
+        </View>
+        <View style={[styles.summaryBand, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text
+            style={[styles.summaryStat, { color: t.positiveInk }]}
+          >{`${model.counts.ready} ready`}</Text>
+          <Text
+            style={[styles.summaryStat, { color: t.repairInk }]}
+          >{`${model.counts.issues} issues`}</Text>
+          <Text
+            style={[styles.summaryStat, { color: t.muted }]}
+          >{`${model.counts.duplicates} duplicates`}</Text>
+          <Text
+            style={[styles.summaryMoney, { color: t.ink }]}
+          >{`£${model.moneyIn.toFixed(2)} in · £${model.moneyOut.toFixed(2)} out`}</Text>
+        </View>
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search merchant, date, amount or type"
+          placeholderTextColor={t.muted}
+          style={[
+            styles.search,
+            { color: t.ink, backgroundColor: t.inset, borderColor: t.hairline },
+          ]}
+        />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filters}
+        >
+          {FILTERS.map((item) => {
+            const active = filter === item.key;
+            return (
+              <Pressable
+                key={item.key}
+                onPress={() => setFilter(item.key)}
+                style={[styles.filter, { backgroundColor: active ? t.calm : t.inset }]}
+              >
+                <Text style={{ color: active ? t.inverse : t.ink }}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      <FlatList
+        data={rows}
+        keyExtractor={(row) => row.candidate.id}
+        renderItem={renderItem}
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        updateCellsBatchingPeriod={32}
+        windowSize={7}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={rows.length === 0 ? styles.emptyList : undefined}
+        ListEmptyComponent={
+          <Text style={[styles.emptyText, { color: t.muted }]}>Nothing in this view.</Text>
+        }
+      />
+
+      <View style={[styles.footer, { backgroundColor: t.surface, borderTopColor: t.hairline }]}>
+        <View style={styles.batchActions}>
+          <Pressable onPress={selectReady}>
+            <Text style={[styles.batchLabel, { color: t.calm }]}>Accept ready</Text>
+          </Pressable>
+          <Pressable onPress={() => setFilter('issues')}>
+            <Text style={[styles.batchLabel, { color: t.calm }]}>Review issues</Text>
+          </Pressable>
+          <Pressable onPress={keepCurrentIssuesAside}>
+            <Text style={[styles.batchLabel, { color: t.muted }]}>Keep aside</Text>
+          </Pressable>
+        </View>
+        <Pressable
+          disabled={selectedIds.size === 0}
+          onPress={addSelected}
+          style={[styles.primary, { backgroundColor: selectedIds.size > 0 ? t.calm : t.inset }]}
+        >
+          <Text
+            style={[styles.primaryLabel, { color: selectedIds.size > 0 ? t.inverse : t.muted }]}
+          >{`Add ${selectedIds.size.toLocaleString('en-GB')} selected`}</Text>
+        </Pressable>
+      </View>
+
+      <Modal
+        visible={editing !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditing(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.editor, { backgroundColor: t.surface }]}>
+            <Text style={[styles.accountTitle, { color: t.ink }]}>Edit transaction</Text>
+            <TextInput
+              value={editMerchant}
+              onChangeText={setEditMerchant}
+              placeholder="Merchant"
+              placeholderTextColor={t.muted}
+              style={[
+                styles.input,
+                { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
+              ]}
+            />
+            <TextInput
+              value={editAmount}
+              onChangeText={setEditAmount}
+              keyboardType="decimal-pad"
+              placeholder="Amount"
+              placeholderTextColor={t.muted}
+              style={[
+                styles.input,
+                { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
+              ]}
+            />
+            <TextInput
+              value={editDate}
+              onChangeText={setEditDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={t.muted}
+              style={[
+                styles.input,
+                { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
+              ]}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filters}
+            >
+              {KINDS.map((kind) => (
+                <Pressable
+                  key={kind}
+                  onPress={() => setEditKind(kind)}
+                  style={[styles.filter, { backgroundColor: editKind === kind ? t.calm : t.inset }]}
+                >
+                  <Text style={{ color: editKind === kind ? t.inverse : t.ink }}>{kind}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={styles.offerActions}>
+              <Pressable
+                onPress={saveEdit}
+                style={[styles.primary, styles.offerButton, { backgroundColor: t.calm }]}
+              >
+                <Text style={[styles.primaryLabel, { color: t.inverse }]}>Save</Text>
+              </Pressable>
+              <Pressable onPress={() => setEditing(null)} style={styles.secondaryButton}>
+                <Text style={{ color: t.muted }}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function AccountOption({
+  account,
+  selected,
+  onPress,
+  theme: t,
+}: {
+  account: Pick<Account, 'id' | 'name'>;
+  selected: boolean;
+  onPress: () => void;
+  theme: FolioTheme;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={[styles.accountOption, { backgroundColor: selected ? t.calmSoft : t.inset }]}
+    >
+      <Text style={{ color: t.ink }}>{account.name}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  root: { flex: 1 },
+  offerRoot: { justifyContent: 'center', paddingHorizontal: gap.xl },
+  accountHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: gap.xl,
+  },
+  headerBalance: { width: 32 },
+  back: { fontSize: 24, lineHeight: 32 },
+  kicker: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
+  accountCard: {
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    marginTop: gap.xl,
-    padding: gap.lg + gap.xs,
+    margin: gap.xl,
+    padding: gap.xl,
   },
-  summary: {
-    fontFamily: serif.display,
-    fontSize: 17,
-    lineHeight: 22,
+  accountTitle: { fontFamily: serif.display, fontSize: 22, lineHeight: 28 },
+  accountHint: { fontSize: 14, lineHeight: 20, marginTop: gap.sm },
+  accountOptions: { gap: gap.sm, marginTop: gap.lg },
+  accountOption: {
+    borderRadius: radius.lg,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: gap.lg,
   },
-  reconcileOk: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: gap.xs,
+  input: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    fontSize: 15,
+    minHeight: 48,
+    marginTop: gap.md,
+    paddingHorizontal: gap.lg,
   },
-  reconcileWarn: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: gap.xs,
-  },
-  list: {
+  kindRow: { flexDirection: 'row', gap: gap.sm, marginTop: gap.sm },
+  kindButton: { borderRadius: radius.pill, paddingHorizontal: gap.lg, paddingVertical: gap.sm },
+  primary: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 50,
     marginTop: gap.lg,
-    rowGap: gap.sm,
+    paddingHorizontal: gap.xl,
   },
+  primaryLabel: { fontSize: 15, fontWeight: '700' },
+  workspaceHeader: { paddingHorizontal: gap.lg },
+  titleRow: { alignItems: 'center', flexDirection: 'row', gap: gap.md },
+  titleCopy: { flex: 1 },
+  workspaceTitle: { fontFamily: serif.display, fontSize: 22, lineHeight: 27 },
+  sourceLine: { fontSize: 12, marginTop: 2 },
+  totalCount: { fontFamily: serif.display, fontSize: 20, fontVariant: ['tabular-nums'] },
+  summaryBand: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: gap.md,
+    marginTop: gap.sm,
+    padding: gap.md,
+  },
+  summaryStat: { fontSize: 12, fontWeight: '700' },
+  summaryMoney: { fontSize: 12, marginLeft: 'auto' },
+  search: {
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 42,
+    marginTop: gap.sm,
+    paddingHorizontal: gap.lg,
+  },
+  filters: { gap: gap.sm, paddingVertical: gap.sm },
+  filter: { borderRadius: radius.pill, paddingHorizontal: gap.md, paddingVertical: gap.sm },
   row: {
     alignItems: 'center',
-    columnGap: gap.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
+    minHeight: 68,
+    paddingHorizontal: gap.lg,
+    paddingVertical: gap.sm,
   },
-  dot: {
-    borderRadius: radius.pill,
-    height: 6,
-    width: 6,
+  check: {
+    alignItems: 'center',
+    borderRadius: 7,
+    borderWidth: 1,
+    height: 24,
+    justifyContent: 'center',
+    marginRight: gap.md,
+    width: 24,
   },
-  merchant: {
-    flex: 1,
-    fontSize: 13.5,
-  },
+  checkGlyph: { fontSize: 14, fontWeight: '800' },
+  rowCopy: { flex: 1, minWidth: 0 },
+  merchant: { fontSize: 14, fontWeight: '600' },
+  meta: { fontSize: 11.5, marginTop: 3 },
   amount: {
     fontFamily: serif.display,
     fontSize: 14,
     fontVariant: ['tabular-nums'],
-    fontWeight: '500',
+    marginLeft: gap.sm,
   },
-  more: {
-    fontSize: 11.5,
-    marginTop: gap.xxs,
+  editButton: { justifyContent: 'center', minHeight: 44, paddingLeft: gap.md },
+  editLabel: { fontSize: 12, fontWeight: '700' },
+  emptyList: { flexGrow: 1, justifyContent: 'center' },
+  emptyText: { alignSelf: 'center', fontSize: 14 },
+  footer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.lg,
+    paddingTop: gap.sm,
   },
-  meloBlock: {
-    marginTop: gap.lg + gap.xs,
-  },
-  spacer: {
-    flex: 1,
-  },
-  primary: {
+  batchActions: { flexDirection: 'row', justifyContent: 'space-between' },
+  batchLabel: { fontSize: 12.5, fontWeight: '700', paddingVertical: gap.sm },
+  offerActions: { alignItems: 'center', flexDirection: 'row', gap: gap.lg },
+  offerButton: { flex: 1 },
+  secondaryButton: {
     alignItems: 'center',
-    borderRadius: radius.xl,
-    height: 58,
     justifyContent: 'center',
+    minHeight: 50,
     marginTop: gap.lg,
+    paddingHorizontal: gap.lg,
   },
-  primaryLabel: {
-    fontSize: 15.5,
-    fontWeight: '500',
-  },
-  secondary: {
+  modalBackdrop: {
     alignItems: 'center',
-    borderRadius: radius.xl,
-    height: 46,
-    justifyContent: 'center',
-    marginTop: gap.sm,
-  },
-  secondaryLabel: {
-    fontSize: 13,
-  },
-  // Offer confirm card — head line + two-button row (primary confirm / quiet skip).
-  offerHead: {
-    fontFamily: serif.display,
-    fontSize: 16,
-    lineHeight: 21,
-  },
-  offerRow: {
-    columnGap: gap.md,
-    flexDirection: 'row',
-    marginTop: gap.lg,
-  },
-  offerPrimary: {
-    alignItems: 'center',
-    borderRadius: radius.md,
+    backgroundColor: 'rgba(0,0,0,0.45)',
     flex: 1,
-    height: 48,
     justifyContent: 'center',
+    padding: gap.xl,
   },
-  offerPrimaryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  offerSecondary: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    flex: 1,
-    height: 48,
-    justifyContent: 'center',
-  },
-  offerSecondaryLabel: {
-    fontSize: 14,
-  },
-  // Account-picker step (ACCOUNTS_MODEL.md §3 step 1/5) — detected-name hint + option list + new-
-  // account name/kind fields, reusing the offer card's head/row/button styles above.
-  accountHint: {
-    fontSize: 12.5,
-    fontStyle: 'italic',
-    marginTop: gap.xs,
-  },
-  accountOptionList: {
-    marginTop: gap.md,
-    rowGap: gap.sm,
-  },
-  accountOption: {
-    borderRadius: radius.md,
-    paddingHorizontal: gap.md,
-    paddingVertical: gap.sm + gap.xxs,
-  },
-  accountOptionLabel: {
-    fontSize: 13.5,
-    fontWeight: '500',
-  },
-  accountNameInput: {
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    fontSize: 13.5,
-    height: 44,
-    marginTop: gap.md,
-    paddingHorizontal: gap.md,
-  },
-  kindToggleRow: {
-    columnGap: gap.sm,
-    flexDirection: 'row',
-    marginTop: gap.sm,
-  },
-  kindToggle: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    flex: 1,
-    paddingVertical: gap.sm,
-  },
-  kindToggleLabel: {
-    fontSize: 12.5,
-    fontWeight: '500',
-  },
-  pressed: {
-    opacity: 0.6,
-    transform: [{ scale: 0.97 }],
-  },
+  editor: { borderRadius: radius.xl, maxWidth: 520, padding: gap.xl, width: '100%' },
 });

@@ -52,6 +52,7 @@ import { findCaughtIncome, type IncomeCaughtCandidate } from './lib/caughtIncome
 import { findCaughtBills } from './lib/caughtBills';
 import { findCaughtAnnual } from './lib/caughtAnnual';
 import { isOverspentLanding } from './lib/storeRoute';
+import { recentTransactionHorizon } from './lib/transactionHorizon';
 import {
   createPersonalWorkspaceRoot,
   normalisePersonalWorkspaceRoot,
@@ -590,8 +591,8 @@ export type AppState = {
   nextYouNote: string;
   /** Floor £ to hold at the tightest point of the month. Set via Melo. */
   tightPointGoal: number | null;
-  /** Newest first. Capped at `TRANSACTION_CAP` (2000) — see that constant's
-   *  doc for the retention policy and why it's higher than the old 200. */
+  /** Newest first. Sized for 10k+ statement imports and years of activity; see
+   *  `TRANSACTION_CAP` for the last-resort device retention policy. */
   transactions: Transaction[];
   /** Retention-policy honesty counter (DATA_INTELLIGENCE.md phase ④(A)): how
    *  many transactions have ever been silently evicted by the
@@ -952,6 +953,9 @@ export type MeloState = {
   /** Preferred semantic side for the native companion host. `auto` lets the
    * host choose the first safe side; it never bypasses layout safety. */
   preferredPosition?: 'auto' | 'left' | 'right';
+  /** Last user-chosen free companion position, normalized to the safe shell layer (0..1). Raw
+   * device pixels are never persisted, so rotation and different phones preserve the intent. */
+  companionPosition?: Readonly<{ x: number; y: number }> | undefined;
   tone?: MeloTone;
   /** Optional milestone sound preference. Missing means off for every pre-feature install. */
   soundEnabled?: boolean;
@@ -976,19 +980,16 @@ const DEFAULT_MONEY_MODE: MoneyMode = 'survival';
 /** Non-optional fallback for `AppState.bufferAmount` — same widening issue. */
 const DEFAULT_BUFFER_AMOUNT = 100;
 
-/** Retention policy for `transactions` (DATA_INTELLIGENCE.md phase ④(A)).
- *  Raised from the old 200 — 6 months of a moderately active account
- *  (15-20 txns/week) is 400-500 rows, and a bulk statement import can easily
- *  push several times that; 200 silently discarded the majority of any real
- *  backfill with no warning. 2000 gives real headroom for both ordinary daily
- *  use and a multi-year bulk import while still keeping persisted state
- *  bounded. Eviction is always oldest-first (`slice(0, TRANSACTION_CAP)` after
+/** Last-resort retention policy for `transactions` (DATA_INTELLIGENCE.md phase ④(A)).
+ *  Twenty thousand rows keeps a 10k+ statement whole and provides years of active-account history.
+ *  The previous 2,000 limit discarded most large imports even though review showed every row.
+ *  Eviction is always oldest-first (`slice(0, TRANSACTION_CAP)` after
  *  newest-first insertion) and is NEVER silent — see `droppedTransactionCount`
  *  on `AppState`, incremented by exactly how many rows an eviction drops.
  *  Both `addTransaction` and `addTransactionsBatch` funnel through the same
  *  `applyTransactionRetention` helper, so there is one policy with two
  *  entrances, never two competing cap implementations. */
-const TRANSACTION_CAP = 2000;
+const TRANSACTION_CAP = 20_000;
 
 /** Non-optional fallback for `AppState.debts` — same widening issue. Empty,
  *  not the DEFAULTS fixture data, since this is used by `load()`/`migrate()`
@@ -4499,6 +4500,13 @@ export function addStatementAsHistory(
   const stateAfterAdd = getState();
   const overspent = isOverspentLanding(stateAfterAdd);
   const droppedByThisImport = (stateAfterAdd.droppedTransactionCount ?? 0) - droppedBeforeAdd;
+  // Recurring income/bill/annual signals describe current behaviour, not an ancient statement.
+  // Keep the full ledger for history/cycles, but bound the detector working set to two years.
+  const signalTransactions = recentTransactionHorizon(
+    stateAfterAdd.transactions,
+    new Date().toISOString().slice(0, 10),
+    24,
+  );
 
   // Same precedence ordering as ReviewScreen.tsx's onAdd (income > bill > drift > annual, gated off
   // entirely when the landing is overspent) — computed here for parity even though only the income
@@ -4506,20 +4514,20 @@ export function addStatementAsHistory(
   const incomeSignals = overspent
     ? []
     : findCaughtIncome(
-        stateAfterAdd.transactions,
+        signalTransactions,
         stateAfterAdd.incomeSources ?? [],
         stateAfterAdd.dismissedIncomeSignals ?? [],
       );
   if (!overspent && incomeSignals.length === 0) {
     findCaughtBills(
-      stateAfterAdd.transactions,
+      signalTransactions,
       stateAfterAdd.subs.map((s) => s.name),
       stateAfterAdd.dismissedBillSignals ?? [],
     );
   }
   if (!overspent && incomeSignals.length === 0) {
     findCaughtAnnual(
-      stateAfterAdd.transactions,
+      signalTransactions,
       stateAfterAdd.dismissedAnnualSignals ?? [],
       stateAfterAdd.subs.map((s) => s.name),
     );

@@ -25,12 +25,14 @@ import {
   setMeloPrimerSeen,
   setOnboarding,
   setPots,
+  setPartial,
   setReaderCandidates,
   setSubs,
   updateBusinessOperations,
   type BalanceConfidence,
   type EvidenceDocument,
   type Sub,
+  type Transaction,
 } from '../store';
 import fixtureManifestJson from './fixtures.json';
 import globalSurfaceManifestJson from './globalSurfaces.json';
@@ -645,6 +647,99 @@ function configureEmptyBusiness(): void {
   setMeloPrimerSeen(true);
 }
 
+/** 10k+ deterministic device benchmark state. Capture builds skip persistence entirely, so this
+ * exercises real screen projections and list virtualization without touching owner data. */
+function configureScaleFixture(): void {
+  resetToEmpty({ onboardingDone: true });
+  setOnboarding({ done: true, name: 'Scale QA', payday: 28, monthlyIncome: 2_800 });
+  setCurrentBalance({
+    amount: 3_250,
+    source: 'corrected',
+    confidence: 'corrected',
+  });
+  setIncomeSources([
+    {
+      id: 'scale-income',
+      label: 'Payday',
+      cadence: 'monthly',
+      dayOfMonth: 28,
+      amount: 2_800,
+      source: 'onboarding',
+    },
+  ]);
+
+  const anchor = Date.parse('2026-08-18T12:00:00.000Z');
+  const transactions: Transaction[] = Array.from({ length: 10_001 }, (_, index) => {
+    const when = new Date(anchor - index * 10 * 60 * 60 * 1000).toISOString();
+    const income = index % 31 === 0;
+    return {
+      id: `scale-transaction-${index}`,
+      when,
+      merchant: income ? `Employer ${index % 3}` : `Merchant ${index % 541}`,
+      amount: income ? 1_800 + (index % 4) : -((index % 180) + 1) - 0.25,
+      category: income ? 'income' : 'other',
+      source: 'manual',
+    };
+  });
+  const candidates: CandidateMoneyItem[] = transactions.map((transaction, index) => ({
+    id: `scale-candidate-${index}`,
+    source: 'pdf',
+    kind:
+      index % 31 === 0
+        ? 'income'
+        : index % 37 === 0
+          ? 'transfer'
+          : index % 41 === 0
+            ? 'unknown'
+            : index % 17 === 0
+              ? 'subscription'
+              : 'spend',
+    merchant: transaction.merchant,
+    amount: transaction.amount,
+    date: transaction.when.slice(0, 10),
+    confidence: index % 29 === 0 ? 'low' : index % 7 === 0 ? 'medium' : 'high',
+  }));
+  setPartial({
+    transactions,
+    subs: Array.from({ length: 24 }, (_, index) => ({
+      name: `Subscription ${index}`,
+      cost: 2.99 + index,
+      nextRenewalDaysAway: index % 31,
+      nextRenewalISO: `2026-09-${String((index % 28) + 1).padStart(2, '0')}`,
+      lastUsedDaysAgo: index % 60,
+      usesPerMonth: index % 20,
+    })),
+    debts: Array.from({ length: 8 }, (_, index) => ({
+      id: `scale-debt-${index}`,
+      name: `Debt ${index}`,
+      kind: index % 2 === 0 ? ('card' as const) : ('loan' as const),
+      balance: 1_000 + index * 350,
+      apr: 5 + index,
+      minPayment: 40 + index * 5,
+      dueDom: (index % 28) + 1,
+      addedAt: `2025-01-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`,
+    })),
+    pots: Array.from({ length: 12 }, (_, index) => ({
+      id: `scale-pot-${index}`,
+      name: `Pot ${index}`,
+      saved: index * 75,
+      goal: 1_000 + index * 250,
+      perWeek: 5 + index,
+      accent: index === 0,
+      cadence: { kind: 'after-payday' as const },
+    })),
+    calendarEvents: Array.from({ length: 120 }, (_, index) => ({
+      id: `scale-event-${index}`,
+      date: new Date(Date.UTC(2026, 7, 1 + index)).toISOString().slice(0, 10),
+      kind: index % 5 === 0 ? ('in' as const) : ('out' as const),
+      title: `Calendar ${index}`,
+      amount: index % 5 === 0 ? 500 : -(10 + index),
+    })),
+  });
+  setReaderCandidates(candidates);
+  setMeloPrimerSeen(true);
+}
+
 /** Applies one deterministic state through real store authorities. Must run before persistence is
  *  started; app/index.tsx deliberately skips persistence entirely in capture mode. */
 export function activateParityHarness(config: ParityHarnessConfig): void {
@@ -670,6 +765,10 @@ export function activateParityHarness(config: ParityHarnessConfig): void {
   }
   if (config.fixture === 'first-run') {
     resetToEmpty({ onboardingDone: false });
+    return;
+  }
+  if (config.fixture === 'scale-10001') {
+    configureScaleFixture();
     return;
   }
 

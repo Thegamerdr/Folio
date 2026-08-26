@@ -317,6 +317,20 @@ export function ImageSuccessScreen({
   // populated / offline — the real preview. offline ≡ populated (the read already happened upstream).
   const foundLabel = `${image.items.length} thing${image.items.length === 1 ? '' : 's'} found`;
 
+  // Keep the large statement out of this screen's ScrollView. Its FlatList owns vertical scrolling.
+  if (isBulk) {
+    return (
+      <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+        <BulkStatementLanding
+          nav={nav}
+          candidates={rawCandidates}
+          {...(closingBalance !== undefined ? { closingBalance } : {})}
+          onAdded={() => clearReaderCandidates()}
+        />
+      </Animated.View>
+    );
+  }
+
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView

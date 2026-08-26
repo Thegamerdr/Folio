@@ -237,4 +237,15 @@ describe('visual parity fixture harness', () => {
     expect(state.business?.entity).toBeNull();
     expect(state.accounts).toEqual([]);
   });
+
+  it('builds the isolated 10k+ physical-device scale fixture without truncating review or history', () => {
+    const state = activate('scale-10001');
+    expect(state.transactions).toHaveLength(10_001);
+    expect(state.readerCandidates).toHaveLength(10_001);
+    expect(state.subs).toHaveLength(24);
+    expect(state.debts).toHaveLength(8);
+    expect(state.pots).toHaveLength(12);
+    expect(state.calendarEvents).toHaveLength(120);
+    expect(state.droppedTransactionCount).toBe(0);
+  });
 });
