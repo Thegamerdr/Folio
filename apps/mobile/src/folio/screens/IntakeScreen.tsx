@@ -358,8 +358,8 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     filename: string,
     successScreen: ScreenId,
     sourceEvidenceId: string,
-    extraction?: ExtractedText,
     attempt: PdfImportAttempt,
+    extraction?: ExtractedText,
   ): boolean {
     const local = parseLocalDocumentCandidates({
       text,
@@ -512,8 +512,8 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           src.filename,
           'pdf-success',
           sourceEvidenceId,
-          result.extraction,
           attempt,
+          result.extraction,
         )
       ) {
         return;
@@ -564,8 +564,8 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         result.source.filename,
         'image-success',
         sourceEvidenceId,
-        result.extraction,
         attempt,
+        result.extraction,
       )
     ) {
       return;
