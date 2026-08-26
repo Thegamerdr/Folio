@@ -347,7 +347,10 @@ export function applyParityRuntimeControl(
           ? null
           : prior.globalSurface;
 
-  configureCaptureReaderResult(screen);
+  // The scale fixture owns a deliberately large staged reader result. Runtime navigation must not
+  // replace it with the ordinary three-row capture fixture before the physical-device review can
+  // exercise the real 10k+ virtualized workspace.
+  if (baked.fixture !== 'scale-10001') configureCaptureReaderResult(screen);
 
   parityRuntimeSequence += 1;
   parityRuntimeControl = {
