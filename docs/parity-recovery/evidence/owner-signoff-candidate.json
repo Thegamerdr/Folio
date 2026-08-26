@@ -4,25 +4,26 @@
   "source": {
     "crosswalk": "docs/parity-recovery/registries/parity-crosswalk.json",
     "batchLedgers": [
-      "docs/parity-recovery/evidence/comparisons/2de19e5/batch-ledger.json",
-      "docs/parity-recovery/evidence/comparisons/d90bb19/batch-ledger.json"
+      "docs/parity-recovery/evidence/comparisons/c2c1d1c/batch-ledger.json"
     ]
   },
   "evidenceSummary": {
     "shippingSurfaces": 192,
-    "surfacesWithDirectEvidence": 141,
-    "uniqueMeasuredPairs": 118,
-    "measuredOutlierPairs": 71,
-    "measuredOutlierSurfaces": 38,
-    "measuredCleanPairs": 47,
+    "surfacesWithDirectEvidence": 150,
+    "uniqueMeasuredPairs": 136,
+    "measuredOutlierPairs": 86,
+    "measuredOutlierSurfaces": 45,
+    "measuredCleanPairs": 50,
     "outlierSurfacesByKind": {
+      "global-state": 7,
       "screen": 19,
-      "sheet": 19
+      "sheet": 18,
+      "stack-route": 1
     },
     "outlierSurfacesByClassification": {
       "family-owner-route-divergence": 3,
-      "interaction-kind-divergence": 1,
-      "same-owner-content-geometry-or-raster-drift": 34
+      "interaction-kind-divergence": 9,
+      "same-owner-content-geometry-or-raster-drift": 33
     }
   },
   "signoffPolicy": {
@@ -35,6 +36,415 @@
     ]
   },
   "surfaces": [
+    {
+      "stableId": "global.app-lock-gate",
+      "kind": "global-state",
+      "routeKey": "global:app-lock-gate",
+      "workspace": "global",
+      "designOwners": [
+        {
+          "stableId": "screen:applock",
+          "kind": "screen",
+          "routeKey": "applock",
+          "sourceReference": "src/components/folio/screens/ScreenAppLock.tsx#ScreenAppLock",
+          "keyStates": [],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping global-state is owned by pinned screen evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 24.4671,
+            "rmsRgbDelta": 59.9796,
+            "materialChangedPixelFraction": 0.476929
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/global.app-lock-gate/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/global.app-lock-gate/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.app-lock-gate/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.app-lock-gate/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 20.7915,
+            "rmsRgbDelta": 50.9495,
+            "materialChangedPixelFraction": 0.477669
+          },
+          "reasons": [
+            "mae",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/global.app-lock-gate/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/global.app-lock-gate/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.app-lock-gate/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.app-lock-gate/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "global.boot-splash",
+      "kind": "global-state",
+      "routeKey": "global:boot-splash",
+      "workspace": "global",
+      "designOwners": [
+        {
+          "stableId": "overlay:splash",
+          "kind": "global",
+          "routeKey": null,
+          "sourceReference": "src/components/folio/shell/SplashOverlay.tsx#SplashOverlay",
+          "keyStates": [],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping global-state is owned by pinned global evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 37.6127,
+            "rmsRgbDelta": 76.3078,
+            "materialChangedPixelFraction": 0.399559
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/global.boot-splash/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/global.boot-splash/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.boot-splash/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.boot-splash/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 32.5394,
+            "rmsRgbDelta": 69.4545,
+            "materialChangedPixelFraction": 0.405154
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/global.boot-splash/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/global.boot-splash/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.boot-splash/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.boot-splash/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "global.persistence-save-notice",
+      "kind": "global-state",
+      "routeKey": "global:persistence-save-notice",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "state-strip:persistence-degraded",
+          "kind": "standardized-state",
+          "routeKey": "persistence-degraded",
+          "sourceReference": "src/components/folio/shell/StateStrip.tsx#StateStrip",
+          "keyStates": [
+            "persistence-degraded"
+          ],
+          "resolution": "exact-owner-registry",
+          "evidence": "The pinned StateStrip persistence-degraded contract is the direct Lovable visual authority for failed local writes."
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping global-state is owned by pinned standardized-state evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 17.6228,
+            "rmsRgbDelta": 46.0799,
+            "materialChangedPixelFraction": 0.37943
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/global.persistence-save-notice/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/global.persistence-save-notice/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.persistence-save-notice/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.persistence-save-notice/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 16.7791,
+            "rmsRgbDelta": 45.4504,
+            "materialChangedPixelFraction": 0.382972
+          },
+          "reasons": [
+            "mae"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/global.persistence-save-notice/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/global.persistence-save-notice/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.persistence-save-notice/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.persistence-save-notice/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "global.root-error-boundary",
+      "kind": "global-state",
+      "routeKey": "global:root-error",
+      "workspace": "global",
+      "designOwners": [
+        {
+          "stableId": "overlay:screen-error",
+          "kind": "global",
+          "routeKey": null,
+          "sourceReference": "src/components/folio/shell/ScreenErrorBoundary.tsx#ScreenErrorBoundary",
+          "keyStates": [
+            "caught-error",
+            "retry",
+            "jump-to-tab-root"
+          ],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping global-state is owned by pinned global evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 205.2181,
+            "rmsRgbDelta": 206.0546,
+            "materialChangedPixelFraction": 0.999979
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/global.root-error-boundary/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/global.root-error-boundary/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.root-error-boundary/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.root-error-boundary/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 11.5519,
+            "rmsRgbDelta": 22.2132,
+            "materialChangedPixelFraction": 1
+          },
+          "reasons": [
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/global.root-error-boundary/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/global.root-error-boundary/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.root-error-boundary/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.root-error-boundary/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "global.screen-error-boundary",
+      "kind": "global-state",
+      "routeKey": "global:screen-error",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "overlay:screen-error",
+          "kind": "global",
+          "routeKey": null,
+          "sourceReference": "src/components/folio/shell/ScreenErrorBoundary.tsx#ScreenErrorBoundary",
+          "keyStates": [
+            "caught-error",
+            "retry",
+            "jump-to-tab-root"
+          ],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping global-state is owned by pinned global evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 18.7279,
+            "rmsRgbDelta": 54.9072,
+            "materialChangedPixelFraction": 0.227382
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/global.screen-error-boundary/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/global.screen-error-boundary/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.screen-error-boundary/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.screen-error-boundary/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "global.toast",
+      "kind": "global-state",
+      "routeKey": "global:toast",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "overlay:toast",
+          "kind": "global-overlay",
+          "routeKey": "toast",
+          "sourceReference": "src/routes/__root.tsx#Toaster",
+          "keyStates": [
+            "visible",
+            "queued",
+            "expired"
+          ],
+          "resolution": "exact-owner-registry",
+          "evidence": "The pinned application root mounts the global Sonner Toaster used by non-undo confirmations."
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping global-state is owned by pinned global-overlay evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 25.6344,
+            "rmsRgbDelta": 67.0687,
+            "materialChangedPixelFraction": 0.304473
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/global.toast/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/global.toast/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.toast/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.toast/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 24.9657,
+            "rmsRgbDelta": 64.1273,
+            "materialChangedPixelFraction": 0.295183
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/global.toast/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/global.toast/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.toast/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.toast/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "global.undo-toast",
+      "kind": "global-state",
+      "routeKey": "global:undo-toast",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "interaction:undo-toast",
+          "kind": "global-interaction",
+          "routeKey": "undo-toast",
+          "sourceReference": "src/lib/undo.ts#undoToast",
+          "keyStates": [
+            "visible",
+            "undo-action",
+            "expiry"
+          ],
+          "resolution": "exact-owner-registry",
+          "evidence": "The pinned undoToast helper owns the global Sonner title, description, Undo action and timeout contract."
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping global-state is owned by pinned global-interaction evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 30.2851,
+            "rmsRgbDelta": 74.0936,
+            "materialChangedPixelFraction": 0.302596
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/global.undo-toast/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/global.undo-toast/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.undo-toast/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/global.undo-toast/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 30.2726,
+            "rmsRgbDelta": 72.9694,
+            "materialChangedPixelFraction": 0.301088
+          },
+          "reasons": [
+            "mae",
+            "rms"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/global.undo-toast/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/global.undo-toast/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.undo-toast/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/global.undo-toast/absolute-difference.png"
+        }
+      ]
+    },
     {
       "stableId": "screen.account",
       "kind": "screen",
@@ -61,35 +471,35 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 26.6613,
-            "rmsRgbDelta": 65.6002,
-            "materialChangedPixelFraction": 0.400998
+            "meanAbsoluteRgbDelta": 24.9842,
+            "rmsRgbDelta": 62.5658,
+            "materialChangedPixelFraction": 0.402367
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/account/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/account/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/account/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/account/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/account/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/account/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/account/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 24.9809,
-            "rmsRgbDelta": 64.2808,
-            "materialChangedPixelFraction": 0.374921
+            "meanAbsoluteRgbDelta": 23.2095,
+            "rmsRgbDelta": 60.9265,
+            "materialChangedPixelFraction": 0.376486
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/account/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/account/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/account/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/account/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/account/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/account/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/account/absolute-difference.png"
         }
       ]
     },
@@ -134,9 +544,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/calendar/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/calendar/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/calendar/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/calendar/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/calendar/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -150,9 +560,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/calendar/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/calendar/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/calendar/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/calendar/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/calendar/absolute-difference.png"
         }
       ]
     },
@@ -184,35 +594,35 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 25.0806,
-            "rmsRgbDelta": 61.2624,
-            "materialChangedPixelFraction": 0.363104
+            "meanAbsoluteRgbDelta": 25.0808,
+            "rmsRgbDelta": 61.2626,
+            "materialChangedPixelFraction": 0.363105
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/image-fallback/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/image-fallback/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/image-fallback/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/image-fallback/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/image-fallback/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/image-fallback/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/image-fallback/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 21.5161,
-            "rmsRgbDelta": 55.0911,
-            "materialChangedPixelFraction": 0.360906
+            "meanAbsoluteRgbDelta": 21.5163,
+            "rmsRgbDelta": 55.0915,
+            "materialChangedPixelFraction": 0.360907
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/image-fallback/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/image-fallback/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/image-fallback/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/image-fallback/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/image-fallback/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/image-fallback/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/image-fallback/absolute-difference.png"
         }
       ]
     },
@@ -244,35 +654,35 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 21.6351,
-            "rmsRgbDelta": 58.961,
-            "materialChangedPixelFraction": 0.164131
+            "meanAbsoluteRgbDelta": 21.6344,
+            "rmsRgbDelta": 58.96,
+            "materialChangedPixelFraction": 0.164133
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/insights/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/insights/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/insights/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/insights/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/insights/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/insights/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/insights/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 18.9958,
-            "rmsRgbDelta": 52.9349,
-            "materialChangedPixelFraction": 0.1643
+            "meanAbsoluteRgbDelta": 18.9834,
+            "rmsRgbDelta": 52.9141,
+            "materialChangedPixelFraction": 0.164266
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/insights/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/insights/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/insights/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/insights/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/insights/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/insights/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/insights/absolute-difference.png"
         }
       ]
     },
@@ -314,9 +724,9 @@
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/paste-success/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/paste-success/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/paste-success/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/paste-success/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/paste-success/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/paste-success/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/paste-success/absolute-difference.png"
         }
       ]
     },
@@ -356,9 +766,9 @@
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/paywall/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/paywall/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/paywall/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/paywall/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/paywall/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/paywall/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/paywall/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -372,9 +782,9 @@
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/paywall/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/paywall/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/paywall/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/paywall/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/paywall/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/paywall/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/paywall/absolute-difference.png"
         }
       ]
     },
@@ -406,34 +816,34 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 21.6278,
-            "rmsRgbDelta": 55.234,
-            "materialChangedPixelFraction": 0.396394
+            "meanAbsoluteRgbDelta": 21.628,
+            "rmsRgbDelta": 55.2345,
+            "materialChangedPixelFraction": 0.396395
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/pdf-fallback/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/pdf-fallback/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/pdf-fallback/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/pdf-fallback/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/pdf-fallback/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/pdf-fallback/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/pdf-fallback/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 20.0895,
-            "rmsRgbDelta": 51.2937,
-            "materialChangedPixelFraction": 0.395476
+            "meanAbsoluteRgbDelta": 20.0893,
+            "rmsRgbDelta": 51.2931,
+            "materialChangedPixelFraction": 0.395472
           },
           "reasons": [
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/pdf-fallback/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/pdf-fallback/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/pdf-fallback/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/pdf-fallback/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/pdf-fallback/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/pdf-fallback/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/pdf-fallback/absolute-difference.png"
         }
       ]
     },
@@ -466,9 +876,9 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 31.2557,
-            "rmsRgbDelta": 66.7419,
-            "materialChangedPixelFraction": 0.612309
+            "meanAbsoluteRgbDelta": 29.3433,
+            "rmsRgbDelta": 63.5045,
+            "materialChangedPixelFraction": 0.611755
           },
           "reasons": [
             "mae",
@@ -476,17 +886,17 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/plans/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/plans/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/plans/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/plans/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/plans/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/plans/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/plans/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 29.742,
-            "rmsRgbDelta": 66.1922,
-            "materialChangedPixelFraction": 0.608054
+            "meanAbsoluteRgbDelta": 27.6755,
+            "rmsRgbDelta": 62.5773,
+            "materialChangedPixelFraction": 0.606417
           },
           "reasons": [
             "mae",
@@ -494,9 +904,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/plans/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/plans/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/plans/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/plans/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/plans/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/plans/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/plans/absolute-difference.png"
         }
       ]
     },
@@ -532,33 +942,33 @@
           "metrics": {
             "meanAbsoluteRgbDelta": 25.2346,
             "rmsRgbDelta": 63.0562,
-            "materialChangedPixelFraction": 0.372392
+            "materialChangedPixelFraction": 0.372391
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/pots/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/pots/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/pots/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/pots/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/pots/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/pots/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/pots/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 24.7346,
-            "rmsRgbDelta": 58.7192,
-            "materialChangedPixelFraction": 0.369514
+            "meanAbsoluteRgbDelta": 24.7347,
+            "rmsRgbDelta": 58.7193,
+            "materialChangedPixelFraction": 0.369516
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/pots/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/pots/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/pots/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/pots/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/pots/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/pots/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/pots/absolute-difference.png"
         }
       ]
     },
@@ -590,35 +1000,35 @@
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 26.5772,
-            "rmsRgbDelta": 66.5295,
-            "materialChangedPixelFraction": 0.290727
+            "meanAbsoluteRgbDelta": 24.745,
+            "rmsRgbDelta": 63.1665,
+            "materialChangedPixelFraction": 0.291218
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/privacy/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/privacy/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/privacy/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/privacy/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/privacy/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/privacy/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/privacy/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 25.9909,
-            "rmsRgbDelta": 65.7456,
-            "materialChangedPixelFraction": 0.285915
+            "meanAbsoluteRgbDelta": 24.2425,
+            "rmsRgbDelta": 62.5891,
+            "materialChangedPixelFraction": 0.287487
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/privacy/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/privacy/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/privacy/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/privacy/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/privacy/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/privacy/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/privacy/absolute-difference.png"
         }
       ]
     },
@@ -649,8 +1059,8 @@
           "theme": "light",
           "metrics": {
             "meanAbsoluteRgbDelta": 28.2458,
-            "rmsRgbDelta": 62.5727,
-            "materialChangedPixelFraction": 0.574182
+            "rmsRgbDelta": 62.573,
+            "materialChangedPixelFraction": 0.574187
           },
           "reasons": [
             "mae",
@@ -658,17 +1068,17 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/recovery/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/recovery/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/recovery/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/recovery/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/recovery/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/recovery/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/recovery/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
             "meanAbsoluteRgbDelta": 26.3336,
-            "rmsRgbDelta": 57.3931,
-            "materialChangedPixelFraction": 0.572746
+            "rmsRgbDelta": 57.3934,
+            "materialChangedPixelFraction": 0.572748
           },
           "reasons": [
             "mae",
@@ -676,9 +1086,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/recovery/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/recovery/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/recovery/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/recovery/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/recovery/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/recovery/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/recovery/absolute-difference.png"
         }
       ]
     },
@@ -709,33 +1119,33 @@
           "theme": "light",
           "metrics": {
             "meanAbsoluteRgbDelta": 24.4448,
-            "rmsRgbDelta": 59.5692,
-            "materialChangedPixelFraction": 0.413656
+            "rmsRgbDelta": 59.5691,
+            "materialChangedPixelFraction": 0.413658
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/ritual/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/ritual/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/ritual/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/ritual/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/ritual/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/ritual/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/ritual/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 20.1293,
+            "meanAbsoluteRgbDelta": 20.1292,
             "rmsRgbDelta": 51.1225,
-            "materialChangedPixelFraction": 0.405825
+            "materialChangedPixelFraction": 0.405821
           },
           "reasons": [
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/ritual/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/ritual/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/ritual/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/ritual/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/ritual/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/ritual/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/ritual/absolute-difference.png"
         }
       ]
     },
@@ -776,9 +1186,9 @@
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/subs/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/subs/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/subs/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/subs/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/subs/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/subs/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/subs/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -792,9 +1202,9 @@
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/subs/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/subs/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/subs/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/subs/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/subs/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/subs/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/subs/absolute-difference.png"
         }
       ]
     },
@@ -828,35 +1238,35 @@
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 22.1209,
-            "rmsRgbDelta": 58.4252,
-            "materialChangedPixelFraction": 0.331406
+            "meanAbsoluteRgbDelta": 20.6139,
+            "rmsRgbDelta": 55.2115,
+            "materialChangedPixelFraction": 0.333774
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/timeline/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/timeline/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/timeline/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/timeline/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/timeline/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/timeline/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/timeline/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 21.0071,
-            "rmsRgbDelta": 57.2462,
-            "materialChangedPixelFraction": 0.332015
+            "meanAbsoluteRgbDelta": 19.5032,
+            "rmsRgbDelta": 54.0794,
+            "materialChangedPixelFraction": 0.33483
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/timeline/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/timeline/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/timeline/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/timeline/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/timeline/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/timeline/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/timeline/absolute-difference.png"
         }
       ]
     },
@@ -886,9 +1296,9 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 25.1132,
-            "rmsRgbDelta": 60.0278,
-            "materialChangedPixelFraction": 0.492904
+            "meanAbsoluteRgbDelta": 23.7032,
+            "rmsRgbDelta": 57.2245,
+            "materialChangedPixelFraction": 0.494443
           },
           "reasons": [
             "mae",
@@ -896,17 +1306,17 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today-after/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/today-after/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-after/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-after/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/today-after/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/today-after/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/today-after/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 22.5279,
-            "rmsRgbDelta": 59.8753,
-            "materialChangedPixelFraction": 0.468581
+            "meanAbsoluteRgbDelta": 21.1238,
+            "rmsRgbDelta": 56.9907,
+            "materialChangedPixelFraction": 0.470112
           },
           "reasons": [
             "mae",
@@ -914,9 +1324,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today-after/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/today-after/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-after/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-after/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/today-after/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/today-after/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/today-after/absolute-difference.png"
         }
       ]
     },
@@ -955,9 +1365,9 @@
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today-mode/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/today-mode/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-mode/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-mode/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/today-mode/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/today-mode/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/today-mode/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -971,9 +1381,9 @@
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today-mode/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/today-mode/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-mode/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-mode/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/today-mode/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/today-mode/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/today-mode/absolute-difference.png"
         }
       ]
     },
@@ -1012,9 +1422,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today-stability/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/today-stability/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-stability/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/today-stability/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/today-stability/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/today-stability/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/today-stability/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -1029,9 +1439,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today-stability/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/today-stability/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-stability/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/today-stability/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/today-stability/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/today-stability/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/today-stability/absolute-difference.png"
         }
       ]
     },
@@ -1063,9 +1473,9 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 22.1002,
-            "rmsRgbDelta": 55.7013,
-            "materialChangedPixelFraction": 0.49022
+            "meanAbsoluteRgbDelta": 20.5967,
+            "rmsRgbDelta": 52.441,
+            "materialChangedPixelFraction": 0.493053
           },
           "reasons": [
             "mae",
@@ -1073,17 +1483,17 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/visualizer/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/visualizer/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/visualizer/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/visualizer/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/visualizer/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/visualizer/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/visualizer/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 21.7521,
-            "rmsRgbDelta": 57.1735,
-            "materialChangedPixelFraction": 0.486506
+            "meanAbsoluteRgbDelta": 20.2449,
+            "rmsRgbDelta": 53.8853,
+            "materialChangedPixelFraction": 0.48887
           },
           "reasons": [
             "mae",
@@ -1091,9 +1501,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/visualizer/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/visualizer/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/visualizer/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/visualizer/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/visualizer/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/visualizer/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/visualizer/absolute-difference.png"
         }
       ]
     },
@@ -1123,9 +1533,9 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 26.9264,
-            "rmsRgbDelta": 65.1132,
-            "materialChangedPixelFraction": 0.455655
+            "meanAbsoluteRgbDelta": 24.9913,
+            "rmsRgbDelta": 61.6398,
+            "materialChangedPixelFraction": 0.456232
           },
           "reasons": [
             "mae",
@@ -1133,17 +1543,17 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/whatif/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/whatif/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/whatif/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/whatif/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/whatif/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/whatif/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/whatif/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 24.7485,
-            "rmsRgbDelta": 63.7032,
-            "materialChangedPixelFraction": 0.458358
+            "meanAbsoluteRgbDelta": 22.7376,
+            "rmsRgbDelta": 59.8973,
+            "materialChangedPixelFraction": 0.457861
           },
           "reasons": [
             "mae",
@@ -1151,9 +1561,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/whatif/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/whatif/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/whatif/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/whatif/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/whatif/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/whatif/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/whatif/absolute-difference.png"
         }
       ]
     },
@@ -1183,58 +1593,36 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 21.061,
-            "rmsRgbDelta": 44.7551,
-            "materialChangedPixelFraction": 0.406808
-          },
-          "reasons": [
-            "mae"
-          ],
-          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/add-plan/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/add-plan/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/add-plan/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/add-plan/absolute-difference.png"
-        }
-      ]
-    },
-    {
-      "stableId": "sheet.afford-check",
-      "kind": "sheet",
-      "routeKey": "afford-check",
-      "workspace": "personal",
-      "designOwners": [
-        {
-          "stableId": "sheet:afford-check",
-          "kind": "sheet",
-          "routeKey": "afford-check",
-          "sourceReference": "src/components/folio/sheets/SheetAffordCheck.tsx#SheetAffordCheck",
-          "keyStates": [],
-          "resolution": "exact-route-key"
-        }
-      ],
-      "classification": {
-        "code": "same-owner-content-geometry-or-raster-drift",
-        "explanation": "Shipping surface and pinned design owner share an identity; the artifacts require owner review for content, geometry, material, typography, or platform raster differences."
-      },
-      "status": "pending-owner-signoff",
-      "ownerDecision": null,
-      "comparisons": [
-        {
-          "fixture": "confirmed-safe",
-          "theme": "light",
-          "metrics": {
-            "meanAbsoluteRgbDelta": 20.2424,
-            "rmsRgbDelta": 53.7796,
-            "materialChangedPixelFraction": 0.219205
+            "meanAbsoluteRgbDelta": 27.2334,
+            "rmsRgbDelta": 52.0711,
+            "materialChangedPixelFraction": 0.463741
           },
           "reasons": [
             "mae",
-            "rms"
+            "rms",
+            "material-changed-pixels"
           ],
-          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/afford-check/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/afford-check/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/afford-check/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/afford-check/absolute-difference.png"
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/add-plan/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/add-plan/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/add-plan/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/add-plan/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 22.3676,
+            "rmsRgbDelta": 46.6837,
+            "materialChangedPixelFraction": 0.460439
+          },
+          "reasons": [
+            "mae",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/add-plan/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/add-plan/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/add-plan/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/add-plan/absolute-difference.png"
         }
       ]
     },
@@ -1264,9 +1652,9 @@
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 57.461,
-            "rmsRgbDelta": 75.3625,
-            "materialChangedPixelFraction": 0.944958
+            "meanAbsoluteRgbDelta": 57.4917,
+            "rmsRgbDelta": 75.3755,
+            "materialChangedPixelFraction": 0.946057
           },
           "reasons": [
             "mae",
@@ -1274,17 +1662,17 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/appearance/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/appearance/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/appearance/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/appearance/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/appearance/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/appearance/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/appearance/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 56.2972,
-            "rmsRgbDelta": 72.9648,
-            "materialChangedPixelFraction": 0.90521
+            "meanAbsoluteRgbDelta": 56.2771,
+            "rmsRgbDelta": 72.9663,
+            "materialChangedPixelFraction": 0.905161
           },
           "reasons": [
             "mae",
@@ -1292,9 +1680,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/appearance/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/appearance/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/appearance/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/appearance/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/appearance/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/appearance/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/appearance/absolute-difference.png"
         }
       ]
     },
@@ -1333,9 +1721,9 @@
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/calendar-connect/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/calendar-connect/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar-connect/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar-connect/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/calendar-connect/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/calendar-connect/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/calendar-connect/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -1349,9 +1737,9 @@
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/calendar-connect/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/calendar-connect/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar-connect/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar-connect/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/calendar-connect/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/calendar-connect/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/calendar-connect/absolute-difference.png"
         }
       ]
     },
@@ -1391,9 +1779,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/calendar-export/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/calendar-export/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar-export/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/calendar-export/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/calendar-export/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/calendar-export/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/calendar-export/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -1409,9 +1797,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/calendar-export/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/calendar-export/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar-export/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/calendar-export/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/calendar-export/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/calendar-export/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/calendar-export/absolute-difference.png"
         }
       ]
     },
@@ -1441,33 +1829,33 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 15.2787,
-            "rmsRgbDelta": 35.1327,
-            "materialChangedPixelFraction": 0.553249
+            "meanAbsoluteRgbDelta": 15.4333,
+            "rmsRgbDelta": 35.1709,
+            "materialChangedPixelFraction": 0.564592
           },
           "reasons": [
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/chart-style/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/chart-style/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/chart-style/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/chart-style/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/chart-style/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/chart-style/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/chart-style/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 11.8606,
-            "rmsRgbDelta": 30.0609,
-            "materialChangedPixelFraction": 0.531078
+            "meanAbsoluteRgbDelta": 11.9561,
+            "rmsRgbDelta": 30.1087,
+            "materialChangedPixelFraction": 0.541604
           },
           "reasons": [
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/chart-style/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/chart-style/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/chart-style/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/chart-style/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/chart-style/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/chart-style/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/chart-style/absolute-difference.png"
         }
       ]
     },
@@ -1509,9 +1897,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/day-detail/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/day-detail/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/day-detail/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/day-detail/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/day-detail/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/day-detail/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/day-detail/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -1527,9 +1915,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/day-detail/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/day-detail/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/day-detail/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/day-detail/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/day-detail/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/day-detail/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/day-detail/absolute-difference.png"
         }
       ]
     },
@@ -1567,9 +1955,9 @@
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/declare-debt/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/declare-debt/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/declare-debt/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/declare-debt/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/declare-debt/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/declare-debt/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/declare-debt/absolute-difference.png"
         }
       ]
     },
@@ -1602,9 +1990,9 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 73.9204,
-            "rmsRgbDelta": 96.7856,
-            "materialChangedPixelFraction": 0.710352
+            "meanAbsoluteRgbDelta": 79.8218,
+            "rmsRgbDelta": 102.6805,
+            "materialChangedPixelFraction": 0.719029
           },
           "reasons": [
             "mae",
@@ -1612,17 +2000,17 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/edit-txn/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/edit-txn/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/edit-txn/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/edit-txn/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/edit-txn/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/edit-txn/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/edit-txn/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 59.0881,
-            "rmsRgbDelta": 79.4395,
-            "materialChangedPixelFraction": 0.675682
+            "meanAbsoluteRgbDelta": 65.4581,
+            "rmsRgbDelta": 86.4545,
+            "materialChangedPixelFraction": 0.710072
           },
           "reasons": [
             "mae",
@@ -1630,9 +2018,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/edit-txn/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/edit-txn/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/edit-txn/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/edit-txn/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/edit-txn/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/edit-txn/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/edit-txn/absolute-difference.png"
         }
       ]
     },
@@ -1664,18 +2052,18 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 35.762,
-            "rmsRgbDelta": 69.3044,
-            "materialChangedPixelFraction": 0.388881
+            "meanAbsoluteRgbDelta": 35.7618,
+            "rmsRgbDelta": 69.3043,
+            "materialChangedPixelFraction": 0.388876
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/hidden-review/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/hidden-review/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/hidden-review/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/hidden-review/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/hidden-review/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/hidden-review/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/hidden-review/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
@@ -1683,16 +2071,16 @@
           "metrics": {
             "meanAbsoluteRgbDelta": 29.201,
             "rmsRgbDelta": 58.7169,
-            "materialChangedPixelFraction": 0.362257
+            "materialChangedPixelFraction": 0.362261
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/hidden-review/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/hidden-review/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/hidden-review/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/hidden-review/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/hidden-review/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/hidden-review/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/hidden-review/absolute-difference.png"
         }
       ]
     },
@@ -1724,35 +2112,35 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 28.4921,
-            "rmsRgbDelta": 67.2494,
-            "materialChangedPixelFraction": 0.303546
+            "meanAbsoluteRgbDelta": 28.7642,
+            "rmsRgbDelta": 67.5557,
+            "materialChangedPixelFraction": 0.307015
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/household-setup/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/household-setup/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/household-setup/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/household-setup/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/household-setup/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/household-setup/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/household-setup/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 20.3931,
-            "rmsRgbDelta": 52.6437,
-            "materialChangedPixelFraction": 0.279381
+            "meanAbsoluteRgbDelta": 20.5469,
+            "rmsRgbDelta": 52.8425,
+            "materialChangedPixelFraction": 0.282852
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/household-setup/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/household-setup/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/household-setup/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/household-setup/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/household-setup/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/household-setup/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/household-setup/absolute-difference.png"
         }
       ]
     },
@@ -1782,17 +2170,17 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 16.9138,
-            "rmsRgbDelta": 44.9237,
-            "materialChangedPixelFraction": 0.341965
+            "meanAbsoluteRgbDelta": 17.0713,
+            "rmsRgbDelta": 45.0462,
+            "materialChangedPixelFraction": 0.347096
           },
           "reasons": [
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/lens-picker/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/lens-picker/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/lens-picker/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/lens-picker/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/lens-picker/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/lens-picker/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/lens-picker/absolute-difference.png"
         }
       ]
     },
@@ -1822,33 +2210,33 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 21.5797,
-            "rmsRgbDelta": 49.2884,
-            "materialChangedPixelFraction": 0.314462
+            "meanAbsoluteRgbDelta": 21.4837,
+            "rmsRgbDelta": 49.1914,
+            "materialChangedPixelFraction": 0.313471
           },
           "reasons": [
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/log-spend/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/log-spend/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/log-spend/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/log-spend/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/log-spend/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/log-spend/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/log-spend/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 17.3176,
-            "rmsRgbDelta": 42.1772,
-            "materialChangedPixelFraction": 0.286691
+            "meanAbsoluteRgbDelta": 17.2652,
+            "rmsRgbDelta": 42.1221,
+            "materialChangedPixelFraction": 0.285699
           },
           "reasons": [
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/log-spend/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/log-spend/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/log-spend/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/log-spend/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/log-spend/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/log-spend/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/log-spend/absolute-difference.png"
         }
       ]
     },
@@ -1878,35 +2266,35 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 34.0515,
-            "rmsRgbDelta": 63.8483,
-            "materialChangedPixelFraction": 0.346611
+            "meanAbsoluteRgbDelta": 34.0511,
+            "rmsRgbDelta": 63.8475,
+            "materialChangedPixelFraction": 0.346612
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo-chat/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/melo-chat/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/melo-chat/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/melo-chat/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/melo-chat/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/melo-chat/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/melo-chat/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 28.0953,
-            "rmsRgbDelta": 53.0003,
-            "materialChangedPixelFraction": 0.380266
+            "meanAbsoluteRgbDelta": 28.0973,
+            "rmsRgbDelta": 53.0051,
+            "materialChangedPixelFraction": 0.380269
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo-chat/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/melo-chat/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/melo-chat/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/melo-chat/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/melo-chat/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/melo-chat/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/melo-chat/absolute-difference.png"
         }
       ]
     },
@@ -1936,9 +2324,9 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 51.592,
-            "rmsRgbDelta": 82.2325,
-            "materialChangedPixelFraction": 0.523383
+            "meanAbsoluteRgbDelta": 51.5929,
+            "rmsRgbDelta": 82.2334,
+            "materialChangedPixelFraction": 0.523387
           },
           "reasons": [
             "mae",
@@ -1946,17 +2334,17 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/onboarding/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/onboarding/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/onboarding/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/onboarding/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/onboarding/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/onboarding/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/onboarding/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 40.3769,
+            "meanAbsoluteRgbDelta": 40.377,
             "rmsRgbDelta": 66.8298,
-            "materialChangedPixelFraction": 0.489508
+            "materialChangedPixelFraction": 0.48951
           },
           "reasons": [
             "mae",
@@ -1964,9 +2352,9 @@
             "material-changed-pixels"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/onboarding/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/onboarding/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/onboarding/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/onboarding/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/onboarding/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/onboarding/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/onboarding/absolute-difference.png"
         }
       ]
     },
@@ -1996,35 +2384,35 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 44.4576,
-            "rmsRgbDelta": 80.5196,
-            "materialChangedPixelFraction": 0.400077
+            "meanAbsoluteRgbDelta": 44.459,
+            "rmsRgbDelta": 80.5217,
+            "materialChangedPixelFraction": 0.400075
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/route-detail/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/route-detail/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/route-detail/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/route-detail/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/route-detail/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/route-detail/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/route-detail/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
             "meanAbsoluteRgbDelta": 35.2941,
-            "rmsRgbDelta": 66.0304,
-            "materialChangedPixelFraction": 0.366664
+            "rmsRgbDelta": 66.0305,
+            "materialChangedPixelFraction": 0.366662
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/route-detail/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/route-detail/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/route-detail/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/route-detail/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/route-detail/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/route-detail/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/route-detail/absolute-difference.png"
         }
       ]
     },
@@ -2054,34 +2442,34 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 21.3267,
-            "rmsRgbDelta": 57.2317,
-            "materialChangedPixelFraction": 0.230249
+            "meanAbsoluteRgbDelta": 22.8777,
+            "rmsRgbDelta": 58.5026,
+            "materialChangedPixelFraction": 0.24383
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/safe-zone/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/safe-zone/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/safe-zone/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/safe-zone/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/safe-zone/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/safe-zone/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/safe-zone/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 17.3892,
-            "rmsRgbDelta": 48.297,
-            "materialChangedPixelFraction": 0.197696
+            "meanAbsoluteRgbDelta": 18.5709,
+            "rmsRgbDelta": 49.0643,
+            "materialChangedPixelFraction": 0.212198
           },
           "reasons": [
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/safe-zone/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/safe-zone/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/safe-zone/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/safe-zone/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/safe-zone/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/safe-zone/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/safe-zone/absolute-difference.png"
         }
       ]
     },
@@ -2112,34 +2500,34 @@
           "theme": "light",
           "metrics": {
             "meanAbsoluteRgbDelta": 34.5234,
-            "rmsRgbDelta": 76.8014,
-            "materialChangedPixelFraction": 0.320837
+            "rmsRgbDelta": 76.8016,
+            "materialChangedPixelFraction": 0.320839
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/share/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/share/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/share/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/share/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/share/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/share/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/share/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 24.749,
-            "rmsRgbDelta": 59.057,
-            "materialChangedPixelFraction": 0.26051
+            "meanAbsoluteRgbDelta": 24.7487,
+            "rmsRgbDelta": 59.0557,
+            "materialChangedPixelFraction": 0.26052
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/share/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/share/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/share/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/share/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/share/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/share/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/share/absolute-difference.png"
         }
       ]
     },
@@ -2171,34 +2559,93 @@
           "fixture": "confirmed-safe",
           "theme": "light",
           "metrics": {
-            "meanAbsoluteRgbDelta": 32.6117,
-            "rmsRgbDelta": 62.1272,
-            "materialChangedPixelFraction": 0.35495
+            "meanAbsoluteRgbDelta": 32.7138,
+            "rmsRgbDelta": 62.2816,
+            "materialChangedPixelFraction": 0.355445
           },
           "reasons": [
             "mae",
             "rms"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/shelf/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/light/shelf/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/shelf/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/light/shelf/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/shelf/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/shelf/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/shelf/absolute-difference.png"
         },
         {
           "fixture": "confirmed-safe",
           "theme": "dark",
           "metrics": {
-            "meanAbsoluteRgbDelta": 27.0342,
-            "rmsRgbDelta": 51.6454,
-            "materialChangedPixelFraction": 0.332019
+            "meanAbsoluteRgbDelta": 27.1054,
+            "rmsRgbDelta": 51.7537,
+            "materialChangedPixelFraction": 0.332512
           },
           "reasons": [
             "mae"
           ],
           "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/shelf/source-product-1080x2004.png",
-          "native": "docs/parity-recovery/evidence/native/harness-2de19e5/confirmed-safe/dark/shelf/native-product-1080x2004.png",
-          "overlay": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/shelf/overlay-50.png",
-          "difference": "docs/parity-recovery/evidence/comparisons/2de19e5/confirmed-safe/dark/shelf/absolute-difference.png"
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/shelf/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/shelf/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/shelf/absolute-difference.png"
+        }
+      ]
+    },
+    {
+      "stableId": "stack.index",
+      "kind": "stack-route",
+      "routeKey": "/",
+      "workspace": "shared",
+      "designOwners": [
+        {
+          "stableId": "dialog:command-palette",
+          "kind": "global",
+          "routeKey": null,
+          "sourceReference": "src/routes/index.tsx#CommandDialog",
+          "keyStates": [],
+          "resolution": "exact-source-hint"
+        }
+      ],
+      "classification": {
+        "code": "interaction-kind-divergence",
+        "explanation": "Shipping stack-route is owned by pinned global evidence; full-frame pixels include different interaction chrome."
+      },
+      "status": "pending-owner-signoff",
+      "ownerDecision": null,
+      "comparisons": [
+        {
+          "fixture": "confirmed-safe",
+          "theme": "light",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 122.1918,
+            "rmsRgbDelta": 150.3397,
+            "materialChangedPixelFraction": 0.729357
+          },
+          "reasons": [
+            "mae",
+            "rms",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/stack.index/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/light/stack.index/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/stack.index/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/light/stack.index/absolute-difference.png"
+        },
+        {
+          "fixture": "confirmed-safe",
+          "theme": "dark",
+          "metrics": {
+            "meanAbsoluteRgbDelta": 22.1007,
+            "rmsRgbDelta": 46.1466,
+            "materialChangedPixelFraction": 0.72837
+          },
+          "reasons": [
+            "mae",
+            "material-changed-pixels"
+          ],
+          "source": "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/stack.index/source-product-1080x2004.png",
+          "native": "docs/parity-recovery/evidence/native/harness-c2c1d1c/confirmed-safe/dark/stack.index/native-product-1080x2004.png",
+          "overlay": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/stack.index/overlay-50.png",
+          "difference": "docs/parity-recovery/evidence/comparisons/c2c1d1c/confirmed-safe/dark/stack.index/absolute-difference.png"
         }
       ]
     }

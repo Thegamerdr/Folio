@@ -42,8 +42,13 @@ test('resolved global, screen and stack outliers have deterministic capture defi
   for (const [id, definition] of entries) {
     const entry = crosswalkById.get(id);
     assert.ok(entry);
-    assert.equal(entry.evidence.comparisonCount, 0);
-    assert.equal(entry.finalStatus, 'missing-direct-visual-comparison');
+    if (id.startsWith('screen.')) {
+      assert.equal(entry.evidence.comparisonCount, 0);
+      assert.equal(entry.finalStatus, 'missing-direct-visual-comparison');
+    } else {
+      assert.equal(entry.evidence.comparisonCount, 2);
+      assert.equal(entry.finalStatus, 'calibration-evidence-recorded-not-owner-approved');
+    }
     assert.equal(definition.componentSource, entry.native.componentSource);
     assert.ok(definition.ownerContext.sourceScreen);
     assert.ok(definition.ownerContext.nativeScreen);

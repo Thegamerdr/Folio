@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "nativeSha": "c2c1d1c12ce70076c9e62fe5e0abd8e0107b516d",
+  "nativeRef": "c2c1d1c",
+  "deviceId": "emulator-5570",
+  "viewport": {
+    "widthPx": 1080,
+    "heightPx": 2220,
+    "densityDpi": 480,
+    "fontScale": 1
+  },
+  "fixtureRuns": [
+    {
+      "batchId": "non-business-confirmed-safe",
+      "fixture": "confirmed-safe",
+      "apkPath": "release-artifacts/capture-c2c1d1c-confirmed-safe.apk",
+      "apkSha256": "68114BE3F4B85A238B6C53BD36A4A385AD96CB136CEBCBA4F3F5E85959292DDC",
+      "captureCount": 104,
+      "verifiedCaptureCount": 104
+    },
+    {
+      "batchId": "non-business-global-and-stack",
+      "fixture": "confirmed-safe",
+      "apkPath": "release-artifacts/capture-c2c1d1c-confirmed-safe.apk",
+      "apkSha256": "68114BE3F4B85A238B6C53BD36A4A385AD96CB136CEBCBA4F3F5E85959292DDC",
+      "captureCount": 18,
+      "verifiedCaptureCount": 18
+    },
+    {
+      "batchId": "business-filing-family",
+      "fixture": "business-ltd",
+      "apkPath": "release-artifacts/capture-c2c1d1c-business-ltd.apk",
+      "apkSha256": "1E97E0448AAD0CDCF99354C47B937F4F71DB75644FB3F15FF4ABBB6C11D26A30",
+      "captureCount": 14,
+      "verifiedCaptureCount": 14
+    }
+  ]
+}

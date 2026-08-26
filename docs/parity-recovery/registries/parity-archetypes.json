@@ -16,8 +16,8 @@
     "shippingSurfaces": 192,
     "includedNonBusinessSurfaces": 147,
     "excludedBusinessSurfaces": 45,
-    "directlyEvidencedNonBusinessSurfaces": 56,
-    "pendingDirectEvidenceNonBusinessSurfaces": 91,
+    "directlyEvidencedNonBusinessSurfaces": 65,
+    "pendingDirectEvidenceNonBusinessSurfaces": 82,
     "archetypes": 10,
     "implementationWaves": 6
   },
@@ -128,8 +128,8 @@
       "sharedFixTarget": "Root safe areas/tab chrome and explicit platform-owned exceptions.",
       "counts": {
         "surfaces": 20,
-        "directlyEvidenced": 4,
-        "pendingDirectEvidence": 16,
+        "directlyEvidenced": 13,
+        "pendingDirectEvidence": 7,
         "resolvedDesignOwners": 13,
         "unresolvedDesignOwners": 7
       },
@@ -581,8 +581,8 @@
       "implementationWaveId": "wave-6-shell-and-platform",
       "counts": {
         "surfaces": 14,
-        "directlyEvidenced": 4,
-        "pendingDirectEvidence": 10,
+        "directlyEvidenced": 13,
+        "pendingDirectEvidence": 1,
         "resolvedDesignOwners": 13,
         "unresolvedDesignOwners": 1
       },
@@ -1531,8 +1531,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["screen:applock"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "global.boot-splash",
@@ -1545,8 +1545,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["overlay:splash"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "global.hydration-notice",
@@ -1573,8 +1573,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["state-strip:persistence-degraded"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "global.root-error-boundary",
@@ -1587,8 +1587,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["overlay:screen-error"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "global.screen-error-boundary",
@@ -1601,8 +1601,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["overlay:screen-error"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "global.toast",
@@ -1615,8 +1615,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["overlay:toast"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "global.undo-toast",
@@ -1629,8 +1629,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["interaction:undo-toast"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "platform.device-authentication",
@@ -2672,8 +2672,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["dialog:command-palette"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "stack.root-layout",
@@ -2686,8 +2686,8 @@
       "designOwnerStatus": "resolved",
       "designOwnerIds": ["shell:hero-phone"],
       "matchedFixtures": ["confirmed-safe"],
-      "directComparisonCount": 0,
-      "evidenceStatus": "direct-evidence-pending"
+      "directComparisonCount": 2,
+      "evidenceStatus": "direct-evidence-present"
     },
     {
       "stableId": "tab.more",
