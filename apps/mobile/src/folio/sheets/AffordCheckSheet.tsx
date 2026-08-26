@@ -219,7 +219,7 @@ function AffordCheckForm({
           <TextInput
             value={amountRaw}
             onChangeText={(text) => setAmountRaw(text.replace(/[^0-9.]/g, ''))}
-            autoFocus
+            autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor={t.muted}

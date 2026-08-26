@@ -170,7 +170,7 @@ function LogSpendForm({
 
       {/* Merchant input — focus ring animates borderColor to --accent. */}
       <TextInput
-        autoFocus
+        autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
         value={merchant}
         onChangeText={setMerchant}
         onFocus={() => setMerchantFocused(true)}

@@ -888,7 +888,7 @@ function MeloChat({
             placeholderTextColor={t.muted}
             editable={!isLoading}
             multiline
-            autoFocus
+            autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
             style={s.input}
             accessibilityLabel="Say anything to Melo"
             onSubmitEditing={() => send(input)}

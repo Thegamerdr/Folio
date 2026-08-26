@@ -730,7 +730,7 @@ function OnboardingFlow({
       <Animated.View style={{ transform: [{ translateX: bodyTranslateX }] }}>
         {step === 0 ? (
           <TextInput
-            autoFocus
+            autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
             value={name}
             onChangeText={setName}
             placeholder={copy.onb[1].placeholder}

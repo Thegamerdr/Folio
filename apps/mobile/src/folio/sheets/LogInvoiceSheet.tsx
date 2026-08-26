@@ -133,7 +133,7 @@ function LogInvoiceForm({
           <Text style={s.fieldLabel}>From</Text>
           <TextInput
             accessibilityLabel="From"
-            autoFocus
+            autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
             onBlur={() => setSourceFocused(false)}
             onChangeText={setSource}
             onFocus={() => setSourceFocused(true)}

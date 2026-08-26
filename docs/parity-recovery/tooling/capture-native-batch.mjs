@@ -157,6 +157,19 @@ await mkdir(evidenceRoot, { recursive: true });
 run(adb, ['-s', deviceId, 'shell', 'wm', 'size', '1080x2220']);
 run(adb, ['-s', deviceId, 'shell', 'wm', 'density', '480']);
 run(adb, ['-s', deviceId, 'shell', 'settings', 'put', 'system', 'font_scale', '1.0']);
+// Capture references are resting product frames without a software keyboard. Keep the AVD's
+// hardware-keyboard contract explicit: Android Studio can persist this toggle as enabled, making
+// the first autofocus sheet resize around Gboard even after it is dismissed.
+run(adb, [
+  '-s',
+  deviceId,
+  'shell',
+  'settings',
+  'put',
+  'secure',
+  'show_ime_with_hard_keyboard',
+  '0',
+]);
 // The pinned browser comparison crop was calibrated against the emulator's gestural product
 // viewport. A cold AVD boot can retain three-button navigation from a physical-S9 drill, changing
 // safe-area insets and moving every portal sheet by ~48dp. Pin the comparison emulator before any

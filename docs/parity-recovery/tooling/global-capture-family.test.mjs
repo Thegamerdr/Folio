@@ -74,6 +74,7 @@ test('resolved global, screen and stack outliers have deterministic capture defi
   assert.match(nativeDriver, /com\.android\.internal\.systemui\.navbar\.gestural/u);
   assert.match(nativeDriver, /navigationMode !== '2'/u);
   assert.match(nativeDriver, /attempt < 12/u);
+  assert.match(nativeDriver, /show_ime_with_hard_keyboard/u);
   assert.match(nativeDriver, /global=\$\{encodeURIComponent\(globalSurface\)\}/u);
   assert.match(nativeDriver, /"globalSurface":\$\{expectedGlobal\}/u);
   assert.match(sourceBatchDriver, /--global=\$\{job\.globalSurface\}/u);

@@ -1202,7 +1202,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
               <View style={styles.noteBlock}>
                 <TextInput
                   accessibilityLabel="One line for next-you"
-                  autoFocus
+                  autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
                   value={note}
                   onChangeText={onNoteChange}
                   placeholder="One honest line — what to hold, what to watch."
