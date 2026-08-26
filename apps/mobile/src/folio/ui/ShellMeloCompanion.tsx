@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   Animated,
   PanResponder,
   StyleSheet,
@@ -41,6 +42,7 @@ export function ShellMeloCompanion({ screen, nav }: { screen: ScreenId; nav: Nav
   const [showIntro, setShowIntro] = useState(melo.companionIntroSeen !== true);
   const [contextOpen, setContextOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const [layerBounds, setLayerBounds] = useState({ width: 360, height: 720 });
   const placement = shellCompanionPlacement(
     screen,
@@ -61,14 +63,30 @@ export function ShellMeloCompanion({ screen, nav }: { screen: ScreenId; nav: Nav
   const gestureStart = useRef({ at: 0, x: 0, y: 0 });
 
   useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     if (placement === null || dragging) return;
+    if (reduceMotion) {
+      animatedPosition.setValue({ x: placement.birdLeft, y: placement.top });
+      return;
+    }
     Animated.spring(animatedPosition, {
       toValue: { x: placement.birdLeft, y: placement.top },
       useNativeDriver: false,
       speed: 22,
       bounciness: 5,
     }).start();
-  }, [animatedPosition, dragging, placement?.birdLeft, placement?.top]);
+  }, [animatedPosition, dragging, placement?.birdLeft, placement?.top, reduceMotion]);
 
   useEffect(() => {
     setContextOpen(false);
@@ -141,21 +159,29 @@ export function ShellMeloCompanion({ screen, nav }: { screen: ScreenId; nav: Nav
           const target = shellCompanionPlacement(screen, side, workspaceKind);
           if (target !== null) {
             setMelo({ preferredPosition: side, companionIntroSeen: true });
-            Animated.spring(animatedPosition, {
-              toValue: { x: target.birdLeft, y: target.top },
-              useNativeDriver: false,
-              speed: 20,
-              bounciness: 7,
-            }).start();
+            if (reduceMotion) {
+              animatedPosition.setValue({ x: target.birdLeft, y: target.top });
+            } else {
+              Animated.spring(animatedPosition, {
+                toValue: { x: target.birdLeft, y: target.top },
+                useNativeDriver: false,
+                speed: 20,
+                bounciness: 7,
+              }).start();
+            }
           }
         },
         onPanResponderTerminate: () => {
           setDragging(false);
           if (placement !== null) {
-            Animated.spring(animatedPosition, {
-              toValue: { x: placement.birdLeft, y: placement.top },
-              useNativeDriver: false,
-            }).start();
+            if (reduceMotion) {
+              animatedPosition.setValue({ x: placement.birdLeft, y: placement.top });
+            } else {
+              Animated.spring(animatedPosition, {
+                toValue: { x: placement.birdLeft, y: placement.top },
+                useNativeDriver: false,
+              }).start();
+            }
           }
         },
         onShouldBlockNativeResponder: () => true,
@@ -165,6 +191,7 @@ export function ShellMeloCompanion({ screen, nav }: { screen: ScreenId; nav: Nav
       layerBounds.height,
       layerBounds.width,
       placement,
+      reduceMotion,
       screen,
       workspaceKind,
     ],
