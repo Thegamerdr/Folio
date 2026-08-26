@@ -234,7 +234,11 @@ import {
 } from './persist';
 import { workspaceEvidenceFilename, workspacePartitionFilenames } from './workspacePartition';
 import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
-import { getPersistenceRuntimeState, resetPersistenceRuntimeState } from './persistenceRuntime';
+import {
+  classifyPersistenceDiagnostic,
+  getPersistenceRuntimeState,
+  resetPersistenceRuntimeState,
+} from './persistenceRuntime';
 import { snapshotPendingAppStateCommands } from './typedCommandBridge';
 import { createCanonicalAppStateProjectionFromPayload } from './canonicalStateProjection';
 import { readCanonicalAppStateMoneyProjection } from './canonicalAppStateReadProjection';
@@ -1092,6 +1096,21 @@ describe('save failure visibility and retry', () => {
     resetAll();
     await loadPersisted(PERSONAL_WORKSPACE_ID);
     expect(getState().tightPointGoal).toBe(75);
+  });
+
+  it('reduces native persistence failures to value-free diagnostic codes', () => {
+    expect(classifyPersistenceDiagnostic(new Error('database is locked'))).toBe(
+      'database-locked',
+    );
+    expect(classifyPersistenceDiagnostic(new Error('no such column: private_value'))).toBe(
+      'database-schema',
+    );
+    expect(
+      classifyPersistenceDiagnostic(
+        new Error('SQLCipher canonical projection failed exact readback verification.'),
+      ),
+    ).toBe('canonical-projection');
+    expect(classifyPersistenceDiagnostic(new Error('owner amount 123.45'))).toBe('unknown');
   });
 });
 

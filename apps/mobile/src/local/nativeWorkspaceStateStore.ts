@@ -375,10 +375,12 @@ async function saveRecord(
   const payloadSha256 = await sha256(payload);
   const committedAt = new Date().toISOString();
   const db = open({ name: workspaceLedgerDatabaseName(workspace.id), encryptionKey });
+  let writeStage = 'vault-schema';
   try {
     await ensureVaultTables(db);
     const driver = new OpSqliteDatabaseDriver(db);
     return await driver.transaction(async (transaction) => {
+      writeStage = 'generation-read';
       const maximum = await transaction.execute<MaxGenerationRow>(
         `
           SELECT MAX(generation) AS max_generation
@@ -388,6 +390,7 @@ async function saveRecord(
         [recordKind, recordId],
       );
       const generation = safeGeneration(maximum.rows[0]?.max_generation) + 1;
+      writeStage = 'generation-insert';
       await transaction.execute(
         `
           INSERT INTO ${TABLE_NAME} (
@@ -406,6 +409,7 @@ async function saveRecord(
           committedAt,
         ],
       );
+      writeStage = 'generation-readback';
       const readback = await transaction.execute<NativeVaultRow>(
         `
           SELECT generation, workspace_id, schema_version, payload, payload_sha256, committed_at
@@ -424,10 +428,12 @@ async function saveRecord(
         throw new Error('SQLCipher workspace generation failed exact readback verification.');
       }
       if (canonicalSnapshot !== undefined) {
+        writeStage = 'canonical-migration';
         const canonicalRepository = await migrateCanonicalSnapshotToSqliteRepository(
           transaction,
           canonicalSnapshot,
         );
+        writeStage = 'canonical-readback';
         const canonicalReadback = await canonicalRepository.snapshot();
         if (
           canonicalSnapshotFingerprint(canonicalReadback) !==
@@ -435,6 +441,7 @@ async function saveRecord(
         ) {
           throw new Error('SQLCipher canonical projection failed exact readback verification.');
         }
+        writeStage = 'canonical-binding';
         await transaction.execute(
           `
             INSERT INTO ${CANONICAL_BINDING_TABLE_NAME} (
@@ -449,8 +456,10 @@ async function saveRecord(
           ],
         );
       }
+      writeStage = 'typed-command-audit';
       await commitPendingAppStateCommands(transaction, pendingCommands);
       const oldestRetainedGeneration = Math.max(1, generation - RETAINED_GENERATIONS + 1);
+      writeStage = 'generation-prune';
       await transaction.execute(
         `
           DELETE FROM ${TABLE_NAME}
@@ -467,6 +476,10 @@ async function saveRecord(
       );
       return verified;
     });
+  } catch (reason: unknown) {
+    // Stable stage only: never log the SQL, exception message, parameters, record id or payload.
+    console.error(`[melo:workspace-vault] record=${recordKind} stage=${writeStage}`);
+    throw reason;
   } finally {
     db.close();
   }

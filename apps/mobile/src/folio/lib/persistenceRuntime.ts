@@ -85,6 +85,36 @@ export function classifyPersistenceFailure(reason: unknown): PersistenceFailureK
   return 'unknown';
 }
 
+/** Stable, value-free diagnostic for device logs. Never return the exception message: native
+ * database errors can include SQL parameters, and those may contain financial state. */
+export function classifyPersistenceDiagnostic(reason: unknown): string {
+  const record = typeof reason === 'object' && reason !== null ? reason : undefined;
+  const code =
+    record !== undefined && 'code' in record && typeof record.code === 'string'
+      ? record.code.toLowerCase()
+      : '';
+  const message =
+    reason instanceof Error ? reason.message.toLowerCase() : String(reason).toLowerCase();
+  const detail = `${code} ${message}`;
+
+  if (/database is locked|sqlite_busy/u.test(detail)) return 'database-locked';
+  if (/no such table|no such column|has no column|schema/u.test(detail)) return 'database-schema';
+  if (/constraint|unique|sqlite_constraint/u.test(detail)) return 'database-constraint';
+  if (/malformed|file is not a database|notadb|sqlite_corrupt/u.test(detail)) {
+    return 'database-unreadable';
+  }
+  if (/canonical projection/u.test(detail)) return 'canonical-projection';
+  if (/typed-command|typed command|audit/u.test(detail)) return 'typed-command-audit';
+  if (/readback verification/u.test(detail)) return 'readback-verification';
+  if (/workspace manifest/u.test(detail)) return 'manifest-binding';
+  if (/workspace state payload|payload does not/u.test(detail)) return 'state-payload';
+  if (/keystore|keychain|secure.?store|protected key|key storage/u.test(detail)) {
+    return 'key-storage';
+  }
+  if (/enospc|no space|disk full|storage full|quota/u.test(detail)) return 'storage-full';
+  return 'unknown';
+}
+
 /** Test-only reset. Runtime callers should let the latest save attempt own this state. */
 export function resetPersistenceRuntimeState(): void {
   state = INITIAL_STATE;

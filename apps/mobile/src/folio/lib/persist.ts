@@ -80,6 +80,7 @@ import {
 import type { PersistedWorkspace } from './workspaceRoot';
 import {
   getPersistenceRuntimeState,
+  classifyPersistenceDiagnostic,
   classifyPersistenceFailure,
   markPersistenceFailed,
   markPersistenceSaved,
@@ -928,6 +929,7 @@ export async function persistCurrentStateNow(workspaceId: WorkspaceId): Promise<
   const pendingCommands = snapshotPendingAppStateCommands(workspaceId);
   const manifest = createWorkspaceManifest(getState(), persistedAt);
   markPersistenceSaving(workspaceId, persistedAt);
+  let failureStage = 'workspace-state';
   try {
     // SQLCipher is the authoritative commit path. The exact current partition is hash-checked and
     // read back inside its transaction before the Personal root is allowed to select it.
@@ -943,7 +945,9 @@ export async function persistCurrentStateNow(workspaceId: WorkspaceId): Promise<
       workspaceId,
       pendingCommands.map((receipt) => receipt.id),
     );
+    failureStage = 'workspace-manifest';
     await saveNativeWorkspaceManifestGeneration(workspaceMetadata(PERSONAL_WORKSPACE_ID), manifest);
+    failureStage = 'rollback-files';
     if (files !== null) {
       try {
         // Keep the authenticated files as rollback/downgrade generations during normalized-table
@@ -963,6 +967,11 @@ export async function persistCurrentStateNow(workspaceId: WorkspaceId): Promise<
     }
     markPersistenceSaved(workspaceId, new Date().toISOString());
   } catch (reason: unknown) {
+    // Value-free operational evidence for physical-device diagnosis. Do not log the exception,
+    // SQL, payload, workspace id, file path or user data here.
+    console.error(
+      `[melo:persistence] stage=${failureStage} code=${classifyPersistenceDiagnostic(reason)}`,
+    );
     markPersistenceFailed(workspaceId, reason, new Date().toISOString());
     throw reason;
   }
