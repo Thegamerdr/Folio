@@ -75,7 +75,8 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={s.body}>
-        <Text style={s.eyebrow}>Your Safe Zone</Text>
+        <Text style={s.eyebrow}>YOUR SAFE ZONE</Text>
+        <Text style={s.headline}>About £{zone.perDay}/day</Text>
         <View style={s.numberRow}>
           {/* Sign-aware headline (plan 107 Step 4): `formatGBP` renders negatives as `−£60`
               (minus BEFORE the pound sign — same convention as SafeZoneWidget's formatter),
@@ -84,7 +85,6 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
           <Text style={[s.number, { color: zone.total <= 0 ? t.repair : t.ink }]}>
             {formatGBP(zone.total)}
           </Text>
-          <Text style={s.numberCaption}>· about £{zone.perDay}/day</Text>
         </View>
 
         <View style={[s.list, { backgroundColor: t.surface, borderColor: t.hairline }]}>
@@ -143,9 +143,9 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
             onClose();
             nav.openMelo({ prefill: "Something's off with my Safe Zone." });
           }}
-          style={[s.talkCta, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          style={[s.talkCta, { backgroundColor: t.calm, borderColor: t.calm }]}
         >
-          <Text style={s.talkCtaLabel}>Something's off — talk it through with Melo</Text>
+          <Text style={[s.talkCtaLabel, { color: t.inverse }]}>Something's off — talk it through with Melo</Text>
         </Pressable>
       </View>
     </Sheet>
@@ -155,10 +155,20 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
 function makeStyles(t: Palette) {
   return StyleSheet.create({
     body: { paddingBottom: gap.xs },
-    eyebrow: { fontFamily: serif.displayItalic, fontSize: 13, color: t.muted },
-    numberRow: { marginTop: 2, flexDirection: 'row', alignItems: 'baseline', gap: gap.xs },
+    eyebrow: {
+      fontSize: 12,
+      letterSpacing: 1.8,
+      color: t.muted,
+    },
+    headline: {
+      marginTop: gap.sm,
+      fontFamily: serif.display,
+      fontSize: 28,
+      lineHeight: 34,
+      color: t.ink,
+    },
+    numberRow: { marginTop: gap.sm, flexDirection: 'row', alignItems: 'baseline' },
     number: { fontFamily: serif.display, fontSize: 44, fontVariant: ['tabular-nums'] },
-    numberCaption: { fontFamily: serif.displayItalic, fontSize: 14, color: t.muted },
     list: {
       marginTop: gap.lg,
       borderRadius: radius.lg,
@@ -174,19 +184,19 @@ function makeStyles(t: Palette) {
       gap: gap.sm,
     },
     rowBody: { flex: 1, minWidth: 0 },
-    rowLabel: { fontSize: 13.5, color: t.ink },
-    rowHint: { marginTop: 2, fontSize: 11, color: t.muted },
-    rowValue: { fontSize: 13.5, fontVariant: ['tabular-nums'], color: t.ink },
+    rowLabel: { fontSize: 15, color: t.ink },
+    rowHint: { marginTop: 2, fontSize: 12.5, color: t.muted },
+    rowValue: { fontSize: 15, fontVariant: ['tabular-nums'], color: t.ink },
     stepperRow: { flexDirection: 'row', alignItems: 'center', gap: gap.xs },
     stepperBtn: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       borderWidth: StyleSheet.hairlineWidth,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    stepperGlyph: { fontSize: 13, color: t.ink },
+    stepperGlyph: { fontSize: 17, color: t.ink },
     stepperValue: {
       width: 56,
       textAlign: 'right',
@@ -203,6 +213,6 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    talkCtaLabel: { fontSize: 13, color: t.ink },
+    talkCtaLabel: { fontSize: 13, color: t.inverse },
   });
 }
