@@ -359,7 +359,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     successScreen: ScreenId,
     sourceEvidenceId: string,
     extraction?: ExtractedText,
-    attempt?: PdfImportAttempt,
+    attempt: PdfImportAttempt,
   ): boolean {
     const local = parseLocalDocumentCandidates({
       text,
@@ -371,10 +371,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     // Publish the terminal classification before touching the shared staging slot. If a parser
     // callback arrives after another result has already won, this returns false and nothing from
     // the stale callback can overwrite the winning read.
-    if (
-      attempt !== undefined &&
-      !settlePdfImport(attempt, { kind: 'parsed', reviewItemCount: local.candidates.length })
-    ) {
+    if (!settlePdfImport(attempt, { kind: 'parsed', reviewItemCount: local.candidates.length })) {
       return true;
     }
     setReaderCandidates(local.candidates.map((candidate) => ({ ...candidate, sourceEvidenceId })));

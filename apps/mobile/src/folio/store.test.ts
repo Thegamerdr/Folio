@@ -10,7 +10,7 @@
 // Node-safe: touches only the store module (no react-native runtime, no DOM),
 // so it is a plain `.test.ts` collected by the apps/**/*.test.ts runner.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   type Account,
@@ -1610,6 +1610,30 @@ describe('seeding', () => {
 // (ENGINES §7 store-migration / RN_PORT "Store migration"). Pure + Node-safe.
 // ---------------------------------------------------------------------------
 describe('persist blob round-trip', () => {
+  it('does not JSON-clone the whole partition during a synchronous mutation', () => {
+    // Native persistence owns serialization after its debounce window. Keep this guard close to
+    // the round-trip contract so a future store refactor does not put the O(n) clone back on the
+    // UI thread for every imported row.
+    const stringify = vi.spyOn(JSON, 'stringify');
+    try {
+      setCurrentBalance({ amount: 321, source: 'user-entered', confidence: 'rough' });
+      // Workspace validation still stringifies small individual values. The forbidden call is the
+      // old full-partition clone (recognisable by its `transactions` field).
+      expect(
+        stringify.mock.calls.some(([value]) => {
+          return (
+            typeof value === 'object' &&
+            value !== null &&
+            !Array.isArray(value) &&
+            'transactions' in value
+          );
+        }),
+      ).toBe(false);
+    } finally {
+      stringify.mockRestore();
+    }
+  });
+
   it('serializes the current state and rehydrates it faithfully', () => {
     setPartial({
       tightPointGoal: 180,

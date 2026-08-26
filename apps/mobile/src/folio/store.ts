@@ -2075,7 +2075,11 @@ function nextStateForPartial(patch: Partial<AppState>): AppState {
 
 function publishState(next: AppState): void {
   state = next;
-  persist();
+  // The native adapter serializes the current state after its debounce window via
+  // getPersistBlob(). Cloning the whole partition here made every synchronous mutation pay an
+  // O(n) JSON clone, turning a batch import into O(n²) work on the JS/UI thread. `persistedBlob` is
+  // only the input to the private cold-start loader and is explicitly set by hydrateFromBlob();
+  // it is not a second live cache that needs updating for ordinary mutations.
   emit();
 }
 
@@ -5792,7 +5796,6 @@ export function resetAll() {
     },
     PERSONAL_WORKSPACE_ID,
   );
-  persist();
   emit();
 }
 
@@ -5978,7 +5981,6 @@ export function resetToEmpty(options?: Readonly<{ onboardingDone?: boolean }>) {
     merchantCategories: {},
   };
   state = normaliseWorkspaceRows(empty, workspaceRoot.activeWorkspaceId);
-  persist();
   emit();
 }
 

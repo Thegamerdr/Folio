@@ -89,21 +89,29 @@ export default function FolioRoute() {
     authenticatingRef.current = true;
     setLockBusy(true);
     setLockMessage(null);
-    const result = await authenticateAppLock();
-    if (result.success) {
-      updateLocked(false);
-    } else {
+    try {
+      const result = await authenticateAppLock();
+      if (result.success) {
+        updateLocked(false);
+      } else {
+        updateLocked(true);
+        setLockMessage(
+          result.reason === 'cancelled'
+            ? 'Melo stayed locked.'
+            : result.reason === 'device-lock-not-set'
+              ? 'Your device screen lock is no longer available. Restart Melo to recover safely.'
+              : 'Your device could not finish authentication. Try again.',
+        );
+      }
+    } catch {
+      // The adapter normally converts native failures to a result, but keep the AppState-triggered
+      // fire-and-forget call safe if a platform bridge rejects unexpectedly.
       updateLocked(true);
-      setLockMessage(
-        result.reason === 'cancelled'
-          ? 'Melo stayed locked.'
-          : result.reason === 'device-lock-not-set'
-            ? 'Your device screen lock is no longer available. Restart Melo to recover safely.'
-            : 'Your device could not finish authentication. Try again.',
-      );
+      setLockMessage('Your device could not finish authentication. Try again.');
+    } finally {
+      authenticatingRef.current = false;
+      setLockBusy(false);
     }
-    authenticatingRef.current = false;
-    setLockBusy(false);
   }, [updateLocked]);
 
   useEffect(
