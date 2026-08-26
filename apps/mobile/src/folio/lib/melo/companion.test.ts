@@ -1,13 +1,37 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyMeloGesture,
   deriveBusinessContextAction,
   deriveMeloPresence,
   derivePersonalContextAction,
+  deriveShellContextAction,
+  meloDropSide,
   resolveMeloAnchor,
 } from './companion';
 
 describe('native Melo companion semantics', () => {
+  it('keeps a short still touch distinct from a grab or drag', () => {
+    expect(classifyMeloGesture(2, 2, 120)).toBe('tap');
+    expect(classifyMeloGesture(7, 0, 80)).toBe('drag');
+    expect(classifyMeloGesture(0, 0, 300)).toBe('drag');
+  });
+
+  it('snaps releases to a semantic side instead of persisting arbitrary coordinates', () => {
+    expect(meloDropSide(20, 64, 360)).toBe('left');
+    expect(meloDropSide(260, 64, 360)).toBe('right');
+  });
+
+  it('opens a contextual action before the deeper chat action', () => {
+    expect(deriveShellContextAction('today')).toEqual(
+      expect.objectContaining({ id: 'today.explain-path' }),
+    );
+    expect(deriveShellContextAction('review')).toEqual(
+      expect.objectContaining({ id: 'review.changed' }),
+    );
+    expect(deriveShellContextAction('start')).toBeUndefined();
+  });
+
   it('keeps quiet and tucked states stronger than an offered action', () => {
     expect(
       deriveMeloPresence({ quietMode: true, action: { id: 'x', label: 'x', prompt: 'x' } }),
