@@ -69,7 +69,7 @@
 // Tokens only — no new colour, font, spacing, or radius. Copy is VERBATIM (headline from
 // '@/folio/copy/copy'; the unkeyed option/subhead/Melo/footer strings are @copy FROZEN literals).
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Alert,
@@ -117,6 +117,14 @@ import { captureStatementPhoto, pickStatementImage } from '../../local/nativeIma
 import { parseLocalDocumentCandidates } from '../../local/localDocumentCandidates';
 import { parseLocalOcrCandidates } from '../../local/localOcrCandidates';
 import type { ExtractedText } from '../../local/nativeTextExtraction';
+import {
+  beginPdfImportTransaction,
+  createInitialPdfImportTransaction,
+  settlePdfImportTransaction,
+  type PdfImportAttempt,
+  type PdfImportObservation,
+  type PdfImportTransactionState,
+} from '../../local/pdfImportTransaction';
 import type { Nav, ScreenId, SheetId } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Intake is populated-only and offline is
@@ -298,6 +306,25 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       'business',
   );
 
+  // The picker, evidence vault and on-device parser are asynchronous, but the reader staging slot
+  // is singular. Keep one transaction authority for this intake session so a double tap or a late
+  // parser result cannot replace a successful read with an empty/fallback result.
+  const pdfImportTransaction = useRef<PdfImportTransactionState>(
+    createInitialPdfImportTransaction(),
+  );
+
+  function beginPdfImport(): PdfImportAttempt | null {
+    const begun = beginPdfImportTransaction(pdfImportTransaction.current);
+    pdfImportTransaction.current = begun.state;
+    return begun.attempt;
+  }
+
+  function settlePdfImport(attempt: PdfImportAttempt, observation: PdfImportObservation): boolean {
+    const settled = settlePdfImportTransaction(pdfImportTransaction.current, attempt, observation);
+    pdfImportTransaction.current = settled.state;
+    return settled.settlement.accepted;
+  }
+
   // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
   // we resolve straight to the final state instead of animating.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -332,6 +359,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     successScreen: ScreenId,
     sourceEvidenceId: string,
     extraction?: ExtractedText,
+    attempt?: PdfImportAttempt,
   ): boolean {
     const local = parseLocalDocumentCandidates({
       text,
@@ -340,6 +368,15 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       ...(extraction === undefined ? {} : { extraction }),
     });
     if (local.candidates.length === 0) return false;
+    // Publish the terminal classification before touching the shared staging slot. If a parser
+    // callback arrives after another result has already won, this returns false and nothing from
+    // the stale callback can overwrite the winning read.
+    if (
+      attempt !== undefined &&
+      !settlePdfImport(attempt, { kind: 'parsed', reviewItemCount: local.candidates.length })
+    ) {
+      return true;
+    }
     setReaderCandidates(local.candidates.map((candidate) => ({ ...candidate, sourceEvidenceId })));
     setReaderClosingBalance(local.closingBalance);
     setReaderFallbackReason(undefined);
@@ -407,22 +444,53 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // Pick or capture locally and use bundled on-device reading. Nothing is counted here; every
   // found row remains a Review candidate.
   async function runPick(option: IntakeOption) {
+    const attempt = beginPdfImport();
+    if (attempt === null) return;
+
     if (option.pick === 'document') {
-      const result = await pickLocalStatementDocument();
-      if (result.kind === 'cancelled') return;
+      let result: Awaited<ReturnType<typeof pickLocalStatementDocument>>;
+      try {
+        result = await pickLocalStatementDocument();
+      } catch {
+        if (settlePdfImport(attempt, { kind: 'failed-recoverably' })) {
+          showToast(
+            'Could not read that file',
+            'You can try another statement or add one number yourself.',
+          );
+        }
+        return;
+      }
+      if (result.kind === 'cancelled') {
+        settlePdfImport(attempt, { kind: 'cancelled' });
+        return;
+      }
       const src = result.source;
       const sourceEvidenceId = await retainSource(
         src,
         'document',
         result.kind === 'picked' ? 'read' : 'unreadable',
       );
-      if (sourceEvidenceId === null) return;
+      if (sourceEvidenceId === null) {
+        settlePdfImport(attempt, { kind: 'failed-recoverably' });
+        return;
+      }
+      const isPdf = /application\/pdf/i.test(src.mediaType) || /\.pdf$/i.test(src.filename);
+      if (result.kind === 'unsupported') {
+        if (
+          settlePdfImport(attempt, { kind: isPdf ? 'unreadable/manual-fallback' : 'unsupported' })
+        ) {
+          finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
+        }
+        return;
+      }
       const looksDelimited =
         /text\/csv|application\/csv|tab-separated|text\/plain/i.test(src.mediaType) ||
         /\.(csv|tsv|txt)$/i.test(src.filename);
       if (result.kind === 'picked' && looksDelimited) {
         const candidates = readTextCandidates(result.text, 'csv', src.filename);
         if (candidates !== null) {
+          if (!settlePdfImport(attempt, { kind: 'parsed', reviewItemCount: candidates.length }))
+            return;
           setReaderCandidates(candidates.map((candidate) => ({ ...candidate, sourceEvidenceId })));
           // A delimited (CSV/TSV/TXT) statement never carries a closing balance — the offline
           // column parser has no such concept — so explicitly clear any balance staged by a
@@ -433,7 +501,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           // the next screen can explain the right kind of evidence and preserve the source label.
           nav.go(option.to);
         } else {
-          finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
+          if (settlePdfImport(attempt, { kind: 'failed-recoverably' })) {
+            finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
+          }
         }
         return;
       }
@@ -446,25 +516,38 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           'pdf-success',
           sourceEvidenceId,
           result.extraction,
+          attempt,
         )
       ) {
         return;
       }
-      if (src.uri !== undefined) {
+      if (settlePdfImport(attempt, { kind: 'unreadable/manual-fallback' })) {
         finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
-        return;
       }
-      finishLocalReaderFallback('pdf-fallback', sourceEvidenceId);
       return;
     }
 
-    const imageSource = await chooseImageSource();
-    if (imageSource === null) return;
+    let imageSource: 'camera' | 'library' | null;
+    try {
+      imageSource = await chooseImageSource();
+    } catch {
+      settlePdfImport(attempt, { kind: 'failed-recoverably' });
+      return;
+    }
+    if (imageSource === null) {
+      settlePdfImport(attempt, { kind: 'cancelled' });
+      return;
+    }
     const result =
       imageSource === 'camera' ? await captureStatementPhoto() : await pickStatementImage();
-    if (result.kind === 'cancelled') return;
+    if (result.kind === 'cancelled') {
+      settlePdfImport(attempt, { kind: 'cancelled' });
+      return;
+    }
     if (result.kind === 'denied') {
-      showToast('Permission is off', result.message);
+      if (settlePdfImport(attempt, { kind: 'failed-recoverably' })) {
+        showToast('Permission is off', result.message);
+      }
       return;
     }
     const sourceEvidenceId = await retainSource(
@@ -472,7 +555,10 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       imageSource === 'camera' ? 'camera' : 'image',
       result.kind === 'picked' ? 'read' : 'unreadable',
     );
-    if (sourceEvidenceId === null) return;
+    if (sourceEvidenceId === null) {
+      settlePdfImport(attempt, { kind: 'failed-recoverably' });
+      return;
+    }
     if (
       result.kind === 'picked' &&
       stageLocalOcrRead(
@@ -482,15 +568,14 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         'image-success',
         sourceEvidenceId,
         result.extraction,
+        attempt,
       )
     ) {
       return;
     }
-    if (result.source.uri !== undefined) {
+    if (settlePdfImport(attempt, { kind: 'unreadable/manual-fallback' })) {
       finishLocalReaderFallback('image-fallback', sourceEvidenceId);
-      return;
     }
-    finishLocalReaderFallback('image-fallback', sourceEvidenceId);
   }
 
   // A paste row must actually read the clipboard before it claims anything was found. Parsed rows
