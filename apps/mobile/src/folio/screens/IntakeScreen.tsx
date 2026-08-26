@@ -151,6 +151,10 @@ type IntakeOption = {
   /** Reads copied statement text from the device clipboard and stages parsed rows. */
   paste?: boolean;
   fastest?: boolean;
+  /** A real doorway whose provider is unavailable in this build. It remains navigable so the
+   * connections surface can explain the boundary instead of silently swallowing the tap. */
+  unavailable?: boolean;
+  badge?: string;
   /** When set, the row opens this sheet instead of navigating to `to`. Used by "Add numbers
    *  yourself", which opens the manual log-spend entry rather than the candidate-review screen. */
   sheet?: SheetId;
@@ -160,42 +164,43 @@ type IntakeOption = {
 // / `fastest` badge are unchanged. Two text-shaped options (Paste transactions + CSV or TXT file)
 // both route to 'paste-success', preserved from the source. The two file-shaped options carry a
 // `pick` tag so the row opens the real document / photo picker before routing (see runPick below).
-const OPTIONS: readonly IntakeOption[] = [
+export const INTAKE_OPTIONS: readonly IntakeOption[] = [
   {
-    title: 'PDF statement',
-    hint: 'from your bank app',
+    title: 'Statement or sheet',
+    hint: 'PDF, CSV or TXT from your bank',
     icon: '▤',
     to: 'pdf-success',
     pick: 'document',
-    fastest: true,
+    badge: 'most complete',
   },
   {
-    title: 'Screenshot or photo',
-    hint: 'take or choose one',
+    title: 'Photo or screenshot',
+    hint: 'a receipt, transaction list or paper statement',
     icon: '▢',
     to: 'image-success',
     pick: 'photo',
   },
   {
-    title: 'Paste from clipboard',
-    hint: 'copy transactions first',
+    title: 'Paste rows',
+    hint: 'copy from a spreadsheet or anywhere else',
     icon: '❝',
     to: 'paste-success',
     paste: true,
   },
   {
-    title: 'CSV or TXT file',
-    hint: 'if you have one',
-    icon: '⌗',
-    to: 'paste-success',
-    pick: 'document',
-  },
-  {
-    title: 'Add numbers yourself',
-    hint: 'type it in',
+    title: 'Type it yourself',
+    hint: 'add only the numbers you know',
     icon: '✎',
     to: 'review',
     sheet: 'log-spend',
+  },
+  {
+    title: 'Connect an account',
+    hint: 'a read-only feed from your bank — not available in this build',
+    icon: '↗',
+    to: 'connections',
+    unavailable: true,
+    badge: 'not yet',
   },
 ] as const;
 
@@ -279,23 +284,6 @@ function readTextCandidates(
   return unstructured.candidates.length > 0 ? unstructured.candidates : null;
 }
 
-// Split a deck string carrying a single **accent** run into its three parts. The headline is read
-// VERBATIM from copy (copy.add.title = 'Add **what** you have.'); the render layer colours the
-// accent run terracotta and strips only the ** markers (never the words). A string with no markers
-// returns the whole string as `lead` so it still renders.
-function splitAccent(source: string): { lead: string; accent: string; tail: string } {
-  const open = source.indexOf('**');
-  const close = source.indexOf('**', open + 2);
-  if (open === -1 || close === -1) {
-    return { lead: source, accent: '', tail: '' };
-  }
-  return {
-    lead: source.slice(0, open),
-    accent: source.slice(open + 2, close),
-    tail: source.slice(close + 2),
-  };
-}
-
 export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -305,6 +293,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       current.workspaces.find((workspace) => workspace.id === current.activeWorkspaceId)?.kind ===
       'business',
   );
+  const waiting = useAppStore((current) => current.reviewQueue ?? []);
+  const bySource = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of waiting) counts[item.source] = (counts[item.source] ?? 0) + 1;
+    return counts;
+  }, [waiting]);
 
   // The picker, evidence vault and on-device parser are asynchronous, but the reader staging slot
   // is singular. Keep one transaction authority for this intake session so a double tap or a late
@@ -349,8 +343,6 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     const id = setTimeout(() => setLoadingTimedOut(true), LOADING_FALLBACK_MS);
     return () => clearTimeout(id);
   }, [state]);
-
-  const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.title), []);
 
   function stageLocalOcrRead(
     text: string,
@@ -608,6 +600,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       nav.openSheet(option.sheet);
       return;
     }
+    if (option.unavailable) {
+      // Keep the unavailable provider row as a truthful, navigable doorway. ConnectionsScreen
+      // owns the explanation and future enablement state; Intake never pretends to connect here.
+      nav.go('connections');
+      return;
+    }
     nav.go(option.to);
   };
 
@@ -631,7 +629,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         mood="calm"
         headline={headline}
         body={body}
-        cta={{ label: 'Add a statement', onPress: () => void runPick(OPTIONS[0]!) }}
+        cta={{ label: 'Add a statement', onPress: () => void runPick(INTAKE_OPTIONS[0]!) }}
       />
     );
   }
@@ -659,7 +657,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xl },
         ]}
       >
-        {/* Header — back glyph · "Add" eyebrow · a 20px spacer that balances the glyph so the
+        {/* Header — back glyph · canonical "Plan · Your money" eyebrow · a 20px spacer that balances the glyph so the
             eyebrow stays optically centred (web <span class="w-5" />). */}
         <View style={styles.header}>
           <Pressable
@@ -672,12 +670,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             <Text style={[styles.back, { color: t.muted }]}>←</Text>
           </Pressable>
           <Text style={[styles.eyebrow, { color: t.muted }]}>
-            {isBusiness ? 'Business records' : 'Add'}
+            {isBusiness ? 'Business records' : 'Plan · Your money'}
           </Text>
           <View style={styles.headerSpacer} />
         </View>
 
-        {/* Title block — the one question, with the single accent word ("what") upright + terracotta.
+        {/* Title block — the one question, with the single accent word upright + terracotta.
             Headline is VERBATIM from copy.add.title; subhead is a @copy FROZEN inline literal. */}
         <View style={styles.titleBlock}>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
@@ -689,24 +687,80 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
               </>
             ) : (
               <>
-                {lead}
-                <Text style={[styles.headlineAccent, { color: t.calm }]}>{accent}</Text>
-                {tail}
+                {'Let Melo '}
+                <Text style={[styles.headlineAccent, { color: t.calm }]}>understand</Text>
+                {' your money.'}
               </>
             )}
           </Text>
           <Text style={[styles.subhead, { color: t.muted }]}>
             {isBusiness
               ? 'Read a statement or receipt here. Nothing reaches Business activity until you confirm it.'
-              : 'Melo shows what it finds before anything is added.'}
+              : 'Melo reads on this device, shows you what it found, then waits for your decision. Nothing lands until you say so.'}
           </Text>
         </View>
 
-        {/* Options list — the five dispatch rows (web space-y-2.5 = gap.md between rows). */}
+        {/* Options list — the canonical acquisition hierarchy, including the truthful account
+            connection doorway. */}
         <View style={styles.options}>
-          {OPTIONS.map((option) => (
-            <OptionRow key={option.title} option={option} onPress={() => onSelect(option)} />
-          ))}
+          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Every way in</Text>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>How do you want to add it?</Text>
+          <View style={styles.optionRows}>
+            {INTAKE_OPTIONS.map((option) => (
+              <OptionRow key={option.title} option={option} onPress={() => onSelect(option)} />
+            ))}
+          </View>
+          <Text style={[styles.explainer, { color: t.muted }]}>
+            Pasted text and numbers you type are read here. Files and photos are read in the mobile
+            app, so those two show a worked example for now. Sources you already use are managed in
+            Data &amp; security.
+          </Text>
+        </View>
+
+        <View style={styles.waitingSection}>
+          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Waiting</Text>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>Things to check</Text>
+          {waiting.length > 0 ? (
+            <View
+              style={[styles.waitingList, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            >
+              {Object.entries(bySource).map(([source, count], index) => (
+                <View key={source}>
+                  {index > 0 ? (
+                    <View style={[styles.divider, { backgroundColor: t.hairline }]} />
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${waitingSourceLabel(source)}. ${count} suggested. Not added.`}
+                    onPress={() => nav.go('review')}
+                    style={({ pressed: isPressed }) => [
+                      styles.waitingRow,
+                      isPressed ? styles.pressed : undefined,
+                    ]}
+                  >
+                    <View style={styles.waitingCopy}>
+                      <Text style={[styles.waitingLabel, { color: t.ink }]}>
+                        {waitingSourceLabel(source)}
+                      </Text>
+                      <Text style={[styles.waitingMeta, { color: t.muted }]}>
+                        suggested · not added
+                      </Text>
+                    </View>
+                    <Text style={[styles.waitingCount, { color: t.calm }]}>{count}</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View
+              style={[styles.waitingEmpty, { backgroundColor: t.inset, borderColor: t.hairline }]}
+            >
+              <Text style={[styles.waitingEmptyTitle, { color: t.ink }]}>Nothing waiting</Text>
+              <Text style={[styles.waitingEmptyBody, { color: t.muted }]}>
+                Anything you add stays here until you keep, correct or ignore it.
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Melo reassurance — the only Melo on this screen, calm mood (the resting state, not the
@@ -742,7 +796,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
 // label is the title + hint so the decorative glyph is never load-bearing for a screen reader.
 function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => void }) {
   const t = useTheme();
-  const accessibilityLabel = `${option.title}. ${option.hint}${option.fastest ? '. Fastest' : ''}`;
+  const accessibilityLabel = `${option.title}. ${option.hint}${option.fastest ? '. Fastest' : ''}${option.unavailable ? '. Not yet available' : ''}`;
   return (
     <Pressable
       accessibilityRole="button"
@@ -751,6 +805,7 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
       style={({ pressed: isPressed }) => [
         styles.row,
         { backgroundColor: t.surface, borderColor: t.hairline },
+        option.unavailable ? styles.unavailable : undefined,
         isPressed ? styles.pressed : undefined,
       ]}
     >
@@ -760,9 +815,13 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
       <View style={styles.rowBody}>
         <View style={styles.titleRow}>
           <Text style={[styles.rowTitle, { color: t.ink }]}>{option.title}</Text>
-          {option.fastest ? (
-            <View style={[styles.badge, { backgroundColor: t.calmSoft }]}>
-              <Text style={[styles.badgeLabel, { color: t.calm }]}>fastest</Text>
+          {option.badge !== undefined ? (
+            <View
+              style={[styles.badge, { backgroundColor: option.unavailable ? t.inset : t.calmSoft }]}
+            >
+              <Text style={[styles.badgeLabel, { color: option.unavailable ? t.muted : t.calm }]}>
+                {option.badge}
+              </Text>
             </View>
           ) : null}
         </View>
@@ -771,6 +830,14 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
       <Text style={[styles.forward, { color: t.muted }]}>→</Text>
     </Pressable>
   );
+}
+
+function waitingSourceLabel(source: string): string {
+  if (source === 'csv' || source === 'txt' || source === 'paste') return 'Sheet or pasted text';
+  if (source === 'pdf') return 'Statement';
+  if (source === 'image') return 'Photo';
+  if (source === 'bank') return 'Connected account';
+  return 'Manual entry';
 }
 
 const styles = StyleSheet.create({
@@ -831,8 +898,82 @@ const styles = StyleSheet.create({
   },
   // mt-6 (24px) = gap.xl; space-y-2.5 (10px) = gap.md row gap (web rounds 2.5 → 10px).
   options: {
-    gap: gap.md,
     marginTop: gap.xl,
+  },
+  sectionEyebrow: {
+    fontSize: 10.5,
+    letterSpacing: 1.45,
+    textTransform: 'uppercase',
+  },
+  sectionTitle: {
+    fontFamily: serif.display,
+    fontSize: 20,
+    lineHeight: 25,
+    marginTop: gap.xs,
+  },
+  optionRows: {
+    gap: gap.md,
+    marginTop: gap.md,
+  },
+  explainer: {
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: gap.md,
+  },
+  unavailable: {
+    opacity: 0.78,
+  },
+  waitingSection: {
+    marginTop: gap.xxl,
+  },
+  waitingList: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.md,
+    overflow: 'hidden',
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: gap.lg,
+  },
+  waitingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 68,
+    padding: gap.lg,
+  },
+  waitingCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  waitingLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  waitingMeta: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginTop: gap.xxs,
+  },
+  waitingCount: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: gap.md,
+  },
+  waitingEmpty: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.md,
+    padding: gap.lg,
+  },
+  waitingEmptyTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  waitingEmptyBody: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginTop: gap.xxs,
   },
   allowanceLine: {
     fontSize: 11,
