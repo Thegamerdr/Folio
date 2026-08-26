@@ -29,7 +29,6 @@ describe('pinned shell companion perches', () => {
       'plans',
       'whatif',
       'account',
-      'connections',
       'privacy',
       'timeline',
       'visualizer',
@@ -47,12 +46,13 @@ describe('pinned shell companion perches', () => {
     });
   });
 
-  it('mirrors personal header perches without leaking them into Business', () => {
+  it('keeps personal header perches on their authored safe side without leaking into Business', () => {
     expect(shellCompanionPlacement('plans', 'left', 'personal')).toEqual({
       top: 68,
-      bubbleLeft: 96,
-      birdLeft: 36,
+      bubbleLeft: 44,
+      birdLeft: 260,
     });
+    expect(shellCompanionPlacement('connections', 'left', 'personal')).toBeNull();
     expect(shellCompanionPlacement('timeline', 'auto', 'business')).toBeNull();
     expect(shellCompanionPlacement('plans', 'auto', 'business')).toBeNull();
     expect(shellCompanionPlacement('plan', 'auto', 'business')).toEqual({
@@ -65,6 +65,7 @@ describe('pinned shell companion perches', () => {
   it('refuses screens with no pinned source perch', () => {
     expect(shellCompanionPlacement('more', 'auto')).toBeNull();
     expect(shellCompanionPlacement('today', 'auto')).toBeNull();
+    expect(shellCompanionPlacement('connections', 'auto')).toBeNull();
     expect(shellCompanionPlacement('paywall', 'auto')).toBeNull();
   });
 });

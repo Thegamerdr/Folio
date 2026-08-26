@@ -14,7 +14,6 @@ const PERSONAL_HEADER_PERCHES: Partial<
   plans: { top: 68, bubbleLeft: 44, birdLeft: 260 },
   whatif: { top: 68, bubbleLeft: 44, birdLeft: 260 },
   account: { top: 68, bubbleLeft: 44, birdLeft: 260 },
-  connections: { top: 68, bubbleLeft: 44, birdLeft: 260 },
   privacy: { top: 68, bubbleLeft: 44, birdLeft: 260 },
   'today-after': { top: 68, bubbleLeft: 68, birdLeft: 284 },
   timeline: { top: 68, bubbleLeft: 44, birdLeft: 260 },
@@ -50,5 +49,10 @@ export function shellCompanionPlacement(
   if (existingPerch !== null) return placeOnSide(existingPerch, side);
   if (workspaceKind === 'business') return null;
   const personalPerch = PERSONAL_HEADER_PERCHES[screen];
-  return personalPerch === undefined ? null : placeOnSide(personalPerch, side);
+  // Header perches are authored on the trailing side because these screens use a large,
+  // leading-aligned title block. Mirroring a persisted left preference puts Melo over that title.
+  // Keep the preference in store for screens with two safe anchors, but use the only safe
+  // authored header perch here. Connections deliberately has no roaming perch: its two-line title
+  // and source cards leave no safe 64dp exclusion zone on the physical S9.
+  return personalPerch === undefined ? null : placeOnSide(personalPerch, 'right');
 }
