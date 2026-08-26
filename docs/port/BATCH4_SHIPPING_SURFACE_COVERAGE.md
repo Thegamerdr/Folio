@@ -1,8 +1,8 @@
 # Batch 4 shipping surface coverage
 
 This is the narrow registry closure for the native shell at the Batch 4 start SHA. It classifies
-the 53 `ScreenId` entries and 27 non-null `SheetId` entries in
-`apps/mobile/src/folio/types.ts` (79 registered shipping surfaces total). The `null` sheet value is
+the 54 `ScreenId` entries and 27 non-null `SheetId` entries in
+`apps/mobile/src/folio/types.ts` (81 registered shipping surfaces total). The `null` sheet value is
 shell state, not a surface, and is intentionally excluded. Screen-owned nested sheets remain
 classified with their owning screen; they are not counted a second time.
 
@@ -41,6 +41,7 @@ classified with their owning screen; they are not counted a second time.
 | Screen   | `insights`                 | ported         | `InsightsScreen`              |
 | Screen   | `shortfall`                | ported         | `ShortfallScreen`             |
 | Screen   | `account`                  | ported         | `AccountScreen`               |
+| Screen   | `connections`              | ported         | `ConnectionsScreen`           |
 | Screen   | `business-entity-setup`    | ported         | `BusinessEntitySetupScreen`   |
 | Screen   | `business-runway`          | ported         | `BusinessOperationsScreen`    |
 | Screen   | `business-clients`         | ported         | `BusinessOperationsScreen`    |
@@ -89,7 +90,7 @@ classified with their owning screen; they are not counted a second time.
 | Sheet    | `hidden-review`            | ported         | `HiddenReviewSheet`           |
 | Sheet    | `day-detail`               | ported         | `SheetDayDetail`              |
 
-Coverage count: 53 screens + 27 sheets = 80 registered surfaces; 80 ported, 0 intentionally
+Coverage count: 54 screens + 27 sheets = 81 registered surfaces; 81 ported, 0 intentionally
 native-only, 0 deprecated/not shipping in the active registry, 0 open. The previous candidate
 `EditItemSheet` pathway is deliberately outside the active registry: Review detail's inline draft
 fields are the sole pre-truth candidate correction owner; Shortfall now routes to Subscriptions.

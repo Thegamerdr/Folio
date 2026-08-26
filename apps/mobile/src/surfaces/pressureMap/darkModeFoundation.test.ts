@@ -97,7 +97,7 @@ describe('dark-mode foundation — theme API + pattern', () => {
 
   it('the provider resolves system / forced modes and defaults to system', () => {
     expect(theme).toContain('useColorScheme');
-    expect(theme).toContain("useState<ThemeMode>('system')");
+    expect(theme).toContain("useState<ThemeMode>(captureMode ?? 'system')");
     expect(theme).toContain('export function ThemeProvider');
   });
 

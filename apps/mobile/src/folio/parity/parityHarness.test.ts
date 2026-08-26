@@ -1,4 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('react-native', () => ({
+  Linking: {
+    addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+    getInitialURL: vi.fn(async () => null),
+  },
+}));
+vi.mock('../ui/statusDialogs', () => ({ getParityStatusDialog: vi.fn(() => undefined) }));
+vi.mock('./decisionDialogs', () => ({ getParityDecisionDialog: vi.fn(() => undefined) }));
 
 import { getState, hasConfiguredMoneyPicture } from '../store';
 import { deriveCalendarEvents } from '../lib/calendarEvents';
@@ -62,10 +71,11 @@ describe('visual parity fixture harness', () => {
   it('builds commitments and pending Review through their public authorities', () => {
     const commitments = activate('populated-commitments');
     expect(commitments.pots).toHaveLength(2);
-    expect(commitments.debts).toHaveLength(1);
+    expect(commitments.debts).toHaveLength(2);
     expect(commitments.plans).toHaveLength(1);
     expect(commitments.pots[0]).toMatchObject({ id: 'fixture-buffer', saved: 420, goal: 900 });
     expect(commitments.debts?.[0]).toMatchObject({ id: 'fixture-loan', balance: 2400 });
+    expect(commitments.debts?.[1]).toMatchObject({ id: 'fixture-klarna-sofa', balance: 320 });
     expect(commitments.plans?.[0]).toMatchObject({ id: 'fixture-plan', target: 1600 });
     const commitmentEvents = deriveCalendarEvents({
       subs: commitments.subs,
