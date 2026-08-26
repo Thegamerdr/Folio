@@ -980,17 +980,6 @@ const DEFAULT_MONEY_MODE: MoneyMode = 'survival';
 /** Non-optional fallback for `AppState.bufferAmount` — same widening issue. */
 const DEFAULT_BUFFER_AMOUNT = 100;
 
-/** Last-resort retention policy for `transactions` (DATA_INTELLIGENCE.md phase ④(A)).
- *  Twenty thousand rows keeps a 10k+ statement whole and provides years of active-account history.
- *  The previous 2,000 limit discarded most large imports even though review showed every row.
- *  Eviction is always oldest-first (`slice(0, TRANSACTION_CAP)` after
- *  newest-first insertion) and is NEVER silent — see `droppedTransactionCount`
- *  on `AppState`, incremented by exactly how many rows an eviction drops.
- *  Both `addTransaction` and `addTransactionsBatch` funnel through the same
- *  `applyTransactionRetention` helper, so there is one policy with two
- *  entrances, never two competing cap implementations. */
-const TRANSACTION_CAP = 20_000;
-
 /** Non-optional fallback for `AppState.debts` — same widening issue. Empty,
  *  not the DEFAULTS fixture data, since this is used by `load()`/`migrate()`
  *  for a genuinely-missing slot on an existing install. */
@@ -3953,24 +3942,16 @@ export function removeSubShareOverride(subName: string) {
  *      newest-caller-first order (as every call site already does) keeps
  *      today's existing "last row ends up at the head" ordering contract
  *      for same-instant rows;
- *    - the `TRANSACTION_CAP` slice below therefore evicts the OLDEST rows
- *      BY DATE, not the rows that merely happened to be inserted first —
- *      an older statement import can no longer evict newer, already-present
- *      history just because of concatenation order.
- *  Oldest-evicted-first, honest count out. Pure. */
+ *  No row-count retention ceiling is applied here. Large imports remain canonical truth; views and
+ *  calculations stay bounded through virtualization and active-horizon selectors instead of data
+ *  loss. `droppedTransactionCount` is preserved only for migration honesty on older installs that
+ *  may already have recorded historical eviction. Pure. */
 function applyTransactionRetention(
   merged: readonly Transaction[],
   priorDroppedCount: number,
 ): { transactions: Transaction[]; droppedTransactionCount: number } {
   const sorted = [...merged].sort((a, b) => (a.when < b.when ? 1 : a.when > b.when ? -1 : 0));
-  if (sorted.length <= TRANSACTION_CAP) {
-    return { transactions: sorted, droppedTransactionCount: priorDroppedCount };
-  }
-  const evicted = sorted.length - TRANSACTION_CAP;
-  return {
-    transactions: sorted.slice(0, TRANSACTION_CAP),
-    droppedTransactionCount: priorDroppedCount + evicted,
-  };
+  return { transactions: sorted, droppedTransactionCount: priorDroppedCount };
 }
 
 function requireSourceEvidence(sourceEvidenceId: string | undefined): EvidenceDocument | undefined {
