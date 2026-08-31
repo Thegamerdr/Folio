@@ -139,7 +139,7 @@
         "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md",
         "STATUS.md"
       ],
-      "note": "The signed arm64 candidate passed basic launch/restart/background/Back smoke on an authorized Galaxy S9. Recovery requirements exist, but secure-key loss, biometric/app-lock and clean/destructive restore proof remain external."
+      "note": "The signed arm64 candidate passed basic launch/restart/background/Back smoke on an authorized Galaxy S9. Locked-device inspection additionally confirmed secure keyguard, operational fingerprint hardware, enforcing SELinux and a non-debuggable app sandbox. Interactive biometric/app-lock, secure-key loss and clean/destructive restore proof remain external."
     },
     {
       "blockerId": "RB-NATIVE-DOCUMENTS-OCR",
@@ -348,7 +348,7 @@
         "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md",
         "STATUS.md"
       ],
-      "note": "Historical CI/emulator and persistence evidence is retained. The current upload-signed arm64 AAB is bundletool/signature/hash verified; the matching arm64 APK passed install, launch, restart/background/Back and fatal-log smoke on an authorized Galaxy S9. Secure-key/biometric/picker/share/destructive-recovery, final account-deletion E2E, Play Console and iOS proof remain external."
+      "note": "Historical CI/emulator and persistence evidence is retained. The current upload-signed arm64 AAB is bundletool/signature/hash verified; the matching arm64 APK passed install, launch, restart/background/Back and fatal-log smoke on an authorized Galaxy S9. Locked-device inspection confirmed secure keyguard, enforcing SELinux and a non-debuggable app sandbox. Interactive secure-key/biometric/picker/share/destructive-recovery, final account-deletion E2E, Play Console and iOS proof remain external."
     },
     {
       "blockerId": "RB-T188-LIMITED-UK-LAUNCH",

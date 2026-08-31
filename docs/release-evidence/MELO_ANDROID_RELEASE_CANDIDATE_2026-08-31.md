@@ -51,6 +51,23 @@ TalkBack or large-text result on this physical device. The earlier signed-candid
 retains its own onboarding, restart/background/Back, 200% text, reduced-motion and TalkBack evidence;
 it is not substituted for physical-device or independent review.
 
+## Locked-device security inspection — 2026-09-01
+
+ADB revalidation while the S9 was at its secure keyguard confirmed the following without unlocking
+the device or reading application data:
+
+- Android reported a secure, showing and non-occluded keyguard; fingerprint hardware was present and
+  its service reported a passing module/calibration state.
+- SELinux was `Enforcing`.
+- The release package did not carry the debuggable flag; `run-as com.folio.v2.greenfield id` was
+  rejected with `package not debuggable`.
+- Android granted the normal biometric/fingerprint permissions declared by the package, while the
+  runtime camera permission remained denied.
+
+These observations strengthen the device/sandbox boundary but do not prove Melo's interactive
+biometric challenge or hardware-backed key lifecycle. The device must be manually unlocked before
+those tests can run; no attempt was made to infer or bypass the owner's credential.
+
 ## Release boundary
 
 Open Banking remains disabled and provider-unconfigured in this candidate. Google Play billing
