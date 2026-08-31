@@ -1,4 +1,4 @@
-# Apple App Privacy — Melo engineering draft (2026-08-24)
+# Apple App Privacy — Melo engineering draft (revalidated 2026-08-31)
 
 Status: **prepared; BLOCKED EXTERNAL until an iOS candidate exists and App Store Connect review is
 performed.** No iOS install, submission or independent privacy approval is claimed.

@@ -29,6 +29,10 @@ are in `PRODUCT_CONFIGURATION.md`.
 
 ## Safe runtime checks after provisioning
 
+The repeatable repository checks are `pnpm billing:preflight` (non-blocking status) and
+`pnpm billing:readiness` (strict activation gate). Both inspect secret names only; neither prints
+secret values.
+
 1. `GET /health` must report `providerConfigured: true`, `signerConfigured: true`, and
    `tokenStoreConfigured: true`.
 2. `GET /v1/catalog` must return the three sellable IDs only, with

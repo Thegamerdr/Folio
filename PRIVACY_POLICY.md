@@ -1,6 +1,6 @@
 # Privacy Policy — Melo (engineering-current draft)
 
-_Last reconciled 24 August 2026 · Product: Melo · Android package/iOS bundle:
+_Last reconciled 31 August 2026 · Product: Melo · Android package/iOS bundle:
 `com.folio.v2.greenfield` · version `0.0.1`._
 
 This document is the engineering-current privacy source for the store package. It is not legal

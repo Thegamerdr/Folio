@@ -1,7 +1,10 @@
-# Melo owner action pack — current release gate (2026-08-24)
+# Melo owner action pack — current release gate (31 August 2026)
 
-This is the only current owner-action list. It contains genuine external actions; internal tabletop,
-safe rotation drills, declaration drafts and DPIA evidence are already delivered in this branch.
+This is the only current owner-action list. It contains genuine external actions; the internal
+tabletop revalidation, safe rotation drills, declaration drafts, privacy/DPIA package, security and
+accessibility handoffs are already delivered in this branch. See
+`docs/release-evidence/RELEASE_REVIEW_HANDOFF_2026-08-31.md` for the review index and
+`docs/release-operations/support-intake-workflow.md` for the executable support boundary.
 
 ## 1. Confirm public contact and policy routes — owner decision
 
@@ -64,8 +67,9 @@ safe rotation drills, declaration drafts and DPIA evidence are already delivered
 - Exact action: authorize the attached physical Android device and run the remaining hardware-bound
   secure-key, biometric, notification, picker/share and safe destructive-recovery drills against the
   signed candidate. Emulator launch/restart/background/Back/onboarding, 200% text, reduced motion
-  and real TalkBack smoke are already complete. For iOS, use authenticated EAS / macOS/Xcode and an
-  iOS device or simulator.
+  and real TalkBack smoke are already complete. For iOS, the project is prepared with
+  `expo-dev-client`; use the authenticated EAS account after interactive distribution-credential
+  setup, or use macOS/Xcode, and test on an iOS device or simulator.
 - Where: authorize the currently attached Android device for USB debugging, then use `adb`;
   complete interactive Apple credential/provisioning setup in EAS or use macOS/Xcode for iOS.
 - Required value: physical-device/build logs, screenshots and exact candidate metadata.

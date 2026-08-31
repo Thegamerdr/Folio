@@ -1,5 +1,8 @@
 # Melo independent accessibility review handoff
 
+Engineering package revalidated 31 August 2026. This remains a handoff to an independent reviewer,
+not a self-approved accessibility clearance.
+
 Status: internal Android accessibility readiness evidence prepared; independent accessibility review
 is not self-approved.
 
@@ -28,6 +31,10 @@ does not require a web accessibility bridge for these surfaces.
   summarized labels rather than requiring visual interpretation.
 
 ## Test/evidence commands
+
+The focused release review suite was re-run on 31 August 2026: 12 files and 117 tests passed.
+The candidate identity and current evidence index are recorded in
+`RELEASE_REVIEW_HANDOFF_2026-08-31.md`.
 
 ```text
 pnpm exec vitest run packages/ui/test/tokens.test.ts apps/mobile/src/folio/ui/Toast.test.ts apps/mobile/src/folio/lib/persistRecovery.test.ts apps/mobile/src/folio/shell/registryCoverage.test.ts apps/mobile/src/folio/sheets/appearanceSheet.test.ts

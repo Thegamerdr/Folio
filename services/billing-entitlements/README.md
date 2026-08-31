@@ -16,3 +16,33 @@ The deployed foundation is intentionally unavailable until all of the following 
 The private Google key and entitlement signing key must never be placed in the app, repository,
 Wrangler variables, logs, or release evidence. The APK receives only the Worker URL and Ed25519
 public key. A client-created or unsigned entitlement is never accepted.
+
+## Readiness commands
+
+Run the non-destructive preflight from the repository root:
+
+```text
+pnpm billing:preflight
+```
+
+It checks the deployed health endpoint, current sellable catalog, KV binding, signer state and
+secret names without printing secret values. Missing provider credentials are reported as `WAIT`
+and do not fail the preflight. The strict activation check is:
+
+```text
+pnpm billing:readiness
+```
+
+That command exits non-zero until the Play service-account secrets are present and the Worker
+reports `providerConfigured: true`. Install the two missing Play values without placing them in a
+shell argument, file, log or commit:
+
+```text
+pnpm billing:secret:google-email
+pnpm billing:secret:google-private-key
+pnpm billing:readiness
+```
+
+Wrangler prompts for each value and writes it directly to the deployed Worker secret store. Use
+only a Google Play license-testing account for E2E; the repository contains no purchase tokens or
+customer data.

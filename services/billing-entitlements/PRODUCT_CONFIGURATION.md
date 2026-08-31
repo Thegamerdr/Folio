@@ -28,5 +28,16 @@ evidence of a live listing or a completed sandbox purchase.
 5. Bind the `ENTITLEMENTS` KV namespace and verify `/health` reports provider, signer and KV
    configuration before any test purchase.
 
+## Non-secret readiness checks
+
+From the repository root, `pnpm billing:preflight` reports the deployed Worker and installed secret
+names without revealing values. `pnpm billing:readiness` is the strict activation gate and exits
+non-zero until all three required secrets are installed and `/health` reports
+`providerConfigured: true`, `signerConfigured: true` and `tokenStoreConfigured: true`.
+
+The current deployed preflight is expected to remain `WAIT` for the two Google service-account
+secrets until the Play Console application and service account exist. No purchase token, private
+key or customer identifier belongs in source control or release evidence.
+
 The Worker rejects unknown products, pending/non-owned purchases, mismatched provider proofs and
 unconfigured verification. It stores only a token hash and never logs a purchase token.

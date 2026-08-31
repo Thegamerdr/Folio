@@ -477,8 +477,15 @@ async function saveRecord(
       return verified;
     });
   } catch (reason: unknown) {
-    // Stable stage only: never log the SQL, exception message, parameters, record id or payload.
-    console.error(`[melo:workspace-vault] record=${recordKind} stage=${writeStage}`);
+    // Preserve a non-enumerable, non-sensitive stage for an upstream crash reporter without
+    // emitting runtime console output or attaching SQL, parameters, record ids, or payloads.
+    if (reason instanceof Error && Object.isExtensible(reason)) {
+      Object.defineProperty(reason, 'meloWorkspaceVaultStage', {
+        configurable: true,
+        enumerable: false,
+        value: `${recordKind}:${writeStage}`,
+      });
+    }
     throw reason;
   } finally {
     db.close();

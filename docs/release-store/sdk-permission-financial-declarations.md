@@ -1,4 +1,4 @@
-# Melo SDK, permission and financial-feature inventory — 2026-08-24
+# Melo SDK, permission and financial-feature inventory — revalidated 2026-08-31
 
 Status: **engineering inventory current; BLOCKED EXTERNAL for candidate-binary and console match.**
 

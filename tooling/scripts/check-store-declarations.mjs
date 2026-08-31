@@ -125,7 +125,15 @@ function collectBlockers(candidate) {
   }
   if (!candidate.processorListCurrent) blockers.push('processor list is not current');
   if (!candidate.sdkInventoryCurrent) blockers.push('SDK inventory is not current');
-  if (!hasText(candidate.submittedBinarySha256 ?? '')) {
+  const hasSubmittedDeclaration = candidate.declarations.some(
+    (declaration) => declaration.consoleSubmitted,
+  );
+  if (
+    (hasSubmittedDeclaration ||
+      candidate.reviewAgainstSubmittedBinaryComplete ||
+      candidate.storeConsoleReviewComplete) &&
+    !hasText(candidate.submittedBinarySha256 ?? '')
+  ) {
     blockers.push('submitted binary hash is not recorded');
   }
   for (const declaration of candidate.declarations) {

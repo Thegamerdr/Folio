@@ -11,6 +11,7 @@ import {
   buildCloudBackupEnvelope,
   formatRecoveryCode,
   normalizeRecoveryCode,
+  normalizeCloudVaultUrl,
   openCloudBackupEnvelope,
   PERSONAL_CLOUD_BACKUP_WORKSPACE_ID,
   recoveryCodeFromBytes,
@@ -55,13 +56,15 @@ export type StagedCloudRestore = Readonly<{
 
 export function getCloudVaultUrl(): string | undefined {
   const fromEnv = process.env.EXPO_PUBLIC_MELO_CLOUD_VAULT_URL;
-  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return trimSlash(fromEnv);
+  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) {
+    const normalized = normalizeCloudVaultUrl(fromEnv);
+    if (normalized !== null) return normalized;
+  }
   const fromExtra = (Constants.expoConfig?.extra as Record<string, unknown> | undefined)?.[
     'EXPO_PUBLIC_MELO_CLOUD_VAULT_URL'
   ];
-  return typeof fromExtra === 'string' && fromExtra.trim().length > 0
-    ? trimSlash(fromExtra)
-    : undefined;
+  if (typeof fromExtra !== 'string' || fromExtra.trim().length === 0) return undefined;
+  return normalizeCloudVaultUrl(fromExtra) ?? undefined;
 }
 
 export async function hasCloudRecoveryCode(workspaceId: WorkspaceId): Promise<boolean> {
@@ -317,10 +320,6 @@ function apiError(payload: { error?: unknown } | null, status: number): string {
   if (status === 401) return 'Your sign-in expired. Sign in again and retry.';
   if (status === 404) return 'No encrypted cloud backup exists for this account.';
   return 'Cloud backup could not complete. Your local data is unchanged.';
-}
-
-function trimSlash(value: string): string {
-  return value.trim().replace(/\/+$/, '');
 }
 
 function record(value: unknown): value is Record<string, unknown> {

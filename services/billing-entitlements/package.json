@@ -7,6 +7,10 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
+    "readiness": "node scripts/check-readiness.mjs",
+    "readiness:activation": "node scripts/check-readiness.mjs --activation",
+    "secret:put-google-email": "wrangler secret put GOOGLE_SERVICE_ACCOUNT_EMAIL --config wrangler.jsonc",
+    "secret:put-google-private-key": "wrangler secret put GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY --config wrangler.jsonc",
     "typecheck": "tsc --noEmit",
     "types": "wrangler types"
   },

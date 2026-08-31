@@ -97,6 +97,7 @@
     "@types/react": "~19.2.2",
     "babel-preset-expo": "~56.0.10",
     "expo-build-properties": "~56.0.26",
+    "expo-dev-client": "~56.0.26",
     "expo-doctor": "^1.19.10",
     "metro-resolver": "^0.84.4",
     "react-test-renderer": "19.2.3"

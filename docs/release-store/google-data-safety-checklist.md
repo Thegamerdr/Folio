@@ -1,4 +1,4 @@
-# Google Play Data Safety — Melo engineering draft (2026-08-24)
+# Google Play Data Safety — Melo engineering draft (revalidated 2026-08-31)
 
 Status: **prepared; BLOCKED EXTERNAL until the exact `app-release.aab` is hashed/matched and the
 owner submits/reviews the Play Console form.**

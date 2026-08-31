@@ -1,5 +1,8 @@
 # Melo independent security review handoff
 
+Engineering package revalidated 31 August 2026. This remains a handoff to an independent reviewer,
+not a self-approved security clearance.
+
 Status: engineering evidence prepared; independent security review is not self-approved.
 
 Android review target: `melo-0.0.1-1-production.aab`, SHA-256
@@ -45,6 +48,9 @@ OpenRouter through the enum-only Worker. No provider secret or Google Play servi
 the mobile bundle.
 
 ## Test evidence
+
+The focused release review suite was re-run on 31 August 2026: 12 files and 117 tests passed.
+The command and complete index are recorded in `RELEASE_REVIEW_HANDOFF_2026-08-31.md`.
 
 Run from repository root:
 

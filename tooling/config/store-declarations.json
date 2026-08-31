@@ -1,14 +1,15 @@
 {
   "schemaVersion": "1.0",
   "releaseName": "Melo store declarations",
-  "updatedOn": "2026-08-24",
+  "updatedOn": "2026-08-31",
   "reviewAgainstSubmittedBinaryComplete": false,
   "storeConsoleReviewComplete": false,
   "privacyPolicyUrl": null,
   "privacyPolicyCurrent": false,
   "processorListCurrent": true,
   "sdkInventoryCurrent": true,
-  "submittedBinarySha256": "6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999",
+  "candidateBinarySha256": "3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD",
+  "submittedBinarySha256": null,
   "binaryIdentity": {
     "productName": "Melo",
     "androidPackage": "com.folio.v2.greenfield",
@@ -16,7 +17,7 @@
     "version": "0.0.1",
     "androidVersionCode": 1,
     "expectedArtifactName": "melo-0.0.1-1-production.aab",
-    "artifactSha256Status": "matched 2026-08-24: package, version, versionCode, arm64 ABI, upload signature and SHA-256 verified"
+    "artifactSha256Status": "matched 2026-08-31: package, version, versionCode, arm64 ABI, upload signature and SHA-256 verified"
   },
   "runtimeEvidence": {
     "billingWorker": "services/billing-entitlements/RUNTIME_EVIDENCE.md",
@@ -24,8 +25,8 @@
     "billingCatalog": ["folio.full", "folio.live.monthly", "folio.live.yearly"],
     "openBankingWorkerHealth": "deployed; featureEnabled=false; providerConfigured=false; /v1 routes return feature_disabled",
     "eas": "authenticated; iOS production build requires interactive Apple credential/provisioning setup",
-    "androidArtifact": "upload-signed arm64 AAB validated; SHA-256 6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999; matching x86_64 tester APK exercised on emulator-5570",
-    "physicalAndroid": "attached physical device remains adb unauthorized; signed-candidate emulator runtime/TalkBack/large-text/reduced-motion evidence complete"
+    "androidArtifact": "current-source upload-signed arm64 AAB validated; SHA-256 3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD; matching arm64 APK installed on Galaxy S9",
+    "physicalAndroid": "authorized Galaxy S9 installed and cold-launched the signed arm64 release APK; restart, background/foreground and hardware Back smoke passed without AndroidRuntime or ReactNativeJS error entries"
   },
   "appleExportCompliance": {
     "status": "OWNER INPUT REQUIRED",

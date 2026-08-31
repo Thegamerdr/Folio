@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "releaseName": "Melo release gate",
-  "updatedOn": "2026-08-24",
+  "updatedOn": "2026-08-31",
   "policy": {
     "publicReleaseAllowed": false,
     "allowSyntheticEvidenceForPublicRelease": false,
@@ -24,7 +24,7 @@
     "cloudScope": "optional Clerk-authenticated client-encrypted Cloud Vault",
     "openBankingScope": "disabled in current release candidate; explicit approved-build flag required for future provider route",
     "aiScope": "local deterministic core; raw document/chat transport retired; enum-only future route",
-    "evidenceAuthority": "OWNER_ACTION_PACK.md and current release/store/operations packages"
+    "evidenceAuthority": "OWNER_ACTION_PACK.md and docs/release-evidence/RELEASE_REVIEW_HANDOFF_2026-08-31.md"
   },
   "classificationVocabulary": ["CLOSED", "BLOCKED EXTERNAL", "BLOCKED OWNER DECISION"],
   "blockerDispositions": {
@@ -124,8 +124,12 @@
   "currentEvidence": [
     {
       "blockerId": "RB-P0-IOS-NATIVE-SMOKE",
-      "paths": ["docs/release-evidence/C0-native-smoke.md", "STATUS.md"],
-      "note": "EAS is authenticated, but the iOS production build failed at interactive Apple credential/provisioning setup; no iOS install/launch evidence is claimed."
+      "paths": [
+        "docs/release-evidence/EAS_IOS_READINESS_2026-08-31.md",
+        "docs/release-evidence/C0-native-smoke.md",
+        "STATUS.md"
+      ],
+      "note": "EAS is authenticated and the project now includes expo-dev-client. Development and production cloud checks reached EAS but stopped at missing internal-distribution credentials / unvalidated distribution certificate; no iOS install/launch evidence is claimed."
     },
     {
       "blockerId": "RB-NATIVE-SECURE-KEYS",
@@ -185,6 +189,8 @@
     {
       "blockerId": "RB-SECURITY-INDEPENDENT-REVIEW",
       "paths": [
+        "docs/release-evidence/RELEASE_REVIEW_HANDOFF_2026-08-31.md",
+        "docs/release-evidence/INDEPENDENT_SECURITY_REVIEW_PACKAGE.md",
         "docs/source-package/release/SECURITY_REVIEW_CHECKLIST.md",
         "docs/release-evidence/C9-security-export-local-launch-readiness.md",
         "docs/release-evidence/C14-store-billing-operations-release.md",
@@ -195,6 +201,7 @@
     {
       "blockerId": "RB-PRIVACY-LEGAL-DPIA",
       "paths": [
+        "docs/release-evidence/PRIVACY_LEGAL_REVIEW_HANDOFF_2026-08-31.md",
         "docs/source-package/release/DPIA_TEMPLATE.md",
         "docs/source-package/release/LEGAL_AND_REGULATORY_REVIEW_CHECKLIST.md",
         "docs/privacy-security/telemetry-and-samples.md",
@@ -207,6 +214,8 @@
     {
       "blockerId": "RB-ACCESSIBILITY-INDEPENDENT-AUDIT",
       "paths": [
+        "docs/release-evidence/RELEASE_REVIEW_HANDOFF_2026-08-31.md",
+        "docs/release-evidence/INDEPENDENT_ACCESSIBILITY_REVIEW_PACKAGE.md",
         "docs/source-package/testing/ACCESSIBILITY_TEST_PLAN.md",
         "docs/release-evidence/T011-accessibility-token-proof.md",
         "docs/release-evidence/C14-store-billing-operations-release.md"
@@ -295,6 +304,8 @@
     {
       "blockerId": "RB-T185-INCIDENT-RUNBOOKS",
       "paths": [
+        "docs/release-operations/release-candidate-tabletop-addendum-2026-08-31.md",
+        "docs/release-operations/support-intake-workflow.md",
         "docs/release-evidence/C14-store-billing-operations-release.md",
         "docs/release-evidence/R0-public-release-blocker-gate.md",
         "docs/release-operations/incident-support-runbook.md",

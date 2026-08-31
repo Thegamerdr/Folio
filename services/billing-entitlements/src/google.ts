@@ -5,6 +5,9 @@ import { BILLING_PRODUCT_TIERS } from './catalog';
 
 const ANDROID_PUBLISHER_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
 const PLAY_API = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
+const GOOGLE_TOKEN_URI = 'https://oauth2.googleapis.com/token';
+const GOOGLE_REQUEST_TIMEOUT_MS = 15_000;
+const GOOGLE_RESPONSE_MAX_BYTES = 1_048_576;
 const FULL_PRODUCT = 'folio.full';
 const VALID_SUBSCRIPTION_STATES = new Set([
   'SUBSCRIPTION_STATE_ACTIVE',
@@ -30,7 +33,8 @@ export function googlePlayProvider(env: RuntimeEnv): PurchaseProvider {
   const configured =
     nonBlank(env.GOOGLE_SERVICE_ACCOUNT_EMAIL) &&
     nonBlank(env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) &&
-    nonBlank(env.PACKAGE_NAME);
+    nonBlank(env.PACKAGE_NAME) &&
+    env.GOOGLE_TOKEN_URI === GOOGLE_TOKEN_URI;
 
   return {
     configured,
@@ -54,7 +58,7 @@ export function googlePlayProvider(env: RuntimeEnv): PurchaseProvider {
       const product = encodeURIComponent(productId);
       const token = encodeURIComponent(purchaseToken);
       const family = productId === FULL_PRODUCT ? 'products' : 'subscriptions';
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${PLAY_API}/applications/${packageName}/purchases/${family}/${product}/tokens/${token}:acknowledge`,
         {
           method: 'POST',
@@ -141,7 +145,9 @@ async function verifySubscription(
 }
 
 async function playGet(url: string, accessToken: string): Promise<Record<string, unknown>> {
-  const response = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
+  const response = await fetchWithTimeout(url, {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
   if (response.status === 404) {
     invalidProof('purchase_not_found', 'Google Play did not find this purchase.');
   }
@@ -152,7 +158,7 @@ async function playGet(url: string, accessToken: string): Promise<Record<string,
       `Google Play verification returned ${response.status}.`,
     );
   }
-  const body: unknown = await response.json();
+  const body: unknown = await boundedJson(response);
   if (body === null || typeof body !== 'object' || Array.isArray(body)) {
     throw new BillingProviderError(
       'provider_invalid_response',
@@ -183,7 +189,7 @@ async function accessTokenFor(env: RuntimeEnv): Promise<string> {
     .setIssuedAt(now)
     .setExpirationTime(now + 3600)
     .sign(key);
-  const response = await fetch(env.GOOGLE_TOKEN_URI, {
+  const response = await fetchWithTimeout(env.GOOGLE_TOKEN_URI, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -198,9 +204,17 @@ async function accessTokenFor(env: RuntimeEnv): Promise<string> {
       'Google Play authentication failed.',
     );
   }
-  const body = (await response.json()) as Record<string, unknown>;
-  const token = typeof body['access_token'] === 'string' ? body['access_token'] : '';
-  const expiresIn = typeof body['expires_in'] === 'number' ? body['expires_in'] : 3600;
+  const body: unknown = await boundedJson(response);
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    throw new BillingProviderError(
+      'provider_auth_failed',
+      502,
+      'Google returned invalid authentication data.',
+    );
+  }
+  const tokenBody = body as Record<string, unknown>;
+  const token = typeof tokenBody['access_token'] === 'string' ? tokenBody['access_token'] : '';
+  const expiresIn = typeof tokenBody['expires_in'] === 'number' ? tokenBody['expires_in'] : 3600;
   if (token.length === 0) {
     throw new BillingProviderError(
       'provider_auth_failed',
@@ -218,6 +232,57 @@ function invalidProof(code: string, message: string): never {
 
 function nonBlank(value: string | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GOOGLE_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new BillingProviderError(
+        'provider_timeout',
+        504,
+        'Google Play did not respond before the verification deadline.',
+      );
+    }
+    throw new BillingProviderError(
+      'provider_unavailable',
+      502,
+      'Google Play verification is temporarily unavailable.',
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function boundedJson(response: Response): Promise<unknown> {
+  const length = response.headers.get('content-length');
+  if (length !== null && /^\d+$/.test(length) && Number(length) > GOOGLE_RESPONSE_MAX_BYTES) {
+    throw new BillingProviderError(
+      'provider_response_too_large',
+      502,
+      'Google returned too much data.',
+    );
+  }
+  const body = await response.arrayBuffer();
+  if (body.byteLength > GOOGLE_RESPONSE_MAX_BYTES) {
+    throw new BillingProviderError(
+      'provider_response_too_large',
+      502,
+      'Google returned too much data.',
+    );
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(body)) as unknown;
+  } catch {
+    throw new BillingProviderError(
+      'provider_invalid_response',
+      502,
+      'Google returned invalid data.',
+    );
+  }
 }
 
 function stringAt(value: unknown, ...path: string[]): string {

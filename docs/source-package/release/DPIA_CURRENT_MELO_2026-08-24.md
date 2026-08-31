@@ -1,4 +1,7 @@
-# Melo DPIA — engineering-current package (24 August 2026)
+# Melo DPIA — engineering-current package (revalidated 31 August 2026)
+
+This is the same engineering-current package revalidated against the current Android candidate and
+release control plane on 31 August 2026. It does not grant legal/privacy approval.
 
 ## Decision status
 

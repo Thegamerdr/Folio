@@ -4,6 +4,7 @@ import {
   buildCloudBackupEnvelope,
   formatRecoveryCode,
   normalizeRecoveryCode,
+  normalizeCloudVaultUrl,
   openCloudBackupEnvelope,
   PERSONAL_CLOUD_BACKUP_WORKSPACE_ID,
   recoveryCodeFromBytes,
@@ -29,6 +30,16 @@ function envelope(plaintext = '{"transactions":[],"subs":[]}') {
 }
 
 describe('cloud backup envelope', () => {
+  it('accepts only a credential-safe HTTPS cloud-vault origin', () => {
+    expect(normalizeCloudVaultUrl('https://vault.example.test/')).toBe(
+      'https://vault.example.test',
+    );
+    expect(normalizeCloudVaultUrl('http://vault.example.test')).toBeNull();
+    expect(normalizeCloudVaultUrl('https://user:pass@vault.example.test')).toBeNull();
+    expect(normalizeCloudVaultUrl('https://vault.example.test/path')).toBeNull();
+    expect(normalizeCloudVaultUrl('https://vault.example.test/?token=secret')).toBeNull();
+  });
+
   it('formats and normalizes a 256-bit recovery code', () => {
     const formatted = formatRecoveryCode(recoveryCode);
     expect(formatted.split('-')).toHaveLength(8);

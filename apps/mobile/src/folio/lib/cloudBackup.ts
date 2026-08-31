@@ -11,6 +11,26 @@ export const PERSONAL_CLOUD_BACKUP_WORKSPACE_ID = createWorkspaceId('workspace_p
 
 const WORKSPACE_REF_PATTERN = /^[a-f0-9]{64}$/;
 
+/** Normalize a cloud-vault origin before it can receive a Clerk bearer token or ciphertext. */
+export function normalizeCloudVaultUrl(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    if (
+      url.protocol !== 'https:' ||
+      url.username.length > 0 ||
+      url.password.length > 0 ||
+      url.search.length > 0 ||
+      url.hash.length > 0 ||
+      (url.pathname !== '' && url.pathname !== '/')
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 export type CloudBackupEnvelope = Readonly<{
   version: typeof CLOUD_BACKUP_VERSION;
   encryption: 'AES-256-GCM';

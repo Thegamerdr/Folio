@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "releaseName": "Melo release operations readiness",
-  "updatedOn": "2026-08-24",
+  "updatedOn": "2026-08-31",
   "releaseIdentity": {
     "productName": "Melo",
     "androidPackage": "com.folio.v2.greenfield",
@@ -12,7 +12,7 @@
   "tabletopExercise": {
     "complete": true,
     "executedOn": "2026-08-24",
-    "evidencePath": "docs/release-operations/tabletop-exercise-record.md",
+    "evidencePath": "docs/release-operations/release-candidate-tabletop-addendum-2026-08-31.md",
     "blocker": ""
   },
   "support": {
@@ -21,7 +21,8 @@
     "breachNotificationOwnerAssigned": true,
     "contactRoute": null,
     "contactRouteStatus": "OWNER INPUT REQUIRED: choose/confirm support contact",
-    "boundaryPath": "docs/release-operations/incident-support-runbook.md"
+    "boundaryPath": "docs/release-operations/incident-support-runbook.md",
+    "intakeWorkflowPath": "docs/release-operations/support-intake-workflow.md"
   },
   "rotationDrills": {
     "complete": true,

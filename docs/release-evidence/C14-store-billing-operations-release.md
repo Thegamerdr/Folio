@@ -308,3 +308,29 @@ Galaxy S9 update and passes the full phone navigation smoke. T187 remains blocke
 normalization and domain-by-domain canonical read authority, typed coverage for unsupported
 domains, the remaining
 import/restore/endurance matrix, production account-deletion E2E and iOS release/store proof.
+
+## Billing and lifecycle readiness update — 2026-08-31
+
+The current implementation was re-audited against the Free / Full / Live product model and the
+optional Clerk + client-encrypted Cloud Vault lifecycle.
+
+- Billing Worker `/health` is reachable and reports `signerConfigured: true`,
+  `tokenStoreConfigured: true`, and `providerConfigured: false` because the Play service-account
+  secrets are not installed. `/v1/catalog` advertises exactly the three current sellable products:
+  `folio.full`, `folio.live.monthly`, and `folio.live.yearly`.
+- `pnpm billing:preflight` now checks deployed health, catalog, KV binding, signer state and secret
+  names without printing secret values. `pnpm billing:readiness` is the strict activation gate and
+  remains non-zero until the Play provider secrets exist and the Worker reports configured.
+- Google provider requests are pinned to Google's canonical OAuth/Android Publisher hosts, bounded
+  by a 15-second timeout and 1 MiB response limit, and malformed provider responses fail closed.
+- Cloud Vault accepts only credential-safe HTTPS origins before sending a Clerk bearer token;
+  account deletion remains ordered as remote cloud/bank purge, local recovery-secret cleanup, then
+  Clerk identity deletion. Unit coverage proves tenant/workspace isolation, idempotent purge,
+  partial-failure identity retention and local-data preservation.
+- Focused verification passed: 3 files, 16 tests for this lane; billing Worker typecheck passed.
+
+The remaining billing and lifecycle proof is external: create/verify the Play products and license
+tester, install the Google service-account secrets, run purchase/restore/pending/cancel/expiry/refund
+and offline-grace tests on the release candidate, then run disposable production-equivalent Clerk
+sign-in, clean-device restore, revoke and account-deletion checks. No real payment or owner data was
+used here.

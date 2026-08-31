@@ -1,4 +1,8 @@
-# Melo current store-submission package — 2026-08-24
+# Melo current store-submission package — engineering revalidation 31 August 2026
+
+The candidate and declaration answers were revalidated against the current release control plane on
+31 August 2026. This package remains a draft until the owner supplies the public policy/support /
+deletion route and the relevant store console review is completed.
 
 ## Submission identity
 

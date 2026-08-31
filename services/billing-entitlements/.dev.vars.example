@@ -1,0 +1,4 @@
+# Local-only example. Never commit real values; use `wrangler secret put` for deployed Workers.
+GOOGLE_SERVICE_ACCOUNT_EMAIL=
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=
+ENTITLEMENT_SIGNING_PRIVATE_KEY=
