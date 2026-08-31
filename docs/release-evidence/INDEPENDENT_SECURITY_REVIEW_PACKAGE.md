@@ -6,7 +6,7 @@ not a self-approved security clearance.
 Status: engineering evidence prepared; independent security review is not self-approved.
 
 Android review target: `melo-0.0.1-1-production.aab`, SHA-256
-`6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`; upload certificate SHA-256
+`3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`; upload certificate SHA-256
 `547396e1fd99681c2a6d768b8b7d1b4484b5f42a17597cad6c495221267a5488`.
 
 ## Review target and architecture
@@ -72,7 +72,7 @@ workspace binding, raw-AI rejection, response limits and the HTTPS-only transpor
    no upstream fetch.
 4. Inspect `apps/mobile/app/_layout.tsx` and `apps/mobile/src/folio/shell/FolioShell.tsx` crash
    boundaries; induce a test render error and confirm logs contain only the generic marker.
-5. Review `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md` and repeat its
+5. Review `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md` and repeat its
    Android release smoke/accessibility scenarios on a disposable device or emulator. Do not use
    real financial data.
 

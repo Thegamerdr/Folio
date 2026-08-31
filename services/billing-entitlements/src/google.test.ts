@@ -7,8 +7,7 @@ const baseEnv: RuntimeEnv = {
   PACKAGE_NAME: 'com.folio.v2.greenfield',
   GOOGLE_TOKEN_URI: 'https://oauth2.googleapis.com/token',
   GOOGLE_SERVICE_ACCOUNT_EMAIL: 'billing@example.iam.gserviceaccount.com',
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY:
-    '-----BEGIN PRIVATE KEY-----\ninvalid\n-----END PRIVATE KEY-----',
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: 'invalid-test-private-key',
   ENTITLEMENT_ISSUER: 'https://billing.example.test',
   ENTITLEMENT_AUDIENCE: 'com.folio.v2.greenfield',
   ENTITLEMENT_SIGNING_KEY_ID: 'key',

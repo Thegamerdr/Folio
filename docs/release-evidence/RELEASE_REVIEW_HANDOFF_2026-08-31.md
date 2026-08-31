@@ -12,14 +12,14 @@ sign-off.
 | Product                       | Melo                                                                               |
 | Android package / iOS bundle  | `com.folio.v2.greenfield`                                                          |
 | Version / Android versionCode | `0.0.1` / `1`                                                                      |
-| Android candidate             | `release-artifacts/melo-0.0.1-2026-08-24/melo-0.0.1-1-production.aab`              |
-| Android candidate SHA-256     | `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`                 |
+| Android candidate             | `release-artifacts/melo-0.0.1-2026-08-31/melo-0.0.1-1-production.aab`              |
+| Android candidate SHA-256     | `3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`                 |
 | Upload certificate SHA-256    | `547396e1fd99681c2a6d768b8b7d1b4484b5f42a17597cad6c495221267a5488`                 |
 | Current Open Banking exposure | Disabled in this candidate; no bank data is sent                                   |
 | Current AI exposure           | Local deterministic core; raw-data routes retired; enum-only route is future-gated |
 
 The binary identity and runtime evidence are documented in
-`docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md`. If a new binary is produced,
+`docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md`. If a new binary is produced,
 replace the hash and re-run the declaration, security and accessibility match before submission.
 
 ## Review packages

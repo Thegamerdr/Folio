@@ -6,8 +6,8 @@ legal notification, independent security review or store release.
 
 ## Evidence used
 
-- Candidate: `release-artifacts/melo-0.0.1-2026-08-24/melo-0.0.1-1-production.aab`
-- Candidate SHA-256: `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`
+- Candidate: `release-artifacts/melo-0.0.1-2026-08-31/melo-0.0.1-1-production.aab`
+- Candidate SHA-256: `3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`
 - `pnpm release:status`
 - `pnpm store:status`
 - `pnpm operations:status`

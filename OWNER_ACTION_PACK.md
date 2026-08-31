@@ -29,6 +29,9 @@ accessibility handoffs are already delivered in this branch. See
   sandbox/license-test only.
 - Required value: owner identity document/contact-phone verification, Google Play service-account
   credential and approved prices. Never sell legacy `folio.plus.*`/`folio.pro.*` IDs.
+- Secret entry commands: run `pnpm billing:secret:google-email` and
+  `pnpm billing:secret:google-private-key`, then confirm `pnpm billing:readiness`. Paste secrets only
+  into the hidden Wrangler prompts; never into a file, shell history, issue or chat.
 - Expected result: signed grant verification and native Play lifecycle match the current store
   package.
 - Evidence to save: product screenshots/export, tester purchase/restore logs, grant IDs/hashes and
@@ -43,6 +46,11 @@ accessibility handoffs are already delivered in this branch. See
   deletion. Never use the owner's real account or financial data.
 - Where: provider dashboards and a disposable test device/account.
 - Required value: owner/provider credentials, approved processor contracts and test account.
+- TrueLayer activation inputs: register the callback URL printed by `pnpm open-banking:readiness`,
+  then run `pnpm open-banking:secret:client-id`, `pnpm open-banking:secret:client-secret` and
+  `pnpm open-banking:secret:encryption-key`. Re-run `pnpm open-banking:readiness` before enabling a
+  provider build. Production Clerk/Cloud Vault also need their owner-issued production values and a
+  disposable account for the deletion/restore proof.
 - Expected result: remote purge confirms before Clerk deletion; local wipe remains separate. The
   current candidate makes no Open Banking request; any future enabled build must match provider
   consent/revocation wording to real behavior.
@@ -54,7 +62,7 @@ accessibility handoffs are already delivered in this branch. See
 
 - Exact action: send the completed security, accessibility and DPIA/privacy/legal packages to named
   independent reviewers and record decisions against Android candidate SHA-256
-  `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`.
+  `3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`.
 - Where: owner-selected independent security, accessibility and legal/privacy reviewers.
 - Required value: reviewer names/organisations, scope, date, findings and sign-off.
 - Expected result: no unaccepted high/critical findings and explicit approval of store/privacy/
@@ -64,21 +72,34 @@ accessibility handoffs are already delivered in this branch. See
 
 ## 5. Complete remaining physical Android and iOS release evidence
 
-- Exact action: authorize the attached physical Android device and run the remaining hardware-bound
-  secure-key, biometric, notification, picker/share and safe destructive-recovery drills against the
-  signed candidate. Emulator launch/restart/background/Back/onboarding, 200% text, reduced motion
-  and real TalkBack smoke are already complete. For iOS, the project is prepared with
+- Exact action: the signed arm64 candidate is installed and basic launch/restart/background/Back
+  smoke has passed on the authorized Galaxy S9. Using a disposable Android profile and safe test
+  data, run the remaining hardware-bound secure-key, biometric, notification, picker/share and
+  destructive-recovery drills. Emulator onboarding, 200% text, reduced motion and real TalkBack
+  smoke are already complete. For iOS, the project is prepared with
   `expo-dev-client`; use the authenticated EAS account after interactive distribution-credential
   setup, or use macOS/Xcode, and test on an iOS device or simulator.
-- Where: authorize the currently attached Android device for USB debugging, then use `adb`;
-  complete interactive Apple credential/provisioning setup in EAS or use macOS/Xcode for iOS.
+- Where: the currently connected S9 for the remaining Android drills; complete interactive Apple
+  credential/provisioning setup in EAS or use macOS/Xcode for iOS.
 - Required value: physical-device/build logs, screenshots and exact candidate metadata.
 - Expected result: hardware-bound Android and iOS evidence complements the signed-candidate emulator
   record without converting internal accessibility checks into independent sign-off.
 - Evidence to save: install/launch logs, screenshots, accessibility observations and recovery proof.
 - Blocks: Android beta/public; iOS beta/public.
 
-## 6. Resolve Apple export compliance
+## 6. Configure production crash-symbol upload
+
+- Exact action: provide the Sentry organisation, project and auth token used by the production
+  release pipeline, then rebuild and verify the source-map upload task.
+- Where: Sentry project settings and the protected CI/EAS release environment.
+- Required value: owner-issued `SENTRY_ORG`, `SENTRY_PROJECT` and narrowly scoped auth token; never
+  commit or paste the token into repository files.
+- Expected result: production source maps upload against the exact release and the artifact/hash is
+  regenerated and re-matched if the binary changes.
+- Evidence to save: redacted upload task output and Sentry release/artifact association.
+- Blocks: production observability sign-off.
+
+## 7. Resolve Apple export compliance
 
 - Exact action: determine the correct App Store export-compliance answer for standard AES-GCM
   encryption implemented outside the operating system, and record the owner/legal decision.

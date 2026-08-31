@@ -34,7 +34,7 @@
     },
     "RB-NATIVE-SECURE-KEYS": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Run physical Android/iOS key-wrapping, app-lock and clean-restore proof and obtain independent review."
+      "action": "Basic signed-candidate S9 smoke is complete; run Android/iOS key-wrapping, app-lock and clean-restore proof and obtain independent review."
     },
     "RB-NATIVE-DOCUMENTS-OCR": {
       "classification": "BLOCKED EXTERNAL",
@@ -102,7 +102,7 @@
     },
     "RB-T187-FULL-REGRESSION-STORE-BUILDS": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Android AAB/hash and signed-candidate emulator gates are complete; finish physical Android, account-deletion, Play Console and iOS proof."
+      "action": "Android AAB/hash, emulator gates and basic signed-candidate S9 smoke are complete; finish hardware-bound Android drills, account-deletion, Play Console and iOS proof."
     },
     "RB-T188-LIMITED-UK-LAUNCH": {
       "classification": "BLOCKED OWNER DECISION",
@@ -136,9 +136,10 @@
       "paths": [
         "docs/source-package/release/ACCOUNT_RECOVERY_AND_DELETION_RUNBOOK.md",
         "docs/release-evidence/C10-cloud-account-encrypted-backup-sync.md",
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md",
         "STATUS.md"
       ],
-      "note": "Recovery and deletion requirements plus sync evidence exist; native key wrapping proof remains external."
+      "note": "The signed arm64 candidate passed basic launch/restart/background/Back smoke on an authorized Galaxy S9. Recovery requirements exist, but secure-key loss, biometric/app-lock and clean/destructive restore proof remain external."
     },
     {
       "blockerId": "RB-NATIVE-DOCUMENTS-OCR",
@@ -156,9 +157,10 @@
         "docs/source-package/19_GAMIFICATION_RETENTION_AND_NOTIFICATIONS.md",
         "docs/release-evidence/C6-today-timeline-calendar-transactions.md",
         "docs/release-evidence/C7-melo-deterministic-system.md",
-        "docs/release-evidence/C13-business-workspace.md"
+        "docs/release-evidence/C13-business-workspace.md",
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md"
       ],
-      "note": "Notification, calendar and voice blockers are visible across the relevant phase evidence records."
+      "note": "Basic signed-candidate S9 smoke is complete. Notification, calendar, voice, picker/share and permission/privacy drills remain external."
     },
     {
       "blockerId": "RB-VAULT-REAL-DATA-E2E",
@@ -173,7 +175,8 @@
         "docs/release-evidence/ANDROID_CANONICAL_CORE_AUTHORITY_2026-07-16.md",
         "docs/release-evidence/ANDROID_CANONICAL_FINANCIAL_CONTEXT_AUTHORITY_2026-07-16.md",
         "docs/release-evidence/ANDROID_CANONICAL_FULL_APPSTATE_AUTHORITY_2026-07-16.md",
-        "docs/release-evidence/ANDROID_IMPORT_CORPUS_AND_CRASH_RECOVERY_2026-07-16.md"
+        "docs/release-evidence/ANDROID_IMPORT_CORPUS_AND_CRASH_RECOVERY_2026-07-16.md",
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md"
       ],
       "note": "Release-built Android kernel-ENOSPC state/PDF retry, corrupted-main backup recovery, Personal legacy-to-schema-v11 interrupted-migration recovery, a bounded airplane-mode loop, clean-sandbox portable-export restore, lossless state/root SQLCipher authority, whole-database rebuild and schema-v8 canonical reads are proven. The shipping parser now passes an 18-case synthetic corpus and 100k-row endurance run; automated active-workspace boot recovery removes interrupted encrypted-source orphans without crossing workspace boundaries. Release-device import-kill timing, production corruption/low-storage/endurance, iOS and cloud/cross-device restore remain open."
     },
@@ -283,9 +286,9 @@
         "docs/release-store/reviewer-notes.md",
         "tooling/config/store-declarations.json",
         "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
-        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md"
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md"
       ],
-      "note": "Current Melo declaration package and SDK/processor inventory are prepared and matched to Android AAB SHA-256 6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999; owner URL/contact, Play developer verification and console submission remain external."
+      "note": "Current Melo declaration package and SDK/processor inventory are prepared and matched to Android AAB SHA-256 3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD; owner URL/contact, Play developer verification and console submission remain external."
     },
     {
       "blockerId": "RB-T184-NATIVE-BILLING",
@@ -342,10 +345,10 @@
         "docs/release-evidence/ANDROID_CANONICAL_FULL_APPSTATE_AUTHORITY_2026-07-16.md",
         "docs/release-evidence/ANDROID_IMPORT_CORPUS_AND_CRASH_RECOVERY_2026-07-16.md",
         "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md",
-        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md",
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md",
         "STATUS.md"
       ],
-      "note": "Historical CI/emulator and persistence evidence is retained. The upload-signed arm64 AAB is bundletool/signature/hash verified and a matching signed x86_64 tester passed onboarding, restart/background/Back, 200% text, reduced-motion and real TalkBack smoke on emulator-5570. The attached physical Android device remains adb-unauthorized, so physical secure-key/biometric/picker/share/recovery proof is not claimed. Final account-deletion E2E, Play Console and iOS proof remain external."
+      "note": "Historical CI/emulator and persistence evidence is retained. The current upload-signed arm64 AAB is bundletool/signature/hash verified; the matching arm64 APK passed install, launch, restart/background/Back and fatal-log smoke on an authorized Galaxy S9. Secure-key/biometric/picker/share/destructive-recovery, final account-deletion E2E, Play Console and iOS proof remain external."
     },
     {
       "blockerId": "RB-T188-LIMITED-UK-LAUNCH",

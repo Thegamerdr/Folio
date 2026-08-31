@@ -14,8 +14,8 @@ deletion route and the relevant store console review is completed.
 | App version            | `0.0.1`                                                              | `apps/mobile/app.config.ts`                                              |
 | Android versionCode    | `1`                                                                  | Candidate manifest and native config                                     |
 | Candidate artifact     | `melo-0.0.1-1-production.aab`                                        | Upload-signed arm64 candidate; bundletool/signature/manifest checks pass |
-| Candidate SHA-256      | `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`   | Exact 63,997,776-byte AAB; not yet uploaded                              |
-| Candidate evidence     | `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-24.md` | Matching signed x86_64 runtime/accessibility evidence                    |
+| Candidate SHA-256      | `3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`   | Exact 62,324,086-byte AAB; not yet uploaded                              |
+| Candidate evidence     | `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md` | Matching signed arm64 physical-device smoke                              |
 | Play submission        | Not submitted                                                        | Console submission must not be claimed from repository evidence          |
 | Privacy policy URL     | `OWNER INPUT REQUIRED: choose/confirm an owned public URL`           | No owned public URL is present in repo/config                            |
 | Support contact        | `OWNER INPUT REQUIRED: choose/confirm support contact`               | No inbox/service is present in repo/config                               |
@@ -88,7 +88,7 @@ review must be checked against the actual iOS binary; no iOS submission is claim
 
 Use synthetic reviewer data only. Melo works locally without an account; account/cloud/bank flows
 are optional. Do not ask a reviewer to provide real financial data. The reviewer must be given the
-candidate SHA-256 `6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`
+candidate SHA-256 `3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`
 and an owner-confirmed privacy/support URL before console submission.
 
 ## Submission gate

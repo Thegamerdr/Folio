@@ -7,7 +7,7 @@ Status: internal Android accessibility readiness evidence prepared; independent 
 is not self-approved.
 
 Android review target: `melo-0.0.1-1-production.aab`, SHA-256
-`6023B1A455907739B5EB6D7ABEA26B19212ADABF308170510ED2A50EB3E2A999`.
+`3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`.
 
 ## Review scope
 
@@ -63,8 +63,9 @@ back navigation.
 
 ## Known review gaps
 
-This package does not claim independent TalkBack, VoiceOver, contrast or cognitive signoff. A physical
-device pass is still needed for OEM-specific focus announcements, keyboard behavior, font metrics and
+This package does not claim independent TalkBack, VoiceOver, contrast or cognitive signoff. Basic
+launch/restart/background/Back smoke passed on a physical Galaxy S9, but an independent physical-device
+pass is still needed for OEM-specific focus announcements, keyboard behavior, font metrics and
 screen-reader speech. The reviewer should inspect the final signed binary, generated Android manifest,
 and any newly added native module surfaces before issuing an independent decision. Internal emulator
-evidence does not replace that independent decision.
+evidence and basic device smoke do not replace that independent decision.
