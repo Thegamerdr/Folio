@@ -6,6 +6,11 @@ accessibility handoffs are already delivered in this branch. See
 `docs/release-evidence/RELEASE_REVIEW_HANDOFF_2026-08-31.md` for the review index and
 `docs/release-operations/support-intake-workflow.md` for the executable support boundary.
 
+After installing provider secrets, run `pnpm provider:readiness`. It executes both the Google Play
+billing and TrueLayer activation checks, reports every missing input in one pass and exits non-zero
+until both deployed provider boundaries are configured. `pnpm provider:preflight` is the non-blocking
+status form to use before secrets are available.
+
 ## 1. Confirm public contact and policy routes — owner decision
 
 - Exact action: choose/confirm an existing owned support/security contact, legal entity and public

@@ -39,6 +39,8 @@
     "open-banking:secret:client-id": "pnpm --filter @melo/open-banking-service secret:put-client-id",
     "open-banking:secret:client-secret": "pnpm --filter @melo/open-banking-service secret:put-client-secret",
     "open-banking:secret:encryption-key": "pnpm --filter @melo/open-banking-service secret:put-encryption-key",
+    "provider:preflight": "node tooling/scripts/check-provider-activation-readiness.mjs",
+    "provider:readiness": "node tooling/scripts/check-provider-activation-readiness.mjs --activation",
     "operations:guard": "node tooling/scripts/check-operations-readiness.mjs --require-ready",
     "operations:status": "node tooling/scripts/check-operations-readiness.mjs",
     "release:guard": "node tooling/scripts/check-release-blockers.mjs --require-ready",
