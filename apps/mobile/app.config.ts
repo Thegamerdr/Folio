@@ -11,6 +11,33 @@ function clerkPublishableKeyForBuild(): string | undefined {
   return key;
 }
 
+export function openBankingUrlForBuild(): string | undefined {
+  if (process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED !== 'true') return undefined;
+  const value = process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_URL?.trim();
+  if (!value) {
+    throw new Error(
+      'Open Banking builds require EXPO_PUBLIC_MELO_OPEN_BANKING_URL when the feature flag is true.',
+    );
+  }
+  try {
+    const parsed = new URL(value);
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new Error('invalid endpoint');
+    }
+    return parsed.toString().replace(/\/+$/u, '');
+  } catch {
+    throw new Error(
+      'EXPO_PUBLIC_MELO_OPEN_BANKING_URL must be an HTTPS URL without credentials, query, or fragment.',
+    );
+  }
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   // The app IS Melo (owner D4; brand sweep completed 2026-07-11). The slug (EAS project),
@@ -189,10 +216,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // flow or send provider data.
     EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED:
       process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED === 'true' ? 'true' : undefined,
-    EXPO_PUBLIC_MELO_OPEN_BANKING_URL:
-      process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED === 'true'
-        ? process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_URL
-        : undefined,
+    EXPO_PUBLIC_MELO_OPEN_BANKING_URL: openBankingUrlForBuild(),
     // Google Play purchase verification. The private Play/service and Ed25519 signing keys stay
     // in the Worker; the APK contains only this endpoint and the public verification key.
     EXPO_PUBLIC_MELO_BILLING_URL:

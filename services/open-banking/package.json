@@ -7,6 +7,12 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
+    "readiness": "node scripts/check-readiness.mjs",
+    "readiness:remote": "node scripts/check-readiness.mjs --remote",
+    "readiness:activation": "node scripts/check-readiness.mjs --remote --require-secrets",
+    "secret:put-client-id": "wrangler secret put TRUELAYER_CLIENT_ID",
+    "secret:put-client-secret": "wrangler secret put TRUELAYER_CLIENT_SECRET",
+    "secret:put-encryption-key": "node scripts/put-encryption-key.mjs",
     "typecheck": "tsc --noEmit",
     "types": "wrangler types"
   },

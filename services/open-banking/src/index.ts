@@ -1,6 +1,13 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-import { openJson, sealJson, stablePublicId, storageUserId, storageWorkspaceId } from './crypto';
+import {
+  isValidEncryptionKey,
+  openJson,
+  sealJson,
+  stablePublicId,
+  storageUserId,
+  storageWorkspaceId,
+} from './crypto';
 import { ProviderError, trueLayerGateway } from './truelayer';
 import type {
   OpenBankingStore,
@@ -72,6 +79,7 @@ export async function handleRequest(
 ): Promise<Response> {
   const url = new URL(request.url);
   if (request.method === 'OPTIONS') return preflight(request, env);
+  const configurationIssues = serviceConfigurationIssues(env, provider);
   if (request.method === 'GET' && url.pathname === '/health') {
     const enabled = openBankingEnabled(env);
     return json(
@@ -81,6 +89,8 @@ export async function handleRequest(
         featureEnabled: enabled,
         provider: 'truelayer-data-v3',
         providerConfigured: provider.configured,
+        configurationReady: configurationIssues.length === 0,
+        activationReady: enabled && provider.configured && configurationIssues.length === 0,
         environment: provider.environment,
         providerCredentialsInApp: false,
         directLedgerWrites: false,
@@ -97,6 +107,17 @@ export async function handleRequest(
     return json(
       { error: 'Bank connection is not available in this release.', code: 'feature_disabled' },
       404,
+      request,
+      env,
+    );
+  }
+  if (configurationIssues.length > 0) {
+    return json(
+      {
+        error: 'Bank connection configuration is incomplete.',
+        code: 'service_not_configured',
+      },
+      503,
       request,
       env,
     );
@@ -193,6 +214,7 @@ export async function handleAuthenticatedRequest(
       email,
       returnUri,
       localConnectionId,
+      ...(clientIp(request) === undefined ? {} : { endUserIp: clientIp(request) }),
     });
     const now = new Date().toISOString();
     const record: StoredConnection = {
@@ -288,6 +310,7 @@ export async function handleAuthenticatedRequest(
         userHash,
         scope.workspaceRef,
         record,
+        clientIp(request),
       );
       return json(result.payload, result.status, request, env);
     } catch (reason: unknown) {
@@ -384,6 +407,7 @@ async function syncConnection(
   userHash: string,
   workspaceRef: string,
   record: StoredConnection,
+  endUserIp?: string,
 ): Promise<{ status: number; payload: unknown }> {
   const encryptionKey = requiredEncryptionKey(env);
   const secret = await openJson<ProviderSecret>(
@@ -391,10 +415,10 @@ async function syncConnection(
     encryptionKey,
     providerSecretBinding(userHash, workspaceRef, record.id),
   );
-  const providerAccounts = (await provider.listAccounts(secret.providerConnectionId)).slice(
-    0,
-    MAX_ACCOUNTS_PER_CONNECTION,
-  );
+  const context = endUserIp === undefined ? undefined : { endUserIp };
+  const providerAccounts = (
+    await provider.listAccounts(secret.providerConnectionId, context)
+  ).slice(0, MAX_ACCOUNTS_PER_CONNECTION);
   const reconciled = await reconcileAccounts(record, secret, providerAccounts);
   const candidates: Array<{
     externalId: string;
@@ -436,6 +460,7 @@ async function syncConnection(
           to,
           ...(providerAccount.cursor !== undefined ? { cursor: providerAccount.cursor } : {}),
         },
+        context,
       );
       providerAccount.pendingRequestId = created.requestId;
     }
@@ -444,6 +469,7 @@ async function syncConnection(
       secret.providerConnectionId,
       providerAccount.providerAccountId,
       providerAccount.pendingRequestId,
+      context,
     );
     if (page.status === 'pending') {
       pending = true;
@@ -573,12 +599,14 @@ async function pollTransactions(
   providerConnectionId: string,
   providerAccountId: string,
   requestId: string,
+  context?: Readonly<{ endUserIp?: string }>,
 ) {
   const delays = [0, 250, 500, 1000, 1500] as const;
   let result = await provider.getTransactionsRequest(
     providerConnectionId,
     providerAccountId,
     requestId,
+    context,
   );
   for (const delayMs of delays.slice(1)) {
     if (result.status !== 'pending') return result;
@@ -587,6 +615,7 @@ async function pollTransactions(
       providerConnectionId,
       providerAccountId,
       requestId,
+      context,
     );
   }
   return result;
@@ -1033,8 +1062,45 @@ async function readBoundedBody(request: Request, maxBytes: number): Promise<stri
 
 function requiredEncryptionKey(env: Pick<RuntimeEnv, 'CONNECTION_ENCRYPTION_KEY'>): string {
   const value = env.CONNECTION_ENCRYPTION_KEY?.trim();
-  if (!value) throw new ProviderError('provider_not_configured', 503);
+  if (!isValidEncryptionKey(value)) throw new ProviderError('provider_not_configured', 503);
   return value;
+}
+
+function serviceConfigurationIssues(env: RuntimeEnv, provider: ProviderGateway): string[] {
+  const issues: string[] = [];
+  const publicBase = secureUrl(env.PUBLIC_BASE_URL);
+  if (publicBase === null || publicBase.pathname !== '/' || publicBase.search || publicBase.hash) {
+    issues.push('public_base_url');
+  }
+  if (env.APP_RETURN_URI !== 'folio://open-banking') issues.push('app_return_uri');
+  const clerkIssuer = secureUrl(env.CLERK_ISSUER);
+  const clerkJwks = secureUrl(env.CLERK_JWKS_URL);
+  if (clerkIssuer === null) issues.push('clerk_issuer');
+  if (
+    clerkJwks === null ||
+    clerkIssuer === null ||
+    clerkJwks.origin !== clerkIssuer.origin ||
+    clerkJwks.pathname !== '/.well-known/jwks.json'
+  ) {
+    issues.push('clerk_jwks_url');
+  }
+  if (!provider.configurationValid) issues.push('provider_environment');
+  return issues;
+}
+
+function secureUrl(value: string | undefined): URL | null {
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' && !parsed.username && !parsed.password ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clientIp(request: Request): string | undefined {
+  const value = request.headers.get('CF-Connecting-IP')?.trim();
+  return value !== undefined && /^[0-9a-f:.]{2,64}$/iu.test(value) ? value : undefined;
 }
 
 function boundedDescription(value: string): string {

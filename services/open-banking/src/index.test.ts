@@ -12,7 +12,7 @@ const KEY = btoa(String.fromCharCode(...Array.from({ length: 32 }, (_, index) =>
 const env: RuntimeEnv = {
   OPEN_BANKING_ENABLED: 'true',
   CLERK_ISSUER: 'https://clerk.test',
-  CLERK_JWKS_URL: 'https://clerk.test/jwks.json',
+  CLERK_JWKS_URL: 'https://clerk.test/.well-known/jwks.json',
   ALLOWED_ORIGINS: '',
   PUBLIC_BASE_URL: 'https://banking.test',
   APP_RETURN_URI: 'folio://open-banking',
@@ -45,6 +45,7 @@ function fakeProvider(configured = true): ProviderGateway {
   let requestReads = 0;
   return {
     configured,
+    configurationValid: true,
     environment: 'sandbox',
     createConnection: async () => ({
       providerConnectionId: 'provider-connection-sensitive',
@@ -84,10 +85,17 @@ function fakeProvider(configured = true): ProviderGateway {
   };
 }
 
-function jsonRequest(method: string, path: string, body?: unknown, workspaceRef?: string): Request {
+function jsonRequest(
+  method: string,
+  path: string,
+  body?: unknown,
+  workspaceRef?: string,
+  endUserIp?: string,
+): Request {
   const headers = new Headers();
   if (body !== undefined) headers.set('Content-Type', 'application/json');
   if (workspaceRef !== undefined) headers.set('X-Melo-Workspace-Ref', workspaceRef);
+  if (endUserIp !== undefined) headers.set('CF-Connecting-IP', endUserIp);
   return new Request(`https://banking.test${path}`, {
     method,
     headers,
@@ -111,9 +119,28 @@ describe('Melo Open Banking service', () => {
       ok: true,
       featureEnabled: true,
       providerConfigured: false,
+      configurationReady: true,
+      activationReady: false,
       providerCredentialsInApp: false,
       directLedgerWrites: false,
     });
+  });
+
+  it('fails closed before authentication when non-secret service configuration is invalid', async () => {
+    const { store } = memoryStore();
+    const authenticate = vi.fn(async () => USER_HASH);
+    const provider = { ...fakeProvider(), configurationValid: false };
+    const response = await handleRequest(
+      jsonRequest('GET', '/v1/connections'),
+      store,
+      provider,
+      env,
+      authenticate,
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ code: 'service_not_configured' });
+    expect(authenticate).not.toHaveBeenCalled();
   });
 
   it('keeps every non-health route dark when the release switch is off', async () => {
@@ -208,6 +235,113 @@ describe('Melo Open Banking service', () => {
       'provider-account-sensitive',
     );
     expect([...values.values()].join('\n')).not.toContain('provider-account-sensitive');
+  });
+
+  it('forwards a validated Cloudflare client IP to the provider without trusting malformed values', async () => {
+    const { store } = memoryStore();
+    const baseProvider = fakeProvider();
+    const createConnection = vi.fn(baseProvider.createConnection);
+    const provider = { ...baseProvider, createConnection };
+
+    await handleAuthenticatedRequest(
+      jsonRequest(
+        'POST',
+        '/v1/connections',
+        { displayName: 'Melo Tester', email: 'tester@example.com' },
+        WORKSPACE_A_REF,
+        '203.0.113.42',
+      ),
+      store,
+      provider,
+      env,
+      USER_HASH,
+    );
+    expect(createConnection).toHaveBeenLastCalledWith(
+      expect.objectContaining({ endUserIp: '203.0.113.42' }),
+    );
+
+    await handleAuthenticatedRequest(
+      jsonRequest(
+        'POST',
+        '/v1/connections',
+        { displayName: 'Melo Tester', email: 'tester@example.com' },
+        WORKSPACE_A_REF,
+        'not-an-ip',
+      ),
+      store,
+      provider,
+      env,
+      USER_HASH,
+    );
+    expect(createConnection).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ endUserIp: expect.anything() }),
+    );
+  });
+
+  it('consumes callback state once and treats replay as expired', async () => {
+    const { store, values } = memoryStore();
+    const started = await handleAuthenticatedRequest(
+      jsonRequest('POST', '/v1/connections', {
+        displayName: 'Melo Tester',
+        email: 'tester@example.com',
+      }),
+      store,
+      fakeProvider(),
+      env,
+      USER_HASH,
+    );
+    expect(started.status).toBe(201);
+    const stateKey = [...values.keys()].find((key) => key.startsWith('states/'));
+    const callbackUrl = `https://banking.test/v1/callback?state=${stateKey?.slice('states/'.length) ?? ''}`;
+
+    const first = await handleCallback(new Request(callbackUrl), store, env);
+    const replay = await handleCallback(new Request(callbackUrl), store, env);
+
+    expect(first.headers.get('Location')).toContain('status=connected');
+    expect(replay.headers.get('Location')).toContain('status=expired');
+  });
+
+  it('records hosted-flow cancellation without granting or importing anything', async () => {
+    const { store, values } = memoryStore();
+    const started = await handleAuthenticatedRequest(
+      jsonRequest('POST', '/v1/connections', {
+        displayName: 'Melo Tester',
+        email: 'tester@example.com',
+      }),
+      store,
+      fakeProvider(),
+      env,
+      USER_HASH,
+    );
+    const connectionId = ((await started.json()) as { connection: { id: string } }).connection.id;
+    const stateKey = [...values.keys()].find((key) => key.startsWith('states/'));
+    const callback = await handleCallback(
+      new Request(
+        `https://banking.test/v1/callback?state=${stateKey?.slice('states/'.length) ?? ''}&error=user_cancelled`,
+      ),
+      store,
+      env,
+    );
+    expect(callback.headers.get('Location')).toContain('status=error');
+
+    const listed = await handleAuthenticatedRequest(
+      jsonRequest('GET', '/v1/connections'),
+      store,
+      fakeProvider(),
+      env,
+      USER_HASH,
+    );
+    await expect(listed.json()).resolves.toMatchObject({
+      connections: [
+        {
+          id: connectionId,
+          status: 'error',
+          grantedAt: null,
+          lastErrorCode: 'authorization_failed',
+          accounts: [],
+        },
+      ],
+    });
   });
 
   it('isolates connection lists and operations between two workspaces on the same account', async () => {

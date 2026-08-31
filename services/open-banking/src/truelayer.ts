@@ -6,9 +6,12 @@ import type {
   RuntimeEnv,
   TransactionsPage,
 } from './types';
+import { isValidEncryptionKey } from './crypto';
 
 type CachedToken = { clientId: string; accessToken: string; expiresAt: number };
 let cachedToken: CachedToken | null = null;
+const PROVIDER_TIMEOUT_MS = 15_000;
+const MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024;
 
 export class ProviderError extends Error {
   readonly code: string;
@@ -23,17 +26,15 @@ export class ProviderError extends Error {
 }
 
 export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
-  // Provider traffic must never be downgraded to plaintext. Keep this check at the
-  // configuration boundary so a typo cannot silently turn into an HTTP Authorization
-  // request; tests and local mocks can still provide a fake HTTPS origin.
-  const authBase = secureBaseUrl(env.TRUELAYER_AUTH_BASE_URL);
-  const apiBase = secureBaseUrl(env.TRUELAYER_API_BASE_URL);
+  // TrueLayer credentials must never be sent to an arbitrary HTTPS origin. Pin each
+  // environment to the documented TrueLayer hosts as well as requiring TLS.
+  const bases = trueLayerBases(env);
+  const configurationValid = bases !== null;
   const configured =
     nonEmpty(env.TRUELAYER_CLIENT_ID) &&
     nonEmpty(env.TRUELAYER_CLIENT_SECRET) &&
-    nonEmpty(env.CONNECTION_ENCRYPTION_KEY) &&
-    authBase !== null &&
-    apiBase !== null;
+    isValidEncryptionKey(env.CONNECTION_ENCRYPTION_KEY) &&
+    configurationValid;
 
   const token = async (): Promise<string> => {
     if (!configured) throw new ProviderError('provider_not_configured', 503);
@@ -51,7 +52,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
       client_secret: env.TRUELAYER_CLIENT_SECRET as string,
       scope: 'data',
     });
-    const response = await fetch(`${authBase!}/connect/token`, {
+    const response = await timedFetch(`${bases!.authBase}/connect/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
@@ -73,12 +74,14 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
     path: string,
     init: RequestInit = {},
     providerConnectionId?: string,
+    endUserIp?: string,
   ): Promise<{ response: Response; payload: unknown }> => {
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
     headers.set('Authorization', `Bearer ${await token()}`);
     if (providerConnectionId !== undefined) headers.set('Connection-Id', providerConnectionId);
-    const response = await fetch(`${apiBase!}${path}`, { ...init, headers });
+    if (endUserIp !== undefined) headers.set('Tl-User-IP', endUserIp);
+    const response = await timedFetch(`${bases!.apiBase}${path}`, { ...init, headers });
     const payload = await readJson(response);
     if (!response.ok) throw providerError(response, payload);
     return { response, payload };
@@ -86,51 +89,59 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
 
   return {
     configured,
+    configurationValid,
     environment: env.TRUELAYER_ENVIRONMENT,
     createConnection: async (input: CreateProviderConnectionInput) => {
-      const { payload } = await providerFetch('/v3/data-connections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scopes: ['accounts', 'transactions'],
-          provider_selection: {
-            type: 'user_selected',
-            filter: {
-              countries: ['GB'],
-              release_channel: 'general_availability',
-              customer_segments: ['retail', 'business'],
+      const { payload } = await providerFetch(
+        '/v3/data-connections',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scopes: ['accounts', 'transactions'],
+            provider_selection: {
+              type: 'user_selected',
+              filter: {
+                countries: ['GB'],
+                release_channel: 'general_availability',
+                customer_segments: ['retail', 'business'],
+              },
             },
-          },
-          user: { name: input.displayName, email: input.email },
-          metadata: { melo_connection_id: input.localConnectionId },
-          user_consent: { type: 'authorization_flow_captured' },
-          hosted_page: {
-            type: 'authorization_flow',
-            return_uri: input.returnUri,
-            country_code: 'GB',
-            language_code: 'en',
-          },
-          data_access_type: 'recurring',
-        }),
-      });
+            user: { name: input.displayName, email: input.email },
+            metadata: { melo_connection_id: input.localConnectionId },
+            user_consent: { type: 'authorization_flow_captured' },
+            hosted_page: {
+              type: 'authorization_flow',
+              return_uri: input.returnUri,
+              country_code: 'GB',
+              language_code: 'en',
+            },
+            data_access_type: 'recurring',
+          }),
+        },
+        undefined,
+        input.endUserIp,
+      );
       const providerConnectionId = stringField(payload, 'id');
-      const authorizationUrl = nestedStringField(payload, ['hosted_page', 'uri']);
+      const rawAuthorizationUrl = nestedStringField(payload, ['hosted_page', 'uri']);
+      const authorizationUrl = validHostedPageUrl(rawAuthorizationUrl, env.TRUELAYER_ENVIRONMENT);
       if (providerConnectionId === null || authorizationUrl === null) {
         throw new ProviderError('invalid_provider_response', 502);
       }
       return { providerConnectionId, authorizationUrl };
     },
-    listAccounts: async (providerConnectionId: string) => {
+    listAccounts: async (providerConnectionId, context) => {
       const { payload } = await providerFetch(
-        '/v3/connected-accounts?type=account',
+        '/v3/connected-accounts',
         {},
         providerConnectionId,
+        context?.endUserIp,
       );
       const items = arrayField(payload, 'items');
       if (items === null) throw new ProviderError('invalid_provider_response', 502);
       return items.map(parseAccount).filter((item): item is ProviderAccount => item !== null);
     },
-    createTransactionsRequest: async (providerConnectionId, providerAccountId, input) => {
+    createTransactionsRequest: async (providerConnectionId, providerAccountId, input, context) => {
       const body: Record<string, unknown> = {
         from: input.from,
         to: input.to,
@@ -145,6 +156,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
           body: JSON.stringify(body),
         },
         providerConnectionId,
+        context?.endUserIp,
       );
       const requestId = stringField(payload, 'id');
       if (requestId === null) throw new ProviderError('invalid_provider_response', 502);
@@ -154,11 +166,13 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
       providerConnectionId,
       providerAccountId,
       requestId,
+      context,
     ): Promise<TransactionsPage> => {
       const { payload } = await providerFetch(
         `/v3/connected-accounts/${encodeURIComponent(providerAccountId)}/transactions/requests/${encodeURIComponent(requestId)}`,
         {},
         providerConnectionId,
+        context?.endUserIp,
       );
       const status = stringField(payload, 'status');
       if (status === 'pending') return { status, requestId };
@@ -242,7 +256,11 @@ function safeProviderCode(value: string): string {
 }
 
 async function readJson(response: Response): Promise<unknown> {
-  const text = await response.text();
+  const contentLength = Number.parseInt(response.headers.get('Content-Length') ?? '0', 10);
+  if (Number.isFinite(contentLength) && contentLength > MAX_PROVIDER_RESPONSE_BYTES) {
+    throw new ProviderError('invalid_provider_response', 502);
+  }
+  const text = await readBoundedText(response, MAX_PROVIDER_RESPONSE_BYTES);
   if (text.length === 0) return {};
   try {
     return JSON.parse(text) as unknown;
@@ -251,12 +269,49 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-function nonEmpty(value: string | undefined): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
+async function timedFetch(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (reason: unknown) {
+    if (controller.signal.aborted) throw new ProviderError('provider_timeout', 504);
+    throw new ProviderError('provider_unavailable', 502);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
-function trimSlash(value: string): string {
-  return value.replace(/\/+$/u, '');
+async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
+  if (response.body === null) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const result = await reader.read();
+      if (result.done) break;
+      total += result.value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel('provider response exceeded limit');
+        throw new ProviderError('invalid_provider_response', 502);
+      }
+      chunks.push(result.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+function nonEmpty(value: string | undefined): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function secureBaseUrl(value: string | undefined): string | null {
@@ -264,7 +319,47 @@ function secureBaseUrl(value: string | undefined): string | null {
   try {
     const parsed = new URL(value);
     if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
-    return trimSlash(parsed.toString());
+    if (parsed.pathname !== '/' || parsed.search || parsed.hash) return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+function trueLayerBases(
+  env: Pick<
+    RuntimeEnv,
+    'TRUELAYER_ENVIRONMENT' | 'TRUELAYER_AUTH_BASE_URL' | 'TRUELAYER_API_BASE_URL'
+  >,
+): Readonly<{ authBase: string; apiBase: string }> | null {
+  const authBase = secureBaseUrl(env.TRUELAYER_AUTH_BASE_URL);
+  const apiBase = secureBaseUrl(env.TRUELAYER_API_BASE_URL);
+  const expected =
+    env.TRUELAYER_ENVIRONMENT === 'sandbox'
+      ? {
+          authBase: 'https://auth.truelayer-sandbox.com',
+          apiBase: 'https://api.truelayer-sandbox.com',
+        }
+      : env.TRUELAYER_ENVIRONMENT === 'live'
+        ? { authBase: 'https://auth.truelayer.com', apiBase: 'https://api.truelayer.com' }
+        : null;
+  return expected !== null && authBase === expected.authBase && apiBase === expected.apiBase
+    ? expected
+    : null;
+}
+
+function validHostedPageUrl(value: string | null, environment: string): string | null {
+  if (value === null) return null;
+  try {
+    const parsed = new URL(value);
+    const expectedHost =
+      environment === 'sandbox' ? 'app.truelayer-sandbox.com' : 'app.truelayer.com';
+    return parsed.protocol === 'https:' &&
+      !parsed.username &&
+      !parsed.password &&
+      parsed.hostname === expectedHost
+      ? parsed.toString()
+      : null;
   } catch {
     return null;
   }

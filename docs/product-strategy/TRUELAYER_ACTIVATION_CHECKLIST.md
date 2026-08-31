@@ -1,14 +1,15 @@
 # TrueLayer activation checklist
 
-Status: provider decision made; procurement and activation not complete. Last verified: 2026-07-15.
+Status: TrueLayer selection confirmed by the owner; procurement and activation are not complete.
+Last verified: 2026-08-31.
 
 ## Decision and launch order
 
-Melo will pursue **TrueLayer Data v3** as the primary UK Open Banking provider through the
-regulated AIS/agent route. **GoCardless Bank Account Data** is the fallback only if TrueLayer fails
-a written commercial, account-coverage, regulatory or production-access gate. Building two live
-provider integrations in parallel would add cost and failure modes before Melo has a measured
-connected-user cohort.
+The owner confirmed **TrueLayer Data v3** as Melo's UK Open Banking provider on 2026-08-31. Melo
+will pursue it through the regulated AIS/agent route. **GoCardless Bank Account Data** is the
+fallback only if TrueLayer fails a written commercial, account-coverage, regulatory or
+production-access gate. Building two live provider integrations in parallel would add cost and
+failure modes before Melo has a measured connected-user cohort.
 
 Launch in this order:
 
@@ -27,8 +28,15 @@ direct-tax-filing businesses are not the first cohort.
 
 - The provider-neutral Worker is deployed at
   `https://melo-open-banking.tgdroppin.workers.dev` and uses TrueLayer's hosted Data v3 journey.
-- The 2026-07-15 production check returned `providerConfigured: false` and the Worker secret list
-  was empty. This is an honest unconfigured service, not a live bank integration.
+- The 2026-08-31 production check returned HTTP 200 with `featureEnabled: false`,
+  `providerConfigured: false`, `configurationReady: true`, `activationReady: false`,
+  `environment: sandbox`, `providerCredentialsInApp: false`, and `directLedgerWrites: false`. The
+  Worker secret list was empty. This is an honest dark, unconfigured service, not a live bank
+  integration.
+- Credential-independent hardening is deployed as Worker version
+  `68a50f69-b841-479f-97e6-75fdf10cf75d`: official TrueLayer host pinning, hosted-page origin
+  validation, valid 32-byte key detection, bounded/timed provider responses, validated end-user IP
+  forwarding, callback replay/cancellation tests, and HTTPS-only mobile/build configuration.
 - The current implementation requests `accounts` and `transactions`, fetches accounts and stages
   transaction rows into Review. It does **not** request or retrieve current balances.
 - TrueLayer credentials remain server-side. Connection and provider-account identifiers are
@@ -89,6 +97,36 @@ Complete these owner-controlled actions only after the gates above pass:
    silently replacing it would orphan existing connections.
 8. Re-deploy, confirm `providerConfigured: true`, and run the sandbox matrix below before inviting a
    user.
+
+The exact secret-install and readiness commands are in `services/open-banking/README.md`. Run
+`pnpm open-banking:preflight` at any time; it reports missing secret names as `WAIT` without failing
+the completed local checks or exposing values.
+
+### Onboarding request to send now
+
+Ask TrueLayer for **Data API v3 account-information access for a UK personal-finance-management
+app**, initially limited to `accounts` and `transactions`; Melo is not requesting payment initiation
+or claiming live balances. Ask TrueLayer to determine the correct non-regulated merchant or
+AIS-agent/principal arrangement in writing and to provide both sandbox and production-onboarding
+requirements.
+
+Supply these integration facts:
+
+- product: Melo; initial cohort: 25-50 invited UK adults using GBP current or savings accounts;
+- server integration: Cloudflare Worker with secrets held only server-side;
+- hosted-flow return URI:
+  `https://melo-open-banking.tgdroppin.workers.dev/v1/callback`;
+- mobile return URI after the server callback: `folio://open-banking`;
+- requested runtime data: account metadata and transactions only;
+- data handling: provider identifiers encrypted at rest, no server persistence of transaction rows,
+  and every imported row staged for user review before ledger entry;
+- disconnect: Melo deletes its encrypted provider identifiers and stops refresh, while the current
+  implementation does not claim provider-side consent revocation.
+
+The owner must provide TrueLayer with the real contracting entity, registration/address details,
+authorised contact, product website/privacy/support routes, and expected volumes. Do not invent or
+commit those values. Save TrueLayer's written regulatory-route decision, coverage export, quote,
+DPA/terms, support contacts, and sandbox/live approval as release evidence.
 
 ## Required implementation before claiming live balances
 

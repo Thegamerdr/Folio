@@ -15,6 +15,15 @@ export async function stablePublicId(input: string): Promise<string> {
   return hex(await crypto.subtle.digest('SHA-256', encoder.encode(input))).slice(0, 24);
 }
 
+export function isValidEncryptionKey(value: string | undefined): value is string {
+  if (typeof value !== 'string' || value.trim().length === 0) return false;
+  try {
+    return fromBase64Url(value.trim()).byteLength === 32;
+  } catch {
+    return false;
+  }
+}
+
 export async function sealJson(
   value: unknown,
   base64Key: string,
@@ -75,8 +84,10 @@ export async function openJson<T>(
 }
 
 async function importEncryptionKey(base64Key: string): Promise<CryptoKey> {
+  if (!isValidEncryptionKey(base64Key)) {
+    throw new Error('CONNECTION_ENCRYPTION_KEY must decode to 32 bytes.');
+  }
   const raw = fromBase64Url(base64Key.trim());
-  if (raw.byteLength !== 32) throw new Error('CONNECTION_ENCRYPTION_KEY must decode to 32 bytes.');
   return crypto.subtle.importKey('raw', asArrayBuffer(raw), { name: 'AES-GCM' }, false, [
     'encrypt',
     'decrypt',

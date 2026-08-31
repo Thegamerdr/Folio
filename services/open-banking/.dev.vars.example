@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local Worker testing. .dev.vars is gitignored.
+TRUELAYER_CLIENT_ID=
+TRUELAYER_CLIENT_SECRET=
+CONNECTION_ENCRYPTION_KEY=

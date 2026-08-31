@@ -47,4 +47,19 @@ describe('Open Banking release gate', () => {
     const { getOpenBankingUrl } = await import('./openBankingConfig');
     expect(getOpenBankingUrl()).toBe('https://bank.extra.test');
   });
+
+  it('rejects plaintext and credential-bearing endpoints before exposing the feature', async () => {
+    process.env[FLAG] = 'true';
+    for (const endpoint of [
+      'http://bank.example.test',
+      'https://user:password@bank.example.test',
+      'https://bank.example.test?token=public',
+    ]) {
+      process.env[URL] = endpoint;
+      vi.resetModules();
+      const config = await import('./openBankingConfig');
+      expect(config.isOpenBankingEnabled()).toBe(false);
+      expect(config.getOpenBankingUrl()).toBeUndefined();
+    }
+  });
 });

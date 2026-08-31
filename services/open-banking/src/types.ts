@@ -111,24 +111,35 @@ export type CreateProviderConnectionInput = Readonly<{
   email: string;
   returnUri: string;
   localConnectionId: string;
+  endUserIp?: string;
+}>;
+
+export type ProviderRequestContext = Readonly<{
+  endUserIp?: string;
 }>;
 
 export type ProviderGateway = Readonly<{
   configured: boolean;
+  configurationValid: boolean;
   environment: string;
   createConnection: (
     input: CreateProviderConnectionInput,
   ) => Promise<Readonly<{ providerConnectionId: string; authorizationUrl: string }>>;
-  listAccounts: (providerConnectionId: string) => Promise<readonly ProviderAccount[]>;
+  listAccounts: (
+    providerConnectionId: string,
+    context?: ProviderRequestContext,
+  ) => Promise<readonly ProviderAccount[]>;
   createTransactionsRequest: (
     providerConnectionId: string,
     providerAccountId: string,
     input: Readonly<{ from: string; to: string; cursor?: string }>,
+    context?: ProviderRequestContext,
   ) => Promise<Readonly<{ requestId: string }>>;
   getTransactionsRequest: (
     providerConnectionId: string,
     providerAccountId: string,
     requestId: string,
+    context?: ProviderRequestContext,
   ) => Promise<TransactionsPage>;
 }>;
 

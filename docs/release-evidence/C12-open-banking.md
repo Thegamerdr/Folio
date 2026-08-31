@@ -59,11 +59,12 @@ is absent from the current app. Historical Phase 12 screenshots remain provenanc
 ## Deployed service evidence
 
 - URL: `https://melo-open-banking.tgdroppin.workers.dev`
-- Version: `e3b9b00b-4695-4366-8ad9-3e7dff7a4480`
+- Version: `68a50f69-b841-479f-97e6-75fdf10cf75d`
 - KV namespace: `8735425468884de39f1eb5f273929c44`
-- `GET /health`: HTTP 200, `providerConfigured: false`,
-  `providerCredentialsInApp: false`, `directLedgerWrites: false`.
-- Unauthenticated `GET /v1/connections`: HTTP 401.
+- `GET /health`: HTTP 200, `configurationReady: true`, `providerConfigured: false`,
+  `activationReady: false`, `featureEnabled: false`, `providerCredentialsInApp: false`, and
+  `directLedgerWrites: false`.
+- Dark-gated `GET /v1/connections`: HTTP 404 with `feature_disabled`, before authentication.
 
 The checked-in service setup and owner actions are documented in `services/open-banking/README.md`.
 The provider implementation was reconciled against the current TrueLayer Data v3 documentation:
@@ -73,14 +74,17 @@ The provider implementation was reconciled against the current TrueLayer Data v3
 - `https://docs.truelayer.com/reference/get-accounts`
 - `https://truelayer.com/legal/`
 
-The 2026-07-15 owner-account check also confirmed that `wrangler secret list` returned no secrets.
-The last deployed version remains `e3b9b00b-4695-4366-8ad9-3e7dff7a4480`; a current dry run passed,
-`GET /health` reported `providerConfigured: false`, and unauthenticated
-`GET /v1/connections` returned HTTP 401. No sandbox or production bank was connected.
+The 2026-08-31 owner-account check confirmed that `wrangler secret list` returned no secrets. The
+credential-independent hardened Worker was deployed as
+`68a50f69-b841-479f-97e6-75fdf10cf75d`; a current dry run passed, `GET /health` reported valid
+non-secret configuration while provider credentials and both activation gates remained off. No
+sandbox or production bank was connected.
 
-The workspace-bound Worker/mobile changes described above are newer checked-in code. They passed
-local tests and typechecks but were not deployed during the Business foundation pass. Therefore the
-deployed version identifier above remains authoritative for the live unconfigured endpoint.
+The workspace-bound Worker changes described above are now deployed. Credential-independent tests
+also cover the current TrueLayer Data v3 request shape, official-host pinning, hostile hosted-page
+URLs, callback replay/cancellation, workspace isolation, complete account purge, validated
+`Tl-User-IP` forwarding, HTTPS-only mobile endpoints, and build-time fail-closed behavior. The
+deployed version identifier above remains authoritative for the dark, unconfigured endpoint.
 
 The current runtime requests only `accounts` and `transactions`. It does not request or retrieve
 current balances, so no release or pricing claim may describe the current build as live-balance
@@ -88,6 +92,16 @@ refresh. The balance-contract work and activation matrix are tracked in
 `docs/product-strategy/TRUELAYER_ACTIVATION_CHECKLIST.md`.
 
 ## Verification
+
+Completed on 2026-08-31:
+
+- 42 focused tests passed across the Worker, TrueLayer transport, provider-neutral package, mobile
+  runtime client, mobile release gate and build configuration.
+- Open Banking Worker, mobile/package, AI gateway, Cloud Vault and billing typechecks passed.
+- `wrangler deploy --dry-run`: passed; uploaded bundle 99.54 KiB, gzip 22.69 KiB.
+- `pnpm open-banking:preflight`: all credential-independent local and deployed checks passed; only
+  the three named secret inputs reported `WAIT`.
+- Dark-gated deployment: version `68a50f69-b841-479f-97e6-75fdf10cf75d`, startup 7 ms.
 
 Completed on 2026-07-14:
 

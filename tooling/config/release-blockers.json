@@ -78,7 +78,7 @@
     },
     "RB-OPEN-BANKING-PROVIDER": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Obtain regulated provider contract/credentials and complete sandbox-to-production consent, deletion and incident proof."
+      "action": "Complete TrueLayer Data v3 contracting and regulatory-route approval, install sandbox/production credentials server-side, and pass consent, deletion and incident proof."
     },
     "RB-BUSINESS-TAX-BETA": {
       "classification": "BLOCKED OWNER DECISION",
@@ -559,7 +559,7 @@
       "phase": "phase12",
       "taskIds": ["T160", "T161", "T162", "T167", "T168"],
       "category": "open_banking",
-      "title": "Regulated AISP provider and staged Open Banking rollout",
+      "title": "TrueLayer Data v3 regulated route and staged Open Banking rollout",
       "kind": "external_service",
       "impact": "beta_blocking",
       "status": "blocked",
@@ -567,7 +567,7 @@
       "machineCheckable": false,
       "source": "STATUS.md#open-risks",
       "evidenceRequired": ["provider", "legal", "security", "operations"],
-      "unblockCondition": "Provider procurement, sandbox/production contracts, encrypted backend token adapter, legal/store review, pilot and rollout monitoring pass."
+      "unblockCondition": "TrueLayer contracting and regulatory-route approval, sandbox/production contracts, encrypted backend token adapter, legal/store review, pilot and rollout monitoring pass."
     },
     {
       "id": "RB-BUSINESS-TAX-BETA",
