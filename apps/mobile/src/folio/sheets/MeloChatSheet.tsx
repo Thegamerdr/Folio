@@ -40,6 +40,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Keyboard,
   Linking,
   Pressable,
   ScrollView,
@@ -70,6 +71,7 @@ import { buildMeloLocalCalculation } from '@/folio/lib/meloCalculations';
 import { resolveMeloAccountSelection } from '@/folio/lib/meloAccountSelection';
 import { resolveMeloSubscriptionRequest } from '@/folio/lib/meloSubscriptionRequest';
 import { DEFAULT_MELO_TONE, describeMeloTone } from '@/folio/lib/meloToneGuidance';
+import { useMeloVoiceTranscript } from '@/folio/lib/useMeloVoiceTranscript';
 import type { MeloIntent, Nav, Pressure } from '@/folio/types';
 import {
   MELO_TOOL_APPROVAL_DENIED,
@@ -300,6 +302,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         calculate={calculate}
         selectAccount={selectAccount}
         subscriptionState={subscriptionState}
+        voiceActive={visible}
       />
     </Sheet>
   );
@@ -318,6 +321,7 @@ function MeloChat({
   calculate,
   selectAccount,
   subscriptionState,
+  voiceActive,
 }: {
   snapshot: MeloLocalFinancialSnapshot;
   prefill?: string | undefined;
@@ -327,6 +331,7 @@ function MeloChat({
   calculate: LocalMeloCalculationBuilder;
   selectAccount: LocalMeloAccountSelector;
   subscriptionState: Parameters<LocalMeloSubscriptionActionResolver>[1];
+  voiceActive: boolean;
 }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
@@ -350,12 +355,33 @@ function MeloChat({
   const [conversationContext, setConversationContext] =
     useState<LocalMeloConversationContext | null>(null);
   const [status, setStatus] = useState<ChatStatus>('ready');
+  const voice = useMeloVoiceTranscript(voiceActive);
   const [languagePackState, setLanguagePackState] = useState<
     LocalLanguagePackState | Readonly<{ kind: 'checking' | 'installing'; fraction?: number }>
   >({ kind: 'checking' });
   const isLoading = status === 'submitted' || status === 'streaming';
   const toneLabel = TONES.find((tn) => tn.id === savedTone)?.label ?? 'Calm';
   const starters = snapshot.workspaceKind === 'business' ? BUSINESS_STARTERS : STARTERS;
+
+  async function startVoiceInput() {
+    if (isLoading || voice.phase !== 'idle') return;
+    Keyboard.dismiss();
+    const result = await voice.requestStart();
+    if (!voiceActive || result !== 'needs-phone-service-consent') return;
+    Alert.alert(
+      'Use this phone’s speech service?',
+      'On-device transcription is not available here. If you continue, your phone’s speech provider may process this one voice input. Melo does not save the audio. You will review and can edit the transcript before it creates a proposal.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start voice',
+          onPress: () => {
+            void voice.startWithPhoneService();
+          },
+        },
+      ],
+    );
+  }
 
   useEffect(() => {
     if (!showSettings) return;
@@ -878,15 +904,130 @@ function MeloChat({
         ) : null}
       </View>
 
+      {voice.phase === 'starting' || voice.phase === 'listening' || voice.phase === 'processing' ? (
+        <View
+          style={s.voiceListening}
+          accessibilityRole="summary"
+          accessibilityLiveRegion="assertive"
+          accessibilityLabel={
+            voice.phase === 'listening'
+              ? 'Listening for voice input'
+              : voice.phase === 'processing'
+                ? 'Finishing voice transcript'
+                : 'Starting voice input'
+          }
+        >
+          <View style={s.voiceListeningHeader}>
+            <View style={s.voiceRecordingDot} />
+            <View style={s.voiceListeningCopy}>
+              <Text style={s.voiceListeningTitle}>
+                {voice.phase === 'listening'
+                  ? 'Listening'
+                  : voice.phase === 'processing'
+                    ? 'Finishing transcript…'
+                    : 'Starting microphone…'}
+              </Text>
+              <Text style={s.voicePrivacyLine}>
+                {voice.route === 'on-device'
+                  ? 'On this phone · audio is not saved'
+                  : 'Phone speech service · audio is not saved by Melo'}
+              </Text>
+            </View>
+            {voice.phase === 'listening' ? (
+              <PressText
+                label="Stop"
+                onPress={voice.stop}
+                style={s.voiceStop}
+                labelStyle={s.voiceStopLabel}
+                reduceMotion={reduceMotion}
+                accessibilityLabel="Stop listening"
+              />
+            ) : null}
+          </View>
+          {voice.transcript ? (
+            <Text style={s.voiceLiveTranscript}>{voice.transcript}</Text>
+          ) : (
+            <Text style={s.voiceListeningHint}>
+              Speak now. Melo will not send this automatically.
+            </Text>
+          )}
+        </View>
+      ) : null}
+
+      {voice.phase === 'review' ? (
+        <View style={s.voiceReview} accessibilityLiveRegion="polite">
+          <Text style={s.voiceReviewTitle}>Review transcript</Text>
+          <Text style={s.voiceReviewBody}>
+            Edit this before Melo sees it. Creating a proposal still changes nothing until you
+            review and confirm it.
+          </Text>
+          <TextInput
+            value={voice.transcript}
+            onChangeText={voice.setTranscript}
+            multiline
+            autoFocus
+            style={s.voiceReviewInput}
+            accessibilityLabel="Editable voice transcript"
+          />
+          <View style={s.voiceReviewActions}>
+            <PressText
+              label="Discard"
+              onPress={voice.discard}
+              style={s.voiceDiscard}
+              labelStyle={s.voiceDiscardLabel}
+              reduceMotion={reduceMotion}
+              accessibilityLabel="Discard voice transcript"
+              accessibilityHint="Deletes the transcript draft and makes no change"
+            />
+            <PressText
+              label="Create proposal"
+              onPress={() => {
+                const reviewedTranscript = voice.transcript.trim();
+                if (!reviewedTranscript) return;
+                voice.discard();
+                void send(reviewedTranscript);
+              }}
+              style={s.voiceCreateProposal}
+              labelStyle={s.voiceCreateProposalLabel}
+              reduceMotion={reduceMotion}
+              accessibilityLabel="Create proposal from reviewed transcript"
+              accessibilityHint="Sends the edited words to Melo; you must review and confirm any suggestion separately"
+            />
+          </View>
+        </View>
+      ) : null}
+
+      {voice.error ? (
+        <Text style={s.voiceError} accessibilityLiveRegion="polite">
+          {voice.error}
+        </Text>
+      ) : null}
+
       {/* Composer */}
       <View style={s.composer}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Start voice input"
+          accessibilityHint="Starts one voice transcription after checking this phone"
+          disabled={isLoading || voice.phase !== 'idle'}
+          onPress={() => void startVoiceInput()}
+          style={({ pressed }) => [
+            s.voiceTrigger,
+            (isLoading || voice.phase !== 'idle') && s.voiceTriggerDisabled,
+            pressed && s.voiceTriggerPressed,
+          ]}
+          hitSlop={4}
+        >
+          <Text style={s.voiceTriggerGlyph}>●</Text>
+          <Text style={s.voiceTriggerLabel}>Voice</Text>
+        </Pressable>
         <View style={s.inputWrap}>
           <TextInput
             value={input}
             onChangeText={setInput}
             placeholder="Say anything to Melo…"
             placeholderTextColor={t.muted}
-            editable={!isLoading}
+            editable={!isLoading && voice.phase === 'idle'}
             multiline
             autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
             style={s.input}
@@ -1659,6 +1800,164 @@ function makeStyles(t: Palette) {
       color: t.canvas, // --paper knockout on the --ink bubble
       fontSize: 13.5,
       lineHeight: 20,
+    },
+    voiceCreateProposal: {
+      alignItems: 'center',
+      backgroundColor: t.ink,
+      borderRadius: radius.sm,
+      justifyContent: 'center',
+      minHeight: 40,
+      paddingHorizontal: gap.md,
+    },
+    voiceCreateProposalLabel: {
+      color: t.canvas,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    voiceDiscard: {
+      alignItems: 'center',
+      borderColor: t.hairlineStrong,
+      borderRadius: radius.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      justifyContent: 'center',
+      minHeight: 40,
+      paddingHorizontal: gap.md,
+    },
+    voiceDiscardLabel: {
+      color: t.muted,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    voiceError: {
+      color: t.repairInk,
+      fontSize: 12,
+      lineHeight: 17,
+      paddingTop: gap.sm,
+    },
+    voiceListening: {
+      backgroundColor: t.repairSoft,
+      borderColor: t.repair,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      gap: gap.sm,
+      marginTop: gap.sm,
+      padding: gap.md,
+    },
+    voiceListeningCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    voiceListeningHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: gap.sm,
+    },
+    voiceListeningHint: {
+      color: t.muted,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    voiceListeningTitle: {
+      color: t.repairInk,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    voiceLiveTranscript: {
+      color: t.ink,
+      fontSize: 13,
+      fontStyle: 'italic',
+      lineHeight: 19,
+    },
+    voicePrivacyLine: {
+      color: t.muted,
+      fontSize: 11,
+      lineHeight: 15,
+      marginTop: 2,
+    },
+    voiceRecordingDot: {
+      backgroundColor: t.repair,
+      borderRadius: radius.pill,
+      height: 12,
+      width: 12,
+    },
+    voiceReview: {
+      backgroundColor: t.inset,
+      borderColor: t.hairlineStrong,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      gap: gap.sm,
+      marginTop: gap.sm,
+      padding: gap.md,
+    },
+    voiceReviewActions: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: gap.sm,
+      justifyContent: 'flex-end',
+    },
+    voiceReviewBody: {
+      color: t.muted,
+      fontSize: 11.5,
+      lineHeight: 16,
+    },
+    voiceReviewInput: {
+      backgroundColor: t.surface,
+      borderColor: t.hairlineStrong,
+      borderRadius: radius.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      color: t.ink,
+      fontSize: 14,
+      lineHeight: 20,
+      maxHeight: 112,
+      minHeight: 64,
+      paddingHorizontal: gap.md,
+      paddingVertical: gap.sm,
+      textAlignVertical: 'top',
+    },
+    voiceReviewTitle: {
+      color: t.ink,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    voiceStop: {
+      alignItems: 'center',
+      backgroundColor: t.repair,
+      borderRadius: radius.pill,
+      justifyContent: 'center',
+      minHeight: 36,
+      paddingHorizontal: gap.md,
+    },
+    voiceStopLabel: {
+      color: t.inverse,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    voiceTrigger: {
+      alignItems: 'center',
+      backgroundColor: t.inset,
+      borderColor: t.hairlineStrong,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      height: 48,
+      justifyContent: 'center',
+      paddingHorizontal: gap.sm,
+    },
+    voiceTriggerDisabled: {
+      opacity: 0.45,
+    },
+    voiceTriggerGlyph: {
+      color: t.repair,
+      fontSize: 10,
+      lineHeight: 12,
+    },
+    voiceTriggerLabel: {
+      color: t.ink,
+      fontSize: 10.5,
+      fontWeight: '600',
+      lineHeight: 14,
+    },
+    voiceTriggerPressed: {
+      transform: [{ scale: PRESS_SCALE }],
     },
   });
 }

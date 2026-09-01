@@ -9,11 +9,26 @@
     "CLERK_JWKS_URL": "https://united-giraffe-33.clerk.accounts.dev/.well-known/jwks.json",
     "MAX_BACKUP_BYTES": "4194304",
     "ALLOWED_ORIGINS": "",
+    "PUBLIC_ACCOUNT_DELETION_URL": "",
   },
   "kv_namespaces": [
     {
       "binding": "VAULTS",
       "id": "1509b2b04d7449b39f6797db9ee13434",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SYNC_WORKSPACES",
+        "class_name": "SyncWorkspaceDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1-sync-workspaces",
+      "new_sqlite_classes": ["SyncWorkspaceDurableObject"],
     },
   ],
   "observability": {

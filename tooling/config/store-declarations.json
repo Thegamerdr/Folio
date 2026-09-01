@@ -1,14 +1,14 @@
 {
   "schemaVersion": "1.0",
   "releaseName": "Melo store declarations",
-  "updatedOn": "2026-08-31",
+  "updatedOn": "2026-09-01",
   "reviewAgainstSubmittedBinaryComplete": false,
   "storeConsoleReviewComplete": false,
   "privacyPolicyUrl": null,
   "privacyPolicyCurrent": false,
   "processorListCurrent": true,
   "sdkInventoryCurrent": true,
-  "candidateBinarySha256": "3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD",
+  "candidateBinarySha256": "D1995267DB79078367983119CB2DC3B461740A522972CB35671BFBA40BCF03CB",
   "submittedBinarySha256": null,
   "binaryIdentity": {
     "productName": "Melo",
@@ -17,7 +17,7 @@
     "version": "0.0.1",
     "androidVersionCode": 1,
     "expectedArtifactName": "melo-0.0.1-1-production.aab",
-    "artifactSha256Status": "matched 2026-08-31: package, version, versionCode, arm64 ABI, upload signature and SHA-256 verified"
+    "artifactSha256Status": "matched 2026-09-01: package, version, versionCode, arm64 ABI, upload signature and SHA-256 verified"
   },
   "runtimeEvidence": {
     "billingWorker": "services/billing-entitlements/RUNTIME_EVIDENCE.md",
@@ -25,8 +25,8 @@
     "billingCatalog": ["folio.full", "folio.live.monthly", "folio.live.yearly"],
     "openBankingWorkerHealth": "deployed; featureEnabled=false; providerConfigured=false; /v1 routes return feature_disabled",
     "eas": "authenticated; iOS production build requires interactive Apple credential/provisioning setup",
-    "androidArtifact": "current-source upload-signed arm64 AAB validated; SHA-256 3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD; matching arm64 APK installed on Galaxy S9",
-    "physicalAndroid": "authorized Galaxy S9 installed and cold-launched the signed arm64 release APK; restart, background/foreground and hardware Back smoke passed without AndroidRuntime or ReactNativeJS error entries"
+    "androidArtifact": "current-source upload-signed arm64 AAB validated; SHA-256 D1995267DB79078367983119CB2DC3B461740A522972CB35671BFBA40BCF03CB; matching arm64 APK installed in place on Galaxy S9",
+    "physicalAndroid": "authorized Galaxy S9 installed and launched the refreshed signed arm64 release APK; native-voice disclosure and first-use microphone permission passed without AndroidRuntime, ReactNativeJS or libc fatal entries"
   },
   "appleExportCompliance": {
     "status": "OWNER INPUT REQUIRED",

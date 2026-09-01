@@ -91,7 +91,7 @@ export async function createCloudBackup(
     existingCode ?? recoveryCodeFromBytes(Uint8Array.from(await Crypto.getRandomBytesAsync(32)));
   const recoveryKey = recoveryCodeToKey(recoveryCode)!;
   const createdAt = new Date().toISOString();
-  const deviceId = await getOrCreateDeviceId();
+  const deviceId = await getOrCreateCloudDeviceId();
   const plaintext = getPersistBlob(workspaceId);
   const envelope = buildCloudBackupEnvelope({
     plaintext,
@@ -249,7 +249,7 @@ function recoveryCodeId(workspaceRef: string): string {
   return `${RECOVERY_CODE_PREFIX}.${workspaceRef}`;
 }
 
-async function getOrCreateDeviceId(): Promise<string> {
+export async function getOrCreateCloudDeviceId(): Promise<string> {
   const existing = await SecureStore.getItemAsync(DEVICE_ID);
   if (existing !== null && /^[a-f0-9]{32}$/.test(existing)) return existing;
   const generated = recoveryCodeFromBytes(

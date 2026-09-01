@@ -11,6 +11,30 @@ function clerkPublishableKeyForBuild(): string | undefined {
   return key;
 }
 
+export function clerkFrontendApiHostForBuild(): string | undefined {
+  const value = process.env.EXPO_PUBLIC_CLERK_FRONTEND_API_HOST?.trim();
+  if (!value) return undefined;
+  try {
+    const parsed = new URL(`https://${value}`);
+    if (
+      parsed.hostname !== value ||
+      parsed.port ||
+      parsed.username ||
+      parsed.password ||
+      parsed.pathname !== '/' ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new Error('invalid host');
+    }
+    return parsed.hostname;
+  } catch {
+    throw new Error(
+      'EXPO_PUBLIC_CLERK_FRONTEND_API_HOST must be a hostname without a scheme, port, path, or credentials.',
+    );
+  }
+}
+
 export function openBankingUrlForBuild(): string | undefined {
   if (process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED !== 'true') return undefined;
   const value = process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_URL?.trim();
@@ -38,93 +62,115 @@ export function openBankingUrlForBuild(): string | undefined {
   }
 }
 
-export default ({ config }: ConfigContext): ExpoConfig => ({
-  ...config,
-  // The app IS Melo (owner D4; brand sweep completed 2026-07-11). The slug (EAS project),
-  // scheme (existing deep links) and Android package id (com.folio.v2.greenfield — changing it
-  // would orphan every installed device) deliberately keep the folio name.
-  name: 'Melo',
-  slug: 'folio-v2-greenfield',
-  scheme: 'folio',
-  version: '0.0.1',
-  icon: './assets/brand/app-icon-1024.png',
-  orientation: 'portrait',
-  platforms: ['ios', 'android'],
-  userInterfaceStyle: 'automatic',
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
-  updates: {
-    // OTA JS updates via EAS Update (enabled 2026-07-05). Non-blocking check on launch
-    // (fallbackToCacheTimeout 0): users never wait on the network, a fetched update applies on
-    // the NEXT launch. Locally-built APKs pin the 'production' channel via requestHeaders;
-    // EAS-built profiles get their channel from eas.json. Native/config changes still need a
-    // full rebuild — runtimeVersion (appVersion policy) fences incompatible updates.
-    enabled: true,
-    url: 'https://u.expo.dev/ef69039d-abaf-48e9-b35a-52d80b03a96a',
-    fallbackToCacheTimeout: 0,
-    requestHeaders: {
-      'expo-channel-name': 'production',
+export default ({ config }: ConfigContext): ExpoConfig => {
+  const clerkFrontendApiHost = clerkFrontendApiHostForBuild();
+
+  return {
+    ...config,
+    // The app IS Melo (owner D4; brand sweep completed 2026-07-11). The slug (EAS project),
+    // scheme (existing deep links) and Android package id (com.folio.v2.greenfield — changing it
+    // would orphan every installed device) deliberately keep the folio name.
+    name: 'Melo',
+    slug: 'folio-v2-greenfield',
+    scheme: 'folio',
+    version: '0.0.1',
+    icon: './assets/brand/app-icon-1024.png',
+    orientation: 'portrait',
+    platforms: ['ios', 'android'],
+    userInterfaceStyle: 'automatic',
+    runtimeVersion: {
+      policy: 'appVersion',
     },
-  },
-  ios: {
-    ...config.ios,
-    bundleIdentifier: 'com.folio.v2.greenfield',
-    infoPlist: {
-      ...config.ios?.infoPlist,
-      NSFaceIDUsageDescription: 'Melo uses device authentication to lock local money data.',
-    },
-    supportsTablet: false,
-  },
-  android: {
-    ...config.android,
-    adaptiveIcon: {
-      foregroundImage: './assets/brand/adaptive-foreground.png',
-      backgroundColor: '#EFE9DD',
-    },
-    allowBackup: false,
-    blockedPermissions: [
-      'android.permission.READ_EXTERNAL_STORAGE',
-      'android.permission.RECORD_AUDIO',
-      'android.permission.SYSTEM_ALERT_WINDOW',
-      'android.permission.WRITE_EXTERNAL_STORAGE',
-    ],
-    package: 'com.folio.v2.greenfield',
-  },
-  plugins: [
-    'expo-router',
-    'expo-secure-store',
-    'expo-web-browser',
-    [
-      'expo-audio',
-      {
-        enableBackgroundPlayback: false,
-        enableBackgroundRecording: false,
-        microphonePermission: false,
-        recordAudioAndroid: false,
+    updates: {
+      // OTA JS updates via EAS Update (enabled 2026-07-05). Non-blocking check on launch
+      // (fallbackToCacheTimeout 0): users never wait on the network, a fetched update applies on
+      // the NEXT launch. Locally-built APKs pin the 'production' channel via requestHeaders;
+      // EAS-built profiles get their channel from eas.json. Native/config changes still need a
+      // full rebuild — runtimeVersion (appVersion policy) fences incompatible updates.
+      enabled: true,
+      url: 'https://u.expo.dev/ef69039d-abaf-48e9-b35a-52d80b03a96a',
+      fallbackToCacheTimeout: 0,
+      requestHeaders: {
+        'expo-channel-name': 'production',
       },
-    ],
-    'expo-iap',
-    '@sentry/react-native',
-    './plugins/withUploadSigning.cjs',
-    [
-      // R8 code + resource shrinking for release builds (the 68MB sideload APK problem).
-      // If a release build ever crashes on boot after a new native dep, suspect missing
-      // ProGuard keep rules first. extraProguardRules is the DURABLE home for keep rules —
-      // android/app/proguard-rules.pro is gitignored and regenerated by `expo prebuild`, so
-      // rules that only live there are lost on a clean prebuild/EAS build. Libraries that ship
-      // their own consumer ProGuard rules (bundled in their AAR) do NOT need an entry here —
-      // R8 merges those automatically. Verified at plan 110 time (2026-07-11): Clerk
-      // (@clerk/clerk-expo) has no android/ dir — JS-only, nothing to keep. Sentry
-      // (@sentry/react-native) ships no consumer rules in its own android/ module locally, but
-      // its underlying io.sentry:sentry-android Maven dependency is documented
-      // ProGuard/R8-friendly and embeds its own consumer rules — no manual rule needed.
-      'expo-build-properties',
-      {
-        android: {
-          enableProguardInReleaseBuilds: true,
-          enableShrinkResourcesInReleaseBuilds: true,
-          extraProguardRules: `
+    },
+    ios: {
+      ...config.ios,
+      ...(clerkFrontendApiHost
+        ? {
+            associatedDomains: [
+              `applinks:${clerkFrontendApiHost}`,
+              `webcredentials:${clerkFrontendApiHost}`,
+            ],
+          }
+        : {}),
+      bundleIdentifier: 'com.folio.v2.greenfield',
+      infoPlist: {
+        ...config.ios?.infoPlist,
+        NSFaceIDUsageDescription: 'Melo uses device authentication to lock local money data.',
+      },
+      supportsTablet: false,
+    },
+    android: {
+      ...config.android,
+      adaptiveIcon: {
+        foregroundImage: './assets/brand/adaptive-foreground.png',
+        backgroundColor: '#EFE9DD',
+      },
+      allowBackup: false,
+      ...(clerkFrontendApiHost
+        ? {
+            intentFilters: [
+              {
+                action: 'VIEW',
+                autoVerify: true,
+                category: ['BROWSABLE', 'DEFAULT'],
+                data: [{ scheme: 'https', host: clerkFrontendApiHost }],
+              },
+            ],
+          }
+        : {}),
+      blockedPermissions: [
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+      ],
+      package: 'com.folio.v2.greenfield',
+    },
+    plugins: [
+      'expo-router',
+      'expo-secure-store',
+      'expo-web-browser',
+      [
+        'expo-audio',
+        {
+          enableBackgroundPlayback: false,
+          enableBackgroundRecording: false,
+          microphonePermission: false,
+          recordAudioAndroid: false,
+        },
+      ],
+      'expo-iap',
+      '@sentry/react-native',
+      './plugins/withUploadSigning.cjs',
+      [
+        // R8 code + resource shrinking for release builds (the 68MB sideload APK problem).
+        // If a release build ever crashes on boot after a new native dep, suspect missing
+        // ProGuard keep rules first. extraProguardRules is the DURABLE home for keep rules —
+        // android/app/proguard-rules.pro is gitignored and regenerated by `expo prebuild`, so
+        // rules that only live there are lost on a clean prebuild/EAS build. Libraries that ship
+        // their own consumer ProGuard rules (bundled in their AAR) do NOT need an entry here —
+        // R8 merges those automatically. Verified at plan 110 time (2026-07-11): Clerk
+        // (@clerk/clerk-expo) has no android/ dir — JS-only, nothing to keep. Sentry
+        // (@sentry/react-native) ships no consumer rules in its own android/ module locally, but
+        // its underlying io.sentry:sentry-android Maven dependency is documented
+        // ProGuard/R8-friendly and embeds its own consumer rules — no manual rule needed.
+        'expo-build-properties',
+        {
+          android: {
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+            extraProguardRules: `
 # react-native-reanimated
 -keep class com.swmansion.reanimated.** { *; }
 -keep class com.facebook.react.turbomodule.** { *; }
@@ -135,100 +181,110 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
 # react-native-android-widget (verified package prefix: com.reactnativeandroidwidget, no consumer rules shipped)
 -keep class com.reactnativeandroidwidget.** { *; }
 `,
-        },
-      },
-    ],
-    [
-      // Small-icon tint uses the brand's calm terracotta — visible on the shade without
-      // reading as an alert color. No dedicated monochrome icon asset yet; falls back to
-      // the app icon until one is drawn.
-      'expo-notifications',
-      {
-        color: '#DC5E33',
-        defaultChannel: 'melo',
-      },
-    ],
-    [
-      'react-native-android-widget',
-      {
-        widgets: [
-          {
-            name: 'SafeZoneWidget', // must match SAFE_ZONE_WIDGET_NAME in widget/widgetSnapshotWriter.tsx
-            label: 'Melo — Safe Zone',
-            description: 'See how much you can safely spend today, at a glance.',
-            minWidth: '110dp',
-            minHeight: '40dp',
-            targetCellWidth: 4,
-            targetCellHeight: 1,
-            maxResizeWidth: '250dp',
-            maxResizeHeight: '110dp',
-            resizeMode: 'horizontal|vertical',
-            updatePeriodMillis: 1800000,
           },
-        ],
-      },
-    ],
-    [
-      'expo-splash-screen',
-      {
-        backgroundColor: '#F7F6F1',
-        image: './assets/splash.png',
-        imageWidth: 120,
-        dark: {
-          backgroundColor: '#18231D',
-          image: './assets/splash.png',
         },
-      },
+      ],
+      [
+        // Small-icon tint uses the brand's calm terracotta — visible on the shade without
+        // reading as an alert color. No dedicated monochrome icon asset yet; falls back to
+        // the app icon until one is drawn.
+        'expo-notifications',
+        {
+          color: '#DC5E33',
+          defaultChannel: 'melo',
+        },
+      ],
+      [
+        'react-native-android-widget',
+        {
+          widgets: [
+            {
+              name: 'SafeZoneWidget', // must match SAFE_ZONE_WIDGET_NAME in widget/widgetSnapshotWriter.tsx
+              label: 'Melo — Safe Zone',
+              description: 'See how much you can safely spend today, at a glance.',
+              minWidth: '110dp',
+              minHeight: '40dp',
+              targetCellWidth: 4,
+              targetCellHeight: 1,
+              maxResizeWidth: '250dp',
+              maxResizeHeight: '110dp',
+              resizeMode: 'horizontal|vertical',
+              updatePeriodMillis: 1800000,
+            },
+          ],
+        },
+      ],
+      [
+        'expo-splash-screen',
+        {
+          backgroundColor: '#F7F6F1',
+          image: './assets/splash.png',
+          imageWidth: 120,
+          dark: {
+            backgroundColor: '#18231D',
+            image: './assets/splash.png',
+          },
+        },
+      ],
+      [
+        'expo-image-picker',
+        {
+          // Statement images are read locally first. Intake asks separately before the optional
+          // secured reader service is used, and review still precedes every ledger write.
+          photosPermission:
+            'Melo uses a photo only to read a statement you pick. Reading starts on this device; Melo asks before using its secured reader service. Nothing is added until you review it.',
+          cameraPermission:
+            'Melo uses the camera only to capture a statement you choose. Reading starts on this device; Melo asks before using its secured reader service. Nothing is added until you review it.',
+        },
+      ],
+      [
+        'expo-speech-recognition',
+        {
+          microphonePermission:
+            'Melo uses the microphone only after you tap voice input. Audio is converted to an editable transcript and is not saved by Melo.',
+          speechRecognitionPermission:
+            'Melo uses speech recognition only after you tap voice input. You review and can edit the transcript before Melo creates a proposal.',
+        },
+      ],
+      'expo-sharing',
     ],
-    [
-      'expo-image-picker',
-      {
-        // Statement images are read locally first. Intake asks separately before the optional
-        // secured reader service is used, and review still precedes every ledger write.
-        photosPermission:
-          'Melo uses a photo only to read a statement you pick. Reading starts on this device; Melo asks before using its secured reader service. Nothing is added until you review it.',
-        cameraPermission:
-          'Melo uses the camera only to capture a statement you choose. Reading starts on this device; Melo asks before using its secured reader service. Nothing is added until you review it.',
-      },
-    ],
-    'expo-sharing',
-  ],
-  experiments: {
-    typedRoutes: true,
-  },
-  extra: {
-    ...config.extra,
-    eas: {
-      projectId: 'ef69039d-abaf-48e9-b35a-52d80b03a96a',
+    experiments: {
+      typedRoutes: true,
     },
-    // Clerk PUBLISHABLE key (public by design). There is no
-    // hardcoded development fallback: signed-out Melo remains fully usable, while production
-    // builds reject pk_test_* so a store binary cannot silently target a development instance.
-    // The secret key never exists anywhere in this repo or app.
-    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkPublishableKeyForBuild(),
-    // Optional zero-knowledge backup service. The server authenticates the Clerk account and stores
-    // only the client-encrypted envelope; the separate recovery code never leaves the device.
-    EXPO_PUBLIC_MELO_CLOUD_VAULT_URL:
-      process.env.EXPO_PUBLIC_MELO_CLOUD_VAULT_URL ??
-      'https://melo-cloud-vault.tgdroppin.workers.dev',
-    // Open Banking is not active in the current release candidate. Both values must be supplied
-    // explicitly for an approved provider build; an embedded URL alone cannot expose a connect
-    // flow or send provider data.
-    EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED:
-      process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED === 'true' ? 'true' : undefined,
-    EXPO_PUBLIC_MELO_OPEN_BANKING_URL: openBankingUrlForBuild(),
-    // Google Play purchase verification. The private Play/service and Ed25519 signing keys stay
-    // in the Worker; the APK contains only this endpoint and the public verification key.
-    EXPO_PUBLIC_MELO_BILLING_URL:
-      process.env.EXPO_PUBLIC_MELO_BILLING_URL ??
-      'https://melo-billing-entitlements.tgdroppin.workers.dev',
-    EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY:
-      process.env.EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY ??
-      'OKponTUZ9ZP1APZpvUeUK5BmKmlJm8FZQ5IDAd92HL8',
-    // Sentry DSN — public submit-only key (crash reports; privacy-tuned init lives in
-    // src/folio/lib/errorReporting.ts: no PII, no screenshots, no tracing).
-    EXPO_PUBLIC_SENTRY_DSN:
-      process.env.EXPO_PUBLIC_SENTRY_DSN ??
-      'https://4593a25966a06219730d6509c801febf@o4511684285497344.ingest.de.sentry.io/4511684377641040',
-  },
-});
+    extra: {
+      ...config.extra,
+      eas: {
+        projectId: 'ef69039d-abaf-48e9-b35a-52d80b03a96a',
+      },
+      // Clerk PUBLISHABLE key (public by design). There is no
+      // hardcoded development fallback: signed-out Melo remains fully usable, while production
+      // builds reject pk_test_* so a store binary cannot silently target a development instance.
+      // The secret key never exists anywhere in this repo or app.
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkPublishableKeyForBuild(),
+      // Optional zero-knowledge backup service. The server authenticates the Clerk account and stores
+      // only the client-encrypted envelope; the separate recovery code never leaves the device.
+      EXPO_PUBLIC_MELO_CLOUD_VAULT_URL:
+        process.env.EXPO_PUBLIC_MELO_CLOUD_VAULT_URL ??
+        'https://melo-cloud-vault.tgdroppin.workers.dev',
+      // Open Banking is not active in the current release candidate. Both values must be supplied
+      // explicitly for an approved provider build; an embedded URL alone cannot expose a connect
+      // flow or send provider data.
+      EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED:
+        process.env.EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED === 'true' ? 'true' : undefined,
+      EXPO_PUBLIC_MELO_OPEN_BANKING_URL: openBankingUrlForBuild(),
+      // Google Play purchase verification. The private Play/service and Ed25519 signing keys stay
+      // in the Worker; the APK contains only this endpoint and the public verification key.
+      EXPO_PUBLIC_MELO_BILLING_URL:
+        process.env.EXPO_PUBLIC_MELO_BILLING_URL ??
+        'https://melo-billing-entitlements.tgdroppin.workers.dev',
+      EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY:
+        process.env.EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY ??
+        'OKponTUZ9ZP1APZpvUeUK5BmKmlJm8FZQ5IDAd92HL8',
+      // Sentry DSN — public submit-only key (crash reports; privacy-tuned init lives in
+      // src/folio/lib/errorReporting.ts: no PII, no screenshots, no tracing).
+      EXPO_PUBLIC_SENTRY_DSN:
+        process.env.EXPO_PUBLIC_SENTRY_DSN ??
+        'https://4593a25966a06219730d6509c801febf@o4511684285497344.ingest.de.sentry.io/4511684377641040',
+    },
+  };
+};

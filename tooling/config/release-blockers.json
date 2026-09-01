@@ -42,7 +42,7 @@
     },
     "RB-NATIVE-NOTIFICATIONS-CALENDAR-VOICE": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "S9 notification channel creation, JSON/calendar share and restore-picker proof are complete; implement native voice, then finish clean-install notification and voice permission/privacy proof on supported Android and iOS devices."
+      "action": "S9 notification, calendar/share/picker and native-voice disclosure/permission proof are complete; finish a human-spoken transcript/edit/proposal run, clean-install privacy proof, new-flow TalkBack and iOS acceptance."
     },
     "RB-VAULT-REAL-DATA-E2E": {
       "classification": "BLOCKED EXTERNAL",
@@ -66,11 +66,11 @@
     },
     "RB-CLOUD-ACCOUNT-DELETION": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Configure production Clerk/Workers/provider credentials and run disposable-account deletion E2E."
+      "action": "Google/Apple/passkey and public deletion scaffolding are implemented; configure production Clerk/domain/Workers credentials and run disposable-account deletion E2E."
     },
     "RB-CLOUD-SYNC-RECOVERY": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Run production multi-device encrypted backup/restore, revoke and offline recovery proof."
+      "action": "Ciphertext-only sync, registry, revoke, replay, snapshots and compaction are implemented; deploy production bindings and run two-device encrypted backup/restore, revoke and offline recovery proof."
     },
     "RB-AI-GATEWAY-EVALUATION": {
       "classification": "BLOCKED OWNER DECISION",
@@ -102,7 +102,7 @@
     },
     "RB-T187-FULL-REGRESSION-STORE-BUILDS": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Android AAB/hash, emulator gates, S9 App Lock, notification-channel and picker/share checks are complete; finish destructive/key-loss Android drills, account-deletion, Play Console and iOS proof."
+      "action": "The refreshed Android AAB/hash, emulator gates and non-destructive S9 checks are complete; finish explicitly authorized destructive/key-loss drills, deployed account-deletion/multi-device sync, Play Console and iOS proof."
     },
     "RB-T188-LIMITED-UK-LAUNCH": {
       "classification": "BLOCKED OWNER DECISION",
@@ -158,9 +158,10 @@
         "docs/release-evidence/C6-today-timeline-calendar-transactions.md",
         "docs/release-evidence/C7-melo-deterministic-system.md",
         "docs/release-evidence/C13-business-workspace.md",
-        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md"
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-09-01.md",
+        "docs/release-evidence/T107_NATIVE_VOICE_TO_PROPOSAL_IMPLEMENTATION_2026-09-01.md"
       ],
-      "note": "Signed-candidate S9 notification toggle/channel creation, JSON export share chooser, restore-picker launch/cancel and folio.ics calendar-share proof passed without fatal logs or data mutation. The candidate has no microphone capture/speech-recognition path, so native voice remains implementation work; clean-install notification lock-screen visibility, broader permission/privacy matrices and iOS proof also remain open."
+      "note": "Signed-candidate S9 notification toggle/channel creation, JSON export share chooser, restore-picker launch/cancel and folio.ics calendar-share proof passed without fatal logs or data mutation. The refreshed candidate adds explicit-tap native speech recognition; its per-use phone-provider disclosure and first-use Android microphone permission passed on the S9, with no active recording after the session. Human-spoken transcript/edit/proposal, new-flow TalkBack, clean-install privacy and iOS proof remain open."
     },
     {
       "blockerId": "RB-VAULT-REAL-DATA-E2E",
@@ -231,17 +232,19 @@
         "docs/source-package/release/ACCOUNT_RECOVERY_AND_DELETION_RUNBOOK.md",
         "docs/release-store/account-deletion-checklist.md",
         "docs/release-evidence/C10-cloud-account-encrypted-backup-sync.md",
+        "docs/release-evidence/IDENTITY_AND_CLOUD_LOCAL_READINESS_2026-09-01.md",
         "docs/release-evidence/C14-store-billing-operations-release.md"
       ],
-      "note": "Deletion requirements are indexed; live provider and E2E deletion proof remain blocked."
+      "note": "Email, Google, Apple and device-supported passkey entry points, domain configuration and a public deletion-readiness route are implemented. Production Clerk/domain/provider configuration and disposable-account E2E deletion proof remain external."
     },
     {
       "blockerId": "RB-CLOUD-SYNC-RECOVERY",
       "paths": [
         "docs/release-evidence/C10-cloud-account-encrypted-backup-sync.md",
+        "docs/release-evidence/IDENTITY_AND_CLOUD_LOCAL_READINESS_2026-09-01.md",
         "docs/source-package/13_LOCAL_FIRST_SYNC_BACKUP_RECOVERY.md"
       ],
-      "note": "Sync/recovery contracts are indexed; live service and multi-device proof remain blocked."
+      "note": "The ciphertext-only Durable Object coordinator, device registry/revocation, epoch-key distribution, idempotent replay, monotonic acknowledgements, checksummed snapshots, safe compaction and mobile AES-GCM bridge are implemented and tested. Production deployment/bindings, two-device drills and independent cryptography/security/privacy review remain external."
     },
     {
       "blockerId": "RB-AI-GATEWAY-EVALUATION",
@@ -286,9 +289,9 @@
         "docs/release-store/reviewer-notes.md",
         "tooling/config/store-declarations.json",
         "docs/release-store/CURRENT_STORE_SUBMISSION_PACKAGE_2026-08-24.md",
-        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md"
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-09-01.md"
       ],
-      "note": "Current Melo declaration package and SDK/processor inventory are prepared and matched to Android AAB SHA-256 3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD; owner URL/contact, Play developer verification and console submission remain external."
+      "note": "Current Melo declaration package and SDK/processor inventory are prepared and matched to refreshed Android AAB SHA-256 D1995267DB79078367983119CB2DC3B461740A522972CB35671BFBA40BCF03CB; owner URL/contact, Play developer verification and console submission remain external."
     },
     {
       "blockerId": "RB-T184-NATIVE-BILLING",
@@ -345,10 +348,11 @@
         "docs/release-evidence/ANDROID_CANONICAL_FULL_APPSTATE_AUTHORITY_2026-07-16.md",
         "docs/release-evidence/ANDROID_IMPORT_CORPUS_AND_CRASH_RECOVERY_2026-07-16.md",
         "docs/release-evidence/AI_PROVIDER_EGRESS_BOUNDARY_2026-07-16.md",
-        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md",
+        "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-09-01.md",
+        "docs/release-evidence/T107_NATIVE_VOICE_TO_PROPOSAL_IMPLEMENTATION_2026-09-01.md",
         "STATUS.md"
       ],
-      "note": "Historical CI/emulator and persistence evidence is retained. The current upload-signed arm64 AAB is bundletool/signature/hash verified; the matching arm64 APK passed install, launch, restart/background/Back and fatal-log smoke on an authorized Galaxy S9. Locked-device inspection confirmed secure keyguard, enforcing SELinux and a non-debuggable app sandbox. Owner-authenticated App Lock lifecycle, notification-channel creation, JSON/calendar share and restore-picker cancellation also passed. Native voice, secure-key loss/destructive recovery, final account-deletion E2E, Play Console and iOS proof remain open."
+      "note": "Historical CI/emulator and persistence evidence is retained. The refreshed upload-signed arm64 AAB is bundletool/signature/hash verified; its matching APK installed in place and launched without fatal logs on the authorized Galaxy S9. Existing App Lock, notification, JSON/calendar and picker checks remain valid, and the new native-voice disclosure/permission path passed. Human transcript review, explicitly authorized destructive/key-loss recovery, deployed account deletion/multi-device sync, Play Console and iOS proof remain open."
     },
     {
       "blockerId": "RB-T188-LIMITED-UK-LAUNCH",
@@ -453,11 +457,11 @@
       "taskIds": ["T083", "T084", "T085", "T086", "T090", "T098", "T132"],
       "category": "vault_e2e",
       "title": "Real-data briefing and offline resilience",
-      "kind": "local_machine_check",
+      "kind": "external_device",
       "impact": "release_blocking",
-      "status": "needs_evidence",
+      "status": "blocked",
       "owner": "quality-engineering",
-      "machineCheckable": true,
+      "machineCheckable": false,
       "source": "STATUS.md#open-risks",
       "evidenceRequired": ["command", "artifact"],
       "unblockCondition": "Airplane-mode daily loop, import endurance, migration interruption, low-storage and restore drills pass without silent data loss.",
@@ -634,14 +638,14 @@
       "taskIds": ["T185"],
       "category": "operations",
       "title": "Incident and support runbook tabletop evidence",
-      "kind": "local_docs_evidence",
+      "kind": "owner_decision",
       "impact": "release_blocking",
-      "status": "needs_evidence",
+      "status": "blocked",
       "owner": "support-lead",
-      "machineCheckable": true,
+      "machineCheckable": false,
       "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
       "evidenceRequired": ["operations"],
-      "unblockCondition": "Incident/support runbooks complete tabletop, rotation drills and vulnerability disclosure readiness."
+      "unblockCondition": "Owner confirms the public security/support contact; internal tabletop, rotation drills and runbook readiness are complete."
     },
     {
       "id": "RB-T186-FINAL-REVIEW",
@@ -664,15 +668,15 @@
       "taskIds": ["T187"],
       "category": "quality",
       "title": "Full regression, offline E2E, account deletion E2E and store release builds",
-      "kind": "local_machine_check",
+      "kind": "external_service",
       "impact": "release_blocking",
-      "status": "needs_evidence",
+      "status": "blocked",
       "owner": "quality-lead",
-      "machineCheckable": true,
+      "machineCheckable": false,
       "source": "docs/release-evidence/C14-store-billing-operations-release.md#task-coverage",
       "evidenceRequired": ["command", "artifact", "device"],
       "unblockCondition": "Full regression, offline E2E, account deletion E2E and iOS/Android store release builds pass every release-blocking criterion.",
-      "note": "Final Android CI, dual-ABI APK/AAB validation, navigation smoke, bounded airplane-mode loop, clean-sandbox portable restore, kernel-ENOSPC state/PDF-import recovery, Personal legacy-to-schema-v11 interrupted-migration recovery, lossless state/root SQLCipher authority, whole-database rebuild and schema-v8 canonical reads pass. The shipping parser additionally passes an 18-case synthetic corpus and 100k-row run; raw AI document/chat egress is retired. Production account deletion, release-device import interruption, remaining restore/endurance scenarios and iOS release/store proof remain open."
+      "note": "Final Android CI, refreshed signed APK/AAB validation, navigation and non-destructive S9 smoke, bounded airplane-mode loop, clean-sandbox portable restore, kernel-ENOSPC recovery, interrupted-migration recovery and canonical SQLCipher reads pass. Voice disclosure/permission, ciphertext sync and production-identity scaffolding are implemented. Deployed account deletion/two-device sync, explicitly authorized destructive recovery, Play Console and iOS release/store proof remain open."
     },
     {
       "id": "RB-T188-LIMITED-UK-LAUNCH",

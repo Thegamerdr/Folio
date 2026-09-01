@@ -87,6 +87,26 @@ Examples:
 
 The transcript is parsed into a typed proposal and reviewed.
 
+### Native Melo voice sequence
+
+The Expo mobile implementation follows one finite foreground session:
+
+```text
+tap Voice
+→ capability check
+→ on-device recognition when supported
+→ explicit per-use disclosure before any phone-service fallback
+→ visible Listening state with Stop
+→ editable transcript review
+→ explicit Create proposal
+→ existing typed proposal review
+→ separate Confirm or Dismiss
+```
+
+Leaving the Melo sheet or backgrounding the app aborts the active recognition session. Recognition
+does not opt into raw-audio persistence. Discard removes the transcript draft; typing remains beside
+the voice control on every supported platform.
+
 ## Accessibility
 
 Document and voice flows require non-camera/non-voice alternatives. OCR results must be readable by screen readers, and bounding-box-only interaction cannot be the sole way to correct data.

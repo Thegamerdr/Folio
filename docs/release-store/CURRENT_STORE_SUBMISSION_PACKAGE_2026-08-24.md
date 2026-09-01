@@ -1,7 +1,7 @@
-# Melo current store-submission package — engineering revalidation 31 August 2026
+# Melo current store-submission package — engineering revalidation 1 September 2026
 
 The candidate and declaration answers were revalidated against the current release control plane on
-31 August 2026. This package remains a draft until the owner supplies the public policy/support /
+1 September 2026. This package remains a draft until the owner supplies the public policy/support /
 deletion route and the relevant store console review is completed.
 
 ## Submission identity
@@ -14,8 +14,8 @@ deletion route and the relevant store console review is completed.
 | App version            | `0.0.1`                                                              | `apps/mobile/app.config.ts`                                              |
 | Android versionCode    | `1`                                                                  | Candidate manifest and native config                                     |
 | Candidate artifact     | `melo-0.0.1-1-production.aab`                                        | Upload-signed arm64 candidate; bundletool/signature/manifest checks pass |
-| Candidate SHA-256      | `3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`   | Exact 62,324,086-byte AAB; not yet uploaded                              |
-| Candidate evidence     | `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md` | Matching signed arm64 physical-device smoke                              |
+| Candidate SHA-256      | `D1995267DB79078367983119CB2DC3B461740A522972CB35671BFBA40BCF03CB`   | Exact 62,630,678-byte AAB; not yet uploaded                              |
+| Candidate evidence     | `docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-09-01.md` | Matching signed arm64 physical-device and native-voice smoke             |
 | Play submission        | Not submitted                                                        | Console submission must not be claimed from repository evidence          |
 | Privacy policy URL     | `OWNER INPUT REQUIRED: choose/confirm an owned public URL`           | No owned public URL is present in repo/config                            |
 | Support contact        | `OWNER INPUT REQUIRED: choose/confirm support contact`               | No inbox/service is present in repo/config                               |
@@ -76,19 +76,22 @@ review must be checked against the actual iOS binary; no iOS submission is claim
 ## SDK and permission inventory
 
 - SDKs: Expo/React Native, SQLCipher storage, Clerk Expo (optional auth), Sentry React Native
-  (redacted crash diagnostics), Expo IAP, Expo document/image picker, Expo sharing, Expo secure
-  store/local authentication, notifications/calendar and WebBrowser/Open Banking adapter.
-- Blocked permissions: `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, `RECORD_AUDIO` and
-  `SYSTEM_ALERT_WINDOW` are explicitly blocked in `app.config.ts`; audio recording is disabled.
+  (redacted crash diagnostics), Expo IAP, Expo document/image picker, Expo sharing, Expo speech
+  recognition, Expo secure store/local authentication, notifications/calendar and WebBrowser/Open
+  Banking adapter.
+- Blocked permissions: `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE` and
+  `SYSTEM_ALERT_WINDOW` are explicitly blocked in `app.config.ts`. `RECORD_AUDIO` is used only after
+  an explicit Voice tap for one foreground recognition session; Melo does not enable raw-audio
+  persistence or background recording.
 - User-mediated surfaces: document/photo picker, optional camera capture, optional notifications,
-  calendar export, biometric/PIN app lock and share/export.
+  calendar export, biometric/PIN app lock, share/export and editable voice transcription.
 - No advertising ID, tracking SDK, analytics SDK, raw chat transport or provider secret is shipped.
 
 ## Reviewer notes
 
 Use synthetic reviewer data only. Melo works locally without an account; account/cloud/bank flows
 are optional. Do not ask a reviewer to provide real financial data. The reviewer must be given the
-candidate SHA-256 `3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`
+candidate SHA-256 `D1995267DB79078367983119CB2DC3B461740A522972CB35671BFBA40BCF03CB`
 and an owner-confirmed privacy/support URL before console submission.
 
 ## Submission gate

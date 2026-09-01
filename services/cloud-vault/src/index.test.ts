@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { backupObjectKeys, handleAuthenticatedRequest, type BackupStore } from './index';
+import {
+  accountDeletionReadinessPage,
+  backupObjectKeys,
+  handleAuthenticatedRequest,
+  type BackupStore,
+} from './index';
 
 type Stored = {
   bytes: Uint8Array;
@@ -88,6 +93,22 @@ function request(
 }
 
 describe('Melo cloud vault', () => {
+  it('publishes an honest account-deletion readiness page without inventing a public URL', async () => {
+    const unconfigured = accountDeletionReadinessPage(request('GET', '/delete-account'));
+    expect(unconfigured.status).toBe(200);
+    await expect(unconfigured.text()).resolves.toContain(
+      'Browser self-service is not configured yet',
+    );
+
+    const configured = accountDeletionReadinessPage(request('GET', '/delete-account'), {
+      ALLOWED_ORIGINS: '',
+      PUBLIC_ACCOUNT_DELETION_URL: 'https://support.example.test/delete-account',
+    });
+    const html = await configured.text();
+    expect(html).toContain('https://support.example.test/delete-account');
+    expect(html).toContain('does not delete an account by itself');
+  });
+
   it('hashes user ids before forming object keys', async () => {
     const keys = await backupObjectKeys('user_private', WORKSPACE_A);
     expect(keys.latest).not.toContain('user_private');

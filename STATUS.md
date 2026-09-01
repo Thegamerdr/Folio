@@ -550,7 +550,10 @@ local record match`, `No cloud model or remote search used` and the checked `Tyr
   now have a generation-bound canonical boot read candidate, and mapped mutations have typed-command
   and privacy-minimal audit coverage.
 - Phase 7 T101 real proposal commit remains command-envelope-only until vault-backed command adapters exist.
-- Phase 7 T107 voice-to-proposal remains blocked until native audio, transcript review and no-retained-audio evidence exist.
+- Phase 7 T107 voice-to-proposal is implemented behind an explicit tap with capability-checked
+  on-device preference, disclosed per-use phone-service fallback, editable transcript review and the
+  existing proposal confirmation gate. Source tests prove no raw-audio persistence option is used;
+  final closure still requires Android/iOS candidate-device evidence.
 - Phase 7 T108 animation remains static reduced-motion shell evidence until native motion/accessibility verification exists.
 - Phase 7 T109 legal/compliance review remains required before public regulated-boundary claims.
 - Phase 8 plan and contribution writes now commit canonical plan rows with typed semantic receipts;

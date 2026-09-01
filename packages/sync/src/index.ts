@@ -379,6 +379,98 @@ export type Phase10CoverageInput = Readonly<{
   beta: EncryptedBackupSyncBetaState;
 }>;
 
+export type CloudSyncDevice = Readonly<{
+  deviceId: string;
+  label: string;
+  publicKey: string;
+  publicKeyFingerprint: string;
+  keyEpoch: number;
+  wrappedSyncKey: string;
+  registeredAt: string;
+  lastSeenAt: string;
+  acknowledgedCursor: number;
+  lastDeviceSequence: number;
+  revokedAt?: string;
+}>;
+
+export type RegisterCloudSyncDeviceInput = Readonly<{
+  deviceId: string;
+  label: string;
+  publicKey: string;
+  publicKeyFingerprint: string;
+  keyEpoch: number;
+  /** Opaque client-produced key wrapping. The service cannot unwrap it. */
+  wrappedSyncKey: string;
+}>;
+
+export type EncryptedOperationUpload = Readonly<{
+  id: string;
+  deviceId: string;
+  deviceSequence: number;
+  keyEpoch: number;
+  idempotencyKey: string;
+  createdAt: string;
+  /** Base64-encoded client ciphertext. */
+  ciphertext: string;
+  ciphertextSha256: string;
+}>;
+
+export type CloudSyncOperation = EncryptedOperationUpload & Readonly<{ cursor: number }>;
+
+export type CloudSyncSnapshotCheckpoint = Readonly<{
+  id: string;
+  cursor: number;
+  keyEpoch: number;
+  /** Checksum of the separately uploaded encrypted backup snapshot. */
+  backupChecksum: string;
+  createdAt: string;
+  deviceId: string;
+}>;
+
+export type CloudSyncOperationPage = Readonly<{
+  operations: readonly CloudSyncOperation[];
+  nextCursor: number;
+  headCursor: number;
+  hasMore: boolean;
+}>;
+
+export type CloudSyncApi = Readonly<{
+  listDevices(): Promise<{
+    devices: readonly CloudSyncDevice[];
+    currentKeyEpoch: number;
+    headCursor: number;
+    compactedThrough: number;
+  }>;
+  registerDevice(input: RegisterCloudSyncDeviceInput): Promise<{ device: CloudSyncDevice }>;
+  revokeDevice(
+    deviceId: string,
+    input: { newKeyEpoch: number; wrappedKeys: Readonly<Record<string, string>> },
+  ): Promise<{ revokedDeviceId: string; revokedAt: string; currentKeyEpoch: number }>;
+  uploadOperation(input: EncryptedOperationUpload): Promise<{
+    duplicate: boolean;
+    cursor: number;
+    headCursor: number;
+  }>;
+  downloadOperations(after: number, limit?: number): Promise<CloudSyncOperationPage>;
+  acknowledge(cursor: number): Promise<{ acknowledgedCursor: number; headCursor: number }>;
+  putSnapshot(
+    input: CloudSyncSnapshotCheckpoint,
+  ): Promise<{ snapshot: CloudSyncSnapshotCheckpoint }>;
+  getSnapshot(): Promise<{ exists: boolean; snapshot: CloudSyncSnapshotCheckpoint | null }>;
+  compact(throughCursor: number): Promise<{ compactedThrough: number; deletedCount: number }>;
+}>;
+
+export type CloudSyncApiInput = Readonly<{
+  baseUrl: string;
+  bearerToken: string;
+  workspaceRef: string;
+  deviceId: string;
+  fetch: (
+    url: string,
+    init: Readonly<{ method: string; headers: Readonly<Record<string, string>>; body?: string }>,
+  ) => Promise<Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>>;
+}>;
+
 const forbiddenServiceMetadataKeys = new Set([
   'merchant',
   'merchantName',
@@ -440,6 +532,96 @@ export function validateEnvelopeForUpload(
     reasons,
     ciphertextOnly: forbiddenKeys.length === 0,
   };
+}
+
+/**
+ * Authenticated transport for the opaque cloud-sync API. Crypto and local replay remain caller
+ * responsibilities, which keeps this package platform-neutral and prevents plaintext from entering
+ * request construction accidentally.
+ */
+export function createCloudSyncApi(input: CloudSyncApiInput): CloudSyncApi {
+  const baseUrl = normalizeHttpsOrigin(input.baseUrl);
+  if (baseUrl === null) throw new Error('Cloud sync requires an HTTPS origin.');
+  if (!/^[a-f0-9]{64}$/.test(input.workspaceRef)) {
+    throw new Error('Cloud sync workspace reference is invalid.');
+  }
+  if (!/^[a-f0-9]{32}$/.test(input.deviceId)) {
+    throw new Error('Cloud sync device identifier is invalid.');
+  }
+  if (input.bearerToken.trim().length === 0) throw new Error('Cloud sync requires authentication.');
+
+  const request = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
+    const response = await input.fetch(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${input.bearerToken}`,
+        'Content-Type': 'application/json',
+        'X-Melo-Workspace-Ref': input.workspaceRef,
+        'X-Melo-Device': input.deviceId,
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message =
+        payload !== null &&
+        typeof payload === 'object' &&
+        'error' in payload &&
+        typeof payload.error === 'string'
+          ? payload.error
+          : `Cloud sync request failed (${response.status}).`;
+      throw new Error(message);
+    }
+    return payload as T;
+  };
+
+  return {
+    listDevices: () => request('GET', '/v1/sync/devices'),
+    registerDevice: (device) => request('POST', '/v1/sync/devices', device),
+    revokeDevice: (deviceId, rotation) => {
+      if (!/^[a-f0-9]{32}$/.test(deviceId))
+        throw new Error('Cloud sync device identifier is invalid.');
+      return request('POST', `/v1/sync/devices/${deviceId}/revoke`, rotation);
+    },
+    uploadOperation: (operation) => request('POST', '/v1/sync/operations', operation),
+    downloadOperations: (after, limit = 100) => {
+      assertCursor(after);
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 250) {
+        throw new Error('Cloud sync page size is invalid.');
+      }
+      return request('GET', `/v1/sync/operations?after=${after}&limit=${limit}`);
+    },
+    acknowledge: (cursor) => {
+      assertCursor(cursor);
+      return request('POST', '/v1/sync/acknowledgements', {
+        deviceId: input.deviceId,
+        cursor,
+      });
+    },
+    putSnapshot: (snapshot) => request('PUT', '/v1/sync/snapshot', snapshot),
+    getSnapshot: () => request('GET', '/v1/sync/snapshot'),
+    compact: (throughCursor) => request('POST', '/v1/sync/compaction', { throughCursor }),
+  };
+}
+
+function assertCursor(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error('Cloud sync cursor is invalid.');
+}
+
+function normalizeHttpsOrigin(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'https:' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.search === '' &&
+      url.hash === '' &&
+      (url.pathname === '' || url.pathname === '/')
+      ? url.origin
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function evaluateOptionalAccount(input: OptionalAccountInput): OptionalAccountState {

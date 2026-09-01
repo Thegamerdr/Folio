@@ -43,23 +43,23 @@ DPIA/privacy declaration approval, an independent cloud-vault/auth pen-test or s
 
 ## Task coverage
 
-| Task                                | Status                        | Evidence                                                                 |
-| ----------------------------------- | ----------------------------- | ------------------------------------------------------------------------ |
-| T134 Optional account/auth          | Implemented; release blocked  | Clerk email-code flow exists; production config and signed E2E blocked   |
-| T135 Crypto key hierarchy           | Blocked for release           | Subkeys modelled; Keychain/Keystore proof and crypto review blocked      |
-| T136 Recovery setup                 | Blocked for release           | Recovery methods and zero-knowledge copy modelled; clean restore blocked |
-| T137 Cloud device registry          | Blocked for release           | Device rows/revocation modelled; cloud backend and revoke drill blocked  |
-| T138 Encrypted outbox envelopes     | Implemented and tested        | Append-only, idempotent, ciphertext-only envelope contract               |
-| T139 Inbox apply pipeline           | Implemented and tested        | Duplicate and malformed envelopes are rejected safely                    |
-| T140 Conflict policies              | Implemented and tested        | Deterministic policies avoid universal last-write-wins                   |
-| T141 Encrypted backup snapshots     | Implemented; release blocked  | Real client encryption/two generations; deployed clean restore blocked   |
-| T142 Compaction ack cursors         | Implemented as contract       | Compaction waits for every active-device acknowledgement                 |
-| T143 Device/recovery manager UI     | Implemented as shell contract | No secret exposure, accessible controls and reduced-motion copy          |
-| T144 Account deletion               | Partially implemented         | In-app + service purge built/tested; public web route and E2E blocked    |
-| T145 Cloud data inventory/status    | Implemented as contract       | Payload, processor, delete and local-vault-disable rules visible         |
-| T146 Multi-device offline conflict  | Blocked for release           | Contract rows modelled; true restore/revoke drill blocked                |
-| T147 Cloud vault/auth/sync pen-test | Blocked for release           | External assessment required; high/critical findings must close          |
-| T148 Encrypted backup/sync beta     | Blocked for release           | Beta gate waits for T134-T147, support runbook and restore telemetry     |
+| Task                                | Status                           | Evidence                                                                                        |
+| ----------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| T134 Optional account/auth          | Implemented; release blocked     | Clerk email-code flow exists; production config and signed E2E blocked                          |
+| T135 Crypto key hierarchy           | Blocked for release              | Subkeys modelled; Keychain/Keystore proof and crypto review blocked                             |
+| T136 Recovery setup                 | Blocked for release              | Recovery methods and zero-knowledge copy modelled; clean restore blocked                        |
+| T137 Cloud device registry          | Implemented locally; E2E blocked | Authenticated registry/revoke/key-epoch API and client; deployed lost-device drill blocked      |
+| T138 Encrypted outbox envelopes     | Implemented and tested           | Append-only, idempotent, ciphertext-only envelope contract                                      |
+| T139 Inbox apply pipeline           | Implemented and tested           | Duplicate and malformed envelopes are rejected safely                                           |
+| T140 Conflict policies              | Implemented and tested           | Deterministic policies avoid universal last-write-wins                                          |
+| T141 Encrypted backup snapshots     | Implemented; release blocked     | Real client encryption/two generations; deployed clean restore blocked                          |
+| T142 Compaction ack cursors         | Implemented locally; E2E blocked | Cursor/ack/snapshot/compaction API waits for every active device; deployed replay drill blocked |
+| T143 Device/recovery manager UI     | Implemented as shell contract    | No secret exposure, accessible controls and reduced-motion copy                                 |
+| T144 Account deletion               | Partially implemented            | In-app + service purge built/tested; public web route and E2E blocked                           |
+| T145 Cloud data inventory/status    | Implemented as contract          | Payload, processor, delete and local-vault-disable rules visible                                |
+| T146 Multi-device offline conflict  | Blocked for release              | Contract rows modelled; true restore/revoke drill blocked                                       |
+| T147 Cloud vault/auth/sync pen-test | Blocked for release              | External assessment required; high/critical findings must close                                 |
+| T148 Encrypted backup/sync beta     | Blocked for release              | Beta gate waits for T134-T147, support runbook and restore telemetry                            |
 
 ## Verification evidence
 
@@ -170,6 +170,34 @@ Issues carried forward:
 - Bank-side provider-consent revocation is not supported by the current adapter. Melo deletes its
   stored credential and stops future access, while the user must also revoke the permission at the
   bank when immediate provider-side revocation is required.
+
+## 2026-09-01 locally solvable sync/recovery update
+
+- Authenticated, explicit workspace-scoped sync traffic now routes to one Durable Object per hashed
+  account/workspace pair. Device rows contain public-key/encrypted-key-wrap material and operational
+  cursors, never financial domain fields.
+- Revoke advances the key epoch and requires an opaque next-key wrapping for every remaining active
+  device. Revoked devices cannot replay or upload.
+- Encrypted operations are checksum-verified, idempotent, append-only per device, assigned a
+  serialized workspace cursor, pageable and explicitly acknowledged.
+- Snapshot checkpoints must reference the current client-encrypted backup checksum. Compaction
+  cannot pass that checkpoint or the minimum acknowledgement of every active device; a device behind
+  compaction receives `snapshot_required` and checkpoint metadata.
+- `@folio/sync` exposes the authenticated transport. The mobile adapter seals operation plaintext
+  locally with AES-256-GCM and workspace/device/sequence/key-epoch AAD; only base64 ciphertext and
+  operational metadata cross the network.
+- `GET /delete-account` is an honest public readiness page. Without a configured owner HTTPS URL it
+  says browser self-service is not configured. Clerk production domain/provider configuration and
+  the owner-controlled deletion/support destination remain external.
+
+Focused verification on 2026-09-01 passed 28 tests across `@folio/sync`, Cloud Vault backup,
+workspace coordination and mobile operation crypto. `@folio/sync` and Cloud Vault typechecks passed.
+The full mobile typecheck also passed after concurrent native configuration work settled.
+
+This does **not** close `RB-CLOUD-SYNC-RECOVERY`: production deployment/bindings, signed Clerk E2E,
+two physical-device offline edit/delete recovery, clean-device snapshot plus operation replay,
+lost-device revoke/key rotation, independent security/cryptographic review and privacy approval
+remain required.
 
 ## Boundary conclusion
 

@@ -1,4 +1,4 @@
-# Melo owner action pack — current release gate (31 August 2026)
+# Melo owner action pack — current release gate (1 September 2026)
 
 This is the only current owner-action list. It contains genuine external actions; the internal
 tabletop revalidation, safe rotation drills, declaration drafts, privacy/DPIA package, security and
@@ -51,6 +51,13 @@ status form to use before secrets are available.
   deletion. Never use the owner's real account or financial data.
 - Where: provider dashboards and a disposable test device/account.
 - Required value: owner/provider credentials, approved processor contracts and test account.
+- Clerk values and console switches: supply the production `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
+  (`pk_live_...`) and `EXPO_PUBLIC_CLERK_FRONTEND_API_HOST` (hostname only); enable Google, Apple,
+  passkeys and self-service deletion in the Clerk production instance; complete the Apple/Google
+  provider console configuration and publish the required domain association files.
+- Cloud Vault values: deploy the Durable Object/KV Worker with production Clerk verification,
+  configure `EXPO_PUBLIC_MELO_CLOUD_VAULT_URL`, and set the owner-controlled HTTPS account-deletion
+  URL shown by `GET /delete-account`.
 - TrueLayer activation inputs: register the callback URL printed by `pnpm open-banking:readiness`,
   then run `pnpm open-banking:secret:client-id`, `pnpm open-banking:secret:client-secret` and
   `pnpm open-banking:secret:encryption-key`. Re-run `pnpm open-banking:readiness` before enabling a
@@ -67,7 +74,7 @@ status form to use before secrets are available.
 
 - Exact action: send the completed security, accessibility and DPIA/privacy/legal packages to named
   independent reviewers and record decisions against Android candidate SHA-256
-  `3170EE26762A72645680BFBA316BF0670936065182BE4946A6C36CC0F1AF71FD`.
+  `D1995267DB79078367983119CB2DC3B461740A522972CB35671BFBA40BCF03CB`.
 - Where: owner-selected independent security, accessibility and legal/privacy reviewers.
 - Required value: reviewer names/organisations, scope, date, findings and sign-off.
 - Expected result: no unaccepted high/critical findings and explicit approval of store/privacy/
@@ -77,12 +84,13 @@ status form to use before secrets are available.
 
 ## 5. Complete remaining physical Android and iOS release evidence
 
-- Exact action: the signed arm64 candidate is installed and launch/restart/background/Back,
-  owner-authenticated App Lock, notification-channel creation, JSON-export share and restore-picker
-  cancellation have passed on the authorized Galaxy S9. Using a disposable Android profile and safe
-  test data, run the remaining hardware-bound secure-key loss, clean-install notification privacy,
-  native-voice and destructive-recovery drills. Local `.ics` calendar sharing, emulator onboarding,
-  200% text, reduced motion and real TalkBack smoke are already complete. For iOS, the project is prepared with
+- Exact action: the refreshed signed arm64 candidate is installed and launch, first-use native voice
+  disclosure/permission, owner-authenticated App Lock, notification-channel creation, JSON-export
+  share, restore-picker cancellation and local `.ics` calendar handoff have passed on the authorized
+  Galaxy S9. Speak a test phrase to finish transcript edit/proposal/undo proof. Using a disposable
+  Android profile and safe test data, run the remaining hardware-bound secure-key loss,
+  clean-install notification privacy and destructive-recovery drills. Emulator onboarding, 200%
+  text, reduced motion and real TalkBack smoke are already complete. For iOS, the project is prepared with
   `expo-dev-client`; use the authenticated EAS account after interactive distribution-credential
   setup, or use macOS/Xcode, and test on an iOS device or simulator.
 - Where: the currently connected S9 for the remaining Android drills; complete interactive Apple

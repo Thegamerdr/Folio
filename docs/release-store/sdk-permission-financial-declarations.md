@@ -9,17 +9,20 @@ Status: **engineering inventory current; BLOCKED EXTERNAL for candidate-binary a
 - Clerk Expo (optional authentication)
 - Sentry React Native (redacted crash diagnostics)
 - Expo IAP (Full/Live billing seam)
-- Expo document picker, image picker, sharing and WebBrowser
+- Expo document picker, image picker, sharing, speech recognition and WebBrowser
 - Expo notifications/calendar surfaces and optional TrueLayer Open Banking adapter
 - No advertising, attribution, tracking, behavioural analytics or raw AI chat SDK
 
 ## Permission/required-reason inventory
 
 - Explicitly blocked in `apps/mobile/app.config.ts`: `READ_EXTERNAL_STORAGE`,
-  `WRITE_EXTERNAL_STORAGE`, `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`.
+  `WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`.
 - User-mediated: document/photo picker, optional camera capture, notifications, calendar export,
-  share/export, biometric/PIN lock and WebBrowser bank consent.
-- Audio recording/background recording are disabled.
+  share/export, biometric/PIN lock, explicit-tap voice transcription and WebBrowser bank consent.
+- `RECORD_AUDIO` is requested only after the user taps Voice. Recognition is foreground-only, raw
+  audio persistence is not enabled, and a transcript must be edited/reviewed before the existing
+  proposal confirmation gate. A disclosed phone speech-service fallback can process audio when an
+  on-device recognizer is unavailable; the user must opt in on each use.
 
 ## Google financial-features draft
 

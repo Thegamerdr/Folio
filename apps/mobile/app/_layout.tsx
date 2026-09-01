@@ -9,6 +9,7 @@ import {
   Fraunces_600SemiBold_Italic,
 } from '@expo-google-fonts/fraunces';
 import { ClerkProvider, type ClerkProviderProps } from '@clerk/clerk-expo';
+import { passkeys } from '@clerk/clerk-expo/passkeys';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -181,7 +182,11 @@ function RootLayout() {
   // "missing" properties that Clerk's own JSX usage examples never provide. This is a documented
   // upstream typing friction with strict optional-property configs, not a real prop gap — the
   // object below is the complete, valid set clerk-expo's own Expo quickstart passes.
-  const clerkProps = { publishableKey, tokenCache: clerkTokenCache } as ClerkProviderProps;
+  const clerkProps = {
+    publishableKey,
+    tokenCache: clerkTokenCache,
+    __experimental_passkeys: passkeys,
+  } as unknown as ClerkProviderProps;
 
   return <ClerkProvider {...clerkProps}>{tree}</ClerkProvider>;
 }

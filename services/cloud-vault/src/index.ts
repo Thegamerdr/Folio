@@ -1,11 +1,19 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 
+export { SyncWorkspaceDurableObject } from './sync-workspace';
+
 const LATEST_NAME = 'latest.melo-backup';
 const PREVIOUS_NAME = 'previous.melo-backup';
 const DEFAULT_MAX_BACKUP_BYTES = 4 * 1024 * 1024;
 const PERSONAL_WORKSPACE_ID = 'workspace_personal_local';
 const WORKSPACE_REF_HEADER = 'x-melo-workspace-ref';
 const WORKSPACE_REF_PATTERN = /^[a-f0-9]{64}$/;
+const SYNC_WORKSPACE_MARKER = 'sync-workspaces';
+
+type CloudVaultEnv = Omit<Env, 'PUBLIC_ACCOUNT_DELETION_URL'> & {
+  SYNC_WORKSPACES: DurableObjectNamespace;
+  PUBLIC_ACCOUNT_DELETION_URL?: string;
+};
 
 type BackupObject = Readonly<{
   body: ReadableStream;
@@ -38,7 +46,7 @@ type AuthenticatedRequest = Readonly<{
 const jwksByUrl = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: CloudVaultEnv): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return preflight(request, env);
     if (request.method === 'GET' && url.pathname === '/health') {
@@ -48,6 +56,9 @@ export default {
         request,
         env,
       );
+    }
+    if (request.method === 'GET' && url.pathname === '/delete-account') {
+      return accountDeletionReadinessPage(request, env);
     }
 
     let auth: AuthenticatedRequest;
@@ -65,9 +76,16 @@ export default {
     }
 
     try {
+      const store = kvStore(env.VAULTS);
+      if (url.pathname.startsWith('/v1/sync/')) {
+        return await handleSyncRequest(request, env, store, auth.userId);
+      }
+      if (request.method === 'DELETE' && url.pathname === '/v1/account') {
+        await purgeSyncAccount(env, store, auth.userId);
+      }
       return await handleAuthenticatedRequest(
         request,
-        kvStore(env.VAULTS),
+        store,
         auth.userId,
         positiveInt(env.MAX_BACKUP_BYTES, DEFAULT_MAX_BACKUP_BYTES),
         env,
@@ -89,7 +107,7 @@ export default {
       );
     }
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<CloudVaultEnv>;
 
 export async function handleAuthenticatedRequest(
   request: Request,
@@ -225,7 +243,148 @@ export async function handleAuthenticatedRequest(
   return json({ error: 'Route not found.' }, 404, request, env);
 }
 
-async function authenticate(request: Request, env: Env): Promise<AuthenticatedRequest> {
+async function handleSyncRequest(
+  request: Request,
+  env: CloudVaultEnv,
+  store: BackupStore,
+  userId: string,
+): Promise<Response> {
+  const suppliedRef = request.headers.get(WORKSPACE_REF_HEADER);
+  const workspaceRef = suppliedRef === null ? null : normalizeWorkspaceRef(suppliedRef);
+  if (workspaceRef === null) {
+    return json(
+      { error: 'Sync requires an explicit valid opaque workspace reference.' },
+      400,
+      request,
+      env,
+    );
+  }
+
+  if (request.method === 'PUT' && new URL(request.url).pathname === '/v1/sync/snapshot') {
+    const body = (await request
+      .clone()
+      .json()
+      .catch(() => null)) as Record<string, unknown> | null;
+    const checksum = typeof body?.['backupChecksum'] === 'string' ? body['backupChecksum'] : '';
+    const backup = await store.head((await backupObjectKeys(userId, workspaceRef)).latest);
+    if (backup === null || backup.customMetadata?.['checksum'] !== checksum) {
+      return json(
+        { error: 'Snapshot checkpoint must reference the current verified encrypted backup.' },
+        409,
+        request,
+        env,
+      );
+    }
+  }
+
+  const userRef = await userStorageId(userId);
+  const markerKey = `${await userStoragePrefix(userId)}/${SYNC_WORKSPACE_MARKER}/${workspaceRef}`;
+  await env.VAULTS.put(markerKey, new Uint8Array([1]), {
+    metadata: { workspaceRef, updatedAt: new Date().toISOString() },
+  });
+  const stub = env.SYNC_WORKSPACES.getByName(`${userRef}:${workspaceRef}`);
+  const headers = new Headers(request.headers);
+  headers.delete('authorization');
+  headers.set('x-melo-internal-now', new Date().toISOString());
+  if (request.method === 'PUT' && new URL(request.url).pathname === '/v1/sync/snapshot') {
+    headers.set('x-melo-internal-backup-verified', 'true');
+  }
+  const upstream = await stub.fetch(new Request(request, { headers }));
+  return withCors(upstream, request, env);
+}
+
+async function purgeSyncAccount(
+  env: CloudVaultEnv,
+  store: BackupStore,
+  userId: string,
+): Promise<void> {
+  const prefix = `${await userStoragePrefix(userId)}/${SYNC_WORKSPACE_MARKER}/`;
+  const userRef = await userStorageId(userId);
+  const markers = await store.list(prefix);
+  await Promise.all(
+    markers.map(async (key) => {
+      const workspaceRef = normalizeWorkspaceRef(key.slice(prefix.length));
+      if (workspaceRef === null) throw new Error('invalid sync workspace marker');
+      const stub = env.SYNC_WORKSPACES.getByName(`${userRef}:${workspaceRef}`);
+      const response = await stub.fetch('https://sync.internal/v1/sync/account', {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('sync workspace purge failed');
+    }),
+  );
+}
+
+function withCors(
+  upstream: Response,
+  request: Request,
+  env: Pick<Env, 'ALLOWED_ORIGINS'>,
+): Response {
+  const headers = new Headers(upstream.headers);
+  for (const [name, value] of Object.entries(corsHeaders(request, env))) headers.set(name, value);
+  headers.set('Cache-Control', 'no-store');
+  return new Response(upstream.body, { status: upstream.status, headers });
+}
+
+export function accountDeletionReadinessPage(
+  request: Request,
+  env?: Pick<CloudVaultEnv, 'PUBLIC_ACCOUNT_DELETION_URL' | 'ALLOWED_ORIGINS'>,
+): Response {
+  const publicUrl = normalizePublicDeletionUrl(env?.PUBLIC_ACCOUNT_DELETION_URL);
+  const externalAction =
+    publicUrl === null
+      ? '<p><strong>Browser self-service is not configured yet.</strong> The production owner must set an HTTPS support or account-deletion URL after the Clerk domain and deletion journey are live.</p>'
+      : `<p><a href="${escapeHtml(publicUrl)}" rel="noopener noreferrer">Continue to account deletion support</a></p>`;
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Delete your Melo cloud account</title></head>
+<body><main><h1>Delete your Melo cloud account</h1>
+<p>This page explains the available route; it does not delete an account by itself.</p>
+<h2>In the Melo app</h2><p>Open Account, choose Delete account, and complete the confirmation steps. Melo asks its configured services to purge remote account data before deleting the identity. Clearing local data is a separate choice.</p>
+<h2>Without the app</h2>${externalAction}
+<p>If the browser route is not configured, account deletion is not ready to be claimed as a live public self-service flow.</p>
+</main></body></html>`;
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Security-Policy':
+        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+      ...corsHeaders(request, env),
+    },
+  });
+}
+
+function normalizePublicDeletionUrl(value: string | undefined): string | null {
+  if (value === undefined || value.trim().length === 0) return null;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'https:' && url.username === '' && url.password === ''
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;',
+    };
+    return entities[character]!;
+  });
+}
+
+async function authenticate(
+  request: Request,
+  env: Pick<CloudVaultEnv, 'CLERK_JWKS_URL' | 'CLERK_ISSUER' | 'ALLOWED_ORIGINS'>,
+): Promise<AuthenticatedRequest> {
   const authorization = request.headers.get('Authorization') ?? '';
   const token = authorization.startsWith('Bearer ')
     ? authorization.slice('Bearer '.length).trim()
@@ -452,7 +611,7 @@ function corsHeaders(request: Request, env?: Pick<Env, 'ALLOWED_ORIGINS'>): Reco
     origin !== null && allowed.includes(origin) ? origin : allowed.length === 0 ? '*' : 'null';
   return {
     'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers':
       'Authorization, Content-Type, Content-Length, X-Melo-Checksum, X-Melo-Created-At, X-Melo-Device, X-Melo-Workspace-Ref',
     'Access-Control-Expose-Headers': 'ETag, X-Melo-Checksum',

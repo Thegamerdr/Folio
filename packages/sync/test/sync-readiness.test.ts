@@ -7,6 +7,7 @@ import {
   buildEncryptedOutboxState,
   buildPhase10CoverageRows,
   createEncryptedSyncEnvelope,
+  createCloudSyncApi,
   evaluateAccountDeletionPortal,
   evaluateCloudSecurityReview,
   evaluateCompactionCursors,
@@ -93,6 +94,48 @@ describe('sync boundary', () => {
 });
 
 describe('encrypted envelope contract', () => {
+  it('builds authenticated workspace/device-scoped requests without accepting plaintext fields', async () => {
+    const calls: Array<{
+      url: string;
+      init: { method: string; headers: Record<string, string>; body?: string };
+    }> = [];
+    const api = createCloudSyncApi({
+      baseUrl: 'https://vault.example.test',
+      bearerToken: 'session-token',
+      workspaceRef: 'a'.repeat(64),
+      deviceId: 'b'.repeat(32),
+      fetch: async (url, init) => {
+        calls.push({
+          url,
+          init: {
+            method: init.method,
+            headers: { ...init.headers },
+            ...(init.body === undefined ? {} : { body: init.body }),
+          },
+        });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ acknowledgedCursor: 7, headCursor: 7 }),
+        };
+      },
+    });
+
+    await expect(api.acknowledge(7)).resolves.toMatchObject({ acknowledgedCursor: 7 });
+    expect(calls[0]).toMatchObject({
+      url: 'https://vault.example.test/v1/sync/acknowledgements',
+      init: {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer session-token',
+          'X-Melo-Workspace-Ref': 'a'.repeat(64),
+          'X-Melo-Device': 'b'.repeat(32),
+        },
+      },
+    });
+    expect(calls[0]!.init.body).toBe(JSON.stringify({ deviceId: 'b'.repeat(32), cursor: 7 }));
+  });
+
   it('creates versioned ciphertext envelopes with minimal service metadata', () => {
     const envelope = createEncryptedSyncEnvelope({
       id: 'env_001',

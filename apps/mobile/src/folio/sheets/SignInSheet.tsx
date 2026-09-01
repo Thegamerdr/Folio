@@ -1,18 +1,19 @@
-// SignInSheet — the optional Clerk email-code sign-in flow, opened from AccountScreen's
+// SignInSheet — optional Clerk email-code and provider sign-in, opened from AccountScreen's
 // "Sign in" row. Only ever mounted when clerkAuth.isClerkConfigured() is true (see AccountScreen.tsx
 // — with no publishable key this component is never imported into the render tree in practice, and
 // every hook here is a no-op no-crash if somehow called without a ClerkProvider ancestor, because
 // AccountScreen only renders this sheet behind that same isClerkConfigured() gate).
 //
-// Flow: email -> Clerk sends a 6-digit code -> code -> session active. No web-browser redirect;
-// this is the standard clerk-expo "email code" first-factor strategy, entirely in-app.
+// Email flow: email -> Clerk sends a 6-digit code -> code -> session active. Google and Apple use
+// Clerk's system-browser SSO flow and return through the app's existing `folio` URL scheme.
 //
 // Kept in the established local-sheet shape (visible/onClose, kit `Sheet` primitive, paper styling)
 // — see LogPaymentSheet.tsx for the pattern this mirrors.
 
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { isClerkAPIResponseError, useSignIn, useSignUp } from '@clerk/clerk-expo';
+import { isClerkAPIResponseError, useSignIn, useSignUp, useSSO } from '@clerk/clerk-expo';
+import { passkeys } from '@clerk/clerk-expo/passkeys';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 
@@ -23,6 +24,7 @@ export type SignInSheetProps = {
 
 type Step = 'email' | 'code';
 type AuthFlow = 'sign_in' | 'sign_up';
+type SocialStrategy = 'oauth_apple' | 'oauth_google';
 
 function isIdentifierNotFound(error: unknown): boolean {
   return (
@@ -36,6 +38,7 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
   const s = makeStyles(t);
   const signInState = useSignIn();
   const signUpState = useSignUp();
+  const { startSSOFlow } = useSSO();
 
   const [step, setStep] = useState<Step>('email');
   const [authFlow, setAuthFlow] = useState<AuthFlow>('sign_in');
@@ -130,6 +133,45 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
     }
   }
 
+  async function handleSocialSignIn(strategy: SocialStrategy) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await startSSOFlow({ strategy });
+      if (!result.createdSessionId || !result.setActive) {
+        if (result.authSessionResult?.type === 'cancel') return;
+        setError('The provider did not complete sign-in. Check its setup and retry.');
+        return;
+      }
+      await result.setActive({ session: result.createdSessionId });
+      handleClose();
+    } catch {
+      setError('Melo could not complete provider sign-in. Check the connection and retry.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePasskeySignIn() {
+    if (!signInState.isLoaded || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const attempt = await signInState.signIn.authenticateWithPasskey({ flow: 'discoverable' });
+      if (attempt.status !== 'complete' || !attempt.createdSessionId) {
+        setError('The passkey did not complete sign-in. Choose another method or retry.');
+        return;
+      }
+      await signInState.setActive({ session: attempt.createdSessionId });
+      handleClose();
+    } catch {
+      setError('Melo could not use that passkey. Choose another method or retry.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Sheet visible={visible} onClose={handleClose}>
       <View style={s.body}>
@@ -174,6 +216,45 @@ export function SignInSheet({ visible, onClose }: SignInSheetProps) {
         )}
 
         {error ? <Text style={s.errorLine}>{error}</Text> : null}
+
+        {step === 'email' ? (
+          <View style={s.providerGroup}>
+            {passkeys.isSupported() ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy }}
+                disabled={busy}
+                onPress={() => void handlePasskeySignIn()}
+                style={[s.provider, { borderColor: t.hairline }]}
+              >
+                <Text style={[s.providerLabel, { color: t.ink }]}>Continue with a passkey</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy }}
+              disabled={busy}
+              onPress={() => void handleSocialSignIn('oauth_google')}
+              style={[s.provider, { borderColor: t.hairline }]}
+            >
+              <Text style={[s.providerLabel, { color: t.ink }]}>Continue with Google</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy }}
+              disabled={busy}
+              onPress={() => void handleSocialSignIn('oauth_apple')}
+              style={[s.provider, { borderColor: t.hairline }]}
+            >
+              <Text style={[s.providerLabel, { color: t.ink }]}>Continue with Apple</Text>
+            </Pressable>
+            <View accessible={false} style={s.orRow}>
+              <View style={[s.orLine, { backgroundColor: t.hairline }]} />
+              <Text style={[s.orLabel, { color: t.muted }]}>or</Text>
+              <View style={[s.orLine, { backgroundColor: t.hairline }]} />
+            </View>
+          </View>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
@@ -258,6 +339,33 @@ function makeStyles(t: Palette) {
     primaryLabel: {
       fontSize: 14,
       fontWeight: '500',
+    },
+    providerGroup: {
+      gap: gap.sm,
+      marginTop: gap.lg,
+    },
+    provider: {
+      alignItems: 'center',
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      paddingVertical: gap.md,
+    },
+    providerLabel: {
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    orRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: gap.sm,
+      marginTop: gap.xs,
+    },
+    orLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+    },
+    orLabel: {
+      fontSize: 12,
     },
     cancel: {
       alignItems: 'center',
