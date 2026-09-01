@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "releaseName": "Melo release gate",
-  "updatedOn": "2026-08-31",
+  "updatedOn": "2026-09-01",
   "policy": {
     "publicReleaseAllowed": false,
     "allowSyntheticEvidenceForPublicRelease": false,
@@ -34,7 +34,7 @@
     },
     "RB-NATIVE-SECURE-KEYS": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Basic signed-candidate S9 smoke is complete; run Android/iOS key-wrapping, app-lock and clean-restore proof and obtain independent review."
+      "action": "Signed-candidate S9 App Lock proof is complete; run Android/iOS key-wrapping, secure-key loss and clean/destructive restore proof and obtain independent review."
     },
     "RB-NATIVE-DOCUMENTS-OCR": {
       "classification": "BLOCKED EXTERNAL",
@@ -42,7 +42,7 @@
     },
     "RB-NATIVE-NOTIFICATIONS-CALENDAR-VOICE": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Run native notification, calendar and voice permission/privacy proof on supported devices."
+      "action": "S9 notification channel creation and picker/share launch proof are complete; finish clean-install notification privacy plus calendar and voice permission/privacy proof on supported Android and iOS devices."
     },
     "RB-VAULT-REAL-DATA-E2E": {
       "classification": "BLOCKED EXTERNAL",
@@ -102,7 +102,7 @@
     },
     "RB-T187-FULL-REGRESSION-STORE-BUILDS": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Android AAB/hash, emulator gates and basic signed-candidate S9 smoke are complete; finish hardware-bound Android drills, account-deletion, Play Console and iOS proof."
+      "action": "Android AAB/hash, emulator gates, S9 App Lock, notification-channel and picker/share checks are complete; finish destructive/key-loss Android drills, account-deletion, Play Console and iOS proof."
     },
     "RB-T188-LIMITED-UK-LAUNCH": {
       "classification": "BLOCKED OWNER DECISION",
@@ -139,7 +139,7 @@
         "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md",
         "STATUS.md"
       ],
-      "note": "The signed arm64 candidate passed basic launch/restart/background/Back smoke on an authorized Galaxy S9. Locked-device inspection additionally confirmed secure keyguard, operational fingerprint hardware, enforcing SELinux and a non-debuggable app sandbox. Interactive biometric/app-lock, secure-key loss and clean/destructive restore proof remain external."
+      "note": "The signed arm64 candidate passed launch/restart/background/Back smoke on an authorized Galaxy S9. Locked-device inspection confirmed secure keyguard, operational fingerprint hardware, enforcing SELinux and a non-debuggable app sandbox. Owner-authenticated App Lock enable, background/relaunch challenge, return-from-share challenge and disable/restore-to-OFF proof also passed without fatal logs. Hardware-backed secure-key loss and clean/destructive restore proof remain external."
     },
     {
       "blockerId": "RB-NATIVE-DOCUMENTS-OCR",
@@ -160,7 +160,7 @@
         "docs/release-evidence/C13-business-workspace.md",
         "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md"
       ],
-      "note": "Basic signed-candidate S9 smoke is complete. Notification, calendar, voice, picker/share and permission/privacy drills remain external."
+      "note": "Signed-candidate S9 notification toggle/channel creation, JSON export share chooser and restore-picker launch/cancel proof passed without fatal logs or data mutation. Clean-install notification lock-screen visibility, calendar, voice, broader permission/privacy matrices and iOS proof remain external."
     },
     {
       "blockerId": "RB-VAULT-REAL-DATA-E2E",
@@ -348,7 +348,7 @@
         "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md",
         "STATUS.md"
       ],
-      "note": "Historical CI/emulator and persistence evidence is retained. The current upload-signed arm64 AAB is bundletool/signature/hash verified; the matching arm64 APK passed install, launch, restart/background/Back and fatal-log smoke on an authorized Galaxy S9. Locked-device inspection confirmed secure keyguard, enforcing SELinux and a non-debuggable app sandbox. Interactive secure-key/biometric/picker/share/destructive-recovery, final account-deletion E2E, Play Console and iOS proof remain external."
+      "note": "Historical CI/emulator and persistence evidence is retained. The current upload-signed arm64 AAB is bundletool/signature/hash verified; the matching arm64 APK passed install, launch, restart/background/Back and fatal-log smoke on an authorized Galaxy S9. Locked-device inspection confirmed secure keyguard, enforcing SELinux and a non-debuggable app sandbox. Owner-authenticated App Lock lifecycle, notification-channel creation, JSON export share and restore-picker cancellation also passed. Secure-key loss/destructive recovery, final account-deletion E2E, Play Console and iOS proof remain external."
     },
     {
       "blockerId": "RB-T188-LIMITED-UK-LAUNCH",

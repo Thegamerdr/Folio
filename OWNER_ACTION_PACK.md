@@ -77,11 +77,12 @@ status form to use before secrets are available.
 
 ## 5. Complete remaining physical Android and iOS release evidence
 
-- Exact action: the signed arm64 candidate is installed and basic launch/restart/background/Back
-  smoke has passed on the authorized Galaxy S9. Using a disposable Android profile and safe test
-  data, run the remaining hardware-bound secure-key, biometric, notification, picker/share and
-  destructive-recovery drills. Emulator onboarding, 200% text, reduced motion and real TalkBack
-  smoke are already complete. For iOS, the project is prepared with
+- Exact action: the signed arm64 candidate is installed and launch/restart/background/Back,
+  owner-authenticated App Lock, notification-channel creation, JSON-export share and restore-picker
+  cancellation have passed on the authorized Galaxy S9. Using a disposable Android profile and safe
+  test data, run the remaining hardware-bound secure-key loss, clean-install notification privacy,
+  calendar/voice and destructive-recovery drills. Emulator onboarding, 200% text, reduced motion and
+  real TalkBack smoke are already complete. For iOS, the project is prepared with
   `expo-dev-client`; use the authenticated EAS account after interactive distribution-credential
   setup, or use macOS/Xcode, and test on an iOS device or simulator.
 - Where: the currently connected S9 for the remaining Android drills; complete interactive Apple

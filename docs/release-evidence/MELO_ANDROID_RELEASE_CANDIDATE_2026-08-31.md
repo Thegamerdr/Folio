@@ -46,10 +46,10 @@ smoke completed:
 - the filtered `AndroidRuntime:E` / `ReactNativeJS:E` logcat contained no error entries.
 
 The install used `-r` and preserved existing application data. This pass does not claim a clean
-install, destructive recovery, secure-key loss, biometric lock, notification, file-picker, share,
-TalkBack or large-text result on this physical device. The earlier signed-candidate emulator record
-retains its own onboarding, restart/background/Back, 200% text, reduced-motion and TalkBack evidence;
-it is not substituted for physical-device or independent review.
+install, destructive recovery, secure-key loss, calendar/voice integration, TalkBack or large-text
+result on this physical device. The earlier signed-candidate emulator record retains its own
+onboarding, restart/background/Back, 200% text, reduced-motion and TalkBack evidence; it is not
+substituted for physical-device or independent review.
 
 ## Locked-device security inspection — 2026-09-01
 
@@ -64,9 +64,40 @@ the device or reading application data:
 - Android granted the normal biometric/fingerprint permissions declared by the package, while the
   runtime camera permission remained denied.
 
-These observations strengthen the device/sandbox boundary but do not prove Melo's interactive
-biometric challenge or hardware-backed key lifecycle. The device must be manually unlocked before
-those tests can run; no attempt was made to infer or bypass the owner's credential.
+These observations strengthen the device/sandbox boundary but do not prove the hardware-backed key
+lifecycle. No attempt was made to infer or bypass the owner's credential.
+
+## Interactive S9 privacy and Android integration proof — 2026-09-01
+
+With the owner present to satisfy every Samsung Knox device-authentication prompt, the same signed
+candidate completed the following non-destructive checks:
+
+- App Lock was enabled from **Data and privacy** using the device's fingerprint/PIN boundary. The UI
+  then reported `ON` and `locks whenever Melo leaves the screen`.
+- Sending Melo to Home and launching it again opened Samsung's `Unlock Melo` credential activity
+  before app content was available. Authentication returned to Melo without a fatal native or
+  React Native error.
+- Leaving Melo for Android's share chooser also caused App Lock to re-engage on return, matching the
+  promised every-background-transition behaviour.
+- App Lock was disabled through the authenticated `Turn off Melo app lock` prompt after testing, and
+  the Privacy screen was visually rechecked at `OFF`, restoring the device's starting preference.
+- Enabling reminders created the `melo`, `melo-reminders` and `melo-updates` Android channels; the
+  toggle was then returned to OFF. The channels were silent (`sound=null`), without vibration or a
+  badge, and the filtered fatal log contained no entries. Because this was a preserved-data upgrade
+  install and Android channel attributes are immutable after creation, this pass does not claim a
+  clean-install lock-screen visibility result.
+- **Export my data** produced `melo-personal-export.json` and opened Android's system share chooser.
+  The chooser was cancelled; no destination was selected.
+- **Restore from an export** opened `com.android.documentsui/.picker.PickActivity`. The picker was
+  cancelled without selecting a file, and Melo resumed normally. No restore or local-data mutation
+  was performed.
+- Filtered `AndroidRuntime:E` and `ReactNativeJS:E` logcat checks were empty for the notification,
+  App Lock, share and picker transitions.
+
+The interactive App Lock, notification-channel creation and picker/share launch gaps are therefore
+closed for this Galaxy S9 candidate. Clean-install notification-channel privacy, hardware-backed key
+loss/recovery, destructive restore, the supported Android-device matrix and equivalent iOS evidence
+remain external release work.
 
 ## Release boundary
 
