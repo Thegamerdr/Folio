@@ -91,13 +91,18 @@ candidate completed the following non-destructive checks:
 - **Restore from an export** opened `com.android.documentsui/.picker.PickActivity`. The picker was
   cancelled without selecting a file, and Melo resumed normally. No restore or local-data mutation
   was performed.
+- **Add to your calendar app** generated the empty-but-valid `folio.ics` calendar export for this
+  empty workspace and opened Android's system share chooser with the calendar MIME/icon. The chooser
+  was cancelled without selecting a destination or creating a device-calendar event.
 - Filtered `AndroidRuntime:E` and `ReactNativeJS:E` logcat checks were empty for the notification,
-  App Lock, share and picker transitions.
+  App Lock, JSON/calendar share and picker transitions.
 
-The interactive App Lock, notification-channel creation and picker/share launch gaps are therefore
-closed for this Galaxy S9 candidate. Clean-install notification-channel privacy, hardware-backed key
-loss/recovery, destructive restore, the supported Android-device matrix and equivalent iOS evidence
-remain external release work.
+The interactive App Lock, notification-channel creation, calendar/JSON share and picker launch gaps
+are therefore closed for this Galaxy S9 candidate. Code inspection found no microphone capture or
+speech-recognition path in the candidate, so no voice-permission result is claimed: native voice is
+an implementation gap rather than a secret-only activation task. Clean-install notification-channel
+privacy, hardware-backed key loss/recovery, destructive restore, the supported Android-device matrix
+and equivalent iOS evidence remain external release work.
 
 ## Release boundary
 

@@ -42,7 +42,7 @@
     },
     "RB-NATIVE-NOTIFICATIONS-CALENDAR-VOICE": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "S9 notification channel creation and picker/share launch proof are complete; finish clean-install notification privacy plus calendar and voice permission/privacy proof on supported Android and iOS devices."
+      "action": "S9 notification channel creation, JSON/calendar share and restore-picker proof are complete; implement native voice, then finish clean-install notification and voice permission/privacy proof on supported Android and iOS devices."
     },
     "RB-VAULT-REAL-DATA-E2E": {
       "classification": "BLOCKED EXTERNAL",
@@ -160,7 +160,7 @@
         "docs/release-evidence/C13-business-workspace.md",
         "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md"
       ],
-      "note": "Signed-candidate S9 notification toggle/channel creation, JSON export share chooser and restore-picker launch/cancel proof passed without fatal logs or data mutation. Clean-install notification lock-screen visibility, calendar, voice, broader permission/privacy matrices and iOS proof remain external."
+      "note": "Signed-candidate S9 notification toggle/channel creation, JSON export share chooser, restore-picker launch/cancel and folio.ics calendar-share proof passed without fatal logs or data mutation. The candidate has no microphone capture/speech-recognition path, so native voice remains implementation work; clean-install notification lock-screen visibility, broader permission/privacy matrices and iOS proof also remain open."
     },
     {
       "blockerId": "RB-VAULT-REAL-DATA-E2E",
@@ -348,7 +348,7 @@
         "docs/release-evidence/MELO_ANDROID_RELEASE_CANDIDATE_2026-08-31.md",
         "STATUS.md"
       ],
-      "note": "Historical CI/emulator and persistence evidence is retained. The current upload-signed arm64 AAB is bundletool/signature/hash verified; the matching arm64 APK passed install, launch, restart/background/Back and fatal-log smoke on an authorized Galaxy S9. Locked-device inspection confirmed secure keyguard, enforcing SELinux and a non-debuggable app sandbox. Owner-authenticated App Lock lifecycle, notification-channel creation, JSON export share and restore-picker cancellation also passed. Secure-key loss/destructive recovery, final account-deletion E2E, Play Console and iOS proof remain external."
+      "note": "Historical CI/emulator and persistence evidence is retained. The current upload-signed arm64 AAB is bundletool/signature/hash verified; the matching arm64 APK passed install, launch, restart/background/Back and fatal-log smoke on an authorized Galaxy S9. Locked-device inspection confirmed secure keyguard, enforcing SELinux and a non-debuggable app sandbox. Owner-authenticated App Lock lifecycle, notification-channel creation, JSON/calendar share and restore-picker cancellation also passed. Native voice, secure-key loss/destructive recovery, final account-deletion E2E, Play Console and iOS proof remain open."
     },
     {
       "blockerId": "RB-T188-LIMITED-UK-LAUNCH",

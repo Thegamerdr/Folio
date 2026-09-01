@@ -81,8 +81,8 @@ status form to use before secrets are available.
   owner-authenticated App Lock, notification-channel creation, JSON-export share and restore-picker
   cancellation have passed on the authorized Galaxy S9. Using a disposable Android profile and safe
   test data, run the remaining hardware-bound secure-key loss, clean-install notification privacy,
-  calendar/voice and destructive-recovery drills. Emulator onboarding, 200% text, reduced motion and
-  real TalkBack smoke are already complete. For iOS, the project is prepared with
+  native-voice and destructive-recovery drills. Local `.ics` calendar sharing, emulator onboarding,
+  200% text, reduced motion and real TalkBack smoke are already complete. For iOS, the project is prepared with
   `expo-dev-client`; use the authenticated EAS account after interactive distribution-credential
   setup, or use macOS/Xcode, and test on an iOS device or simulator.
 - Where: the currently connected S9 for the remaining Android drills; complete interactive Apple
