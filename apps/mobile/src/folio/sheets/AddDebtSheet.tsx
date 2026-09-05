@@ -82,15 +82,6 @@ export function AddDebtSheet({ visible, onClose }: AddDebtSheetProps) {
     <Sheet visible={visible} onClose={onClose}>
       <View style={s.headerRow}>
         <Text style={s.eyebrow}>Add a debt</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          hitSlop={12}
-          onPress={onClose}
-          style={({ pressed }) => [pressed ? s.pressed : undefined]}
-        >
-          <Text style={[s.closeGlyph, { color: t.muted }]}>×</Text>
-        </Pressable>
       </View>
       <Text accessibilityRole="header" style={s.headline}>
         {'One line at a '}
@@ -244,9 +235,6 @@ function makeStyles(t: Palette) {
       fontSize: 11,
       letterSpacing: 1.54,
       textTransform: 'uppercase',
-    },
-    closeGlyph: {
-      fontSize: 18,
     },
     headline: {
       color: t.ink,

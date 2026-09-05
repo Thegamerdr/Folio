@@ -124,6 +124,26 @@ export type RouteResult = {
   outgoingTotal?: number;
 };
 
+/** A display window, not a new forecast: the engine retains its full sampled route. */
+export function selectPaydayTightPoint(route: RouteResult): RouteResult['tightPoint'] {
+  const horizon = route.points.slice(0, Math.max(0, Math.trunc(route.daysToPayday)) + 1);
+  const low = horizon.reduce<RoutePoint | undefined>(
+    (prior, point) => (prior === undefined || point.y < prior.y ? point : prior),
+    undefined,
+  );
+  return low === undefined ? route.tightPoint : { date: low.date, amount: low.y };
+}
+
+/** Calendar-day language remains correct around midnight and daylight-saving changes. */
+export function tightPointDayLabel(date: string, now: Date): string {
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(`${date}T00:00:00Z`);
+  const dayIndex = Math.round((target.getTime() - today) / 86_400_000);
+  if (dayIndex === 0) return 'today';
+  if (dayIndex === 1) return 'tomorrow';
+  return target.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', timeZone: 'UTC' });
+}
+
 /** Parse an ISO YYYY-MM-DD to a UTC-midnight epoch. Using UTC (not local)
  *  keeps day indexing deterministic across host timezones — the engine must
  *  return the same points on any machine. Throws on a malformed date so a bad

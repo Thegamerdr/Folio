@@ -54,20 +54,35 @@ describe('buildTodayPathGeometry', () => {
 describe('Today source-authoritative journey', () => {
   const now = new Date('2026-08-18T00:00:00');
 
-  it('uses one vertical scale and the same full-window tight amount as the hero', () => {
+  it('uses one vertical scale and maps the real tight date between today and payday', () => {
     const points = buildTodayJourneyGeometry({
       now,
       todayAmount: 1500,
       tightAmount: 325,
-      tightDate: '2026-09-10',
+      tightDate: '2026-08-23',
       paydayAmount: 2925,
+      paydayDate: '2026-08-28',
     });
 
     expect(points.map((point) => point.label)).toEqual(['today', 'tightest', 'payday']);
     expect(points[1]?.value).toBe('£325');
+    expect(points.map((point) => point.x)).toEqual([30, 200, 370]);
     expect(points[1]?.y).toBeGreaterThan(points[0]?.y ?? 0);
     expect(points[1]?.y).toBeGreaterThan(points[2]?.y ?? 0);
-    expect(points[1]?.x).toBeGreaterThan(70);
+  });
+
+  it('uses a one-day payday endpoint and suppresses a later full-route low', () => {
+    const points = buildTodayJourneyGeometry({
+      now,
+      todayAmount: 1000,
+      tightAmount: 100,
+      tightDate: '2026-08-20',
+      paydayAmount: 1100,
+      paydayDate: '2026-08-19',
+    });
+
+    expect(points.map((point) => point.label)).toEqual(['today', 'payday']);
+    expect(points.map((point) => point.x)).toEqual([30, 370]);
   });
 
   it('selects the two largest real pre-payday movements and preserves their labels', () => {

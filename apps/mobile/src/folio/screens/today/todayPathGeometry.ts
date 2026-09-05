@@ -55,21 +55,14 @@ export type TodayCalendarMovement = Readonly<{
 
 const DAY_MS = 86_400_000;
 
-function atLocalMidnight(iso: string): number {
-  return new Date(`${iso}T00:00:00`).getTime();
-}
-
 function formatGBP(value: number): string {
   const rounded = Math.round(value);
   return `${rounded < 0 ? '−' : ''}£${Math.abs(rounded).toLocaleString('en-GB')}`;
 }
 
 /**
- * Source-authoritative three-station journey used by Today.
- *
- * The tight point deliberately comes from the full 35-day projection, just as
- * the headline does. All stations share one vertical scale, which prevents the
- * route from visually contradicting its money labels.
+ * Payday-bounded stations use the same interval and values as the visible answer.
+ * Coincident low/end stations collapse rather than inventing an earlier low date.
  */
 export function buildTodayJourneyGeometry({
   now,
@@ -77,24 +70,41 @@ export function buildTodayJourneyGeometry({
   tightAmount,
   tightDate,
   paydayAmount,
+  paydayDate,
 }: {
   now: Date;
   todayAmount: number;
   tightAmount: number;
   tightDate: string | null;
   paydayAmount: number;
+  paydayDate: string;
 }): readonly TodayJourneyPoint[] {
-  const tightDays = tightDate
-    ? Math.max(0, Math.min(28, Math.round((atLocalMidnight(tightDate) - now.getTime()) / DAY_MS)))
-    : 14;
-  const tightX = Math.round(70 + (tightDays / 28) * 250);
+  const start = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayIndex = (date: string) => Math.round((Date.parse(`${date}T00:00:00Z`) - start) / DAY_MS);
+  const daysToPayday = Math.max(0, dayIndex(paydayDate));
+  const tightDays = tightDate === null ? 0 : dayIndex(tightDate);
+  const interiorLow = tightDays > 0 && tightDays < daysToPayday;
+  const tightX = 30 + (tightDays / Math.max(1, daysToPayday)) * 340;
   const lo = Math.min(todayAmount, tightAmount, paydayAmount, 0);
   const hi = Math.max(todayAmount, tightAmount, paydayAmount, lo + 1);
-  const y = (value: number) => Math.round(200 - ((value - lo) / (hi - lo)) * 132);
+  const flat =
+    Math.max(todayAmount, tightAmount, paydayAmount) -
+      Math.min(todayAmount, tightAmount, paydayAmount) <
+    1;
+  const y = (value: number) => (flat ? 146 : Math.round(196 - ((value - lo) / (hi - lo)) * 110));
 
   return [
     { x: 30, y: y(todayAmount), label: 'today', value: formatGBP(todayAmount) },
-    { x: tightX, y: y(tightAmount), label: 'tightest', value: formatGBP(tightAmount) },
+    ...(interiorLow
+      ? [
+          {
+            x: tightX,
+            y: y(tightAmount),
+            label: 'tightest' as const,
+            value: formatGBP(tightAmount),
+          },
+        ]
+      : []),
     { x: 370, y: y(paydayAmount), label: 'payday', value: formatGBP(paydayAmount) },
   ];
 }
@@ -106,22 +116,24 @@ export function buildTodayJourneyEvents(
   paydayIso: string,
   tightX: number,
 ): readonly TodayJourneyEvent[] {
-  const nowMs = now.getTime();
-  const paydayMs = atLocalMidnight(paydayIso);
+  const nowMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const paydayMs = Date.parse(`${paydayIso}T00:00:00Z`);
+  const horizon = Math.max(1, Math.round((paydayMs - nowMs) / DAY_MS));
   return events
     .filter((event) => {
-      const at = atLocalMidnight(event.date);
-      return at > nowMs && at <= paydayMs && Math.abs(event.amount ?? 0) > 0;
+      const at = Date.parse(`${event.date}T00:00:00Z`);
+      // The terminal station already owns payday; never draw a second payday notch.
+      return at > nowMs && at < paydayMs && Math.abs(event.amount ?? 0) > 0;
     })
     .sort((a, b) => Math.abs(b.amount ?? 0) - Math.abs(a.amount ?? 0))
     .slice(0, 2)
     .map((event) => {
       const days = Math.max(
         0,
-        Math.min(28, Math.round((atLocalMidnight(event.date) - nowMs) / DAY_MS)),
+        Math.min(horizon, Math.round((Date.parse(`${event.date}T00:00:00Z`) - nowMs) / DAY_MS)),
       );
       return {
-        x: Math.round(30 + (days / 28) * 340),
+        x: Math.round(30 + (days / horizon) * 340),
         label: event.title ?? '',
         amount: event.amount ?? 0,
       };

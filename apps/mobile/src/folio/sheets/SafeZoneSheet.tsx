@@ -77,6 +77,12 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
       <View style={s.body}>
         <Text style={s.eyebrow}>YOUR SAFE ZONE</Text>
         <Text style={s.headline}>About £{zone.perDay}/day</Text>
+        <Text style={s.rowHint}>
+          A separate spending budget after your Bills Shield and buffer.
+          {zone.until
+            ? ` Through ${new Date(`${zone.until}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}.`
+            : ''}
+        </Text>
         <View style={s.numberRow}>
           {/* Sign-aware headline (plan 107 Step 4): `formatGBP` renders negatives as `−£60`
               (minus BEFORE the pound sign — same convention as SafeZoneWidget's formatter),
@@ -100,7 +106,13 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
             >
               <View style={s.rowBody}>
                 <Text style={s.rowLabel}>{line.label}</Text>
-                {line.hint ? <Text style={s.rowHint}>{line.hint}</Text> : null}
+                {line.hint ? (
+                  <Text style={s.rowHint}>
+                    {line.key === 'shield'
+                      ? 'Reserved for bills through the date above'
+                      : line.hint}
+                  </Text>
+                ) : null}
               </View>
               {line.editable && line.key === 'buffer' ? (
                 <View style={s.stepperRow}>
@@ -133,7 +145,7 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
 
         {zone.estimating ? (
           <Text style={s.estimatingLine}>
-            Includes bills between now and payday, so this stays honest.
+            Includes known bills through the budget date shown above.
           </Text>
         ) : null}
 
@@ -145,7 +157,9 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
           }}
           style={[s.talkCta, { backgroundColor: t.calm, borderColor: t.calm }]}
         >
-          <Text style={[s.talkCtaLabel, { color: t.inverse }]}>Something's off — talk it through with Melo</Text>
+          <Text style={[s.talkCtaLabel, { color: t.inverse }]}>
+            Something's off — talk it through with Melo
+          </Text>
         </Pressable>
       </View>
     </Sheet>
@@ -207,7 +221,8 @@ function makeStyles(t: Palette) {
     estimatingLine: { marginTop: gap.md, fontSize: 11.5, fontStyle: 'italic', color: t.muted },
     talkCta: {
       marginTop: gap.xl,
-      height: 44,
+      minHeight: 48,
+      paddingVertical: 8,
       borderRadius: radius.md,
       borderWidth: StyleSheet.hairlineWidth,
       alignItems: 'center',

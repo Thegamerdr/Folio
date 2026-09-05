@@ -17,7 +17,7 @@
 // @motion       press 0.97 only; ScreenPlanHub has no route-entry animation.
 
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
@@ -26,11 +26,12 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
 import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { utcMidnightForLocalDay } from '@/folio/lib/dayClock';
 import type { Nav } from '@/folio/types';
-import { buildPlanTightPoint, buildPlanUpcoming, shortPlanDay } from './planModel';
+import { buildPlanUpcoming, shortPlanDay } from './planModel';
 
 // ---------------------------------------------------------------------------
 // formatGBP — the web's exact pure function (folio kit). Signed, Intl en-GB, no
@@ -47,7 +48,7 @@ function formatGBP(n: number): string {
 // Money — the web <Money> primitive: a tabular Fraunces figure. Only the sizes /
 // tones this screen uses are mapped (sm/lg · negative/ink) — faithful to the web.
 // ---------------------------------------------------------------------------
-const MONEY_SIZE = { sm: 16, lg: 40 } as const;
+const MONEY_SIZE = { sm: 16, lg: 36 } as const;
 
 function Money({
   value,
@@ -128,6 +129,8 @@ function ChevronGlyph({
 export function PlanScreen({ nav, state }: PlanScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const stackDominantActions = width < 380;
 
   // Real store reads — the slices the derived timeline depends on (subs · subPaused · subOverrides ·
   // onboarding · pots · manual calendarEvents). The route's own inputs are read inside `useRoute`.
@@ -140,7 +143,6 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   const incomeSources = useAppStore((st) => st.incomeSources ?? []);
   const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
   const debts = useAppStore((st) => st.debts ?? []);
-  const currentBalance = useAppStore((st) => st.currentBalance.amount);
   // Demo example bills only while the seed is untouched; a cleared/real user sees only their own.
   const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
@@ -199,10 +201,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
       : null);
   const upcoming = useMemo(() => buildPlanUpcoming(events, nextPayday), [events, nextPayday]);
   const total = useMemo(() => upcoming.reduce((sum, u) => sum + u.amount, 0), [upcoming]);
-  const planTightPoint = useMemo(
-    () => (now === null ? null : buildPlanTightPoint(events, currentBalance, nextPayday)),
-    [currentBalance, events, nextPayday, now],
-  );
+  const planTightPoint = useMemo(() => (route ? selectPaydayTightPoint(route) : null), [route]);
   const tightDate = planTightPoint?.date ?? null;
   const tightSpare = planTightPoint?.amount ?? null;
   const daysToPayday = route?.daysToPayday ?? null;
@@ -286,8 +285,8 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   // offline ≡ populated (local-first; renders identically, no network language). The composition
   // follows the pinned Plan Hub: one dominant answer, then a timeline, then quieter destinations.
   const tightMessage =
-    tightDate && tightSpare !== null
-      ? `Around ${shortPlanDay(tightDate)} you're down to ${formatGBP(tightSpare)}. Everything after that depends on this week.`
+    tightDate && tightSpare !== null && now
+      ? `Your lowest point before payday is ${formatGBP(tightSpare)} · ${tightPointDayLabel(tightDate, now)}.`
       : 'The path is still quiet. Add a commitment when there is something real to protect.';
 
   const destinations = [
@@ -379,7 +378,12 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                 ? 'payday is today'
                 : `over the ${daysToPayday ?? 0} day${daysToPayday === 1 ? '' : 's'} to payday`}
             </Text>
-            <View style={styles.dominantActions}>
+            <View
+              style={[
+                styles.dominantActions,
+                stackDominantActions ? styles.dominantActionsStack : undefined,
+              ]}
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="See what's coming"
@@ -390,7 +394,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                   isPressed ? styles.pressed : undefined,
                 ]}
               >
-                <Text style={[styles.buttonLabel, styles.buttonLabelShrink, { color: t.ink }]}>
+                <Text style={[styles.buttonLabel, { color: t.ink }]} numberOfLines={1}>
                   See what's coming
                 </Text>
               </Pressable>
@@ -403,9 +407,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                   isPressed ? styles.pressed : undefined,
                 ]}
               >
-                <Text
-                  style={[styles.buttonLabel, styles.buttonLabelShrink, { color: t.calmStrong }]}
-                >
+                <Text style={[styles.buttonLabel, { color: t.calmStrong }]} numberOfLines={1}>
                   Try a change
                 </Text>
               </Pressable>
@@ -657,12 +659,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21.7,
     marginTop: 8,
-    maxWidth: 259,
   },
   dominant: {
     borderRadius: 24,
     borderWidth: 1,
-    marginTop: 24,
+    marginTop: 16,
     padding: 24,
     ...elevation.card,
   },
@@ -687,6 +688,9 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
   },
+  dominantActionsStack: {
+    flexDirection: 'column',
+  },
   secondaryButton: {
     alignItems: 'center',
     borderRadius: 12,
@@ -707,11 +711,8 @@ const styles = StyleSheet.create({
   buttonLabel: {
     fontFamily: weightFamily(500),
     fontSize: 14,
-    lineHeight: 21.7,
+    lineHeight: 20,
     textAlign: 'center',
-  },
-  buttonLabelShrink: {
-    flexShrink: 1,
   },
   pressureNote: {
     borderLeftWidth: 2,

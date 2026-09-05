@@ -124,7 +124,7 @@ export function RefundSheet({ visible, onClose }: RefundSheetProps) {
         <Text style={[styles.eyebrow, { color: palette.muted }]}>Match a refund</Text>
         <Text style={[styles.title, { color: palette.ink }]}>Pair the money in</Text>
         {incoming.length === 0 ? (
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.prerequisite, { color: palette.muted }]}>
             There is no incoming credit to pair yet. Record or import the refund first, then return
             here.
           </Text>
@@ -316,8 +316,9 @@ function Action({
 const styles = StyleSheet.create({
   body: { padding: gap.xl, gap: gap.md },
   eyebrow: { fontFamily: serif.display, fontSize: 14 },
-  title: { fontFamily: serif.display, fontSize: 30, lineHeight: 36 },
+  title: { fontFamily: serif.display, fontSize: 26, lineHeight: 32 },
   copy: { fontSize: 15, lineHeight: 22 },
+  prerequisite: { fontSize: 14, lineHeight: 20 },
   label: { fontSize: 13, marginTop: gap.sm },
   search: {
     minHeight: 48,

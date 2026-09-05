@@ -580,7 +580,9 @@ function OnboardingFlow({
   const STEP_POTS = 7;
   // Returning users only need the fields this route owns: name, cadence, payday and income. The
   // first-run flow keeps all eight setup steps, while both flows share the same production commit.
-  const visibleStepIndices = isReturning ? [0, STEP_CADENCE, STEP_PAYDAY, 5] : steps.map((_, i) => i);
+  const visibleStepIndices = isReturning
+    ? [0, STEP_CADENCE, STEP_PAYDAY, 5]
+    : steps.map((_, i) => i);
   const activeStepIndex = visibleStepIndices[step] ?? 0;
   const current = steps[activeStepIndex] ?? steps[0];
   const isLast = step === visibleStepIndices.length - 1;
@@ -917,7 +919,9 @@ function OnboardingFlow({
         <Text style={s.skipLabel}>Skip for now</Text>
       </Pressable>
       <Text style={s.footer}>
-        Skip if you need to. Today stays empty, and Melo will not guess your numbers.
+        {isReturning
+          ? "Skip if you need to. Nothing you've already added changes."
+          : 'Skip if you need to. Today stays empty, and Melo will not guess your numbers.'}
       </Text>
     </View>
   );

@@ -78,6 +78,7 @@ import { normaliseBusinessOperationsState } from '@folio/business-workspace';
 
 import { Surface, Hairline, gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
+import { Melo } from '@/folio/melo/Melo';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { copy } from '@/folio/copy/copy';
@@ -652,7 +653,18 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           <Text style={[styles.eyebrow, { color: t.muted }]}>
             {isBusiness ? 'Business accounts' : 'Account'}
           </Text>
-          <View style={styles.headerSpacer} />
+          {isBusiness || quietMode ? (
+            <View style={styles.headerSpacer} />
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Melo"
+              onPress={() => nav.openMelo()}
+              style={styles.headerPerch}
+            >
+              <Melo size={32} mood="calm" grounded />
+            </Pressable>
+          )}
         </View>
 
         {/* Title block. */}
@@ -1470,6 +1482,7 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 20,
   },
+  headerPerch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   titleBlock: {
     marginTop: gap.xl,
   },

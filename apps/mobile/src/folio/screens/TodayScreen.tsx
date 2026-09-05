@@ -85,7 +85,8 @@ import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
 import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
 
-import { pressureLine, pressureLow } from './today/pressure';
+import { derivePressure, pressureLine, pressureLow } from './today/pressure';
+import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
 import { formatDayProse, formatGBP, groupedPounds } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
@@ -120,7 +121,7 @@ type ScreenState = 'populated' | 'loading' | 'error' | 'offline';
 
 export function TodayScreen({
   nav,
-  pressure,
+  pressure: suppliedPressure,
   state = 'populated',
 }: {
   nav: Nav;
@@ -134,10 +135,9 @@ export function TodayScreen({
 }) {
   const t = useTodayTheme();
   const insets = useSafeAreaInsets();
-  const screenTopInset = Math.max(gap.md, insets.top + gap.xs);
   const reduceMotion = useReduceMotion();
 
-  const line = pressureLine[pressure];
+  const line = pressureLine[suppliedPressure];
 
   // Live store reads. Today's tightest mirrors the Route/Calendar exactly — but the route inputs
   // (subs/subPaused/subOverrides/transactions/income/balance/pots) are now read inside `useRoute`,
@@ -205,15 +205,17 @@ export function TodayScreen({
   // different figure.
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
+  const paydayTight = useMemo(() => (route ? selectPaydayTightPoint(route) : null), [route]);
+  const pressure = paydayTight ? derivePressure(paydayTight.amount) : suppliedPressure;
 
   // The lowest-point figure (hero number + summary "Lowest") and its date. Until the mount-gate
   // opens, fall back to the honest per-pressure sample with no live date — the pre-engine state.
   const tight = useMemo(
     () =>
-      route
-        ? { tightestSpare: route.tightPoint.amount, tightestDate: route.tightPoint.date }
+      paydayTight
+        ? { tightestSpare: paydayTight.amount, tightestDate: paydayTight.date }
         : { tightestSpare: pressureLow[pressure], tightestDate: null as string | null },
-    [route, pressure],
+    [paydayTight, pressure],
   );
 
   // Days to payday — the live count from the route engine (whole calendar days, today → payday),
@@ -321,7 +323,7 @@ export function TodayScreen({
   const routeTightestAmount = Math.round(tight.tightestSpare);
   const tightestSpare = Math.max(0, routeTightestAmount);
 
-  // One source-authoritative journey: the hero and chart share the full-window tight point.
+  // The payday journey is selected from the existing route; later lows remain separate warnings.
   // The pre-payday totals and event notches come from the same calendar derivation that feeds the
   // route, so labels, curve, and summary cannot drift into three different stories.
   const projectedEvents = useMemo(
@@ -362,17 +364,23 @@ export function TodayScreen({
     () =>
       buildTodayJourneyGeometry({
         now: now ?? EPOCH,
-        todayAmount: currentBalance.amount,
+        todayAmount: route?.points[0]?.y ?? currentBalance.amount,
         tightAmount: routeTightestAmount,
         tightDate: tight.tightestDate,
         paydayAmount: route?.spare ?? currentBalance.amount,
+        paydayDate: paydayIso || (now ?? EPOCH).toISOString().slice(0, 10),
       }),
-    [now, currentBalance.amount, routeTightestAmount, tight.tightestDate, route?.spare],
+    [now, currentBalance.amount, routeTightestAmount, tight.tightestDate, route, paydayIso],
   );
   const pathEvents = useMemo(
     () =>
       now && paydayIso
-        ? buildTodayJourneyEvents(projectedEvents, now, paydayIso, points[1]?.x ?? 200)
+        ? buildTodayJourneyEvents(
+            projectedEvents,
+            now,
+            paydayIso,
+            points.find((point) => point.label === 'tightest')?.x ?? -100,
+          )
         : [],
     [now, paydayIso, points, projectedEvents],
   );
@@ -454,10 +462,11 @@ export function TodayScreen({
   const [focusLabel, setFocusLabel] = useState<string | null>(null);
   useEffect(() => {
     if (!now || !routeFocusDate) return;
-    const target = new Date(routeFocusDate + 'T00:00:00').getTime();
-    const days = Math.round((target - now.getTime()) / 86_400_000);
-    const clamped = Math.max(0, Math.min(28, days));
-    setFocusX(30 + (clamped / 28) * 340);
+    const target = Date.parse(`${routeFocusDate}T00:00:00Z`);
+    const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    const days = Math.round((target - today) / 86_400_000);
+    const withinJourney = days >= 0 && days <= daysToPayday;
+    setFocusX(withinJourney ? 30 + (days / Math.max(1, daysToPayday)) * 340 : null);
     setFocusLabel(formatDayProse(routeFocusDate));
     setRouteFocusDate(null);
     const id = setTimeout(() => {
@@ -466,7 +475,7 @@ export function TodayScreen({
     }, 6000);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [now, routeFocusDate]);
+  }, [now, routeFocusDate, daysToPayday]);
 
   // --- Motion: slide-in-r screen entrance, 360ms (translateX 28→0) --------------------------------
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -509,18 +518,18 @@ export function TodayScreen({
   }
 
   return (
-    <Animated.View style={[styles.root, enterStyle]}>
+    <Animated.View style={[styles.root, enterStyle, { paddingTop: insets.top }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Source authority: one subordinate status row only. Date + payday horizon sit on the
             left; the plain-language state + weather disc sit on the right. Melo has no standalone
             header doorway in the accepted composition. */}
-        <View style={[styles.header, { paddingTop: screenTopInset }]}>
+        <View style={[styles.header, { paddingTop: gap.xs }]}>
           <View style={styles.headerRow}>
             <View style={styles.headerHorizon}>
               <Text style={[styles.headerDate, { color: t.muted }]} numberOfLines={1}>
                 {(now ?? new Date()).toLocaleDateString('en-GB', {
                   day: 'numeric',
-                  month: 'long',
+                  month: 'short',
                 })}
               </Text>
               <Text style={[styles.headerSeparator, { color: t.muted }]} aria-hidden>
@@ -534,7 +543,7 @@ export function TodayScreen({
                 style={({ pressed: p }) => (p ? pressed : undefined)}
               >
                 <Text style={[styles.headerDays, { color: t.muted }]} numberOfLines={1}>
-                  {daysToPayday} day{daysToPayday === 1 ? '' : 's'} to payday
+                  {daysToPayday}d to payday
                 </Text>
               </Pressable>
             </View>
@@ -619,7 +628,11 @@ export function TodayScreen({
               },
             ]}
           >
-            {modeState.verdict}
+            {modeState.verdict === 'The middle of next week is the squeeze.' &&
+            tight.tightestDate &&
+            now
+              ? `The squeeze is ${tightPointDayLabel(tight.tightestDate, now)}.`
+              : modeState.verdict}
           </Text>
           <View style={styles.heroRow}>
             {heroProvisional ? (
@@ -642,25 +655,24 @@ export function TodayScreen({
               {heroUnitLabel}
             </Text>
           </View>
-          {heroUnit !== 'currency' ? (
+          {effectiveMode !== 'survival' ? (
             <Text style={[styles.heroCaption, { color: t.muted }]}>
-              {heroProvisional ? 'Roughly ' : ''}£{groupedPounds(tightestSpare)} at your lowest
-              point before payday.
+              {modeState.safeZone.formula}
             </Text>
           ) : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Explain the tight point"
-            onPress={() => nav.openSheet('safe-zone')}
+            accessibilityLabel="See the tight point in the day-by-day calendar"
+            onPress={() => nav.go('calendar')}
             style={({ pressed: p }) => [styles.heroMetaTarget, p ? pressed : undefined]}
           >
             <Text style={[styles.heroCaption, { color: t.muted }]}>
               {tight.tightestDate
-                ? `at its lowest point · ${formatDayProse(tight.tightestDate)}`
+                ? `${effectiveMode === 'survival' ? 'lowest before payday' : `Payday forecast low: ${formatGBP(routeTightestAmount)}`} · ${tightPointDayLabel(tight.tightestDate, now ?? EPOCH)}`
                 : 'at its lowest point'}
-              <Text style={{ opacity: 0.6 }}>
-                {' · '}from £{groupedPounds(currentBalance.amount)} · {balanceSourceLabel}
-              </Text>
+            </Text>
+            <Text style={[styles.balanceAttribution, { color: t.muted }]}>
+              From {formatGBP(currentBalance.amount)} · {balanceSourceLabel}
             </Text>
           </Pressable>
           <Text style={[styles.heroSource, { color: t.muted }]}>
@@ -725,7 +737,9 @@ export function TodayScreen({
           {pressure === 'pressured' || pressure === 'overspent' ? (
             <View style={styles.heroOffer}>
               <Text style={[styles.heroOfferReason, { color: t.muted }]}>
-                This doesn’t reach payday on its own.
+                {routeTightestAmount < 0
+                  ? 'This doesn’t reach payday on its own.'
+                  : 'There is little room before payday.'}
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -764,18 +778,24 @@ export function TodayScreen({
                 Can I spend something?
               </Text>
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="See the working"
-              onPress={() => nav.openSheet('safe-zone')}
-              style={({ pressed: p }) => [styles.secondaryDecision, p ? pressed : undefined]}
-            >
-              <Text style={[styles.secondaryDecisionText, { color: t.muted }]}>
-                See the working →
-              </Text>
-            </Pressable>
           </View>
         </View>
+
+        {route &&
+        paydayIso &&
+        route.tightPoint.date > paydayIso &&
+        route.tightPoint.amount < (paydayTight?.amount ?? 0) ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.go('calendar')}
+            style={[styles.laterWarning, { borderColor: t.hairline }]}
+          >
+            <Text style={[styles.balanceAttribution, { color: t.muted }]}>
+              Later in the 35-day forecast: {formatGBP(route.tightPoint.amount)} on{' '}
+              {formatDayProse(route.tightPoint.date)}. View calendar →
+            </Text>
+          </Pressable>
+        ) : null}
 
         {/* Melo enters the money story after the answer, never between chrome and
             the decision. First-run primer and one-move are mutually exclusive. */}
@@ -801,7 +821,11 @@ export function TodayScreen({
             </Pressable>
           </View>
 
-          <View style={styles.svgWrap} onLayout={onCardLayout} {...panResponder.panHandlers}>
+          <View
+            style={[styles.svgWrap, focusX !== null ? { height: 184 } : undefined]}
+            onLayout={onCardLayout}
+            {...panResponder.panHandlers}
+          >
             <MoneyPathChart
               points={points}
               events={pathEvents}
@@ -814,6 +838,14 @@ export function TodayScreen({
             />
           </View>
 
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="See the working in the day-by-day calendar"
+            onPress={() => nav.go('calendar')}
+            style={styles.workingLink}
+          >
+            <Text style={{ fontSize: 12, color: t.calmStrong }}>See the working →</Text>
+          </Pressable>
           <Text style={[styles.pathDisclaimer, { color: t.muted }]}>
             Worked out from what you’ve added — treat it as a close guess.
           </Text>
@@ -1461,6 +1493,15 @@ const styles = StyleSheet.create({
     lineHeight: 18.75,
   },
   heroMetaTarget: { minHeight: 44, justifyContent: 'center' },
+  balanceAttribution: { fontFamily: weightFamily(400), fontSize: 11, lineHeight: 16 },
+  laterWarning: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
   heroOffer: {
     marginTop: gap.sm,
   },
@@ -1476,15 +1517,14 @@ const styles = StyleSheet.create({
     gap: gap.md,
   },
   primaryDecision: {
-    minHeight: 44,
+    minHeight: 48,
     borderRadius: radius.md,
     borderWidth: 1,
     paddingHorizontal: 18,
     justifyContent: 'center',
   },
   primaryDecisionText: { fontFamily: weightFamily(600), fontSize: 14, letterSpacing: -0.07 },
-  secondaryDecision: { minHeight: 44, justifyContent: 'center' },
-  secondaryDecisionText: { fontFamily: weightFamily(400), fontSize: 12.5 },
+  workingLink: { minHeight: 44, marginTop: 12, justifyContent: 'center', alignSelf: 'flex-start' },
   checksRow: {
     paddingHorizontal: 28,
     marginTop: gap.md,
@@ -1577,7 +1617,7 @@ const styles = StyleSheet.create({
   },
   svgWrap: {
     width: '100%',
-    height: 184,
+    height: 164,
   },
 
   scrubHint: {

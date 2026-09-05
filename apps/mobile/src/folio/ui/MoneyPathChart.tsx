@@ -38,15 +38,11 @@ function smoothPath(points: readonly { x: number; y: number }[]): string {
   if (points.length < 2) return '';
   let d = `M ${points[0]!.x} ${points[0]!.y}`;
   for (let index = 0; index < points.length - 1; index += 1) {
-    const p0 = points[index - 1] ?? points[index]!;
     const p1 = points[index]!;
     const p2 = points[index + 1]!;
-    const p3 = points[index + 2] ?? p2;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+    const third = (p2.x - p1.x) / 3;
+    // Monotone within each pair: a decorative curve cannot imply a lower balance than its low station.
+    d += ` C ${p1.x + third} ${p1.y}, ${p2.x - third} ${p2.y}, ${p2.x} ${p2.y}`;
   }
   return d;
 }
@@ -57,7 +53,7 @@ function yAt(points: readonly { x: number; y: number }[], x: number): number {
     const b = points[index + 1]!;
     if (x >= a.x && x <= b.x) {
       const fraction = (x - a.x) / Math.max(1, b.x - a.x);
-      return a.y + (b.y - a.y) * fraction;
+      return a.y + (b.y - a.y) * (fraction * fraction * (3 - 2 * fraction));
     }
   }
   return points.at(-1)?.y ?? BASELINE;
@@ -101,9 +97,9 @@ export function MoneyPathChart({
 
   return (
     <Svg
-      viewBox="0 36 400 204"
+      viewBox={events.length <= 3 && focusX == null ? '0 60 400 180' : '0 36 400 204'}
       width="100%"
-      height={184}
+      height={events.length <= 3 && focusX == null ? 164 : 184}
       accessibilityRole="image"
       accessibilityLabel={`Money path: ${first.value} today, tight point ${tight.value} on ${tight.label}, ${last.value} by ${last.label}.`}
     >
@@ -215,6 +211,9 @@ export function MoneyPathChart({
         const isToday = index === 0;
         const isPayday = index === points.length - 1;
         const isLow = point === tight && !isToday && !isPayday;
+        // Keep the station at its real date. Near an endpoint, the headline owns the low's
+        // amount/date rather than squeezing two labels together or falsifying the x position.
+        const crowdedLow = isLow && (point.x - first.x < 70 || last.x - point.x < 70);
         const anchor = isToday ? 'start' : isPayday ? 'end' : 'middle';
         const dx = isToday ? -2 : isPayday ? 2 : 0;
         return (
@@ -227,10 +226,19 @@ export function MoneyPathChart({
               stroke={isLow ? t.calm : t.hairline}
               opacity={isLow ? 0.35 : 1}
             />
-            {isLow ? <Circle cx={point.x} cy={point.y} r={11} fill={t.calm} opacity={0.12} /> : null}
+            {isLow ? (
+              <Circle cx={point.x} cy={point.y} r={11} fill={t.calm} opacity={0.12} />
+            ) : null}
             {isPayday ? (
               <>
-                <Circle cx={point.x} cy={point.y} r={6} fill={t.canvas} stroke={t.ink} strokeWidth={1.4} />
+                <Circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={6}
+                  fill={t.canvas}
+                  stroke={t.ink}
+                  strokeWidth={1.4}
+                />
                 <Circle cx={point.x} cy={point.y} r={2.2} fill={t.ink} />
               </>
             ) : (
@@ -243,34 +251,46 @@ export function MoneyPathChart({
                 strokeWidth={isLow ? 1.5 : 0}
               />
             )}
-            <SvgText
-              x={point.x + dx}
-              y={point.y - (isLow ? 15 : 13)}
-              textAnchor={anchor}
-              fontFamily={isLow ? 'InterTightBold' : 'InterTightSemiBold'}
-              fontSize={isLow ? 13 : 11}
-              fill={isLow ? t.calm : t.ink}
-            >
-              {point.value}
-            </SvgText>
-            <SvgText
-              x={point.x + dx}
-              y={BASELINE + 15}
-              textAnchor={anchor}
-              fontFamily={isLow ? 'InterTightBold' : 'InterTightMedium'}
-              fontSize={8.5}
-              fill={isLow ? t.calm : t.muted}
-              letterSpacing={0.9}
-            >
-              {point.label.toUpperCase()}
-            </SvgText>
+            {!crowdedLow ? (
+              <SvgText
+                x={point.x + dx}
+                y={point.y - (isLow ? 15 : 13)}
+                textAnchor={anchor}
+                fontFamily={isLow ? 'InterTightBold' : 'InterTightSemiBold'}
+                fontSize={isLow ? 13 : 11}
+                fill={isLow ? t.calm : t.ink}
+              >
+                {point.value}
+              </SvgText>
+            ) : null}
+            {!crowdedLow ? (
+              <SvgText
+                x={point.x + dx}
+                y={BASELINE + 15}
+                textAnchor={anchor}
+                fontFamily={isLow ? 'InterTightBold' : 'InterTightMedium'}
+                fontSize={8.5}
+                fill={isLow ? t.calm : t.muted}
+                letterSpacing={0.9}
+              >
+                {point.label.toUpperCase()}
+              </SvgText>
+            ) : null}
           </G>
         );
       })}
 
       {focusX != null ? (
         <G>
-          <Line x1={focusX} x2={focusX} y1={62} y2={BASELINE} stroke={t.calm} strokeDasharray="3 3" opacity={0.7} />
+          <Line
+            x1={focusX}
+            x2={focusX}
+            y1={62}
+            y2={BASELINE}
+            stroke={t.calm}
+            strokeDasharray="3 3"
+            opacity={0.7}
+          />
           <Circle cx={focusX} cy={62} r={9} fill="none" stroke={t.calm} />
           <Rect
             x={Math.max(4, Math.min(W - 100, focusX - 48))}

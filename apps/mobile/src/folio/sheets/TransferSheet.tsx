@@ -90,7 +90,7 @@ export function TransferSheet({ visible, onClose }: TransferSheetProps) {
           This records a transfer you already made. Melo does not move money at your bank.
         </Text>
         {activeAccounts.length < 2 ? (
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.prerequisite, { color: palette.muted }]}>
             Add two active cash accounts before recording a transfer.
           </Text>
         ) : reviewing && from !== undefined && to !== undefined ? (
@@ -236,8 +236,9 @@ function Action({
 const styles = StyleSheet.create({
   body: { padding: gap.xl, gap: gap.md },
   eyebrow: { fontFamily: serif.display, fontSize: 14 },
-  title: { fontFamily: serif.display, fontSize: 30, lineHeight: 36 },
+  title: { fontFamily: serif.display, fontSize: 26, lineHeight: 32 },
   copy: { fontSize: 15, lineHeight: 22 },
+  prerequisite: { fontSize: 14, lineHeight: 20 },
   label: { fontSize: 13, marginTop: gap.sm },
   choices: { gap: gap.sm },
   choice: {

@@ -715,7 +715,7 @@ export function CheckGlyph({
 
 type NavTab = { id: ProductScreen; label: string };
 
-const NAV_HEIGHT = 68;
+const NAV_HEIGHT = 60;
 
 const NAV_TABS: readonly NavTab[] = [
   { id: 'today', label: 'Today' },
@@ -831,7 +831,7 @@ export function BottomNav({
   variant?: BottomNavVariant;
 }) {
   // Expo's edge-to-edge Android window includes the system navigation area. Preserve the pinned
-  // 68dp product tab band above that area, then extend only its background through the reported
+  // 60dp product tab band above that area, then extend only its background through the reported
   // bottom inset. Without the added height, three-button navigation covers the tab labels on S9.
   const insets = useSafeAreaInsets();
   const t = useTheme();
@@ -1108,7 +1108,7 @@ function makeStyles(t: Palette) {
       fontSize: 11,
       letterSpacing: 0.275,
     },
-    navLabelActive: { color: t.ink, fontFamily: weightFamily(500) },
+    navLabelActive: { color: t.calm, fontFamily: weightFamily(500) },
     navBadge: {
       alignItems: 'center',
       backgroundColor: t.calmStrong,

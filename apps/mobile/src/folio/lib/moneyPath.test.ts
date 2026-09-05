@@ -14,7 +14,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { computeRoute, type RouteInput } from './moneyPath';
+import {
+  computeRoute,
+  selectPaydayTightPoint,
+  tightPointDayLabel,
+  type RouteInput,
+} from './moneyPath';
 
 // A fixed "today" so every sampled date is deterministic. Midday UTC keeps
 // the per-day ISO slice stable regardless of the host timezone offset.
@@ -195,5 +200,33 @@ describe('computeRoute — determinism + guards', () => {
     );
     expect(r.points.every((p) => p.y === 1000)).toBe(true);
     expect(r.tightPoint.amount).toBe(1000);
+  });
+});
+
+describe('payday-window presentation helpers', () => {
+  it('selects the payday-window low without changing the full route', () => {
+    const route = computeRoute(
+      baseInput({
+        windowDays: 15,
+        bills: [{ date: '2026-06-04', amount: 100 }],
+        spend: [{ date: '2026-06-13', amount: 500 }],
+      }),
+    );
+    const routeBeforeSelection = structuredClone(route);
+
+    const paydayLow = selectPaydayTightPoint(route);
+
+    expect(paydayLow).toEqual({ date: '2026-06-04', amount: 900 });
+    expect(route).toEqual(routeBeforeSelection);
+    expect(route.points).toHaveLength(16);
+    expect(route.tightPoint).toEqual({ date: '2026-06-13', amount: 400 });
+  });
+
+  it('uses today, tomorrow, then the weekday and day for honest tight-point copy', () => {
+    const now = new Date(2026, 7, 18, 23, 30);
+
+    expect(tightPointDayLabel('2026-08-18', now)).toBe('today');
+    expect(tightPointDayLabel('2026-08-19', now)).toBe('tomorrow');
+    expect(tightPointDayLabel('2026-08-21', now)).toBe('Friday 21');
   });
 });

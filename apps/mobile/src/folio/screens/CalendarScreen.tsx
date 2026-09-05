@@ -9,7 +9,7 @@
  * @opens-sheet  route-detail · add-event · calendar-export · calendar-connect
  * @copy         FROZEN
  * @tokens       --paper --accent --positive --negative --caution --hairline --accent-soft
- * @motion       slide-in-r · scale-in for tightest-day banner · soft view crossfade
+ * @motion       slide-in-r · scale-in for tightest-day banner
  *
  * @rn-future    Business calendar lives alongside Personal — invoices, VAT,
  *               reconciliation, client commitments. Built in RN.
@@ -57,8 +57,7 @@
  *   • The web hydration-gate skeleton (today === null) is an SSR/UTC artifact; RN has no SSR, so
  *     `today` is set at mount and the skeleton is kept only as a one-frame calm empty frame.
  *   • '−' is U+2212 (MINUS SIGN) in amounts + nudge labels, never ASCII '-'.
- *   • All £ chips clamp Math.max(0, Math.round()) — never show negative spare even when the tightest
- *     spare ≤ 0 (which still drives the alert Melo band). Clamp + band stay separate.
+ *   • Forecast labels retain signed balances, so a shortfall is never shown as a fictional £0.
  *   • Monday-start week math: (getDay()+6)%7 for weekStart and the month leading blanks.
  *   • Past-day dimming differs per view (agenda/week 0.55, month 0.45 only when !selected) — kept.
  *   • Reduced motion → every animation resolves straight to its final state.
@@ -111,6 +110,8 @@ import {
   type DerivedEvent,
 } from '@/folio/lib/calendarEvents';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { tightPointDayLabel } from '@/folio/lib/moneyPath';
+import { formatGBP } from './today/format';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { utcMidnightForLocalDay } from '@/folio/lib/dayClock';
@@ -143,8 +144,6 @@ const SLIDE_MS = 360;
 // scale-in (web .scale-in): the tightest-day pill eases from scale 0.97 → 1 with a fade, 320ms.
 const SCALE_IN_MS = 320;
 const SCALE_FROM = 0.97;
-// soft view crossfade — the body fades on a view switch without re-deriving the data, 180ms.
-const VIEW_FADE_MS = 180;
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 
 // A stable sentinel "now" for the one frame before the mount-gate opens. `useRoute` can't be called
@@ -240,19 +239,19 @@ function describeDay(
     const amt = typeof e.amount === 'number' ? ` £${Math.abs(e.amount).toFixed(0)}` : '';
     return `${labels[e.kind]}${amt} ${e.title}`;
   });
-  const spareTxt =
-    typeof spare === 'number' ? `, £${Math.max(0, Math.round(spare))} spare after` : '';
+  const spareTxt = typeof spare === 'number' ? `, ${formatGBP(spare)} spare after` : '';
   const tightTxt = isTightest ? ', tightest day in the window' : '';
   return `${head}: ${parts.join('; ')}${spareTxt}${tightTxt}`;
 }
 
 /* Melo voice on the Calendar — softens or sharpens with the tightest day. Four bands so an
  * overspent month doesn't get the same line as "tight". Verbatim from the web. */
-function meloCalendarLine(tight: number, empty: boolean): string {
+function meloCalendarLine(tight: number, empty: boolean, date: string | null, now: Date): string {
   if (empty) return 'Nothing pulling at your money this week.';
-  if (tight <= 0) return "The middle of the month runs short. Let's move something together.";
+  if (tight < 0)
+    return `The forecast runs short${date ? ` · ${tightPointDayLabel(date, now)}` : ''}. Let's look at what can move.`;
   if (tight < 50) return 'There’s a pinch coming. We can soften it together.';
-  if (tight < 200) return 'A squeeze in the middle — but you should make it through.';
+  if (tight < 200) return 'A little room at your lowest point. Keep an eye on what is coming.';
   return 'Quiet on most days. A few that matter.';
 }
 
@@ -466,9 +465,15 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
       }
     }
     if (!caption && date && typeof spareByDay[date] === 'number') {
-      caption = `£${Math.max(0, Math.round(spareByDay[date] ?? 0))} left`;
+      caption = `${formatGBP(spareByDay[date] ?? 0)} left`;
     }
-    return { date, caption, label: calendarAnchorLabel(anchor) };
+    // Agenda's tightest-day calculation spans its full 35-day projection. Name that window plainly
+    // so it is not mistaken for the payday-only low used by the Route and Plan narratives.
+    return {
+      date,
+      caption,
+      label: anchor === 'tightest' ? 'Lowest in next 35 days' : calendarAnchorLabel(anchor),
+    };
   }, [anchor, events, routeTightestDate, spareByDay, today]);
 
   const jumpToAnchor = () => {
@@ -489,6 +494,14 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // owned here so AgendaView can ask for a scroll without owning the scroller.
   const scrollRef = useRef<ScrollView>(null);
 
+  // A display-mode change starts the agenda at its top. Keep this scoped to the tab change so an
+  // explicit Go there / Route-focus jump can still apply its measured target offset afterwards.
+  useEffect(() => {
+    if (view === 'agenda') {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }
+  }, [view]);
+
   // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
@@ -503,43 +516,36 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  // soft view crossfade — the body fades out/in on a view switch (final state under reduce-motion).
-  const bodyFade = useSharedValue(1);
-  useEffect(() => {
-    if (reduceMotion) {
-      bodyFade.value = 1;
-      return;
-    }
-    bodyFade.value = withTiming(0, { duration: VIEW_FADE_MS / 2, easing: EASE_OUT_EXPO }, () => {
-      bodyFade.value = withTiming(1, { duration: VIEW_FADE_MS / 2, easing: EASE_OUT_EXPO });
-    });
-  }, [view, bodyFade, reduceMotion]);
-  const bodyFadeStyle = useAnimatedStyle(() => ({ opacity: bodyFade.value }));
+  // Keep the agenda painted during view switches; a two-phase opacity callback could leave it hidden.
 
   // PRE-MOUNT FRAME — RN has no SSR; this is a calm empty frame for the one frame before `today` is
   // set at mount. Header + title + an empty surface card, NO spare £.
   if (!today) {
     return (
-      <Animated.View style={[layout.root, enterStyle, { backgroundColor: t.canvas }]}>
-        <ScrollView
-          ref={scrollRef}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            layout.content,
-            { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.huge },
-          ]}
-        >
-          <ScreenHeader
-            onBack={nav.back}
-            eyebrow="What's coming"
-            arrow="text"
-            spacerWidth={44}
-            backHitAlign="flex-start"
-            eyebrowTracking={1.68}
-          />
-          <TitleBlock s={s} withSubhead={false} />
-          <View style={s.skeletonCard} />
-        </ScrollView>
+      <Animated.View
+        style={[layout.root, enterStyle, { backgroundColor: t.canvas, paddingTop: insets.top }]}
+      >
+        <View style={layout.viewport}>
+          <ScrollView
+            ref={scrollRef}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              layout.content,
+              { paddingTop: 8, paddingBottom: insets.bottom + gap.huge },
+            ]}
+          >
+            <ScreenHeader
+              onBack={nav.back}
+              eyebrow="What's coming"
+              arrow="text"
+              spacerWidth={44}
+              backHitAlign="flex-start"
+              eyebrowTracking={1.68}
+            />
+            <TitleBlock s={s} withSubhead={false} />
+            <View style={s.skeletonCard} />
+          </ScrollView>
+        </View>
       </Animated.View>
     );
   }
@@ -572,181 +578,190 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
     .reduce((sum, event) => sum + Math.abs(event.amount ?? 0), 0);
 
   return (
-    <Animated.View style={[layout.root, enterStyle, { backgroundColor: t.canvas }]}>
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          layout.content,
-          { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.huge },
-        ]}
-      >
-        <ScreenHeader
-          onBack={nav.back}
-          eyebrow="What's coming"
-          arrow="text"
-          spacerWidth={44}
-          backHitAlign="flex-start"
-          eyebrowTracking={1.68}
-        />
-        <TitleBlock s={s} withSubhead onCurve={() => nav.go('today')} />
+    <Animated.View
+      style={[layout.root, enterStyle, { backgroundColor: t.canvas, paddingTop: insets.top }]}
+    >
+      <View style={layout.viewport}>
+        <ScrollView
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            layout.content,
+            { paddingTop: 8, paddingBottom: insets.bottom + gap.huge },
+          ]}
+        >
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow="What's coming"
+            arrow="text"
+            spacerWidth={44}
+            backHitAlign="flex-start"
+            eyebrowTracking={1.68}
+          />
+          <TitleBlock s={s} withSubhead onCurve={() => nav.go('today')} />
 
-        <View style={[layout.story, { borderBottomColor: t.hairline, borderTopColor: t.hairline }]}>
-          <View style={layout.storyBlock}>
-            <Text style={s.storyLabel}>Next payday</Text>
-            <Text style={s.storyValue}>
-              {nextPaydayEvent ? formatDayProse(nextPaydayEvent.date) : 'Not set yet'}
-            </Text>
+          <View
+            style={[layout.story, { borderBottomColor: t.hairline, borderTopColor: t.hairline }]}
+          >
+            <View style={layout.storyBlock}>
+              <Text style={s.storyLabel}>Next payday</Text>
+              <Text style={s.storyValue}>
+                {nextPaydayEvent ? formatDayProse(nextPaydayEvent.date) : 'Not set yet'}
+              </Text>
+            </View>
+            <View style={layout.storyBlock}>
+              <Text style={s.storyLabel}>Still to leave</Text>
+              <Text style={s.storyValue}>
+                £{Math.round(committedBeforePayday).toLocaleString('en-GB')}
+              </Text>
+            </View>
           </View>
-          <View style={layout.storyBlock}>
-            <Text style={s.storyLabel}>Still to leave</Text>
-            <Text style={s.storyValue}>
-              £{Math.round(committedBeforePayday).toLocaleString('en-GB')}
-            </Text>
-          </View>
-        </View>
 
-        {/* View switcher — a tablist over the inset well. The selected tab lifts to the paper surface
+          {/* View switcher — a tablist over the inset well. The selected tab lifts to the paper surface
             with a soft shadow; the rest are muted text. */}
-        <View accessibilityRole="tablist" style={s.switcher}>
-          {(['month', 'week', 'agenda'] as CalendarView[]).map((v) => {
-            const selected = view === v;
-            return (
-              <Pressable
-                key={v}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`${capitalize(v)} view`}
-                onPress={() => setView(v)}
-                style={({ pressed }) => [
-                  s.tab,
-                  selected ? s.tabSelected : undefined,
-                  pressed ? layout.pressed : undefined,
-                ]}
-              >
-                <Text style={[s.tabLabel, selected ? s.tabLabelSelected : undefined]}>
-                  {capitalize(v)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+          <View accessibilityRole="tablist" style={s.switcher}>
+            {(['month', 'week', 'agenda'] as CalendarView[]).map((v) => {
+              const selected = view === v;
+              return (
+                <Pressable
+                  key={v}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${capitalize(v)} view`}
+                  onPress={() => {
+                    setJumpDate(null);
+                    setView(v);
+                  }}
+                  style={({ pressed }) => [
+                    s.tab,
+                    selected ? s.tabSelected : undefined,
+                    pressed ? layout.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[s.tabLabel, selected ? s.tabLabelSelected : undefined]}>
+                    {capitalize(v)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
-        {/* Mode-anchored jump pill — Survival/Stability/LowVis land on the tightest day, Debt/Optimizer
+          {/* Mode-anchored jump pill — Survival/Stability/LowVis land on the tightest day, Debt/Optimizer
             jump to the next money-out, Irregular to the next money-in, Growth/Household/Planning/Reset
             to the next payday (web `anchorInfo` + `calendarDefaultAnchor(mode)`). scale-in on appear. */}
-        {anchorInfo.date && !isEmpty ? (
-          <TightestPill
-            s={s}
-            onPress={jumpToAnchor}
-            label={anchorInfo.label}
-            dateProse={formatDayProse(anchorInfo.date)}
-            caption={anchorInfo.caption}
-            reduceMotion={reduceMotion}
-          />
-        ) : null}
+          {anchorInfo.date && !isEmpty ? (
+            <TightestPill
+              s={s}
+              onPress={jumpToAnchor}
+              label={anchorInfo.label}
+              dateProse={formatDayProse(anchorInfo.date)}
+              caption={anchorInfo.caption}
+              reduceMotion={reduceMotion}
+            />
+          ) : null}
 
-        {/* Body — switch by view. Wrapped in the soft crossfade. */}
-        <Animated.View style={[layout.body, bodyFadeStyle]}>
-          {isEmpty ? (
-            <CalendarEmptyState
-              s={s}
-              missingPayday={missingPayday}
-              missingBills={missingBills}
-              missingPots={missingPots}
-            />
-          ) : view === 'agenda' ? (
-            <AgendaView
-              nav={nav}
-              t={t}
-              s={s}
-              groups={groups}
-              spareByDay={spareByDay}
-              tightestDate={lowDate}
-              today={today}
-              jumpDate={jumpDate}
-              jumpPulse={jumpPulse}
-              scrollRef={scrollRef}
-            />
-          ) : view === 'week' ? (
-            <WeekView
-              nav={nav}
-              t={t}
-              s={s}
-              eventsByDay={eventsByDay}
-              spareByDay={spareByDay}
-              tightestDate={lowDate}
-              today={today}
-              jumpDate={jumpDate}
-              jumpPulse={jumpPulse}
-            />
-          ) : (
-            <MonthView
-              nav={nav}
-              t={t}
-              s={s}
-              eventsByDay={eventsByDay}
-              spareByDay={spareByDay}
-              tightestDate={lowDate}
-              today={today}
-              jumpDate={jumpDate}
-              jumpPulse={jumpPulse}
-            />
-          )}
-        </Animated.View>
+          {/* Body — switch views without temporarily hiding money records. */}
+          <View style={layout.body}>
+            {isEmpty ? (
+              <CalendarEmptyState
+                s={s}
+                missingPayday={missingPayday}
+                missingBills={missingBills}
+                missingPots={missingPots}
+              />
+            ) : view === 'agenda' ? (
+              <AgendaView
+                nav={nav}
+                t={t}
+                s={s}
+                groups={groups}
+                spareByDay={spareByDay}
+                tightestDate={lowDate}
+                today={today}
+                jumpDate={jumpDate}
+                jumpPulse={jumpPulse}
+                scrollRef={scrollRef}
+              />
+            ) : view === 'week' ? (
+              <WeekView
+                nav={nav}
+                t={t}
+                s={s}
+                eventsByDay={eventsByDay}
+                spareByDay={spareByDay}
+                tightestDate={lowDate}
+                today={today}
+                jumpDate={jumpDate}
+                jumpPulse={jumpPulse}
+              />
+            ) : (
+              <MonthView
+                nav={nav}
+                t={t}
+                s={s}
+                eventsByDay={eventsByDay}
+                spareByDay={spareByDay}
+                tightestDate={lowDate}
+                today={today}
+                jumpDate={jumpDate}
+                jumpPulse={jumpPulse}
+              />
+            )}
+          </View>
 
-        {/* Legend — four of the five KIND_DOT kinds (the manual "You added this" dot is intentionally
+          {/* Legend — four of the five KIND_DOT kinds (the manual "You added this" dot is intentionally
             omitted, matching the web). */}
-        <View style={layout.legend}>
-          {(['in', 'out', 'review', 'deadline'] as DerivedEvent['kind'][]).map((kind) => (
-            <View key={kind} style={layout.legendItem}>
-              <View style={[layout.legendDot, { backgroundColor: kindDotColor(t, kind) }]} />
-              <Text style={s.legendLabel}>{KIND_LABEL[kind]}</Text>
-            </View>
-          ))}
-        </View>
+          <View style={layout.legend}>
+            {(['in', 'out', 'review', 'deadline'] as DerivedEvent['kind'][]).map((kind) => (
+              <View key={kind} style={layout.legendItem}>
+                <View style={[layout.legendDot, { backgroundColor: kindDotColor(t, kind) }]} />
+                <Text style={s.legendLabel}>{KIND_LABEL[kind]}</Text>
+              </View>
+            ))}
+          </View>
 
-        {/* Footer actions — three CTAs. Add an event (terracotta), Add to your calendar app (the real
+          {/* Footer actions — three CTAs. Add an event (terracotta), Add to your calendar app (the real
             .ics export sheet), Connect Google (hosted push — UI only). Labels never truncate; long
             labels wrap. */}
-        <View style={layout.footer}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add an event"
-            onPress={() => nav.openSheet('add-event')}
-            style={({ pressed }) => [s.footerCtaAccent, pressed ? layout.pressed : undefined]}
-          >
-            <Text style={s.footerCtaAccentLabel}>+ Add an event</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add to your calendar app"
-            onPress={() => nav.openSheet('calendar-export')}
-            style={({ pressed }) => [s.footerCta, pressed ? layout.pressed : undefined]}
-          >
-            <Text style={s.footerCtaLabel}>Add to your calendar app</Text>
-          </Pressable>
-          {/* @rn-engine hosted-calendar — the Google push (a hosted webcal feed) is not built; this
+          <View style={layout.footer}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add an event"
+              onPress={() => nav.openSheet('add-event')}
+              style={({ pressed }) => [s.footerCtaAccent, pressed ? layout.pressed : undefined]}
+            >
+              <Text style={s.footerCtaAccentLabel}>+ Add an event</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add to your calendar app"
+              onPress={() => nav.openSheet('calendar-export')}
+              style={({ pressed }) => [s.footerCta, pressed ? layout.pressed : undefined]}
+            >
+              <Text style={s.footerCtaLabel}>Add to your calendar app</Text>
+            </Pressable>
+            {/* @rn-engine hosted-calendar — the Google push (a hosted webcal feed) is not built; this
               opens the connect sheet as UI only. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Connect Google"
-            onPress={() => nav.openSheet('calendar-connect')}
-            style={({ pressed }) => [s.footerCta, pressed ? layout.pressed : undefined]}
-          >
-            <Text style={s.footerCtaLabel}>Connect Google</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Connect Google"
+              onPress={() => nav.openSheet('calendar-connect')}
+              style={({ pressed }) => [s.footerCta, pressed ? layout.pressed : undefined]}
+            >
+              <Text style={s.footerCtaLabel}>Connect Google</Text>
+            </Pressable>
+          </View>
 
-        {/* Melo line — the band follows the tightest day (empty / overspent / pinch / squeeze / quiet).
+          {/* Melo line — the band follows the tightest day (empty / overspent / pinch / squeeze / quiet).
             loading is never a spinner; this line + the curious mood IS the calm "working" state. */}
-        <View style={layout.meloBlock}>
-          <MeloLine
-            text={meloCalendarLine(lowSpare, isEmpty)}
-            mood={meloCalendarMood(lowSpare, isEmpty)}
-          />
-        </View>
-      </ScrollView>
+          <View style={layout.meloBlock}>
+            <MeloLine
+              text={meloCalendarLine(lowSpare, isEmpty, lowDate, today)}
+              mood={meloCalendarMood(lowSpare, isEmpty)}
+            />
+          </View>
+        </ScrollView>
+      </View>
     </Animated.View>
   );
 }
@@ -794,8 +809,8 @@ function TitleBlock({
 
 // ---------------------------------------------------------------------------
 // Mode-anchored jump pill — scale-in banner: "{Label}: {day} · {caption}" + "Go there →". The label +
-// target vary by moneyMode (web anchorInfo + calendarAnchorLabel); "Lowest point" is the default for
-// Survival/Stability/LowVis, matching the prior tightest-only pill exactly for those modes.
+// target vary by moneyMode (web anchorInfo + calendarAnchorLabel); "Lowest in next 35 days" is the
+// default for Survival/Stability/LowVis, matching the full agenda projection's actual window.
 // ---------------------------------------------------------------------------
 
 function TightestPill({
@@ -922,14 +937,16 @@ function AgendaView({
   const offsets = useRef<Record<string, number>>({});
 
   useEffect(() => {
-    const target = jumpDate ?? tightestDate;
-    if (!target) return;
+    // Only a user's Go there / Route-focus request may move the viewport. An initial
+    // tightest-date calculation is not a scroll instruction.
+    const target = jumpDate;
+    if (!target || jumpPulse === 0) return;
     const y = offsets.current[target];
     if (typeof y !== 'number') return;
     // block:center → scroll so the card sits a little above middle. A small upward bias keeps the
     // day header in view rather than the card's vertical centre vanishing under the title.
     scrollRef.current?.scrollTo({ y: Math.max(0, y - 120), animated: true });
-  }, [jumpPulse, jumpDate, tightestDate, scrollRef]);
+  }, [jumpPulse, jumpDate, scrollRef]);
 
   return (
     <View style={layout.agendaStack}>
@@ -955,7 +972,7 @@ function AgendaView({
                 {isPast ? <Text style={s.pastMarker}>past</Text> : null}
               </View>
               {typeof spare === 'number' ? (
-                <Text style={s.spareRight}>£{Math.max(0, Math.round(spare))} left after</Text>
+                <Text style={s.spareRight}>{formatGBP(spare)} left after</Text>
               ) : null}
             </View>
             <View style={layout.eventList}>
@@ -1074,7 +1091,7 @@ function WeekView({
         <View style={layout.trendHead}>
           <Text style={s.trendLabel}>What&apos;s left this week</Text>
           <Text style={s.trendRange}>
-            low £{Math.max(0, Math.round(minV))} · high £{Math.max(0, Math.round(maxV))}
+            low {formatGBP(minV)} · high {formatGBP(maxV)}
           </Text>
         </View>
         <Sparkline
@@ -1148,7 +1165,7 @@ function WeekView({
                 <Text style={s.dayHeader}>{formatDayHeader(iso)}</Text>
                 <View style={layout.dayHeadRight}>
                   {typeof spare === 'number' ? (
-                    <Text style={s.spareRight}>£{Math.max(0, Math.round(spare))} left</Text>
+                    <Text style={s.spareRight}>{formatGBP(spare)} left</Text>
                   ) : null}
                   {/* "Full day →" — the Week day header's full-detail entry point (opens
                       SheetDayDetail). Mirrors the web's per-block button next to the spare figure. */}
@@ -1385,7 +1402,7 @@ function MonthView({
         <View style={layout.sparkBlock}>
           <View style={layout.trendHead}>
             <Text style={s.trendLabel}>Spare across the month</Text>
-            <Text style={s.trendRange}>low £{Math.max(0, Math.round(minS))}</Text>
+            <Text style={s.trendRange}>low {formatGBP(minS)}</Text>
           </View>
           <Sparkline values={spareLine} height={20} strokeWidth={1.2} color={t.calm} />
         </View>
@@ -1494,8 +1511,8 @@ function Sparkline({
 // ---------------------------------------------------------------------------
 // Event row — a leading kind dot (+ sr-only kind label), the title (+ "you added this" badge when
 // manual), the amount (positive-coloured for "in", ink otherwise; '−' is U+2212). Non-compact rows
-// also carry the note + the "Repeats monthly/yearly" hint + the per-event actions: sub renewals get
-// the pause/nudge controls; manual events get Move ±1d + Remove.
+// also carry the note + the "Repeats monthly/yearly" hint. Per-event actions stay collapsed until
+// the row is tapped, keeping the agenda compact without changing any write guard or mutation.
 // ---------------------------------------------------------------------------
 
 // Exported so SheetDayDetail (the Month-cell / +N-chip / Week-header day drill-in) can render the
@@ -1514,6 +1531,8 @@ export function EventRow({
   compact?: boolean;
 }) {
   const amt = amountStr(e);
+  const hasActions = Boolean((e.source === 'sub' && e.subName) || e.manual);
+  const [expanded, setExpanded] = useState(false);
   const recurringLabel =
     e.recurring === 'monthly'
       ? 'Repeats monthly'
@@ -1521,8 +1540,8 @@ export function EventRow({
         ? 'Repeats yearly'
         : null;
 
-  return (
-    <View style={layout.eventRow}>
+  const summary = (
+    <>
       <View style={[layout.eventDot, { backgroundColor: kindDotColor(t, e.kind) }]} />
       <View style={layout.eventBody}>
         <View style={layout.eventTitleRow}>
@@ -1561,12 +1580,33 @@ export function EventRow({
             <Text style={s.recurringLabel}>{recurringLabel}</Text>
           </View>
         ) : null}
+      </View>
+    </>
+  );
 
-        {/* Per-event actions. */}
-        {e.source === 'sub' && e.subName ? (
-          <SubRenewalActions name={e.subName} s={s} />
-        ) : e.manual ? (
-          <View style={layout.manualActions}>
+  return (
+    <View style={s.eventCard}>
+      <Pressable
+        accessibilityRole={hasActions ? 'button' : undefined}
+        accessibilityState={hasActions ? { expanded } : undefined}
+        accessibilityHint={hasActions ? 'Tap to show actions' : undefined}
+        onPress={hasActions ? () => setExpanded((open) => !open) : undefined}
+        style={({ pressed }) => [
+          layout.eventRow,
+          hasActions && pressed ? layout.pressed : undefined,
+        ]}
+      >
+        {summary}
+      </Pressable>
+      {expanded && e.source === 'sub' && e.subName ? (
+        <SubRenewalActions name={e.subName} s={s} />
+      ) : expanded && e.manual ? (
+        <View style={layout.eventActions}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={layout.eventActionsContent}
+          >
             <Text style={s.moveLabel}>Move</Text>
             <Pressable
               accessibilityRole="button"
@@ -1589,13 +1629,13 @@ export function EventRow({
               accessibilityLabel={`Remove ${e.title}`}
               hitSlop={8}
               onPress={() => removeCalendarEvent(e.id)}
-              style={({ pressed }) => [layout.textAction, pressed ? layout.pressed : undefined]}
+              style={({ pressed }) => [layout.actionText, pressed ? layout.pressed : undefined]}
             >
               <Text style={s.removeLabel}>Remove</Text>
             </Pressable>
-          </View>
-        ) : null}
-      </View>
+          </ScrollView>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1683,14 +1723,18 @@ function SubRenewalActions({ name, s }: { name: string; s: ReturnType<typeof mak
   }, [hover, name, subs, subPaused, subOverrides, onboarding, manualEvents, pots, previewStart]);
 
   return (
-    <View style={layout.subActionsBlock}>
-      <View style={layout.subActionsRow}>
+    <View style={layout.eventActions}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={layout.eventActionsContent}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Pause ${name}`}
           hitSlop={8}
           onPress={() => togglePaused(name, true)}
-          style={({ pressed }) => [layout.textAction, pressed ? layout.pressed : undefined]}
+          style={({ pressed }) => [layout.actionText, pressed ? layout.pressed : undefined]}
         >
           <Text style={s.subTextAction}>Pause this</Text>
         </Pressable>
@@ -1719,7 +1763,7 @@ function SubRenewalActions({ name, s }: { name: string; s: ReturnType<typeof mak
             <Text style={s.resetLabel}>Reset</Text>
           </Pressable>
         ) : null}
-      </View>
+      </ScrollView>
 
       {hover !== null && previewDelta !== null ? (
         <Text style={s.previewLine}>
@@ -1756,8 +1800,9 @@ function capitalize(v: string): string {
 
 const layout = StyleSheet.create({
   root: { flex: 1 },
+  viewport: { flex: 1, overflow: 'hidden' },
   content: {
-    paddingHorizontal: 4,
+    paddingHorizontal: 24,
     gap: gap.xl,
   },
 
@@ -1856,7 +1901,17 @@ const layout = StyleSheet.create({
   sparkBlock: { paddingHorizontal: 4, paddingTop: 4 },
 
   // Event row
-  eventRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  eventRow: {
+    minHeight: 64,
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  eventActions: { minHeight: 44, paddingHorizontal: 16, paddingBottom: 8 },
+  eventActionsContent: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  actionText: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 2 },
   eventDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
   eventBody: { flex: 1, minWidth: 0 },
   eventTitleRow: {
@@ -1868,25 +1923,7 @@ const layout = StyleSheet.create({
   eventTitleFlex: { flexShrink: 1 },
   recurringRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
 
-  manualActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 12,
-    rowGap: 4,
-    marginTop: 8,
-  },
   textAction: { paddingVertical: 6, justifyContent: 'center' },
-
-  // Sub renewal actions
-  subActionsBlock: { marginTop: 8 },
-  subActionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 12,
-    rowGap: 6,
-  },
 
   // See on Route
   seeOnRoute: {
@@ -2086,8 +2123,8 @@ export function makeStyles(t: Palette) {
     },
     dayHeader: {
       color: t.muted,
-      fontSize: 10.5,
-      letterSpacing: 1.47,
+      fontSize: 11,
+      letterSpacing: 1.54,
       textTransform: 'uppercase',
     },
     pastMarker: {
@@ -2096,7 +2133,7 @@ export function makeStyles(t: Palette) {
       fontFamily: serif.displayItalic,
       textTransform: 'none',
     },
-    spareRight: { color: t.muted, fontSize: 11, fontVariant: ['tabular-nums'] },
+    spareRight: { color: t.muted, fontSize: 12.5, fontVariant: ['tabular-nums'] },
     // "Full day →" — Week block's full-detail entry point. Matches the web's
     // `text-[10.5px] uppercase tracking-[0.12em] text-[var(--accent)]` treatment.
     fullDayLink: {
@@ -2194,6 +2231,13 @@ export function makeStyles(t: Palette) {
     },
 
     // Event row
+    eventCard: {
+      backgroundColor: t.surface,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
+      overflow: 'hidden',
+    },
     eventTitle: { color: t.ink, fontSize: 13 },
     eventTitleCompact: { color: t.ink, fontSize: 12.5 },
     manualBadge: {
@@ -2231,8 +2275,8 @@ export function makeStyles(t: Palette) {
       textTransform: 'uppercase',
     },
     nudgeRound: {
-      width: 36,
-      height: 36,
+      width: 44,
+      height: 44,
       borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: t.hairline,
@@ -2254,7 +2298,7 @@ export function makeStyles(t: Palette) {
     },
     nudgePill: {
       minWidth: 44,
-      height: 36,
+      height: 44,
       paddingHorizontal: 8,
       borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth,

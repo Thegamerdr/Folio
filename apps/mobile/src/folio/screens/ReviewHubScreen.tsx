@@ -143,7 +143,9 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<ReviewHubTab>('needs');
-  const queueCount = useAppStore((state) => state.reviewQueue?.length ?? 0);
+  const queueCount = useAppStore(
+    (state) => (state.reviewQueue?.length ?? 0) + (state.reviewQueueSpillover?.length ?? 0),
+  );
   const hiddenCount = useAppStore((state) => state.ignoredReviewSigs?.length ?? 0);
   const transactions = useAppStore((state) => state.transactions);
   const edits = useAppStore((state) => state.edits ?? []);
@@ -240,7 +242,13 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
             </View>
           ) : null}
           <View style={styles.screenHost}>
-            <ReviewScreen embedded nav={nav} />
+            {caught && queueCount === 0 ? (
+              <Text style={{ color: t.muted, fontSize: 13, lineHeight: 20, padding: gap.xl }}>
+                Nothing else waiting.
+              </Text>
+            ) : (
+              <ReviewScreen embedded nav={nav} />
+            )}
           </View>
         </View>
       ) : (

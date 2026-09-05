@@ -25,14 +25,7 @@ describe('pinned shell companion perches', () => {
   });
 
   it('owns the pinned personal header-perch family', () => {
-    for (const screen of [
-      'plans',
-      'whatif',
-      'account',
-      'privacy',
-      'timeline',
-      'visualizer',
-    ] as const) {
+    for (const screen of ['plans', 'whatif', 'privacy', 'timeline', 'visualizer'] as const) {
       expect(shellCompanionPlacement(screen, 'auto', 'personal')).toEqual({
         top: 68,
         bubbleLeft: 44,
@@ -63,6 +56,7 @@ describe('pinned shell companion perches', () => {
   });
 
   it('refuses screens with no pinned source perch', () => {
+    expect(shellCompanionPlacement('account', 'auto')).toBeNull();
     expect(shellCompanionPlacement('more', 'auto')).toBeNull();
     expect(shellCompanionPlacement('today', 'auto')).toBeNull();
     expect(shellCompanionPlacement('connections', 'auto')).toBeNull();
