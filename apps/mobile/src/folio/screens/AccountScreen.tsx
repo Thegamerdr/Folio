@@ -166,8 +166,7 @@ const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
   'credit-card': 'Credit card',
 };
 
-// The three doors at a glance — Free/Full/Live (MONEY_MODEL.md §2b). Prices are the paywall's
-// numbers, owner-confirmed 2026-07-11.
+// Plan summaries only; the paywall quotes the exact localized eligible store offer.
 const TIERS: readonly {
   key: 'free' | 'full' | 'live';
   name: string;
@@ -179,16 +178,16 @@ const TIERS: readonly {
   {
     key: 'full',
     name: 'Melo Full',
-    price: '£29.99',
-    priceSuffix: 'one-time',
+    price: 'One-time',
+    priceSuffix: '',
     hint: 'Every lens · yours for good',
   },
   {
     key: 'live',
     name: 'Melo Live',
-    price: '£2.99',
-    priceSuffix: '/mo',
-    hint: 'Unlimited AI reads · sync',
+    price: 'Monthly',
+    priceSuffix: '',
+    hint: 'Metered AI reads · sync',
   },
 ];
 
@@ -996,11 +995,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 const isCurrent =
                   p.key === 'full' ? tier === 'full' || tier === 'trial' : p.key === tier;
                 const priceAria =
-                  p.key === 'full'
-                    ? `${p.price} one-time`
-                    : p.key === 'live'
-                      ? `${p.price} per month`
-                      : p.price;
+                  p.key === 'free' ? p.price : 'See current store price on plan details';
                 return (
                   <Pressable
                     accessibilityLabel={`${p.name} — ${priceAria}. Tap for details.`}

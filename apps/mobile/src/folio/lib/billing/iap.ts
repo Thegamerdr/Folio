@@ -29,7 +29,7 @@ import { Platform } from 'react-native';
 
 /** Billing tiers since the Free/Full/Live restructure (MONEY_MODEL.md §2b): 'full' is a ONE-TIME
  *  non-consumable ("yours forever" — zero marginal cost), 'live' is the only subscription
- *  (unlimited AI reads + live sync when built — the only recurring cost). */
+ *  (metered AI reads + live sync — recurring service costs). */
 export type BillingTier = 'full' | 'live';
 export type BillingCadence = 'monthly' | 'yearly';
 
