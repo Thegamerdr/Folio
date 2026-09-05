@@ -26,6 +26,39 @@ import {
 const bannedSurfaceWords = /\bconfidence\b|confidence_|_confidence|\bscore\b|\bready\b/i;
 
 describe('canonical Today and Timeline from SQLite repository', () => {
+  it('round-trips structural financial action metadata through the SQLite snapshot', async () => {
+    const state = createEmptyLocalLedgerState('2026-06-22');
+    const withTransfer = {
+      ...state,
+      transactions: [
+        {
+          id: 'transfer-leg-out',
+          title: 'Transfer to Savings',
+          amountMinor: -12500,
+          date: '2026-06-21',
+          source: 'manual' as const,
+          status: 'confirmed' as const,
+          protected: false,
+          financialAction: {
+            kind: 'transfer' as const,
+            transferId: 'transfer-sqlite-proof',
+            pairedTransactionId: 'transfer-leg-in',
+            direction: 'out' as const,
+          },
+        },
+      ],
+    };
+    const reloaded = await reloadCanonicalSnapshot(
+      createCanonicalRepositoryForLocalLedgerState(withTransfer).snapshot(),
+    );
+    expect(reloaded.collections.transactions[0]?.financialAction).toEqual({
+      kind: 'transfer',
+      transferId: 'transfer-sqlite-proof',
+      pairedTransactionId: 'transfer-leg-in',
+      direction: 'out',
+    });
+  });
+
   it('rebuilds Today and Timeline from canonical SQLite after reload', async () => {
     const staged = stageStatementImport(
       createEmptyLocalLedgerState('2026-06-22'),

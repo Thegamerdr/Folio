@@ -15,6 +15,7 @@ import {
   createSubscriptionId,
   createWorkspaceId,
   createEntityVersion,
+  type FinancialAction,
   type CycleRecord,
   type Money,
   type Pot,
@@ -67,6 +68,7 @@ export type LocalLedgerTransaction = Readonly<{
   externalId?: string;
   connectionId?: string;
   sourceOrdinal?: number;
+  financialAction?: FinancialAction;
 }>;
 
 export type LocalImportDraft = Readonly<{

@@ -147,6 +147,7 @@ export function synthesizeHistoryCycles(
 
   const byMonth = new Map<string, Transaction[]>();
   for (const txn of transactions) {
+    if (txn.financialAction?.kind === 'transfer') continue;
     const monthKey = monthKeyOf(txn.when);
     if (monthKey >= currentMonthKey) continue; // never the current (or a future) month
     const bucket = byMonth.get(monthKey);
@@ -186,7 +187,8 @@ export function synthesizeHistoryCycles(
     let spendTotal = 0;
     let incomeTotal = 0;
     for (const row of rows) {
-      if (row.amount < 0) spendTotal += -row.amount;
+      if (row.financialAction?.kind === 'refund') spendTotal -= row.amount;
+      else if (row.amount < 0) spendTotal += -row.amount;
       else incomeTotal += row.amount;
     }
     const tightPoint = Math.max(0, Math.round((spendTotal - incomeTotal) * 100) / 100);

@@ -24,7 +24,12 @@ export function computeRitualLedgerActuals(
   const canonicalPotIds = new Set(state.pots.map((pot) => pot.id));
 
   const spent = state.transactions
-    .filter((tx) => tx.amount < 0 && new Date(tx.when).getTime() >= cutoff)
+    .filter(
+      (tx) =>
+        tx.amount < 0 &&
+        tx.financialAction?.kind !== 'transfer' &&
+        new Date(tx.when).getTime() >= cutoff,
+    )
     .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
 
   const setAside = Math.round(

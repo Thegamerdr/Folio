@@ -62,10 +62,12 @@ import {
   stripSeedData,
   payCreditCardFromBank,
   pauseMany,
+  pairRefund,
   repayToPot,
   queueInputFromCandidates,
   rememberMerchantCategory,
   recordWorkspaceOwnerTransferLeg,
+  recordInternalTransfer,
   removeEvidenceDocument,
   removeIncomeSource,
   removeTransaction,
@@ -76,7 +78,9 @@ import {
   rollbackWorkspaceOwnerTransferLeg,
   reviewCandidateSig,
   selectBankBalanceMinor,
+  subscribeStore,
   selectNetPositionMinor,
+  isInternalTransferTransaction,
   setAccountBalance,
   setCurrentBalance,
   setIncomeSources,
@@ -1232,77 +1236,265 @@ describe('applyMeloTool — log_income', () => {
   });
 });
 
-describe('applyMeloTool — log_refund', () => {
-  it('records a POSITIVE refund, tagged in the merchant string, category "other" (no verdict)', () => {
-    const before = getState().transactions.length;
-    const res = applyMeloTool('log_refund', { merchant: 'ASOS', amount: 24.99 });
-    expect(res.applied).toBe(true);
-    expect(getState().transactions.length).toBe(before + 1);
-    const top = getState().transactions[0]!;
-    expect(top.amount).toBe(24.99); // inflow
-    expect(top.merchant).toContain('ASOS');
-    expect(top.merchant.toLowerCase()).toContain('refund'); // honestly tagged as a refund
-    expect(top.category).toBe('other'); // a refund is NOT income — never auto-filed as income
-    expect(top.source).toBe('melo');
+describe('financial actions — transfer and refund boundaries', () => {
+  it('keeps penny arithmetic exact and refuses edits that over-refund a linked purchase', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 0.3, '2026-07-05T00:00:00.000Z');
+    const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 0.1 });
+    const transfer = recordInternalTransfer({
+      fromAccountId: DEFAULT_ACCOUNT_ID,
+      toAccountId: savings.id,
+      amount: 0.2,
+    });
+    expect(getState().accounts?.find((row) => row.id === savings.id)?.balanceMinor).toBe(0.3);
+    expect(getState().accounts?.find((row) => row.id === DEFAULT_ACCOUNT_ID)?.balanceMinor).toBe(
+      0.1,
+    );
+    expect(() => editTransaction(transfer.outgoing.id, { amount: -0.1 }, 'user')).toThrow(/linked/);
+    expect(() => removeTransaction(transfer.incoming.id)).toThrow(/together/);
+    addTransaction({
+      id: 'unrelated-row',
+      merchant: 'History',
+      amount: -1,
+      category: 'other',
+      source: 'manual',
+    });
+    expect(transfer.undo()).toBe(true);
+    expect(getState().transactions.some((row) => row.id === 'unrelated-row')).toBe(true);
+    expect(getState().accounts?.find((row) => row.id === DEFAULT_ACCOUNT_ID)?.balanceMinor).toBe(
+      0.3,
+    );
+    const original = addTransaction({
+      id: 'edit-refund-original',
+      merchant: 'Shop',
+      amount: -10,
+      category: 'other',
+      source: 'manual',
+    });
+    const refund = addTransaction({
+      id: 'edit-refund-credit',
+      merchant: 'Shop',
+      amount: 8,
+      category: 'other',
+      source: 'manual',
+    });
+    const pairing = pairRefund({
+      incomingTransactionId: refund.id,
+      originalTransactionId: original.id,
+    });
+    const before = getState();
+    expect(() => editTransaction(refund.id, { amount: 11 }, 'user')).toThrow(/exceed/);
+    expect(() => editTransaction(original.id, { amount: -5 }, 'user')).toThrow(/exceed/);
+    expect(getState()).toBe(before);
+    expect(pairing.undo()).toBe(true);
+    expect(() => editTransaction(original.id, { amount: -5 }, 'user')).not.toThrow();
   });
-
-  it('"links" to the original spend by recording it in the merchant string, candidate-only', () => {
-    applyMeloTool('log_refund', { merchant: 'ASOS', amount: 10, original: 'ASOS order #123' });
-    const merchant = getState().transactions[0]!.merchant;
-    expect(merchant).toContain('ASOS order #123'); // the link is recorded, not a decided verdict
-  });
-
-  it('rejects bad args (no merchant / non-positive amount)', () => {
-    expect(applyMeloTool('log_refund', { merchant: '', amount: 5 }).applied).toBe(false);
-    expect(applyMeloTool('log_refund', { merchant: 'ASOS', amount: 0 }).applied).toBe(false);
-  });
-
-  it('undo removes the logged refund', () => {
-    const before = getState().transactions.length;
-    const res = applyMeloTool('log_refund', { merchant: 'ASOS', amount: 24.99 });
-    expect(getState().transactions.length).toBe(before + 1);
-    if (res.applied) res.undo();
-    expect(getState().transactions.length).toBe(before);
-  });
-});
-
-describe('applyMeloTool — log_transfer', () => {
-  it('records a neutral PAIR (out + in) on one timestamp that nets to £0', () => {
-    const before = getState().transactions.length;
-    const res = applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 100 });
-    expect(res.applied).toBe(true);
-    // Two legs added.
-    expect(getState().transactions.length).toBe(before + 2);
-    const [first, second] = getState().transactions;
-    // One negative leg, one positive leg, equal magnitude → nets to zero.
-    expect(first!.amount + second!.amount).toBe(0);
-    expect(Math.abs(first!.amount)).toBe(100);
-    // Both legs are neutral 'other', Melo-sourced, share a timestamp, and name both endpoints.
-    expect(first!.category).toBe('other');
-    expect(second!.category).toBe('other');
-    expect(first!.source).toBe('melo');
-    expect(first!.when).toBe(second!.when);
-    const labels = `${first!.merchant} ${second!.merchant}`;
-    expect(labels).toContain('Current');
-    expect(labels).toContain('Savings');
-    expect(labels.toLowerCase()).toContain('transfer');
-  });
-
-  it('rejects bad args (missing endpoint / non-positive amount)', () => {
-    expect(applyMeloTool('log_transfer', { from: '', to: 'Savings', amount: 50 }).applied).toBe(
+  it('records an account-scoped transfer once and rejects an invalid endpoint without mutation', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 500, '2026-07-05T00:00:00.000Z');
+    const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 100 });
+    const before = getState();
+    const result = recordInternalTransfer({
+      fromAccountId: DEFAULT_ACCOUNT_ID,
+      toAccountId: savings.id,
+      amount: 125,
+      when: '2026-07-06T00:00:00.000Z',
+      transferId: 'transfer-test-1',
+    });
+    expect(result.outgoing.financialAction).toEqual({
+      kind: 'transfer',
+      transferId: 'transfer-test-1',
+      pairedTransactionId: result.incoming.id,
+      direction: 'out',
+    });
+    expect(
+      (getState().accounts ?? []).find((account) => account.id === DEFAULT_ACCOUNT_ID)!
+        .balanceMinor,
+    ).toBe(375);
+    expect(
+      (getState().accounts ?? []).find((account) => account.id === savings.id)!.balanceMinor,
+    ).toBe(225);
+    expect(selectBankBalanceMinor(getState())).toBe(selectBankBalanceMinor(before));
+    expect(bankTransactions(getState()).some((row) => isInternalTransferTransaction(row))).toBe(
       false,
     );
+    expect(() =>
+      recordInternalTransfer({
+        fromAccountId: DEFAULT_ACCOUNT_ID,
+        toAccountId: 'missing',
+        amount: 1,
+      }),
+    ).toThrow();
+    expect(getState().transactions).toHaveLength(before.transactions.length + 2);
+    expect(result.undo()).toBe(true);
     expect(
-      applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 0 }).applied,
-    ).toBe(false);
+      (getState().accounts ?? []).find((account) => account.id === DEFAULT_ACCOUNT_ID)!
+        .balanceMinor,
+    ).toBe(500);
+    expect(
+      (getState().accounts ?? []).find((account) => account.id === savings.id)!.balanceMinor,
+    ).toBe(100);
+    expect(getState().transactions).toHaveLength(before.transactions.length);
   });
 
-  it('undo removes BOTH legs', () => {
+  it('pairs an existing credit structurally without creating money, and supports scoped undo', () => {
+    resetToEmpty();
+    const original = addTransaction({
+      id: 'refund-original',
+      when: '2026-07-01T00:00:00.000Z',
+      merchant: 'ASOS',
+      amount: -24.99,
+      category: 'shopping',
+      source: 'manual',
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+    const incoming = addTransaction({
+      id: 'refund-credit',
+      when: '2026-07-03T00:00:00.000Z',
+      merchant: 'ASOS refund',
+      amount: 24.99,
+      category: 'other',
+      source: 'bank',
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+    const before = getState();
+    const result = pairRefund({
+      incomingTransactionId: incoming.id,
+      originalTransactionId: original.id,
+    });
+    expect(getState().transactions).toHaveLength(before.transactions.length);
+    expect(selectBankBalanceMinor(getState())).toBe(selectBankBalanceMinor(before));
+    expect(result.incoming.financialAction).toEqual({
+      kind: 'refund',
+      originalTransactionId: original.id,
+    });
+    expect(() =>
+      pairRefund({ incomingTransactionId: incoming.id, originalTransactionId: original.id }),
+    ).toThrow();
+    expect(result.undo()).toBe(true);
+    expect(
+      getState().transactions.find((row) => row.id === incoming.id)?.financialAction,
+    ).toBeUndefined();
+  });
+
+  it('allows partial refunds up to the original outflow without adding a second credit', () => {
+    resetToEmpty();
+    const original = addTransaction({
+      id: 'partial-original',
+      when: '2026-07-01T00:00:00.000Z',
+      merchant: 'Travel',
+      amount: -100,
+      category: 'other',
+      source: 'manual',
+    });
+    const first = addTransaction({
+      id: 'partial-credit-1',
+      when: '2026-07-02T00:00:00.000Z',
+      merchant: 'Travel refund',
+      amount: 25,
+      category: 'other',
+      source: 'bank',
+    });
+    const second = addTransaction({
+      id: 'partial-credit-2',
+      when: '2026-07-03T00:00:00.000Z',
+      merchant: 'Travel refund',
+      amount: 75,
+      category: 'other',
+      source: 'bank',
+    });
+    pairRefund({ incomingTransactionId: first.id, originalTransactionId: original.id });
+    expect(() =>
+      pairRefund({ incomingTransactionId: second.id, originalTransactionId: original.id }),
+    ).not.toThrow();
+    const third = addTransaction({
+      id: 'partial-credit-3',
+      when: '2026-07-04T00:00:00.000Z',
+      merchant: 'Travel refund',
+      amount: 0.01,
+      category: 'other',
+      source: 'bank',
+    });
+    expect(() =>
+      pairRefund({ incomingTransactionId: third.id, originalTransactionId: original.id }),
+    ).toThrow(/remaining amount/i);
+  });
+
+  it('rejects sub-minor precision and transaction-id collisions without emitting a partial transfer', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 500, '2026-07-05T00:00:00.000Z');
+    const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 100 });
+    const before = getState();
+    let emissions = 0;
+    const unsubscribe = subscribeStore(() => {
+      emissions += 1;
+    });
+    expect(() =>
+      recordInternalTransfer({
+        fromAccountId: DEFAULT_ACCOUNT_ID,
+        toAccountId: savings.id,
+        amount: 1.001,
+      }),
+    ).toThrow(/two decimal places|supported money range/i);
+    expect(emissions).toBe(0);
+    addTransaction({
+      id: 'collision:out',
+      merchant: 'Existing',
+      amount: -1,
+      category: 'other',
+      source: 'manual',
+    });
+    expect(() =>
+      recordInternalTransfer({
+        fromAccountId: DEFAULT_ACCOUNT_ID,
+        toAccountId: savings.id,
+        amount: 1,
+        transferId: 'collision',
+      }),
+    ).toThrow(/identifiers/i);
+    unsubscribe();
+    expect(getState().transactions).toHaveLength(before.transactions.length + 1);
+    expect(
+      (getState().accounts ?? []).find((account) => account.id === DEFAULT_ACCOUNT_ID)
+        ?.balanceMinor,
+    ).toBe(500);
+    expect(
+      (getState().accounts ?? []).find((account) => account.id === savings.id)?.balanceMinor,
+    ).toBe(100);
+  });
+
+  it('does not let an old transfer undo overwrite a later absolute balance correction', () => {
+    resetToEmpty();
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 500, '2026-07-05T00:00:00.000Z');
+    const savings = addAccount({ name: 'Savings', kind: 'savings', balanceMinor: 100 });
+    const result = recordInternalTransfer({
+      fromAccountId: DEFAULT_ACCOUNT_ID,
+      toAccountId: savings.id,
+      amount: 125,
+      transferId: 'guarded-undo',
+    });
+    setAccountBalance(DEFAULT_ACCOUNT_ID, 410, '2026-07-07T00:00:00.000Z');
+    expect(result.undo()).toBe(false);
+    expect(
+      (getState().accounts ?? []).find((account) => account.id === DEFAULT_ACCOUNT_ID)
+        ?.balanceMinor,
+    ).toBe(410);
+    expect(
+      getState().transactions.some(
+        (row) =>
+          row.financialAction?.kind === 'transfer' &&
+          row.financialAction.transferId === 'guarded-undo',
+      ),
+    ).toBe(true);
+  });
+
+  it('requires explicit structural identifiers in the Melo transfer/refund bridge', () => {
     const before = getState().transactions.length;
-    const res = applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 100 });
-    expect(getState().transactions.length).toBe(before + 2);
-    if (res.applied) res.undo();
-    expect(getState().transactions.length).toBe(before);
+    expect(applyMeloTool('log_refund', { merchant: 'ASOS', amount: 24.99 }).applied).toBe(false);
+    expect(
+      applyMeloTool('log_transfer', { from: 'Current', to: 'Savings', amount: 100 }).applied,
+    ).toBe(false);
+    expect(getState().transactions).toHaveLength(before);
   });
 });
 

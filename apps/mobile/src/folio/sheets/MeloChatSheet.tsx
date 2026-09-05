@@ -428,7 +428,7 @@ function MeloChat({
   const decidedRef = useRef<Set<string>>(new Set());
   const turnRequestRef = useRef(0);
   const undoTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [undoMap, setUndoMap] = useState<Record<string, { undo: () => void }>>({});
+  const [undoMap, setUndoMap] = useState<Record<string, { undo: () => boolean | void }>>({});
 
   // Settle one still-pending part immutably. Dismissal deliberately carries no fake tool output;
   // confirmation carries the exact summary/reason returned by applyMeloTool.
@@ -498,7 +498,21 @@ function MeloChat({
   function runUndo(id: string) {
     const entry = undoMap[id];
     if (!entry) return;
-    entry.undo();
+    try {
+      if (entry.undo() === false) {
+        Alert.alert(
+          'Change kept',
+          'The affected records changed after this action. Nothing was undone.',
+        );
+        return;
+      }
+    } catch (reason) {
+      Alert.alert(
+        'Change kept',
+        reason instanceof Error ? reason.message : 'The action could not be undone safely.',
+      );
+      return;
+    }
     recordToolSettlement(id, settleMeloToolUndo(), 'applied');
     const timer = undoTimers.current[id];
     if (timer) {

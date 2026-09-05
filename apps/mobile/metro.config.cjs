@@ -9,7 +9,9 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 const workspaceEntryPoints = {
   '@folio/ai-contracts': path.join(workspaceRoot, 'packages/ai-contracts/src/index.ts'),
   '@folio/business-workspace': path.join(workspaceRoot, 'packages/business-workspace/src/index.ts'),
+  '@folio/calendar-engine': path.join(workspaceRoot, 'packages/calendar-engine/src/index.ts'),
   '@folio/domain': path.join(workspaceRoot, 'packages/domain/src/index.ts'),
+  '@folio/finance-engine': path.join(workspaceRoot, 'packages/finance-engine/src/index.ts'),
   '@folio/first-minute': path.join(workspaceRoot, 'packages/first-minute/src/index.ts'),
   '@folio/import-engine': path.join(workspaceRoot, 'packages/import-engine/src/index.ts'),
   '@folio/melo-engine': path.join(workspaceRoot, 'packages/melo-engine/src/index.ts'),
@@ -19,6 +21,8 @@ const workspaceEntryPoints = {
   '@folio/release-readiness': path.join(workspaceRoot, 'packages/release-readiness/src/index.ts'),
   '@folio/storage': path.join(workspaceRoot, 'packages/storage/src/index.ts'),
   '@folio/store-release': path.join(workspaceRoot, 'packages/store-release/src/index.ts'),
+  '@folio/sync': path.join(workspaceRoot, 'packages/sync/src/index.ts'),
+  '@folio/today-engine': path.join(workspaceRoot, 'packages/today-engine/src/index.ts'),
   '@folio/ui': path.join(workspaceRoot, 'packages/ui/src/index.ts'),
 };
 

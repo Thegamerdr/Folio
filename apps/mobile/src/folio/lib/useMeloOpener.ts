@@ -57,7 +57,12 @@ export function useMeloOpener(overrideMode?: MoneyMode): string {
 
     // 14-day spend snapshot — mirrors MeloChatSheet's snapshot inputs.
     const cutoff = Date.now() - RECENT_WINDOW_DAYS * DAY_MS;
-    const recent = transactions.filter((t) => t.amount < 0 && new Date(t.when).getTime() >= cutoff);
+    const recent = transactions.filter(
+      (t) =>
+        t.amount < 0 &&
+        t.financialAction?.kind !== 'transfer' &&
+        new Date(t.when).getTime() >= cutoff,
+    );
     const byCategory: Record<string, number> = {};
     let totalSpend14d = 0;
     for (const t of recent) {

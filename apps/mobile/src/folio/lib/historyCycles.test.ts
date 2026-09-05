@@ -44,6 +44,25 @@ function fiveRowsIn(monthPrefix: string): Transaction[] {
 // synthesizeHistoryCycles — grouping / thresholds
 // ---------------------------------------------------------------------------
 describe('synthesizeHistoryCycles — grouping', () => {
+  it('keeps refund cash in the cycle net without treating internal transfers as spend or income', () => {
+    const rows = fiveRowsIn('2026-05');
+    rows.push(
+      txn('2026-05-07', 'Refund', 20, {
+        financialAction: { kind: 'refund', originalTransactionId: rows[0]!.id },
+      }),
+    );
+    rows.push(
+      txn('2026-05-08', 'Transfer', -999, {
+        financialAction: {
+          kind: 'transfer',
+          transferId: 't',
+          direction: 'out',
+          pairedTransactionId: 'other',
+        },
+      }),
+    );
+    expect(synthesizeHistoryCycles(rows, [], [], TODAY)[0]?.spare).toBe(-30);
+  });
   it('returns existingCycles unchanged when there are no transactions', () => {
     const existing: CycleRecord[] = [
       { closedAt: '2026-05-25', label: 'May', spare: 10, tightPoint: 5, setAside: 0, note: 'n' },

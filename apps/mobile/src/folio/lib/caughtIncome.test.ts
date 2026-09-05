@@ -103,6 +103,14 @@ describe('findCaughtIncome — surfaces a real, undeclared, non-dismissed signal
     expect(['strong', 'possible']).toContain(sig?.confidence);
   });
 
+  it('does not infer a refund credit as recurring income', () => {
+    const rows = weeklyCredits('Refund desk', 24, '2026-01-05', 4).map((row) => ({
+      ...row,
+      financialAction: { kind: 'refund' as const, originalTransactionId: 'original' },
+    }));
+    expect(findCaughtIncome(rows, [], [])).toEqual([]);
+  });
+
   it('does NOT catch a merchant that already has a declared IncomeSource', () => {
     const txns = monthlyCredits('Acme Ltd', 2200, '2026-04-01', 3);
     const caught = findCaughtIncome(txns, [incomeSource('Acme Ltd')], []);

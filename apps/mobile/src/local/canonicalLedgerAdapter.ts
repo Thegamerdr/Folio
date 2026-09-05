@@ -1113,6 +1113,10 @@ export function createCanonicalMobileStorageRows(
       source_evidence_id: transaction.sourceEvidenceId ?? null,
       external_id: transaction.externalId ?? null,
       connection_id: transaction.connectionId ?? null,
+      financial_action_json:
+        transaction.financialAction === undefined
+          ? null
+          : JSON.stringify(transaction.financialAction),
       data_version: transaction.version.dataVersion,
     })),
     events: snapshot.events.map((event) => ({
@@ -2074,6 +2078,9 @@ function createTransactionProjection(
         ...(transaction.sourceOrdinal === undefined
           ? {}
           : { sourceOrdinal: transaction.sourceOrdinal }),
+        ...(transaction.financialAction === undefined
+          ? {}
+          : { financialAction: transaction.financialAction }),
       };
   const commitment: Commitment | undefined =
     commitmentId === undefined || transaction.amountMinor >= 0

@@ -109,6 +109,8 @@ import { OnboardingSheet } from '@/folio/sheets/OnboardingSheet';
 import { AppearanceSheet } from '@/folio/sheets/AppearanceSheet';
 import { EditTxnSheet } from '@/folio/sheets/EditTxnSheet';
 import { LogSpendSheet } from '@/folio/sheets/LogSpendSheet';
+import { TransferSheet } from '@/folio/sheets/TransferSheet';
+import { RefundSheet } from '@/folio/sheets/RefundSheet';
 import { SubCaughtSheet } from '@/folio/sheets/SubCaughtSheet';
 import { IncomeCaughtSheet } from '@/folio/sheets/IncomeCaughtSheet';
 import { AddEventSheet } from '@/folio/sheets/AddEventSheet';
@@ -770,6 +772,8 @@ export function FolioShell() {
           {sheet === 'log-spend' && (
             <LogSpendSheet visible onClose={closeSheet} initialAmount={logSpendAmount} />
           )}
+          {sheet === 'transfer' && <TransferSheet visible onClose={closeSheet} />}
+          {sheet === 'refund' && <RefundSheet visible onClose={closeSheet} />}
           {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
           {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
           {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
@@ -1056,6 +1060,8 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
   'appearance',
   'edit-txn',
   'log-spend',
+  'transfer',
+  'refund',
   'sub-caught',
   'income-caught',
   'bill-caught',
@@ -1311,6 +1317,8 @@ const SHEET_TITLE: Readonly<Record<NonNullable<SheetId>, string>> = {
   share: 'Share',
   onboarding: 'Welcome',
   'log-spend': 'Log a spend',
+  transfer: 'Record a transfer',
+  refund: 'Pair a refund',
   'log-invoice': 'Log an invoice',
   'log-payment': 'Log a payment',
   'add-plan': 'Add a plan',

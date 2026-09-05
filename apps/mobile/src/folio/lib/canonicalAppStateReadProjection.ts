@@ -749,6 +749,7 @@ function readPostedTransaction(
     sourceEvidenceId: transaction.sourceEvidenceId,
     externalId: transaction.externalId,
     connectionId: transaction.connectionId,
+    financialAction: transaction.financialAction,
     workspaceId: transaction.workspaceId,
   });
 }
@@ -792,6 +793,7 @@ function readTransactionFields(
     sourceEvidenceId: string | undefined;
     externalId: string | undefined;
     connectionId: string | undefined;
+    financialAction?: FinancialTransaction['financialAction'];
     workspaceId: Transaction['workspaceId'];
   }>,
 ): OrderedTransaction {
@@ -813,6 +815,7 @@ function readTransactionFields(
       ...(input.sourceEvidenceId === undefined ? {} : { sourceEvidenceId: input.sourceEvidenceId }),
       ...(input.externalId === undefined ? {} : { externalId: input.externalId }),
       ...(input.connectionId === undefined ? {} : { bankConnectionId: input.connectionId }),
+      ...(input.financialAction === undefined ? {} : { financialAction: input.financialAction }),
     },
   };
 }
@@ -1015,6 +1018,9 @@ function normalizedSourceMoneyProjection(
     ...(transaction.bankConnectionId === undefined
       ? {}
       : { bankConnectionId: transaction.bankConnectionId }),
+    ...(transaction.financialAction === undefined
+      ? {}
+      : { financialAction: transaction.financialAction }),
   }));
   const pots: Pot[] = state.pots.map((pot) => ({
     id: pot.id,

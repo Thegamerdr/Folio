@@ -221,7 +221,12 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   const weekly = useMemo(() => {
     const now = Date.now();
     const weekAgo = now - 7 * 86_400_000;
-    const week = transactions.filter((t) => new Date(t.when).getTime() >= weekAgo && t.amount < 0);
+    const week = transactions.filter(
+      (t) =>
+        new Date(t.when).getTime() >= weekAgo &&
+        t.amount < 0 &&
+        t.financialAction?.kind !== 'transfer',
+    );
     const spent = week.reduce((acc, t) => acc + Math.abs(t.amount), 0);
     const daysWithSpend = new Set(week.map((t) => new Date(t.when).toISOString().slice(0, 10)))
       .size;

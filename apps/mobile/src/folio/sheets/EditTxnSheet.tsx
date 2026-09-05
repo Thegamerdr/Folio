@@ -70,6 +70,9 @@ import {
   attachEvidenceDocumentToTransaction,
   detachEvidenceDocumentFromTransaction,
   editTransaction,
+  getState,
+  pairRefund,
+  undoRefundPair,
   rememberMerchantCategory,
   removeEvidenceDocument,
   useAppStore,
@@ -271,6 +274,7 @@ function EditTxnForm({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [attachingEvidence, setAttachingEvidence] = useState(false);
+  const isLinkedTransfer = txn.financialAction?.kind === 'transfer';
   const accountName = useAppStore((state) => {
     const id = accountIdOf(txn);
     return state.accounts?.find((account) => account.id === id)?.name ?? 'Main';
@@ -310,16 +314,18 @@ function EditTxnForm({
   // The preview and the commit share one normalized patch. Empty merchant input falls back to the
   // current merchant; an invalid amount falls back to the current amount. Neither can fabricate an
   // apparent change or an undo window.
-  const patch = useMemo<TxnEditPatch>(
-    () => ({
+  const patch = useMemo<TxnEditPatch>(() => {
+    const next: TxnEditPatch = {
       merchant: merchant.trim() || txn.merchant,
-      amount: correctedAmount(amountText, txn.amount),
-      when,
       category,
       note: note.trim() || undefined,
-    }),
-    [amountText, category, merchant, note, txn.amount, txn.merchant, when],
-  );
+    };
+    if (!isLinkedTransfer) {
+      next.amount = correctedAmount(amountText, txn.amount);
+      next.when = when;
+    }
+    return next;
+  }, [amountText, category, isLinkedTransfer, merchant, note, txn.amount, txn.merchant, when]);
   const pendingChanges = useMemo(() => previewTxnEdit(txn, patch), [patch, txn]);
 
   // Save — apply the correction to THIS transaction via the store. editTransaction runs the pure
@@ -347,7 +353,17 @@ function EditTxnForm({
       category: txn.category,
       note: txn.note,
     };
-    editTransaction(txn.id, patch, 'user');
+    try {
+      editTransaction(txn.id, patch, 'user');
+    } catch (reason) {
+      Alert.alert(
+        'Correction not saved',
+        reason instanceof Error
+          ? reason.message
+          : 'The linked transaction could not be corrected safely.',
+      );
+      return;
+    }
     void triggerFeedback('transaction-corrected');
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a category correction on a real,
     // already-posted transaction is an explicit override — remember it so a future import for this
@@ -356,7 +372,16 @@ function EditTxnForm({
     if (categoryChanged) rememberMerchantCategory(patch.merchant ?? txn.merchant, category);
     onClose();
     showUndo(`Updated ${txn.merchant}`, () => {
-      editTransaction(txn.id, snapshot, 'user');
+      try {
+        editTransaction(txn.id, snapshot, 'user');
+      } catch (reason) {
+        Alert.alert(
+          'Correction kept',
+          reason instanceof Error
+            ? reason.message
+            : 'The linked records changed. Nothing was undone.',
+        );
+      }
     });
   }
 
@@ -519,31 +544,101 @@ function EditTxnForm({
             {/* Amount — unsigned magnitude input; the original direction is preserved on save. */}
             <View style={s.fieldRow}>
               <Text style={s.fieldLabel}>Amount</Text>
-              <View style={s.amountInputWrap}>
-                <Text style={s.amountPrefix}>£</Text>
-                <TextInput
-                  accessibilityLabel="Amount"
-                  keyboardType="decimal-pad"
-                  onChangeText={setAmountText}
-                  placeholder="0.00"
-                  placeholderTextColor={t.muted}
-                  style={s.amountInput}
-                  value={amountText}
-                />
-              </View>
+              {isLinkedTransfer ? (
+                <Text accessibilityLabel="Amount, linked transfer read only" style={s.fieldValue}>
+                  £{Math.abs(txn.amount).toFixed(2)} · linked
+                </Text>
+              ) : (
+                <View style={s.amountInputWrap}>
+                  <Text style={s.amountPrefix}>£</Text>
+                  <TextInput
+                    accessibilityLabel="Amount"
+                    keyboardType="decimal-pad"
+                    onChangeText={setAmountText}
+                    placeholder="0.00"
+                    placeholderTextColor={t.muted}
+                    style={s.amountInput}
+                    value={amountText}
+                  />
+                </View>
+              )}
             </View>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Date, ${monthDay(when)}. Tap to change.`}
-              onPress={() => setDatePickerOpen(true)}
-              style={({ pressed }) => [s.fieldRow, pressed ? s.pressed : undefined]}
-            >
-              <Text style={s.fieldLabel}>Date</Text>
-              <Text style={s.fieldValue}>{monthDay(when)}</Text>
-            </Pressable>
+            {isLinkedTransfer ? (
+              <View style={s.fieldRow}>
+                <Text style={s.fieldLabel}>Date</Text>
+                <Text style={s.fieldValue}>{monthDay(when)}</Text>
+              </View>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Date, ${monthDay(when)}. Tap to change.`}
+                onPress={() => setDatePickerOpen(true)}
+                style={({ pressed }) => [s.fieldRow, pressed ? s.pressed : undefined]}
+              >
+                <Text style={s.fieldLabel}>Date</Text>
+                <Text style={s.fieldValue}>{monthDay(when)}</Text>
+              </Pressable>
+            )}
 
-            {datePickerOpen ? (
+            {isLinkedTransfer ? (
+              <Text style={s.historyLine}>
+                Transfer amount and date stay linked across both account legs.
+              </Text>
+            ) : null}
+
+            {txn.financialAction?.kind === 'refund' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  const action = txn.financialAction;
+                  if (action?.kind !== 'refund') return;
+                  Alert.alert(
+                    'Unpair this refund?',
+                    'Only the link is removed. Both transactions and all account balances stay unchanged.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Unpair refund',
+                        onPress: () => {
+                          if (!undoRefundPair(txn.id, action.originalTransactionId, workspace.id)) {
+                            Alert.alert(
+                              'Refund link kept',
+                              'The linked records changed. Nothing was unpaired.',
+                            );
+                            return;
+                          }
+                          onClose();
+                          showUndo('Refund unpaired', () => {
+                            try {
+                              if (getState().activeWorkspaceId !== workspace.id)
+                                throw new Error(
+                                  'Return to the original workspace before undoing this action.',
+                                );
+                              pairRefund({
+                                incomingTransactionId: txn.id,
+                                originalTransactionId: action.originalTransactionId,
+                              });
+                            } catch (reason) {
+                              Alert.alert(
+                                'Refund remains unpaired',
+                                reason instanceof Error ? reason.message : 'The records changed.',
+                              );
+                            }
+                          });
+                        },
+                      },
+                    ],
+                  );
+                }}
+                style={s.fieldRow}
+              >
+                <Text style={s.fieldLabel}>Refund link</Text>
+                <Text style={s.fieldValue}>Unpair refund</Text>
+              </Pressable>
+            ) : null}
+
+            {!isLinkedTransfer && datePickerOpen ? (
               <View style={s.datePickerWrap}>
                 <DateTimePicker
                   display={Platform.OS === 'ios' ? 'inline' : 'default'}

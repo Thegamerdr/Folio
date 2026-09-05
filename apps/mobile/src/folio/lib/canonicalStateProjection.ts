@@ -1160,6 +1160,9 @@ function projectTransaction(
     ...(transaction.sourceEvidenceId === undefined
       ? {}
       : { sourceDocumentId: transaction.sourceEvidenceId }),
+    ...(transaction.financialAction === undefined
+      ? {}
+      : { financialAction: transaction.financialAction }),
   };
 }
 

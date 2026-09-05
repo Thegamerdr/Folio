@@ -56,6 +56,19 @@ describe('monthlyIncomeSeries', () => {
   it('empty transactions -> empty series', () => {
     expect(monthlyIncomeSeries([], '2026-04-01')).toEqual([]);
   });
+
+  it('excludes structural refunds and transfer legs from inferred income', () => {
+    expect(
+      monthlyIncomeSeries(
+        [
+          { ...txn('2026-01-05', 1000), financialAction: { kind: 'refund' } },
+          { ...txn('2026-01-06', 500), financialAction: { kind: 'transfer' } },
+          txn('2026-01-07', 1200),
+        ],
+        '2026-02-01',
+      ),
+    ).toEqual([1200]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -138,6 +151,17 @@ describe('monthlySpendBaseline', () => {
     const baseline = monthlySpendBaseline([], '2026-03-01');
     expect(baseline.medianMonthlySpend).toBe(0);
     expect(baseline.monthsObserved).toBe(0);
+  });
+
+  it('excludes internal transfer out legs from spend baselines', () => {
+    const baseline = monthlySpendBaseline(
+      [
+        { ...txn('2026-01-10', -100), financialAction: { kind: 'transfer' } },
+        txn('2026-01-11', -40),
+      ],
+      '2026-02-01',
+    );
+    expect(baseline.medianMonthlySpend).toBe(40);
   });
 });
 

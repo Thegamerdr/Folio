@@ -150,7 +150,13 @@ export function findCaughtSubs(
 ): CaughtSubCandidate[] {
   if (transactions.length === 0) return [];
 
-  const charges = transactions.map(toCharge);
+  const charges = transactions
+    .filter(
+      (transaction) =>
+        transaction.financialAction?.kind !== 'transfer' &&
+        transaction.financialAction?.kind !== 'refund',
+    )
+    .map(toCharge);
   const signals = detectRecurring(charges, now === undefined ? {} : { now });
 
   const known = new Set(knownSubNames.map(normaliseName));

@@ -197,7 +197,11 @@ export function findDriftCandidates(
 
   const incomeSignals = detectIncomeDrift(
     incomeSources.map(toDriftIncomeSource),
-    transactions.map(toIncomeTransaction),
+    transactions
+      .filter(
+        (row) => row.financialAction?.kind !== 'transfer' && row.financialAction?.kind !== 'refund',
+      )
+      .map(toIncomeTransaction),
   ).filter((s) => {
     if (!cooling(s.label)) return true;
     // Cooling down — only a deviation past the (higher) breakthrough bar overrides it. Recompute on
@@ -210,7 +214,7 @@ export function findDriftCandidates(
 
   const billSignals = detectBillDrift(
     subs.map((s) => ({ name: s.name, cost: s.cost })),
-    transactions.map(toCharge),
+    transactions.filter((row) => row.financialAction?.kind !== 'transfer').map(toCharge),
   ).filter((s) => {
     if (!cooling(s.name)) return true;
     return fractionalDeviation(s.detectedCost, s.storedCost) > DRIFT_COOLDOWN_BREAKTHROUGH_FRACTION;

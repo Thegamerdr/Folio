@@ -76,7 +76,7 @@ import {
   enqueuePendingAppStateCommand,
   type PendingAppStateCommandInput,
 } from './lib/typedCommandBridge';
-import type { WorkspaceId } from '@folio/domain';
+import type { FinancialAction, WorkspaceId } from '@folio/domain';
 import {
   emptyBusinessOperationsState,
   hasBusinessOperationsData,
@@ -428,6 +428,8 @@ export type Transaction = {
    *  safe and never crashes a reader — always go through `accountIdOf()`, never read this field raw
    *  when you need "the effective account". */
   accountId?: string;
+  /** Structural relationship for a confirmed transfer/refund action. Never encode this in merchant text. */
+  financialAction?: FinancialAction;
 };
 
 /** ACCOUNTS_MODEL.md §2.1 — a single named account (bank, credit card, savings, or cash). Phase 1
@@ -510,8 +512,16 @@ export function bankTransactions(state: {
   transactions: Transaction[];
 }): Transaction[] {
   const accounts = state.accounts ?? [];
-  if (accounts.length === 0) return state.transactions;
-  return state.transactions.filter((t) => isBankTxn(state, t));
+  if (accounts.length === 0) {
+    return state.transactions.filter((transaction) => !isInternalTransferTransaction(transaction));
+  }
+  return state.transactions.filter((t) => isBankTxn(state, t) && !isInternalTransferTransaction(t));
+}
+
+export function isInternalTransferTransaction(
+  transaction: Pick<Transaction, 'financialAction'>,
+): boolean {
+  return transaction.financialAction?.kind === 'transfer';
 }
 
 /** @rn-engine timeline-verbs — the missing event log the web's ScreenTimeline demo stubbed with 8
@@ -3981,6 +3991,7 @@ export function addTransaction(
     ...(t.accountId !== undefined ? { accountId: t.accountId } : {}),
     ...(t.externalId !== undefined ? { externalId: t.externalId } : {}),
     ...(t.bankConnectionId !== undefined ? { bankConnectionId: t.bankConnectionId } : {}),
+    ...(t.financialAction !== undefined ? { financialAction: t.financialAction } : {}),
   };
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
     [full, ...state.transactions],
@@ -4000,6 +4011,461 @@ export function addTransaction(
     },
   );
   return full;
+}
+
+export type InternalTransferInput = Readonly<{
+  fromAccountId: string;
+  toAccountId: string;
+  amount: number;
+  when?: string;
+  transferId?: string;
+}>;
+
+export type InternalTransferResult = Readonly<{
+  transferId: string;
+  outgoing: Transaction;
+  incoming: Transaction;
+  undo: () => boolean;
+}>;
+
+type TransferUndoExpectation = Readonly<{
+  workspaceId: WorkspaceId;
+  outgoingAccountId: string;
+  incomingAccountId: string;
+  outgoingBalance: number;
+  incomingBalance: number;
+  outgoingBalanceAsOfISO: string;
+  incomingBalanceAsOfISO: string;
+}>;
+
+function activeOwnedCashAccount(accountId: string): Account {
+  const account = (state.accounts ?? []).find((candidate) => candidate.id === accountId);
+  if (
+    account === undefined ||
+    account.closed === true ||
+    account.isLiability ||
+    (account.workspaceId !== undefined && account.workspaceId !== state.activeWorkspaceId)
+  ) {
+    throw new Error('Choose two active owned cash accounts in this workspace.');
+  }
+  return account;
+}
+
+function preciseMoneyAmount(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Transfer amount must be a positive finite amount.');
+  }
+  const minor = Math.round(amount * 100);
+  if (!Number.isSafeInteger(minor)) {
+    throw new Error('Transfer amount is outside the supported money range.');
+  }
+  const precise = minor / 100;
+  if (minor <= 0 || Math.abs(amount - precise) > 1e-8) {
+    throw new Error('Use an amount with at most two decimal places.');
+  }
+  return precise;
+}
+
+function preciseMoneyValue(amount: number, label: string): number {
+  if (!Number.isFinite(amount)) throw new Error(`${label} must be finite.`);
+  const minor = Math.round(amount * 100);
+  if (!Number.isSafeInteger(minor))
+    throw new Error(`${label} is outside the supported money range.`);
+  const precise = minor / 100;
+  if (Math.abs(amount - precise) > 1e-8)
+    throw new Error(`${label} must use at most two decimal places.`);
+  return precise;
+}
+
+/** Record a confirmed internal transfer as one atomic pair of account-scoped legs. */
+export function recordInternalTransfer(input: InternalTransferInput): InternalTransferResult {
+  const originatingWorkspaceId = state.activeWorkspaceId;
+  const fromAccount = activeOwnedCashAccount(input.fromAccountId);
+  const toAccount = activeOwnedCashAccount(input.toAccountId);
+  if (fromAccount.id === toAccount.id) throw new Error('Choose two different accounts.');
+  const amount = preciseMoneyAmount(input.amount);
+  const fromMinor = Math.round(preciseMoneyValue(fromAccount.balanceMinor, 'From balance') * 100);
+  const toMinor = Math.round(preciseMoneyValue(toAccount.balanceMinor, 'To balance') * 100);
+  const amountMinor = Math.round(amount * 100);
+  const nextFromMinor = fromMinor - amountMinor;
+  const nextToMinor = toMinor + amountMinor;
+  if (!Number.isSafeInteger(nextFromMinor) || !Number.isSafeInteger(nextToMinor)) {
+    throw new Error('Transfer account balances are outside the supported money range.');
+  }
+  if (fromAccount.balanceMinor < amount) {
+    throw new Error(`${fromAccount.name} does not hold enough cash for this transfer.`);
+  }
+  const when = input.when ?? new Date().toISOString();
+  if (!Number.isFinite(Date.parse(when))) throw new Error('Transfer date is invalid.');
+  const transferId =
+    input.transferId?.trim() || `transfer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  if (
+    state.transactions.some(
+      (row) =>
+        row.financialAction?.kind === 'transfer' && row.financialAction.transferId === transferId,
+    )
+  ) {
+    throw new Error('This transfer has already been recorded.');
+  }
+  const outgoingId = `${transferId}:out`;
+  const incomingId = `${transferId}:in`;
+  if (state.transactions.some((row) => row.id === outgoingId || row.id === incomingId)) {
+    throw new Error('This transfer uses transaction identifiers that already exist.');
+  }
+  const outgoing: Transaction = {
+    id: outgoingId,
+    workspaceId: state.activeWorkspaceId,
+    when,
+    merchant: `Transfer to ${toAccount.name}`,
+    amount: -amount,
+    category: 'other',
+    source: 'manual',
+    accountId: fromAccount.id,
+    financialAction: {
+      kind: 'transfer',
+      transferId,
+      pairedTransactionId: incomingId,
+      direction: 'out',
+    },
+  };
+  const incoming: Transaction = {
+    id: incomingId,
+    workspaceId: state.activeWorkspaceId,
+    when,
+    merchant: `Transfer from ${fromAccount.name}`,
+    amount,
+    category: 'other',
+    source: 'manual',
+    accountId: toAccount.id,
+    financialAction: {
+      kind: 'transfer',
+      transferId,
+      pairedTransactionId: outgoingId,
+      direction: 'in',
+    },
+  };
+  const { transactions, droppedTransactionCount } = applyTransactionRetention(
+    [incoming, outgoing, ...state.transactions],
+    state.droppedTransactionCount ?? 0,
+  );
+  const accounts = (state.accounts ?? []).map((account) => {
+    if (account.id === fromAccount.id) {
+      return { ...account, balanceMinor: nextFromMinor / 100, balanceAsOfISO: when };
+    }
+    if (account.id === toAccount.id) {
+      return { ...account, balanceMinor: nextToMinor / 100, balanceAsOfISO: when };
+    }
+    return account;
+  });
+  const nextFrom = accounts.find((account) => account.id === fromAccount.id);
+  const nextTo = accounts.find((account) => account.id === toAccount.id);
+  if (
+    accounts.some((account) => !Number.isFinite(account.balanceMinor)) ||
+    nextFrom === undefined ||
+    nextTo === undefined ||
+    !Number.isFinite(nextFrom.balanceMinor) ||
+    !Number.isFinite(nextTo.balanceMinor)
+  ) {
+    throw new Error('Transfer account balances could not be updated safely.');
+  }
+  const bankTotal = accounts
+    .filter((account) => !account.isLiability)
+    .reduce((sum, account) => sum + account.balanceMinor, 0);
+  const currentBalance: CurrentBalance = {
+    ...state.currentBalance,
+    amount: preciseMoneyValue(bankTotal, 'Combined balance'),
+    source: 'corrected',
+    confidence: 'corrected',
+    setAt: when,
+  };
+  setPartialWithTypedCommand(
+    { accounts, currentBalance, transactions, droppedTransactionCount },
+    {
+      commandType: 'folio.transfer.internal.record.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'transfer', id: transferId },
+        { type: 'transaction', id: outgoingId },
+        { type: 'transaction', id: incomingId },
+        { type: 'account', id: fromAccount.id },
+        { type: 'account', id: toAccount.id },
+      ],
+      before: { accounts: [fromAccount, toAccount] },
+      after: {
+        accounts: [
+          accounts.find((account) => account.id === fromAccount.id),
+          accounts.find((account) => account.id === toAccount.id),
+        ],
+        transactions: [outgoing, incoming],
+      },
+      changedEntityIds: [outgoingId, incomingId, fromAccount.id, toAccount.id],
+      invalidatedProjectionKinds: ['transactions', 'account-balances', 'cashflow', 'route'],
+      occurredAt: when,
+    },
+  );
+  return {
+    transferId,
+    outgoing,
+    incoming,
+    undo: () =>
+      undoInternalTransfer(transferId, {
+        workspaceId: originatingWorkspaceId,
+        outgoingAccountId: fromAccount.id,
+        incomingAccountId: toAccount.id,
+        outgoingBalance: nextFrom.balanceMinor,
+        incomingBalance: nextTo.balanceMinor,
+        outgoingBalanceAsOfISO: nextFrom.balanceAsOfISO,
+        incomingBalanceAsOfISO: nextTo.balanceAsOfISO,
+      }),
+  };
+}
+
+/** Scoped compensating undo for one internal transfer; unrelated later rows/accounts remain intact. */
+export function undoInternalTransfer(
+  transferId: string,
+  expected: TransferUndoExpectation,
+): boolean {
+  const workspaceId = expected.workspaceId;
+  if (state.activeWorkspaceId !== workspaceId) return false;
+  const rows = state.transactions.filter(
+    (row) =>
+      row.workspaceId === workspaceId &&
+      row.financialAction?.kind === 'transfer' &&
+      row.financialAction.transferId === transferId,
+  );
+  const outgoing = rows.find(
+    (row) => row.financialAction?.kind === 'transfer' && row.financialAction.direction === 'out',
+  );
+  const incoming = rows.find(
+    (row) => row.financialAction?.kind === 'transfer' && row.financialAction.direction === 'in',
+  );
+  if (rows.length !== 2 || outgoing === undefined || incoming === undefined) return false;
+  const outgoingAction = outgoing.financialAction;
+  const incomingAction = incoming.financialAction;
+  if (
+    accountIdOf(outgoing) === accountIdOf(incoming) ||
+    outgoingAction?.kind !== 'transfer' ||
+    incomingAction?.kind !== 'transfer' ||
+    outgoingAction.pairedTransactionId !== incoming.id ||
+    incomingAction.pairedTransactionId !== outgoing.id ||
+    !Number.isFinite(outgoing.amount) ||
+    !Number.isFinite(incoming.amount) ||
+    !(outgoing.amount < 0) ||
+    !(incoming.amount > 0) ||
+    Math.abs(outgoing.amount + incoming.amount) > 1e-9
+  )
+    return false;
+  const outgoingAccountId = accountIdOf(outgoing);
+  const incomingAccountId = accountIdOf(incoming);
+  const outgoingAccount = (state.accounts ?? []).find(
+    (account) => account.id === outgoingAccountId,
+  );
+  const incomingAccount = (state.accounts ?? []).find(
+    (account) => account.id === incomingAccountId,
+  );
+  if (
+    outgoingAccount === undefined ||
+    incomingAccount === undefined ||
+    outgoingAccount.closed === true ||
+    incomingAccount.closed === true ||
+    outgoingAccount.isLiability ||
+    incomingAccount.isLiability ||
+    (outgoingAccount.workspaceId !== undefined && outgoingAccount.workspaceId !== workspaceId) ||
+    (incomingAccount.workspaceId !== undefined && incomingAccount.workspaceId !== workspaceId) ||
+    !Number.isFinite(outgoingAccount.balanceMinor) ||
+    !Number.isFinite(incomingAccount.balanceMinor) ||
+    (expected !== undefined &&
+      (outgoingAccountId !== expected.outgoingAccountId ||
+        incomingAccountId !== expected.incomingAccountId ||
+        outgoingAccount.balanceMinor !== expected.outgoingBalance ||
+        incomingAccount.balanceMinor !== expected.incomingBalance ||
+        outgoingAccount.balanceAsOfISO !== expected.outgoingBalanceAsOfISO ||
+        incomingAccount.balanceAsOfISO !== expected.incomingBalanceAsOfISO))
+  )
+    return false;
+  const at = new Date().toISOString();
+  const accounts = (state.accounts ?? []).map((account) => {
+    if (account.id === outgoingAccountId) {
+      return {
+        ...account,
+        balanceMinor:
+          (Math.round(account.balanceMinor * 100) - Math.round(outgoing.amount * 100)) / 100,
+        balanceAsOfISO: at,
+      };
+    }
+    if (account.id === incomingAccountId) {
+      return {
+        ...account,
+        balanceMinor:
+          (Math.round(account.balanceMinor * 100) - Math.round(incoming.amount * 100)) / 100,
+        balanceAsOfISO: at,
+      };
+    }
+    return account;
+  });
+  if (accounts.some((account) => !Number.isFinite(account.balanceMinor))) return false;
+  const currentBalance: CurrentBalance = {
+    ...state.currentBalance,
+    amount:
+      Math.round(
+        accounts
+          .filter((account) => !account.isLiability)
+          .reduce((sum, account) => sum + account.balanceMinor, 0) * 100,
+      ) / 100,
+    source: 'corrected',
+    confidence: 'corrected',
+    setAt: at,
+  };
+  setPartialWithTypedCommand(
+    {
+      accounts,
+      currentBalance,
+      transactions: state.transactions.filter(
+        (row) => row.id !== outgoing.id && row.id !== incoming.id,
+      ),
+    },
+    {
+      commandType: 'folio.transfer.internal.undo.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'transfer', id: transferId },
+        { type: 'transaction', id: outgoing.id },
+        { type: 'transaction', id: incoming.id },
+      ],
+      before: { transactions: [outgoing, incoming] },
+      after: {},
+      changedEntityIds: [outgoing.id, incoming.id, outgoingAccountId, incomingAccountId],
+      invalidatedProjectionKinds: ['transactions', 'account-balances', 'cashflow', 'route'],
+    },
+  );
+  return true;
+}
+
+export type RefundPairInput = Readonly<{
+  incomingTransactionId: string;
+  originalTransactionId: string;
+}>;
+
+export type RefundPairResult = Readonly<{
+  incoming: Transaction;
+  original: Transaction;
+  undo: () => boolean;
+}>;
+
+/** Pair an already-posted credit with its actual original outflow without creating money. */
+export function pairRefund(input: RefundPairInput): RefundPairResult {
+  const originatingWorkspaceId = state.activeWorkspaceId;
+  if (input.incomingTransactionId === input.originalTransactionId) {
+    throw new Error('A refund cannot link a transaction to itself.');
+  }
+  const incoming = state.transactions.find((row) => row.id === input.incomingTransactionId);
+  const original = state.transactions.find((row) => row.id === input.originalTransactionId);
+  if (
+    incoming === undefined ||
+    original === undefined ||
+    (incoming.workspaceId !== undefined && incoming.workspaceId !== originatingWorkspaceId) ||
+    (original.workspaceId !== undefined && original.workspaceId !== originatingWorkspaceId)
+  ) {
+    throw new Error('Choose two transactions from the current workspace.');
+  }
+  if (
+    !Number.isFinite(incoming.amount) ||
+    !Number.isFinite(original.amount) ||
+    !(incoming.amount > 0) ||
+    !(original.amount < 0)
+  ) {
+    throw new Error('Choose an incoming credit and its original outflow.');
+  }
+  const incomingAmount = preciseMoneyValue(incoming.amount, 'Refund amount');
+  const originalAmount = preciseMoneyValue(Math.abs(original.amount), 'Original amount');
+  if (
+    incoming.financialAction?.kind === 'transfer' ||
+    original.financialAction?.kind === 'transfer'
+  ) {
+    throw new Error('Internal transfers cannot be paired as refunds.');
+  }
+  if (incoming.financialAction?.kind === 'refund') {
+    throw new Error('This incoming credit is already paired as a refund.');
+  }
+  const alreadyPaired = state.transactions
+    .filter(
+      (row) =>
+        row.financialAction?.kind === 'refund' &&
+        row.financialAction.originalTransactionId === original.id,
+    )
+    .reduce((sum, row) => sum + row.amount, 0);
+  if (!Number.isFinite(alreadyPaired) || alreadyPaired + incomingAmount > originalAmount + 1e-9) {
+    throw new Error('This refund is larger than the remaining amount on the original outflow.');
+  }
+  const linked: Transaction = {
+    ...incoming,
+    workspaceId: state.activeWorkspaceId,
+    financialAction: { kind: 'refund', originalTransactionId: original.id },
+  };
+  setPartialWithTypedCommand(
+    { transactions: state.transactions.map((row) => (row.id === incoming.id ? linked : row)) },
+    {
+      commandType: 'folio.refund.pair.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'transaction', id: incoming.id },
+        { type: 'transaction', id: original.id },
+      ],
+      before: { incoming },
+      after: { incoming: linked, originalTransactionId: original.id },
+      changedEntityIds: [incoming.id, original.id],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'income-signals', 'route'],
+    },
+  );
+  return {
+    incoming: linked,
+    original,
+    undo: () =>
+      undoRefundPair(
+        input.incomingTransactionId,
+        input.originalTransactionId,
+        originatingWorkspaceId,
+      ),
+  };
+}
+
+export function undoRefundPair(
+  incomingTransactionId: string,
+  originalTransactionId: string,
+  workspaceId: WorkspaceId = state.activeWorkspaceId,
+): boolean {
+  if (state.activeWorkspaceId !== workspaceId) return false;
+  const incoming = state.transactions.find((row) => row.id === incomingTransactionId);
+  const original = state.transactions.find((row) => row.id === originalTransactionId);
+  if (
+    incoming === undefined ||
+    original === undefined ||
+    (incoming.workspaceId !== undefined && incoming.workspaceId !== workspaceId) ||
+    (original.workspaceId !== undefined && original.workspaceId !== workspaceId) ||
+    incoming.financialAction?.kind !== 'refund' ||
+    incoming.financialAction.originalTransactionId !== originalTransactionId ||
+    !(incoming.amount > 0) ||
+    !(original.amount < 0)
+  )
+    return false;
+  const restored: Transaction = { ...incoming };
+  delete restored.financialAction;
+  setPartialWithTypedCommand(
+    { transactions: state.transactions.map((row) => (row.id === incoming.id ? restored : row)) },
+    {
+      commandType: 'folio.refund.pair.undo.v1',
+      actorKind: 'user',
+      entityRefs: [
+        { type: 'transaction', id: incoming.id },
+        { type: 'transaction', id: originalTransactionId },
+      ],
+      before: { incoming },
+      after: { incoming: restored },
+      changedEntityIds: [incoming.id, originalTransactionId],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'income-signals', 'route'],
+    },
+  );
+  return true;
 }
 
 export type WorkspaceOwnerTransferLeg = Readonly<{
@@ -4176,6 +4642,7 @@ export function addTransactionsBatch(
     ...(t.accountId !== undefined ? { accountId: t.accountId } : {}),
     ...(t.externalId !== undefined ? { externalId: t.externalId } : {}),
     ...(t.bankConnectionId !== undefined ? { bankConnectionId: t.bankConnectionId } : {}),
+    ...(t.financialAction !== undefined ? { financialAction: t.financialAction } : {}),
   }));
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
     [...fullRows].reverse().concat(state.transactions),
@@ -4241,6 +4708,18 @@ export function syncHistoryCycles(): void {
 export function removeTransaction(id: string) {
   const target = state.transactions.find((transaction) => transaction.id === id);
   if (target === undefined) return;
+  if (target.financialAction?.kind === 'transfer') {
+    throw new Error('Internal transfer legs must be removed together from the transfer action.');
+  }
+  if (
+    state.transactions.some(
+      (transaction) =>
+        transaction.financialAction?.kind === 'refund' &&
+        transaction.financialAction.originalTransactionId === target.id,
+    )
+  ) {
+    throw new Error('This outflow has a paired refund. Unpair the refund before removing it.');
+  }
   setPartialWithTypedCommand(
     {
       transactions: state.transactions.filter((transaction) => transaction.id !== id),
@@ -4616,9 +5095,54 @@ function logStatementImport(
 export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' | 'melo') {
   const target = state.transactions.find((t) => t.id === txnId);
   if (!target) return;
+  if (
+    target.financialAction?.kind === 'transfer' &&
+    ((Object.prototype.hasOwnProperty.call(patch, 'amount') && patch.amount !== target.amount) ||
+      (Object.prototype.hasOwnProperty.call(patch, 'when') && patch.when !== target.when))
+  ) {
+    throw new Error(
+      'Transfer amount and date are linked across both legs and cannot be edited independently.',
+    );
+  }
   const at = new Date().toISOString();
   const { txn: edited, edits } = applyTxnEdit(target, patch, { at, by });
   if (edits.length === 0) return; // no-op edit records nothing and writes nothing.
+  if (edits.some((edit) => edit.field === 'amount')) {
+    const originalId =
+      target.financialAction?.kind === 'refund'
+        ? target.financialAction.originalTransactionId
+        : target.id;
+    const refunds = state.transactions
+      .filter(
+        (row) =>
+          row.financialAction?.kind === 'refund' &&
+          row.financialAction.originalTransactionId === originalId,
+      )
+      .map((row) => (row.id === edited.id ? edited : row));
+    if (refunds.length > 0) {
+      const original =
+        edited.id === originalId ? edited : state.transactions.find((row) => row.id === originalId);
+      if (
+        original === undefined ||
+        !(original.amount < 0) ||
+        refunds.some((row) => !(row.amount > 0))
+      ) {
+        throw new Error('This correction would break the refund link. Unpair the refund first.');
+      }
+      const originalMinor = Math.round(
+        preciseMoneyValue(-original.amount, 'Original amount') * 100,
+      );
+      const refundMinor = refunds.reduce(
+        (sum, row) => sum + Math.round(preciseMoneyValue(row.amount, 'Refund amount') * 100),
+        0,
+      );
+      if (!Number.isSafeInteger(refundMinor) || refundMinor > originalMinor) {
+        throw new Error(
+          'The paired refunds would exceed the corrected original amount. Unpair or correct the refund first.',
+        );
+      }
+    }
+  }
   setPartialWithTypedCommand(
     {
       transactions: state.transactions.map((t) => (t.id === txnId ? edited : t)),
@@ -6258,7 +6782,7 @@ export type MeloToolName = 'log_spend' | 'log_income' | 'log_refund' | 'log_tran
 const MELO_TOOL_NAMES: MeloToolName[] = ['log_spend', 'log_income', 'log_refund', 'log_transfer'];
 
 export type MeloToolResult =
-  | { applied: true; summary: string; undo: () => void }
+  | { applied: true; summary: string; undo: () => boolean | void }
   | { applied: false; reason: string }
   | { applied: false; reason: string; candidates: MeloToolName[] };
 
@@ -6320,12 +6844,9 @@ function coerceCategory(raw: unknown): Transaction['category'] {
 }
 
 /* ---------- Melo log_* tool family — chosen params + behaviour ----------
- * SPEC NOTE for Lovable / owner to confirm. The exact param shapes for
- * log_income / log_refund / log_transfer live in Lovable's project-knowledge,
- * NOT in the design code, so these are a reasonable, documented implementation
- * built ONLY on the existing Transaction model (no new fields, no new category
- * values). Every tool is candidate/honest: Melo proposes, the user confirms in
- * the chat, and each result carries an `undo` closure for the 30s revert.
+ * The log_* bridge accepts only identifiers that let the app perform a real,
+ * scoped mutation. Melo proposes; the caller confirms, and each successful
+ * result carries an `undo` closure for the short revert affordance.
  *
  *   log_spend({ merchant, amount>0, category? })
  *     → one NEGATIVE transaction (a spend). `category` is best-fit or 'other'.
@@ -6337,24 +6858,15 @@ function coerceCategory(raw: unknown): Transaction['category'] {
  *       to 'income' but any valid category the model gives is respected.
  *       Source 'melo'.
  *
- *   log_refund({ merchant, amount>0, original?, category? })
- *     → one POSITIVE transaction tagged as a refund and "linked" to the
- *       original spend WITHOUT auto-deciding a verdict. There is no free-text
- *       note field on Transaction, so the link is recorded honestly in the
- *       `merchant` string as "<merchant> · refund" (and "· re <original>" when
- *       the model passes the original merchant/txn it relates to). Category
- *       stays the honest, non-judgemental 'other' unless the model supplies a
- *       valid one — a refund is NOT income, so it is never silently filed as
- *       income. Source 'melo'.
+ *   log_refund({ incomingTransactionId, originalTransactionId })
+ *     → structurally pairs an already-posted positive credit with its actual
+ *       negative outflow. It creates no transaction and changes no balance.
  *
- *   log_transfer({ from, to, amount>0 })
+ *   log_transfer({ fromAccountId, toAccountId, amount>0 })
  *     → a PAIRED move recorded as TWO neutral transactions on one timestamp:
- *       a negative "out" leg ("<from> → <to> · transfer") and a positive "in"
- *       leg ("<to> ← <from> · transfer"), both category 'other'. A transfer is
- *       money you still own moving between accounts, so the pair nets to £0 and
- *       never reads as a spend or an inflow. Undo removes BOTH legs. Source
- *       'melo'. (A single transfer-tagged record was the alternative; the
- *       paired shape is used so each side is visible where the money lands.)
+ *       a negative out leg and positive in leg with structural pairing metadata.
+ *       A transfer is money you still own moving between accounts, so the pair
+ *       nets to £0 and never reads as a spend or inflow. Undo removes BOTH legs.
  *
  * Pot moves are NO LONGER a Melo tool — addToPot / borrowFromPot are called
  * directly by the app, not through applyMeloTool.
@@ -6396,52 +6908,51 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
       };
     }
     case 'log_refund': {
-      const merchant = String(input.merchant ?? '').trim();
-      const amount = Number(input.amount ?? 0);
-      if (!merchant || !(amount > 0)) return { applied: false, reason: 'bad args' };
-      // Tag it as a refund and (optionally) "link" it to the original spend in the
-      // merchant string — the only free-text field we have. Honest, not a verdict.
-      const original = String(input.original ?? '').trim();
-      const label = original ? `${merchant} · refund · re ${original}` : `${merchant} · refund`;
-      // A refund is an inflow but NOT income; keep 'other' unless the model gives a real category.
-      const category = input.category === undefined ? 'other' : coerceCategory(input.category);
-      const created = addTransaction({ merchant: label, amount: amount, category, source: 'melo' });
-      return {
-        applied: true,
-        summary: `Logged £${amount.toFixed(2)} refund from ${merchant}`,
-        undo: () => removeTransaction(created.id),
-      };
+      const incomingTransactionId = String(input.incomingTransactionId ?? '').trim();
+      const originalTransactionId = String(input.originalTransactionId ?? '').trim();
+      if (!incomingTransactionId || !originalTransactionId) {
+        return {
+          applied: false,
+          reason: 'Choose the actual incoming credit and original outflow first.',
+        };
+      }
+      try {
+        const result = pairRefund({ incomingTransactionId, originalTransactionId });
+        return {
+          applied: true,
+          summary: `Paired ${result.incoming.merchant} with ${result.original.merchant}`,
+          undo: result.undo,
+        };
+      } catch (error) {
+        return {
+          applied: false,
+          reason: error instanceof Error ? error.message : 'Refund pairing failed.',
+        };
+      }
     }
     case 'log_transfer': {
-      const from = String(input.from ?? '').trim();
-      const to = String(input.to ?? '').trim();
+      const fromAccountId = String(input.fromAccountId ?? '').trim();
+      const toAccountId = String(input.toAccountId ?? '').trim();
       const amount = Number(input.amount ?? 0);
-      if (!from || !to || !(amount > 0)) return { applied: false, reason: 'bad args' };
-      // A neutral, paired move: one negative "out" leg + one positive "in" leg on a
-      // shared timestamp, so it nets to £0 and never reads as a spend or an inflow.
-      const when = new Date().toISOString();
-      const outLeg = addTransaction({
-        merchant: `${from} → ${to} · transfer`,
-        amount: -amount,
-        category: 'other',
-        source: 'melo',
-        when,
-      });
-      const inLeg = addTransaction({
-        merchant: `${to} ← ${from} · transfer`,
-        amount: amount,
-        category: 'other',
-        source: 'melo',
-        when,
-      });
-      return {
-        applied: true,
-        summary: `Logged £${amount.toFixed(2)} transfer ${from} → ${to}`,
-        undo: () => {
-          removeTransaction(outLeg.id);
-          removeTransaction(inLeg.id);
-        },
-      };
+      if (!fromAccountId || !toAccountId) {
+        return {
+          applied: false,
+          reason: 'Choose two distinct owned accounts before recording a transfer.',
+        };
+      }
+      try {
+        const result = recordInternalTransfer({ fromAccountId, toAccountId, amount });
+        return {
+          applied: true,
+          summary: `Logged £${amount.toFixed(2)} transfer ${fromAccountId} → ${toAccountId}`,
+          undo: result.undo,
+        };
+      } catch (error) {
+        return {
+          applied: false,
+          reason: error instanceof Error ? error.message : 'Transfer failed.',
+        };
+      }
     }
     default:
       return { applied: false, reason: 'unknown tool' };

@@ -330,8 +330,16 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
     },
     { label: 'Add a date', meta: 'a one-off in or out', onPress: () => nav.openSheet('add-event') },
     { label: 'Sub check-in', meta: 'still worth it? three choices', onPress: () => nav.go('subs') },
-    { label: 'Log a transfer', meta: 'between your own accounts', onPress: undefined },
-    { label: 'Pair a refund', meta: 'link the money in to the earlier spend', onPress: undefined },
+    {
+      label: 'Log a transfer',
+      meta: 'between your own accounts',
+      onPress: () => nav.openSheet('transfer'),
+    },
+    {
+      label: 'Pair a refund',
+      meta: 'link the money in to the earlier spend',
+      onPress: () => nav.openSheet('refund'),
+    },
   ];
 
   return (
@@ -559,7 +567,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                 {addChoices.map((choice, index) => (
                   <Pressable
                     key={choice.label}
-                    accessibilityRole={choice.onPress ? 'button' : undefined}
+                    accessibilityRole="button"
                     onPress={choice.onPress}
                     style={({ pressed: isPressed }) => [
                       styles.choiceRow,

@@ -282,6 +282,20 @@ export type TransactionSplit = Readonly<{
   categoryId?: string;
 }>;
 
+/** Structural local-finance links retained when a mobile transaction is projected into the
+ * canonical ledger. These are relationships, never display-label conventions. */
+export type FinancialAction =
+  | Readonly<{
+      kind: 'transfer';
+      transferId: string;
+      pairedTransactionId: string;
+      direction: 'in' | 'out';
+    }>
+  | Readonly<{
+      kind: 'refund';
+      originalTransactionId: string;
+    }>;
+
 export type FinancialTransaction = Readonly<{
   id: TransactionId;
   workspaceId: WorkspaceId;
@@ -312,6 +326,7 @@ export type FinancialTransaction = Readonly<{
   externalId?: string;
   connectionId?: string;
   sourceOrdinal?: number;
+  financialAction?: FinancialAction;
 }>;
 
 export type TransferLink = Readonly<{
@@ -2548,6 +2563,7 @@ export function createTransaction(input: {
   externalId?: string;
   connectionId?: string;
   sourceOrdinal?: number;
+  financialAction?: FinancialAction;
 }): FinancialTransaction {
   const amount = createMoney(input.amount);
   const splits = (input.splits ?? []).map((split) => createTransactionSplit(split));
@@ -2582,6 +2598,7 @@ export function createTransaction(input: {
     externalId?: string;
     connectionId?: string;
     sourceOrdinal?: number;
+    financialAction?: FinancialAction;
   } = {
     id: typeof input.id === 'string' ? createTransactionId(input.id) : input.id,
     workspaceId:
@@ -2673,6 +2690,7 @@ export function createTransaction(input: {
     }
     transaction.sourceOrdinal = input.sourceOrdinal;
   }
+  if (input.financialAction !== undefined) transaction.financialAction = input.financialAction;
 
   return transaction;
 }

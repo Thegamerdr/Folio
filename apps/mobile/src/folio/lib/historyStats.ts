@@ -25,6 +25,8 @@ export type HistoryTransaction = {
   amount: number;
   /** Optional — when present, enables per-category baselines. */
   category?: string;
+  /** Structural actions are kept out of inferred income/spend baselines. */
+  financialAction?: { kind?: 'transfer' | 'refund' | string };
 };
 
 /** "YYYY-MM" slice of an ISO date/timestamp string. */
@@ -53,7 +55,12 @@ export function monthlyIncomeSeries(
   const byMonth = new Map<string, number>();
 
   for (const txn of transactions) {
-    if (txn.amount <= 0) continue;
+    if (
+      txn.amount <= 0 ||
+      txn.financialAction?.kind === 'transfer' ||
+      txn.financialAction?.kind === 'refund'
+    )
+      continue;
     const monthKey = monthKeyOf(txn.when);
     if (monthKey >= currentMonthKey) continue; // never the current/future month
     byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + txn.amount);
@@ -132,7 +139,7 @@ export function monthlySpendBaseline(
   const byMonth = new Map<string, number>();
 
   for (const txn of transactions) {
-    if (txn.amount >= 0) continue; // spend only
+    if (txn.amount >= 0 || txn.financialAction?.kind === 'transfer') continue; // spend only
     if (category !== undefined && txn.category !== category) continue;
     const monthKey = monthKeyOf(txn.when);
     if (monthKey >= currentMonthKey) continue;
@@ -238,7 +245,7 @@ export function detectAnnualCandidates(
 ): AnnualCandidate[] {
   const groups = new Map<string, { rawNames: string[]; charges: HistoryTransaction[] }>();
   for (const txn of transactions) {
-    if (txn.amount >= 0) continue; // debits only
+    if (txn.amount >= 0 || txn.financialAction?.kind === 'transfer') continue; // debits only
     const key = normaliseMerchant('merchant' in txn ? merchantOf(txn) : '');
     if (key === '') continue;
     let g = groups.get(key);

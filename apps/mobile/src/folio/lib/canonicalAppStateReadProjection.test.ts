@@ -74,6 +74,12 @@ describe('canonical AppState read projection', () => {
           externalId: 'external-neutral-1',
           bankConnectionId: 'connection-local-1',
           accountId: DEFAULT_ACCOUNT_ID,
+          financialAction: {
+            kind: 'transfer',
+            transferId: 'transfer-roundtrip',
+            pairedTransactionId: 'transfer-roundtrip:in',
+            direction: 'out',
+          },
         },
         {
           id: 'txn:future/bank',
@@ -122,6 +128,11 @@ describe('canonical AppState read projection', () => {
     expect(read.transactions).toEqual(
       state.transactions.map((transaction) => ({ ...transaction, workspaceId: workspace.id })),
     );
+    expect(
+      canonical.mobileSnapshot.transactions.find(
+        (transaction) => transaction.sourceTransactionId === 'txn:melo/α?1',
+      )?.financialAction,
+    ).toEqual(state.transactions[0]!.financialAction);
   });
 
   it('round-trips rework continuity, subscription recovery and route holds losslessly', () => {

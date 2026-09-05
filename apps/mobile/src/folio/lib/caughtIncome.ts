@@ -171,7 +171,15 @@ export function findCaughtIncome(
 ): IncomeCaughtCandidate[] {
   if (transactions.length === 0) return [];
 
-  const signals = detectIncomeSources(transactions.map(toIncomeTransaction));
+  const signals = detectIncomeSources(
+    transactions
+      .filter(
+        (transaction) =>
+          transaction.financialAction?.kind !== 'transfer' &&
+          transaction.financialAction?.kind !== 'refund',
+      )
+      .map(toIncomeTransaction),
+  );
   if (signals.length === 0) return [];
 
   const knownLabels = new Set(existingSources.map((s) => normaliseMerchant(s.label)));

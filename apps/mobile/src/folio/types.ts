@@ -90,6 +90,8 @@ export type SheetId =
   | 'share'
   | 'onboarding'
   | 'log-spend'
+  | 'transfer'
+  | 'refund'
   | 'log-invoice'
   | 'log-payment'
   | 'add-plan'
