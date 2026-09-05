@@ -375,3 +375,9 @@ Search entries for the new transfer/refund actions. `516ee6b` fixes those plus C
 coordinate space and pre-layout retry, with a consumed-request guard. Nine targeted cases and mobile
 no-emit passed. Final artifact hashes, installation and verification belong in
 `docs/release-evidence/MELO_ANDROID_REVIEW_CANDIDATE_2026-09-05.md`; do not infer public release approval.
+
+Delivery checkpoint: APK/AAB at `516ee6b` are saved and the exact APK is installed/launching on S9.
+Source/evidence was pushed through `400f4deb`. After development-server recovery, the **current**
+visible normal emulator preview uses port **8082** (the earlier 8081 setup above is historical).
+Root confirmed Today painted in the live preview. The synthetic post-fix Go There interaction did
+not obtain accepted evidence; its source/no-emit acceptance must not be called device verification.
