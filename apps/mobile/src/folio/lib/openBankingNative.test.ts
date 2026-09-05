@@ -65,19 +65,34 @@ describe('Open Banking native client boundary', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('does not contact the Worker during account deletion in a build where banking is off', async () => {
+  it('requires a server deletion receipt even in a build where banking is off', async () => {
     delete process.env[FLAG];
     vi.resetModules();
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({
+        deletedConnections: 1,
+        futureAccessStopped: true,
+        providerSecretsDeleted: true,
+        providerRevocationSupported: false,
+        pendingCallbackMetadataExpiresWithinSeconds: 1200,
+      }),
+    );
     const { deleteOpenBankingAccountData } = await import('./openBankingNative');
 
     await expect(deleteOpenBankingAccountData('clerk-session-token')).resolves.toMatchObject({
-      deletedConnections: 0,
+      deletedConnections: 1,
       futureAccessStopped: true,
       providerSecretsDeleted: true,
       providerRevocationSupported: false,
     });
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://banking.example.test/v1/account',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    delete process.env[URL];
+    await expect(deleteOpenBankingAccountData('clerk-session-token')).rejects.toMatchObject({
+      code: 'deletion_not_configured',
+    });
   });
 
   it('uses the server-provided app return URI for the hosted TrueLayer session', async () => {

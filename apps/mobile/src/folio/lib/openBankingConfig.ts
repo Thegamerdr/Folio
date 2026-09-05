@@ -13,6 +13,11 @@ export function isOpenBankingEnabled(): boolean {
 
 export function getOpenBankingUrl(): string | undefined {
   if (!isOpenBankingEnabled()) return undefined;
+  return getOpenBankingDeletionUrl();
+}
+
+/** A paused connection feature does not prove that this account has no historical bank data. */
+export function getOpenBankingDeletionUrl(): string | undefined {
   const endpoint = validEndpoint(publicValue('EXPO_PUBLIC_MELO_OPEN_BANKING_URL'));
   return endpoint === null ? undefined : endpoint;
 }

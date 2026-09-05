@@ -103,7 +103,8 @@ export async function handleRequest(
   // Provider credentials and a public Worker URL are not sufficient to ship this feature. The
   // current release candidate keeps the whole route dark until regulated-provider approval and
   // store/privacy declarations are complete.
-  if (!openBankingEnabled(env)) {
+  const accountDeletion = request.method === 'DELETE' && url.pathname === '/v1/account';
+  if (!accountDeletion && !openBankingEnabled(env)) {
     return json(
       { error: 'Bank connection is not available in this release.', code: 'feature_disabled' },
       404,
@@ -111,7 +112,7 @@ export async function handleRequest(
       env,
     );
   }
-  if (configurationIssues.length > 0) {
+  if (!accountDeletion && configurationIssues.length > 0) {
     return json(
       {
         error: 'Bank connection configuration is incomplete.',

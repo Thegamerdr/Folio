@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { openJson, sealJson } from './crypto';
+import { openJson, sealJson, storageUserId } from './crypto';
 import { handleAuthenticatedRequest, handleCallback, handleRequest } from './index';
 import type { OpenBankingStore, ProviderGateway, RuntimeEnv, TransactionsPage } from './types';
 
@@ -104,6 +104,39 @@ function jsonRequest(
 }
 
 describe('Melo Open Banking service', () => {
+  it('permits authenticated historical bank-data deletion while connection setup is disabled', async () => {
+    const { store, values } = memoryStore();
+    const userHash = await storageUserId('deleting-user');
+    const ownKey = `users/${userHash}/workspaces/${WORKSPACE_A_REF}/connections/12345678-1234-4234-8234-123456789abc`;
+    values.set(ownKey, 'encrypted provider data');
+    values.set(`users/${USER_HASH}/unrelated`, 'other account');
+    const disabled = { ...env, OPEN_BANKING_ENABLED: 'false', CONNECTION_ENCRYPTION_KEY: '' };
+    const response = await handleRequest(
+      jsonRequest('DELETE', '/v1/account'),
+      store,
+      fakeProvider(false),
+      disabled,
+      async () => 'deleting-user',
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      deletedConnections: 1,
+      providerSecretsDeleted: true,
+    });
+    expect(values.has(ownKey)).toBe(false);
+    expect(values.get(`users/${USER_HASH}/unrelated`)).toBe('other account');
+    const unauthorized = await handleRequest(
+      jsonRequest('DELETE', '/v1/account'),
+      store,
+      fakeProvider(false),
+      disabled,
+      async () => {
+        throw new Error('no session');
+      },
+    );
+    expect(unauthorized.status).toBe(401);
+  });
+
   it('reports an honest unconfigured health state without authenticating', async () => {
     const { store } = memoryStore();
     const response = await handleRequest(

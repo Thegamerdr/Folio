@@ -10,7 +10,7 @@ import {
 import type { WorkspaceId } from '@folio/domain';
 
 import { workspaceBackupRef } from './cloudBackup';
-import { getOpenBankingUrl, isOpenBankingEnabled } from './openBankingConfig';
+import { getOpenBankingDeletionUrl, getOpenBankingUrl } from './openBankingConfig';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -136,17 +136,6 @@ export async function disconnectOpenBankingConnection(
 export async function deleteOpenBankingAccountData(
   token: string,
 ): Promise<OpenBankingAccountDeletionResponse> {
-  // The release candidate does not expose Open Banking. Account deletion remains complete and
-  // deterministic without making a request to an undeclared provider endpoint.
-  if (!isOpenBankingEnabled()) {
-    return {
-      deletedConnections: 0,
-      futureAccessStopped: true,
-      providerSecretsDeleted: true,
-      providerRevocationSupported: false,
-      pendingCallbackMetadataExpiresWithinSeconds: 0,
-    };
-  }
   const payload = await requestJson('/v1/account', token, null, { method: 'DELETE' });
   if (!record(payload)) throw invalidResponse();
   const deletedConnections = payload['deletedConnections'];
@@ -171,13 +160,15 @@ export async function deleteOpenBankingAccountData(
   };
 }
 
-function baseUrl(): string {
-  const value = getOpenBankingUrl();
+function baseUrl(accountDeletion: boolean): string {
+  const value = accountDeletion ? getOpenBankingDeletionUrl() : getOpenBankingUrl();
   if (value === undefined) {
     throw new OpenBankingClientError(
-      'Bank connection is not available in this Melo release.',
-      'feature_disabled',
-      404,
+      accountDeletion
+        ? 'Bank-data deletion is not configured. Melo cannot confirm that historical bank data was removed.'
+        : 'Bank connection is not available in this Melo release.',
+      accountDeletion ? 'deletion_not_configured' : 'feature_disabled',
+      accountDeletion ? 503 : 404,
     );
   }
   return value;
@@ -201,7 +192,8 @@ async function requestJson(
     if (workspaceId !== null) {
       headers.set('X-Melo-Workspace-Ref', workspaceBackupRef(workspaceId));
     }
-    const response = await fetch(`${baseUrl()}${path}`, {
+    const accountDeletion = init.method === 'DELETE' && path === '/v1/account';
+    const response = await fetch(`${baseUrl(accountDeletion)}${path}`, {
       ...init,
       headers,
       signal: controller.signal,
